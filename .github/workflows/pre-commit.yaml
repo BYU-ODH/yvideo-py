@@ -1,0 +1,24 @@
+name: Pre-commit
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Run pre-commit
+      run: uvx pre-commit run --all-files
