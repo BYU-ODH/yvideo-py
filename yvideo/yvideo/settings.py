@@ -34,9 +34,11 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
-    "django.contrib.sessions",
     "django.contrib.messages",
+    "django.contrib.sessions",
     "django.contrib.staticfiles",
+    "reversion",  # django-reversion
+    "yvideo",
 ]
 
 MIDDLEWARE = [
@@ -125,4 +127,4 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CAS_SERVER_URL = "https://cas.byu.edu/cas/login"
+MEDIA_DIR = BASE_DIR / "media"

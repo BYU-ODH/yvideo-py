@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
 
 
@@ -162,7 +163,7 @@ class Clip(models.Model):
     owner = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name="annotations"
+        related_name="clips"
     )
     name = models.CharField(max_length=255)
     start_time = models.FloatField()
@@ -231,9 +232,30 @@ class Content(models.Model):
 
 class Course(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    dept = models.CharField(max_length=5)
-    catalog_number = models.CharField(max_length=4)
-    section_number = models.CharField(max_length=3)
+    dept = models.CharField(
+        max_length=5,
+        validators=[
+            RegexValidator(
+                regex=r"^[A-Z ]{2,5}$",
+                message="Department must be 2 to 5 uppercase letters or spaces.",
+                code="invalid_dept",
+            )
+        ])
+    catalog_number = models.CharField(max_length=4, validators=[
+        RegexValidator(
+            regex=r"^\d{3}R?$",
+            message="Catalog number must be a 3-digit number.",
+            code="invalid_catalog_number",
+        )
+    ])
+    section_number = models.CharField(max_length=3,
+        validators=[
+            RegexValidator(
+                regex=r"^\d{3}$",
+                message="Section number must be 1 to 3 digits.",
+                code="invalid_section_number",
+            )
+    ])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
