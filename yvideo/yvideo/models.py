@@ -138,9 +138,7 @@ class File(models.Model):
 
 class Annotation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    file = models.ForeignKey(
-        File, on_delete=models.CASCADE, related_name="annotations"
-    )
+    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="annotations")
     owner = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="annotations"
     )
@@ -156,15 +154,8 @@ class Annotation(models.Model):
 
 class Clip(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    file = models.ForeignKey(
-        File,
-        on_delete=models.CASCADE,
-        related_name="clips")
-    owner = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="clips"
-    )
+    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="clips")
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="clips")
     name = models.CharField(max_length=255)
     start_time = models.FloatField()
     end_time = models.FloatField()
@@ -240,22 +231,28 @@ class Course(models.Model):
                 message="Department must be 2 to 5 uppercase letters or spaces.",
                 code="invalid_dept",
             )
-        ])
-    catalog_number = models.CharField(max_length=4, validators=[
-        RegexValidator(
-            regex=r"^\d{3}R?$",
-            message="Catalog number must be a 3-digit number.",
-            code="invalid_catalog_number",
-        )
-    ])
-    section_number = models.CharField(max_length=3,
+        ],
+    )
+    catalog_number = models.CharField(
+        max_length=4,
+        validators=[
+            RegexValidator(
+                regex=r"^\d{3}R?$",
+                message="Catalog number must be a 3-digit number.",
+                code="invalid_catalog_number",
+            )
+        ],
+    )
+    section_number = models.CharField(
+        max_length=3,
         validators=[
             RegexValidator(
                 regex=r"^\d{3}$",
                 message="Section number must be 1 to 3 digits.",
                 code="invalid_section_number",
             )
-    ])
+        ],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -280,7 +277,9 @@ class Subtitle(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="subtitles")
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="subtitles")
-    language = models.ForeignKey(Language, on_delete=models.CASCADE, related_name="subtitles")
+    language = models.ForeignKey(
+        Language, on_delete=models.CASCADE, related_name="subtitles"
+    )
     name = models.CharField(max_length=255)
     subtitles = models.JSONField(blank=True)
     words = models.TextField(blank=True)
