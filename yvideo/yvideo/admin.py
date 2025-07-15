@@ -50,9 +50,10 @@ class CollectionAdmin(VersionAdmin):
 
 @admin.register(File)
 class FileAdmin(VersionAdmin):
-    list_display = ("path", "version", "resource", "full_video", "created_at")
+    list_display = ("file", "resource", "version", "full_video", "created_at")
     list_filter = ("full_video", "created_at")
-    search_fields = ("path", "version", "resource__name")
+    search_fields = ("file", "version", "resource__name")
+    readonly_fields = ("checksum", "checksum_at")
 
 
 @admin.register(Content)
@@ -65,7 +66,27 @@ class ContentAdmin(VersionAdmin):
         "allow_captions",
         "created_at",
     )
+    readonly_fields = ("views",)
     search_fields = ("title", "description", "collection__name")
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if obj:
+            if obj.collection and obj.collection.owner:
+                form.base_fields["file"].queryset = File.objects.filter(
+                    resource__users=obj.collection.owner
+                )
+            else:
+                form.base_fields["file"].queryset = File.objects.none()
+        else:
+            # On the 'add' page, we can't filter by collection owner yet.
+            # Showing no files until a collection is selected and saved.
+            form.base_fields["file"].queryset = File.objects.none()
+            form.base_fields[
+                "file"
+            ].help_text = "Select collection, then save to see available files."
+
+        return form
 
 
 @admin.register(Course)

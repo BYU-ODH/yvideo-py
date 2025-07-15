@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "django-reversion>=5.1.0",
     "django>=5.2.3",
+    "xxhash>=3.5.0",
 ]
 
 [dependency-groups]
