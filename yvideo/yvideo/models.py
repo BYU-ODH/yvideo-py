@@ -437,4 +437,4 @@ class Email(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.netid} | {self.subject} | {self.id}"
+        return f"{self.sender.netid} | {self.subject} | {self.id}"
