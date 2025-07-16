@@ -70,13 +70,26 @@ class ContentAdmin(VersionAdmin):
     search_fields = ("title", "description", "collection__name")
 
     def get_form(self, request, obj=None, **kwargs):
+        """
+        Dynamically filters the 'file' field's queryset.
+
+        If editing an existing Content object, it shows only the files
+        associated with resources owned by the content's collection owner.
+        If adding a new Content object, it shows no files until a collection
+        is selected and saved, guiding the user with help text.
+        """
         form = super().get_form(request, obj, **kwargs)
+        # If we are editing an existing Content object.
         if obj:
+            # Check if the content has a collection and the collection has an owner.
             if obj.collection and obj.collection.owner:
+                # Filter the 'file' field to show only files whose resource is accessible
+                # by the collection's owner.
                 form.base_fields["file"].queryset = File.objects.filter(
                     resource__users=obj.collection.owner
                 )
             else:
+                # If no collection or owner, show no files.
                 form.base_fields["file"].queryset = File.objects.none()
         else:
             # On the 'add' page, we can't filter by collection owner yet.
