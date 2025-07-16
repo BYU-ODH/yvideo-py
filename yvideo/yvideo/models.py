@@ -1,5 +1,4 @@
 import os
-import uuid
 
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
@@ -7,8 +6,6 @@ from django.db import models
 from django.utils import timezone
 import xxhash
 
-
-# TODO: DO NOT COMMIT/MERGE until all on_delete behaviors are correct.
 
 HMS_VALIDATOR = RegexValidator(
     regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",
@@ -38,13 +35,11 @@ class Resource(models.Model):
         WEB = ("www", "Web")
         AUDIO = ("aud", "Audio")
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, unique=True)
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
     requester_netid = models.CharField(max_length=8)
     copyrighted = models.BooleanField(default=True)
     physical_copy_exists = models.BooleanField(default=False)
-    date_ownership_validated = models.DateTimeField(auto_now_add=True)
     views = models.IntegerField(default=0)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -55,9 +50,8 @@ class Resource(models.Model):
 
 
 class User(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     netid = models.CharField(max_length=8, unique=True)
-    person_id = models.CharField(max_length=9, blank=True, null=True)
+    byu_id = models.CharField(max_length=9, blank=True, null=True)
     last_login = models.DateTimeField(null=True, blank=True)
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
@@ -82,7 +76,6 @@ class User(models.Model):
 
 
 class ResourceAccess(models.Model):  # "through" model
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     last_verified = models.DateTimeField()
@@ -97,7 +90,6 @@ class ResourceAccess(models.Model):  # "through" model
 
 
 class Collection(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     owner = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="collections_owned"
@@ -206,7 +198,6 @@ def file_upload_path(instance, filename):
 
 
 class File(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file = models.FileField(
         upload_to=file_upload_path,
         validators=[validate_media_file, validate_unique_checksum],
@@ -248,7 +239,6 @@ class File(models.Model):
 
 
 class Annotation(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="annotations")
     owner = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="annotations"
@@ -264,7 +254,6 @@ class Annotation(models.Model):
 
 
 class Clip(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="clips")
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="clips")
     name = models.CharField(max_length=255)
@@ -280,7 +269,6 @@ class Clip(models.Model):
 
 
 class Content(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     collection = models.ForeignKey(
         Collection,
@@ -323,7 +311,6 @@ class Content(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "content"  # TODO is this necessary?
         unique_together = ("collection", "title")
 
     def __str__(self):
@@ -331,7 +318,6 @@ class Content(models.Model):
 
 
 class Course(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     dept = models.CharField(
         max_length=5,
         validators=[
@@ -375,7 +361,6 @@ class Course(models.Model):
 
 
 class Language(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     language = models.CharField(max_length=30, unique=True, blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -385,7 +370,6 @@ class Language(models.Model):
 
 
 class Subtitle(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="subtitles")
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="subtitles")
     language = models.ForeignKey(
@@ -404,18 +388,7 @@ class Subtitle(models.Model):
         unique_together = ("file", "owner", "language", "name")
 
 
-class AuthToken(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="auth_tokens")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.user.netid} | {self.id}"
-
-
 class FileKey(models.Model):  # "through" model
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="file_keys")
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="file_keys")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -426,7 +399,6 @@ class FileKey(models.Model):  # "through" model
 
 
 class Email(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="emails")
     sender_email = models.EmailField(max_length=255)
     recipients = models.JSONField()
