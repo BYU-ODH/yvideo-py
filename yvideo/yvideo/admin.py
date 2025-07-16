@@ -3,7 +3,6 @@ from reversion.admin import VersionAdmin
 
 from .models import (
     Annotation,
-    AuthToken,
     Clip,
     Collection,
     CollectionUserAccess,
@@ -166,13 +165,6 @@ class CollectionUserAccessAdmin(VersionAdmin):
     list_display = ("user", "collection", "collection_role", "created_at")
     list_filter = ("collection_role", "created_at")
     search_fields = ("user__netid", "collection__name")
-
-
-@admin.register(AuthToken)
-class AuthTokenAdmin(VersionAdmin):
-    list_display = ("user", "created_at")
-    list_filter = ("created_at",)
-    search_fields = ("user__netid", "user__name")
 
 
 @admin.register(FileKey)
