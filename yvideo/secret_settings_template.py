@@ -4,3 +4,5 @@ ALLOWED_HOSTS = []
 DEBUG = True
 SECRET_KEY = ""
 TIME_ZONE = "America/Denver"
+API_CLIENT_ID = ""
+API_CLIENT_SECRET = ""
