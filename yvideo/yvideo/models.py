@@ -74,6 +74,10 @@ class User(models.Model):
     def __str__(self):
         return f"{self.name} | {self.netid}"
 
+    @property
+    def is_admin(self):
+        return self.privilege_level == PrivilegeLevel.ADMIN
+
 
 class ResourceAccess(models.Model):  # "through" model
     user = models.ForeignKey(User, on_delete=models.CASCADE)
