@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.staticfiles",
     "reversion",  # django-reversion
-    "yvideo",
+    "core",
 ]
 
 MIDDLEWARE = [
@@ -58,7 +58,7 @@ ROOT_URLCONF = "yvideo.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "yvideo/templates"],
+        "DIRS": [BASE_DIR / "core/templates/core"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
