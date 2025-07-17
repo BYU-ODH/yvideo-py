@@ -21,7 +21,7 @@ uv sync --dev
 
 3. Set up pre-commit hooks:
 ```bash
-uv run pre-commit install
+uvx pre-commit install
 ```
 
 4. Create secret_settings.py from secret_settings_template.py. Populate secret_settings.py with the correct values
