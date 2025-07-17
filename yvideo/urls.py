@@ -18,9 +18,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from . import views
+from core.urls import urlpatterns as core_urlpatterns
 
-urlpatterns = [
-    path("admin/", admin.site.urls),
-    path("", views.index, name="index"),
-]
+urlpatterns = core_urlpatterns
+
+urlpatterns.extend(
+    [
+        path("admin/", admin.site.urls),
+    ]
+)
