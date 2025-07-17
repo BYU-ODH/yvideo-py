@@ -1,7 +1,11 @@
-from django.http import HttpResponse
+from django.shortcuts import render
+from .models import User
 
 
 def index(request):
-    return HttpResponse(
-        "Hello, world! This is the YVideo app index page.", content_type="text/plain"
-    )
+    context = {
+        "user": User.objects.first(),  # TODO: Replace with actual data
+        "collections": [],
+        "public_collections": [],
+    }
+    return render(request, "index.html", context)
