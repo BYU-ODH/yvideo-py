@@ -24,7 +24,10 @@ uv sync --dev
 uv run pre-commit install
 ```
 
-4. Run database migrations:
+4. Create secret_settings.py from secret_settings_template.py
+   Populate secret_settings.py with the correct values
+   
+5. Run database migrations:
 ```bash
 uv run manage.py migrate
 ```
