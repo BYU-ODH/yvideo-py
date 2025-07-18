@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 from reversion.admin import VersionAdmin
 
 from .models import (
@@ -19,11 +20,18 @@ from .models import (
 )
 
 
-@admin.register(User)
+@admin.register(User, UserAdmin)
 class UserAdmin(VersionAdmin):
-    list_display = ("netid", "name", "email", "privilege_level", "created_at")
-    list_filter = ("privilege_level", "created_at")
-    search_fields = ("netid", "name")
+    list_display = (
+        "netid",
+        "first_name",
+        "last_name",
+        "email",
+        "groups",
+        "date_joined",
+    )
+    list_filter = ("groups", "date_joined")
+    search_fields = ("netid", "first_name", "last_name")
 
 
 @admin.register(Resource)

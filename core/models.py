@@ -1,5 +1,6 @@
 import os
 
+from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -49,18 +50,9 @@ class Resource(models.Model):
         return f"{self.name}"
 
 
-class User(models.Model):
+class User(AbstractUser):
     netid = models.CharField(max_length=8, unique=True)
     byu_id = models.CharField(max_length=9, blank=True, null=True)
-    last_login = models.DateTimeField(null=True, blank=True)
-    privilege_level = models.IntegerField(
-        choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
-    )
-    privilege_level_override = models.IntegerField(
-        choices=PrivilegeLevel.choices, blank=True, null=True
-    )
-    name = models.CharField(max_length=255)
-    email = models.EmailField(max_length=255, blank=True)
     resources = models.ManyToManyField(
         Resource, through="ResourceAccess", related_name="users"
     )
@@ -68,15 +60,16 @@ class User(models.Model):
         "Collection", through="CollectionUserAccess", related_name="users"
     )
     courses = models.ManyToManyField("Course", related_name="users", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} | {self.netid}"
+        return f"{self.first_name} {self.last_name} | {self.netid}"
 
-    @property
-    def is_admin(self):
-        return self.privilege_level == PrivilegeLevel.ADMIN
+    USERNAME_FIELD = "netid"
+
+    # we should revisit this when we determine what Django group permission is the admin permission - BDR 7/18/2025
+    # @property
+    # def is_admin(self):
+    #    return self.privilege_level == PrivilegeLevel.ADMIN
 
 
 class ResourceAccess(models.Model):  # "through" model
