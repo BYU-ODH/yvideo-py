@@ -52,7 +52,14 @@ class Resource(models.Model):
 
 class User(AbstractUser):
     netid = models.CharField(max_length=8, unique=True)
+    USERNAME_FIELD = "netid"
     byu_id = models.CharField(max_length=9, blank=True, null=True)
+    privilege_level = models.IntegerField(
+        choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
+    )
+    privilege_level_override = models.IntegerField(
+        choices=PrivilegeLevel.choices, blank=True, null=True
+    )
     resources = models.ManyToManyField(
         Resource, through="ResourceAccess", related_name="users"
     )
@@ -63,8 +70,6 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} | {self.netid}"
-
-    USERNAME_FIELD = "netid"
 
     # we should revisit this when we determine what Django group permission is the admin permission - BDR 7/18/2025
     # @property
