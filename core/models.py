@@ -71,10 +71,9 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.first_name} {self.last_name} | {self.netid}"
 
-    # we should revisit this when we determine what Django group permission is the admin permission - BDR 7/18/2025
-    # @property
-    # def is_admin(self):
-    #    return self.privilege_level == PrivilegeLevel.ADMIN
+    @property
+    def is_admin(self):
+        return self.privilege_level == PrivilegeLevel.ADMIN
 
 
 class ResourceAccess(models.Model):  # "through" model
