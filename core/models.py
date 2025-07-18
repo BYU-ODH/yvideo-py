@@ -383,7 +383,7 @@ class Subtitle(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} | {self.language.language} | {self.file.resource.name} | {self.file.version} | {self.owner.name} | {self.id}"
+        return f"{self.name} | {self.language.language} | {self.file.resource.name} | {self.file.version} | {self.owner.first_name} {self.owner.last_name} | {self.id}"
 
     class Meta:
         unique_together = ("file", "owner", "language", "name")
@@ -396,7 +396,7 @@ class FileKey(models.Model):  # "through" model
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.name} | {self.file.resource.name} | {self.file.version} | {self.id}"
+        return f"{self.user.first_name} {self.user.last_name} | {self.file.resource.name} | {self.file.version} | {self.id}"
 
 
 class Email(models.Model):
