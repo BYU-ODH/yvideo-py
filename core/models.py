@@ -411,3 +411,8 @@ class Email(models.Model):
 
     def __str__(self):
         return f"{self.sender.netid} | {self.subject} | {self.id}"
+
+
+class AuthToken(models.Model):
+    token = models.CharField(max_length=150, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
