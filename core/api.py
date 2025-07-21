@@ -44,7 +44,7 @@ class Api:
 
     def get_current_year_term(self):
         # to determine current year term, we have to compare to today's date
-        today_datetime = datetime.datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
+        today_datetime = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
 
         # get yearterm information
         url = "https://api.byu.edu/bdp/student_academics/academic_control_dates/v1/?control_date_type=CURRICULUM"
@@ -54,6 +54,7 @@ class Api:
         response_data = control_date_json_response["data"]
 
         # determine which yearterm corresponds to current datetime
+        yearterm = None
         for entry in response_data:
             if (
                 entry["start_date_time"] <= today_datetime
@@ -62,4 +63,4 @@ class Api:
                 yearterm = entry["year_term"]
                 break
 
-            return yearterm
+        return yearterm
