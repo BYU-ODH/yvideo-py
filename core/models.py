@@ -1,5 +1,6 @@
 import os
 
+from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -49,18 +50,16 @@ class Resource(models.Model):
         return f"{self.name}"
 
 
-class User(models.Model):
+class User(AbstractUser):
     netid = models.CharField(max_length=8, unique=True)
+    USERNAME_FIELD = "netid"
     byu_id = models.CharField(max_length=9, blank=True, null=True)
-    last_login = models.DateTimeField(null=True, blank=True)
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
     )
     privilege_level_override = models.IntegerField(
         choices=PrivilegeLevel.choices, blank=True, null=True
     )
-    name = models.CharField(max_length=255)
-    email = models.EmailField(max_length=255, blank=True)
     resources = models.ManyToManyField(
         Resource, through="ResourceAccess", related_name="users"
     )
@@ -68,11 +67,9 @@ class User(models.Model):
         "Collection", through="CollectionUserAccess", related_name="users"
     )
     courses = models.ManyToManyField("Course", related_name="users", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} | {self.netid}"
+        return f"{self.first_name} {self.last_name} | {self.netid}"
 
     @property
     def is_admin(self):
@@ -386,7 +383,7 @@ class Subtitle(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} | {self.language.language} | {self.file.resource.name} | {self.file.version} | {self.owner.name} | {self.id}"
+        return f"{self.name} | {self.language.language} | {self.file.resource.name} | {self.file.version} | {self.owner.first_name} {self.owner.last_name} | {self.id}"
 
     class Meta:
         unique_together = ("file", "owner", "language", "name")
@@ -399,7 +396,7 @@ class FileKey(models.Model):  # "through" model
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.name} | {self.file.resource.name} | {self.file.version} | {self.id}"
+        return f"{self.user.first_name} {self.user.last_name} | {self.file.resource.name} | {self.file.version} | {self.id}"
 
 
 class Email(models.Model):
@@ -414,3 +411,8 @@ class Email(models.Model):
 
     def __str__(self):
         return f"{self.sender.netid} | {self.subject} | {self.id}"
+
+
+class AuthToken(models.Model):
+    token = models.CharField(max_length=150, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
