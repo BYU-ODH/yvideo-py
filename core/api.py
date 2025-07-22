@@ -32,7 +32,7 @@ class Api:
     def generate_auth_token(self):
         # request an auth token from OIT's auth token granting endpoint
         token_request = requests.post(
-            "https://api.byu.edu/token",
+            secret_settings.AUTH_TOKEN_API_URL,
             data={"grant_type": "client_credentials"},
             auth=(secret_settings.CLIENT_ID, secret_settings.CLIENT_SECRET),
         )
@@ -48,7 +48,7 @@ class Api:
         today_datetime = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
 
         # get yearterm information
-        url = "https://api.byu.edu/bdp/student_academics/academic_control_dates/v1/?control_date_type=CURRICULUM"
+        url = secret_settings.YEARTERM_API_URL
         headers = {"Authorization": self.build_auth_header()}
         control_date_request = requests.get(url, headers=headers)
         control_date_json_response = control_date_request.json()
