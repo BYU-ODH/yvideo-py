@@ -1,7 +1,8 @@
 # This file defines the functions used to request data from OIT's APIs
 
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 import yvideo.secret_settings as secret_settings
 from .models import AuthToken
 
