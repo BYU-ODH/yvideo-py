@@ -21,9 +21,16 @@ from .models import (
 
 @admin.register(User)
 class UserAdmin(VersionAdmin):
-    list_display = ("netid", "name", "email", "privilege_level", "created_at")
-    list_filter = ("privilege_level", "created_at")
-    search_fields = ("netid", "name")
+    list_display = (
+        "netid",
+        "first_name",
+        "last_name",
+        "email",
+        "privilege_level",
+        "date_joined",
+    )
+    list_filter = ("privilege_level", "date_joined")
+    search_fields = ("netid", "first_name", "last_name")
 
 
 @admin.register(Resource)
