@@ -171,3 +171,35 @@ class Api:
             return parsed_summary
         else:
             return None
+
+    def get_student_enrollments(self, net_id, yearterm):
+        url = (
+            secret_settings.API_STUDENT_ENROLLMENTS_URL
+            + "?net_id="
+            + net_id
+            + "&year_term="
+            + yearterm
+        )
+        headers = {"Authorization": self.build_auth_header()}
+        records_request = requests.get(url, headers=headers)
+        records_json_res = records_request.json()
+        records_data = records_json_res["data"]
+        if len(records_data) > 0:
+            parsed_records = []
+            for record in records_data:
+                parsed_records.append(
+                    {
+                        "curriculum_id": record["curriculum_id"],
+                        "title_code": record["title_code"],
+                        "section_number": record["section_number"],
+                        "teaching_area": record["teaching_area"],
+                        "catalog_number": record["catalog_number"],
+                        "catalog_suffix": record["catalog_suffix"],
+                        "credit_hours": record["credit_hours"],
+                        "withdraw_flag": record["withdraw_flag"],
+                        "audit_flag": record["audit_flag"],
+                    }
+                )
+            return parsed_records
+        else:
+            return None
