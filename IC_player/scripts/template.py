@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from shutil import move
 import sys
@@ -17,7 +16,7 @@ move(str(mp4), str(target_dir / ".ic" / f"{stem}.mp4"))
 with (local_dir / "template.icf").open() as f:
     icf = f.read()
 icf = icf.replace("filename", stem)
-with (target_dir / f"{stem}.icf").open('w') as f:
+with (target_dir / f"{stem}.icf").open("w") as f:
     f.write(icf)
 
 with (target_dir / f"{stem}.json").open("w") as f:

@@ -14,7 +14,7 @@ else:
         try:
             ann_in = json.load(jfile)
         except Exception as e:
-            print(f'Loading {sys.argv[1]} file failed', e, file=sys.stderr)
+            print(f"Loading {sys.argv[1]} file failed", e, file=sys.stderr)
 
 ann_out = []
 
@@ -29,9 +29,10 @@ def stringify(flt):
 
 for a_i, a in enumerate(ann_in):
     try:
-        if len(a['options']['details']['position']) > 1:
-            tmp_pos_dict = {float(k): v for k, v
-                            in a['options']['details']['position'].items()}
+        if len(a["options"]["details"]["position"]) > 1:
+            tmp_pos_dict = {
+                float(k): v for k, v in a["options"]["details"]["position"].items()
+            }
             times = list(sorted(tmp_pos_dict))
             for t1, t2 in zip(times, times[1:]):
                 tdiff = t2 - t1
@@ -60,8 +61,9 @@ for a_i, a in enumerate(ann_in):
                     if ymid + hmid > 100:
                         hmid = 100 - ymid
                     tmp_pos_dict[tmid] = [xmid, ymid, wmid, hmid]
-            a['options']['details']['position'] = {stringify(t): p for t, p
-                                                   in sorted(tmp_pos_dict.items())}  # noqa:E501
+            a["options"]["details"]["position"] = {
+                stringify(t): p for t, p in sorted(tmp_pos_dict.items())
+            }  # noqa:E501
             ann_out.append(a)
         else:
             ann_out.append(a)
