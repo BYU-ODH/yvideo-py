@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="shortcut icon" href="../resources/filmstrip.png">
+  <title>BYU International Cinema - Video Player</title>
+</head>
+<body>
+  <div id='splashScreen'>
+    <div class='container'>
+      <img id='logo' src='../resources/ic_round.png'></img><br>
+      <div id='selectFilesButtonContainer'>
+        <a href='#' id='playButton' onclick='player.buttonPress()'>
+          <!-- Generator: Adobe Illustrator 19.0.0, SVG Export Plug-In  -->
+          <svg version="1.1"
+             xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+             x="0px" y="0px" width="100px" height="100px" viewBox="0 0 100 100" enable-background="new 0 0 100 100"
+             xml:space="preserve">
+
+          <polygon class='triangle' id="XMLID_18_" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="5" points="
+            36,31 75,52 36,75 "/>
+          </svg>
+
+        </a>
+        <div id="files">Select Files</div>
+      </div>
+    </div>
+    <br>
+    <div id='filePickerDiv' style="display:none;">
+      Select Video Files: <input type="file" id="filePicker" accept=".icf" multiple>
+    </div>
+    <div id="convert2IC" style="position: absolute; bottom: 0; padding: 15px">
+      <button onClick="d = document.getElementById(`convert2IC-more`);
+                       if (d.style.display === `none`)
+                         {d.style.display = `block`}
+                       else {d.style.display = `none`}"
+              style="background: #00000000">Create IC file:</button>
+      <div id="convert2IC-more" style="display: none">
+        Select Video file: <input type="file" id="mp4FilePicker" accept=".mp4">
+        <br>
+        Select Annotations file: <input type="file" id="jsonFilePicker" accept=".json">
+        <br>
+        <button id="convert2ICButton"
+                style="background: gray"
+                onClick="player.generateICDirectory()">Create</button>
+      </div>
+    </div>
+    <button id="toggleAnnotationModeBtn" onclick="player.toggleAnnotationMode()">Annotation Mode</button>
+  </div>
+
+  <div id='playerContainer'>
+    <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;&nbsp;Return to Menu</button>
+    <button id='issueBtn' onclick='player.reportIssue()'>Report an Issue</button>
+    <div id="issueDialog" title="Report an Issue">
+      <p>You can report your issue on GitHub or by sending an email to: robert_reynolds@byu.edu</p>
+    </div>
+    <button id='saveJsonBtn' onclick='player.saveJson()'>Save JSON Filters</button>
+    <button id='reloadJsonBtn' onclick='player.reloadJson()'>Reload JSON Filters</button>
+    <video id='player' width='1500' height='800' controls="true">
+    </video>
+
+    <div id='box'></div>
+  </div>
+
+  <script>window.$ = window.jQuery = require('../resources/lib/jquery-3.4.1.min.js');</script>
+  <script src="../resources/lib/jquery-ui.min.js"></script>
+  <link rel="stylesheet" href="../resources/lib/jquery-ui.css">
+  <script type="text/javascript" src="eventlisteners.js"></script>
+  <script type="text/javascript" src="renderer.js"></script>
+
+</body>
+</html>
