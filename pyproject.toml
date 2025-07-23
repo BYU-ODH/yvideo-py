@@ -16,3 +16,6 @@ dev = [
     "pre-commit>=3.0.0",
     "ruff>=0.1.0",
 ]
+
+[tool.ruff]
+    lint.extend-select = ["I", "UP"] # Extend with isort, pydocstyle, and pyupgrade

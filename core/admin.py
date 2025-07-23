@@ -69,8 +69,7 @@ class ContentAdmin(VersionAdmin):
     search_fields = ("title", "description", "collection__name")
 
     def get_form(self, request, obj=None, **kwargs):
-        """
-        Dynamically filters the 'file' field's queryset.
+        """Dynamically filters the 'file' field's queryset.
 
         If editing an existing Content object, it shows only the files
         associated with resources owned by the content's collection owner.
