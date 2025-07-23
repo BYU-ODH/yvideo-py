@@ -189,15 +189,18 @@ class Api:
             for record in records_data:
                 parsed_records.append(
                     {
-                        "curriculum_id": record["curriculum_id"],
-                        "title_code": record["title_code"],
-                        "section_number": record["section_number"],
-                        "teaching_area": record["teaching_area"],
-                        "catalog_number": record["catalog_number"],
-                        "catalog_suffix": record["catalog_suffix"],
-                        "credit_hours": record["credit_hours"],
-                        "withdraw_flag": record["withdraw_flag"],
-                        "audit_flag": record["audit_flag"],
+                        key: record[key]
+                        for key in [
+                            "curriculum_id",
+                            "title_code",
+                            "section_number",
+                            "teaching_area",
+                            "catalog_number",
+                            "catalog_suffix",
+                            "credit_hours",
+                            "withdraw_flag",
+                            "audit_flag",
+                        ]
                     }
                 )
             return parsed_records
