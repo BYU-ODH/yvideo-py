@@ -127,7 +127,7 @@ class Api:
             "worker_id": worker_id,
             "byu_id": byu_id,
         }
-        if len(response_data) > 0:
+        if response_data:
             data = response_data[0]
             worker_positions = data["positions"]
             parsed_summary["first_name"] = data["preferred_first_name"]
@@ -157,7 +157,7 @@ class Api:
         summary_request = requests.get(url, headers=headers)
         summary_json_res = summary_request.json()
         data = summary_json_res["data"]
-        if len(data) > 0:
+        if data:
             data = data[0]
             preferred_first_name = data["preferred_name"].split(" ")[0]
             parsed_summary = {
@@ -184,7 +184,7 @@ class Api:
         records_request = requests.get(url, headers=headers)
         records_json_res = records_request.json()
         records_data = records_json_res["data"]
-        if len(records_data) > 0:
+        if records_data:
             parsed_records = []
             for record in records_data:
                 parsed_records.append(
