@@ -1,0 +1,59 @@
+[
+  {
+    "media": [
+      {
+        "target": "player",
+        "url": [
+          "https://hummedia.byu.edu/video/8817200.mp4"
+        ],
+        "tracks": [
+          {
+            "id": "59935fad04743b623b6c95d5",
+            "required": false,
+            "name": "Layer 0",
+            "trackEvents": [
+              {
+                "popcornOptions": {
+                  "start": "34",
+                  "end": "35",
+                  "target": "target-0"
+                },
+                "type": "skip"
+              },
+              {
+                "popcornOptions": {
+                  "start": "37",
+                  "end": "48",
+                  "target": "target-0"
+                },
+                "type": "mutePlugin"
+              },
+              {
+                "popcornOptions": {
+                  "start": "40",
+                  "end": "45",
+                  "target": "target-0"
+                },
+                "type": "blank"
+              },
+              {
+                "popcornOptions": {
+                  "start": "52",
+                  "end": "55",
+                  "target": "target-0"
+                },
+                "type": "mutePlugin"
+              }
+            ],
+            "settings": null
+          }
+        ],
+        "duration": 2,
+        "id": "598a186804743bf1a11bfb37",
+        "name": "Kung Fu Panda.m4v"
+      }
+    ],
+    "targets": [],
+    "creator": "alex-n-dave"
+  }
+]
