@@ -1,0 +1,11 @@
+{
+  "name": "electron_player",
+  "version": "0.1.1",
+  "main": "app.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^37.2.4"
+  }
+}
