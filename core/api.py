@@ -127,7 +127,7 @@ class Api:
             "worker_id": worker_id,
             "byu_id": byu_id,
         }
-        if len(response_data) > 0:
+        if response_data:
             data = response_data[0]
             worker_positions = data["positions"]
             parsed_summary["first_name"] = data["preferred_first_name"]
@@ -157,7 +157,7 @@ class Api:
         summary_request = requests.get(url, headers=headers)
         summary_json_res = summary_request.json()
         data = summary_json_res["data"]
-        if len(data) > 0:
+        if data:
             data = data[0]
             preferred_first_name = data["preferred_name"].split(" ")[0]
             parsed_summary = {
@@ -169,5 +169,40 @@ class Api:
                 "net_id": data["net_id"],
             }
             return parsed_summary
+        else:
+            return None
+
+    def get_student_enrollments(self, net_id, yearterm):
+        url = (
+            secret_settings.API_STUDENT_ENROLLMENTS_URL
+            + "?net_id="
+            + net_id
+            + "&year_term="
+            + yearterm
+        )
+        headers = {"Authorization": self.build_auth_header()}
+        records_request = requests.get(url, headers=headers)
+        records_json_res = records_request.json()
+        records_data = records_json_res["data"]
+        if records_data:
+            parsed_records = []
+            for record in records_data:
+                parsed_records.append(
+                    {
+                        key: record[key]
+                        for key in [
+                            "curriculum_id",
+                            "title_code",
+                            "section_number",
+                            "teaching_area",
+                            "catalog_number",
+                            "catalog_suffix",
+                            "credit_hours",
+                            "withdraw_flag",
+                            "audit_flag",
+                        ]
+                    }
+                )
+            return parsed_records
         else:
             return None
