@@ -31,7 +31,7 @@ You should have three files before you begin trying to watch a video using elect
 ∟ video.icf
 ∟ video.json
 ```
-The names of the files do not need to match. The mp4 or m4v file contains the video. The json file contains the 
+The names of the files do not need to match. The mp4 or m4v file contains the video. The json file contains the
 annotations which will be displayed. For more information on the format of the json file, please refer
 to the documentation in the `JSONFormat.md` file. The icf file contains something that looks like the following:
 ``` json
