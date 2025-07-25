@@ -1,11 +1,11 @@
 import os
 
-import xxhash
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
+import xxhash
 
 HMS_VALIDATOR = RegexValidator(
     regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",

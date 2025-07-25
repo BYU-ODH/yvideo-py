@@ -1,6 +1,8 @@
 from django.urls import path
 
-from .views import index, player, stream_file
+from .views import index
+from .views import player
+from .views import stream_file
 
 app_name = "core"
 

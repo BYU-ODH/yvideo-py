@@ -19,3 +19,7 @@ dev = [
 
 [tool.ruff]
     lint.extend-select = ["I", "UP"] # Extend with isort, pydocstyle, and pyupgrade
+
+[tool.ruff.lint.isort]
+force-single-line = true
+force-sort-within-sections = true
