@@ -1,5 +1,4 @@
-"""
-ASGI config for yvideo project.
+"""ASGI config for yvideo project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 

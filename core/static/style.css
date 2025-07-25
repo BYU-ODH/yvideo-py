@@ -1,0 +1,509 @@
+/* Player Container Styles */
+.player-container {
+    height: calc(100vh - 6rem);
+    overflow: hidden;
+    position: relative;
+    background-color: black;
+}
+
+.player-container.cursor-hidden {
+    cursor: none;
+}
+
+.player-wrapper {
+    height: 100%;
+    align-content: center;
+    position: relative;
+    background-color: black;
+    display: flex;
+}
+
+#main-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* Preserves aspect ratio, shows entire video */
+    background-color: black;
+}
+
+/* Play/Pause Icon Overlay (center screen icons) */
+.play-pause-icon {
+    align-content: center;
+    opacity: 0.5;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: -50px 0 0 -50px;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background-color: #b4b4b4;
+    box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+    z-index: 15;
+    background-size: 40px 40px;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.play-pause-icon.play-icon {
+    background-image: url('img/play.svg');
+}
+
+.play-pause-icon.pause-icon {
+    background-image: url('img/pause.svg');
+}
+
+.zoom-in-zoom-out {
+    animation: zoom-in-zoom-out 2s ease-out infinite;
+}
+
+@keyframes zoom-in-zoom-out {
+    0% { transform: scale(1, 1); }
+    50% { transform: scale(1.5, 1.5); }
+    100% { transform: scale(1, 1); }
+}
+
+/* Video Overlay and Blank Screen */
+.video-overlay {
+    position: absolute;
+    background-color: transparent;
+    z-index: 10;
+    width: 100%;
+    height: 100%;
+    top: 0px;
+}
+
+.video-overlay.blank {
+    background-color: black;
+}
+
+/* Subtitles */
+.subtitles-overlay {
+    position: absolute;
+    bottom: 80px;
+    color: #ffffff;
+    z-index: 20;
+    height: 80px;
+    width: 100%;
+}
+
+.subtitles-overlay h3 {
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 3px;
+    font-size: 1.8rem;
+    text-align: center;
+    margin: auto;
+    width: auto;
+    height: auto;
+    max-width: 60%;
+    line-height: 1.5;
+    letter-spacing: .7px;
+}
+
+.subtitles-overlay.empty h3 {
+    background-color: transparent;
+}
+
+/* Play Button (before video starts) */
+.play-button {
+    display: block;
+    width: 15rem;
+    height: 15rem;
+    position: relative;
+    margin: auto;
+    top: 40%;
+    cursor: pointer;
+    border-radius: 50%;
+    z-index: 100;
+    opacity: 1;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.play-button.started {
+    opacity: 0;
+}
+
+.play-button.playing {
+    display: none;
+}
+
+@media screen and (max-width: 425px) {
+    .play-button {
+        width: 12rem;
+        height: 12rem;
+        top: 30%;
+    }
+}
+
+@media screen and (max-width: 320px) {
+    .play-button {
+        width: 10rem;
+        height: 10rem;
+        top: 25%;
+    }
+}
+
+/* Player Controls */
+.player-controls {
+    position: absolute;
+    bottom: 0;
+    height: 5rem;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: grid;
+    grid-template-rows: .5rem auto;
+    grid-template-areas: "scrubber scrubber" "left right";
+    z-index: 20;
+    opacity: 1;
+    transition: opacity .5s ease-in-out;
+}
+
+.player-controls.hidden {
+    opacity: 0;
+}
+
+.controls-left {
+    grid-area: left;
+    display: flex;
+    align-items: center;
+}
+
+.controls-right {
+    grid-area: right;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+}
+
+.controls-left button, .controls-right button {
+    height: 2rem;
+    width: 2rem;
+    background-size: contain;
+    border: none;
+    margin: 1rem;
+    outline: none;
+    cursor: pointer;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent;
+}
+
+.controls-left .control-btn, .controls-right .control-btn {
+    background-color: transparent;
+}
+
+.controls-left .control-btn svg, .controls-right .control-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+/* Play/Pause Button in Controls */
+.play-pause-button {
+    background-color: transparent;
+}
+
+.play-pause-button .pause-icon {
+    display: none;
+}
+
+.play-pause-button.playing .play-icon {
+    display: none;
+}
+
+.play-pause-button.playing .pause-icon {
+    display: block;
+}
+
+.play-pause-button svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+/* Other Control Buttons */
+.fullscreen-button {
+    background-color: transparent;
+}
+
+.fullscreen-button .compress-icon {
+    display: none;
+}
+
+.fullscreen-button.fullscreen .expand-icon {
+    display: none;
+}
+
+.fullscreen-button.fullscreen .compress-icon {
+    display: block;
+}
+
+.fullscreen-button svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+.speed-button svg, .captions-button svg, .transcript-button svg {
+    width: 20px;
+    height: 20px;
+    fill: white;
+}
+
+.play-time {
+    color: #AAAAAA;
+    margin: 1rem;
+}
+
+.play-time.active {
+    color: white;
+}
+
+/* Menu Modals */
+.menu-modal {
+    position: absolute;
+    right: 10px;
+    bottom: 60px;
+    width: 150px;
+    height: auto;
+    background-color: rgba(71, 71, 71, 0.8);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    border: 2px solid rgb(71, 71, 71);
+    padding-bottom: 2px;
+    border-radius: 8px;
+}
+
+.menu-modal h3 {
+    display: flex;
+    padding: 2px 2px 2px 5px;
+    margin-bottom: 2px;
+    font-weight: 500 !important;
+    border-bottom: 2px solid white;
+    height: 25px;
+    font-size: 1.55rem;
+    text-align: left;
+    align-items: center;
+}
+
+.menu-modal input {
+    position: relative;
+    width: 100%;
+    height: 30px;
+    font-size: 1.4rem;
+    font-weight: 500;
+    margin: 2px 0px 2px 0px;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: white;
+    cursor: pointer;
+}
+
+.menu-modal input:hover,
+.menu-modal .subtitles-off-button:hover {
+    background-color: rgba(5, 130, 202, 1);
+    color: white;
+}
+
+.menu-modal .active-value {
+    background: url('img/player-check.svg') center no-repeat !important;
+    background-position: calc(100% - 10px) center !important;
+}
+
+.subtitles-off-button {
+    position: relative;
+    width: 100%;
+    height: 30px;
+    font-size: 1.4rem;
+    font-weight: 500;
+    margin: 2px 0px 2px 0px;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: white;
+    cursor: pointer;
+}
+
+/* Scrubber/Timeline */
+.scrubber {
+    grid-area: scrubber;
+    position: relative;
+    height: 0.5rem;
+    background: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+}
+
+.scrubber-progress {
+    height: 100%;
+    background: #ff6b35;
+    width: 0%;
+    transition: width 0.3s ease-out;
+}
+
+.scrubber-dot {
+    position: absolute;
+    top: -2px;
+    left: 0%;
+    width: 6px;
+    height: 6px;
+    background: #ff6b35;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    transition: left 0.3s ease-out;
+    will-change: left;
+}
+
+/* Skip Events on Timeline */
+.skip-event {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(255, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+/* Pause and Alert Messages */
+.pause-message {
+    padding: 1%;
+    width: 90% !important;
+    height: 50% !important;
+    font-size: 1.5rem;
+    position: absolute;
+    display: block;
+    top: 15%;
+    left: 5%;
+    border: 1px solid var(--navy-blue, #003f7f);
+    border-radius: 1px;
+    cursor: pointer;
+    background-color: rgba(241, 241, 244, 0.79);
+    z-index: 10000;
+    visibility: hidden;
+}
+
+.pause-message button {
+    font-size: 1.5rem;
+    background: transparent;
+    border: none;
+    outline: none;
+    position: absolute;
+    display: inline-block;
+    cursor: pointer;
+    top: 90%;
+    left: 90%;
+}
+
+.alert-message {
+    padding: 2vh;
+    width: 30% !important;
+    height: 15% !important;
+    font-size: 1.5rem;
+    position: absolute;
+    top: 40%;
+    left: 30%;
+    border: 1px solid white;
+    border-radius: 1px;
+    cursor: pointer;
+    background-color: rgba(241, 241, 244, 0.80);
+    z-index: 10000;
+    visibility: hidden;
+}
+
+.alert-message button {
+    font-size: 1rem;
+    background: transparent;
+    border: none;
+    outline: none;
+    position: absolute;
+    display: inline-block;
+    cursor: pointer;
+    top: 80%;
+    left: 80%;
+}
+
+/* Mobile Responsive */
+@media screen and (max-width: 425px) {
+    .controls-left button, .controls-right button {
+        height: 1.75rem;
+        width: 1.75rem;
+        margin: .90rem;
+    }
+
+    .controls-left .control-btn svg, .controls-right .control-btn svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    .play-time {
+        margin: .65rem;
+    }
+}
+
+@media screen and (max-width: 375px) {
+    .controls-left button, .controls-right button {
+        height: 1.5rem;
+        width: 1.5rem;
+        margin: .75rem;
+    }
+
+    .controls-left .control-btn svg, .controls-right .control-btn svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    .play-time {
+        margin: .5rem;
+    }
+}
+
+@media screen and (max-width: 320px) {
+    .controls-left button, .controls-right button {
+        margin: .5rem;
+    }
+
+    .play-time {
+        margin: .25rem;
+    }
+}
+
+/* Transcript Sidebar */
+.transcript-sidebar {
+    width: 300px;
+    background: #f5f5f5;
+    border-left: 1px solid #ddd;
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.video-with-transcript {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+    align-content: center;
+}
+
+.video-with-transcript .player-wrapper {
+    flex: 1;
+}
+
+/* Hidden utility */
+.hidden {
+    display: none !important;
+}
+
+.invisible {
+    visibility: hidden !important;
+}
+
+/* Utility for absolute positioning */
+.absolute {
+    position: absolute;
+}
+
+/* Time holder (hidden but used for calculations) */
+.time-holder {
+    visibility: hidden;
+    position: absolute;
+    top: 0px;
+    right: 0px;
+}

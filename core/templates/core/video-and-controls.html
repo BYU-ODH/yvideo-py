@@ -1,0 +1,139 @@
+{% load static %}
+
+<div id="player-container" class="player-container">
+    <!-- Main Video Element -->
+    <video id="main-video"
+            preload="auto"
+        {% if file_key %}
+            <source src="{% url 'stream_file' file_key %}" type="video/mp4">
+        {% endif %}
+        Your browser does not support the video tag.
+    </video>
+
+    <!-- Video Overlay for Subtitles and Annotations -->
+    <div id="video-overlay" class="video-overlay">
+        <!-- Subtitles Overlay -->
+        <div id="subtitles-overlay" class="subtitles-overlay empty">
+            <h3 id="subtitle-text"></h3>
+        </div>
+    </div>
+
+    <!-- Play Button (Initial State) -->
+    <div id="play-button" class="play-button">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+        </svg>
+    </div>
+
+    <!-- Player Controls -->
+    <div id="player-controls" class="player-controls">
+        <!-- Progress Bar / Scrubber -->
+        <div id="scrubber" class="scrubber">
+            <div id="scrubber-progress" class="scrubber-progress"></div>
+            <div id="scrubber-dot" class="scrubber-dot"></div>
+            <!-- Skip Events on Timeline -->
+            <div id="skip-events-container"></div>
+        </div>
+
+
+        <!-- Left Side Controls -->
+        <div class="controls-left">
+            <button id="play-pause-btn" class="play-pause-button">
+                <svg class="play-icon" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                <svg class="pause-icon" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                </svg>
+            </button>
+
+            <div id="play-time" class="play-time">00:00:00</div>
+
+            <button id="start-over" class="control-btn" title="Start Over">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                </svg>
+            </button>
+
+            <button id="prev-sub" class="control-btn hidden" title="Previous Subtitle">
+                {% comment %} TODO add functionality {% endcomment %}
+                <svg viewBox="0 0 24 24">
+                    <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/>
+                </svg>
+            </button>
+
+            <button id="next-sub" class="control-btn hidden" title="Next Subtitle">
+                {% comment %} TODO add functionality {% endcomment %}
+                <svg viewBox="0 0 24 24">
+                    <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Right Side Controls -->
+        <div class="controls-right">
+            <button id="fullscreen-btn" class="fullscreen-button" title="Fullscreen">
+                <svg class="expand-icon" viewBox="0 0 24 24">
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                </svg>
+                <svg class="compress-icon" viewBox="0 0 24 24">
+                    <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+                </svg>
+            </button>
+
+            <button id="speed-btn" class="speed-button" title="Playback Speed">
+                <svg viewBox="0 0 24 24">
+                    <path d="M15,1H9v2h6V1L15,1z M11,14h2V8h-2V14z M19.03,7.39l1.42-1.42c-0.43-0.51-0.9-0.99-1.41-1.41l-1.42,1.42 C16.07,4.74,14.12,4,12,4c-4.97,0-9,4.03-9,9s4.02,9,9,9s9-4.03,9-9C21,10.88,20.26,8.93,19.03,7.39z M12,20c-3.87,0-7-3.13-7-7 s3.13-7,7-7s7,3.13,7,7S15.87,20,12,20z"/>
+                </svg>
+                <span class="speed-text">1x</span>
+            </button>
+
+            <button id="captions-btn" class="captions-button" title="Captions">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V6c0-1.1-.89-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/>
+                </svg>
+            </button>
+
+            <button id="transcript-btn" class="transcript-button" title="Toggle Transcript">
+                <svg viewBox="0 0 24 24">
+                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h8c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                </svg>
+            </button>
+
+            <button id="help-btn" class="control-btn" title="Help">
+                {% comment %} TODO add help functionality {% endcomment %}
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Speed Modal -->
+    <div id="speed-modal" class="menu-modal hidden">
+        <h3>Playback Rate</h3>
+        <div class="speed-options">
+            <input type="button" class="speed-option" data-speed="0.5" value="0.5">
+            <input type="button" class="speed-option" data-speed="0.75" value="0.75">
+            <input type="button" class="speed-option active-value" data-speed="1" value="Normal">
+            <input type="button" class="speed-option" data-speed="1.25" value="1.25">
+            <input type="button" class="speed-option" data-speed="1.5" value="1.5">
+            <input type="button" class="speed-option" data-speed="2" value="2">
+        </div>
+    </div>
+
+    <!-- Captions Modal -->
+    <div id="captions-modal" class="menu-modal hidden">
+        <h3>Select Caption</h3>
+        <div class="caption-options">
+            <button class="subtitles-off-button active-value" data-lang="off">Off</button>
+            <input type="button" class="caption-option" data-lang="en" value="English">
+        </div>
+    </div>
+
+    <div id="pause-message" class="pause-message" style="visibility: hidden;">
+        <!-- Message content will be dynamically inserted here -->
+    </div>
+
+</div>
+<script src="{% static 'js/video-and-controls.js' %}"></script>

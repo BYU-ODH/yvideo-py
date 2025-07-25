@@ -1,0 +1,24 @@
+{% load static %}
+{% include 'base.html' %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
+    {% include 'video-and-controls.html' %}
+
+    <!-- Transcript Sidebar -->
+    <div id="transcript-sidebar" class="transcript-sidebar hidden">
+        <h3>Transcript</h3>
+        <div id="transcript-content" class="transcript-content">
+            <!-- Transcript content will be loaded here -->
+        </div>
+    </div>
+
+</body>
+</html>

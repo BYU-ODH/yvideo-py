@@ -1,22 +1,20 @@
 from django.contrib import admin
 from reversion.admin import VersionAdmin
 
-from .models import (
-    Annotation,
-    Clip,
-    Collection,
-    CollectionUserAccess,
-    Content,
-    Course,
-    Email,
-    File,
-    FileKey,
-    Language,
-    Resource,
-    ResourceAccess,
-    Subtitle,
-    User,
-)
+from .models import Annotation
+from .models import Clip
+from .models import Collection
+from .models import CollectionUserAccess
+from .models import Content
+from .models import Course
+from .models import Email
+from .models import File
+from .models import FileKey
+from .models import Language
+from .models import Resource
+from .models import ResourceAccess
+from .models import Subtitle
+from .models import User
 
 
 @admin.register(User)
@@ -76,8 +74,7 @@ class ContentAdmin(VersionAdmin):
     search_fields = ("title", "description", "collection__name")
 
     def get_form(self, request, obj=None, **kwargs):
-        """
-        Dynamically filters the 'file' field's queryset.
+        """Dynamically filters the 'file' field's queryset.
 
         If editing an existing Content object, it shows only the files
         associated with resources owned by the content's collection owner.

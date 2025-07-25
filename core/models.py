@@ -7,7 +7,6 @@ from django.db import models
 from django.utils import timezone
 import xxhash
 
-
 HMS_VALIDATOR = RegexValidator(
     regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",
     message="Time must be in H:MM:SS format (e.g., 1:23:45.67 or 12:34:56.78)",
