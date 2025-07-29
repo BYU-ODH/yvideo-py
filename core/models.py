@@ -1,5 +1,7 @@
 import os
 
+from django.conf import settings
+from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
@@ -49,7 +51,37 @@ class Resource(models.Model):
         return f"{self.name}"
 
 
+class CustomUserManager(BaseUserManager):
+    def create_user(
+        self,
+        netid,
+        byu_id=None,
+        privilege_level=3,
+        password=None,
+        privilege_level_override=None,
+        **extra_fields,
+    ):
+        user = self.model(
+            netid=netid,
+            byu_id=byu_id,
+            privilege_level=privilege_level,
+            privilege_level_override=privilege_level_override,
+        )
+        password_as_string = str(password)
+        user.set_password(password_as_string)
+        user.save()
+        return user
+
+    def create_superuser(self, netid, password=None, **extra_fields):
+        (extra_fields.setdefault("is_staff", True),)
+        (extra_fields.setdefault("is_superuser", True),)
+        extra_fields.setdefault("is_active", True)
+
+        return self.create_user(netid, password, **extra_fields)
+
+
 class User(AbstractUser):
+    username = None  # We will use netid as a username
     netid = models.CharField(max_length=8, unique=True)
     USERNAME_FIELD = "netid"
     byu_id = models.CharField(max_length=9, blank=True, null=True)
@@ -67,6 +99,8 @@ class User(AbstractUser):
     )
     courses = models.ManyToManyField("Course", related_name="users", blank=True)
 
+    objects = CustomUserManager()
+
     def __str__(self):
         return f"{self.first_name} {self.last_name} | {self.netid}"
 
@@ -76,7 +110,7 @@ class User(AbstractUser):
 
 
 class ResourceAccess(models.Model):  # "through" model
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     last_verified = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -109,7 +143,7 @@ class Collection(models.Model):
 
 
 class CollectionUserAccess(models.Model):  # "through" model
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     collection_role = models.IntegerField(
         choices=CollectionRole.choices, default=CollectionRole.STUDENT
@@ -255,7 +289,9 @@ class Annotation(models.Model):
 
 class Clip(models.Model):
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="clips")
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="clips")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="clips"
+    )
     name = models.CharField(max_length=255)
     start_time = models.CharField(max_length=13, validators=[HMS_VALIDATOR])
     end_time = models.CharField(max_length=13, validators=[HMS_VALIDATOR])
@@ -371,7 +407,9 @@ class Language(models.Model):
 
 class Subtitle(models.Model):
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="subtitles")
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="subtitles")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subtitles"
+    )
     language = models.ForeignKey(
         Language, on_delete=models.CASCADE, related_name="subtitles"
     )
@@ -389,7 +427,9 @@ class Subtitle(models.Model):
 
 
 class FileKey(models.Model):  # "through" model
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="file_keys")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="file_keys"
+    )
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="file_keys")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -399,7 +439,9 @@ class FileKey(models.Model):  # "through" model
 
 
 class Email(models.Model):
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="emails")
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="emails"
+    )
     sender_email = models.EmailField(max_length=255)
     recipients = models.JSONField()
     subject = models.CharField(max_length=255)
