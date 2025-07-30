@@ -1,5 +1,7 @@
 from .api import Api
+from .models import Course
 from .models import User
+from .models import UserCourse
 
 
 def check_for_user_in_db(byu_id):
@@ -45,5 +47,70 @@ def create_new_user(byu_id):
     return result
 
 
-def update_user_enrollment(byu_id):
-    pass
+def check_or_create_course(course):
+    # check if a course exists, if it doesn't, create it
+    try:
+        course_obj = Course.objects.filter(
+            dept=course["teaching_area"],
+            catalog_number=course["catalog_number"] + course["catalog_suffix"],
+            section_number=course["section_number"],
+        )
+    except Course.DoesNotExist:
+        try:
+            course_obj = Course.objects.create(
+                dept=course["teaching_area"],
+                catalog_number=course["catalog_number"] + course["catalog_suffix"],
+                section_number=course["section_number"],
+            )
+        except Exception:
+            return None
+    return course_obj
+
+
+def create_user_course_association(user, course, yearterm):
+    # check if association already exists
+    associations = list(
+        UserCourse.objects.filter(
+            user_id=user.id, course_id=course.id, yearterm=yearterm
+        )
+    )
+    if associations:
+        return
+
+    try:
+        UserCourse.objects.create(
+            user_id=user.id, course_id=course.id, yearterm=yearterm
+        )
+    except Exception:
+        # TODO: report an error here
+        return False
+    return True
+
+
+def update_user_enrollment(user):
+    # get the current yearterm
+    # get courses for the current yearterm
+    # if the yearterm is close to ending, get courses for the next yearterm too
+    api = Api()
+    current_yearterm_lookup = api.get_current_year_term
+    current_yearterm = current_yearterm_lookup["yearterm"]
+    next_yearterm = api.calculate_next_year_term(current_yearterm)
+
+    current_user_enrollments = api.get_student_enrollments(user.netid, current_yearterm)
+    # check that each course exists, if it doesn't, create it
+    for course in current_user_enrollments:
+        result = check_or_create_course(course)
+        if result is None:
+            # TODO: Probably want to report an error here
+            continue
+
+        create_user_course_association(user, course, current_yearterm)
+
+    if current_yearterm_lookup["is_two_weeks_from_end"]:
+        next_yearterm_courses = api.get_student_enrollments(user.netid, next_yearterm)
+        for course in next_yearterm_courses:
+            result = check_or_create_course(course)
+            if result is None:
+                # TODO: report error
+                continue
+            create_user_course_association(user, course, current_yearterm)

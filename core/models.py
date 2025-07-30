@@ -97,7 +97,7 @@ class User(AbstractUser):
     accessible_collections = models.ManyToManyField(
         "Collection", through="CollectionUserAccess", related_name="users"
     )
-    courses = models.ManyToManyField("Course", related_name="users", blank=True)
+    courses = models.ManyToManyField("Course", through="UserCourses", blank=True)
 
     objects = CustomUserManager()
 
@@ -394,6 +394,33 @@ class Course(models.Model):
 
     def __str__(self):
         return f"{self.dept} {self.catalog_number}-{self.section_number}"
+
+
+class UserCourses(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    yearterm = models.ChafField(max_length=5, blank=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def display_yearterm(self):
+        if self.yearterm is None:
+            return ""
+        year_str = self.yearterm[:4]
+        term_str = self.yearterm[4:]
+        term_name = ""
+        if term_str == "1":
+            term_name = "Winter"
+        elif term_str == "3":
+            term_name = "Spring"
+        elif term_str == "4":
+            term_name = "Summer"
+        elif term_str == "5":
+            term_name = "Fall"
+        return f"{term_name} {year_str}"
+
+    def __str__(self):
+        return f"{self.course.dept} {self.course.catalog_number} Section {self.course.section_number} {self.display_yearterm()}"
 
 
 class Language(models.Model):
