@@ -21,6 +21,12 @@ def index(request):
     return render(request, "index.html", context)
 
 
+def login(request):
+    pass  # mostly a stub function
+    # context = {} # get the byu_id from the request somehow (this is from SAML)
+    # result = create_or_update_user(context["byu_id"])
+
+
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
