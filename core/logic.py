@@ -113,12 +113,13 @@ def update_user_enrollment(user):
             create_user_course_association(user, course, current_yearterm)
 
 
-def create_new_user(byu_id):
+def create_or_update_user(byu_id):
     result = {"is_new_user_created": False, "user": None}
     # check if user already exists, if they do, return it
     try:
         user = User.objects.get(byu_id=byu_id)
         result["user"] = user
+        update_user_enrollment(user)
         return result
     except User.DoesNotExist:
         pass
