@@ -399,7 +399,7 @@ class Course(models.Model):
 class UserCourses(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    yearterm = models.ChafField(max_length=5, blank=False)
+    yearterm = models.CharField(max_length=5, blank=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
