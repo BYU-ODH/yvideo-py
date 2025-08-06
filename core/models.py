@@ -56,34 +56,35 @@ class CustomUserManager(BaseUserManager):
         self,
         netid,
         byu_id=None,
-        privilege_level=3,
+        privilege_level=PrivilegeLevel.STUDENT,
         password=None,
         privilege_level_override=None,
         **extra_fields,
     ):
         user = self.model(
             netid=netid,
-            byu_id=byu_id,
             privilege_level=privilege_level,
             privilege_level_override=privilege_level_override,
+            **extra_fields,
         )
-        password_as_string = str(password)
-        user.set_password(password_as_string)
+        user.set_password(password)
         user.save()
         return user
 
     def create_superuser(self, netid, password=None, **extra_fields):
-        (extra_fields.setdefault("is_staff", True),)
-        (extra_fields.setdefault("is_superuser", True),)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
+        extra_fields.setdefault("privilege_level", PrivilegeLevel.ADMIN)
 
-        return self.create_user(netid, password, **extra_fields)
+        return self.create_user(netid=netid, password=password, **extra_fields)
 
 
 class User(AbstractUser):
     username = None  # We will use netid as a username
     netid = models.CharField(max_length=8, unique=True)
     USERNAME_FIELD = "netid"
+    REQUIRED_FIELDS = []
     byu_id = models.CharField(max_length=9, blank=True, null=True)
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
