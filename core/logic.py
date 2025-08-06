@@ -1,7 +1,27 @@
+from django.utils import timezone
+
 from .api import Api
 from .models import Course
 from .models import User
 from .models import UserCourse
+
+CORE_ERROR_LOG_PATH = "./.yvideo-py-core-error.log"
+
+
+def log_error(error_message, error_origin, error_info={}, exception=None):
+    """
+    Writes an error to the specified error log path. Includes datetime error is reported and
+    which function generated the error. If a python exception is provided, this is also logged.
+    """
+
+    error_time = timezone.now()
+    with open(CORE_ERROR_LOG_PATH, "a") as error_log:
+        error_log.write(
+            f"{error_message}\nfrom {error_origin}\nTime: {error_time}\nError information: {error_info}\n"
+            + ""
+            if exception is None
+            else f"Exception: {exception}\n\n"
+        )
 
 
 def check_for_user_in_db(byu_id):
@@ -62,7 +82,13 @@ def check_or_create_course(course):
                 catalog_number=course["catalog_number"] + course["catalog_suffix"],
                 section_number=course["section_number"],
             )
-        except Exception:
+        except Exception as e:
+            log_error(
+                "An error occurred while creating a new course",
+                "core/logic.py check_or_create_course",
+                {"course_info": course},
+                e,
+            )
             return None
     return course_obj
 
@@ -81,8 +107,13 @@ def create_user_course_association(user, course, yearterm):
         UserCourse.objects.create(
             user_id=user.id, course_id=course.id, yearterm=yearterm
         )
-    except Exception:
-        # TODO: report an error here
+    except Exception as e:
+        log_error(
+            "An error occurred while associating a user with a course",
+            "core/logic.py create_user_course_association",
+            {"user": user, "course": course, "yearterm": yearterm},
+            e,
+        )
         return False
     return True
 
@@ -101,7 +132,6 @@ def update_user_enrollment(user):
     for course in current_user_enrollments:
         result = check_or_create_course(course)
         if result is None:
-            # TODO: Probably want to report an error here
             continue
 
         create_user_course_association(user, course, current_yearterm)
@@ -111,6 +141,5 @@ def update_user_enrollment(user):
         for course in next_yearterm_courses:
             result = check_or_create_course(course)
             if result is None:
-                # TODO: report error
                 continue
             create_user_course_association(user, course, current_yearterm)
