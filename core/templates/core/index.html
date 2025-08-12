@@ -4,105 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <title>YVideo</title>
-    {# TODO <link rel="stylesheet" href="{% static 'yvideo/styles.css' %}"> #}
+    <link rel="stylesheet" href="{% static 'style.css' %}">
 </head>
 <body>
-    <nav class="navbar">
-        <a href="{% url 'index' %}">
-            <div class="logo"></div>
-            <h1>Y-VIDEO</h1>
-        </a>
-        <div class="breadcrumbs">
-            <span class="breadcrumb-item">Home /</span>
-        </div>
-    </nav>
-
-    <aside class="sidebar">
-        <button class="sidebar-toggle"></button>
-        <h4>HI</h4>
-        <hr>
-        {% if user.is_admin %}
-            <a href="{% url 'admin:index' %}">Admin Dashboard</a>
-        {% endif %}
-        {# Add other role-specific links as needed #}
-        <a href="#">Lab Assistant Dashboard</a>
-        <a href="#">Manage Resource</a>
-        {% comment %} TODO: Uncomment when logout functionality is implemented
-        <form method="post" action="{% url 'logout' %}">
-            {% csrf_token %}
-            <button type="submit">Sign Out</button>
-        </form>
-        {% endcomment %}
-
-        <h4>Collections</h4>
-        <hr>
-        <a href="{% url 'index' %}">Collections</a>
-        <a href="#">Manage Collections</a>
-        <a href="#">Manage Public Collections</a>
-
-        <h4>Connect With Us</h4>
-        <hr>
-        <a href="#">Contact Us</a>
-        <a href="https://privacy.byu.edu" target="_blank" rel="noopener noreferrer">Privacy Notice</a>
-        <a href="https://infosec.byu.edu/cookie-prefs" target="_blank" rel="noopener noreferrer">Cookie Preferences</a>
-    </aside>
+    <header>
+        {% include "header.html" %}
+    </header>
 
     <main class="main-content">
         <header class="collections-header">
-            <h3>Collections</h3>
-            <h3><a href="#">Manage Collections</a></h3>
+            <span>Collections</span>
+            <span><a href="{% url 'manage_collections' %}"> Manage Collections</a></span>
         </header>
 
-        <div class="collections-list">
-            {% for collection in collections %}
-            <div class="collection">
-                <div class="collection-header">
-                    <h3>{{ collection.name }}</h3>
-                    <p>{{ collection.videos.count }} item{{ collection.videos.count|pluralize }}</p>
-                </div>
-                <div class="video-list">
-                    {% for video in collection.videos.all %}
-                        {% if not video.clips.all %}
-                            <div class="video-item">
-                                <a href="{% url 'player' video.uuid %}">
-                                    <img src="{{ video.thumbnail_url|default:'/static/media/default-thumb.svg' }}" alt="Thumbnail for {{ video.title }}">
-                                    <div class="video-name">
-                                        <h4>{{ video.title }}</h4>
-                                        {# Icons for features can be added here #}
-                                    </div>
-                                </a>
-                            </div>
-                        {% else %}
-                            <div class="video-item-dropdown">
-                                <div class="video-header">
-                                    <img src="{{ video.thumbnail_url|default:'/static/media/default-thumb.svg' }}" alt="Thumbnail for {{ video.title }}">
-                                    <div class="video-name">
-                                        <h4>{{ video.title }}</h4>
-                                    </div>
-                                    <span class="carrot"></span>
-                                </div>
-                                <div class="clips-list">
-                                    <div class="clip-link">
-                                        <a href="{% url 'player' video.uuid %}">
-                                            <div class="clip-name"><h4><u>Full Video</u></h4></div>
-                                        </a>
-                                    </div>
-                                    {% for clip in video.clips.all %}
-                                    <div class="clip-link">
-                                        <a href="{% url 'player' video.uuid clip.id %}">
-                                            <div class="clip-name"><u>Clip - {{ clip.title }}</u></div>
-                                            <div><h4>From {{ clip.start_time }} to {{ clip.end_time }}</h4></div>
-                                        </a>
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
+          {% include "collection_list.html" %}
 
         <header class="collections-header">
             <h3>Public Collections</h3>

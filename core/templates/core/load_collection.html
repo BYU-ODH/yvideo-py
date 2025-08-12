@@ -1,0 +1,58 @@
+{% load static %}
+
+<header class="collection-header">
+  <div class="title-section">
+    <h2 class="collection-title">{{ collection.title }}</h2>
+    <div id="title-edit-button" class="edit-button">Edit</div>
+  </div>
+
+  <div class="collection-actions">
+    <button id="publish-button" class="publish-button">Publish</button>
+    <button id="unpublish-button" class="unpublish-button">Unpublish</button>
+    <button id="archive-button" class="archive-button">Archive</button>
+  </div>
+</header>
+
+<div class="collection-navigation">
+  <button id="content-button" class="btn std-outline-color">Content</button>
+  <button id="permissions-button" class="btn std-outline-color">Edit User Access</button>
+  <div class="nav-placeholder"></div>
+</div>
+
+<div class="collection-content">
+  <div class="media-item">
+
+    <!-- Video Thumbnail -->
+    <!-- Add image or video thumbnail here -->
+
+    <hr>
+
+    <div class="video-info">
+      <div class="video-title">
+        <h3 class="content-title">Video Title</h3>
+      </div>
+      <ul class="video-metadata">
+        <li class="translation"><!-- Translation info here --></li>
+        <li class="captions"><!-- Captions info here --></li>
+        <li class="annotations"><!-- Annotations info here --></li>
+        <li><i class="fa fa-eye"></i><!-- Views count or icon --></li>
+      </ul>
+    </div>
+
+    <div class="editor-links">
+      <div class="editor-link video-editor">
+        <a href="/videoeditor/8cc6e932-6da3-4f49-957d-4de76bcf3b81">Video Editor</a>
+      </div>
+      <div class="editor-link subtitle-editor">
+        <a href="/subtitleeditor/8cc6e932-6da3-4f49-957d-4de76bcf3b81">Subtitle Editor</a>
+      </div>
+      <div class="editor-link clip-manager">
+        <a href="/clipeditor/8cc6e932-6da3-4f49-957d-4de76bcf3b81">Clip Manager</a>
+      </div>
+    </div>
+  </div>
+
+  <button id="newcontent-button" class="btn std-outline-color">
+    <div class="plus-icon"></div>
+  </button>
+</div>
