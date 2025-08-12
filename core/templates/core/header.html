@@ -1,0 +1,56 @@
+<body>
+    <nav class="navbar">
+        <a href="{% url 'index' %}">
+            <img class="logo" src="/static/img/logo.svg" alt="Logo">
+            <h1>Y-VIDEO</h1>
+        <div class="breadcrumbs">
+            <span class="breadcrumb-item">Home</span>
+        </div>
+        </a>
+
+        <aside class="sidebar">
+            <h4> {{ user.netid }} </h4>
+            <hr>
+            {% if user.is_admin %}
+                <a href="{% url 'admin:index' %}">Admin Dashboard</a>
+            {% endif %}
+            {# Add other role-specific links as needed #}
+            <a href="#">Lab Assistant Dashboard</a>
+            <a href="#">Manage Resource</a>
+            {% comment %} TODO: Uncomment when logout functionality is implemented
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit">Sign Out</button>
+            </form>
+            {% endcomment %}
+
+            <h4>Collections</h4>
+            <hr>
+            <a href="{% url 'index' %}">Collections</a>
+            <a href="#">Manage Collections</a>
+            <a href="#">Manage Public Collections</a>
+
+            <h4>Connect With Us</h4>
+            <hr>
+            <a href="#">Contact Us</a>
+            <a href="https://privacy.byu.edu" target="_blank" rel="noopener noreferrer">Privacy Notice</a>
+            <a href="https://infosec.byu.edu/cookie-prefs" target="_blank" rel="noopener noreferrer">Cookie Preferences</a>
+        </aside>
+
+        <button class="sidebar-toggle" aria-label="Toggle sidebar">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </nav>
+    <script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const toggleButton = document.querySelector('.sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+
+    toggleButton.addEventListener('click', () => {
+      sidebar.classList.toggle('show');
+    });
+  });
+</script>
+</body>

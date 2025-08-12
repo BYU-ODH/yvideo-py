@@ -1,0 +1,24 @@
+{% load static %}
+
+<div id="create-dialog" style="display: none;">
+  <form class="create-form"
+     hx-post="{% url 'create_collection' %}"
+      hx-target="#collection-container"
+      hx-swap="innerHTML"
+      hx-on="htmx:afterRequest: toggleForm()">
+
+    <input type="text" class="create-new-collections-input" name="name" placeholder="Collection name..." required>
+
+    <div class="dialog-buttons">
+     <button type="button" onclick="toggleForm()">Cancel</button>
+      <button type="submit" class="create-button">Create</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  function toggleForm() {
+    const wrapper = document.getElementById("create-dialog");
+    wrapper.style.display = wrapper.style.display === "none" ? "block" : "none";
+  }
+</script>
