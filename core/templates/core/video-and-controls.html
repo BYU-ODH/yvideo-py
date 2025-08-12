@@ -3,7 +3,7 @@
 <div id="player-container" class="player-container">
     <!-- Main Video Element -->
     <video id="main-video"
-            preload="auto"
+            preload="auto">
         {% if file_key %}
             <source src="{% url 'stream_file' file_key %}" type="video/mp4">
         {% endif %}
