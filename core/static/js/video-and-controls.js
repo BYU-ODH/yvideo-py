@@ -54,7 +54,6 @@
         player.scrubberProgress = document.getElementById('scrubber-progress');
         player.scrubberDot = document.getElementById('scrubber-dot');
         player.playTime = document.getElementById('play-time');
-        player.secondsTimeHolder = document.getElementById('seconds-time-holder');
 
         if (!player.video || !player.container) {
             console.error('Required video elements not found');
@@ -142,8 +141,6 @@
         updateScrubber(played);
         handleSubtitles();
         handleEvents();
-
-        player.secondsTimeHolder.textContent = player.currentTime;
     }
 
     function updateTimeDisplay() {
