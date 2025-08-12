@@ -7,15 +7,19 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 
+from .models import Collection
 from .models import Content
 from .models import FileKey
 from .models import User
 
 
 def index(request):
+    user = request.user
+    collections = Collection.objects.filter(owner=user)
+
     context = {
-        "user": User.objects.first(),  # TODO: Replace with actual data
-        "collections": [],
+        "user": user,  # TODO: Replace with actual data
+        "collections": collections,
         "public_collections": [],
     }
     return render(request, "index.html", context)
@@ -148,3 +152,33 @@ def stream_file(request, file_key):
         raise Http404("Invalid file key")
     except Exception as e:
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
+
+
+def manage_collections(request):
+    collections = Collection.objects.filter(owner=request.user)
+
+    archived = collections.filter(archived=True)
+    published = collections.filter(archived=False, published=True)
+    unpublished = collections.filter(archived=False, published=False)
+
+    return render(
+        request,
+        "manage_collections.html",
+        {
+            "published": published,
+            "unpublished": unpublished,
+            "archived": archived,
+            "user": request.user,
+        },
+    )
+
+
+def show_modal(request):
+    return render(request, "create_collection.html")
+
+
+def create_collection(request):
+    if request.method == "POST":
+        name = request.POST.get("name")
+        collections = Collection.objects.create(owner=name)
+    return render(request, "load_collection", {"collection": collections})
