@@ -50,7 +50,7 @@ def get_or_create_course(course):
         except Exception as e:
             log_error(
                 "An error occurred while creating a new course",
-                "core/logic.py check_or_create_course",
+                "core/logic.py get_or_create_course",
                 {"course_info": course},
                 e,
             )
@@ -98,7 +98,7 @@ def update_user_enrollment(user):
     current_user_enrollments = api.get_student_enrollments(user.netid, current_yearterm)
     # check that each course exists, if it doesn't, create it
     for course in current_user_enrollments:
-        result = check_or_create_course(course)
+        result = get_or_create_course(course)
         if result is None:
             continue
 
@@ -107,7 +107,7 @@ def update_user_enrollment(user):
     if current_yearterm_lookup["is_two_weeks_from_end"]:
         next_yearterm_courses = api.get_student_enrollments(user.netid, next_yearterm)
         for course in next_yearterm_courses:
-            result = check_or_create_course(course)
+            result = get_or_create_course(course)
             if result is None:
                 continue
             create_user_course_association(user, course, current_yearterm)
