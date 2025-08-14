@@ -32,7 +32,7 @@ def check_for_user_in_db(byu_id):
         return None
 
 
-def check_or_create_course(course):
+def get_or_create_course(course):
     # check if a course exists, if it doesn't, create it
     try:
         course_obj = Course.objects.filter(
