@@ -9,8 +9,6 @@ from .models import UserCourse
 
 logger = logging.getLogger(__name__)
 
-CORE_ERROR_LOG_PATH = "./.yvideo-py-core-error.log"
-
 
 def log_error(error_message, error_origin, error_info={}, exception=None):
     """
