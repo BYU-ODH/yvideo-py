@@ -1,3 +1,4 @@
+import logging
 import os
 
 from django.conf import settings
@@ -14,6 +15,8 @@ HMS_VALIDATOR = RegexValidator(
     message="Time must be in H:MM:SS format (e.g., 1:23:45.67 or 12:34:56.78)",
     code="invalid_time_format",
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PrivilegeLevel(models.IntegerChoices):
@@ -409,15 +412,17 @@ class UserCourses(models.Model):
             return ""
         year_str = self.yearterm[:4]
         term_str = self.yearterm[4:]
-        term_name = ""
-        if term_str == "1":
-            term_name = "Winter"
-        elif term_str == "3":
-            term_name = "Spring"
-        elif term_str == "4":
-            term_name = "Summer"
-        elif term_str == "5":
-            term_name = "Fall"
+        term_map = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
+        try:
+            term_name = term_map[term_str]
+        except KeyError:
+            logger.error(
+                f"UserCourse has a missing or invalid yearterm. UserCourseId: {self.pk}, yearterm: {self.yearterm}"
+            )
+        except Exception:
+            logger.error(
+                f"An error has occurred while displaying the yearterm for the following UserCousreId: {self.pk}"
+            )
         return f"{term_name} {year_str}"
 
     def __str__(self):
