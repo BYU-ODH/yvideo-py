@@ -1,9 +1,13 @@
+import logging
+
 from django.utils import timezone
 
 from .api import Api
 from .models import Course
 from .models import User
 from .models import UserCourse
+
+logger = logging.getLogger(__name__)
 
 CORE_ERROR_LOG_PATH = "./.yvideo-py-core-error.log"
 
@@ -13,22 +17,33 @@ def log_error(error_message, error_origin, error_info={}, exception=None):
     Writes an error to the specified error log path. Includes datetime error is reported and
     which function generated the error. If a python exception is provided, this is also logged.
     """
-
     error_time = timezone.now()
-    with open(CORE_ERROR_LOG_PATH, "a") as error_log:
-        error_log.write(
-            f"{error_message}\nfrom {error_origin}\nTime: {error_time}\nError information: {error_info}\n"
-            + ""
-            if exception is None
-            else f"Exception: {exception}\n\n"
-        )
+    logger.error(
+        f"{error_message}\nfrom {error_origin}\nTime: {error_time}\nError information: {error_info}\n"
+        + ""
+        if exception is None
+        else f"Exception: {exception}\n\n"
+    )
 
 
 def check_for_user_in_db(byu_id):
+    """
+    Checks if there is a user associated with the provided byu_id. If there is,
+    this user will be returned. If there is no user associated, False will be returned.
+    If an error occurs while checking for a user, None will be returned.
+    """
     try:
         user = User.objects.get(byu_id=byu_id)
         return user
-    except Exception:
+    except User.DoesNotExist:
+        return False
+    except Exception as e:
+        log_error(
+            "An error occurred while checking for the existance of a user",
+            "core/logic.py check_for_user_in_db",
+            {"byu_id": byu_id},
+            e,
+        )
         return None
 
 
