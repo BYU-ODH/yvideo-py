@@ -25,6 +25,17 @@ def index(request):
     return render(request, "index.html", context)
 
 
+def login(request):
+    """
+    This is a stub function until SAML is working properly. Until then,
+    it isn't clear what steps should be taken to complete this method.
+    When the SAML integration is completed, this method will need to
+    get the byu_id from the SAML response and create a user if one does
+    not already exist.
+    """
+    pass
+
+
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
