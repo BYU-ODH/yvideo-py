@@ -81,7 +81,6 @@ class CustomUserManager(BaseUserManager):
 
 
 class User(AbstractUser):
-    username = None  # We will use netid as a username
     netid = models.CharField(max_length=8, unique=True)
     USERNAME_FIELD = "netid"
     REQUIRED_FIELDS = []
