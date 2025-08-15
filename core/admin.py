@@ -44,6 +44,20 @@ class ResourceAdmin(VersionAdmin):
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
     search_fields = ("name",)
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Provide Resource Access to the request that wanted this Resource to be created
+        # This only works if the user exists. We cannot build users based off of netid, so
+        # without BYUID, there is no way to create a non-existant user if the requester is
+        # not already in the system.
+        requester_netid = obj.requester_netid
+        try:
+            user = User.objects.get(netid=requester_netid)
+        except Exception:
+            return
+        most_recent_Resource = Resource.objects.latest("created_at")
+        ResourceAccess.objects.create(user=user, resource=most_recent_Resource)
+
 
 @admin.register(Collection)
 class CollectionAdmin(VersionAdmin):
@@ -100,7 +114,7 @@ class ContentAdmin(VersionAdmin):
             form.base_fields["file"].queryset = File.objects.none()
             form.base_fields[
                 "file"
-            ].help_text = "Select collection, then save to see available files."
+            ].help_text = "Select collection, then save to see available files. You will be unable to see files that belong to Resources that you do not have Resource Access to."
 
         return form
 
