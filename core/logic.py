@@ -80,18 +80,16 @@ def create_user_course_association(user, course, yearterm):
     Check if there is already a user-course association. If an association
     exists or if one was created, return True. If an error occured, return False
     """
-    associations = list(
-        UserCourse.objects.filter(
-            user_id=user.id, course_id=course.id, yearterm=yearterm
-        )
-    )
-    if associations:
-        return True
-
     try:
-        UserCourse.objects.create(
-            user_id=user.id, course_id=course.id, yearterm=yearterm
+        associations = list(
+            UserCourse.objects.filter(
+                user_id=user.id, course_id=course.id, yearterm=yearterm
+            )
         )
+        if not associations:
+            UserCourse.objects.create(
+                user_id=user.id, course_id=course.id, yearterm=yearterm
+            )
     except Exception as e:
         log_error(
             "An error occurred while associating a user with a course",
