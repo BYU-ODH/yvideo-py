@@ -46,7 +46,11 @@ def check_for_user_in_db(byu_id):
 
 
 def get_or_create_course(course):
-    # check if a course exists, if it doesn't, create it
+    """
+    Checks if the course already exists, if not, it will create it. The
+    pre-existing course, or new course will be returned unless there is
+    an error. If an error occurs, returns None.
+    """
     try:
         course_obj = Course.objects.filter(
             dept=course["teaching_area"],
@@ -72,14 +76,17 @@ def get_or_create_course(course):
 
 
 def create_user_course_association(user, course, yearterm):
-    # check if association already exists
+    """
+    Check if there is already a user-course association. If an association
+    exists or if one was created, return True. If an error occured, return None
+    """
     associations = list(
         UserCourse.objects.filter(
             user_id=user.id, course_id=course.id, yearterm=yearterm
         )
     )
     if associations:
-        return
+        return True
 
     try:
         UserCourse.objects.create(
@@ -92,14 +99,22 @@ def create_user_course_association(user, course, yearterm):
             {"user": user, "course": course, "yearterm": yearterm},
             e,
         )
-        return False
+        return None
     return True
 
 
 def update_user_enrollment(user):
+    """
+    Update's a user's enrolled courses for the current semester. If the semester
+    is 2 weeks or less away from ending, this method will also get the student's
+    enrollments for the next semester. If there is an error getting the student's
+    enrollments for the current or next semesters, this is noted in the return
+    object. A result message is also provided in the result object describing
+    what happened and what the user can expect to see.
+    """
     # don't bother if we don't have a netid for the user
     if user.netid is None:
-        return
+        return None
     # get the current yearterm
     # get courses for the current yearterm
     # if the yearterm is close to ending, get courses for the next yearterm too
@@ -109,24 +124,61 @@ def update_user_enrollment(user):
     next_yearterm = api.calculate_next_year_term(current_yearterm)
 
     current_user_enrollments = api.get_student_enrollments(user.netid, current_yearterm)
-    # check that each course exists, if it doesn't, create it
-    for course in current_user_enrollments:
-        result = get_or_create_course(course)
-        if result is None:
-            continue
 
-        create_user_course_association(user, course, current_yearterm)
-
-    if current_yearterm_lookup["is_two_weeks_from_end"]:
-        next_yearterm_courses = api.get_student_enrollments(user.netid, next_yearterm)
-        for course in next_yearterm_courses:
+    if current_user_enrollments is None:
+        updated_current_sem_correctly = False
+    else:
+        for course in current_user_enrollments:
             result = get_or_create_course(course)
             if result is None:
                 continue
-            create_user_course_association(user, course, current_yearterm)
+
+            updated_current_sem_correctly = create_user_course_association(
+                user, course, current_yearterm
+            )
+
+    updated_next_sem_correctly = True
+    if current_yearterm_lookup["is_two_weeks_from_end"]:
+        next_yearterm_courses = api.get_student_enrollments(user.netid, next_yearterm)
+
+        if next_yearterm_courses is None:
+            updated_next_sem_correctly = False
+        else:
+            for course in next_yearterm_courses:
+                result = get_or_create_course(course)
+                if result is None:
+                    continue
+                updated_next_sem_correctly = create_user_course_association(
+                    user, course, current_yearterm
+                )
+
+    result_message = ""
+    if not updated_current_sem_correctly or not updated_next_sem_correctly:
+        result_message = "Failed to update the "
+        result_message += (
+            "current semester's " if not updated_current_sem_correctly else ""
+        )
+        result_message += (
+            "and "
+            if not updated_current_sem_correctly and not updated_next_sem_correctly
+            else ""
+        )
+        result_message += "next semester's " if not updated_next_sem_correctly else ""
+        result_message += "enrollment correctly. Some courses may be missing, and you may see previously enrolled courses."
+
+    return {
+        "is_current_sem_udpated": updated_current_sem_correctly,
+        "is_next_sem_updated": updated_next_sem_correctly,
+        "result_message": result_message,
+    }
 
 
 def create_or_update_user(byu_id):
+    """
+    Checks if a user tied to the provided byu_id already exists. If not,
+    creates a new user. The returned object provides the user and
+    whether the user is newly created.
+    """
     result = {"is_new_user_created": False, "user": None}
     # check if user already exists, if they do, return it
     try:
