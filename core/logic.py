@@ -27,8 +27,9 @@ def log_error(error_message, error_origin, error_info={}, exception=None):
 def check_for_user_in_db(byu_id):
     """
     Checks if there is a user associated with the provided byu_id. If there is,
-    this user will be returned. If there is no user associated, False will be returned.
-    If an error occurs while checking for a user, None will be returned.
+    the user will be returned. If there is no user associated, False will be returned.
+    If an error occurs while checking for a user, None will be returned and the error
+    will be logged.
     """
     try:
         user = User.objects.get(byu_id=byu_id)
