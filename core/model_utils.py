@@ -84,6 +84,14 @@ def create_user_course_association(user, course, yearterm):
                 user_id=user.id, course_id=course.id, yearterm=yearterm
             )
         )
+    except Exception as e:
+        log_error(
+            "An error occurred while filtering UserCourse objects",
+            {"user": user, "course": course, "yearterm": yearterm},
+            e,
+        )
+        return False
+    try:
         if not associations:
             UserCourse.objects.create(
                 user_id=user.id, course_id=course.id, yearterm=yearterm
