@@ -78,7 +78,7 @@ def get_or_create_course(course):
 def create_user_course_association(user, course, yearterm):
     """
     Check if there is already a user-course association. If an association
-    exists or if one was created, return True. If an error occured, return None
+    exists or if one was created, return True. If an error occured, return False
     """
     associations = list(
         UserCourse.objects.filter(
@@ -99,7 +99,7 @@ def create_user_course_association(user, course, yearterm):
             {"user": user, "course": course, "yearterm": yearterm},
             e,
         )
-        return None
+        return False
     return True
 
 
@@ -131,11 +131,11 @@ def update_user_enrollment(user):
         for course in current_user_enrollments:
             result = get_or_create_course(course)
             if result is None:
+                updated_current_sem_correctly = False
                 continue
 
-            updated_current_sem_correctly = create_user_course_association(
-                user, course, current_yearterm
-            )
+            if not create_user_course_association(user, course, current_yearterm):
+                updated_current_sem_correctly = False
 
     updated_next_sem_correctly = True
     if current_yearterm_lookup["is_two_weeks_from_end"]:
@@ -147,10 +147,11 @@ def update_user_enrollment(user):
             for course in next_yearterm_courses:
                 result = get_or_create_course(course)
                 if result is None:
+                    updated_next_sem_correctly = False
                     continue
-                updated_next_sem_correctly = create_user_course_association(
-                    user, course, current_yearterm
-                )
+
+                if not create_user_course_association(user, course, current_yearterm):
+                    updated_next_sem_correctly = False
 
     result_message = ""
     if not updated_current_sem_correctly or not updated_next_sem_correctly:
