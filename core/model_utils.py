@@ -10,15 +10,14 @@ from .models import UserCourse
 logger = logging.getLogger(__name__)
 
 
-def log_error(error_message, error_origin, error_info={}, exception=None):
+def log_error(error_message, error_info={}, exception=None):
     """
     Writes an error to the specified error log path. Includes datetime error is reported and
     which function generated the error. If a python exception is provided, this is also logged.
     """
     error_time = timezone.now()
     logger.error(
-        f"{error_message}\nfrom {error_origin}\nTime: {error_time}\nError information: {error_info}\n"
-        + ""
+        f"{error_message}\nTime: {error_time}\nError information: {error_info}\n" + ""
         if exception is None
         else f"Exception: {exception}\n\n"
     )
@@ -39,7 +38,6 @@ def check_for_user_in_db(byu_id):
     except Exception as e:
         log_error(
             "An error occurred while checking for the existance of a user",
-            "core/logic.py check_for_user_in_db",
             {"byu_id": byu_id},
             e,
         )
@@ -68,7 +66,6 @@ def get_or_create_course(course):
         except Exception as e:
             log_error(
                 "An error occurred while creating a new course",
-                "core/logic.py get_or_create_course",
                 {"course_info": course},
                 e,
             )
@@ -94,7 +91,6 @@ def create_user_course_association(user, course, yearterm):
     except Exception as e:
         log_error(
             "An error occurred while associating a user with a course",
-            "core/logic.py create_user_course_association",
             {"user": user, "course": course, "yearterm": yearterm},
             e,
         )
