@@ -171,7 +171,7 @@ def update_user_enrollment(user):
         result_message += "enrollment correctly. Some courses may be missing, and you may see previously enrolled courses."
 
     return {
-        "is_current_sem_udpated": updated_current_sem_correctly,
+        "is_current_sem_updated": updated_current_sem_correctly,
         "is_next_sem_updated": updated_next_sem_correctly,
         "result_message": result_message,
     }
