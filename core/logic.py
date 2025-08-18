@@ -178,12 +178,17 @@ def create_or_update_user(byu_id):
     creates a new user. The returned object provides the user and
     whether the user is newly created.
     """
-    result = {"is_new_user_created": False, "user": None}
+    result = {
+        "is_new_user_created": False,
+        "user": None,
+        "enrollment_update_message": "Course enrollment was not updated",
+    }
     # check if user already exists, if they do, return it
     try:
         user = User.objects.get(byu_id=byu_id)
         result["user"] = user
-        update_user_enrollment(user)
+        update_result = update_user_enrollment(user)
+        result["enrollment_update_message"] = update_result["result_message"]
         return result
     except User.DoesNotExist:
         pass
@@ -210,5 +215,6 @@ def create_or_update_user(byu_id):
     )
     result["user"] = user
     result["is_new_user_created"] = True
-    update_user_enrollment(user)
+    update_result = update_user_enrollment(user)
+    result["enrollment_update_message"] = update_result["result_message"]
     return result
