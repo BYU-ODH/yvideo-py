@@ -107,5 +107,10 @@
         dialog.showModal();
         dialog.querySelector("input[name='name']").value = "";
         }
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.addEventListener('fail', () => {
+                document.getElementById('collection_modal').showModal();
+            });
+        });
     </script>
 </body>

@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 import os
 import re
@@ -13,6 +14,8 @@ from .models import Collection
 from .models import Content
 from .models import FileKey
 from .models import User
+
+logger = logging.getLogger(__name__)
 
 
 def index(request):
@@ -181,18 +184,33 @@ def show_modal(request):
 
 
 def create_collection(request):
-    print("created a new collection")
-
-    form = CollectionForm(request.POST)
+    form = CollectionForm(request.POST, initial={"user": request.user})
     if form.is_valid():
-        collection = form.save(commit=False)
-        collection.owner = request.user
-        collection.published = False
-        collection.archived = False
-        collection.public = False
-        collection.save()
-    return render(request, "load_collection.html", {"collection": collection})
-    # if request.method == "POST":
-    #     name = request.POST.get("name")
-    #     collections = Collection.objects.create(owner=name)
-    # return render(request, "load_collection", {"collection": collections})
+        try:
+            collection = form.save(commit=False)
+            collection.owner = request.user
+            collection.published = False
+            collection.archived = False
+            collection.public = False
+            collection.save()
+
+            response = render(
+                request, "load_collection.html", {"collection": collection}
+            )
+            response["HX-Trigger"] = "success"
+        except Exception as e:
+            logger.warning(
+                f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
+            )
+
+            response = render(request, "add_collection_modal.html", {"form": form})
+            response["HX-Retarget"] = "#collection_modal"
+            response["HX-Reswap"] = "outerHTML"
+            response["HX-Trigger-After-Settle"] = "fail"
+    else:
+        response = render(request, "add_collection_modal.html", {"form": form})
+        response["HX-Retarget"] = "#collection_modal"
+        response["HX-Reswap"] = "outerHTML"
+        response["HX-Trigger-After-Settle"] = "fail"
+
+    return response
