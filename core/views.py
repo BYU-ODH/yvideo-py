@@ -7,6 +7,8 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 
+from core.forms import CollectionForm
+
 from .models import Collection
 from .models import Content
 from .models import FileKey
@@ -169,6 +171,7 @@ def manage_collections(request):
             "unpublished": unpublished,
             "archived": archived,
             "user": request.user,
+            "form": CollectionForm(),
         },
     )
 
@@ -178,7 +181,18 @@ def show_modal(request):
 
 
 def create_collection(request):
-    if request.method == "POST":
-        name = request.POST.get("name")
-        collections = Collection.objects.create(owner=name)
-    return render(request, "load_collection", {"collection": collections})
+    print("created a new collection")
+
+    form = CollectionForm(request.POST)
+    if form.is_valid():
+        collection = form.save(commit=False)
+        collection.owner = request.user
+        collection.published = False
+        collection.archived = False
+        collection.public = False
+        collection.save()
+    return render(request, "load_collection.html", {"collection": collection})
+    # if request.method == "POST":
+    #     name = request.POST.get("name")
+    #     collections = Collection.objects.create(owner=name)
+    # return render(request, "load_collection", {"collection": collections})

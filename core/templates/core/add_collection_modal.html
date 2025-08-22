@@ -1,0 +1,30 @@
+<dialog id="collection_modal">
+    <div class="modal-box">
+
+        <h3>Add New Collection</h3>
+
+        <form hx-post="{% url 'create_collection' %}">
+            {% csrf_token %}
+
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Name</span>
+                </label>
+
+                {{ form.name }}
+
+                {% if form.name.errors %}
+                    <label class="text-error">
+                        {{ form.name.errors }}
+                    </label>
+                {% endif %}
+
+            </div>
+
+            <div class="modal-action">
+                <button type="submit">Create</button>
+                <button type="button" onclick="collection_modal.close();">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
