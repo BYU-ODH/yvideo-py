@@ -15,7 +15,6 @@ class CollectionForm(forms.ModelForm):
         if Collection.objects.filter(
             owner=self.initial.get("user"), name=name
         ).exists():
-            print("ehhh")
             raise ValidationError("You already have a collection with this name.")
 
         return name
