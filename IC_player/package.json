@@ -1,5 +1,7 @@
 {
-  "name": "electron_player",
+  "name": "ic-player",
+  "productName": "IC Player",
+  "description": "An interactive video player for educational content",
   "version": "0.1.1",
   "main": "app.js",
   "scripts": {

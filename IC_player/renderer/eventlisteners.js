@@ -22,7 +22,7 @@ const Events = (function () {
         }
         const isMatch = matcher(element, eventname)
 
-        for (var i; i < listeners.length; i++) {
+        for (var i = 0; i < listeners.length; i++) {
             if (isMatch(listeners[i])) {
                 listeners[i].element.removeEventListener(listeners[i].eventname, listeners[i].callback)
                 listeners.splice(i, 1)

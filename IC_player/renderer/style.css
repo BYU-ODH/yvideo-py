@@ -219,7 +219,7 @@ h1{
   border: 1px solid black;
   outline: none;
   padding: 15px;
-  font-size: 10px 15px;
+  font-size: 30px 40px;
   transition: all .25s;
 
 }
@@ -356,19 +356,6 @@ video::-webkit-media-controls-fullscreen-button {
 
 .censor:hover {
   z-index: 2147483647;
-}
-
-.censor-annotate:hover::after {
-  position: absolute;
-  display: block;
-  content: '';
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background: #4c88ff;
-  opacity: 0.50;
-  resize: both;
 }
 
 :focus

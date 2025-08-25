@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <!-- TODO remove unsafe-inline CSPs in the following line -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' file:; connect-src 'self';">
   <link rel="stylesheet" type="text/css" href="style.css">
   <link rel="shortcut icon" href="../resources/filmstrip.png">
   <title>BYU International Cinema - Video Player</title>
@@ -49,12 +51,7 @@
   </div>
 
   <div id='playerContainer'>
-    <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;&nbsp;Return to Menu</button>
-    <button id='issueBtn' onclick='player.reportIssue()'>Report an Issue</button>
-    <div id="issueDialog" title="Report an Issue">
-      <p>You can report your issue on GitHub or by sending an email to: robert_reynolds@byu.edu</p>
-    </div>
-    <button id='saveJsonBtn' onclick='player.saveJson()'>Save JSON Filters</button>
+    <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;</button>
     <button id='reloadJsonBtn' onclick='player.reloadJson()'>Reload JSON Filters</button>
     <video id='player' width='1500' height='800' controls="true">
     </video>
@@ -62,9 +59,6 @@
     <div id='box'></div>
   </div>
 
-  <script>window.$ = window.jQuery = require('../resources/lib/jquery-3.4.1.min.js');</script>
-  <script src="../resources/lib/jquery-ui.min.js"></script>
-  <link rel="stylesheet" href="../resources/lib/jquery-ui.css">
   <script type="text/javascript" src="eventlisteners.js"></script>
   <script type="text/javascript" src="renderer.js"></script>
 

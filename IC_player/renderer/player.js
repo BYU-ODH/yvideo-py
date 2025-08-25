@@ -1,6 +1,6 @@
 module.exports = {
   player: {
-    $videoObj: $('#player'),
+    videoElem: document.getElementById('player'),
     annotations: null,
     currently: null,
     jsonFilePath: null,
@@ -12,11 +12,11 @@ module.exports = {
     buttonPress: () => {
       const files = player.getSelectedFiles()
       if (!files) {
-        $('#filePicker')[0].click()
-        $('#filePicker').change(() => {
-          $('#files').html(player.getSelectedFiles().videoFile.name)
-          $('#playButton').addClass('ready')
-          $('#filePicker').change(null)
+        document.getElementById('filePicker').click()
+        document.getElementById('filePicker').addEventListener('change', () => {
+          document.getElementById('files').textContent = player.getSelectedFiles().videoFile.name
+          document.getElementById('playButton').classList.add('ready')
+          document.getElementById('filePicker').removeEventListener('change', arguments.callee)
         })
       } else {
         player.startPlayer()
@@ -26,7 +26,7 @@ module.exports = {
     // Toggle annotation mode, open devtools
     toggleAnnotationMode: () => {
       annotationMode = !annotationMode
-      $('#toggleAnnotationModeBtn').toggleClass('active')
+      document.getElementById('toggleAnnotationModeBtn').classList.toggle('active')
       toggleDevTools()
     },
 
@@ -50,24 +50,21 @@ module.exports = {
     // Hide the player when user returns to menu
     hidePlayer: () => {
       // Show Splash Screen
-      $('#splashScreen').css('visibility', 'visible')
+      document.getElementById('splashScreen').style.visibility = 'visible'
 
       // Hide Player
-      $('#playerContainer').css('visibility', 'hidden')
+      document.getElementById('playerContainer').style.visibility = 'hidden'
 
       // Remove 'ready' class from playButton
-      $('#playButton').removeClass('ready')
+      document.getElementById('playButton').classList.remove('ready')
 
-      // Hide Save and Reload JSON buttons if visible
-      $('#reloadJsonBtn').css('visibility', 'hidden')
-      $('#saveJsonBtn').css('visibility', 'hidden')
+      // Hide Reload JSON button if visible
+      document.getElementById('reloadJsonBtn').style.visibility = 'hidden'
+      document.getElementById('returnBtn').style.visibility = 'hidden'
 
-      $('#returnBtn').css('visibility', 'hidden')
-      $('#issueBtn').css('visibility', 'hidden')
-
-      // Remove inkeyup listener
-      $(document).keyup(null)
-      $(document).keydown(null)
+      // Remove keyup listener
+      document.onkeyup = null
+      document.onkeydown = null
 
       // Pause the video
       player.pause()
@@ -76,8 +73,8 @@ module.exports = {
       document.body.style.background = 'linear-gradient(to right, #1e425e, #839aa8, #1e425e)'
 
       //Clear selected files
-      $('#filePicker').val('')
-      $('#files').html('Select Files')
+      document.getElementById('filePicker').value = ''
+      document.getElementById('files').textContent = 'Select Files'
 
       //Reset player variables
       player.resetAnnotations()
@@ -95,9 +92,9 @@ module.exports = {
 
       console.log('Reloading JSON')
       player.reloadingJson = true
-      let reloadJsonTime = player.$videoObj.prop('currentTime')
-      player.currTime = player.$videoObj.prop('currentTime')
-      player.paused = player.$videoObj.prop('paused')
+      let reloadJsonTime = player.videoElem.currentTime
+      player.currTime = player.videoElem.currentTime
+      player.paused = player.videoElem.paused
 
       Events.removeListener(document.getElementById('player'), 'playing', (event) => {
         return
@@ -108,64 +105,13 @@ module.exports = {
       var fileData = fs.readFileSync(player.jsonFilePath)
       player.initializeCallback(fileData)
       player.currTime = reloadJsonTime
-      player.$videoObj.prop('currentTime', reloadJsonTime)
+      player.videoElem.currentTime = reloadJsonTime
       player.reloadingJson = false
-    },
-
-    // Write changes to the annotations to the json file
-    saveJson: () => {
-      if (!player.paused) {
-        player.pause()
-      }
-
-      // Confirm the overwriting of the json file
-      let continueSave = dialog.showMessageBoxSync(null, {
-        type: 'question',
-        buttons: ['Cancel', 'Yes, please'],
-        defaultId: 0,
-        title: 'Question',
-        message: 'Are you sure that you want to do this?',
-        detail: 'Saving JSON filters will overwrite the previous JSON filters',
-      })
-      if (!continueSave) return
-
-      let formattedAnnotations = []
-      let intPositionObj = {}
-      for (i = 0; i < player.annotations.length; i++) {
-        let annotation = {
-          'options': {
-            'label': player.annotations[i].label,
-            'start': player.annotations[i].start,
-            'end': player.annotations[i].end,
-            'type': player.annotations[i].type,
-            'details': player.annotations[i].details
-          }
-        }
-        if (annotation.options.details.intPositions) {
-          let intPositions = annotation.options.details.intPositions
-          // Save deleted intPositions
-          intPositionObj[i] = intPositions
-          delete annotation.options.details.intPositions
-        }
-        formattedAnnotations.push(annotation)
-      }
-      let jsonAnnotations = JSON.stringify(formattedAnnotations, null, 2)
-
-      // Add saved intPositions to their respective censors
-      let intPositionKeys = Object.keys(intPositionObj)
-      for (let j = 0; j < intPositionKeys.length; j++) {
-        player.annotations[intPositionKeys[j]].details.intPositions = intPositionObj[intPositionKeys[j]]
-      }
-
-      fs.writeFile(player.jsonFilePath, jsonAnnotations, 'utf8', (err) => {
-        if (err) throw err
-        console.log('Wrote to JSON File')
-      })
     },
 
     // Load the files
     getSelectedFiles: () => {
-      var fileList = $('#filePicker').prop('files'),
+      var fileList = document.getElementById('filePicker').files,
         jsonFile = null,
         icfFile = null,
         videoFile = null,
@@ -249,16 +195,14 @@ module.exports = {
       alert(`Unless you received errors, your IC file has been created on the Desktop.`)
     },
 
-    // Get dimensions of the video
+    // Get dimensions (i.e. aspect ratio) of the video
     getVideoDimensions: () => {
-      var $video = player.$videoObj
-
       // Ratio of the video's intrisic dimensions
-      var videoRatio = $video.prop('videoWidth') / $video.prop('videoHeight')
+      var videoRatio = player.videoElem.videoWidth / player.videoElem.videoHeight
 
       // The width and height of the video element
-      var width = $video.prop('offsetWidth')
-      var height = $video.prop('offsetHeight')
+      var width = player.videoElem.offsetWidth
+      var height = player.videoElem.offsetHeight
 
       // The ratio of the element's width to its height
       var elementRatio = width / height
@@ -291,12 +235,11 @@ module.exports = {
       else
         boxLeft = (winWidth - vidWidth) / 2
 
-      $('#box').css({
-        top: `${boxTop}px`,
-        left: `${boxLeft}px`,
-        height: `${vidHeight}px`,
-        width: `${vidWidth}px`
-      })
+      const box = document.getElementById('box')
+      box.style.top = `${boxTop}px`
+      box.style.left = `${boxLeft}px`
+      box.style.height = `${vidHeight}px`
+      box.style.width = `${vidWidth}px`
     },
 
     // Parse jsonFile and initialize player
@@ -312,7 +255,7 @@ module.exports = {
 
     // Callback function when loading any data
     initializeCallback: (fileData) => {
-      console.log('initializing')
+      console.log('Loading annotation data...')
       player.annotations = []
       var jsonObj = JSON.parse(fileData)
       if (jsonObj['media']) {
@@ -346,34 +289,29 @@ module.exports = {
       player.annotate()
 
       // Hide Splash Screen
-      $('#splashScreen').css('visibility', 'hidden')
+      document.getElementById('splashScreen').style.visibility = 'hidden'
 
       const files = player.getSelectedFiles()
 
       // Set video src to given file
       let videoPath = files['videoFile'].path
-      player.$videoObj.prop('src', videoPath)
+      player.videoElem.src = videoPath
 
       // Show Player
-      $('#playerContainer').css('visibility', 'visible')
+      document.getElementById('playerContainer').style.visibility = 'visible'
 
-      // Show Save and Reload JSON buttons if annotationMode = true
-      $('#reloadJsonBtn').css('visibility', annotationMode ? 'visible' : 'hidden')
-      $('#saveJsonBtn').css('visibility', annotationMode ? 'visible' : 'hidden')
+      // Show Reload JSON button if annotationMode = true
+      document.getElementById('reloadJsonBtn').style.visibility = annotationMode ? 'visible' : 'hidden'
 
       if (!window.screenTop && !window.screenY) {
-        $('#returnBtn').css('visibility', 'hidden')
-        $('#issueBtn').css('visibility', 'hidden')
-        console.log('hidden')
+        document.getElementById('returnBtn').style.visibility = 'hidden'
       }
       else {
-        $('#returnBtn').css('visibility', 'visible')
-        $('#issueBtn').css('visibility', 'visible')
-        console.log('visible')
+        document.getElementById('returnBtn').style.visibility = 'visible'
       }
 
       // Hide Splash Screen
-      $('#splashScreen').css('visibility', 'hidden')
+      document.getElementById('splashScreen').style.visibility = 'hidden'
 
       // Set background to black
       document.body.style.background = 'black'
@@ -404,7 +342,7 @@ module.exports = {
 
     // Add anotations by calling onFrameAdv
     annotate: () => {
-      console.log('in the annotate function')
+      console.log('Applying annotations...')
       player.currently = { 'muting': -1, 'blanking': -1, 'blurring': -1 }
       Events.addListener(document.getElementById('player'), 'playing', (event) => {
         player.onFrameAdv()
@@ -413,8 +351,8 @@ module.exports = {
 
     // Validate annotations to check for valid times and values
     validateAnnotations: () => {
-      console.log('validating')
-      if (player.$videoObj.prop('readyState') < 1) {
+      console.log('validating annotations...')
+      if (player.videoElem.readyState < 1) {
         return
       }
       let annotationErrors = ''
@@ -424,7 +362,7 @@ module.exports = {
         if (parseFloat(a.start) < 0.0) {
           annotationErrors += 'ANNOTATION ERROR: Start time of ' + label + ' is before the video starts\n\n'
         }
-        if (parseFloat(a.end) > player.$videoObj.prop('duration')) {
+        if (parseFloat(a.end) > player.videoElem.duration) {
           annotationErrors += 'ANNOTATION ERROR: End time of ' + label + ' is after the video ends\n\n'
         }
         if (parseFloat(a.start) > parseFloat(a.end)) {
@@ -473,28 +411,6 @@ module.exports = {
           message: annotationErrors
         })
       }
-    },
-
-    // Report an issue with the player using GitHub Issues
-    reportIssue: () => {
-      if (!player.paused) {
-        player.pause()
-      }
-
-      $('#issueDialog').css('visibility', 'visible')
-
-      $('#issueDialog').dialog({
-        close: function (type, data) {
-          $('#issueDialog').css('visibility', 'hidden')
-        },
-        buttons: {
-          'Report Issue on GitHub': function () {
-            const url = 'https://github.com/BYU-ODH/electron_player/issues/new';
-            window.open(url);
-            $(this).dialog('close');
-          }
-        }
-      })
     },
 
     // Interpolate censor movements to smooth their animation
@@ -561,25 +477,30 @@ module.exports = {
     // Add all of the various listeners
     addListenersAtStart: () => {
       Events.addListener(document.getElementById('player'), 'loadedmetadata', () => {
+        if (player.reloadingJson) console.log('loadedmetadata during JSON reload')
+        else if (player.skipping) console.log('loadedmetadata during skip')
+        else console.log('loadedmetadata during normal playback')
         // Draw box initially
         player.drawBox()
         player.validateAnnotations()
-        console.log('loadedmetadata during skip')
-        player.$videoObj.prop('currentTime', player.currTime)
+        player.videoElem.currentTime = player.currTime
       })
 
       // Add listener to hide controls at the end of video
       Events.addListener(document.getElementById('player'), 'ended', () => {
-        player.$videoObj.prop('controls', false)
+        player.videoElem.controls = false
+        document.getElementById('returnBtn').style.visibility = 'hidden'
       })
 
-      //Add listener to reveal controls as end of video on mousemove
+      //Add listener to reveal controls at end of video on mousemove
       Events.addListener(document.getElementById('player'), 'mousemove', () => {
-        player.$videoObj.prop('controls', true)
+        player.videoElem.controls = true
+        document.getElementById('returnBtn').style.visibility = 'visible'
       })
 
       Events.addListener(document.getElementById('box'), 'mousemove', () => {
-        player.$videoObj.prop('controls', true)
+        player.videoElem.controls = true
+        document.getElementById('returnBtn').style.visibility = 'visible'
       })
 
       Events.addListener(document.getElementById('player'), 'onclick', () => {
@@ -588,68 +509,27 @@ module.exports = {
 
       //Add listener to prevent default seeking with arrow keys
       Events.addListener(document.getElementById('player'), 'seeked', () => {
-        if (player.paused && player.currTime + 1.5 < player.$videoObj.prop('currentTime')) {
-          player.currTime = player.$videoObj.prop('currentTime')
+        if (player.paused && player.currTime + 1.5 < player.videoElem.currentTime) {
+          player.currTime = player.videoElem.currentTime
           if (!player.reloadingJson) player.onFrameAdv()
         }
-        else if (player.paused && player.currTime - 1.5 > player.$videoObj.prop('currentTime')) {
-          player.currTime = player.$videoObj.prop('currentTime')
+        else if (player.paused && player.currTime - 1.5 > player.videoElem.currentTime) {
+          player.currTime = player.videoElem.currentTime
           if (!player.reloadingJson) player.onFrameAdv()
         }
       })
 
-      //Add listener to update censor tooltip and update player.pause on pause
+      //Add listener to update player.pause on pause
       Events.addListener(document.getElementById('player'), 'pause', () => {
         player.paused = true
         console.log('paused while skipping')
-        if (!window.screenTop && !window.screenY) {
-          $('#returnBtn').css('visibility', 'visible')
-          $('#issueBtn').css('visibility', 'visible')
-        }
-        if (player.annotations) {
-          for (var i = 0; i < player.annotations.length; i++) {
-            if (player.annotations[i].type == 'censor') {
-              let currentTime = player.currTime
-              let position = player.annotations[i].details.position
-              let annoTime = Object.keys(position)
-                .reduce((prev, curr) => Math.abs(curr - currentTime) < Math.abs(prev - currentTime) ? curr : prev)
-
-              let width = null
-              let height = null
-              if (position[annoTime][2] && position[annoTime][3]) {
-                width = position[annoTime][2]
-                height = position[annoTime][3]
-              }
-              else {
-                width = Math.round(100 * $('#censor' + i).width() / $('#box').width())
-                height = Math.round(100 * $('#censor' + i).height() / $('#box').width())
-              }
-
-              let $censor = $('#censor' + i)
-              let tooltipContent = '[' + position[annoTime][0] + ',' + position[annoTime][1] +
-                ',' + width + ',' + height + ']'
-              $censor.tooltip({
-                content: tooltipContent,
-                items: '#censor' + i
-              })
-              $censor.tooltip('enable');
-            }
-          }
-        }
+        document.getElementById('returnBtn').style.visibility = 'visible'
       })
 
-      //Add listener to disable censor tooltips and player.paused on play
+      //Add listener to update player.paused on play
       Events.addListener(document.getElementById('player'), 'play', () => {
         player.paused = false
-        for (var i = 0; i < player.annotations.length; i++) {
-          if (player.annotations[i].type == 'censor') {
-            $('#censor' + i).tooltip('disable');
-          }
-        }
-        if (!window.screenTop && !window.screenY) {
-          $('#returnBtn').css('visibility', 'hidden')
-          $('#issueBtn').css('visibility', 'hidden')
-        }
+        document.getElementById('returnBtn').style.visibility = 'hidden'
       })
 
       //Add listener to toggle play on Space
@@ -659,7 +539,7 @@ module.exports = {
         // Space
         if (e.keyCode == 32) {
           player.paused ? player.play() : player.pause()
-          player.currTime = player.$videoObj.prop('currentTime')
+          player.currTime = player.videoElem.currentTime
         }
       }
 
@@ -670,7 +550,7 @@ module.exports = {
         e = e || window.event
         // Right arrow
         if (e.keyCode == 39) {
-          if (player.$videoObj.prop('paused')) {
+          if (player.videoElem.paused) {
             player.skipTo(player.currTime + 0.1)
           }
           else {
@@ -679,7 +559,7 @@ module.exports = {
         }
         // Left arrow
         else if (e.keyCode == 37) {
-          if (player.$videoObj.prop('paused')) {
+          if (player.videoElem.paused) {
             player.skipTo(player.currTime - 0.1)
           }
           else {
@@ -708,14 +588,14 @@ module.exports = {
     //For each new frame, update the annotations
     onFrameAdv: () => {
       if (!player.annotations) return
-      var time = player.$videoObj.prop('currentTime')
-      player.currTime = player.$videoObj.prop('currentTime')
+      var time = player.videoElem.currentTime
+      player.currTime = player.videoElem.currentTime
 
       var numAnnotations = player.annotations.length
       for (var i = 0; i < numAnnotations; i++) {
-        var vMuted = player.$videoObj.prop('muted')
-        var vBlanked = player.$videoObj.hasClass('blanked')
-        var vBlurred = player.$videoObj.hasClass('blurred')
+        var vMuted = player.videoElem.muted
+        var vBlanked = player.videoElem.classList.contains('blanked')
+        var vBlurred = player.videoElem.classList.contains('blurred')
 
         var a = player.annotations[i]
         var aStart = a['start']
@@ -726,22 +606,22 @@ module.exports = {
         switch (a['type']) {
           case 'skip':
             if (time >= aStart && time < aEnd && !player.paused) {
-              console.log('skipped to ' + Number(aEnd).toFixed(3))
+              console.log(`SKIP (${i} ${a.label || ''}) ${Number(aEnd).toFixed(3)}`)
               player.skipTo(aEnd)
             }
             break
           case 'mute':
-          case 'mutePlugin':
+          case 'mutePlugin':  // TODO: determine whether mutePlugin is needed for old IC files; if not, remove it
             if (player.currently.muting === -1 || player.currently.muting === i) { //if no annotation is currently muting or *this* current annotaiton is muting
-              if (time >= aStart && time < aEnd) { //if within annotation time
+              if (time >= aStart && time < aEnd) {
                 if (!vMuted) {
-                  console.log('mute on')
+                  console.log(`MUTE ON (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
                   player.currently.muting = i
                   player.mute()
                 }
               } else {
                 if (vMuted) {
-                  console.log('mute off')
+                  console.log(`MUTE OFF (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
                   player.currently.muting = -1
                   player.unmute()
                 }
@@ -752,13 +632,13 @@ module.exports = {
             if (player.currently.blanking === -1 || player.currently.blanking === i) {
               if (time >= aStart && time < aEnd) {
                 if (!vBlanked) {
-                  console.log('blank on')
+                  console.log(`BLANK ON (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
                   player.currently.blanking = i
                   player.blank()
                 }
               } else {
                 if (vBlanked) {
-                  console.log('blank off')
+                  console.log(`BLANK OFF (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
                   player.currently.blanking = -1
                   player.unblank()
                 }
@@ -769,13 +649,13 @@ module.exports = {
             if (player.currently.blurring == -1 || player.currently.blurring === i) {
               if (time >= aStart && time < aEnd) {
                 if (!vBlurred) {
-                  console.log('blur on')
+                  console.log(`BLUR ON (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
                   player.currently.blurring = i
                   player.blur()
                 }
               } else {
                 if (vBlurred) {
-                  console.log('blur off')
+                  console.log(`BLUR OFF (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
                   player.currently.blurring = -1
                   player.unblur()
                 }
@@ -785,129 +665,55 @@ module.exports = {
           case 'censor':
             if (time >= aStart && time < aEnd) {
               if (!document.getElementById('censor' + i)) {
-                console.log('censor on')
-                $censor = $('<div>')
-                $censor.attr('id', 'censor' + i)
-                $censor.addClass('censor ' + aDetails['type'])
-                $censor.css({
-                  position: 'absolute',
-                  width: aDetails['position'][aStart][2] + '%',
-                  height: aDetails['position'][aStart][3] + '%',
-                  left: aDetails['position'][aStart][0] + '%',
-                  top: aDetails['position'][aStart][1] + '%'
-                })
+                console.log(`CENSOR ON (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
+                const censor = document.createElement('div')
+                censor.id = 'censor' + i
+                censor.className = 'censor ' + aDetails['type']
+                censor.style.position = 'absolute'
+                censor.style.width = aDetails['position'][aStart][2] + '%'
+                censor.style.height = aDetails['position'][aStart][3] + '%'
+                censor.style.left = aDetails['position'][aStart][0] + '%'
+                censor.style.top = aDetails['position'][aStart][1] + '%'
+
                 if (aDetails['type'] == 'black' || aDetails['type'] == 'red') {
-                  $censor.css({ 'background-color': aDetails['type'] })
+                  censor.style.backgroundColor = aDetails['type']
                 } else if (aDetails['type'] == 'blur') {
-                  $censor.css({ 'backdrop-filter': 'blur(' + aDetails['amount'] + ')' })
+                  censor.style.backdropFilter = 'blur(' + aDetails['amount'] + ')'
                 }
-                $censor.appendTo($('#box'))
-
-                if (annotationMode) {
-                  var $censor = $('#censor' + i)
-                  $censor.addClass('censor-annotate')
-                  var index = $censor.attr('id').replace('censor', '')
-                  var tooltipContent = '[' + aDetails['position'][aStart][0] + ',' + aDetails['position'][aStart][1] +
-                    ',' + aDetails['position'][aStart][2] + ',' + aDetails['position'][aStart][3] + ']'
-                  $censor.tooltip({
-                    content: tooltipContent,
-                    items: '#' + $censor.attr('id')
-                  })
-                  $censor.tooltip('disable');
-
-                  // Create resize listener to update size of censor
-                  $censor.resizable({
-                    stop: function (e, ui) {
-                      let currentTime = player.currTime
-                      let annoTime = Object.keys(player.annotations[index].details.position)
-                        .reduce((prev, curr) => Math.abs(curr - currentTime) < Math.abs(prev - currentTime) ? curr : prev)
-
-                      let left = Math.round(100 * ui.position.left / ui.element[0].parentElement.clientWidth)
-                      let top = Math.round(100 * ui.position.top / ui.element[0].parentElement.clientHeight)
-                      let width = Math.round(100 * ui.size.width / ui.element[0].parentElement.clientWidth)
-                      let height = Math.round(100 * ui.size.height / ui.element[0].parentElement.clientHeight)
-
-                      if (player.annotations[index].details.position[annoTime][2]
-                        && player.annotations[index].details.position[annoTime][3]) {
-                        player.annotations[index].details.position[annoTime][2] = width
-                        player.annotations[index].details.position[annoTime][3] = height
-                      }
-                      else {
-                        player.annotations[index].details.position[annoTime].push(width, height)
-                      }
-
-                      let $censor = $('#censor' + index)
-                      $censor.tooltip('option', 'content', '[' + left + ',' + top + ',' + width + ',' + height + ']');
-                      $censor.tooltip('option', 'items', '#censor' + index);
-
-                      player.interpolateCensor(player.annotations[index])
-                    }
-                  })
-
-                  // Create drag listener to update size of censor
-                  $censor.draggable({
-                    stop: function (e, ui) {
-                      let currentTime = player.currTime
-                      let annoTime = Object.keys(player.annotations[index].details.position)
-                        .reduce((prev, curr) => Math.abs(curr - currentTime) < Math.abs(prev - currentTime) ? curr : prev)
-
-                      let $box = $('#box')
-                      let left = Math.round(100 * ui.position.left / $box.width())
-                      let top = Math.round(100 * ui.position.top / $box.height())
-                      let width = Math.round(100 * ui.helper[0].clientWidth / $box.width())
-                      let height = Math.round(100 * ui.helper[0].clientHeight / $box.height())
-
-                      player.annotations[index].details.position[annoTime][0] = left
-                      player.annotations[index].details.position[annoTime][1] = top
-
-                      let $censor = $('#censor' + index)
-                      $censor.tooltip('option', 'content', '[' + left + ',' + top + ',' + width + ',' + height + ']');
-                      $censor.tooltip('option', 'items', '#censor' + index);
-
-                      player.interpolateCensor(player.annotations[index])
-                    }
-                  })
-                }
+                document.getElementById('box').appendChild(censor)
               } else {
-                $censor = $('#censor' + i)
+                const censor = document.getElementById('censor' + i)
                 // If censor is interpolating, use intPositions, else use normal positions
                 if (a.details.interpolate) {
                   annoTime = Object.keys(a.details.intPositions).reduce((prev, curr) => Math.abs(curr - time) < Math.abs(prev - time) ? curr : prev)
-                  $censor.css({
-                    left: aDetails['intPositions'][annoTime][0] + '%',
-                    top: aDetails['intPositions'][annoTime][1] + '%'
-                  })
+                  censor.style.left = aDetails['intPositions'][annoTime][0] + '%'
+                  censor.style.top = aDetails['intPositions'][annoTime][1] + '%'
                   if (aDetails['intPositions'][annoTime][2] && aDetails['intPositions'][annoTime][3]) {
-                    $censor.css({
-                      width: aDetails['intPositions'][annoTime][2] + '%',
-                      height: aDetails['intPositions'][annoTime][3] + '%'
-                    })
+                    censor.style.width = aDetails['intPositions'][annoTime][2] + '%'
+                    censor.style.height = aDetails['intPositions'][annoTime][3] + '%'
                   }
                 }
                 else {
                   annoTime = Object.keys(a.details.position).reduce((prev, curr) => Math.abs(curr - time) < Math.abs(prev - time) ? curr : prev) //closest to current time
-                  $censor.css({
-                    left: aDetails['position'][annoTime][0] + '%',
-                    top: aDetails['position'][annoTime][1] + '%'
-                  })
+                  censor.style.left = aDetails['position'][annoTime][0] + '%'
+                  censor.style.top = aDetails['position'][annoTime][1] + '%'
                   if (aDetails['position'][annoTime][2] && aDetails['position'][annoTime][3]) {
-                    $censor.css({
-                      width: aDetails['position'][annoTime][2] + '%',
-                      height: aDetails['position'][annoTime][3] + '%'
-                    })
+                    censor.style.width = aDetails['position'][annoTime][2] + '%'
+                    censor.style.height = aDetails['position'][annoTime][3] + '%'
                   }
                 }
               }
             } else {
-              if ($('#censor' + i).length) {
-                console.log('censor off')
-                $('#censor' + i).remove()
+              const existingCensor = document.getElementById('censor' + i)
+              if (existingCensor) {
+                console.log(`CENSOR OFF (${i} ${a.label || ''}) ${aStart}-${aEnd}`)
+                existingCensor.remove()
               }
             }
             break
         }
       }
-      if (player.$videoObj.prop('paused')) {
+      if (player.videoElem.paused) {
         return
       }
       requestAnimationFrame(player.onFrameAdv)
@@ -916,83 +722,78 @@ module.exports = {
     // Annotation Handlers
 
     play: () => {
-      player.$videoObj.trigger('play');
+      player.videoElem.play();
       player.paused = false
     },
 
     pause: () => {
-      player.$videoObj.trigger('pause');
+      player.videoElem.pause();
       player.paused = true
     },
 
     skipTo: (time) => {
-      player.$videoObj.prop('controls', false)
-      /*
-      This will completely remove the controls
-      $('<style>').attr('id', 'skip').html(`
-        ::-webkit-media-controls-enclosure {
-          display:none !important;
-        }`).appendTo(document.body)*/
-      player.$videoObj.prop('currentTime', time)
+      player.videoElem.controls = false
+      player.videoElem.currentTime = time
       player.currTime = time
       player.onFrameAdv()
     },
 
     blank: () => {
-      player.$videoObj.addClass('blanked')
-      $('<style>').attr('id', 'mask').html(`
+      player.videoElem.classList.add('blanked')
+      const style = document.createElement('style')
+      style.id = 'mask'
+      style.textContent = `
         video.blanked::-webkit-media-controls {
           background-color: black;
         }
         video.blanked::-webkit-media-text-track-container {
           z-index: 1;
-        }`).appendTo(document.body)
+        }`
+      document.body.appendChild(style)
     },
 
     unblank: () => {
-      player.$videoObj.removeClass('blanked')
-      $('#mask').html('')
+      player.videoElem.classList.remove('blanked')
+      const mask = document.getElementById('mask')
+      if (mask) mask.textContent = ''
     },
 
     blur: () => {
-      player.$videoObj.addClass('blurred')
-      $('<style>').attr('id', 'mask').html(`
+      player.videoElem.classList.add('blurred')
+      const style = document.createElement('style')
+      style.id = 'mask'
+      style.textContent = `
         video.blurred::-webkit-media-controls {
           backdrop-filter: blur(10px);
         }
         video.blurred::-webkit-media-text-track-container {
           z-index: 1;
-        }`).appendTo(document.body)
+        }`
+      document.body.appendChild(style)
     },
 
     unblur: () => {
-      player.$videoObj.removeClass('blurred')
-      $('#mask').html('')
+      player.videoElem.classList.remove('blurred')
+      const mask = document.getElementById('mask')
+      if (mask) mask.textContent = ''
     },
 
-    mute: () => { player.$videoObj.prop('muted', true) },
+    mute: () => { player.videoElem.muted = true },
 
-    unmute: () => { player.$videoObj.prop('muted', false) },
+    unmute: () => { player.videoElem.muted = false },
 
     resetAnnotations: () => {
-      if (player.$videoObj.hasClass('blanked')) {
+      if (player.videoElem.classList.contains('blanked')) {
         player.unblank()
       }
-      if (player.$videoObj.hasClass('blurred')) {
+      if (player.videoElem.classList.contains('blurred')) {
         player.unblur()
       }
       for (var i = 0; i < player.annotations.length; i++) {
         if (player.annotations[i].type == 'censor') {
-          $censor = $('#censor' + i)
-          if ($censor) {
-            try {
-              $censor.draggable('disable');
-              $censor.resizable('disable');
-            }
-            catch (e) {
-              // do nothing, draggable and resizable weren't defined
-            }
-            $censor.remove()
+          const censor = document.getElementById('censor' + i)
+          if (censor) {
+            censor.remove()
           }
         }
       }
