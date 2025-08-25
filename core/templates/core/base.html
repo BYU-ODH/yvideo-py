@@ -9,9 +9,12 @@
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     </head>
     <body>
-        <header>
-            {% include "partials/header.html" %}
-        </header>
+        {% block header %}
+            <header>
+                {% include "partials/header.html" %}
+            </header>
+        {% endblock %}
+
         {% block content %}
         {% endblock %}
     </body>
