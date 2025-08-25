@@ -1,15 +1,12 @@
-{% extends "base.html" %}
-
 {% block title %}Manage Collections {% endblock %}
 
 {% block content %}
     <div class="collections-page">
         <div class="collections-container" id="collections-container">
-            <button id="collection-create" class="collection-button" onclick="toggleForm()">
+            <button id="collection-create" class="collection-button" onclick="collection_modal.showModal();">
                 <img class="icon" src="/static/img/plus.svg" id="icon"> Collection
             </button>
-
-            {% include "partials/create_collection.html" %}
+            {% include "add_collection_modal.html" %}
 
             <h4 id="collection-username">
                 {{ user.netid }}
@@ -26,8 +23,7 @@
                                 hx-post="/load_collection"
                                 hx-vals='{"collection_id": "{{ collection.id }}"}'
                                 hx-target="#collections-detail"
-                                hx-swap="innerHTML"
-                                style="cursor: pointer;">
+                                hx-swap="innerHTML">
                                 {{ collection.name }}
                             </div>
                         </div>
@@ -81,6 +77,9 @@
         </div>
         <div class="collections-detail" id="collections-detail">
             <div id="no-collections-body" class="no-collections">Select a Collection to get started.</div>
+        </div>
+        <div class="created-collections">
+
         </div>
     </div>
 {% endblock %}
