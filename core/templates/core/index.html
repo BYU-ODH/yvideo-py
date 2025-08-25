@@ -1,23 +1,13 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>YVideo</title>
-    <link rel="stylesheet" href="{% static 'style.css' %}">
-</head>
-<body>
-    <header>
-        {% include "header.html" %}
-    </header>
+{% extends "base.html" %}
 
+{% block content %}
     <main class="main-content">
         <header class="collections-header">
             <span>Collections</span>
             <span><a href="{% url 'manage_collections' %}"> Manage Collections</a></span>
         </header>
 
-          {% include "collection_list.html" %}
+        {% include "partials/collection_list.html" %}
 
         <header class="collections-header">
             <h3>Public Collections</h3>
@@ -37,6 +27,4 @@
             {% endfor %}
         </div>
     </main>
-
-</body>
-</html>
+{% endblock %}
