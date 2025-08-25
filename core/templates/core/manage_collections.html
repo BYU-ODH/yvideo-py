@@ -1,98 +1,80 @@
-{% load static %}
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Manage Collections</title>
-    <link rel="stylesheet" href="{% static 'style.css' %}">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-</head>
-<body>
-    <header>
-        {% include "header.html" %}
-        <hr>
-    </header>
+{% block title %}Manage Collections {% endblock %}
 
+{% block content %}
     <div class="collections-page">
-
         <div class="collections-container" id="collections-container">
             <button id="collection-create" class="collection-button" onclick="collection_modal.showModal();">
                 <img class="icon" src="/static/img/plus.svg" id="icon"> Collection
             </button>
             {% include "add_collection_modal.html" %}
 
-
             <h4 id="collection-username">
                 {{ user.netid }}
             </h4>
-
-           <div class="collection-section">
-            <h6 class="collection-status">
-                Published
-                <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
-            </h6>
-            <div id="published-list" class="collection-list">
-                {% for collection in published %}
-                    <div class="collection-item">
-                        <div class="collection-name"
-                            hx-post="/load_collection"
-                            hx-vals='{"collection_id": "{{ collection.id }}"}'
-                            hx-target="#collections-detail"
-                            hx-swap="innerHTML"
-                            style="cursor: pointer;">
-                            {{ collection.name }}
+            <div class="collection-section">
+                <h6 class="collection-status">
+                    Published
+                    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
+                </h6>
+                <div class="collection-list" id="published-list">
+                    {% for collection in published %}
+                        <div class="collection-item">
+                            <div class="collection-name"
+                                hx-post="/load_collection"
+                                hx-vals='{"collection_id": "{{ collection.id }}"}'
+                                hx-target="#collections-detail"
+                                hx-swap="innerHTML">
+                                {{ collection.name }}
+                            </div>
                         </div>
-                    </div>
-                {% empty %}
-                    <div class="collection-item">No published collections.</div>
-                {% endfor %}
+                    {% empty %}
+                        <div class="collection-item">No published collections.</div>
+                    {% endfor %}
                 </div>
             </div>
-
             <div class="collection-section">
-            <h6 class="collection-status">
-                Unpublished
-                <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
-            </h6>
-            <div id="unpublished-list" class="collection-list">
-                {% for collection in unpublished %}
-                    <div class="collection-item">
-                        <div class="collection-name"
-                            hx-post="/load_collection"
-                            hx-vals='{"collection_id": "{{ collection.id }}"}'
-                            hx-target="#collections-detail"
-                            hx-swap="innerHTML">
-                            {{ collection.name }}
+                <h6 class="collection-status">
+                    Unpublished
+                    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
+                </h6>
+                <div class="collection-list" id="unpublished-list">
+                    {% for collection in unpublished %}
+                        <div class="collection-item">
+                            <div class="collection-name"
+                                hx-post="/load_collection"
+                                hx-vals='{"collection_id": "{{ collection.id }}"}'
+                                hx-target="#collections-detail"
+                                hx-swap="innerHTML">
+                                {{ collection.name }}
+                            </div>
                         </div>
-                    </div>
-                {% empty %}
-                    <div class="collection-item">No unpublished collections.</div>
-                {% endfor %}
+                    {% empty %}
+                        <div class="collection-item">No unpublished collections.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="collection-section">
+                <h6 class="collection-status">
+                    Archived
+                    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
+                </h6>
+                <div class="collection-list" id="archived-list">
+                    {% for collection in archived %}
+                        <div class="collection-item">
+                            <div class="collection-name"
+                                hx-post="/load_collection"
+                                hx-vals='{"collection_id": "{{ collection.id }}"}'
+                                hx-target="#collections-detail"
+                                hx-swap="innerHTML">
+                                {{ collection.name }}
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="collection-item">No archived collections.</div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
-
-        <div class="collection-section">
-            <h6 class="collection-status">
-                Archived
-                <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
-            </h6>
-            <div id="archived-list" class="collection-list">
-                {% for collection in archived %}
-                    <div class="collection-item">
-                        <div class="collection-name"
-                            hx-post="/load_collection"
-                            hx-vals='{"collection_id": "{{ collection.id }}"}'
-                            hx-target="#collections-detail"
-                            hx-swap="innerHTML">
-                            {{ collection.name }}
-                        </div>
-                    </div>
-                {% empty %}
-                    <div class="collection-item">No archived collections.</div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-
         <div class="collections-detail" id="collections-detail">
             <div id="no-collections-body" class="no-collections">Select a Collection to get started.</div>
         </div>
@@ -100,17 +82,4 @@
 
         </div>
     </div>
-
-    <script>
-        function openDialog() {
-        const dialog = document.getElementById("create-dialog");
-        dialog.showModal();
-        dialog.querySelector("input[name='name']").value = "";
-        }
-        document.addEventListener('DOMContentLoaded', () => {
-            document.body.addEventListener('fail', () => {
-                document.getElementById('collection_modal').showModal();
-            });
-        });
-    </script>
-</body>
+{% endblock %}
