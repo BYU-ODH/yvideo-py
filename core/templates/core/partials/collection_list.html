@@ -18,6 +18,16 @@
                         <p>{{ content.title }}</p>
                         <img src="/static/img/arrow.svg" class="arrow">
                     </div>
+                    {% if content.clips %}
+                        <script>console.log('YES');</script>
+                        {% for clip in content.clips.items %} # TODO: get the clips for each content showing on the page
+                            <p>{{ clip.name }}</p>
+                        {% empty %}
+                            <p>No clips found</p>
+                        {% endfor %}
+                    {% else %}
+                        <p>no clips</p>
+                    {% endif %}
                 {% empty %}
                     <div class="content-line">
                         <p>No content found</p>
