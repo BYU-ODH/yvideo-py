@@ -212,7 +212,7 @@ def create_collection(request):
             collection.save()
 
             response = render(
-                request, "load_collection.html", {"collection": collection}
+                request, "partials/load_collection.html", {"collection": collection}
             )
             response["HX-Trigger"] = "success"
         except Exception as e:
@@ -220,12 +220,14 @@ def create_collection(request):
                 f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
             )
 
-            response = render(request, "add_collection_modal.html", {"form": form})
+            response = render(
+                request, "partials/add_collection_modal.html", {"form": form}
+            )
             response["HX-Retarget"] = "#collection_modal"
             response["HX-Reswap"] = "outerHTML"
             response["HX-Trigger-After-Settle"] = "fail"
     else:
-        response = render(request, "add_collection_modal.html", {"form": form})
+        response = render(request, "partials/add_collection_modal.html", {"form": form})
         response["HX-Retarget"] = "#collection_modal"
         response["HX-Reswap"] = "outerHTML"
         response["HX-Trigger-After-Settle"] = "fail"
