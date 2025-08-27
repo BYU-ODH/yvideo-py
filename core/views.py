@@ -190,12 +190,9 @@ def manage_collections(request):
     )
 
 
-def show_modal(request):
-    return render(request, "create_collection.html")
-
-
 def create_collection(request):
     form = CollectionForm(request.POST, initial={"user": request.user})
+
     if form.is_valid():
         try:
             collection = form.save(commit=False)
@@ -205,8 +202,19 @@ def create_collection(request):
             collection.public = False
             collection.save()
 
+            collections = Collection.objects.filter(owner=request.user)
+            archived = collections.filter(archived=True)
+            published = collections.filter(archived=False, published=True)
+            unpublished = collections.filter(archived=False, published=False)
+
             response = render(
-                request, "partials/load_collection.html", {"collection": collection}
+                request,
+                "partials/sorted_collections.html",
+                {
+                    "published": published,
+                    "unpublished": unpublished,
+                    "archived": archived,
+                },
             )
             response["HX-Trigger"] = "success"
         except Exception as e:

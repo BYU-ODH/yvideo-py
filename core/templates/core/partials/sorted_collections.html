@@ -1,0 +1,61 @@
+<h6 class="collection-status">
+    Published
+    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
+</h6>
+<div class="collection-list" id="published-list">
+    {% for collection in published %}
+        <div class="collection-item">
+            <div class="collection-name"
+                hx-post="/load_collection"
+                hx-vals='{"collection_id": "{{ collection.id }}"}'
+                hx-target="#collections-detail"
+                hx-swap="innerHTML">
+                {{ collection.name }}
+            </div>
+        </div>
+    {% empty %}
+        <div class="collection-item">No published collections.</div>
+    {% endfor %}
+</div>
+
+<div class="collection-section">
+<h6 class="collection-status">
+    Unpublished
+    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
+</h6>
+<div class="collection-list" id="unpublished-list">
+    {% for collection in unpublished %}
+        <div class="collection-item">
+            <div class="collection-name"
+                hx-post="/load_collection"
+                hx-vals='{"collection_id": "{{ collection.id }}"}'
+                hx-target="#collections-detail"
+                hx-swap="innerHTML">
+                {{ collection.name }}
+            </div>
+        </div>
+    {% empty %}
+        <div class="collection-item">No unpublished collections.</div>
+    {% endfor %}
+</div>
+
+<div class="collection-section">
+<h6 class="collection-status">
+    Archived
+    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
+</h6>
+<div class="collection-list" id="archived-list">
+    {% for collection in archived %}
+        <div class="collection-item">
+            <div class="collection-name"
+                hx-post="/load_collection"
+                hx-vals='{"collection_id": "{{ collection.id }}"}'
+                hx-target="#collections-detail"
+                hx-swap="innerHTML">
+                {{ collection.name }}
+            </div>
+        </div>
+    {% empty %}
+        <div class="collection-item">No archived collections.</div>
+    {% endfor %}
+</div>

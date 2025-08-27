@@ -3,7 +3,11 @@
 
         <h3>Add New Collection</h3>
 
-        <form hx-post="{% url 'create_collection' %}">
+        <form
+            hx-post="{% url 'create_collection' %}"
+            hx-target="#sorted-collections"
+            hx-swap="innerHTML"
+            hx-on:success="collection_modal.close(); this.closest('form').reset();">
             {% csrf_token %}
 
             <div class="form-control">
