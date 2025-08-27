@@ -26,13 +26,9 @@
     </div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", () => { # TODO: fix bug where form does not get reset after a success right after a fail
         document.body.addEventListener("fail", () => {
             document.getElementById("collection_modal").showModal();
-        });
-
-        document.body.addEventListener("success", () => {
-            document.getElementById("collection_modal").reset();
         });
     });
 </script>
