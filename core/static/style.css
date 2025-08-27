@@ -788,7 +788,7 @@ h2 {
   align-items: center;
 }
 
-.collection-item {
+.collection-line {
     height: 5rem;
     padding: 0px 3rem;
     display: flex;
@@ -796,17 +796,17 @@ h2 {
     align-items: center;
 }
 
-.collection-item:hover {
+.collection-line:hover {
     cursor: pointer;
     text-decoration: underline;
     background: rgb(191, 191, 191);
 }
 
-.collection-item.active {
+.collection-line.active {
     background: rgb(191, 191, 191);
 }
 
-.collection-item.active .arrow {
+.collection-line.active .arrow {
     transform: rotate(180deg);
 }
 
@@ -826,12 +826,22 @@ h2 {
     border-bottom: 1px solid rgb(187, 187, 187);
 }
 
-.arrow {
-    transition: transform 0.3s ease;
-}
-
 .content-line:hover {
     background: rgb(191, 191, 191);
+}
+
+.content-clips {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.content-line.active {
+    background: rgb(191, 191, 191);
+}
+
+.arrow {
+    transition: transform 0.3s ease;
 }
 
 .collection-navigation {

@@ -1,7 +1,7 @@
 <div class="collections-list">
     {% for collection, contents in contents.items %}
         <div class="collection-container">
-            <div class="collection-item">
+            <div id="accordion" class="collection-line">
                 <h3>{{ collection.name }}</h3>
                 {% if contents|length > 1 %}
                         <p>{{ contents|length }} items</p>
@@ -14,20 +14,22 @@
             </div>
             <div class="content-item">
                 {% for content in contents %}
-                    <div class="content-line">
+                    <div id="accordion" class="content-line">
                         <p>{{ content.title }}</p>
                         <img src="/static/img/arrow.svg" class="arrow">
                     </div>
-                    {% if content.clips %}
-                        <script>console.log('YES');</script>
-                        {% for clip in content.clips.items %} # TODO: get the clips for each content showing on the page
-                            <p>{{ clip.name }}</p>
-                        {% empty %}
+                    <div class="content-clips">
+                        {% if content.clips.all %}
+                            <p>Full Video</p>
+                            {% for clip in content.clips.all %}
+                                    <p>{{ clip.name }} ({{ clip.start_time }} - {{ clip.end_time }})</p>
+                            {% empty %}
+                                    <p>No clips found</p>
+                            {% endfor %}
+                        {% else %}
                             <p>No clips found</p>
-                        {% endfor %}
-                    {% else %}
-                        <p>no clips</p>
-                    {% endif %}
+                        {% endif %}
+                    </div>
                 {% empty %}
                     <div class="content-line">
                         <p>No content found</p>
@@ -42,7 +44,7 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        const collections = document.querySelectorAll(".collection-item");
+        const collections = document.querySelectorAll("#accordion");
 
         collections.forEach((collection) => {
             collection.addEventListener("click", function() {
@@ -55,9 +57,11 @@
 
                 const content = this.nextElementSibling;
                 if (content.style.maxHeight) {
-                    content.style.maxHeight = null;
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    setTimeout(function(){content.style.maxHeight = null;}, 50)
                 } else {
                     content.style.maxHeight = content.scrollHeight + "px";
+                    setTimeout(function(){content.style.maxHeight = "unset";}, 200)
                 }
             });
         });
