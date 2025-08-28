@@ -1,3 +1,5 @@
+{% extends "base.html" %}
+
 {% block title %}Manage Collections {% endblock %}
 
 {% block content %}
@@ -6,7 +8,7 @@
             <button id="collection-create" class="collection-button" onclick="collection_modal.showModal();">
                 <img class="icon" src="/static/img/plus.svg" id="icon"> Collection
             </button>
-            {% include "add_collection_modal.html" %}
+            {% include "partials/add_collection_modal.html" %}
 
             <h4 id="collection-username">
                 {{ user.netid }}
@@ -77,6 +79,7 @@
         </div>
         <div class="collections-detail" id="collections-detail">
             <div id="no-collections-body" class="no-collections">Select a Collection to get started.</div>
+            {% include "partials/view_collection.html" %}
         </div>
         <div class="created-collections">
 
