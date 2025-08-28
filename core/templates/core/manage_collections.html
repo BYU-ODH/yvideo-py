@@ -31,9 +31,27 @@
     </div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", () => { # TODO: fix bug where form does not get reset after a success right after a fail
+    function closeAndResetModal() {
+        const modal = document.getElementById("collection_modal");
+        const form = document.getElementById("collection-form");
+        const nameInput = form.querySelector('input[name="name"]');
+        const errorLabels = form.querySelectorAll('.text-error');
+
+        modal.close();
+        errorLabels.forEach(label => label.remove());
+
+        if (nameInput) {
+            nameInput.value = '';
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
         document.body.addEventListener("fail", () => {
             document.getElementById("collection_modal").showModal();
+        });
+
+        document.body.addEventListener("success", () => {
+            closeAndResetModal();
         });
     });
 </script>
