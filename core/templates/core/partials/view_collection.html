@@ -1,56 +1,71 @@
-<header class="collection-header">
-  <div class="title-section">
-    <h2 class="collection-title">{{ collection.name }}</h2>
-    <div id="title-edit-button" class="edit-button">Edit</div>
-  </div>
-
-  <div class="collection-actions">
-    <button id="publish-button" class="publish-button">Publish</button>
-    <button id="unpublish-button" class="unpublish-button">Unpublish</button>
-    <button id="archive-button" class="archive-button">Archive</button>
-  </div>
-</header>
-
-<div class="collection-navigation">
-  <button id="content-button" class="btn std-outline-color">Content</button>
-  <button id="permissions-button" class="btn std-outline-color">Edit User Access</button>
-  <div class="nav-placeholder"></div>
-</div>
-
-<div class="collection-content">
-  <div class="media-item">
-
-    <!-- Video Thumbnail -->
-    <!-- Add image or video thumbnail here -->
-
-    <hr>
-
-    <div class="video-info">
-      <div class="video-title">
-        <h3 class="content-title">Video Title</h3>
-      </div>
-      <ul class="video-metadata">
-        <li class="translation"><!-- Translation info here --></li>
-        <li class="captions"><!-- Captions info here --></li>
-        <li class="annotations"><!-- Annotations info here --></li>
-        <li><i class="fa fa-eye"></i><!-- Views count or icon --></li>
-      </ul>
+{% if collection %}
+    <div class="title-section">
+        <h2 class="collection-title">{{ collection.name }}</h2>
     </div>
-
-    <div class="editor-links">
-      <div class="editor-link video-editor">
-        <a href="/videoeditor/8cc6e932-6da3-4f49-957d-4de76bcf3b81">Video Editor</a>
-      </div>
-      <div class="editor-link subtitle-editor">
-        <a href="/subtitleeditor/8cc6e932-6da3-4f49-957d-4de76bcf3b81">Subtitle Editor</a>
-      </div>
-      <div class="editor-link clip-manager">
-        <a href="/clipeditor/8cc6e932-6da3-4f49-957d-4de76bcf3b81">Clip Manager</a>
-      </div>
+    <div class="collection-content">
+        {% for content in contents %}
+            <div class="content-title">
+                {% if content.thumbnail %}
+                    <img src="{{ content.thumbnail }}" alt="">
+                {% else %}
+                    <img src="../../../static/img/video.svg">
+                {% endif %}
+                <h3 class="content-title">{{ content.title }}</h3>
+                <button id="edit-button" class="title-edit-button">Edit</button>
+            </div>
+            <div class="content-edit-container">
+                <div class="edit-title">
+                    {% if content.thumbnail %}
+                        <img src="{{ content.thumbnail }}" alt="">
+                    {% else %}
+                        <img src="../../../static/img/video.svg">
+                    {% endif %}
+                    <input type="text" value="{{ content.title }}" class="name-edit-input">
+                </div>
+                <div class="edit-options">
+                    <input type="checkbox" id="captions-option">
+                    <label for="captions-option">Captions</label>
+                    <input type="checkbox" id="definitions-option">
+                    <label for="definitions-option">Allow Automatic Definitions</label>
+                    <input type="checkbox" id="notes-option">
+                    <label for="notes-option">Allow Notes</label>
+                </div>
+                <div class="edit-save">
+                    <div class="edit-checkboxes">
+                        <input type="checkbox" id="published">
+                        <label for="published">Published</label>
+                        <button class="delete-button">Delete</button>
+                        <button class="save-button">Save</button>
+                    </div>
+                    <div class="edit-tags">
+                        <h4>Tags</h4>
+                        <input type="text" placeholder="Add tags...">
+                        <button class="submit-button">Add</button>
+                    </div>
+                    <div class="edit-description">
+                        <h4>Description</h4>
+                        <input type="text" value="{{ content.description }}">
+                    </div>
+                    <div class="edit-important-words">
+                        <div class="edit-words-header">
+                            <h4>Important Words</h4>
+                            <button class="help-button">?</button>
+                        </div>
+                        <p>
+                            Add a list of important words to be
+                            highlighted in the transcript. The
+                            highlighted words will have quick
+                            translation on click if there is one
+                            available.
+                        </p>
+                        <button class="submit-button">Open</button>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <p>No content in this collection yet.</p>
+        {% endfor %}
     </div>
-  </div>
-
-  <button id="newcontent-button" class="btn std-outline-color">
-    <div class="plus-icon"></div>
-  </button>
-</div>
+{% else %}
+    <div id="no-collections-body" class="no-collections">Select a Collection to get started.</div>
+{% endif %}

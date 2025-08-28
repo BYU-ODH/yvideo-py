@@ -233,4 +233,4 @@ def view_collection(request, pk):
         "collection": collection,
         "contents": contents,
     }
-    return render(request, "partials/view_collection_new.html", context)
+    return render(request, "partials/view_collection.html", context)
