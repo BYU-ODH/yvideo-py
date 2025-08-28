@@ -22,8 +22,7 @@
                     {% for collection in published %}
                         <div class="collection-item">
                             <div class="collection-name"
-                                hx-post="/load_collection"
-                                hx-vals='{"collection_id": "{{ collection.id }}"}'
+                                hx-get="{% url "view_collection" pk=collection.pk %}"
                                 hx-target="#collections-detail"
                                 hx-swap="innerHTML">
                                 {{ collection.name }}
@@ -78,8 +77,7 @@
             </div>
         </div>
         <div class="collections-detail" id="collections-detail">
-            <div id="no-collections-body" class="no-collections">Select a Collection to get started.</div>
-            {% include "partials/view_collection.html" %}
+            {% include "partials/view_collection_new.html" %}
         </div>
         <div class="created-collections">
 

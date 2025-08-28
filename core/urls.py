@@ -13,7 +13,7 @@ urlpatterns = [
     path("", index, name="index"),
     path("manage-collections/", manage_collections, name="manage_collections"),
     path("collections/create/", create_collection, name="create_collection"),
-    path("collections/view/", view_collection, name="view_collection"),
-    path("player/<int:content_id>", player, name="player"),
-    path("stream/<int:file_key>", stream_file, name="stream_file"),
+    path("collections/view/<int:pk>/", view_collection, name="view_collection"),
+    path("player/<int:content_id>/", player, name="player"),
+    path("stream/<int:file_key>/", stream_file, name="stream_file"),
 ]

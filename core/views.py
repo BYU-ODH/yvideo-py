@@ -210,12 +210,14 @@ def create_collection(request):
                 f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
             )
 
-            response = render(request, "add_collection_modal.html", {"form": form})
+            response = render(
+                request, "partials/add_collection_modal.html", {"form": form}
+            )
             response["HX-Retarget"] = "#collection_modal"
             response["HX-Reswap"] = "outerHTML"
             response["HX-Trigger-After-Settle"] = "fail"
     else:
-        response = render(request, "add_collection_modal.html", {"form": form})
+        response = render(request, "partials/add_collection_modal.html", {"form": form})
         response["HX-Retarget"] = "#collection_modal"
         response["HX-Reswap"] = "outerHTML"
         response["HX-Trigger-After-Settle"] = "fail"
@@ -223,5 +225,12 @@ def create_collection(request):
     return response
 
 
-def view_collection(request):
-    pass
+def view_collection(request, pk):
+    user = request.user
+    collection = get_object_or_404(Collection, owner=user, pk=pk)
+    contents = Content.objects.filter(collection=collection)
+    context = {
+        "collection": collection,
+        "contents": contents,
+    }
+    return render(request, "partials/view_collection_new.html", context)
