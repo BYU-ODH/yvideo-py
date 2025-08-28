@@ -4,11 +4,11 @@
     </div>
     <div class="collection-content">
         {% for content in contents %}
-            <div class="content-title">
+            <div class="content-header">
                 {% if content.thumbnail %}
-                    <img src="{{ content.thumbnail }}" alt="">
+                    <img src="{{ content.thumbnail }}" class="content-thumbnail">
                 {% else %}
-                    <img src="../../../static/img/video.svg">
+                    <img src="../../../static/img/video.svg" class="content-thumbnail">
                 {% endif %}
                 <h3 class="content-title">{{ content.title }}</h3>
                 <button id="edit-button" class="title-edit-button">Edit</button>
@@ -16,9 +16,9 @@
             <div class="content-edit-container">
                 <div class="edit-title">
                     {% if content.thumbnail %}
-                        <img src="{{ content.thumbnail }}" alt="">
+                        <img src="{{ content.thumbnail }}" class="content-thumbnail">
                     {% else %}
-                        <img src="../../../static/img/video.svg">
+                        <img src="../../../static/img/video.svg" class="content-thumbnail">
                     {% endif %}
                     <input type="text" value="{{ content.title }}" class="name-edit-input">
                 </div>

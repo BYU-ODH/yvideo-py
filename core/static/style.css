@@ -924,3 +924,13 @@ h2 {
   width: 1rem;
   background: url(/static/img/plus.svg) center center / contain no-repeat;
 }
+
+.content-header {
+    display: flex;
+    border: 1px solid red !important;
+}
+
+.content-thumbnail {
+    width: 10rem;
+    height: auto;
+}
