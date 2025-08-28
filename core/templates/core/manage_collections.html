@@ -1,27 +1,32 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Collections {% endblock %}
+{% block title %}Manage Collections{% endblock %}
 
 {% block content %}
     <div class="collections-page">
-        <div class="collections-container" id="collections-container">
-            <button id="collection-create" class="collection-button" onclick="collection_modal.showModal();">
-                <img class="icon" src="/static/img/plus.svg" id="icon"> Collection
-            </button>
-            {% include "partials/add_collection_modal.html" %}
+        <div class="collections-sidebar">
+            <div class="collections-sidebar-heading">
+                <button
+                    id="collection-create"
+                    class="collection-button"
+                    onclick="collection_modal.showModal();">
+                    <img src="/static/img/plus.svg" id="icon" class="icon"> Collection
+                </button>
 
-            <h4 id="collection-username">
-                {{ user.netid }}
-            </h4>
-            <div id="sorted-collections" class="collection-section">
+                {% include "partials/add_collection_modal.html" %}
+
+                <h4 class="collection-username">
+                    {{ user.netid }}'s Collections
+                </h4>
+            </div>
+            <div id="sorted-collections" class="sorted-collections">
                 {% include "partials/sorted_collections.html" %}
             </div>
         </div>
-        <div class="collections-detail" id="collections-detail">
-            <div id="no-collections-body" class="no-collections">Select a Collection to get started.</div>
-        </div>
-        <div class="created-collections">
-
+        <div id="collections-detail" class="collections-detail">
+            <div class="no-collections">
+                <p>There are no collections</p>
+            </div>
         </div>
     </div>
 
