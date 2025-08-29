@@ -1,6 +1,7 @@
 <form
     hx-put="{% url 'view_collection' content.collection.pk %}"
-    hx-target="#collections-detail">
+    hx-target="#content-{{ content.pk }}-header"
+    hx-vals='{"content_id": "{{ content.pk }}"}'>
     {% csrf_token %}
 
     {{ form.as_p }}

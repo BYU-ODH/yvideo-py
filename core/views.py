@@ -239,12 +239,17 @@ def view_collection(request, pk):
         }
         return render(request, "partials/view_collection.html", context)
     elif request.method == "PUT":
-        content_pk = pk
-        updated_content = get_object_or_404(Content, pk=content_pk)
-        collection = updated_content.collection
-        all_contents = Content.objects.filter(collection=collection)
+        collection_pk = pk
+        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
 
         data = QueryDict(request.body).dict()
+        content_pk = data.get("content_id")
+
+        if not content_pk:
+            logger.error("No content_id provided in PUT request")
+            return HttpResponse("Content ID is required", 400)
+
+        updated_content = get_object_or_404(Content, pk=content_pk)
         form = UpdateContentForm(data, instance=updated_content)
 
         if form.is_valid():
@@ -252,8 +257,8 @@ def view_collection(request, pk):
                 form.save()
                 return render(
                     request,
-                    "partials/view_collection.html",
-                    {"collection": collection, "contents": all_contents},
+                    "partials/content_header.html",
+                    {"content": updated_content},
                 )
             except Exception as e:
                 logger.warning(
@@ -274,7 +279,7 @@ def view_collection(request, pk):
                 {"content": updated_content, "form": form},
             )
             response["HX-Retarget"] = f"#content-{updated_content.pk}-header"
-            response["HX-Reswap"] = "outerHTML"
+            response["HX-Reswap"] = "innerHTML"
             return response
 
 

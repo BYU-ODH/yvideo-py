@@ -4,21 +4,7 @@
     </div>
     <div class="collection-content">
         {% for content in contents %}
-            <div class="content-header" id="content-{{ content.pk }}-header"
-                data-title="{{ content.title }}"
-                data-description="{{ content.description }}"
-                data-thumbnail="{{ content.thumbnail }}">
-                {% if content.thumbnail %}
-                    <img src="{{ content.thumbnail }}" class="content-thumbnail">
-                {% else %}
-                    <img src="../../../static/img/video.svg" class="content-thumbnail">
-                {% endif %}
-                <h3 class="content-title">{{ content.title }}</h3>
-                <button
-                    class="title-edit-button"
-                    hx-get="{% url 'edit_content' content.id %}"
-                    hx-target="#content-{{ content.pk }}-header">Edit</button>
-            </div>
+            {% include "partials/content_header.html" %}
         {% empty %}
             <p>No content in this collection yet.</p>
         {% endfor %}
@@ -26,74 +12,3 @@
 {% else %}
     <div id="no-collections-body" class="no-collections">Select a Collection to get started.</div>
 {% endif %}
-
-<script>
-    function openEditPanel(content_id) {
-        const header = document.getElementById(`${content_id}-header`);
-        const title = header.dataset.title;
-        const description = header.dataset.description;
-        const thumbnail = header.dataset.thumbnail || "../../../static/img/video.svg";
-
-        header.innerHTML = `
-            <form>
-                <div class="content-edit-container">
-                    <div class="edit-title">
-                        <img src="${thumbnail}" class="content-thumbnail">
-                        <input type="text" value="${title}" class="name-edit-input">
-                    </div>
-                    <div class="edit-options">
-                        <input type="checkbox" id="captions-option">
-                        <label for="captions-option">Captions</label>
-                        <input type="checkbox" id="definitions-option">
-                        <label for="definitions-option">Allow Automatic Definitions</label>
-                        <input type="checkbox" id="notes-option">
-                        <label for="notes-option">Allow Notes</label>
-                    </div>
-                    <div class="edit-save">
-                        <div class="edit-checkboxes">
-                            <input type="checkbox" id="published">
-                            <label for="published">Published</label>
-                            <button class="delete-button">Delete</button>
-                            <button class="save-button" onclick="closeEditPanel(${content_id});">Save</button>
-                        </div>
-                        <div class="edit-tags">
-                            <h4>Tags</h4>
-                            <input type="text" placeholder="Add tags...">
-                            <button class="submit-button">Add</button>
-                        </div>
-                        <div class="edit-description">
-                            <h4>Description</h4>
-                            <input type="text" value="${description}">
-                        </div>
-                        <div class="edit-important-words">
-                            <div class="edit-words-header">
-                                <h4>Important Words</h4>
-                                <button class="help-button">?</button>
-                            </div>
-                            <p>
-                                Add a list of important words to be
-                                highlighted in the transcript. The
-                                highlighted words will have quick
-                                translation on click if there is one
-                                available.
-                            </p>
-                            <button class="submit-button">Open</button>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        `;
-    }
-
-    function closeEditPanel(content_id) {
-        const header = document.getElementById(`${content_id}-header`);
-        const title = header.dataset.title;
-        const thumbnail = header.dataset.thumbnail || "../../../static/img/video.svg";
-
-        header.innerHTML = `
-        <img src="${thumbnail}" class="content-thumbnail">
-        <h3 class="content-title">${title}</h3>
-        <button id="edit-button" class="title-edit-button" onclick="openEditPanel(${content_id});">Edit</button>
-        `;
-    }
-</script>
