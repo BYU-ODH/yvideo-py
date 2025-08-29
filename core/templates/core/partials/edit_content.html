@@ -1,0 +1,9 @@
+<form
+    hx-put="{% url 'view_collection' content.collection.pk %}"
+    hx-target="#collections-detail">
+    {% csrf_token %}
+
+    {{ form.as_p }}
+
+    <input type="submit">
+</form>

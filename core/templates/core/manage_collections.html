@@ -84,3 +84,12 @@
         </div>
     </div>
 {% endblock %}
+
+<script>
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    console.log('HTMX afterSwap:', evt.detail);
+});
+document.body.addEventListener('htmx:responseError', function(evt) {
+    console.log('HTMX responseError:', evt.detail);
+});
+</script>

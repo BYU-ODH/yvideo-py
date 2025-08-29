@@ -5,11 +5,12 @@ import re
 
 from django.http import Http404
 from django.http import HttpResponse
+from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 
-from core.forms import CollectionForm
-
+from .forms import CollectionForm
+from .forms import UpdateContentForm
 from .models import Collection
 from .models import Content
 from .models import FileKey
@@ -227,10 +228,58 @@ def create_collection(request):
 
 def view_collection(request, pk):
     user = request.user
-    collection = get_object_or_404(Collection, owner=user, pk=pk)
-    contents = Content.objects.filter(collection=collection)
-    context = {
-        "collection": collection,
-        "contents": contents,
-    }
-    return render(request, "partials/view_collection.html", context)
+
+    if request.method == "GET":
+        collection_pk = pk
+        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
+        contents = Content.objects.filter(collection=collection)
+        context = {
+            "collection": collection,
+            "contents": contents,
+        }
+        return render(request, "partials/view_collection.html", context)
+    elif request.method == "PUT":
+        content_pk = pk
+        updated_content = get_object_or_404(Content, pk=content_pk)
+        collection = updated_content.collection
+        all_contents = Content.objects.filter(collection=collection)
+
+        data = QueryDict(request.body).dict()
+        form = UpdateContentForm(data, instance=updated_content)
+
+        if form.is_valid():
+            try:
+                form.save()
+                return render(
+                    request,
+                    "partials/view_collection.html",
+                    {"collection": collection, "contents": all_contents},
+                )
+            except Exception as e:
+                logger.warning(
+                    f"An error occured when the user: {collection.owner} attempted to update the content: {updated_content.title} -> {e}"
+                )
+                response = render(
+                    request,
+                    "partials/edit_content.html",
+                    {"content": updated_content, "form": form},
+                )
+                response["HX-Retarget"] = f"#content-{updated_content.pk}-header"
+                response["HX-Reswap"] = "outerHTML"
+                return response
+        else:
+            response = render(
+                request,
+                "partials/edit_content.html",
+                {"content": updated_content, "form": form},
+            )
+            response["HX-Retarget"] = f"#content-{updated_content.pk}-header"
+            response["HX-Reswap"] = "outerHTML"
+            return response
+
+
+def edit_content(request, pk):
+    content = get_object_or_404(Content, pk=pk)
+    form = UpdateContentForm(instance=content)
+    context = {"content": content, "form": form}
+    return render(request, "partials/edit_content.html", context)

@@ -834,6 +834,7 @@ h2 {
   overflow-y: scroll;
   padding: 2rem;
   height: 100vh;
+  border: 1px solid blue;
 }
 
 #no-collections-body {
@@ -933,4 +934,40 @@ h2 {
 .content-thumbnail {
     width: 10rem;
     height: auto;
+}
+
+.content-edit-container {
+    border: 1px solid red;
+}
+
+.edit-title {
+    border: 1px solid blue;
+}
+
+.edit-options {
+    border: 1px solid blue;
+}
+
+.edit-save {
+    border: 1px solid blue;
+}
+
+.edit-checkboxes {
+    border: 1px solid red;
+}
+
+.edit-tags {
+    border: 1px solid red;
+}
+
+.edit-description {
+    border: 1px solid red;
+}
+
+.edit-important-words {
+    border: 1px solid red;
+}
+
+.edit-words-header {
+    border: 1px solid blue;
 }
