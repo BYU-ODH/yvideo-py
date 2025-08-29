@@ -928,46 +928,9 @@ h2 {
 
 .content-header {
     display: flex;
-    border: 1px solid red !important;
 }
 
 .content-thumbnail {
     width: 10rem;
     height: auto;
-}
-
-.content-edit-container {
-    border: 1px solid red;
-}
-
-.edit-title {
-    border: 1px solid blue;
-}
-
-.edit-options {
-    border: 1px solid blue;
-}
-
-.edit-save {
-    border: 1px solid blue;
-}
-
-.edit-checkboxes {
-    border: 1px solid red;
-}
-
-.edit-tags {
-    border: 1px solid red;
-}
-
-.edit-description {
-    border: 1px solid red;
-}
-
-.edit-important-words {
-    border: 1px solid red;
-}
-
-.edit-words-header {
-    border: 1px solid blue;
 }
