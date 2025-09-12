@@ -28,6 +28,7 @@ DEBUG = secret_settings.DEBUG
 
 ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
 
+SAML_FOLDER = BASE_DIR / "yvideo" / "saml_config"
 
 # Application definition
 AUTH_USER_MODEL = "core.User"
