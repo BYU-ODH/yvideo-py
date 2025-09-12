@@ -1,0 +1,33 @@
+{
+  "strict": true,
+  "debug": false,
+  "sp": {
+    "entityId": "https://yvideo.byu.edu",
+    "NameIdFormat": "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified",
+    "assertionConsumerService": {
+      "url": "https://yvideo.byu.edu/?acs",
+      "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+    },
+    "singleLogoutService": {
+      "url": "https://yvideo.byu.edu/?sls",
+      "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+    },
+    "x509cert": "",
+    "privateKey": ""
+  },
+  "idp": {
+    "entityId": "https://cas.byu.edu/cas/idp/metadata",
+    "singleSignOnService": {
+      "url": "https://cas.byu.edu/cas/idp/profile/SAML2/Redirect/SSO",
+      "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+    },
+    "singleLogoutService": {
+      "url": "https://cas.byu.edu/cas/idp/profile/SAML2/Redirect/SLO",
+      "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+    },
+    "x509certMulti": {
+      "signing": [""],
+      "encryption": [""]
+    }
+  }
+}
