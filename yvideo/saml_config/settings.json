@@ -8,10 +8,6 @@
       "url": "https://yvideo.byu.edu/?acs",
       "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
     },
-    "singleLogoutService": {
-      "url": "https://yvideo.byu.edu/?sls",
-      "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-    },
     "x509cert": "",
     "privateKey": ""
   },
