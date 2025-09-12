@@ -55,8 +55,7 @@ class ResourceAdmin(VersionAdmin):
             user = User.objects.get(netid=requester_netid)
         except Exception:
             return
-        most_recent_Resource = Resource.objects.latest("created_at")
-        ResourceAccess.objects.create(user=user, resource=most_recent_Resource)
+        ResourceAccess.objects.create(user=user, resource=obj)
 
 
 @admin.register(Collection)
