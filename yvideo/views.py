@@ -7,6 +7,8 @@ from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from onelogin.saml2.settings import OneLogin_Saml2_Settings
 from onelogin.saml2.utils import OneLogin_Saml2_Utils
 
+from core import model_utils as core_model_utils
+
 
 def init_saml_auth(req):
     auth = OneLogin_Saml2_Auth(req, custom_base_path=settings.SAML_FOLDER)
@@ -60,6 +62,16 @@ def index(request):
             request.session["samlNameIdNameQualifier"] = auth.get_nameid_nq()
             request.session["samlNameIdSPNameQualifier"] = auth.get_nameid_spnq()
             request.session["samlSessionIndex"] = auth.get_session_index()
+            byuId = request.session["samlUserdata"]["byuId"]
+            user_result = core_model_utils.create_or_update_user(byuId)
+            if user_result["user"] is not None:
+                user = user_result["user"]
+                request.session["netid"] = user["netid"]
+                request.session["byuid"] = user["byu_id"]
+            else:
+                request.session["netid"] = None
+                request.session["byuid"] = None
+
             if (
                 "RelayState" in req["post_data"]
                 and OneLogin_Saml2_Utils.get_self_url(req)
