@@ -7,9 +7,10 @@ module.exports = {
     currTime: 0, // The current time of the player
     reloadingJson: false, // Is JSON being reloaded
     paused: false, // Is the player paused or playing
+    controlsTimeout: null, // Timer for hiding controls and return button
 
     // Select files or begin player
-    buttonPress: () => {
+    initializeOrSelectFiles: () => {
       const files = player.getSelectedFiles()
       if (!files) {
         document.getElementById('filePicker').click()
@@ -39,12 +40,10 @@ module.exports = {
         return
       }
 
-      // With this, the player will start playing after someone
-      // returns to the menu and begins watching a video again
       player.paused = false
 
-      // Instantiate object variable 'annotations'
-      player.parseNPlay(files['jsonFile'], player.initializeCallback)
+      // Parse the json file and begin the player
+      player.parseAndPlay(files['jsonFile'], player.initializeCallback)
     },
 
     // Hide the player when user returns to menu
@@ -130,9 +129,12 @@ module.exports = {
           icfFileExists = true
           icfFile = fileList[i]
         }
-        else if (ext === 'mp4' || ext === 'm4v') {  /*TODO: Add all supported file types*/
+        else if (ext === 'mp4' || ext === 'm4v') {
           videoFileExists = true
           videoFile = fileList[i]
+        }
+        else {
+          console.warn(`Unsupported file type: ${fileList[i]['name']}`)
         }
       }
 
@@ -155,14 +157,14 @@ module.exports = {
         }
       }
 
-      // if all the necessary files are included, return the fileList; else return FALSE
+      // if all the necessary files are included, return the file mapping; else return false
       return (jsonFile && videoFile)
         ? { 'jsonFile': jsonFile, 'icfFile': icfFile, 'videoFile': videoFile }
         : false
     },
 
 
-    // Load the files
+    // Create IC directory from mp4 (and optionally an annotations JSON)
     generateICDirectory: () => {
       var HOME = process.env.HOME
       var videoFile = document.getElementById('mp4FilePicker').files[0]
@@ -218,8 +220,8 @@ module.exports = {
       }
     },
 
-    //Draw the box that the annotations use for positioning
-    drawBox: () => {
+    //Place the #annotation-container div that the annotations use for positioning
+    placeAnnotationContainer: () => {
       var videoDimensions = player.getVideoDimensions()
       var vidHeight = videoDimensions.height
       var vidWidth = videoDimensions.width
@@ -228,22 +230,22 @@ module.exports = {
       var winHeight = window.innerHeight
       var winWidth = window.innerWidth
 
-      var boxTop = 0
-      var boxLeft = 0
+      var annotationContainerTop = 0
+      var annotationContainerLeft = 0
       if (winHeight > vidHeight)
-        boxTop = (winHeight - vidHeight) / 2
+        annotationContainerTop = (winHeight - vidHeight) / 2
       else
-        boxLeft = (winWidth - vidWidth) / 2
+        annotationContainerLeft = (winWidth - vidWidth) / 2
 
-      const box = document.getElementById('box')
-      box.style.top = `${boxTop}px`
-      box.style.left = `${boxLeft}px`
-      box.style.height = `${vidHeight}px`
-      box.style.width = `${vidWidth}px`
+      const annotationContainer = document.getElementById('annotation-container')
+      annotationContainer.style.top = `${annotationContainerTop}px`
+      annotationContainer.style.left = `${annotationContainerLeft}px`
+      annotationContainer.style.height = `${vidHeight}px`
+      annotationContainer.style.width = `${vidWidth}px`
     },
 
     // Parse jsonFile and initialize player
-    parseNPlay: (jsonFile, initializeCallback) => {
+    parseAndPlay: (jsonFile, initializeCallback) => {
       player.jsonFilePath = jsonFile.path
       fs.readFile(jsonFile.path, (err, fileData) => {
         if (err) {
@@ -287,9 +289,6 @@ module.exports = {
         player.annotations.push(annotation)
       }
       player.annotate()
-
-      // Hide Splash Screen
-      document.getElementById('splashScreen').style.visibility = 'hidden'
 
       const files = player.getSelectedFiles()
 
@@ -340,12 +339,12 @@ module.exports = {
       }
     },
 
-    // Add anotations by calling onFrameAdv
+    // Add annotations by calling applyAnnotationsUntilPause
     annotate: () => {
       console.log('Applying annotations...')
       player.currently = { 'muting': -1, 'blanking': -1, 'blurring': -1 }
       Events.addListener(document.getElementById('player'), 'playing', (event) => {
-        player.onFrameAdv()
+        player.applyAnnotationsUntilPause()
       })
     },
 
@@ -478,10 +477,9 @@ module.exports = {
     addListenersAtStart: () => {
       Events.addListener(document.getElementById('player'), 'loadedmetadata', () => {
         if (player.reloadingJson) console.log('loadedmetadata during JSON reload')
-        else if (player.skipping) console.log('loadedmetadata during skip')
         else console.log('loadedmetadata during normal playback')
-        // Draw box initially
-        player.drawBox()
+        // Place annotation container initially
+        player.placeAnnotationContainer()
         player.validateAnnotations()
         player.videoElem.currentTime = player.currTime
       })
@@ -492,44 +490,56 @@ module.exports = {
         document.getElementById('returnBtn').style.visibility = 'hidden'
       })
 
-      //Add listener to reveal controls at end of video on mousemove
+      //Add listener to reveal controls and return button on mousemove and set timer to hide them
       Events.addListener(document.getElementById('player'), 'mousemove', () => {
         player.videoElem.controls = true
         document.getElementById('returnBtn').style.visibility = 'visible'
-      })
 
-      Events.addListener(document.getElementById('box'), 'mousemove', () => {
-        player.videoElem.controls = true
-        document.getElementById('returnBtn').style.visibility = 'visible'
+        // Clear existing timeout
+        if (player.controlsTimeout) {
+          clearTimeout(player.controlsTimeout)
+        }
+
+        // Set new timeout to hide controls and return button after 3 seconds of no mouse movement
+        if (!player.videoElem.paused) {
+          player.controlsTimeout = setTimeout(() => {
+            player.videoElem.controls = false
+            document.getElementById('returnBtn').style.visibility = 'hidden'
+          }, 3000)
+        }
       })
 
       Events.addListener(document.getElementById('player'), 'onclick', () => {
-        player.paused ? player.play() : player.pause()
+        player.togglePlayPause()
       })
 
-      //Add listener to prevent default seeking with arrow keys
       Events.addListener(document.getElementById('player'), 'seeked', () => {
         if (player.paused && player.currTime + 1.5 < player.videoElem.currentTime) {
           player.currTime = player.videoElem.currentTime
-          if (!player.reloadingJson) player.onFrameAdv()
+          if (!player.reloadingJson) player.applyAnnotationsUntilPause()
         }
         else if (player.paused && player.currTime - 1.5 > player.videoElem.currentTime) {
           player.currTime = player.videoElem.currentTime
-          if (!player.reloadingJson) player.onFrameAdv()
+          if (!player.reloadingJson) player.applyAnnotationsUntilPause()
         }
       })
 
       //Add listener to update player.pause on pause
       Events.addListener(document.getElementById('player'), 'pause', () => {
         player.paused = true
-        console.log('paused while skipping')
-        document.getElementById('returnBtn').style.visibility = 'visible'
+        // Clear timeout when paused so controls stay visible
+        if (player.controlsTimeout) {
+          clearTimeout(player.controlsTimeout)
+        }
       })
 
-      //Add listener to update player.paused on play
       Events.addListener(document.getElementById('player'), 'play', () => {
         player.paused = false
-        document.getElementById('returnBtn').style.visibility = 'hidden'
+      })
+
+      // Add listener to sync state when video controls are used directly
+      Events.addListener(document.getElementById('player'), 'playing', () => {
+        player.paused = false
       })
 
       //Add listener to toggle play on Space
@@ -538,13 +548,13 @@ module.exports = {
         e = e || window.event
         // Space
         if (e.keyCode == 32) {
-          player.paused ? player.play() : player.pause()
+          player.togglePlayPause()
           player.currTime = player.videoElem.currentTime
         }
       }
 
-      //Add listener to seek video with videos
-      //Seek 0.1 sec when paused and 5 seconds when playing
+      // Add listener to seek video with arrow keys
+      // Seek 0.1 sec when paused and 5 seconds when playing
       document.onkeydown = function (e) {
         e.preventDefault()
         e = e || window.event
@@ -585,8 +595,8 @@ module.exports = {
       }
     },
 
-    //For each new frame, update the annotations
-    onFrameAdv: () => {
+    // Apply annotations repeatedly using requestAnimationFrame until paused
+    applyAnnotationsUntilPause: () => {
       if (!player.annotations) return
       var time = player.videoElem.currentTime
       player.currTime = player.videoElem.currentTime
@@ -680,7 +690,7 @@ module.exports = {
                 } else if (aDetails['type'] == 'blur') {
                   censor.style.backdropFilter = 'blur(' + aDetails['amount'] + ')'
                 }
-                document.getElementById('box').appendChild(censor)
+                document.getElementById('annotation-container').appendChild(censor)
               } else {
                 const censor = document.getElementById('censor' + i)
                 // If censor is interpolating, use intPositions, else use normal positions
@@ -716,26 +726,48 @@ module.exports = {
       if (player.videoElem.paused) {
         return
       }
-      requestAnimationFrame(player.onFrameAdv)
+      requestAnimationFrame(player.applyAnnotationsUntilPause)
     },
 
-    // Annotation Handlers
+    // Centralized play/pause toggle
+    togglePlayPause: () => {
+      if (player.videoElem.paused) {
+        player.videoElem.play()
+        player.paused = false
+        player.videoElem.controls = false
+        document.getElementById('returnBtn').style.visibility = 'hidden'
+      } else {
+        player.videoElem.pause()
+        player.paused = true
+        player.videoElem.controls = true
+        document.getElementById('returnBtn').style.visibility = 'visible'
+      }
+    },
 
     play: () => {
-      player.videoElem.play();
+      player.videoElem.play()
       player.paused = false
+      player.videoElem.controls = false
+      document.getElementById('returnBtn').style.visibility = 'hidden'
     },
 
     pause: () => {
-      player.videoElem.pause();
+      player.videoElem.pause()
       player.paused = true
+      player.videoElem.controls = true
+      if (!window.screenTop && !window.screenY) {
+        document.getElementById('returnBtn').style.visibility = 'hidden'
+      }
+      else {
+        document.getElementById('returnBtn').style.visibility = 'visible'
+      }
     },
 
     skipTo: (time) => {
       player.videoElem.controls = false
       player.videoElem.currentTime = time
       player.currTime = time
-      player.onFrameAdv()
+      player.applyAnnotationsUntilPause()
     },
 
     blank: () => {

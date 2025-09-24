@@ -214,12 +214,12 @@ h1{
   top: 0;
   left: 2px;
   z-index: 2000;
-  background-color: rgba(255,255,255, 0.2);
-  color: rgba(255,255,255,0.5);
+  background-color: black;
+  color: white;
   border: 1px solid black;
   outline: none;
   padding: 15px;
-  font-size: 30px 40px;
+  font-size: 22px;
   transition: all .25s;
 
 }
@@ -347,6 +347,7 @@ video::-webkit-media-controls-fullscreen-button {
   left: 0;
   height: 0;
   width: 0;
+  pointer-events: none;
 }
 
 .censor {

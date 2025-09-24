@@ -12,7 +12,7 @@
     <div class='container'>
       <img id='logo' src='../resources/ic_round.png'></img><br>
       <div id='selectFilesButtonContainer'>
-        <a href='#' id='playButton' onclick='player.buttonPress()'>
+        <a href='#' id='playButton' onclick='player.initializeOrSelectFiles()'>
           <!-- Generator: Adobe Illustrator 19.0.0, SVG Export Plug-In  -->
           <svg version="1.1"
              xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
@@ -52,11 +52,11 @@
 
   <div id='playerContainer'>
     <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;</button>
-    <button id='reloadJsonBtn' onclick='player.reloadJson()'>Reload JSON Filters</button>
+    <button id='reloadJsonBtn' onclick='player.reloadJson()'>Reload JSON</button>
     <video id='player' width='1500' height='800' controls="true">
     </video>
 
-    <div id='box'></div>
+    <div id='annotation-container'></div>
   </div>
 
   <script type="text/javascript" src="eventlisteners.js"></script>
