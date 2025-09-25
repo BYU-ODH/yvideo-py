@@ -1,11 +1,13 @@
 from django.conf import settings
+from django.contrib.auth import authenticate
+from django.contrib.auth import login
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.http import HttpResponseServerError
 from django.views.decorators.csrf import csrf_exempt
 from onelogin.saml2.auth import OneLogin_Saml2_Auth
+from onelogin.saml2.errors import OneLogin_Saml2_Error
 from onelogin.saml2.settings import OneLogin_Saml2_Settings
-from onelogin.saml2.utils import OneLogin_Saml2_Utils
 
 from core import model_utils as core_model_utils
 
@@ -30,7 +32,7 @@ def prepare_django_request(request):
 
 
 @csrf_exempt
-def index(request):
+def saml_login(request):
     req = prepare_django_request(request)
     auth = init_saml_auth(req)
     errors = []
@@ -48,9 +50,15 @@ def index(request):
             request_id = request.session["AuthNRequestID"]
 
         if request_id is None:
-            return HttpResponseRedirect("/?sso")
+            return HttpResponseRedirect("?sso")
 
-        auth.process_response(request_id=request_id)
+        # if the login wasn't successful, or is outdated, a OneLogin_Saml2_Error occurs,
+        # redirect user to CAS so they can renew their SSO credentials
+        try:
+            auth.process_response(request_id=request_id)
+        except OneLogin_Saml2_Error:
+            return HttpResponseRedirect("?sso")
+
         errors = auth.get_errors()
         is_saml_authenticated = auth.is_authenticated()
 
@@ -64,24 +72,29 @@ def index(request):
             request.session["samlNameIdSPNameQualifier"] = auth.get_nameid_spnq()
             request.session["samlSessionIndex"] = auth.get_session_index()
             byuId = request.session["samlUserdata"]["byuId"]
+            if isinstance(byuId, list) and byuId:
+                byuId = byuId[0]
             user_result = core_model_utils.create_or_update_user(byuId)
-            if user_result["user"] is not None:
-                user = user_result["user"]
-                request.session["netid"] = user["netid"]
-                request.session["byuid"] = user["byu_id"]
+            auth_user = authenticate(request, byu_id=byuId)
+            if auth_user is not None:
+                login(
+                    request=request,
+                    user=auth_user,
+                    backend="yvideo.customAuth.CustomAuth",
+                )
+                request.session["user"] = user_result[
+                    "user"
+                ]  # this is a dict, not a user object. see create_or_update_user
+                return HttpResponseRedirect(
+                    auth.redirect_to("https://yvideodev.byu.edu/")
+                )
             else:
-                request.session["netid"] = None
-                request.session["byuid"] = None
-
-            if (
-                "RelayState" in req["post_data"]
-                and OneLogin_Saml2_Utils.get_self_url(req)
-                != req["post_data"]["RelayState"]
-            ):
-                # To avoid 'Open Redirect' attacks, before execute the redirection confirm
-                # the value of the req['post_data']['RelayState'] is a trusted URL.
-                relay_state = "https://yvideo.byu.edu/"
-                return HttpResponseRedirect(relay_state)
+                request.session["user"] = None
+                return HttpResponseRedirect(
+                    auth.redirect_to("https://yvideodev.byu.edu/invalid-login")
+                )
+        else:
+            return HttpResponseRedirect("?sso")
 
 
 def metadata(request):

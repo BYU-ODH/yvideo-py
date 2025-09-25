@@ -28,10 +28,17 @@ DEBUG = secret_settings.DEBUG
 
 ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
 
-SAML_FOLDER = BASE_DIR / "yvideo" / "saml_config"
+SAML_FOLDER = str(BASE_DIR / "yvideo" / "saml_config")
+
+LOGIN_URL = "login/?sso"
 
 # Application definition
 AUTH_USER_MODEL = "core.User"
+
+AUTHENTICATION_BACKENDS = [
+    "yvideo.customAuth.CustomAuth",
+    "django.contrib.auth.backends.ModelBackend",
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
