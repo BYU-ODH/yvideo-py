@@ -52,8 +52,9 @@ def index(request):
 
         auth.process_response(request_id=request_id)
         errors = auth.get_errors()
+        is_saml_authenticated = auth.is_authenticated()
 
-        if not errors:
+        if not errors and is_saml_authenticated:
             if "AuthNRequestID" in request.session:
                 del request.session["AuthNRequestID"]
             request.session["samlUserdata"] = auth.get_attributes()
