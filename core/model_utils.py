@@ -202,7 +202,11 @@ def create_or_update_user(byu_id):
     netid = summary["netid"] if "netid" in summary else ""
     privilege_level = 2 if summary["is_faculty"] else 3
     user = User.objects.create(
-        netid=netid, byu_id=byu_id, privilege_level=privilege_level, first_name=summary["first_name"], last_name=summary["last_name"]
+        netid=netid,
+        byu_id=byu_id,
+        privilege_level=privilege_level,
+        first_name=summary["first_name"],
+        last_name=summary["last_name"],
     )
     result["user"] = user.to_dict()
     result["is_new_user_created"] = True
