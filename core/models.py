@@ -85,9 +85,9 @@ class CustomUserManager(BaseUserManager):
 
 class User(AbstractUser):
     netid = models.CharField(max_length=8, unique=True)
+    byu_id = models.CharField(max_length=9, blank=True, null=True)
     USERNAME_FIELD = "netid"
     REQUIRED_FIELDS = []
-    byu_id = models.CharField(max_length=9, blank=True, null=True)
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
     )
@@ -106,6 +106,14 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} | {self.netid}"
+
+    def to_dict(self):
+        return {
+            "netid": self.netid,
+            "byuid": self.byu_id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+        }
 
     @property
     def is_admin(self):

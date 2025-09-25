@@ -5,7 +5,7 @@ from django.utils import timezone
 from .api import Api
 from .models import Course
 from .models import User
-from .models import UserCourse
+from .models import UserCourses
 
 logger = logging.getLogger(__name__)
 
@@ -59,20 +59,20 @@ def create_user_course_association(user, course, yearterm):
     """
     try:
         associations = list(
-            UserCourse.objects.filter(
+            UserCourses.objects.filter(
                 user_id=user.id, course_id=course.id, yearterm=yearterm
             )
         )
     except Exception as e:
         log_error(
-            "An error occurred while filtering UserCourse objects",
+            "An error occurred while filtering UserCourses objects",
             {"user": user, "course": course, "yearterm": yearterm},
             e,
         )
         return False
     try:
         if not associations:
-            UserCourse.objects.create(
+            UserCourses.objects.create(
                 user_id=user.id, course_id=course.id, yearterm=yearterm
             )
     except Exception as e:
@@ -176,7 +176,7 @@ def create_or_update_user(byu_id):
     # check if user already exists, if they do, return it
     try:
         user = User.objects.get(byu_id=byu_id)
-        result["user"] = user
+        result["user"] = user.to_dict()
         update_result = update_user_enrollment(user)
         result["enrollment_update_message"] = update_result["result_message"]
         return result
@@ -202,9 +202,9 @@ def create_or_update_user(byu_id):
     netid = summary["netid"] if "netid" in summary else ""
     privilege_level = 2 if summary["is_faculty"] else 3
     user = User.objects.create(
-        netid=netid, byu_id=byu_id, privilege_level=privilege_level
+        netid=netid, byu_id=byu_id, privilege_level=privilege_level, first_name=summary["first_name"], last_name=summary["last_name"]
     )
-    result["user"] = user
+    result["user"] = user.to_dict()
     result["is_new_user_created"] = True
     update_result = update_user_enrollment(user)
     result["enrollment_update_message"] = update_result["result_message"]
