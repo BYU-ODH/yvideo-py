@@ -2,14 +2,14 @@
   "strict": true,
   "debug": false,
   "sp": {
-    "entityId": "https://yvideo.byu.edu",
+    "entityId": "[YOUR_SSO_URL_HERE]",
     "NameIdFormat": "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified",
     "assertionConsumerService": {
-      "url": "https://yvideo.byu.edu/?acs",
+      "url": "[YOUR_ACS_URL_HERE]",
       "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
     },
-    "x509cert": "",
-    "privateKey": ""
+    "x509cert": "[YOUR_x509_CERT_HERE]",
+    "privateKey": "[YOUR_PRIVATE_KEY_HERE]"
   },
   "idp": {
     "entityId": "https://cas.byu.edu/cas/idp/metadata",
@@ -22,8 +22,12 @@
       "binding": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
     },
     "x509certMulti": {
-      "signing": [""],
-      "encryption": [""]
+      "signing": [
+        "[IdP_SIGNING_KEY_HERE]"
+      ],
+      "encryption": [
+        "[IdP_ENCRYPTION_KEY_HERE]"
+      ]
     }
   }
 }
