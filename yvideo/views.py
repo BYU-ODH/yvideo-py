@@ -88,11 +88,17 @@ def saml_login(request):
                     "localhost" in settings.ALLOWED_HOSTS
                     or "127.0.0.1" in settings.ALLOWED_HOSTS
                 ):
-                    auth.redirect_to(req["post_data"]["RelayState"])
+                    return HttpResponseRedirect(
+                        auth.redirect_to(req["post_data"]["RelayState"])
+                    )
                 elif req["post_data"]["RelayState"][:22] == "https://yvideo.byu.edu":
-                    auth.redirect_to(req["post_data"]["RelayState"])
+                    return HttpResponseRedirect(
+                        auth.redirect_to(req["post_data"]["RelayState"])
+                    )
                 else:
-                    auth.redirect_to("https://yvideo.byu.edu/")
+                    return HttpResponseRedirect(
+                        auth.redirect_to("https://yvideo.byu.edu/")
+                    )
             else:
                 request.session["user"] = None
                 return HttpResponseRedirect(
