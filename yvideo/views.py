@@ -82,16 +82,21 @@ def saml_login(request):
                     user=auth_user,
                     backend="yvideo.customAuth.CustomAuth",
                 )
-                request.session["user"] = user_result[
-                    "user"
-                ]  # this is a dict, not a user object. see create_or_update_user
-                return HttpResponseRedirect(
-                    auth.redirect_to("https://yvideodev.byu.edu/")
-                )
+                # this "user" attribute of user_result is a dict, not a user object. see create_or_update_user
+                request.session["user"] = user_result["user"]
+                if (
+                    "localhost" in settings.ALLOWED_HOSTS
+                    or "127.0.0.1" in settings.ALLOWED_HOSTS
+                ):
+                    auth.redirect_to(req["post_data"]["RelayState"])
+                elif req["post_data"]["RelayState"][:22] == "https://yvideo.byu.edu":
+                    auth.redirect_to(req["post_data"]["RelayState"])
+                else:
+                    auth.redirect_to("https://yvideo.byu.edu/")
             else:
                 request.session["user"] = None
                 return HttpResponseRedirect(
-                    auth.redirect_to("https://yvideodev.byu.edu/invalid-login")
+                    auth.redirect_to("https://yvideo.byu.edu/invalid-login")
                 )
         else:
             return HttpResponseRedirect("?sso")
