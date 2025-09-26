@@ -24,7 +24,7 @@ def prepare_django_request(request):
         "http_host": request.META["HTTP_HOST"],
         "script_name": request.META["PATH_INFO"],
         "get_data": request.GET.copy(),
-        # Uncomment if using ADFS as IdP, https://github.com/onelogin/python-saml/pull/144
+        # Uncomment if using ADFS (Active Directory Federated Service) as IdP, https://github.com/onelogin/python-saml/pull/144
         # 'lowercase_urlencoding': True,
         "post_data": request.POST.copy(),
     }
