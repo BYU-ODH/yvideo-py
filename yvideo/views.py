@@ -42,6 +42,11 @@ def saml_login(request):
         # If AuthNRequest ID need to be stored in order to later validate it, do instead
         sso_built_url = auth.login()
         request.session["AuthNRequestID"] = auth.get_last_request_id()
+        # record the desired destination in session so we don't lose it going back and forth
+        # from the SP and IdP
+        request.session["requested_endpoint"] = (
+            req["get_data"]["next"] if "next" in req["get_data"] else "/"
+        )
         return HttpResponseRedirect(sso_built_url)
 
     elif "acs" in req["get_data"]:
@@ -76,6 +81,11 @@ def saml_login(request):
                 byuId = byuId[0]
             user_result = core_model_utils.create_or_update_user(byuId)
             auth_user = authenticate(request, byu_id=byuId)
+            host = settings.ALLOWED_HOSTS[0]
+            protocol = "https://"
+            if host == "localhost" or host == "127.0.0.1":
+                protocol = "http://"
+            root_redirect_url = protocol + host
             if auth_user is not None:
                 login(
                     request=request,
@@ -84,25 +94,13 @@ def saml_login(request):
                 )
                 # this "user" attribute of user_result is a dict, not a user object. see create_or_update_user
                 request.session["user"] = user_result["user"]
-                if (
-                    "localhost" in settings.ALLOWED_HOSTS
-                    or "127.0.0.1" in settings.ALLOWED_HOSTS
-                ):
-                    return HttpResponseRedirect(
-                        auth.redirect_to(req["post_data"]["RelayState"])
-                    )
-                elif req["post_data"]["RelayState"][:22] == "https://yvideo.byu.edu":
-                    return HttpResponseRedirect(
-                        auth.redirect_to(req["post_data"]["RelayState"])
-                    )
-                else:
-                    return HttpResponseRedirect(
-                        auth.redirect_to("https://yvideo.byu.edu/")
-                    )
+                redirect_url = root_redirect_url + request.session["requested_endpoint"]
+                del request.session["requested_endpoint"]
+                return HttpResponseRedirect(auth.redirect_to(redirect_url))
             else:
                 request.session["user"] = None
                 return HttpResponseRedirect(
-                    auth.redirect_to("https://yvideo.byu.edu/invalid-login")
+                    auth.redirect_to(root_redirect_url + "/invalid-login")
                 )
         else:
             return HttpResponseRedirect("?sso")
