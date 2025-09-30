@@ -196,12 +196,9 @@ def manage_collections(request):
     )
 
 
-def show_modal(request):
-    return render(request, "create_collection.html")
-
-
 def create_collection(request):
     form = CollectionForm(request.POST, initial={"user": request.user})
+
     if form.is_valid():
         try:
             collection = form.save(commit=False)
