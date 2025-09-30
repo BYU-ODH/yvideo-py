@@ -21,10 +21,16 @@ logger = logging.getLogger(__name__)
 def index(request):
     user = request.user
     collections = Collection.objects.filter(owner=user)
+    all_contents = Content.objects.filter(collection__in=collections)
+    filtered_contents = {collection: [] for collection in collections}
+
+    for content in all_contents:
+        filtered_contents[content.collection].append(content)
 
     context = {
         "user": user,  # TODO: Replace with actual data
         "collections": collections,
+        "contents": filtered_contents,
         "public_collections": [],
     }
     return render(request, "index.html", context)
@@ -202,19 +208,8 @@ def create_collection(request):
             collection.public = False
             collection.save()
 
-            collections = Collection.objects.filter(owner=request.user)
-            archived = collections.filter(archived=True)
-            published = collections.filter(archived=False, published=True)
-            unpublished = collections.filter(archived=False, published=False)
-
             response = render(
-                request,
-                "partials/sorted_collections.html",
-                {
-                    "published": published,
-                    "unpublished": unpublished,
-                    "archived": archived,
-                },
+                request, "partials/load_collection.html", {"collection": collection}
             )
             response["HX-Trigger"] = "success"
         except Exception as e:
