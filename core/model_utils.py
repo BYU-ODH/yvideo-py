@@ -5,7 +5,7 @@ from django.utils import timezone
 from .api import Api
 from .models import Course
 from .models import User
-from .models import UserCourse
+from .models import UserCourses
 
 logger = logging.getLogger(__name__)
 
@@ -21,27 +21,6 @@ def log_error(error_message, error_info={}, exception=None):
         if exception is None
         else f"Exception: {exception}\n\n"
     )
-
-
-def check_for_user_in_db(byu_id):
-    """
-    Checks if there is a user associated with the provided byu_id. If there is,
-    the user will be returned. If there is no user associated, False will be returned.
-    If an error occurs while checking for a user, None will be returned and the error
-    will be logged.
-    """
-    try:
-        user = User.objects.get(byu_id=byu_id)
-        return user
-    except User.DoesNotExist:
-        return False
-    except Exception as e:
-        log_error(
-            "An error occurred while checking for the existance of a user",
-            {"byu_id": byu_id},
-            e,
-        )
-        return None
 
 
 def get_or_create_course(course):
@@ -80,20 +59,20 @@ def create_user_course_association(user, course, yearterm):
     """
     try:
         associations = list(
-            UserCourse.objects.filter(
+            UserCourses.objects.filter(
                 user_id=user.id, course_id=course.id, yearterm=yearterm
             )
         )
     except Exception as e:
         log_error(
-            "An error occurred while filtering UserCourse objects",
+            "An error occurred while filtering UserCourses objects",
             {"user": user, "course": course, "yearterm": yearterm},
             e,
         )
         return False
     try:
         if not associations:
-            UserCourse.objects.create(
+            UserCourses.objects.create(
                 user_id=user.id, course_id=course.id, yearterm=yearterm
             )
     except Exception as e:
@@ -115,19 +94,26 @@ def update_user_enrollment(user):
     object. A result message is also provided in the result object describing
     what happened and what the user can expect to see.
     """
+    update_result = {
+        "is_current_sem_updated": False,
+        "is_next_sem_updated": False,
+        "result_message": "Failed to update user enrollment",
+    }
     # don't bother if we don't have a netid for the user
     if user.netid is None:
-        return None
+        update_result["result_message"] = "Unknown user"
+        return update_result
     # get the current yearterm
     # get courses for the current yearterm
     # if the yearterm is close to ending, get courses for the next yearterm too
     api = Api()
-    current_yearterm_lookup = api.get_current_year_term
+    current_yearterm_lookup = api.get_current_year_term()
     current_yearterm = current_yearterm_lookup["yearterm"]
     next_yearterm = api.calculate_next_year_term(current_yearterm)
 
     current_user_enrollments = api.get_student_enrollments(user.netid, current_yearterm)
 
+    updated_current_sem_correctly = True
     if current_user_enrollments is None:
         updated_current_sem_correctly = False
     else:
@@ -170,11 +156,10 @@ def update_user_enrollment(user):
         result_message += "next semester's " if not updated_next_sem_correctly else ""
         result_message += "enrollment correctly. Some courses may be missing, and you may see previously enrolled courses."
 
-    return {
-        "is_current_sem_updated": updated_current_sem_correctly,
-        "is_next_sem_updated": updated_next_sem_correctly,
-        "result_message": result_message,
-    }
+    update_result["is_current_sem_updated"] = updated_current_sem_correctly
+    update_result["is_next_sem_updated"] = updated_next_sem_correctly
+    update_result["result_message"] = result_message
+    return update_result
 
 
 def create_or_update_user(byu_id):
@@ -191,11 +176,12 @@ def create_or_update_user(byu_id):
     # check if user already exists, if they do, return it
     try:
         user = User.objects.get(byu_id=byu_id)
-        result["user"] = user
+        result["user"] = user.to_dict()
         update_result = update_user_enrollment(user)
         result["enrollment_update_message"] = update_result["result_message"]
         return result
     except User.DoesNotExist:
+        # pass because we want the function to continue on to create a new user
         pass
 
     # We must determine if the user is a worker, or a student and call the correct summary
@@ -216,9 +202,13 @@ def create_or_update_user(byu_id):
     netid = summary["netid"] if "netid" in summary else ""
     privilege_level = 2 if summary["is_faculty"] else 3
     user = User.objects.create(
-        netid=netid, byu_id=byu_id, privilege_level=privilege_level
+        netid=netid,
+        byu_id=byu_id,
+        privilege_level=privilege_level,
+        first_name=summary["first_name"],
+        last_name=summary["last_name"],
     )
-    result["user"] = user
+    result["user"] = user.to_dict()
     result["is_new_user_created"] = True
     update_result = update_user_enrollment(user)
     result["enrollment_update_message"] = update_result["result_message"]
