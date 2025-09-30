@@ -1,53 +1,69 @@
 <div class="collections-list">
-    {% for collection in collections %}
-        {% if collection.published and not collection.archived %}
-        <div class="collection">
-            <div class="collection-item ">
+    {% for collection, contents in contents.items %}
+        <div class="collection-container">
+            <div id="accordion" class="collection-line">
                 <h3>{{ collection.name }}</h3>
-                <p>{{ collection.videos.count }} item{{ collection.videos.count|pluralize }}</p>
-                <img class="arrow" src="/static/img/arrow.svg" id="arrow">
-         </div>
-            <div class="video-list">
-                {% for video in collection.videos.all %}
-                    {% if not video.clips.all %}
-                        <div class="video-item">
-                            <a href="{% url 'player' video.uuid %}">
-                                <img src="/static/img/.svg" alt="Thumbnail for {{ video.title }}">
-                                <div class="video-name">
-                                    <h4>{{ video.title }}</h4>
-                                    {# Icons for features can be added here #}
-                                </div>
-                            </a>
-                        </div>
-                    {% else %}
-                        <div class="video-item-dropdown">
-                            <div class="video-header">
-                                <img src="{{ video.thumbnail_url|default:'/static/media/default-thumb.svg' }}" alt="Thumbnail for {{ video.title }}">
-                                <div class="video-name">
-                                    <h4>{{ video.title }}</h4>
-                                </div>
-                                <span class="carrot"></span>
-                            </div>
-                            <div class="clips-list">
-                                <div class="clip-link">
-                                    <a href="{% url 'player' video.uuid %}">
-                                        <div class="clip-name"><h4><u>Full Video</u></h4></div>
-                                    </a>
-                                </div>
-                                {% for clip in video.clips.all %}
-                                <div class="clip-link">
-                                    <a href="{% url 'player' video.uuid clip.id %}">
-                                        <div class="clip-name"><u>Clip - {{ clip.title }}</u></div>
-                                        <div><h4>From {{ clip.start_time }} to {{ clip.end_time }}</h4></div>
-                                    </a>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    {% endif %}
+                {% if contents|length > 1 %}
+                        <p>{{ contents|length }} items</p>
+                {% elif contents|length == 0 %}
+                    <p>0 items</p>
+                {% else %}
+                        <p>{{ contents|length }} item</p>
+                {% endif %}
+                <img src="/static/img/arrow.svg" class="arrow">
+            </div>
+            <div class="content-item">
+                {% for content in contents %}
+                    <div id="accordion" class="content-line">
+                        <p>{{ content.title }}</p>
+                        <img src="/static/img/arrow.svg" class="arrow">
+                    </div>
+                    <div class="content-clips">
+                        {% if content.clips.all %}
+                            <p>Full Video</p>
+                            {% for clip in content.clips.all %}
+                                    <p>{{ clip.name }} ({{ clip.start_time }} - {{ clip.end_time }})</p>
+                            {% empty %}
+                                    <p>No clips found</p>
+                            {% endfor %}
+                        {% else %}
+                            <p>No clips found</p>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="content-line">
+                        <p>No content found</p>
+                    </div>
                 {% endfor %}
             </div>
         </div>
-        {% endif %}
+    {% empty %}
+        <p>No collections found</p>
     {% endfor %}
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const collections = document.querySelectorAll("#accordion");
+
+        collections.forEach((collection) => {
+            collection.addEventListener("click", function() {
+                this.classList.toggle("active");
+
+                const arrow = this.querySelector('.arrow');
+                if (arrow) {
+                    arrow.style.transform = this.classList.contains('active') ? 'rotate(180deg)' : 'rotate(0deg)';
+                }
+
+                const content = this.nextElementSibling;
+                if (content.style.maxHeight) {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    setTimeout(function(){content.style.maxHeight = null;}, 50)
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    setTimeout(function(){content.style.maxHeight = "unset";}, 200)
+                }
+            });
+        });
+    });
+</script>

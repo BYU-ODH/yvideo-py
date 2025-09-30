@@ -33,47 +33,8 @@
                     {% endfor %}
                 </div>
             </div>
-            <div class="collection-section">
-                <h6 class="collection-status">
-                    Unpublished
-                    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
-                </h6>
-                <div class="collection-list" id="unpublished-list">
-                    {% for collection in unpublished %}
-                        <div class="collection-item">
-                            <div class="collection-name"
-                                hx-post="/load_collection"
-                                hx-vals='{"collection_id": "{{ collection.id }}"}'
-                                hx-target="#collections-detail"
-                                hx-swap="innerHTML">
-                                {{ collection.name }}
-                            </div>
-                        </div>
-                    {% empty %}
-                        <div class="collection-item">No unpublished collections.</div>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="collection-section">
-                <h6 class="collection-status">
-                    Archived
-                    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
-                </h6>
-                <div class="collection-list" id="archived-list">
-                    {% for collection in archived %}
-                        <div class="collection-item">
-                            <div class="collection-name"
-                                hx-post="/load_collection"
-                                hx-vals='{"collection_id": "{{ collection.id }}"}'
-                                hx-target="#collections-detail"
-                                hx-swap="innerHTML">
-                                {{ collection.name }}
-                            </div>
-                        </div>
-                    {% empty %}
-                        <div class="collection-item">No archived collections.</div>
-                    {% endfor %}
-                </div>
+            <div id="sorted-collections" class="sorted-collections">
+                {% include "partials/sorted_collections.html" %}
             </div>
         </div>
         <div class="collections-detail" id="collections-detail">
@@ -83,6 +44,32 @@
 
         </div>
     </div>
+
+<script>
+    function closeAndResetModal() {
+        const modal = document.getElementById("collection_modal");
+        const form = document.getElementById("collection-form");
+        const nameInput = form.querySelector('input[name="name"]');
+        const errorLabels = form.querySelectorAll('.text-error');
+
+        modal.close();
+        errorLabels.forEach(label => label.remove());
+
+        if (nameInput) {
+            nameInput.value = '';
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        document.body.addEventListener("fail", () => {
+            document.getElementById("collection_modal").showModal();
+        });
+
+        document.body.addEventListener("success", () => {
+            closeAndResetModal();
+        });
+    });
+</script>
 {% endblock %}
 
 <script>
