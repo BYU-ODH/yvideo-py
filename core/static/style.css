@@ -700,6 +700,54 @@ h2 {
     justify-content: center;
 }
 
+.collections-page {
+    display: flex;
+    gap: 1em;
+    padding: 1rem;
+    align-items: flex-start;
+}
+
+/* Left side (sidebar) */
+.collections-sidebar {
+    border-right: 1px solid #ccc;
+    padding: 2rem 1rem 1rem 0;
+    width: 15rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    flex-shrink: 0;
+}
+
+.collections-sidebar-heading {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.collection-username {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: normal;
+}
+
+.collection-button {
+    display: flex;
+    cursor: pointer;
+    background-color: #0582ca;
+    color: white;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6rem;
+    height: 3rem;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    padding: 10px 58px 10px 55px;
+}
+
 #collection-create {
     display: flex;
     cursor: pointer;
@@ -717,31 +765,60 @@ h2 {
     margin-bottom: 1rem;
 }
 
-.collections-page {
-    display: flex;
-    gap: 1em; /* spacing between left and right */
-    padding: 1rem;
-    align-items: flex-start;
+.collection-section {
+    padding: 0 1rem 0 1rem;
 }
 
-.collections-container {
-    border-right: 1px solid #ccc;
-    padding: 2rem;
-    width: 15rem;
+.collection-status {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-size: 1.5em;
+    padding: 0;
+    margin-bottom: -1rem;
+}
+
+.collection-list {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    transition: height 0.25s ease-in-out;
+    overflow: hidden;
+}
+
+.collection-item {
+    padding: 0.8rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+    transition: background 0.15s linear;
+}
+
+.collection-item:hover {
+    cursor: pointer;
+    background: rgb(191, 191, 191);
 }
 
 /* Right side (main content) */
 .collections-detail {
-    flex: 1;
-    height: 80vh;
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    padding: 2rem;
+}
+
+.no-collections {
+    font-size: 1.8rem;
+    color: rgb(204, 204, 204);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .collection-section {
     padding: 0.5rem;
 }
+
 .collection-status {
     font-size: 1em;
     padding: 0;
@@ -897,16 +974,6 @@ h2 {
     overflow-y: scroll;
     padding: 2rem;
     height: 100vh;
-}
-
-#no-collections-body {
-    height: 100%;
-    font-size: 1.8rem;
-    color: rgb(204, 204, 204);
-    display: flex;
-    -webkit-box-align: center;
-    align-items: center;
-    justify-content: center;
 }
 
 #arrow {
