@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import create_collection
 from .views import index
+from .views import invalid_login
 from .views import manage_collections
 from .views import player
 from .views import stream_file
@@ -14,4 +15,5 @@ urlpatterns = [
     path("collections/create/", create_collection, name="create_collection"),
     path("player/<int:content_id>", player, name="player"),
     path("stream/<int:file_key>", stream_file, name="stream_file"),
+    path("invalid-login", invalid_login, name="invalid_login"),
 ]

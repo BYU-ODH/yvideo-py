@@ -20,11 +20,15 @@ from django.contrib import admin
 from django.urls import path
 
 from core.urls import urlpatterns as core_urlpatterns
+from yvideo.views import metadata
+from yvideo.views import saml_login
 
 urlpatterns = core_urlpatterns
 
 urlpatterns.extend(
     [
+        path("login/", saml_login, name="login"),
+        path("metadata/", metadata, name="metadata"),
         path("admin/", admin.site.urls),
     ]
 )

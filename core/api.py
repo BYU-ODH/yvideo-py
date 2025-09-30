@@ -131,8 +131,18 @@ class Api:
         if response_data:
             data = response_data[0]
             worker_positions = data["positions"]
-            parsed_summary["first_name"] = data["preferred_first_name"]
-            parsed_summary["last_name"] = data["preferred_last_name"]
+            first_name = ""
+            if data["preferred_first_name"]:
+                first_name = data["preferred_first_name"]
+            elif data["first_name"]:
+                first_name = data["first_name"]
+            parsed_summary["first_name"] = first_name
+            last_name = ""
+            if data["preferred_last_name"]:
+                last_name = data["preferred_last_name"]
+            elif data["last_name"]:
+                last_name = data["last_name"]
+            parsed_summary["last_name"] = last_name
             parsed_summary["email"] = data["work_email_address"]
             faculty_keyword = "faculty"
             for position in worker_positions:

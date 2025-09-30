@@ -3,6 +3,7 @@ import mimetypes
 import os
 import re
 
+from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -18,6 +19,7 @@ from .models import User
 logger = logging.getLogger(__name__)
 
 
+@login_required
 def index(request):
     user = request.user
     collections = Collection.objects.filter(owner=user)
@@ -36,17 +38,7 @@ def index(request):
     return render(request, "index.html", context)
 
 
-def login(request):
-    """
-    This is a stub function until SAML is working properly. Until then,
-    it isn't clear what steps should be taken to complete this method.
-    When the SAML integration is completed, this method will need to
-    get the byu_id from the SAML response and create a user if one does
-    not already exist.
-    """
-    pass
-
-
+@login_required
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
@@ -176,6 +168,7 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
+@login_required
 def manage_collections(request):
     collections = Collection.objects.filter(owner=request.user)
 
@@ -230,3 +223,7 @@ def create_collection(request):
         response["HX-Trigger-After-Settle"] = "fail"
 
     return response
+
+
+def invalid_login(request):
+    return render(request, "invalid_login.html", {})
