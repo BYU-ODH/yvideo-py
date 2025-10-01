@@ -16,7 +16,7 @@ npm install -g electron
 
 Run program
 ``` shell
-electron app.js
+electron app.mjs
 ```
 
 You may also need to install libgconf using

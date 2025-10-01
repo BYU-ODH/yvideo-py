@@ -1,9 +1,10 @@
 {
   "name": "ic-player",
   "productName": "IC Player",
-  "description": "An interactive video player for educational content",
-  "version": "0.1.1",
-  "main": "app.js",
+  "description": "A video player for BYU International Cinema with annotations layer",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "app.mjs",
   "scripts": {
     "start": "electron ."
   },

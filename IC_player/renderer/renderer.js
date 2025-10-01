@@ -1,16 +1,8 @@
-const { ipcRenderer } = require('electron')
-const { dialog } = require('electron')
-const fs = require('fs')
-const { player } = require('./player.js')
+const { ipcRenderer } = window.require('electron')
+import { player } from './player-wrapper.js'
 
-let annotationMode = false;
-
-Events.addListener(window, 'resize', () => {
-  player.placeAnnotationContainer()
-})
-
-const toggleDevTools = () => {
-  ipcRenderer.send('toggle-dev-tools', annotationMode)
+window.toggleDevTools = () => {
+  ipcRenderer.send('toggle-dev-tools', player.annotationMode)
 }
 
 ipcRenderer.on('response-cmd-argv', (event, argv) => {
@@ -18,4 +10,5 @@ ipcRenderer.on('response-cmd-argv', (event, argv) => {
     player.toggleAnnotationMode()
   }
 })
+
 ipcRenderer.send('request-cmd-argv', 'request')

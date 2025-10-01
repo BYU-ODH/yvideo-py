@@ -96,6 +96,7 @@ h1{
   stroke-dasharray: 650;
   stroke-dashoffset: 650;
   -webkit-transition: all 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
   opacity: 0.3;
 }
 
@@ -118,6 +119,7 @@ h1{
   height: 100px;
   border-radius: 100%;
   -webkit-transition: all 0.5s ease;
+  transition: all 0.5s ease;
 }
 
 #playButton svg{
@@ -128,6 +130,7 @@ h1{
 
 #playButton .triangle {
   -webkit-transition: all 0.7s ease-in-out;
+  transition: all 0.7s ease-in-out;
   stroke-dasharray: 240;
   stroke-dashoffset: 480;
   stroke: grey;
@@ -142,6 +145,7 @@ h1{
 
 #playButton.ready .triangle {
   -webkit-transition: all 0.7s ease-in-out;
+  transition: all 0.7s ease-in-out;
   stroke-dashoffset: 0;
   stroke: yellow;
   fill: black;
@@ -149,6 +153,7 @@ h1{
 
 #playButton:hover.ready .triangle {
   -webkit-transition: fill 0.7s ease-in-out;
+  transition: fill 0.7s ease-in-out;
   fill: yellow;
 }
 
@@ -214,14 +219,14 @@ h1{
   top: 0;
   left: 2px;
   z-index: 2000;
-  background-color: black;
-  color: white;
+  background-color: var(--player-controls-bg);
+  color: var(--player-controls-color);
   border: 1px solid black;
   outline: none;
   padding: 15px;
   font-size: 22px;
-  transition: all .25s;
-
+  transition: var(--player-controls-transition);
+  opacity: var(--player-controls-opacity);
 }
 
 #returnBtn:hover {
@@ -319,12 +324,6 @@ video {
   height: 100%;
 }
 
-/* Styling the subtitles*/
-video::-webkit-media-text-track-display {
- /*   color: green;
-    z-index: 2147483647;*/
-}
-
 /*Styling the video controls panel*/
 video::-webkit-media-controls-panel {
   z-index: 400;
@@ -362,4 +361,27 @@ video::-webkit-media-controls-fullscreen-button {
 :focus
 {
   outline:unset;
+}
+
+/* CSS root variables for player control color and visibility */
+:root {
+  --player-controls-bg: rgba(0,0,0,0.7);
+  --player-controls-color: #fff;
+  --player-controls-opacity: 1;
+  --player-controls-transition: opacity 0.4s;
+}
+
+/* Fade out controls and return button together */
+.controls-hidden #returnBtn,
+.controls-hidden video::-webkit-media-controls-panel {
+  opacity: 0;
+  pointer-events: none;
+  transition: var(--player-controls-transition);
+}
+
+/* Show controls and return button */
+#returnBtn,
+video::-webkit-media-controls-panel {
+  opacity: 1;
+  transition: var(--player-controls-transition);
 }
