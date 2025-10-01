@@ -2,20 +2,20 @@
 
 {% block content %}
     <main class="main-content">
-        <header class="collections-header">
+        <div class="collections-header">
             <span>Collections</span>
             <span><a href="{% url 'manage_collections' %}"> Manage Collections</a></span>
-        </header>
+        </div>
 
         {% include "partials/collection_list.html" %}
 
-        <header class="collections-header">
+        <!--<div class="collections-header">
             <h3>Public Collections</h3>
             <form class="resource-search-submit" id="searchSubmit">
                 <input id="resource-search-input" type="search" placeholder="Search public collections" value="">
             </form>
             <h3><a href="#">Manage Public Collections</a></h3>
-        </header>
+        </div>
 
         <div class="public-collections-list">
             {% for collection in public_collections %}
@@ -25,6 +25,6 @@
                     <p>There are no public collections</p>
                 </div>
             {% endfor %}
-        </div>
+        </div>-->
     </main>
 {% endblock %}
