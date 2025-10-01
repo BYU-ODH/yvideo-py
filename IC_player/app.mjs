@@ -23,7 +23,7 @@ function createWindow() {
   })
 
   // and load the index.html of the app.
-  mainWindow.loadURL('file://' + __dirname + '/renderer/IC-player.html')
+  mainWindow.loadURL('file://' + __dirname + '/src/IC-player.html')
 }
 
 app.on('ready', createWindow)
