@@ -1,5 +1,5 @@
 const fs = window.require("fs");
-const { dialog, webUtils } = window.require("electron");
+const { webUtils } = window.require("electron");
 import { AnnotationPlayer } from "./annotation-player.js";
 
 export const player = {
@@ -167,10 +167,10 @@ export const player = {
 
       const jsonPath = webUtils
         .getPathForFile(icfFile)
-        .replace(/\/[^\/]*$/, "/" + icfObj["annotation"]);
+        .replace(/\/[^/]*$/, "/" + icfObj["annotation"]);
       const videoPath = webUtils
         .getPathForFile(icfFile)
-        .replace(/\/[^\/]*$/, "/.ic/" + icfObj["video"]);
+        .replace(/\/[^/]*$/, "/.ic/" + icfObj["video"]);
 
       jsonFileExists = true;
       jsonFile = {
@@ -212,6 +212,7 @@ export const player = {
       if (err) alert(err);
     });
 
+    let jsonPath;
     if (jsonFile) {
       fs.copyFile(jsonFilePath, dirName + `/` + stem + `.json`, (err) => {
         if (err) alert(err);
@@ -265,7 +266,6 @@ export const player = {
       try {
         parsedData = JSON.parse(fileData.toString());
       } catch (e) {
-        // fallback: pass as is
         parsedData = fileData;
       }
     }
