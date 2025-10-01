@@ -1,5 +1,5 @@
 const { ipcRenderer } = window.require('electron')
-import { player } from './player-wrapper.js'
+import { player } from './IC-player.js'
 
 window.toggleDevTools = () => {
   ipcRenderer.send('toggle-dev-tools', player.annotationMode)
