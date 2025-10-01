@@ -171,3 +171,6 @@ cython_debug/
 
 # IC_Player
 IC_Player/node_modules/
+
+# ESLint and dependencies
+node_modules/

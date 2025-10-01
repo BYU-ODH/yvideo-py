@@ -46,7 +46,7 @@ describe(`content service test`, () => {
 				contentId : ``,
 				subtitlesStore: {
 					cache: {
-						'subtitle1': subtitle1, // eslint-disable-line object-shorthand
+						'subtitle1': subtitle1,
 						loading: false,
 						lastFetched: 0,
 						active: 0,
