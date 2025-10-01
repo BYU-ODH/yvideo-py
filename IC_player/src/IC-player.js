@@ -265,7 +265,7 @@ export const player = {
     ) {
       try {
         parsedData = JSON.parse(fileData.toString());
-      } catch (e) {
+      } catch {
         parsedData = fileData;
       }
     }
