@@ -35,3 +35,13 @@ repos:
     rev: 0.8.22
     hooks:
       - id: uv-lock
+
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.36.0
+    hooks:
+      - id: eslint
+        args: [--fix]
+        files: \.[j]sm?$  # *.js, *.jsx, *.ts and *.tsx
+        types: [file]
+        additional_dependencies:
+          - eslint@9.36.0

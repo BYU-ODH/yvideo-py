@@ -1,5 +1,6 @@
 export class AnnotationPlayer {
   constructor(videoElem, annotationContainer, options = {}) {
+    this.options = options;
     this.videoElem = videoElem;
     this.annotationContainer = annotationContainer;
     this.annotations = [];
