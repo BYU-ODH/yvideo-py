@@ -1,0 +1,17 @@
+<div class="collection-section">
+    <div class="collection-status">
+        <p>{{ collections_type }}</p>
+        <img src="/static/img/arrow.svg" class="arrow-icon">
+    </div>
+    <div class="collection-list">
+        {% for collection in collections %}
+            <div class="collection-item">
+                {{ collection.name }}
+            </div>
+        {% empty %}
+            <div class="collection-item">
+                No {{ collections_type }} collections.
+            </div>
+        {% endfor %}
+    </div>
+</div>

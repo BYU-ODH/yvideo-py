@@ -14,7 +14,9 @@
                 {{ user.netid }}
             </h4>
             <div id="sorted-collections">
-                {% include "partials/sorted_collections.html" %}
+                {% include "partials/collection.html" with collections_type="Published" collections=published %}
+                {% include "partials/collection.html" with collections_type="Unpublished" collections=unpublished %}
+                {% include "partials/collection.html" with collections_type="Archived" collections=archived %}
             </div>
         </div>
         <div class="collections-detail" id="collections-detail">
