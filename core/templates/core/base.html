@@ -5,7 +5,8 @@
     <head>
         <meta charset="UTF-8">
         <title>{% block title %}YVideo{% endblock %}</title>
-        <link rel="stylesheet" href="{% static 'style.css' %}">
+        <link rel="stylesheet" href="{% static 'css/style.css' %}">
+        <link rel="stylesheet" href="{% static 'css/mobile_styles.css' %}">
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
         <link rel="shortcut icon" type="image/png" href="{% static 'img/favicon.ico' %}" >
     </head>
@@ -19,9 +20,4 @@
         {% block content %}
         {% endblock %}
     </body>
-    <script>
-        document.body.addEventListener("htmx:configRequest", (event) => {
-            event.detail.headers["X-CSRFToken"] = "{{ csrf_token }}";
-        });
-    </script>
 </html>
