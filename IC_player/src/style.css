@@ -35,56 +35,6 @@ h1{
 
 /*SPLASH SCREEN STYLES*/
 
-#header {
-  -webkit-app-region: drag;
-  height: 25px;
-  background: linear-gradient(#fbfafa, lightgrey, #c5c5c5);
-}
-
-#headerLogo {
-  height: 15px;
-  margin-left: 10px;
-  margin-top: 5px;
-}
-
-#closeBtn {
-  -webkit-app-region: no-drag;
-  background: radial-gradient(red, firebrick, black);
-  color: black;
-  border-radius: 100%;
-  border: none;
-  position: absolute;
-  right: 0;
-  margin: 2px;
-  height: 20px;
-  width: 20px;
-  padding: 2px;
-  outline: none;
-  transition: all .35s;
-}
-
-#closeBtn:hover {
-  background: radial-gradient(firebrick, black, black);
-  color: white;
-}
-
-#closeBtn:active {
-  background: radial-gradient(firebrick, red, black);
-}
-
-#titleText {
-  font-family: sans-serif;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .5px;
-  user-select: none;
-
-  color: #545454;
-  display: inline-block;
-  margin-top: 8px;
-  margin-left: 8px;
-}
-
 .container {
   width: 100%;
   text-align: center;
@@ -101,9 +51,7 @@ h1{
 }
 
 #logo {
-  position: fixed;
   margin: auto;
-  margin-left: -200px;
   height: 400px;
   width: 400px;
 }
@@ -231,42 +179,13 @@ h1{
 
 #returnBtn:hover {
   color: rgba(255,255,255,1);
-  border: 1px solid grey;
+  border: 1px solid rgb(50, 50, 50);
 }
 
 #returnBtn:active {
   color: rgba(255,255,255,0.5);
   background-color: rgba(255,255,255, 0.2);
   border: 1px solid rgba(255,255,255, 0.2);
-}
-
-#issueBtn {
-  position: absolute;
-  top: 0;
-  left: 123px;
-  z-index: 2000;
-  background-color: rgba(255,255,255, 0.2);
-  color: rgba(255,255,255,0.5);
-  border: 1px solid black;
-  outline: none;
-  padding: 15px;
-  font-size: 10px 15px;
-  transition: all .25s;
-}
-
-#issueBtn:hover {
-  color: rgba(255,255,255,1);
-  border: 1px solid grey;
-}
-
-#issueBtn:active {
-  color: rgba(255,255,255,0.5);
-  background-color: rgba(255,255,255, 0.2);
-  border: 1px solid rgba(255,255,255, 0.2);
-}
-
-#issueDialog {
-  visibility: hidden
 }
 
 #reloadJsonBtn {
@@ -294,31 +213,6 @@ h1{
   border: 1px solid rgba(255,255,255, 0.2);
 }
 
-#saveJsonBtn {
-  position: absolute;
-  top: 0;
-  right: 138px;
-  z-index: 2000;
-  background-color: rgba(255,255,255, 0.2);
-  color: rgba(255,255,255,0.5);
-  border: 1px solid black;
-  outline: none;
-  padding: 15px;
-  font-size: 10px 15px;
-  transition: all .25s;
-}
-
-#saveJsonBtn:hover {
-  color: rgba(255,255,255,1);
-  border: 1px solid grey;
-}
-
-#saveJsonBtn:active {
-  color: rgba(255,255,255,0.5);
-  background-color: rgba(255,255,255, 0.2);
-  border: 1px solid rgba(255,255,255, 0.2);
-}
-
 video {
   width: 100%;
   height: 100%;
@@ -335,18 +229,6 @@ video::-webkit-media-controls-panel {
 
 video::-webkit-media-controls-fullscreen-button {
     display: none;
-}
-
-#box {
-  /* Set z-index to MAX VALUE */
-  z-index: 2;
-  border: 0px solid red;
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 0;
-  width: 0;
-  pointer-events: none;
 }
 
 .censor {
