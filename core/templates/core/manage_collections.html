@@ -4,7 +4,7 @@
 
 {% block content %}
     <div class="collections-page">
-        <div class="collections-container" id="collections-container">
+        <div id="collections-container">
             <button id="collection-create" class="collection-button" onclick="collection_modal.showModal();">
                 <img class="icon" src="/static/img/plus.svg" id="icon"> Collection
             </button>
@@ -13,35 +13,12 @@
             <h4 id="collection-username">
                 {{ user.netid }}
             </h4>
-            <div class="collection-section">
-                <h6 class="collection-status">
-                    Published
-                    <div class="arrow" src="/static/img/arrow.svg" id="arrow"></div>
-                </h6>
-                <div class="collection-list" id="published-list">
-                    {% for collection in published %}
-                        <div class="collection-item">
-                            <div class="collection-name"
-                                hx-get="{% url "view_collection" pk=collection.pk %}"
-                                hx-target="#collections-detail"
-                                hx-swap="innerHTML">
-                                {{ collection.name }}
-                            </div>
-                        </div>
-                    {% empty %}
-                        <div class="collection-item">No published collections.</div>
-                    {% endfor %}
-                </div>
-            </div>
-            <div id="sorted-collections" class="sorted-collections">
+            <div id="sorted-collections">
                 {% include "partials/sorted_collections.html" %}
             </div>
         </div>
         <div class="collections-detail" id="collections-detail">
             {% include "partials/view_collection.html" %}
-        </div>
-        <div class="created-collections">
-
         </div>
     </div>
 
@@ -71,12 +48,3 @@
     });
 </script>
 {% endblock %}
-
-<script>
-document.body.addEventListener('htmx:afterSwap', function(evt) {
-    console.log('HTMX afterSwap:', evt.detail);
-});
-document.body.addEventListener('htmx:responseError', function(evt) {
-    console.log('HTMX responseError:', evt.detail);
-});
-</script>
