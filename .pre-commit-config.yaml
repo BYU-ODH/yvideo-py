@@ -40,7 +40,8 @@ repos:
     rev: v9.36.0
     hooks:
       - id: eslint
-        args: [--fix --debug]
+        args: [--fix, --config=eslint.config.js]
+        files: ^(?!package-lock\.json$)(?!old/)(?!node_modules/)(?!vendor/).*\.(js|mjs|json|md|css)$
         types: [file]
         additional_dependencies:
           - eslint@9.36.0

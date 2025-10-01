@@ -1,0 +1,22 @@
+{
+  "name": "yvideo-dev-dependencies",
+  "version": "0.0.0",
+  "description": "Y-video development dependencies (ESLint, etc.) This project is NOT built/run/tested using npm",
+  "main": "eslint.config.js",
+  "scripts": {
+    "build": "echo 'This project is NOT built using npm!'",
+    "run": "echo 'This project is NOT run using npm!'",
+    "test": "echo 'This project does NOT use npm for tests!'"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/css": "^0.11.1",
+    "@eslint/js": "^9.36.0",
+    "@eslint/json": "^0.13.2",
+    "@eslint/markdown": "^7.3.0",
+    "eslint": "9.36.0",
+    "globals": "^16.4.0"
+  },
+  "type": "module"
+}
