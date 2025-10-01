@@ -1,3 +1,4 @@
+import logging
 import os
 
 from django.conf import settings
@@ -14,6 +15,8 @@ HMS_VALIDATOR = RegexValidator(
     message="Time must be in H:MM:SS format (e.g., 1:23:45.67 or 12:34:56.78)",
     code="invalid_time_format",
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PrivilegeLevel(models.IntegerChoices):
@@ -82,9 +85,9 @@ class CustomUserManager(BaseUserManager):
 
 class User(AbstractUser):
     netid = models.CharField(max_length=8, unique=True)
+    byu_id = models.CharField(max_length=9, blank=True, null=True)
     USERNAME_FIELD = "netid"
     REQUIRED_FIELDS = []
-    byu_id = models.CharField(max_length=9, blank=True, null=True)
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
     )
@@ -97,12 +100,20 @@ class User(AbstractUser):
     accessible_collections = models.ManyToManyField(
         "Collection", through="CollectionUserAccess", related_name="users"
     )
-    courses = models.ManyToManyField("Course", related_name="users", blank=True)
+    courses = models.ManyToManyField("Course", through="UserCourses", blank=True)
 
     objects = CustomUserManager()
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} | {self.netid}"
+
+    def to_dict(self):
+        return {
+            "netid": self.netid,
+            "byuid": self.byu_id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+        }
 
     @property
     def is_admin(self):
@@ -112,7 +123,7 @@ class User(AbstractUser):
 class ResourceAccess(models.Model):  # "through" model
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
-    last_verified = models.DateTimeField()
+    last_verified = models.DateTimeField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -394,6 +405,35 @@ class Course(models.Model):
 
     def __str__(self):
         return f"{self.dept} {self.catalog_number}-{self.section_number}"
+
+
+class UserCourses(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    yearterm = models.CharField(max_length=5, blank=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def display_yearterm(self):
+        if self.yearterm is None:
+            return ""
+        year_str = self.yearterm[:4]
+        term_str = self.yearterm[4:]
+        term_map = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
+        try:
+            term_name = term_map[term_str]
+        except KeyError:
+            logger.error(
+                f"UserCourse has a missing or invalid yearterm. UserCourseId: {self.pk}, yearterm: {self.yearterm}"
+            )
+        except Exception:
+            logger.error(
+                f"An error has occurred while displaying the yearterm for the following UserCousreId: {self.pk}"
+            )
+        return f"{term_name} {year_str}"
+
+    def __str__(self):
+        return f"{self.course.dept} {self.course.catalog_number} Section {self.course.section_number} {self.display_yearterm()}"
 
 
 class Language(models.Model):

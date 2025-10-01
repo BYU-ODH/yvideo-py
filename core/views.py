@@ -1,30 +1,44 @@
+import logging
 import mimetypes
 import os
 import re
 
+from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
+
+from core.forms import CollectionForm
 
 from .models import Collection
 from .models import Content
 from .models import FileKey
 from .models import User
 
+logger = logging.getLogger(__name__)
 
+
+@login_required
 def index(request):
     user = request.user
     collections = Collection.objects.filter(owner=user)
+    all_contents = Content.objects.filter(collection__in=collections)
+    filtered_contents = {collection: [] for collection in collections}
+
+    for content in all_contents:
+        filtered_contents[content.collection].append(content)
 
     context = {
         "user": user,  # TODO: Replace with actual data
         "collections": collections,
+        "contents": filtered_contents,
         "public_collections": [],
     }
     return render(request, "index.html", context)
 
 
+@login_required
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
@@ -154,6 +168,7 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
+@login_required
 def manage_collections(request):
     collections = Collection.objects.filter(owner=request.user)
 
@@ -169,16 +184,46 @@ def manage_collections(request):
             "unpublished": unpublished,
             "archived": archived,
             "user": request.user,
+            "form": CollectionForm(),
         },
     )
 
 
-def show_modal(request):
-    return render(request, "create_collection.html")
-
-
 def create_collection(request):
-    if request.method == "POST":
-        name = request.POST.get("name")
-        collections = Collection.objects.create(owner=name)
-    return render(request, "load_collection", {"collection": collections})
+    form = CollectionForm(request.POST, initial={"user": request.user})
+
+    if form.is_valid():
+        try:
+            collection = form.save(commit=False)
+            collection.owner = request.user
+            collection.published = False
+            collection.archived = False
+            collection.public = False
+            collection.save()
+
+            response = render(
+                request, "partials/load_collection.html", {"collection": collection}
+            )
+            response["HX-Trigger"] = "success"
+        except Exception as e:
+            logger.warning(
+                f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
+            )
+
+            response = render(
+                request, "partials/add_collection_modal.html", {"form": form}
+            )
+            response["HX-Retarget"] = "#collection_modal"
+            response["HX-Reswap"] = "outerHTML"
+            response["HX-Trigger-After-Settle"] = "fail"
+    else:
+        response = render(request, "partials/add_collection_modal.html", {"form": form})
+        response["HX-Retarget"] = "#collection_modal"
+        response["HX-Reswap"] = "outerHTML"
+        response["HX-Trigger-After-Settle"] = "fail"
+
+    return response
+
+
+def invalid_login(request):
+    return render(request, "invalid_login.html", {})

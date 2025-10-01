@@ -1,0 +1,69 @@
+<div class="collections-list">
+    {% for collection, contents in contents.items %}
+        <div class="collection-container">
+            <div id="accordion" class="collection-line">
+                <h3>{{ collection.name }}</h3>
+                {% if contents|length > 1 %}
+                        <p>{{ contents|length }} items</p>
+                {% elif contents|length == 0 %}
+                    <p>0 items</p>
+                {% else %}
+                        <p>{{ contents|length }} item</p>
+                {% endif %}
+                <img src="/static/img/arrow.svg" class="arrow">
+            </div>
+            <div class="content-item">
+                {% for content in contents %}
+                    <div id="accordion" class="content-line">
+                        <p>{{ content.title }}</p>
+                        <img src="/static/img/arrow.svg" class="arrow">
+                    </div>
+                    <div class="content-clips">
+                        {% if content.clips.all %}
+                            <p>Full Video</p>
+                            {% for clip in content.clips.all %}
+                                    <p>{{ clip.name }} ({{ clip.start_time }} - {{ clip.end_time }})</p>
+                            {% empty %}
+                                    <p>No clips found</p>
+                            {% endfor %}
+                        {% else %}
+                            <p>No clips found</p>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="content-line">
+                        <p>No content found</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% empty %}
+        <p>No collections found</p>
+    {% endfor %}
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const collections = document.querySelectorAll("#accordion");
+
+        collections.forEach((collection) => {
+            collection.addEventListener("click", function() {
+                this.classList.toggle("active");
+
+                const arrow = this.querySelector('.arrow');
+                if (arrow) {
+                    arrow.style.transform = this.classList.contains('active') ? 'rotate(180deg)' : 'rotate(0deg)';
+                }
+
+                const content = this.nextElementSibling;
+                if (content.style.maxHeight) {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    setTimeout(function(){content.style.maxHeight = null;}, 50)
+                } else {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    setTimeout(function(){content.style.maxHeight = "unset";}, 200)
+                }
+            });
+        });
+    });
+</script>

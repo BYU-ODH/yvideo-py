@@ -1,4 +1,8 @@
 secret_settings.py
+*settings.json
+*advanced_settings.json
+*sp.cert
+*sp.key
 *.mp4
 *.sqlite3
 
