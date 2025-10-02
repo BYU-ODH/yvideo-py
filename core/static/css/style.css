@@ -1,6 +1,6 @@
 /* General Styles */
 :root {
-    --selected-grey: #e6e6e6;
+    --selectable-grey: #eeeeee;
     --grey: #828382;
     --medium-blue: #0582ca;
     --deep-blue: #002e5d;
@@ -24,6 +24,13 @@ body {
     height: 100vh;
     display: flex;
     flex-direction: column;
+}
+
+.clickable:hover {
+    color: var(--medium-blue);
+    cursor: pointer;
+    background-color: var(--selectable-grey);
+    border-radius: 10px;
 }
 
 /* Player Container Styles */
@@ -804,11 +811,11 @@ body {
 .collection-line:hover {
     cursor: pointer;
     text-decoration: underline;
-    background: var(--selected-grey);
+    background: var(--selectable-grey);
 }
 
 .collection-line.active {
-    background: var(--selected-grey);
+    background: var(--selectable-grey);
 }
 
 .collection-line.active .arrow-icon {
@@ -838,7 +845,7 @@ body {
 }
 
 .content-line:hover {
-    background: var(--selected-grey);
+    background: var(--selectable-grey);
 }
 
 .content-clips {
@@ -848,7 +855,7 @@ body {
 }
 
 .content-line.active {
-    background: var(--selected-grey);
+    background: var(--selectable-grey);
 }
 
 .collection-navigation {
@@ -904,7 +911,14 @@ body {
 }
 
 .edit-settings-button {
-    color: var(--selected-grey);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-settings-button img {
+    padding: 0.5rem;
 }
 
 .content-actions {
@@ -919,6 +933,7 @@ body {
     justify-content: center;
     align-items: center;
     row-gap: 1rem;
+    padding: 0.5rem;
 }
 
 .content-action-wrapper img {
