@@ -1,0 +1,36 @@
+<div class="content-display-item">
+    {% if content.thumbnail %}
+        <img src="{{ content.thumbnail }}" class="content-thumbnail">
+    {% else %}
+        <img src="../../../static/img/video.svg" class="content-thumbnail">
+    {% endif %}
+    <p class="content-title">
+        {{ content.title }}
+    </p>
+    <img src="../../../static/img/settings.svg"
+        title="Settings"
+        class="edit-settings-button"
+        hx-get="{% url 'edit_content' content.id %}"
+        hx-target="closest .content-header"
+    />
+    <div class="content-actions">
+        <div class="content-action-wrapper">
+            <img src="../../../static/img/video-editor.svg">
+            <p>
+                Video Editor
+            </p>
+        </div>
+        <div class="content-action-wrapper">
+            <img src="../../../static/img/subtitle-editor.svg">
+            <p>
+                Subtitle Editor
+            </p>
+        </div>
+        <div class="content-action-wrapper">
+            <img src="../../../static/img/clip-manager.svg">
+            <p>
+                Clip Manager
+            </p>
+        </div>
+    </div>
+</div>

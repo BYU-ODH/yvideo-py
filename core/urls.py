@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import create_collection
+from .views import display_collection_contents
 from .views import edit_content
 from .views import index
 from .views import manage_collections
@@ -15,6 +16,11 @@ urlpatterns = [
     path("manage-collections/", manage_collections, name="manage_collections"),
     path("collections/create/", create_collection, name="create_collection"),
     path("collections/view/<int:pk>/", view_collection, name="view_collection"),
+    path(
+        "display-collection-contents/<int:collection_id>",
+        display_collection_contents,
+        name="display_collection_contents",
+    ),
     path("content/edit/<int:pk>/", edit_content, name="edit_content"),
     path("player/<int:content_id>/", player, name="player"),
     path("stream/<int:file_key>/", stream_file, name="stream_file"),

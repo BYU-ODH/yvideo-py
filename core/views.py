@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def index(request):
-    user = request.user
+    # user = request.user
+    user = User.objects.all().first()
     collections = Collection.objects.filter(owner=user)
     all_contents = Content.objects.filter(collection__in=collections)
     filtered_contents = {collection: [] for collection in collections}
@@ -178,7 +179,8 @@ def stream_file(request, file_key):
 
 
 def manage_collections(request):
-    collections = Collection.objects.filter(owner=request.user)
+    # collections = Collection.objects.filter(owner=request.user)
+    collections = Collection.objects.filter(owner=User.objects.all().first())
 
     archived = collections.filter(archived=True)
     published = collections.filter(archived=False, published=True)
@@ -212,7 +214,7 @@ def create_collection(request):
             response = render(
                 request, "partials/load_collection.html", {"collection": collection}
             )
-            response["HX-Trigger"] = "success"
+
         except Exception as e:
             logger.warning(
                 f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
@@ -221,20 +223,16 @@ def create_collection(request):
             response = render(
                 request, "partials/add_collection_modal.html", {"form": form}
             )
-            response["HX-Retarget"] = "#collection_modal"
-            response["HX-Reswap"] = "outerHTML"
-            response["HX-Trigger-After-Settle"] = "fail"
+
     else:
         response = render(request, "partials/add_collection_modal.html", {"form": form})
-        response["HX-Retarget"] = "#collection_modal"
-        response["HX-Reswap"] = "outerHTML"
-        response["HX-Trigger-After-Settle"] = "fail"
 
     return response
 
 
 def view_collection(request, pk):
-    user = request.user
+    # user = request.user
+    user = User.objects.all().first()
 
     if request.method == "GET":
         collection_pk = pk
@@ -264,7 +262,7 @@ def view_collection(request, pk):
                 form.save()
                 return render(
                     request,
-                    "partials/content_header.html",
+                    "partials/content_display.html",
                     {"content": updated_content},
                 )
             except Exception as e:
@@ -276,8 +274,6 @@ def view_collection(request, pk):
                     "partials/edit_content.html",
                     {"content": updated_content, "form": form},
                 )
-                response["HX-Retarget"] = f"#content-{updated_content.pk}-header"
-                response["HX-Reswap"] = "outerHTML"
                 return response
         else:
             response = render(
@@ -285,8 +281,6 @@ def view_collection(request, pk):
                 "partials/edit_content.html",
                 {"content": updated_content, "form": form},
             )
-            response["HX-Retarget"] = f"#content-{updated_content.pk}-header"
-            response["HX-Reswap"] = "innerHTML"
             return response
 
 
@@ -295,3 +289,10 @@ def edit_content(request, pk):
     form = UpdateContentForm(instance=content)
     context = {"content": content, "form": form}
     return render(request, "partials/edit_content.html", context)
+
+
+def display_collection_contents(request, collection_id):
+    collection = get_object_or_404(Collection, pk=collection_id)
+    contents = Content.objects.filter(collection=collection)
+    context = {"collection": collection, "contents": contents}
+    return render(request, "partials/collection_contents_display.html", context)

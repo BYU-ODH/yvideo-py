@@ -1,0 +1,10 @@
+<div class="title-section">
+    <h2 class="collection-title">{{ collection.name }}</h2>
+</div>
+<div class="collection-content">
+    {% for content in contents %}
+        {% include "partials/content_display.html" %}
+    {% empty %}
+        <p>No content in this collection yet.</p>
+    {% endfor %}
+</div>

@@ -1,6 +1,7 @@
 /* General Styles */
 :root {
     --selected-grey: #e6e6e6;
+    --grey: #828382;
     --medium-blue: #0582ca;
     --deep-blue: #002e5d;
     --yellow: #ffbf00;
@@ -719,20 +720,11 @@ body {
     flex: 1;
 }
 
-.collections-detail {
+#collections-detail {
     flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-}
-
-.no-collections {
-    font-size: 1.8rem;
-    color: rgb(204, 204, 204);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    padding: 0rem 2rem;
 }
 
 .collection-section {
@@ -791,11 +783,6 @@ body {
     padding: 0.55rem 1.5rem;
     border-radius: 0.3rem;
     cursor: pointer;
-}
-
-.title-section {
-    display: flex;
-    align-items: center;
 }
 
 .collection-header {
@@ -892,11 +879,9 @@ body {
 .collection-content {
     display: flex;
     flex-direction: column;
-    background-color: white;
-    overflow-y: scroll;
-    padding: 2rem;
-    height: 100vh;
-    border: 1px solid var(--medium-blue);
+    row-gap: 2rem;
+    overflow-y: auto;
+    padding: 0rem 2rem;
 }
 
 #no-collections-body {
@@ -909,6 +894,39 @@ body {
     background-color: white;
     overflow-y: auto;
     padding: 2rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.content-title {
+    font-weight: bold;
+    margin: 0;
+}
+
+.edit-settings-button {
+    color: var(--selected-grey);
+}
+
+.content-actions {
+    display: flex;
+    flex-direction: row;
+    column-gap: 2rem;
+}
+
+.content-action-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    row-gap: 1rem;
+}
+
+.content-action-wrapper img {
+    width: 2.5rem;
+}
+
+.content-action-wrapper p {
+    margin: 0;
 }
 
 /* Create New Collection Modal */
@@ -972,8 +990,10 @@ body {
     background: url(/static/img/plus.svg) center center / contain no-repeat;
 }
 
-.content-header {
+.content-display-item {
     display: flex;
+    flex-direction: row;
+    column-gap: 2rem;
 }
 
 .content-thumbnail {
