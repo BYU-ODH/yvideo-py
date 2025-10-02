@@ -182,20 +182,13 @@ export class AnnotationPlayer {
     this.paused = false;
     this.state.playing = true;
     this.state.started = true;
-    this.videoElem.controls = false;
-
-    const playerContainer = document.getElementById("playerContainer");
-    if (playerContainer) playerContainer.classList.add("controls-hidden");
   }
 
   pause() {
     this.videoElem.pause();
     this.paused = true;
     this.state.playing = false;
-    this.videoElem.controls = true;
-
-    const playerContainer = document.getElementById("playerContainer");
-    if (playerContainer) playerContainer.classList.remove("controls-hidden");
+    if (this.controls.container) this.controls.container.classList.remove("controls-hidden");
   }
 
   togglePlayPause() {
@@ -207,7 +200,6 @@ export class AnnotationPlayer {
   }
 
   skipTo(time) {
-    this.videoElem.controls = false;
     this.videoElem.currentTime = time;
     this.timeCache = time;
     this.applyAnnotations();
@@ -577,6 +569,11 @@ export class AnnotationPlayer {
       this.controls.container.classList.remove('cursor-hidden');
     }
 
+    // Make sure built-in video controls are enabled when mouse moves
+    if (!this.videoElem.controls) {
+      this.videoElem.controls = true;
+    }
+
     this.updateControlsVisibility();
 
     if (this.mouseTimer) clearTimeout(this.mouseTimer);
@@ -597,7 +594,7 @@ export class AnnotationPlayer {
                        !this.state.playing ||
                        this.state.controlsHovering;
 
-    this.controls.container.classList.toggle('hidden', !shouldShow);
+    this.controls.container.classList.toggle('controls-hidden', !shouldShow);
   }
 
   handleKeydown(e) {
@@ -677,14 +674,23 @@ export class AnnotationPlayer {
       }
     });
 
-    this.videoElem.addEventListener('click', () => this.togglePlayPause());
+    this.videoElem.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.togglePlayPause();
+    });
 
     if (this.controls.playButton) {
-      this.controls.playButton.addEventListener('click', () => this.togglePlayPause());
+      this.controls.playButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.togglePlayPause();
+      });
     }
 
     if (this.controls.playPauseBtn) {
-      this.controls.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+      this.controls.playPauseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.togglePlayPause();
+      });
     }
 
     if (this.controls.scrubber) {
@@ -710,7 +716,47 @@ export class AnnotationPlayer {
         this.state.hovering = false;
         this.updateControlsVisibility();
       });
+
+      // Add event listeners for specific buttons to ensure they stay visible when hovered
+      const controlButtons = this.controls.container.querySelectorAll('#returnBtn, #reloadJsonBtn');
+      controlButtons.forEach(button => {
+        button.addEventListener('mouseenter', () => {
+          this.state.controlsHovering = true;
+          this.updateControlsVisibility();
+        });
+        button.addEventListener('mouseleave', () => {
+          this.state.controlsHovering = false;
+          this.updateControlsVisibility();
+        });
+      });
     }
+
+    // Keep these for additional mouse tracking on video and annotation container
+    this.videoElem.addEventListener('mousemove', () => this.handleMouseMoved());
+    this.videoElem.addEventListener('mouseenter', () => {
+      this.state.hovering = true;
+      this.updateControlsVisibility();
+    });
+    this.videoElem.addEventListener('mouseleave', () => {
+      // Only set hovering to false if we're not hovering over controls or buttons
+      if (!this.state.controlsHovering) {
+        this.state.hovering = false;
+        this.updateControlsVisibility();
+      }
+    });
+
+    this.annotationContainer.addEventListener('mousemove', () => this.handleMouseMoved());
+    this.annotationContainer.addEventListener('mouseenter', () => {
+      this.state.hovering = true;
+      this.updateControlsVisibility();
+    });
+    this.annotationContainer.addEventListener('mouseleave', () => {
+      // Only set hovering to false if we're not hovering over controls or buttons
+      if (!this.state.controlsHovering) {
+        this.state.hovering = false;
+        this.updateControlsVisibility();
+      }
+    });
 
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
 

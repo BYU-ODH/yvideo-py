@@ -63,7 +63,7 @@ export const player = {
 
   hidePlayer: () => {
     document.getElementById("splashScreen").style.visibility = "visible";
-    document.getElementById("playerContainer").style.visibility = "hidden";
+    document.getElementById("player-container").style.visibility = "hidden";
     document.getElementById("playButton").classList.remove("ready");
     document.getElementById("reloadJsonBtn").style.visibility = "hidden";
     document.getElementById("returnBtn").style.visibility = "hidden";
@@ -226,6 +226,7 @@ export const player = {
         video: videoElem,
         annotationContainer: annotationContainer,
         controls: {
+          container: document.getElementById("player-container")
         }
       });
     }
@@ -248,7 +249,7 @@ export const player = {
       videoElem.src = files["videoFile"].path;
     }
 
-    document.getElementById("playerContainer").style.visibility = "visible";
+    document.getElementById("player-container").style.visibility = "visible";
     document.getElementById("reloadJsonBtn").style.visibility =
       player.annotationMode ? "visible" : "hidden";
     if (!window.screenTop && !window.screenY) {

@@ -12,9 +12,8 @@
 }
 
 body {
-  background: #070000;  /* fallback for old browsers */
-  background: -webkit-linear-gradient(to right, #1e425e, #839aa8, #1e425e);  /* Chrome 10-25, Safari 5.1-6 */
-  background: linear-gradient(to right, #1e425e, #839aa8, #1e425e); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+  background-color: #070000;  /* fallback for old browsers */
+  background-image: linear-gradient(to right, #1e425e, #839aa8, #1e425e); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
   color: white;
   font-family: sans-serif;
   overflow: hidden;
@@ -23,14 +22,15 @@ body {
 }
 
 h1{
-  font-family: "Lobster";
+  font-family: "Lobster", cursive;
   font-size: 70px;
   text-align: center;
   color: #bebcb6;
   text-shadow: 5px 5px 5px black;
   letter-spacing: 4px;
   cursor: default;
-  user-select: none;
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
 }
 
 /*SPLASH SCREEN STYLES*/
@@ -134,7 +134,6 @@ h1{
   font-size: 16px;
   cursor: pointer;
   text-align: center;
-  outline: none;
 }
 
 #toggleAnnotationModeBtn:hover {
@@ -150,8 +149,12 @@ h1{
 
 /*PLAYER STYLES*/
 
-#playerContainer {
+#player-container {
   visibility: hidden;
+  --player-controls-bg: rgba(0,0,0,0.7);
+  --player-controls-color: #fff;
+  --player-controls-opacity: 1;
+  --player-controls-transition: opacity 0.4s;
 }
 
 #player {
@@ -170,7 +173,6 @@ h1{
   background-color: var(--player-controls-bg);
   color: var(--player-controls-color);
   border: 1px solid black;
-  outline: none;
   padding: 15px;
   font-size: 22px;
   transition: var(--player-controls-transition);
@@ -196,9 +198,8 @@ h1{
   background-color: rgba(255,255,255, 0.2);
   color: rgba(255,255,255,0.5);
   border: 1px solid black;
-  outline: none;
-  padding: 15px;
-  font-size: 10px 15px;
+  padding: 10px;
+  font-size: 14px;
   transition: all .25s;
 }
 
@@ -240,11 +241,6 @@ video::-webkit-media-controls-fullscreen-button {
   z-index: 2147483647;
 }
 
-:focus
-{
-  outline:unset;
-}
-
 /* CSS root variables for player control color and visibility */
 :root {
   --player-controls-bg: rgba(0,0,0,0.7);
@@ -253,9 +249,14 @@ video::-webkit-media-controls-fullscreen-button {
   --player-controls-transition: opacity 0.4s;
 }
 
+#player-container.cursor-hidden {
+  cursor: none;
+}
+
 /* Fade out controls and return button together */
-.controls-hidden #returnBtn,
-.controls-hidden video::-webkit-media-controls-panel {
+#player-container.controls-hidden #returnBtn,
+#player-container.controls-hidden #reloadJsonBtn,
+#player-container.controls-hidden video::-webkit-media-controls-panel {
   opacity: 0;
   pointer-events: none;
   transition: var(--player-controls-transition);
@@ -263,7 +264,13 @@ video::-webkit-media-controls-fullscreen-button {
 
 /* Show controls and return button */
 #returnBtn,
+#reloadJsonBtn,
 video::-webkit-media-controls-panel {
   opacity: 1;
   transition: var(--player-controls-transition);
+}
+
+/* General hidden class */
+.hidden {
+  display: none;
 }
