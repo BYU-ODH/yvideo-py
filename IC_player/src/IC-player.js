@@ -4,13 +4,13 @@ import { AnnotationPlayer } from "./annotation-player.js";
 
 export const player = {
   annotationPlayer: null,
-  annotationMode: false, // Track annotation mode state
+  annotationMode: false,
 
   initializeOrSelectFiles: () => {
     const files = player.getSelectedFiles();
     if (!files) {
       document.getElementById("filePicker").click();
-      // Use a named function so we can remove it as an event listener
+
       function onFileChange() {
         document.getElementById("files").textContent =
           player.getSelectedFiles().videoFile.name;
@@ -18,7 +18,7 @@ export const player = {
         document
           .getElementById("filePicker")
           .removeEventListener("change", onFileChange);
-        // Add play button event listener here
+
         document.getElementById("playButton").onclick = () => {
           player.startPlayer();
         };
@@ -32,7 +32,6 @@ export const player = {
   },
 
   toggleAnnotationMode: () => {
-    // Toggle the annotation mode state
     player.annotationMode = !player.annotationMode;
 
     // Update button appearance to match state
@@ -42,8 +41,6 @@ export const player = {
     } else {
       toggleBtn.classList.remove("active");
     }
-
-    // Toggle dev tools if available
     if (window.toggleDevTools) {
       try {
         window.toggleDevTools();
@@ -65,45 +62,25 @@ export const player = {
   },
 
   hidePlayer: () => {
-    // Show Splash Screen
     document.getElementById("splashScreen").style.visibility = "visible";
-
-    // Hide Player
     document.getElementById("playerContainer").style.visibility = "hidden";
-
-    // Remove 'ready' class from playButton
     document.getElementById("playButton").classList.remove("ready");
-
-    // Hide Reload JSON button if visible
     document.getElementById("reloadJsonBtn").style.visibility = "hidden";
     document.getElementById("returnBtn").style.visibility = "hidden";
-
-    // Remove keyup listener
     document.onkeyup = null;
     document.onkeydown = null;
-
-    // Pause the video
     if (player.annotationPlayer) player.annotationPlayer.pause();
-
-    // Set background to normal
     document.body.style.background =
       "linear-gradient(to right, #1e425e, #839aa8, #1e425e)";
-
-    // Completely reset file picker
     const filePicker = document.getElementById("filePicker");
     filePicker.value = "";
-    // Reset the play button handler back to initializeOrSelectFiles
     document.getElementById("playButton").onclick = () =>
       player.initializeOrSelectFiles();
     document.getElementById("files").textContent = "Select Files";
-
-    // Reset annotation mode state
     player.annotationMode = false;
     document
       .getElementById("toggleAnnotationModeBtn")
       .classList.remove("active");
-
-    // Reset player variables
     if (player.annotationPlayer) player.annotationPlayer.resetAnnotations();
     player.annotations = null;
     player.currently = null;
@@ -111,7 +88,6 @@ export const player = {
     player.timeCache = 0;
   },
 
-  // Reload the json annotations and begin player with same settings
   reloadJson: () => {
     if (!player.paused) {
       player.annotationPlayer.pause();
@@ -131,7 +107,6 @@ export const player = {
     player.reloadingJson = false;
   },
 
-  // Load the files
   getSelectedFiles: () => {
     var fileList = document.getElementById("filePicker").files,
       jsonFile = null,
@@ -141,7 +116,6 @@ export const player = {
       icfFileExists = false,
       videoFileExists = false;
 
-    // More defensive check - ensure filePicker has files and length > 0
     if (!fileList || fileList.length === 0) return null;
 
     for (var i = 0; i < fileList.length; i++) {
@@ -160,7 +134,7 @@ export const player = {
       }
     }
 
-    // If the icf file is the only one selected
+    // If the icf file is the only one selected, derive paths for json and video
     if (icfFileExists && (!jsonFileExists || !videoFileExists)) {
       const icfData = fs.readFileSync(webUtils.getPathForFile(icfFile));
       const icfObj = JSON.parse(icfData);
@@ -183,13 +157,11 @@ export const player = {
       };
     }
 
-    // if all the necessary files are included, return the file mapping; else return false
     return jsonFile && videoFile
       ? { jsonFile: jsonFile, icfFile: icfFile, videoFile: videoFile }
       : false;
   },
 
-  // Create IC directory from mp4 (and optionally an annotations JSON)
   generateICDirectory: () => {
     var HOME = process.env.HOME;
     var videoFile = document.getElementById("mp4FilePicker").files[0];
@@ -235,7 +207,6 @@ export const player = {
     );
   },
 
-  // Parse jsonFile and initialize player
   parseAndPlay: (jsonFile, initializePlayerAndPlay) => {
     player.jsonFilePath = jsonFile.path;
     fs.readFile(jsonFile.path, (err, fileData) => {
@@ -246,18 +217,19 @@ export const player = {
     });
   },
 
-  // Callback function when loading any data
   initializePlayerAndPlay: (fileData) => {
-    // Setup AnnotationPlayer instance
     const videoElem = document.getElementById("player");
     const annotationContainer = document.getElementById("annotation-container");
+
     if (!player.annotationPlayer) {
-      player.annotationPlayer = new AnnotationPlayer(
-        videoElem,
-        annotationContainer,
-      );
+      player.annotationPlayer = new AnnotationPlayer({
+        video: videoElem,
+        annotationContainer: annotationContainer,
+        controls: {
+        }
+      });
     }
-    // Defensive: parse fileData if it's a Buffer or string
+
     let parsedData = fileData;
     if (
       fileData &&
@@ -269,36 +241,23 @@ export const player = {
         parsedData = fileData;
       }
     }
-    player.annotationPlayer.loadAnnotations(parsedData);
+    player.annotationPlayer.loadData(parsedData);
 
-    // --- UI logic to show/hide splash and player ---
-    // Set video src to given file
     const files = player.getSelectedFiles();
     if (files && files["videoFile"] && files["videoFile"].path) {
       videoElem.src = files["videoFile"].path;
     }
 
-    // Show Player
     document.getElementById("playerContainer").style.visibility = "visible";
-
-    // Show Reload JSON button if annotationMode = true
     document.getElementById("reloadJsonBtn").style.visibility =
       player.annotationMode ? "visible" : "hidden";
-
-    // Show/hide return button depending on window state
     if (!window.screenTop && !window.screenY) {
       document.getElementById("returnBtn").style.visibility = "hidden";
     } else {
       document.getElementById("returnBtn").style.visibility = "visible";
     }
-
-    // Hide Splash Screen
     document.getElementById("splashScreen").style.visibility = "hidden";
-
-    // Set background to black
     document.body.style.background = "black";
-
-    // Play the video
     player.annotationPlayer.play();
   },
 };

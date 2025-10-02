@@ -1,60 +1,71 @@
 export class AnnotationPlayer {
-  constructor(videoElem, annotationContainer, options = {}) {
-    this.options = options;
-    this.videoElem = videoElem;
-    this.annotationContainer = annotationContainer;
+  constructor(options = {}) {
+    this.videoElem = this._getElement(options.video);
+    this.annotationContainer = this._getElement(options.annotationContainer);
+
+    this.controls = {
+      container: this._getElement(options.controls?.container),
+      playButton: this._getElement(options.controls?.playButton),
+      playPauseBtn: this._getElement(options.controls?.playPauseBtn),
+      scrubber: this._getElement(options.controls?.scrubber),
+      scrubberProgress: this._getElement(options.controls?.scrubberProgress),
+      scrubberDot: this._getElement(options.controls?.scrubberDot),
+      playTime: this._getElement(options.controls?.playTime),
+      fullscreenBtn: this._getElement(options.controls?.fullscreenBtn),
+      speedBtn: this._getElement(options.controls?.speedBtn),
+      captionsBtn: this._getElement(options.controls?.captionsBtn),
+      transcriptBtn: this._getElement(options.controls?.transcriptBtn),
+      transcriptContainer: this._getElement(options.controls?.transcriptContainer),
+      subtitleText: this._getElement(options.controls?.subtitleText),
+    };
+
+    this.state = {
+      playing: false,
+      started: false,
+      duration: 0,
+      currentTime: 0,
+      playbackRate: 1.0,
+      muted: false,
+      fullscreen: false,
+      showTranscript: false,
+      mouseInactive: false,
+      hovering: false,
+      controlsHovering: false,
+      displaySubtitles: null,
+      subtitleTextIndex: null,
+    };
+
     this.annotations = [];
+    this.subtitles = [];
     this.currently = { muting: -1, blanking: -1, blurring: -1 };
-    this.paused = true;
+
+    this.mouseTimer = null;
     this.controlsTimeout = null;
     this.timeCache = 0;
-    this.censors = [];
+
     this.initEventListeners();
-    // Position annotation container initially
     this.placeAnnotationContainer();
   }
 
-  getVideoDimensions() {
-    // Ratio of the video media's intrinsic dimensions
-    var videoRatio = this.videoElem.videoWidth / this.videoElem.videoHeight;
-
-    // The width and height of the video element
-    var width = this.videoElem.offsetWidth;
-    var height = this.videoElem.offsetHeight;
-
-    // The ratio of the element's width to its height
-    var elementRatio = width / height;
-
-    // If the video element is short and wide
-    if (elementRatio > videoRatio) {
-      width = height * videoRatio;
-      // It must be tall and thin, or exactly equal to the original ratio
-    } else {
-      height = width / videoRatio;
-    }
-    return {
-      width: width,
-      height: height,
-    };
+  _getElement(selector) {
+    if (!selector) return null;
+    if (selector instanceof HTMLElement) return selector;
+    if (typeof selector === 'string') return document.querySelector(selector);
+    return null;
   }
 
   placeAnnotationContainer() {
-    // Get the bounding rect of the video element
     const videoRect = this.videoElem.getBoundingClientRect();
 
-    // Intrinsic video size
     const videoWidth = this.videoElem.videoWidth;
     const videoHeight = this.videoElem.videoHeight;
     if (!videoWidth || !videoHeight) {
-      // Video metadata not loaded yet
       return;
     }
 
-    // Displayed element size
     const elemWidth = this.videoElem.clientWidth;
     const elemHeight = this.videoElem.clientHeight;
 
-    // Calculate aspect ratios
     const videoAspect = videoWidth / videoHeight;
     const elemAspect = elemWidth / elemHeight;
 
@@ -74,7 +85,6 @@ export class AnnotationPlayer {
       offsetTop = (elemHeight - displayHeight) / 2;
     }
 
-    // Position annotation container absolutely over the video media
     const annotationContainer = this.annotationContainer;
     annotationContainer.style.position = "absolute";
     annotationContainer.style.pointerEvents = "none";
@@ -125,7 +135,6 @@ export class AnnotationPlayer {
     // Sometimes details may be missing or minimal.
     const annotations = [];
     for (const anno of annotationObj) {
-      // Defensive: ensure required fields exist
       annotations.push({
         label: anno.label || "",
         start: anno.start,
@@ -137,46 +146,44 @@ export class AnnotationPlayer {
     return annotations;
   }
 
-  loadAnnotations(annotationData) {
-    this.annotations = [];
-    const jsonObj =
-      typeof annotationData === "string"
-        ? JSON.parse(annotationData)
-        : annotationData;
-    if (jsonObj["media"]) {
-      this.annotations = this.parseHummediaAnnotations(jsonObj);
-    } else if (jsonObj[0]["options"]) {
-      this.annotations = this.parseICLegacyAnnotations(jsonObj);
-    } else if (jsonObj[0]["type"] && jsonObj[0]["start"] && jsonObj[0]["end"]) {
-      // TODO ensure this is robust
-      this.annotations = this.parseYvideoV1Annotations(jsonObj);
+  /**
+   * Load annotation data including events and subtitles.
+   * Supports both array and object input.
+   */
+  loadData(data) {
+    if (!data.annotations && Array.isArray(data)) {
+      this.annotations = data;
+      this.subtitles = [];
+      this.clips = [];
     } else {
-      console.error("Unsupported annotation format:", jsonObj);
-      return;
+      this.annotations = data.annotations || [];
+      this.subtitles = data.subtitles || [];
+      this.clips = data.clips || [];
     }
-    this.annotate();
-    this.censors = [];
-    for (let i = 0; i < this.annotations.length; i++) {
-      if (this.annotations[i].type === "censor") {
-        let censor = [];
-        censor[0] = this.annotations[i].start;
-        censor[1] = this.annotations[i].end;
-        censor[2] = [];
-        Object.entries(this.annotations[i].details.position).forEach(
-          ([key, val]) => {
-            censor[2].push([key, val[0], val[1]]);
-          },
-        );
-        this.censors.push(censor);
+
+    if (this.annotations.length > 0) {
+      const firstAnnotation = this.annotations[0];
+      if (firstAnnotation.options) {
+        this.annotations = this.parseICLegacyAnnotations(this.annotations);
+      } else if (firstAnnotation.type && firstAnnotation.start !== undefined) {
+        this.annotations = this.parseYvideoV1Annotations(this.annotations);
+      } else if (firstAnnotation.media) {
+        this.annotations = this.parseHummediaAnnotations(this.annotations);
+      } else {
+        console.warn("Unknown annotation format:", firstAnnotation);
+        this.annotations = [];
       }
     }
+    this.annotate();
   }
 
   play() {
     this.videoElem.play();
     this.paused = false;
+    this.state.playing = true;
+    this.state.started = true;
     this.videoElem.controls = false;
-    // Hide controls and returnBtn immediately when playing starts
+
     const playerContainer = document.getElementById("playerContainer");
     if (playerContainer) playerContainer.classList.add("controls-hidden");
   }
@@ -184,8 +191,9 @@ export class AnnotationPlayer {
   pause() {
     this.videoElem.pause();
     this.paused = true;
+    this.state.playing = false;
     this.videoElem.controls = true;
-    // Show controls and returnBtn when paused
+
     const playerContainer = document.getElementById("playerContainer");
     if (playerContainer) playerContainer.classList.remove("controls-hidden");
   }
@@ -215,6 +223,8 @@ export class AnnotationPlayer {
     if (!this.annotations) return;
     let time = this.videoElem.currentTime;
     this.timeCache = time;
+    this.state.currentTime = time;
+
     let numAnnotations = this.annotations.length;
     for (let i = 0; i < numAnnotations; i++) {
       let vMuted = this.videoElem.muted;
@@ -359,16 +369,16 @@ export class AnnotationPlayer {
 
   blank() {
     this.videoElem.classList.add("blanked");
-    // Optionally add style for blanked video
+    // TODO Optionally add style for blanked video
   }
 
   unblank() {
     this.videoElem.classList.remove("blanked");
   }
 
-  blur() {
+  blur() {  // Blur the whole screen (not just censored areas)
     this.videoElem.classList.add("blurred");
-    // Optionally add style for blurred video
+    // TODO Make this subtype of blanked with CSS options
   }
 
   unblur() {
@@ -436,68 +446,275 @@ export class AnnotationPlayer {
     }
   }
 
-  initEventListeners() {
-    // Keyboard/mouse handlers for controls
-    this.videoElem.addEventListener("pause", () => {
-      this.paused = true;
-      if (this.controlsTimeout) clearTimeout(this.controlsTimeout);
-      // Show controls and returnBtn when paused
-      const playerContainer = document.getElementById("playerContainer");
-      if (playerContainer) playerContainer.classList.remove("controls-hidden");
-    });
-    this.videoElem.addEventListener("play", () => {
-      this.paused = false;
-      // Hide controls and returnBtn immediately when playing starts
-      const playerContainer = document.getElementById("playerContainer");
-      if (playerContainer) playerContainer.classList.add("controls-hidden");
-    });
-    this.videoElem.addEventListener("mousemove", () => {
-      this.videoElem.controls = true;
-      if (this.controlsTimeout) clearTimeout(this.controlsTimeout);
-      // Show controls and returnBtn on mousemove
-      const playerContainer = document.getElementById("playerContainer");
-      if (playerContainer) playerContainer.classList.remove("controls-hidden");
-      if (!this.videoElem.paused) {
-        this.controlsTimeout = setTimeout(() => {
-          this.videoElem.controls = false;
-          // Hide controls and returnBtn after timeout
-          if (playerContainer) playerContainer.classList.add("controls-hidden");
-        }, 3000);
+  handleProgress() {
+    this.state.currentTime = this.videoElem.currentTime;
+    this.timeCache = this.state.currentTime;
+
+    if (this.state.duration > 0) {
+      const played = this.state.currentTime / this.state.duration;
+      this.updateTimeDisplay();
+      this.updateScrubber(played);
+    }
+
+    this.handleSubtitles();
+    this.applyAnnotations();
+  }
+
+  updateTimeDisplay() {
+    if (!this.controls.playTime) return;
+
+    const time = this.state.currentTime;
+    const hours = Math.floor(time / 3600);
+    const minutes = Math.floor((time % 3600) / 60);
+    const seconds = Math.floor(time % 60);
+    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+    this.controls.playTime.textContent = timeString;
+  }
+
+  updateScrubber(played) {
+    if (this.controls.scrubberProgress) {
+      this.controls.scrubberProgress.style.width = `${played * 100}%`;
+    }
+    if (this.controls.scrubberDot) {
+      this.controls.scrubberDot.style.left = `calc(${played * 100}% - 3px)`;
+    }
+  }
+
+  handleSeekClick(e) {
+    if (!this.controls.scrubber) return;
+
+    const rect = this.controls.scrubber.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    const newTime = percent * this.state.duration;
+    this.skipTo(newTime);
+  }
+
+  handleToggleFullscreen() {
+    if (!this.controls.container) return;
+
+    const elem = this.controls.container;
+
+    if (!this.state.fullscreen) {
+      if (elem.requestFullscreen) elem.requestFullscreen();
+      else if (elem.mozRequestFullScreen) elem.mozRequestFullScreen();
+      else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+      else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else if (document.msExitFullscreen) document.msExitFullscreen();
+    }
+
+    this.state.fullscreen = !this.state.fullscreen;
+
+    if (this.controls.fullscreenBtn) {
+      this.controls.fullscreenBtn.classList.toggle('fullscreen', this.state.fullscreen);
+    }
+  }
+
+  handleFullscreenChange() {
+    const isFullscreen = !!(document.fullscreenElement || document.webkitIsFullScreen ||
+      document.mozFullScreen || document.msFullscreenElement);
+
+    if (this.state.fullscreen !== isFullscreen) {
+      this.state.fullscreen = isFullscreen;
+      if (this.controls.fullscreenBtn) {
+        this.controls.fullscreenBtn.classList.toggle('fullscreen', isFullscreen);
       }
+    }
+  }
+
+  handlePlaybackRateChange(rate) {
+    this.state.playbackRate = rate;
+    this.videoElem.playbackRate = rate;
+
+    if (this.controls.speedBtn) {
+      const speedText = this.controls.speedBtn.querySelector('.speed-text');
+      if (speedText) {
+        speedText.textContent = `${rate}x`;
+      }
+    }
+
+    document.querySelectorAll('.speed-option').forEach(btn => {
+      btn.classList.toggle('active-value', parseFloat(btn.dataset.speed) === rate);
     });
-    document.addEventListener("keyup", (e) => {
-      if (e.key === " " || e.code === "Space") {
+  }
+
+  handleCaptionChange(lang) {
+    document.querySelectorAll('.caption-option').forEach(btn => {
+      btn.classList.toggle('active-value', btn.dataset.lang === lang);
+    });
+
+    if (lang === 'off') {
+      this.state.displaySubtitles = null;
+    } else {
+      this.state.displaySubtitles = this.subtitles.find(sub => sub.language === lang);
+    }
+  }
+
+  handleSubtitles() {
+    if (!this.controls.subtitleText || !this.state.displaySubtitles?.content) {
+      if (this.controls.subtitleText) {
+        this.controls.subtitleText.textContent = '';
+      }
+      return;
+    }
+
+    const subtitle = this.state.displaySubtitles.content.find(
+      sub => this.state.currentTime >= sub.start &&
+             this.state.currentTime <= (sub.end || sub.start + 5)
+    );
+
+    this.controls.subtitleText.textContent = subtitle ? subtitle.text : '';
+  }
+
+  handleMouseMoved() {
+    this.state.mouseInactive = false;
+
+    if (this.controls.container) {
+      this.controls.container.classList.remove('cursor-hidden');
+    }
+
+    this.updateControlsVisibility();
+
+    if (this.mouseTimer) clearTimeout(this.mouseTimer);
+
+    this.mouseTimer = setTimeout(() => {
+      this.state.mouseInactive = true;
+      if (this.controls.container) {
+        this.controls.container.classList.add('cursor-hidden');
+      }
+      this.updateControlsVisibility();
+    }, 3000);
+  }
+
+  updateControlsVisibility() {
+    if (!this.controls.container) return;
+
+    const shouldShow = (!this.state.mouseInactive && this.state.hovering) ||
+                       !this.state.playing ||
+                       this.state.controlsHovering;
+
+    this.controls.container.classList.toggle('hidden', !shouldShow);
+  }
+
+  handleKeydown(e) {
+    const playedTime = this.state.currentTime;
+
+    switch (e.code) {
+      case 'Space':
+        e.preventDefault();
         this.togglePlayPause();
-        this.timeCache = this.videoElem.currentTime;
-      }
-    });
-    document.addEventListener("keydown", (e) => {
-      // Right arrow
-      if (e.key === "ArrowRight" || e.code === "ArrowRight") {
-        if (this.videoElem.paused) {
-          this.skipTo(this.timeCache + 0.1);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        this.skipTo(this.videoElem.paused ? playedTime + 0.1 : playedTime + 5);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        this.skipTo(this.videoElem.paused ? playedTime - 0.1 : playedTime - 5);
+        break;
+      case 'Period':
+        e.preventDefault();
+        if (e.shiftKey) {
+          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+          const currentIndex = rates.indexOf(this.state.playbackRate);
+          if (currentIndex < rates.length - 1) {
+            this.handlePlaybackRateChange(rates[currentIndex + 1]);
+          }
         } else {
-          this.skipTo(this.timeCache + 5);
+          this.skipTo(playedTime + 1);
         }
-      }
-      // Left arrow
-      else if (e.key === "ArrowLeft" || e.code === "ArrowLeft") {
-        if (this.videoElem.paused) {
-          this.skipTo(this.timeCache - 0.1);
+        break;
+      case 'Comma':
+        e.preventDefault();
+        if (e.shiftKey) {
+          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+          const currentIndex = rates.indexOf(this.state.playbackRate);
+          if (currentIndex > 0) {
+            this.handlePlaybackRateChange(rates[currentIndex - 1]);
+          }
         } else {
-          this.skipTo(this.timeCache - 5);
+          this.skipTo(playedTime - 1);
         }
+        break;
+      case 'KeyF':
+        e.preventDefault();
+        this.handleToggleFullscreen();
+        break;
+    }
+  }
+
+  initEventListeners() {
+    this.videoElem.addEventListener('loadedmetadata', () => {
+      this.state.duration = this.videoElem.duration;
+      this.placeAnnotationContainer();
+    });
+
+    this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
+
+    this.videoElem.addEventListener('play', () => {
+      this.paused = false;
+      this.state.playing = true;
+      this.state.started = true;
+
+      if (this.controls.playPauseBtn) {
+        this.controls.playPauseBtn.classList.add('playing');
+      }
+      if (this.controls.playButton) {
+        this.controls.playButton.classList.add('hidden');
       }
     });
-    // Maintain annotation container position on resize and video metadata load
-    window.addEventListener("resize", () => {
-      this.placeAnnotationContainer();
+
+    this.videoElem.addEventListener('pause', () => {
+      this.paused = true;
+      this.state.playing = false;
+
+      if (this.controls.playPauseBtn) {
+        this.controls.playPauseBtn.classList.remove('playing');
+      }
     });
-    this.videoElem.addEventListener("loadedmetadata", () => {
-      this.placeAnnotationContainer();
-    });
-    this.videoElem.addEventListener("resize", () => {
-      this.placeAnnotationContainer();
-    });
+
+    this.videoElem.addEventListener('click', () => this.togglePlayPause());
+
+    if (this.controls.playButton) {
+      this.controls.playButton.addEventListener('click', () => this.togglePlayPause());
+    }
+
+    if (this.controls.playPauseBtn) {
+      this.controls.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+    }
+
+    if (this.controls.scrubber) {
+      this.controls.scrubber.addEventListener('click', (e) => this.handleSeekClick(e));
+    }
+
+    if (this.controls.fullscreenBtn) {
+      this.controls.fullscreenBtn.addEventListener('click', () => this.handleToggleFullscreen());
+    }
+
+    document.addEventListener('fullscreenchange', () => this.handleFullscreenChange());
+    document.addEventListener('webkitfullscreenchange', () => this.handleFullscreenChange());
+    document.addEventListener('mozfullscreenchange', () => this.handleFullscreenChange());
+    document.addEventListener('MSFullscreenChange', () => this.handleFullscreenChange());
+
+    if (this.controls.container) {
+      this.controls.container.addEventListener('mousemove', () => this.handleMouseMoved());
+      this.controls.container.addEventListener('mouseenter', () => {
+        this.state.hovering = true;
+        this.updateControlsVisibility();
+      });
+      this.controls.container.addEventListener('mouseleave', () => {
+        this.state.hovering = false;
+        this.updateControlsVisibility();
+      });
+    }
+
+    document.addEventListener('keydown', (e) => this.handleKeydown(e));
+
+    window.addEventListener('resize', () => this.placeAnnotationContainer());
+    this.videoElem.addEventListener('resize', () => this.placeAnnotationContainer());
   }
 }
