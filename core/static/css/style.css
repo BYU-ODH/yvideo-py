@@ -27,7 +27,7 @@ body {
 }
 
 .clickable:hover {
-    color: var(--medium-blue);
+    color: var(--deep-blue);
     cursor: pointer;
     background-color: var(--selectable-grey);
     border-radius: 10px;
