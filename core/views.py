@@ -3,6 +3,7 @@ import mimetypes
 import os
 import re
 
+from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.http import HttpResponse
 from django.http import JsonResponse
@@ -22,29 +23,26 @@ from .models import User
 logger = logging.getLogger(__name__)
 
 
+@login_required
 def index(request):
     user = User.objects.get(netid="rch1103")
     collections = Collection.objects.filter(owner=user)
+    all_contents = Content.objects.filter(collection__in=collections)
+    filtered_contents = {collection: [] for collection in collections}
+
+    for content in all_contents:
+        filtered_contents[content.collection].append(content)
 
     context = {
         "user": user,  # TODO: Replace with actual data
         "collections": collections,
+        "contents": filtered_contents,
         "public_collections": [],
     }
     return render(request, "index.html", context)
 
 
-def login(request):
-    """
-    This is a stub function until SAML is working properly. Until then,
-    it isn't clear what steps should be taken to complete this method.
-    When the SAML integration is completed, this method will need to
-    get the byu_id from the SAML response and create a user if one does
-    not already exist.
-    """
-    pass
-
-
+@login_required
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
@@ -174,6 +172,7 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
+@login_required
 def manage_collections(request):
     user = User.objects.get(netid="rch1103")
     collections = Collection.objects.filter(owner=user)
@@ -195,12 +194,9 @@ def manage_collections(request):
     )
 
 
-def show_modal(request):
-    return render(request, "create_collection.html")
-
-
 def create_collection(request):
     form = CollectionForm(request.POST, initial={"user": request.user})
+
     if form.is_valid():
         try:
             collection = form.save(commit=False)
@@ -211,7 +207,7 @@ def create_collection(request):
             collection.save()
 
             response = render(
-                request, "load_collection.html", {"collection": collection}
+                request, "partials/load_collection.html", {"collection": collection}
             )
             response["HX-Trigger"] = "success"
         except Exception as e:
@@ -219,12 +215,14 @@ def create_collection(request):
                 f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
             )
 
-            response = render(request, "add_collection_modal.html", {"form": form})
+            response = render(
+                request, "partials/add_collection_modal.html", {"form": form}
+            )
             response["HX-Retarget"] = "#collection_modal"
             response["HX-Reswap"] = "outerHTML"
             response["HX-Trigger-After-Settle"] = "fail"
     else:
-        response = render(request, "add_collection_modal.html", {"form": form})
+        response = render(request, "partials/add_collection_modal.html", {"form": form})
         response["HX-Retarget"] = "#collection_modal"
         response["HX-Reswap"] = "outerHTML"
         response["HX-Trigger-After-Settle"] = "fail"
@@ -274,3 +272,5 @@ def add_annotation(request, content_id, annotation_type):
             "end_time": annotation.end_time,
         }
     )
+def invalid_login(request):
+    return render(request, "invalid_login.html", {})

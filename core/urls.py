@@ -3,6 +3,7 @@ from django.urls import path
 from .views import add_annotation
 from .views import create_collection
 from .views import index
+from .views import invalid_login
 from .views import manage_collections
 from .views import player
 from .views import stream_file
@@ -20,4 +21,5 @@ urlpatterns = [
         add_annotation,
         name="add_annotation",
     ),
+    path("invalid-login", invalid_login, name="invalid_login"),
 ]
