@@ -1,40 +1,44 @@
-<div class="content-display-item">
-        <a href="{% url 'player' content.id %}">
-            {% if content.thumbnail %}
-                <img src="{{ content.thumbnail }}" class="content-thumbnail">
-            {% else %}
-                <img src="../../../static/img/video.svg" class="content-thumbnail">
-        </a>
-    {% endif %}
+<div class="content-display">
     <p class="content-title">
         {{ content.title }}
     </p>
-    <div class="edit-settings-button">
-        <img class="clickable"
-            src="../../../static/img/settings.svg"
-            title="Settings"
-            hx-get="{% url 'edit_content' content.id %}"
-            hx-target="closest .content-header"
-        />
-    </div>
-    <div class="content-actions">
-        <div class="content-action-wrapper clickable">
-            <img src="../../../static/img/video-editor.svg">
-            <p>
-                Video Editor
-            </p>
+    <div class="content-bottom">
+        <div class="content-bottom-left">
+            <a href="{% url 'player' content.id %}">
+                {% if content.thumbnail %}
+                    <img src="{{ content.thumbnail }}" class="content-thumbnail">
+                {% else %}
+                    <img src="../../../static/img/video.svg" class="content-thumbnail">
+                {% endif %}
+            </a>
+            <div class="edit-settings-button">
+                <img class="clickable"
+                    src="../../../static/img/settings.svg"
+                    title="Settings"
+                    hx-get="{% url 'edit_content' content.id %}"
+                    hx-target="closest .content-header"
+                />
+            </div>
         </div>
-        <div class="content-action-wrapper clickable">
-            <img src="../../../static/img/subtitle-editor.svg">
-            <p>
-                Subtitle Editor
-            </p>
-        </div>
-        <div class="content-action-wrapper clickable">
-            <img src="../../../static/img/clip-manager.svg">
-            <p>
-                Clip Manager
-            </p>
+        <div class="content-actions">
+            <div class="content-action-wrapper clickable">
+                <img src="../../../static/img/video-editor.svg">
+                <p>
+                    Video Editor
+                </p>
+            </div>
+            <div class="content-action-wrapper clickable">
+                <img src="../../../static/img/subtitle-editor.svg">
+                <p>
+                    Subtitle Editor
+                </p>
+            </div>
+            <div class="content-action-wrapper clickable">
+                <img src="../../../static/img/clip-manager.svg">
+                <p>
+                    Clip Manager
+                </p>
+            </div>
         </div>
     </div>
 </div>

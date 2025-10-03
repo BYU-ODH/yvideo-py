@@ -910,17 +910,6 @@ body {
     margin: 0;
 }
 
-.edit-settings-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.edit-settings-button img {
-    padding: 0.5rem;
-}
-
 .content-actions {
     display: flex;
     flex-direction: row;
@@ -1005,10 +994,35 @@ body {
     background: url(/static/img/plus.svg) center center / contain no-repeat;
 }
 
-.content-display-item {
+.content-display {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+}
+
+.content-title {
+    margin: 0;
+}
+
+.content-bottom {
     display: flex;
     flex-direction: row;
     column-gap: 2rem;
+}
+
+.content-bottom-left {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
+}
+
+.edit-settings-button {
+    display: flex;
+    flex-direction: column;
+}
+
+.edit-settings-button img {
+    padding: 0.5rem;
 }
 
 .content-thumbnail {
