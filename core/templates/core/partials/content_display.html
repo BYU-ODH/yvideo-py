@@ -1,8 +1,10 @@
 <div class="content-display-item">
-    {% if content.thumbnail %}
-        <img src="{{ content.thumbnail }}" class="content-thumbnail">
-    {% else %}
-        <img src="../../../static/img/video.svg" class="content-thumbnail">
+        <a href="{% url 'player' content.id %}">
+            {% if content.thumbnail %}
+                <img src="{{ content.thumbnail }}" class="content-thumbnail">
+            {% else %}
+                <img src="../../../static/img/video.svg" class="content-thumbnail">
+        </a>
     {% endif %}
     <p class="content-title">
         {{ content.title }}
