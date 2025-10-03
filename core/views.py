@@ -272,5 +272,7 @@ def add_annotation(request, content_id, annotation_type):
             "end_time": annotation.end_time,
         }
     )
+
+
 def invalid_login(request):
     return render(request, "invalid_login.html", {})
