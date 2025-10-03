@@ -275,21 +275,6 @@ class File(models.Model):
         unique_together = ("resource", "version")
 
 
-class Annotation(models.Model):
-    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="annotations")
-    owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="annotations"
-    )
-    name = models.CharField(max_length=255, blank=True)
-    annotations = models.JSONField(blank=True)
-    history = models.JSONField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.owner} | {self.file.resource.name} | {self.file.version} | {self.id}"
-
-
 class Clip(models.Model):
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="clips")
     owner = models.ForeignKey(
@@ -332,14 +317,6 @@ class Content(models.Model):
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     words = models.TextField(blank=True)
-    annotation = models.ForeignKey(
-        Annotation,
-        on_delete=models.CASCADE,
-        related_name="contents",
-        null=True,
-        blank=True,
-        limit_choices_to={"file": models.F("file")},
-    )
     clips = models.ManyToManyField(
         Clip,
         related_name="contents",
@@ -354,6 +331,52 @@ class Content(models.Model):
 
     def __str__(self):
         return f"{self.title} | {self.collection.name} | {self.id}"
+
+
+class Annotation(models.Model):
+    content = models.ForeignKey(
+        Content, on_delete=models.CASCADE, related_name="%(app_label)s_%(class)s_file"
+    )
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="%(app_label)s_%(class)s_user"
+    )
+    name = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    start_time = models.FloatField(default=0.0)
+    end_time = models.FloatField(default=0.0)
+    prev = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="%(app_label)s_%(class)s_prev",
+        null=True,
+        blank=True,
+    )
+    next = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="%(app_label)s_%(class)s_next",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return f"{self.owner} | {self.content.resource.name} | {self.content.version} | {self.id}"
+
+
+class SkipAnnotation(Annotation):
+    pass
+
+
+class MuteAnnotation(Annotation):
+    pass
+
+
+class BlankAnnotation(Annotation):
+    pass
 
 
 class Course(models.Model):

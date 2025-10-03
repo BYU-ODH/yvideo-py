@@ -1,7 +1,7 @@
 from django.contrib import admin
 from reversion.admin import VersionAdmin
 
-from .models import Annotation
+from .models import BlankAnnotation
 from .models import Clip
 from .models import Collection
 from .models import CollectionUserAccess
@@ -11,8 +11,10 @@ from .models import Email
 from .models import File
 from .models import FileKey
 from .models import Language
+from .models import MuteAnnotation
 from .models import Resource
 from .models import ResourceAccess
+from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 
@@ -118,11 +120,25 @@ class LanguageAdmin(VersionAdmin):
     search_fields = ("language",)
 
 
-@admin.register(Annotation)
 class AnnotationAdmin(VersionAdmin):
-    list_display = ("name", "owner", "file", "created_at")
+    list_display = ("name", "owner", "content", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__name", "owner__netid", "file__resource__name")
+
+
+@admin.register(SkipAnnotation)
+class SkipAnnotationAdmin(AnnotationAdmin):
+    pass
+
+
+@admin.register(MuteAnnotation)
+class MuteAnnotationAdmin(AnnotationAdmin):
+    pass
+
+
+@admin.register(BlankAnnotation)
+class BlankAnnotationAdmin(AnnotationAdmin):
+    pass
 
 
 @admin.register(Clip)
