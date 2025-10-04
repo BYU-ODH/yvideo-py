@@ -1,23 +1,33 @@
 export class AnnotationPlayer {
   constructor(options = {}) {
-    this.videoElem = this._getElement(options.video);
-    this.annotationContainer = this._getElement(options.annotationContainer);
+    // New approach: require a container element
+    this.container = this._getElement(options.container);
+    if (!this.container) {
+      throw new Error('AnnotationPlayer requires a container element');
+    }
 
-    this.controls = {
-      container: this._getElement(options.controls?.container),
-      playButton: this._getElement(options.controls?.playButton),
-      playPauseBtn: this._getElement(options.controls?.playPauseBtn),
-      scrubber: this._getElement(options.controls?.scrubber),
-      scrubberProgress: this._getElement(options.controls?.scrubberProgress),
-      scrubberDot: this._getElement(options.controls?.scrubberDot),
-      playTime: this._getElement(options.controls?.playTime),
-      fullscreenBtn: this._getElement(options.controls?.fullscreenBtn),
-      speedBtn: this._getElement(options.controls?.speedBtn),
-      captionsBtn: this._getElement(options.controls?.captionsBtn),
-      transcriptBtn: this._getElement(options.controls?.transcriptBtn),
-      transcriptContainer: this._getElement(options.controls?.transcriptContainer),
-      subtitleText: this._getElement(options.controls?.subtitleText),
-    };
+    // Get or create video element
+    this.videoElem = this._getElement(options.video) || this.container.querySelector('video');
+    if (!this.videoElem) {
+      this.videoElem = document.createElement('video');
+      this.container.appendChild(this.videoElem);
+    }
+
+    // Get or create annotation container
+    this.annotationContainer = this._getElement(options.annotationContainer) ||
+                               this.container.querySelector('.annotation-container');
+    if (!this.annotationContainer) {
+      this.annotationContainer = document.createElement('div');
+      this.annotationContainer.className = 'annotation-container';
+      this.container.appendChild(this.annotationContainer);
+    }
+
+    // Create controls dynamically
+    this.disabledControls = options.disabledControls || [];
+    this._createControls();
+
+    // Disable native video controls
+    this.videoElem.controls = false;
 
     this.state = {
       playing: false,
@@ -47,11 +57,110 @@ export class AnnotationPlayer {
     this.placeAnnotationContainer();
   }
 
+  static icons = {
+    playPauseBtn: {
+      play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`,
+      pause: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`
+    },
+    speedBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor">1x</text></svg>`,
+    captionsBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 10h4M6 14h4M14 10h4M14 14h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    transcriptBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    fullscreenBtn: {
+      enter: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>`,
+      exit: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>`
+    }
+  };
+
   _getElement(selector) {
     if (!selector) return null;
     if (selector instanceof HTMLElement) return selector;
     if (typeof selector === 'string') return document.querySelector(selector);
     return null;
+  }
+
+  _createControls() {
+    // Initialize controls object
+    this.controls = {};
+
+    // Create control bar HTML
+    const controlBarHTML = `
+      <div class="video-controls">
+        <button class="play-pause-btn" aria-label="Play/Pause"></button>
+        <div class="scrubber">
+          <div class="scrubber-progress"></div>
+          <div class="scrubber-dot"></div>
+        </div>
+        <div class="play-time">00:00:00</div>
+        <button class="speed-btn" aria-label="Playback Speed"><span class="speed-text">1x</span></button>
+        <button class="captions-btn" aria-label="Captions"></button>
+        <button class="transcript-btn" aria-label="Transcript"></button>
+        <button class="fullscreen-btn" aria-label="Fullscreen"></button>
+      </div>
+      <div class="subtitle-text"></div>
+    `;
+
+    // Create a temporary container to parse the HTML
+    const temp = document.createElement('div');
+    temp.innerHTML = controlBarHTML;
+
+    // Append controls to container
+    while (temp.firstChild) {
+      this.container.appendChild(temp.firstChild);
+    }
+
+    // Store references to controls (skip disabled ones)
+    if (!this.disabledControls.includes('playPauseBtn')) {
+      this.controls.playPauseBtn = this.container.querySelector('.play-pause-btn');
+      this.controls.playPauseBtn.innerHTML = AnnotationPlayer.icons.playPauseBtn.play;
+    }
+    if (!this.disabledControls.includes('scrubber')) {
+      this.controls.scrubber = this.container.querySelector('.scrubber');
+      this.controls.scrubberProgress = this.container.querySelector('.scrubber-progress');
+      this.controls.scrubberDot = this.container.querySelector('.scrubber-dot');
+    }
+    if (!this.disabledControls.includes('playTime')) {
+      this.controls.playTime = this.container.querySelector('.play-time');
+    }
+    if (!this.disabledControls.includes('speedBtn')) {
+      this.controls.speedBtn = this.container.querySelector('.speed-btn');
+    }
+    if (!this.disabledControls.includes('captionsBtn')) {
+      this.controls.captionsBtn = this.container.querySelector('.captions-btn');
+      this.controls.captionsBtn.innerHTML = AnnotationPlayer.icons.captionsBtn;
+    }
+    if (!this.disabledControls.includes('transcriptBtn')) {
+      this.controls.transcriptBtn = this.container.querySelector('.transcript-btn');
+      this.controls.transcriptBtn.innerHTML = AnnotationPlayer.icons.transcriptBtn;
+    }
+    if (!this.disabledControls.includes('fullscreenBtn')) {
+      this.controls.fullscreenBtn = this.container.querySelector('.fullscreen-btn');
+      this.controls.fullscreenBtn.innerHTML = AnnotationPlayer.icons.fullscreenBtn.enter;
+    }
+    if (!this.disabledControls.includes('subtitleText')) {
+      this.controls.subtitleText = this.container.querySelector('.subtitle-text');
+    }
+
+    // Remove disabled controls from DOM
+    this.disabledControls.forEach(controlName => {
+      const classMap = {
+        'playPauseBtn': '.play-pause-btn',
+        'scrubber': '.scrubber',
+        'playTime': '.play-time',
+        'speedBtn': '.speed-btn',
+        'captionsBtn': '.captions-btn',
+        'transcriptBtn': '.transcript-btn',
+        'fullscreenBtn': '.fullscreen-btn',
+        'subtitleText': '.subtitle-text'
+      };
+      const selector = classMap[controlName];
+      if (selector) {
+        const element = this.container.querySelector(selector);
+        if (element) element.remove();
+      }
+    });
+
+    // Set container reference for fullscreen and other operations
+    this.controls.container = this.container;
   }
 
   placeAnnotationContainer() {
@@ -188,7 +297,9 @@ export class AnnotationPlayer {
     this.videoElem.pause();
     this.paused = true;
     this.state.playing = false;
-    if (this.controls.container) this.controls.container.classList.remove("controls-hidden");
+    if (this.container) {
+      this.container.classList.remove("controls-hidden");
+    }
   }
 
   togglePlayPause() {
@@ -196,6 +307,17 @@ export class AnnotationPlayer {
       this.play();
     } else {
       this.pause();
+    }
+    this._updatePlayPauseIcon();
+  }
+
+  _updatePlayPauseIcon() {
+    if (!this.controls.playPauseBtn) return;
+
+    if (this.state.playing) {
+      this.controls.playPauseBtn.innerHTML = AnnotationPlayer.icons.playPauseBtn.pause;
+    } else {
+      this.controls.playPauseBtn.innerHTML = AnnotationPlayer.icons.playPauseBtn.play;
     }
   }
 
@@ -500,10 +622,7 @@ export class AnnotationPlayer {
     }
 
     this.state.fullscreen = !this.state.fullscreen;
-
-    if (this.controls.fullscreenBtn) {
-      this.controls.fullscreenBtn.classList.toggle('fullscreen', this.state.fullscreen);
-    }
+    this._updateFullscreenIcon();
   }
 
   handleFullscreenChange() {
@@ -512,9 +631,17 @@ export class AnnotationPlayer {
 
     if (this.state.fullscreen !== isFullscreen) {
       this.state.fullscreen = isFullscreen;
-      if (this.controls.fullscreenBtn) {
-        this.controls.fullscreenBtn.classList.toggle('fullscreen', isFullscreen);
-      }
+      this._updateFullscreenIcon();
+    }
+  }
+
+  _updateFullscreenIcon() {
+    if (!this.controls.fullscreenBtn) return;
+
+    if (this.state.fullscreen) {
+      this.controls.fullscreenBtn.innerHTML = AnnotationPlayer.icons.fullscreenBtn.exit;
+    } else {
+      this.controls.fullscreenBtn.innerHTML = AnnotationPlayer.icons.fullscreenBtn.enter;
     }
   }
 
@@ -567,10 +694,7 @@ export class AnnotationPlayer {
 
     if (this.controls.container) {
       this.controls.container.classList.remove('cursor-hidden');
-    }
-
-    // Make sure built-in video controls are enabled when mouse moves
-    if (!this.videoElem.controls) {
+    } else {
       this.videoElem.controls = true;
     }
 
@@ -588,13 +712,12 @@ export class AnnotationPlayer {
   }
 
   updateControlsVisibility() {
-    if (!this.controls.container) return;
-
     const shouldShow = (!this.state.mouseInactive && this.state.hovering) ||
                        !this.state.playing ||
                        this.state.controlsHovering;
-
-    this.controls.container.classList.toggle('controls-hidden', !shouldShow);
+    if (this.container) {
+      this.container.classList.toggle('controls-hidden', !shouldShow);
+    }
   }
 
   handleKeydown(e) {
@@ -648,6 +771,7 @@ export class AnnotationPlayer {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.state.duration = this.videoElem.duration;
       this.placeAnnotationContainer();
+      this.videoElem.controls = false;
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
@@ -659,9 +783,7 @@ export class AnnotationPlayer {
 
       if (this.controls.playPauseBtn) {
         this.controls.playPauseBtn.classList.add('playing');
-      }
-      if (this.controls.playButton) {
-        this.controls.playButton.classList.add('hidden');
+        this._updatePlayPauseIcon();
       }
     });
 
@@ -671,6 +793,7 @@ export class AnnotationPlayer {
 
       if (this.controls.playPauseBtn) {
         this.controls.playPauseBtn.classList.remove('playing');
+        this._updatePlayPauseIcon();
       }
     });
 
@@ -678,13 +801,6 @@ export class AnnotationPlayer {
       e.preventDefault();
       this.togglePlayPause();
     });
-
-    if (this.controls.playButton) {
-      this.controls.playButton.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.togglePlayPause();
-      });
-    }
 
     if (this.controls.playPauseBtn) {
       this.controls.playPauseBtn.addEventListener('click', (e) => {
@@ -717,8 +833,7 @@ export class AnnotationPlayer {
         this.updateControlsVisibility();
       });
 
-      // Add event listeners for specific buttons to ensure they stay visible when hovered
-      const controlButtons = this.controls.container.querySelectorAll('#returnBtn, #reloadJsonBtn');
+      const controlButtons = this.controls.container.querySelectorAll('#returnBtn, #reloadJsonBtn, .video-controls');
       controlButtons.forEach(button => {
         button.addEventListener('mouseenter', () => {
           this.state.controlsHovering = true;
@@ -731,14 +846,12 @@ export class AnnotationPlayer {
       });
     }
 
-    // Keep these for additional mouse tracking on video and annotation container
     this.videoElem.addEventListener('mousemove', () => this.handleMouseMoved());
     this.videoElem.addEventListener('mouseenter', () => {
       this.state.hovering = true;
       this.updateControlsVisibility();
     });
     this.videoElem.addEventListener('mouseleave', () => {
-      // Only set hovering to false if we're not hovering over controls or buttons
       if (!this.state.controlsHovering) {
         this.state.hovering = false;
         this.updateControlsVisibility();
@@ -751,7 +864,6 @@ export class AnnotationPlayer {
       this.updateControlsVisibility();
     });
     this.annotationContainer.addEventListener('mouseleave', () => {
-      // Only set hovering to false if we're not hovering over controls or buttons
       if (!this.state.controlsHovering) {
         this.state.hovering = false;
         this.updateControlsVisibility();

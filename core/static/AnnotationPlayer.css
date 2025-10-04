@@ -1,0 +1,396 @@
+/* Container */
+.annotation-player-container {
+  position: relative;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.annotation-player-container.cursor-hidden {
+  cursor: none;
+}
+
+.annotation-player-container.controls-hidden .video-controls,
+.annotation-player-container.controls-hidden .subtitle-text {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Video Element */
+.annotation-player-container video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: filter 0.3s ease;
+}
+
+.annotation-player-container video.blanked {
+  filter: brightness(0);
+}
+
+.annotation-player-container video.blurred {
+  filter: blur(20px);
+}
+
+/* Annotation Container */
+.annotation-container {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.annotation-container .censor {
+  pointer-events: none;
+}
+
+.annotation-container .censor.black {
+  background-color: black;
+}
+
+.annotation-container .censor.red {
+  background-color: red;
+}
+
+.annotation-container .censor.blur {
+  backdrop-filter: blur(10px);  /* eslint-disable-line css/use-baseline */
+}
+
+/* Video Controls */
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 100%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  z-index: 20;
+  opacity: 1;
+  transition: opacity 0.4s;
+}
+
+/* When controls are hidden (applied to #player-container) */
+#player-container.controls-hidden .video-controls,
+#player-container.controls-hidden .subtitle-text {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Control Buttons */
+.video-controls button {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  outline: none;  /* eslint-disable-line css/use-baseline */
+}
+
+.video-controls button:hover {
+  transform: scale(1.1);
+  opacity: 0.8;
+}
+
+.video-controls button:active {
+  transform: scale(0.95);
+}
+
+.video-controls button svg {
+  width: 24px;
+  height: 24px;
+  fill: white;
+  stroke: white;
+}
+
+/* Play/Pause Button */
+.play-pause-btn {
+  width: 40px;
+  height: 40px;
+}
+
+/* Scrubber */
+.scrubber {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  position: relative;
+  cursor: pointer;
+  transition: height 0.2s ease;
+}
+
+.scrubber:hover {
+  height: 8px;
+}
+
+.scrubber-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #0582ca;
+  border-radius: 3px;
+  pointer-events: none;
+  transition: width 0.1s linear;
+}
+
+.scrubber-dot {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: left 0.1s linear;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.scrubber:hover .scrubber-dot {
+  width: 14px;
+  height: 14px;
+}
+
+/* Play Time Display */
+.play-time {
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 75px;
+  text-align: center;
+  user-select: none;  /* eslint-disable-line css/use-baseline */
+}
+
+/* Speed Button */
+.speed-btn {
+  min-width: 45px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.speed-btn .speed-text {
+  margin-left: 4px;
+}
+
+/* Captions Button */
+.captions-btn {
+  position: relative;
+}
+
+.captions-btn.active {
+  color: #0582ca;
+}
+
+.captions-btn.active svg {
+  fill: #0582ca;
+  stroke: #0582ca;
+}
+
+/* Transcript Button */
+.transcript-btn {
+  position: relative;
+}
+
+.transcript-btn.active {
+  color: #0582ca;
+}
+
+.transcript-btn.active svg {
+  fill: #0582ca;
+  stroke: #0582ca;
+}
+
+/* Fullscreen Button */
+.fullscreen-btn {
+  width: 32px;
+  height: 32px;
+}
+
+/* Subtitle Text */
+.subtitle-text {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 18px;
+  font-weight: 500;
+  text-align: center;
+  max-width: 80%;
+  line-height: 1.4;
+  z-index: 15;
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.subtitle-text:empty {
+  display: none;
+}
+
+/* Menu Modal (for speed/caption selection) */
+.menu-modal {
+  position: absolute;
+  right: 16px;
+  bottom: 70px;
+  min-width: 150px;
+  background: rgba(40, 40, 40, 0.95);
+  color: white;
+  border-radius: 8px;
+  padding: 8px 0;
+  z-index: 25;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.menu-modal h3 {
+  padding: 8px 12px;
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.menu-modal button,
+.menu-modal input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+  outline: none;  /* eslint-disable-line css/use-baseline */
+}
+
+.menu-modal button:hover,
+.menu-modal input:hover {
+  background-color: rgba(5, 130, 202, 0.8);
+}
+
+.menu-modal .active-value {
+  background-color: rgba(5, 130, 202, 0.5);
+  position: relative;
+}
+
+.menu-modal .active-value::after {
+  content: '✓';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: bold;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+  .video-controls {
+    height: 50px;
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .video-controls button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .play-pause-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .play-time {
+    font-size: 12px;
+    min-width: 65px;
+  }
+
+  .speed-btn {
+    min-width: 38px;
+    font-size: 12px;
+  }
+
+  .subtitle-text {
+    font-size: 16px;
+    bottom: 60px;
+  }
+}
+
+@media screen and (max-width: 425px) {
+  .video-controls {
+    height: 45px;
+    gap: 6px;
+    padding: 0 8px;
+  }
+
+  .video-controls button svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .play-pause-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .fullscreen-btn {
+    width: 24px;
+    height: 24px;
+  }
+
+  .play-time {
+    font-size: 11px;
+    min-width: 60px;
+  }
+
+  .speed-btn {
+    min-width: 32px;
+    font-size: 11px;
+  }
+
+  .scrubber {
+    height: 4px;
+  }
+
+  .scrubber:hover {
+    height: 6px;
+  }
+
+  .scrubber-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .subtitle-text {
+    font-size: 14px;
+    bottom: 55px;
+    padding: 6px 12px;
+  }
+}
+
+@media screen and (max-width: 320px) {
+  .video-controls {
+    gap: 4px;
+    padding: 0 6px;
+  }
+
+  .play-time {
+    font-size: 10px;
+    min-width: 55px;
+  }
+}

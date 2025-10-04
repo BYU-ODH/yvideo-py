@@ -3,7 +3,8 @@
 <head>
   <!-- TODO remove unsafe-inline CSPs in the following line -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' file:; connect-src 'self';">
-  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="stylesheet" type="text/css" href="IC-player.css">
+  <link rel="stylesheet" type="text/css" href="AnnotationPlayer.css">
   <link rel="shortcut icon" href="../resources/filmstrip.png">
   <title>BYU International Cinema - Video Player</title>
 </head>
@@ -50,10 +51,7 @@
   <div id='player-container'>
     <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;</button>
     <button id='reloadJsonBtn' onclick='player.reloadJson()'>Reload JSON</button>
-    <video id='player' width='1500' height='800' controls="true">
-    </video>
-
-    <div id='annotation-container'></div>
+    <video id='player' width='1500' height='800'></video>
   </div>
 
   <script type="module" src="renderer.js"></script>

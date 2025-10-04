@@ -38,7 +38,7 @@ def index(request):
     return render(request, "index.html", context)
 
 
-@login_required
+# @login_required  # TODO: Uncomment
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)

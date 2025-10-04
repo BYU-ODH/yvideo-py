@@ -1,6 +1,6 @@
 const fs = window.require("fs");
 const { webUtils } = window.require("electron");
-import { AnnotationPlayer } from "./annotation-player.js";
+import { AnnotationPlayer } from "./AnnotationPlayer.js";
 
 export const player = {
   annotationPlayer: null,
@@ -218,16 +218,10 @@ export const player = {
   },
 
   initializePlayerAndPlay: (fileData) => {
-    const videoElem = document.getElementById("player");
-    const annotationContainer = document.getElementById("annotation-container");
-
     if (!player.annotationPlayer) {
       player.annotationPlayer = new AnnotationPlayer({
-        video: videoElem,
-        annotationContainer: annotationContainer,
-        controls: {
-          container: document.getElementById("player-container")
-        }
+        container: '#player-container',
+        disabledControls: [] // TODO Customize as needed for IC_player
       });
     }
 
@@ -246,7 +240,7 @@ export const player = {
 
     const files = player.getSelectedFiles();
     if (files && files["videoFile"] && files["videoFile"].path) {
-      videoElem.src = files["videoFile"].path;
+      player.annotationPlayer.videoElem.src = files["videoFile"].path;
     }
 
     document.getElementById("player-container").style.visibility = "visible";

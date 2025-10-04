@@ -1,4 +1,4 @@
-import { AnnotationPlayer } from './annotation-player.js';
+import { AnnotationPlayer } from './AnnotationPlayer.js';
 
 (function() {
     'use strict';
@@ -43,7 +43,6 @@ import { AnnotationPlayer } from './annotation-player.js';
         }
 
         bindDjangoSpecificControls();
-        checkBrowser();
 
         window.videoPlayer = annotationPlayer;
     }
@@ -130,15 +129,6 @@ import { AnnotationPlayer } from './annotation-player.js';
 
             scrubber.appendChild(skipElement);
         });
-    }
-
-    function checkBrowser() {
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-        if (isSafari || isIOS) {
-            console.warn('Video playback may not work properly on iOS devices or Safari browser.');
-        }
     }
 
     if (document.readyState === 'loading') {

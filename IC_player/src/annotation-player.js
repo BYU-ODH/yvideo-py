@@ -1,1 +1,0 @@
-../../core/static/js/annotation-player.js
