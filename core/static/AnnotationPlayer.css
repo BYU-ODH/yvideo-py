@@ -119,15 +119,37 @@
 .scrubber {
   flex: 1;
   height: 6px;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
   position: relative;
   cursor: pointer;
   transition: height 0.2s ease;
 }
 
-.scrubber:hover {
+.scrubber:hover
+.scrubber.dragging{
   height: 8px;
+}
+
+.skip-on-scrubber {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    pointer-events: none;
+    z-index: 99;
+}
+
+.scrubber-buffered {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 1;
+  transition: width 0.1s linear;
 }
 
 .scrubber-progress {
@@ -139,6 +161,7 @@
   border-radius: 3px;
   pointer-events: none;
   transition: width 0.1s linear;
+  z-index: 2;
 }
 
 .scrubber-dot {
@@ -393,12 +416,4 @@
     font-size: 10px;
     min-width: 55px;
   }
-}
-
-.skip-on-scrubber {
-    position: absolute;
-    top: 0;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.2);
-    pointer-events: none;
 }

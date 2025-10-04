@@ -52,6 +52,8 @@ export class AnnotationPlayer {
     this.mouseTimer = null;
     this.controlsTimeout = null;
     this.timeCache = 0;
+    this.isDragging = false; // Add dragging state
+    this.wasPlayingBeforeDrag = false; // Track play state before drag
 
     this.initEventListeners();
     this.placeAnnotationContainer();
@@ -87,6 +89,7 @@ export class AnnotationPlayer {
       <div class="video-controls">
         <button class="play-pause-btn" aria-label="Play/Pause"></button>
         <div class="scrubber">
+          <div class="scrubber-buffered"></div>
           <div class="scrubber-progress"></div>
           <div class="scrubber-dot"></div>
         </div>
@@ -115,6 +118,7 @@ export class AnnotationPlayer {
     }
     if (!this.disabledControls.includes('scrubber')) {
       this.controls.scrubber = this.container.querySelector('.scrubber');
+      this.controls.scrubberBuffered = this.container.querySelector('.scrubber-buffered');
       this.controls.scrubberProgress = this.container.querySelector('.scrubber-progress');
       this.controls.scrubberDot = this.container.querySelector('.scrubber-dot');
     }
@@ -600,10 +604,24 @@ export class AnnotationPlayer {
       const played = this.state.currentTime / this.state.duration;
       this.updateTimeDisplay();
       this.updateScrubber(played);
+      this.updateBufferedBar();
     }
 
     this.handleSubtitles();
     this.applyAnnotations();
+  }
+
+  updateBufferedBar() {
+    if (!this.controls.scrubberBuffered || !this.state.duration) return;
+    const buffered = this.videoElem.buffered;
+    let maxBuffered = 0;
+    for (let i = 0; i < buffered.length; i++) {
+      if (buffered.end(i) > maxBuffered) {
+        maxBuffered = buffered.end(i);
+      }
+    }
+    const percent = Math.max(0, Math.min(1, maxBuffered / this.state.duration));
+    this.controls.scrubberBuffered.style.width = `${percent * 100}%`;
   }
 
   updateTimeDisplay() {
@@ -628,12 +646,54 @@ export class AnnotationPlayer {
   }
 
   handleSeekClick(e) {
-    if (!this.controls.scrubber) return;
+    if (!this.controls.scrubber || this.isDragging) return;
 
     const rect = this.controls.scrubber.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const newTime = percent * this.state.duration;
     this.skipTo(newTime);
+  }
+
+  handleScrubberDrag(e) {
+    if (!this.controls.scrubber) return;
+    const rect = this.controls.scrubber.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const newTime = percent * this.state.duration;
+
+    // Update UI immediately
+    this.updateScrubber(percent);
+    this.state.currentTime = newTime;
+    this.updateTimeDisplay();
+
+    // Update video time
+    this.videoElem.currentTime = newTime;
+    this.timeCache = newTime;
+  }
+
+  startDragging(e) {
+    if (!this.controls.scrubber) return;
+
+    this.isDragging = true;
+    this.wasPlayingBeforeDrag = !this.videoElem.paused;
+    if (this.wasPlayingBeforeDrag) {
+      this.videoElem.pause();
+    }
+    this.controls.scrubber.classList.add('scrubber-dragging'); // Add class
+    this.handleScrubberDrag(e);
+
+    // Prevent text selection while dragging
+    e.preventDefault();
+  }
+
+  stopDragging() {
+    if (this.isDragging && this.wasPlayingBeforeDrag) {
+      this.videoElem.play();
+    }
+    if (this.controls.scrubber) {
+      this.controls.scrubber.classList.remove('scrubber-dragging'); // Remove class
+    }
+    this.isDragging = false;
+    this.wasPlayingBeforeDrag = false;
   }
 
   handleToggleFullscreen() {
@@ -844,6 +904,23 @@ export class AnnotationPlayer {
 
     if (this.controls.scrubber) {
       this.controls.scrubber.addEventListener('click', (e) => this.handleSeekClick(e));
+
+      // Add drag functionality
+      this.controls.scrubber.addEventListener('mousedown', (e) => {
+        this.startDragging(e);
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (this.isDragging) {
+          this.handleScrubberDrag(e);
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (this.isDragging) {
+          this.stopDragging();
+        }
+      });
     }
 
     if (this.controls.fullscreenBtn) {
