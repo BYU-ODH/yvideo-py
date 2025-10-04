@@ -394,3 +394,11 @@
     min-width: 55px;
   }
 }
+
+.skip-on-scrubber {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    pointer-events: none;
+}

@@ -284,6 +284,38 @@ export class AnnotationPlayer {
       }
     }
     this.annotate();
+    this.renderSkipsOnScrubber(); // Add this to render skip markers after loading data
+
+    // Also update skip markers when video metadata is loaded (duration available)
+    this.videoElem.addEventListener('loadedmetadata', () => {
+      this.renderSkipsOnScrubber();
+    });
+  }
+
+  /**
+   * Render skip event markers on the scrubber.
+   */
+  renderSkipsOnScrubber() {
+    if (!this.controls.scrubber || !this.annotations || !this.state.duration) return;
+
+    // Remove existing skip markers
+    this.controls.scrubber.querySelectorAll('.skip-on-scrubber').forEach(el => el.remove());
+
+    const skipEvents = this.annotations.filter(event =>
+      event.type === 'Skip' || event.type === 'skip'
+    );
+
+    skipEvents.forEach(event => {
+      const startPercent = (parseFloat(event.start) / this.state.duration) * 100;
+      const endPercent = (parseFloat(event.end) / this.state.duration) * 100;
+
+      const skipElement = document.createElement('div');
+      skipElement.className = 'skip-on-scrubber';
+      skipElement.style.left = `${startPercent}%`;
+      skipElement.style.width = `${endPercent - startPercent}%`;
+
+      this.controls.scrubber.appendChild(skipElement);
+    });
   }
 
   play() {
@@ -772,6 +804,7 @@ export class AnnotationPlayer {
       this.state.duration = this.videoElem.duration;
       this.placeAnnotationContainer();
       this.videoElem.controls = false;
+      this.renderSkipsOnScrubber();
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
