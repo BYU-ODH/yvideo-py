@@ -26,6 +26,19 @@ body {
     flex-direction: column;
 }
 
+.small-button {
+    cursor: pointer;
+    color: white;
+    background-color: var(--medium-blue);
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    border: none;
+}
+
+.small-button:hover {
+    background-color: var(--deep-blue);
+}
+
 .clickable:hover {
     color: var(--deep-blue);
     cursor: pointer;
@@ -1004,28 +1017,66 @@ body {
     margin: 0;
 }
 
-.content-bottom {
+.content-button {
+    display: flex;
+    flex-direction: column;
+}
+
+.current-content-info {
     display: flex;
     flex-direction: row;
     column-gap: 2rem;
 }
 
-.content-bottom-left {
+.content-info-left {
     display: flex;
     flex-direction: row;
     column-gap: 0.5rem;
 }
 
-.edit-settings-button {
+.update-content-button {
     display: flex;
     flex-direction: column;
 }
 
-.edit-settings-button img {
+.update-content-button img {
     padding: 0.5rem;
 }
 
 .content-thumbnail {
     width: 10rem;
     height: auto;
+}
+
+.content-form {
+    margin-top: 1rem;
+    padding: 2rem;
+    border-radius: 1rem;
+    border: 1px solid #00000025;
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+}
+
+.content-form-top {
+    display: flex;
+    flex-direction: row;
+    column-gap: 2rem;
+}
+
+.content-form-left {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+}
+
+.content-form-group,
+.content-form-right {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
+}
+
+#content-form-submit {
+    align-self: flex-start;
 }

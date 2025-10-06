@@ -26,31 +26,16 @@ class CollectionForm(forms.ModelForm):
 
 
 class UpdateContentForm(forms.ModelForm):
-    def clean_title(self):
-        title = self.cleaned_data["title"]
-        collection = self.instance.collection if self.instance else None
-
-        if collection:
-            query = Content.objects.filter(collection=collection, title=title)
-            if self.instance and self.instance.pk:
-                query = query.exclude(pk=self.instance.pk)
-
-            if query.exists():
-                raise ValidationError(
-                    "A content item with this title already exists in this collection."
-                )
-
-        return title
-
     class Meta:
         model = Content
-        fields = (
+        fields = [
+            "id",
             "title",
             "description",
-            "tags",
             "allow_definitions",
             "allow_notes",
             "allow_captions",
             "published",
-            "words",
-        )
+        ]
+
+    id = forms.CharField(widget=forms.HiddenInput)

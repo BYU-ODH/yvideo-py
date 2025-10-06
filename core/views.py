@@ -8,6 +8,7 @@ from django.http import HttpResponse
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
+from django.views.decorators.http import require_POST
 
 from .forms import CollectionForm
 from .forms import UpdateContentForm
@@ -284,11 +285,18 @@ def view_collection(request, pk):
             return response
 
 
-def edit_content(request, pk):
-    content = get_object_or_404(Content, pk=pk)
+def display_update_content(request, content_id):
+    content = get_object_or_404(Content, pk=content_id)
     form = UpdateContentForm(instance=content)
     context = {"content": content, "form": form}
     return render(request, "partials/edit_content.html", context)
+
+
+@require_POST
+def update_content(request):
+    form = UpdateContentForm(request.POST)
+    if form.is_valid():
+        pass
 
 
 def display_collection_contents(request, collection_id):
