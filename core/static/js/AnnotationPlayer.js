@@ -22,6 +22,18 @@ export class AnnotationPlayer {
       this.container.appendChild(this.annotationContainer);
     }
 
+    // Create bezel divs for keyboard shortcut feedback
+    if (!this.annotationContainer.querySelector('.bezel-icon')) {
+      const bezelIcon = document.createElement('div');
+      bezelIcon.className = 'bezel-icon';
+      this.annotationContainer.appendChild(bezelIcon);
+    }
+    if (!this.annotationContainer.querySelector('.bezel-text')) {
+      const bezelText = document.createElement('div');
+      bezelText.className = 'bezel-text';
+      this.annotationContainer.appendChild(bezelText);
+    }
+
     // Create controls dynamically
     this.disabledControls = options.disabledControls || [];
     this._createControls();
@@ -29,12 +41,13 @@ export class AnnotationPlayer {
     // Disable native video controls
     this.videoElem.controls = false;
 
+    this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     this.state = {
       playing: false,
       started: false,
-      duration: 0,
       currentTime: 0,
       playbackRate: 1.0,
+      volume: 1.0,
       muted: false,
       fullscreen: false,
       showTranscript: false,
@@ -45,6 +58,10 @@ export class AnnotationPlayer {
       subtitleTextIndex: null,
     };
 
+    if (this.controls.volumeBtn) {
+      this._updateVolumeIcon();
+    }
+
     this.annotations = [];
     this.subtitles = [];
     this.currently = { muting: -1, blanking: -1, blurring: -1 };
@@ -52,8 +69,9 @@ export class AnnotationPlayer {
     this.mouseTimer = null;
     this.controlsTimeout = null;
     this.timeCache = 0;
-    this.isDragging = false; // Add dragging state
-    this.wasPlayingBeforeDrag = false; // Track play state before drag
+    this.isDragging = false;
+    this.wasPlayingBeforeDrag = false;
+    this.draggingRAF = null; // Track requestAnimationFrame for dragging
 
     this.initEventListeners();
     this.placeAnnotationContainer();
@@ -61,15 +79,22 @@ export class AnnotationPlayer {
 
   static icons = {
     playPauseBtn: {
-      play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`,
-      pause: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`
+      play: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 12,26 18.5,22 18.5,14 12,10 z M 18.5,22 25,18 25,18 18.5,14 z"></path></svg>`,
+      pause: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 12,26 16,26 16,10 12,10 z M 21,26 25,26 25,10 21,10 z"></path></svg>`,
+      replay: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 18,11 V 7 l -5,5 5,5 v -4 c 3.3,0 6,2.7 6,6 0,3.3 -2.7,6 -6,6 -3.3,0 -6,-2.7 -6,-6 H 10 c 0,4.4 3.6,8 8,8 4.4,0 8,-3.6 8,-8 0,-4.4 -3.6,-8 -8,-8 z"></path></svg>`
     },
-    speedBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor">1x</text></svg>`,
-    captionsBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 10h4M6 14h4M14 10h4M14 14h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    volume: {
+      mute: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="m 21.48,17.98 c 0,-1.77 -1.02,-3.29 -2.5,-4.03 v 2.21 l 2.45,2.45 c .03,-0.2 .05,-0.41 .05,-0.63 z m 2.5,0 c 0,.94 -0.2,1.82 -0.54,2.64 l 1.51,1.51 c .66,-1.24 1.03,-2.65 1.03,-4.15 0,-4.28 -2.99,-7.86 -7,-8.76 v 2.05 c 2.89,.86 5,3.54 5,6.71 z M 9.25,8.98 l -1.27,1.26 4.72,4.73 H 7.98 v 6 H 11.98 l 5,5 v -6.73 l 4.25,4.25 c -0.67,.52 -1.42,.93 -2.25,1.18 v 2.06 c 1.38,-0.31 2.63,-0.95 3.69,-1.81 l 2.04,2.05 1.27,-1.27 -9,-9 -7.72,-7.72 z m 7.72,.99 -2.09,2.08 2.09,2.09 V 9.98 z"></path></svg>`,
+      low: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M8,21 L12,21 L17,26 L17,10 L12,15 L8,15 L8,21 Z M19,14 L19,22 C20.48,21.32 21.5,19.77 21.5,18 C21.5,16.26 20.48,14.74 19,14 Z"></path></svg>`,
+      medium: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M8,21 L12,21 L17,26 L17,10 L12,15 L8,15 L8,21 Z M19,14 L19,22 C20.48,21.32 21.5,19.77 21.5,18 C21.5,16.26 20.48,14.74 19,14 Z"></path></svg>`,
+      high: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M8,21 L12,21 L17,26 L17,10 L12,15 L8,15 L8,21 Z M19,14 L19,22 C20.48,21.32 21.5,19.77 21.5,18 C21.5,16.26 20.48,14.74 19,14 ZM19,11.29 C21.89,12.15 24,14.83 24,18 C24,21.17 21.89,23.85 19,24.71 L19,26.77 C23.01,25.86 26,22.28 26,18 C26,13.72 23.01,10.14 19,9.23 L19,11.29 Z"></path></svg>`
+    },
+    speed: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 10,24 18.5,18 10,12 V 24 z M 19,12 V 24 L 27.5,18 19,12 z"></path></svg>`,
+    captionsBtn: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M11,11 C9.89,11 9,11.9 9,13 L9,23 C9,24.1 9.89,25 11,25 L25,25 C26.1,25 27,24.1 27,23 L27,13 C27,11.9 26.1,11 25,11 L11,11 Z M17,17 L15.5,17 L15.5,16.5 L13.5,16.5 L13.5,19.5 L15.5,19.5 L15.5,19 L17,19 L17,20 C17,20.55 16.55,21 16,21 L13,21 C12.45,21 12,20.55 12,20 L12,16 C12,15.45 12.45,15 13,15 L16,15 C16.55,15 17,15.45 17,16 L17,17 L17,17 Z M24,17 L22.5,17 L22.5,16.5 L20.5,16.5 L20.5,19.5 L22.5,19.5 L22.5,19 L24,19 L24,20 C24,20.55 23.55,21 23,21 L20,21 C19.45,21 19,20.55 19,20 L19,16 C19,15.45 19.45,15 20,15 L23,15 C23.55,15 24,15.45 24,16 L24,17 L24,17 Z"></path></svg>`,
     transcriptBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
     fullscreenBtn: {
-      enter: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>`,
-      exit: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>`
+      enter: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><g><path d="m 10,16 2,0 0,-4 4,0 0,-2 L 10,10 l 0,6 0,0 z"></path></g><g><path d="m 20,10 0,2 4,0 0,4 2,0 L 26,10 l -6,0 0,0 z"></path></g><g><path d="m 24,24 -4,0 0,2 L 26,26 l 0,-6 -2,0 0,4 0,0 z"></path></g><g><path d="M 12,20 10,20 10,26 l 6,0 0,-2 -4,0 0,-4 0,0 z"></path></g></svg>`,
+      exit: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><g><path d="m 14,14 -4,0 0,2 6,0 0,-6 -2,0 0,4 0,0 z"></path></g><g><path d="m 22,14 0,-4 -2,0 0,6 6,0 0,-2 -4,0 0,0 z"></path></g><g><path d="m 20,26 2,0 0,-4 4,0 0,-2 -6,0 0,6 0,0 z"></path></g><g><path d="m 10,22 4,0 0,4 2,0 0,-6 -6,0 0,2 0,0 z"></path></g></svg>`
     }
   };
 
@@ -87,19 +112,31 @@ export class AnnotationPlayer {
     // Create control bar HTML
     const controlBarHTML = `
       <div class="video-controls">
-        <button class="play-pause-btn" aria-label="Play/Pause"></button>
         <div class="scrubber">
           <div class="scrubber-buffered"></div>
           <div class="scrubber-progress"></div>
           <div class="scrubber-dot"></div>
         </div>
-        <div class="play-time">00:00:00</div>
-        <button class="speed-btn" aria-label="Playback Speed"><span class="speed-text">1x</span></button>
-        <button class="captions-btn" aria-label="Captions"></button>
-        <button class="transcript-btn" aria-label="Transcript"></button>
-        <button class="fullscreen-btn" aria-label="Fullscreen"></button>
+        <div class="bottom-controls">
+          <div class="left-controls">
+            <button class="play-pause-btn" aria-label="Play/Pause"></button>
+            <div class="volume-controls">
+              <button class="volume-btn" aria-label="Mute/Unmute"></button>
+              <input type="range" class="volume-slider" min="0" max="1" step="0.1" value="1">
+            </div>
+            <div class="play-time">0:00 / 0:00</div>
+          </div>
+          <div class="right-controls">
+            <div class="speed-btn-wrapper" style="position:relative;display:inline-block;">
+              <button class="speed-btn" aria-label="Playback Speed"><span class="speed-text">1x</span></button>
+              <div class="speed-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:60px;"></div>
+            </div>
+            <button class="captions-btn" aria-label="Captions"></button>
+            <button class="transcript-btn" aria-label="Transcript"></button>
+            <button class="fullscreen-btn" aria-label="Fullscreen"></button>
+          </div>
+        </div>
       </div>
-      <div class="subtitle-text"></div>
     `;
 
     // Create a temporary container to parse the HTML
@@ -116,6 +153,10 @@ export class AnnotationPlayer {
       this.controls.playPauseBtn = this.container.querySelector('.play-pause-btn');
       this.controls.playPauseBtn.innerHTML = AnnotationPlayer.icons.playPauseBtn.play;
     }
+    if (!this.disabledControls.includes('volume')) {
+        this.controls.volumeBtn = this.container.querySelector('.volume-btn');
+        this.controls.volumeSlider = this.container.querySelector('.volume-slider');
+    }
     if (!this.disabledControls.includes('scrubber')) {
       this.controls.scrubber = this.container.querySelector('.scrubber');
       this.controls.scrubberBuffered = this.container.querySelector('.scrubber-buffered');
@@ -126,7 +167,10 @@ export class AnnotationPlayer {
       this.controls.playTime = this.container.querySelector('.play-time');
     }
     if (!this.disabledControls.includes('speedBtn')) {
+      // Use wrapper for speed button and menu
+      this.controls.speedBtnWrapper = this.container.querySelector('.speed-btn-wrapper');
       this.controls.speedBtn = this.container.querySelector('.speed-btn');
+      this.controls.speedMenu = this.container.querySelector('.speed-menu');
     }
     if (!this.disabledControls.includes('captionsBtn')) {
       this.controls.captionsBtn = this.container.querySelector('.captions-btn');
@@ -144,13 +188,17 @@ export class AnnotationPlayer {
       this.controls.subtitleText = this.container.querySelector('.subtitle-text');
     }
 
+    this.bezelIcon = this.annotationContainer.querySelector('.bezel-icon');
+    this.bezelText = this.annotationContainer.querySelector('.bezel-text');
+
     // Remove disabled controls from DOM
     this.disabledControls.forEach(controlName => {
       const classMap = {
         'playPauseBtn': '.play-pause-btn',
+        'volume': '.volume-controls',
         'scrubber': '.scrubber',
         'playTime': '.play-time',
-        'speedBtn': '.speed-btn',
+        'speedBtn': '.speed-btn-wrapper',
         'captionsBtn': '.captions-btn',
         'transcriptBtn': '.transcript-btn',
         'fullscreenBtn': '.fullscreen-btn',
@@ -206,6 +254,28 @@ export class AnnotationPlayer {
     annotationContainer.style.width = `${displayWidth}px`;
     annotationContainer.style.height = `${displayHeight}px`;
     annotationContainer.style.zIndex = 10;
+  }
+
+  _showBezel(icon, text) {
+    if (this.bezelTimeout) {
+      clearTimeout(this.bezelTimeout);
+    }
+
+    if (icon && this.bezelIcon) {
+      this.bezelIcon.innerHTML = icon;
+      this.bezelIcon.classList.add('show');
+    }
+
+    if (text && this.bezelText) {
+      this.bezelText.textContent = text;
+      this.bezelText.classList.add('show');
+    }
+
+
+    this.bezelTimeout = setTimeout(() => {
+      if (this.bezelIcon) this.bezelIcon.classList.remove('show');
+      if (this.bezelText) this.bezelText.classList.remove('show');
+    }, 800);
   }
 
   parseHummediaAnnotations(annotationObj) {
@@ -300,7 +370,7 @@ export class AnnotationPlayer {
    * Render skip event markers on the scrubber.
    */
   renderSkipsOnScrubber() {
-    if (!this.controls.scrubber || !this.annotations || !this.state.duration) return;
+    if (!this.controls.scrubber || !this.annotations || !this.videoElem.duration) return;
 
     // Remove existing skip markers
     this.controls.scrubber.querySelectorAll('.skip-on-scrubber').forEach(el => el.remove());
@@ -310,8 +380,8 @@ export class AnnotationPlayer {
     );
 
     skipEvents.forEach(event => {
-      const startPercent = (parseFloat(event.start) / this.state.duration) * 100;
-      const endPercent = (parseFloat(event.end) / this.state.duration) * 100;
+      const startPercent = (parseFloat(event.start) / this.videoElem.duration) * 100;
+      const endPercent = (parseFloat(event.end) / this.videoElem.duration) * 100;
 
       const skipElement = document.createElement('div');
       skipElement.className = 'skip-on-scrubber';
@@ -537,10 +607,58 @@ export class AnnotationPlayer {
 
   mute() {
     this.videoElem.muted = true;
+    this.state.muted = true;
+    this._updateVolumeIcon();
   }
 
   unmute() {
     this.videoElem.muted = false;
+    this.state.muted = false;
+    this._updateVolumeIcon();
+  }
+
+  toggleMute() {
+    if (this.videoElem.muted) {
+      this.unmute();
+      if (this.state.volume < 0.05) {
+        this.setVolume(0.05);
+      }
+    } else {
+      this.mute();
+    }
+  }
+
+  setVolume(value) {
+    // Quantize to nearest 0.1 step
+    let volume = Math.round(Math.max(0, Math.min(1, value)) * 10) / 10;
+    this.state.volume = volume;
+    this.videoElem.volume = volume;
+    if (volume > 0) {
+      this.state.muted = false;
+      this.videoElem.muted = false;
+    } else {
+      this.state.muted = true;
+      this.videoElem.muted = true;
+    }
+    this._updateVolumeIcon();
+    if (this.controls.volumeSlider) {
+      this.controls.volumeSlider.value = volume;
+    }
+  }
+
+  _getVolumeIcon() {
+    if (this.state.muted || this.state.volume === 0) {
+      return AnnotationPlayer.icons.volume.mute;
+    }
+    if (this.state.volume < 0.5) {
+      return AnnotationPlayer.icons.volume.low;
+    }
+    return AnnotationPlayer.icons.volume.high;
+  }
+
+  _updateVolumeIcon() {
+    if (!this.controls.volumeBtn) return;
+    this.controls.volumeBtn.innerHTML = this._getVolumeIcon();
   }
 
   interpolateCensor(annotation) {
@@ -600,8 +718,8 @@ export class AnnotationPlayer {
     this.state.currentTime = this.videoElem.currentTime;
     this.timeCache = this.state.currentTime;
 
-    if (this.state.duration > 0) {
-      const played = this.state.currentTime / this.state.duration;
+    if (this.videoElem.duration > 0) {
+      const played = this.state.currentTime / this.videoElem.duration;
       this.updateTimeDisplay();
       this.updateScrubber(played);
       this.updateBufferedBar();
@@ -609,10 +727,10 @@ export class AnnotationPlayer {
 
     this.handleSubtitles();
     this.applyAnnotations();
-  }
+    }
 
   updateBufferedBar() {
-    if (!this.controls.scrubberBuffered || !this.state.duration) return;
+    if (!this.controls.scrubberBuffered || !this.videoElem.duration) return;
     const buffered = this.videoElem.buffered;
     let maxBuffered = 0;
     for (let i = 0; i < buffered.length; i++) {
@@ -620,20 +738,29 @@ export class AnnotationPlayer {
         maxBuffered = buffered.end(i);
       }
     }
-    const percent = Math.max(0, Math.min(1, maxBuffered / this.state.duration));
+    const percent = Math.max(0, Math.min(1, maxBuffered / this.videoElem.duration));
     this.controls.scrubberBuffered.style.width = `${percent * 100}%`;
   }
 
   updateTimeDisplay() {
     if (!this.controls.playTime) return;
 
-    const time = this.state.currentTime;
-    const hours = Math.floor(time / 3600);
-    const minutes = Math.floor((time % 3600) / 60);
-    const seconds = Math.floor(time % 60);
-    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const formatTime = (timeInSeconds) => {
+        const time = Math.round(timeInSeconds);
+        const hours = Math.floor(time / 3600);
+        const minutes = Math.floor((time % 3600) / 60);
+        const seconds = time % 60;
 
-    this.controls.playTime.textContent = timeString;
+        if (hours > 0) {
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    };
+
+    const currentTimeStr = formatTime(this.state.currentTime);
+    const durationStr = formatTime(this.videoElem.duration || 0);
+
+    this.controls.playTime.textContent = `${currentTimeStr} / ${durationStr}`;
   }
 
   updateScrubber(played) {
@@ -641,16 +768,18 @@ export class AnnotationPlayer {
       this.controls.scrubberProgress.style.width = `${played * 100}%`;
     }
     if (this.controls.scrubberDot) {
-      this.controls.scrubberDot.style.left = `calc(${played * 100}% - 3px)`;
+      this.controls.scrubberDot.style.left = `calc(${played * 100}% - 7px)`;
     }
   }
 
   handleSeekClick(e) {
-    if (!this.controls.scrubber || this.isDragging) return;
+    if (!this.controls.scrubber) return;
+    // Prevent seeking if dragging (drag logic handles this)
+    if (this.isDragging) return;
 
     const rect = this.controls.scrubber.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newTime = percent * this.state.duration;
+    const newTime = percent * (this.videoElem.duration || 0);
     this.skipTo(newTime);
   }
 
@@ -658,31 +787,71 @@ export class AnnotationPlayer {
     if (!this.controls.scrubber) return;
     const rect = this.controls.scrubber.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newTime = percent * this.state.duration;
+    let newTime = percent * (this.videoElem.duration || 0);
+
+    // Check if newTime falls within a skip annotation
+    const skipBoundary = this._getSkipBoundary(newTime);
+    if (skipBoundary !== null) {
+      newTime = skipBoundary;
+    }
 
     // Update UI immediately
-    this.updateScrubber(percent);
+    const adjustedPercent = newTime / (this.videoElem.duration || 1);
+    this.updateScrubber(adjustedPercent);
     this.state.currentTime = newTime;
     this.updateTimeDisplay();
 
-    // Update video time
+    // Update video time immediately
     this.videoElem.currentTime = newTime;
     this.timeCache = newTime;
   }
 
+  _getSkipBoundary(time) {
+    if (!this.annotations) return null;
+
+    const skipEvents = this.annotations.filter(event =>
+      (event.type === 'Skip' || event.type === 'skip')
+    );
+
+    for (const skip of skipEvents) {
+      const start = parseFloat(skip.start);
+      const end = parseFloat(skip.end);
+
+      if (time > start && time < end) {
+        // Time is within skip range - snap to nearest boundary
+        const distToStart = time - start;
+        const distToEnd = end - time;
+        return distToStart < distToEnd ? start : end;
+      }
+    }
+
+    return null;
+  }
+
   startDragging(e) {
     if (!this.controls.scrubber) return;
-
     this.isDragging = true;
     this.wasPlayingBeforeDrag = !this.videoElem.paused;
     if (this.wasPlayingBeforeDrag) {
       this.videoElem.pause();
     }
-    this.controls.scrubber.classList.add('scrubber-dragging'); // Add class
+    this.controls.scrubber.classList.add('scrubber-dragging');
     this.handleScrubberDrag(e);
 
     // Prevent text selection while dragging
     e.preventDefault();
+
+    // Start following mouse movement with RAF for smoothness
+    const moveHandler = (moveEvent) => {
+      this.handleScrubberDrag(moveEvent);
+    };
+    const upHandler = () => {
+      this.stopDragging();
+      document.removeEventListener('mousemove', moveHandler);
+      document.removeEventListener('mouseup', upHandler);
+    };
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', upHandler);
   }
 
   stopDragging() {
@@ -690,7 +859,7 @@ export class AnnotationPlayer {
       this.videoElem.play();
     }
     if (this.controls.scrubber) {
-      this.controls.scrubber.classList.remove('scrubber-dragging'); // Remove class
+      this.controls.scrubber.classList.remove('scrubber-dragging');
     }
     this.isDragging = false;
     this.wasPlayingBeforeDrag = false;
@@ -737,6 +906,13 @@ export class AnnotationPlayer {
     }
   }
 
+  _renderSpeedMenu() {
+    if (!this.controls.speedMenu) return;
+    this.controls.speedMenu.innerHTML = this.playbackRates.map(rate =>
+      `<div class="speed-option${rate === this.state.playbackRate ? ' active-value' : ''}" data-speed="${rate}" style="padding:4px 16px;cursor:pointer;">${rate}x</div>`
+    ).join('');
+  }
+
   handlePlaybackRateChange(rate) {
     this.state.playbackRate = rate;
     this.videoElem.playbackRate = rate;
@@ -748,9 +924,8 @@ export class AnnotationPlayer {
       }
     }
 
-    document.querySelectorAll('.speed-option').forEach(btn => {
-      btn.classList.toggle('active-value', parseFloat(btn.dataset.speed) === rate);
-    });
+    // Re-render menu to highlight the current rate
+    this._renderSpeedMenu();
   }
 
   handleCaptionChange(lang) {
@@ -819,37 +994,62 @@ export class AnnotationPlayer {
       case 'Space':
         e.preventDefault();
         this.togglePlayPause();
+        if (this.videoElem.paused) {
+          this._showBezel(AnnotationPlayer.icons.playPauseBtn.pause);
+        } else {
+          this._showBezel(AnnotationPlayer.icons.playPauseBtn.play);
+        }
         break;
       case 'ArrowRight':
         e.preventDefault();
         this.skipTo(this.videoElem.paused ? playedTime + 0.1 : playedTime + 5);
+        this._showBezel(AnnotationPlayer.icons.speed);  // TODO is this icon right?
         break;
       case 'ArrowLeft':
         e.preventDefault();
         this.skipTo(this.videoElem.paused ? playedTime - 0.1 : playedTime - 5);
+        this._showBezel(AnnotationPlayer.icons.speed);  // TODO is this icon right?
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        this.setVolume(this.state.volume + 0.1);
+        this._showBezel(this._getVolumeIcon(), `${Math.round(this.state.volume * 100)}%`);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        this.setVolume(this.state.volume - 0.1);
+        this._showBezel(this._getVolumeIcon(), `${Math.round(this.state.volume * 100)}%`);
+        break;
+      case 'KeyM':
+        e.preventDefault();
+        this.toggleMute();
+        this._showBezel(this.videoElem.muted ? AnnotationPlayer.icons.volume.mute : this._getVolumeIcon());
         break;
       case 'Period':
         e.preventDefault();
-        if (e.shiftKey) {
-          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
-          const currentIndex = rates.indexOf(this.state.playbackRate);
-          if (currentIndex < rates.length - 1) {
-            this.handlePlaybackRateChange(rates[currentIndex + 1]);
+        if (e.shiftKey) { // '>'
+          const currentIndex = this.playbackRates.indexOf(this.state.playbackRate);
+          if (currentIndex < this.playbackRates.length - 1) {
+            this.handlePlaybackRateChange(this.playbackRates[currentIndex + 1]);
+            this._showBezel(AnnotationPlayer.icons.speed, `${this.playbackRates[currentIndex + 1]}x`);
           }
-        } else {
-          this.skipTo(playedTime + 1);
+        } else if (this.paused) { // '.'
+          this.skipTo(playedTime + 0.1 * this.state.playbackRate);
+          console.log("Time after microskip: ", this.videoElem.currentTime);
+
         }
         break;
       case 'Comma':
         e.preventDefault();
-        if (e.shiftKey) {
-          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
-          const currentIndex = rates.indexOf(this.state.playbackRate);
+        if (e.shiftKey) {  // '<'
+          const currentIndex = this.playbackRates.indexOf(this.state.playbackRate);
           if (currentIndex > 0) {
-            this.handlePlaybackRateChange(rates[currentIndex - 1]);
+            this.handlePlaybackRateChange(this.playbackRates[currentIndex - 1]);
+            this._showBezel(AnnotationPlayer.icons.speed, `${this.playbackRates[currentIndex - 1]}x`);
           }
-        } else {
-          this.skipTo(playedTime - 1);
+        } else if (this.paused) { // ','
+          this.skipTo(playedTime - 0.1 * this.state.playbackRate);
+          console.log("Time after microskip: ", this.videoElem.currentTime);
         }
         break;
       case 'KeyF':
@@ -861,9 +1061,6 @@ export class AnnotationPlayer {
 
   initEventListeners() {
     this.videoElem.addEventListener('loadedmetadata', () => {
-      this.state.duration = this.videoElem.duration;
-      this.placeAnnotationContainer();
-      this.videoElem.controls = false;
       this.renderSkipsOnScrubber();
     });
 
@@ -902,24 +1099,23 @@ export class AnnotationPlayer {
       });
     }
 
+    if (this.controls.volumeBtn) {
+        this.controls.volumeBtn.addEventListener('click', () => this.toggleMute());
+    }
+
+    if (this.controls.volumeSlider) {
+        this.controls.volumeSlider.addEventListener('input', (e) => {
+            // Quantize slider value to nearest 0.1
+            const quantized = Math.round(parseFloat(e.target.value) * 10) / 10;
+            this.setVolume(quantized);
+        });
+    }
+
     if (this.controls.scrubber) {
       this.controls.scrubber.addEventListener('click', (e) => this.handleSeekClick(e));
 
-      // Add drag functionality
       this.controls.scrubber.addEventListener('mousedown', (e) => {
         this.startDragging(e);
-      });
-
-      document.addEventListener('mousemove', (e) => {
-        if (this.isDragging) {
-          this.handleScrubberDrag(e);
-        }
-      });
-
-      document.addEventListener('mouseup', () => {
-        if (this.isDragging) {
-          this.stopDragging();
-        }
       });
     }
 
@@ -984,5 +1180,32 @@ export class AnnotationPlayer {
 
     window.addEventListener('resize', () => this.placeAnnotationContainer());
     this.videoElem.addEventListener('resize', () => this.placeAnnotationContainer());
+
+    // Playback speed menu logic
+    if (this.controls.speedBtn && this.controls.speedMenu) {
+      // Build menu
+      this._renderSpeedMenu();
+      // Click on speed button toggles menu
+      this.controls.speedBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menu = this.controls.speedMenu;
+        menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+      });
+      // Click on menu option sets speed
+      this.controls.speedMenu.addEventListener('click', (e) => {
+        const target = e.target.closest('.speed-option');
+        if (target) {
+          const rate = parseFloat(target.dataset.speed);
+          this.handlePlaybackRateChange(rate);
+          this.controls.speedMenu.style.display = 'none';
+        }
+      });
+      // Hide menu on outside click
+      document.addEventListener('click', () => {
+        if (this.controls.speedMenu) {
+          this.controls.speedMenu.style.display = 'none';
+        }
+      });
+    }
   }
 }

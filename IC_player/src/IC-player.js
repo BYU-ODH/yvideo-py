@@ -221,7 +221,7 @@ export const player = {
     if (!player.annotationPlayer) {
       player.annotationPlayer = new AnnotationPlayer({
         container: '#player-container',
-        disabledControls: [] // TODO Customize as needed for IC_player
+        disabledControls: ['transcriptBtn'] // Hide transcript button for IC player
       });
     }
 
