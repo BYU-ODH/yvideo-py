@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def index(request):
-    user = User.objects.get(netid="rch1103")
+    user = User.objects.all().first()
     collections = Collection.objects.filter(owner=user)
     all_contents = Content.objects.filter(collection__in=collections)
     filtered_contents = {collection: [] for collection in collections}
@@ -174,7 +174,7 @@ def stream_file(request, file_key):
 
 @login_required
 def manage_collections(request):
-    user = User.objects.get(netid="rch1103")
+    user = User.objects.all().first()
     collections = Collection.objects.filter(owner=user)
 
     archived = collections.filter(archived=True)
