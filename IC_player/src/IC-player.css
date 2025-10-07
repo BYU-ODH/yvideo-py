@@ -190,7 +190,7 @@ h1{
   border: 1px solid rgba(255,255,255, 0.2);
 }
 
-#reloadJsonBtn {
+#reloadAnnotationsBtn {
   position: absolute;
   top: 0;
   right: 2px;
@@ -203,12 +203,12 @@ h1{
   transition: all .25s;
 }
 
-#reloadJsonBtn:hover {
+#reloadAnnotationsBtn:hover {
   color: rgba(255,255,255,1);
   border: 1px solid grey;
 }
 
-#reloadJsonBtn:active {
+#reloadAnnotationsBtn:active {
   color: rgba(255,255,255,0.5);
   background-color: rgba(255,255,255, 0.2);
   border: 1px solid rgba(255,255,255, 0.2);
@@ -255,7 +255,7 @@ video::-webkit-media-controls-fullscreen-button {
 
 /* Fade out controls and return button together */
 #player-container.controls-hidden #returnBtn,
-#player-container.controls-hidden #reloadJsonBtn {
+#player-container.controls-hidden #reloadAnnotationsBtn {
   opacity: 0;
   pointer-events: none;
   transition: var(--player-controls-transition);
@@ -263,7 +263,7 @@ video::-webkit-media-controls-fullscreen-button {
 
 /* Show controls and return button */
 #returnBtn,
-#reloadJsonBtn {
+#reloadAnnotationsBtn {
   opacity: 1;
   transition: var(--player-controls-transition);
 }

@@ -5,6 +5,8 @@ import { AnnotationPlayer } from "./AnnotationPlayer.js";
 export const player = {
   annotationPlayer: null,
   annotationMode: false,
+  icfData: null,
+  selectedFiles: null, // Add this to cache the files
 
   initializeOrSelectFiles: () => {
     const files = player.getSelectedFiles();
@@ -13,7 +15,7 @@ export const player = {
 
       function onFileChange() {
         document.getElementById("files").textContent =
-          player.getSelectedFiles().videoFile.name;
+          player.getSelectedFiles().icfFile.name;
         document.getElementById("playButton").classList.add("ready");
         document
           .getElementById("filePicker")
@@ -58,14 +60,15 @@ export const player = {
       );
       return;
     }
-    player.parseAndPlay(files["jsonFile"], player.initializePlayerAndPlay);
+    player.selectedFiles = files; // Cache the files
+    player.parseAndPlay(files["annotationFile"], player.initializePlayerAndPlay);
   },
 
   hidePlayer: () => {
     document.getElementById("splashScreen").style.visibility = "visible";
     document.getElementById("player-container").style.visibility = "hidden";
     document.getElementById("playButton").classList.remove("ready");
-    document.getElementById("reloadJsonBtn").style.visibility = "hidden";
+    document.getElementById("reloadAnnotationsBtn").style.visibility = "hidden";
     document.getElementById("returnBtn").style.visibility = "hidden";
     document.onkeyup = null;
     document.onkeydown = null;
@@ -88,78 +91,80 @@ export const player = {
     player.timeCache = 0;
   },
 
-  reloadJson: () => {
+  reloadAnnotations: () => {
     if (!player.paused) {
       player.annotationPlayer.pause();
     }
 
-    console.log("Reloading JSON");
-    player.reloadingJson = true;
-    let reloadJsonTime = player.annotationPlayer.videoElem.currentTime;
+    console.log("Reloading Annotations");
+    player.reloadingAnnotations = true;
+    let reloadAnnotationsTime = player.annotationPlayer.videoElem.currentTime;
     player.paused = player.annotationPlayer.videoElem.paused;
 
     if (player.annotationPlayer) player.annotationPlayer.resetAnnotations();
 
-    var fileData = fs.readFileSync(player.jsonFilePath);
-    player.initializePlayerAndPlay(fileData);
-    player.timeCache = reloadJsonTime;
-    player.annotationPlayer.videoElem.currentTime = reloadJsonTime;
-    player.reloadingJson = false;
+    var annotationData = fs.readFileSync(player.jsonFilePath);
+    player.initializePlayerAndPlay(annotationData);
+    player.timeCache = reloadAnnotationsTime;
+    player.annotationPlayer.videoElem.currentTime = reloadAnnotationsTime;
+    player.reloadingAnnotations = false;
   },
 
   getSelectedFiles: () => {
-    var fileList = document.getElementById("filePicker").files,
-      jsonFile = null,
-      icfFile = null,
-      videoFile = null,
-      jsonFileExists = false,
-      icfFileExists = false,
-      videoFileExists = false;
-
+    const fileList = document.getElementById("filePicker").files;
     if (!fileList || fileList.length === 0) return null;
 
-    for (var i = 0; i < fileList.length; i++) {
-      var ext = fileList[i]["name"].split(".")[1];
-      if (ext === "json") {
-        jsonFileExists = true;
-        jsonFile = fileList[i];
-      } else if (ext === "icf") {
-        icfFileExists = true;
+    let icfFile = null;
+    // Find the .icf file in the selection
+    for (let i = 0; i < fileList.length; i++) {
+      if (fileList[i].name.toLowerCase().endsWith(".icf")) {
         icfFile = fileList[i];
-      } else if (ext === "mp4" || ext === "m4v") {
-        videoFileExists = true;
-        videoFile = fileList[i];
-      } else {
-        console.warn(`Unsupported file type: ${fileList[i]["name"]}`);
+        break;
       }
     }
 
-    // If the icf file is the only one selected, derive paths for json and video
-    if (icfFileExists && (!jsonFileExists || !videoFileExists)) {
-      const icfData = fs.readFileSync(webUtils.getPathForFile(icfFile));
-      const icfObj = JSON.parse(icfData);
-
-      const jsonPath = webUtils
-        .getPathForFile(icfFile)
-        .replace(/\/[^/]*$/, "/" + icfObj["annotation"]);
-      const videoPath = webUtils
-        .getPathForFile(icfFile)
-        .replace(/\/[^/]*$/, "/.ic/" + icfObj["video"]);
-
-      jsonFileExists = true;
-      jsonFile = {
-        path: jsonPath,
-      };
-      videoFileExists = true;
-      videoFile = {
-        path: videoPath,
-        name: icfObj["video"],
-      };
+    if (!icfFile) {
+      console.warn("No .icf file selected.");
+      return null;
     }
 
-    return jsonFile && videoFile
-      ? { jsonFile: jsonFile, icfFile: icfFile, videoFile: videoFile }
-      : false;
+    const icfPath = webUtils.getPathForFile(icfFile);
+    const icfData = fs.readFileSync(icfPath);
+    const icfObj = JSON.parse(icfData);
+    console.log("Parsed ICF data in getSelectedFiles:", icfObj);
+    player.icfData = icfObj;
+
+    const basePath = icfPath.replace(/\/[^/]*$/, "");
+
+    const annotationPath = icfObj.annotation
+      ? `${basePath}/${icfObj.annotation}`
+      : null;
+    const videoPath = `${basePath}/.ic/${icfObj.video}`;
+
+    const annotationFile = annotationPath ? { path: annotationPath, name: icfObj.annotation } : null;
+    const videoFile = { path: videoPath, name: icfObj.video };
+
+    let subtitleTracks = null;
+    if (icfObj.subtitle) {
+      const processSubtitle = sub => {
+        if (sub && sub.url) {
+          const subtitlePath = `${basePath}/${sub.url}`;
+          return { ...sub, url: subtitlePath };
+        }
+        return sub;
+      };
+
+      if (Array.isArray(icfObj.subtitle)) {
+        subtitleTracks = icfObj.subtitle.map(processSubtitle);
+      } else {
+        const processed = processSubtitle(icfObj.subtitle);
+        if (processed) {
+          subtitleTracks = [processed];
+        }
+      }
+    }
+
+    return { annotationFile, icfFile, videoFile, subtitleTracks };
   },
 
   generateICDirectory: () => {
@@ -169,10 +174,10 @@ export const player = {
     if (videoFilePath === undefined) {
       videoFilePath = "";
     }
-    var jsonFile = document.getElementById("jsonFilePicker").files[0];
-    var jsonFilePath = webUtils.getPathForFile(jsonFile);
-    if (jsonFilePath === undefined) {
-      jsonFilePath = "";
+    var annotationFile = document.getElementById("jsonFilePicker").files[0];
+    var annotationFilePath = webUtils.getPathForFile(annotationFile);
+    if (annotationFilePath === undefined) {
+      annotationFilePath = "";
     }
     var stem = videoFile.name.split(`.`)[0];
     var dirName = HOME + `/Desktop/` + stem;
@@ -184,20 +189,20 @@ export const player = {
       if (err) alert(err);
     });
 
-    let jsonPath;
-    if (jsonFile) {
-      fs.copyFile(jsonFilePath, dirName + `/` + stem + `.json`, (err) => {
+    let annotationRelativePath;
+    if (annotationFile) {
+      fs.copyFile(annotationFilePath, dirName + `/` + stem + `.json`, (err) => {
         if (err) alert(err);
       });
-      jsonPath = stem + ".json";
+      annotationRelativePath = stem + ".json";
     } else {
-      jsonPath = null;
+      annotationRelativePath = null;
     }
 
     var icfString = JSON.stringify({
       subtitle: null,
       video: videoFile.name,
-      annotation: jsonPath,
+      annotation: annotationRelativePath,
     });
     fs.writeFile(dirName + `/` + stem + `.icf`, icfString, `utf8`, (err) => {
       if (err) alert(err);
@@ -207,44 +212,53 @@ export const player = {
     );
   },
 
-  parseAndPlay: (jsonFile, initializePlayerAndPlay) => {
-    player.jsonFilePath = jsonFile.path;
-    fs.readFile(jsonFile.path, (err, fileData) => {
+  parseAndPlay: (annotationFile, initializePlayerAndPlay) => {
+    player.jsonFilePath = annotationFile.path;
+    fs.readFile(annotationFile.path, (err, annotationData) => {
       if (err) {
         return err;
       }
-      initializePlayerAndPlay(fileData);
+      initializePlayerAndPlay(annotationData);
     });
   },
 
-  initializePlayerAndPlay: (fileData) => {
+  initializePlayerAndPlay: (annotationData) => {
     if (!player.annotationPlayer) {
-      player.annotationPlayer = new AnnotationPlayer({
+      const options = {
         container: '#player-container',
-        disabledControls: ['transcriptBtn'] // Hide transcript button for IC player
-      });
+        disabledControls: ['transcriptBtn']
+      };
+
+      console.log("In initializePlayerAndPlay, player.icfData:", player.icfData);
+      // If ICF data contains subtitle information, pass it as tracks
+      if (player.selectedFiles && player.selectedFiles.subtitleTracks) {
+        console.log("Found subtitle data:", player.selectedFiles.subtitleTracks);
+        options.tracks = player.selectedFiles.subtitleTracks;
+      }
+
+      player.annotationPlayer = new AnnotationPlayer(options);
     }
 
-    let parsedData = fileData;
+    let parsedData = annotationData;
     if (
-      fileData &&
-      (fileData instanceof Buffer || typeof fileData === "string")
+      annotationData &&
+      (annotationData instanceof Buffer || typeof annotationData === "string")
     ) {
       try {
-        parsedData = JSON.parse(fileData.toString());
+        parsedData = JSON.parse(annotationData.toString());
       } catch {
-        parsedData = fileData;
+        parsedData = annotationData;
       }
     }
     player.annotationPlayer.loadData(parsedData);
 
-    const files = player.getSelectedFiles();
+    const files = player.selectedFiles; // Use cached files
     if (files && files["videoFile"] && files["videoFile"].path) {
       player.annotationPlayer.videoElem.src = files["videoFile"].path;
     }
 
     document.getElementById("player-container").style.visibility = "visible";
-    document.getElementById("reloadJsonBtn").style.visibility =
+    document.getElementById("reloadAnnotationsBtn").style.visibility =
       player.annotationMode ? "visible" : "hidden";
     if (!window.screenTop && !window.screenY) {
       document.getElementById("returnBtn").style.visibility = "hidden";

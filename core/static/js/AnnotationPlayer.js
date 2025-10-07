@@ -1,3 +1,10 @@
+// export class SubtitleSidebar {
+//   constructor(videoElem, trackId) {
+//     this.videoElem = videoElem;
+//     this.trackId = trackId;
+//   }
+// }
+
 export class AnnotationPlayer {
   constructor(options = {}) {
     // New approach: require a container element
@@ -54,8 +61,6 @@ export class AnnotationPlayer {
       mouseInactive: false,
       hovering: false,
       controlsHovering: false,
-      displaySubtitles: null,
-      subtitleTextIndex: null,
     };
 
     if (this.controls.volumeBtn) {
@@ -63,7 +68,7 @@ export class AnnotationPlayer {
     }
 
     this.annotations = [];
-    this.subtitles = [];
+    this.trackBlobUrls = []; // Store subtitle track blob URLs for cleanup
     this.currently = { muting: -1, blanking: -1, blurring: -1 };
 
     this.mouseTimer = null;
@@ -72,6 +77,11 @@ export class AnnotationPlayer {
     this.isDragging = false;
     this.wasPlayingBeforeDrag = false;
     this.draggingRAF = null; // Track requestAnimationFrame for dragging
+
+    // Initialize tracks if provided
+    if (options.tracks && Array.isArray(options.tracks)) {
+      this._initializeTracks(options.tracks);
+    }
 
     this.initEventListeners();
     this.placeAnnotationContainer();
@@ -131,7 +141,10 @@ export class AnnotationPlayer {
               <button class="speed-btn" aria-label="Playback Speed"><span class="speed-text">1x</span></button>
               <div class="speed-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:60px;"></div>
             </div>
-            <button class="captions-btn" aria-label="Captions"></button>
+            <div class="captions-btn-wrapper" style="position:relative;display:inline-block;">
+              <button class="captions-btn" aria-label="Captions"></button>
+              <div class="captions-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:100px;"></div>
+            </div>
             <button class="transcript-btn" aria-label="Transcript"></button>
             <button class="fullscreen-btn" aria-label="Fullscreen"></button>
           </div>
@@ -173,7 +186,9 @@ export class AnnotationPlayer {
       this.controls.speedMenu = this.container.querySelector('.speed-menu');
     }
     if (!this.disabledControls.includes('captionsBtn')) {
+      this.controls.captionsBtnWrapper = this.container.querySelector('.captions-btn-wrapper');
       this.controls.captionsBtn = this.container.querySelector('.captions-btn');
+      this.controls.captionsMenu = this.container.querySelector('.captions-menu');
       this.controls.captionsBtn.innerHTML = AnnotationPlayer.icons.captionsBtn;
     }
     if (!this.disabledControls.includes('transcriptBtn')) {
@@ -183,9 +198,6 @@ export class AnnotationPlayer {
     if (!this.disabledControls.includes('fullscreenBtn')) {
       this.controls.fullscreenBtn = this.container.querySelector('.fullscreen-btn');
       this.controls.fullscreenBtn.innerHTML = AnnotationPlayer.icons.fullscreenBtn.enter;
-    }
-    if (!this.disabledControls.includes('subtitleText')) {
-      this.controls.subtitleText = this.container.querySelector('.subtitle-text');
     }
 
     this.bezelIcon = this.annotationContainer.querySelector('.bezel-icon');
@@ -199,10 +211,9 @@ export class AnnotationPlayer {
         'scrubber': '.scrubber',
         'playTime': '.play-time',
         'speedBtn': '.speed-btn-wrapper',
-        'captionsBtn': '.captions-btn',
+        'captionsBtn': '.captions-btn-wrapper',
         'transcriptBtn': '.transcript-btn',
         'fullscreenBtn': '.fullscreen-btn',
-        'subtitleText': '.subtitle-text'
       };
       const selector = classMap[controlName];
       if (selector) {
@@ -336,12 +347,15 @@ export class AnnotationPlayer {
   loadData(data) {
     if (!data.annotations && Array.isArray(data)) {
       this.annotations = data;
-      this.subtitles = [];
       this.clips = [];
     } else {
       this.annotations = data.annotations || [];
-      this.subtitles = data.subtitles || [];
       this.clips = data.clips || [];
+
+      // Handle tracks if provided in data
+      if (data.tracks && Array.isArray(data.tracks)) {
+        this._initializeTracks(data.tracks);
+      }
     }
 
     if (this.annotations.length > 0) {
@@ -358,7 +372,7 @@ export class AnnotationPlayer {
       }
     }
     this.annotate();
-    this.renderSkipsOnScrubber(); // Add this to render skip markers after loading data
+    this.renderSkipsOnScrubber();
 
     // Also update skip markers when video metadata is loaded (duration available)
     this.videoElem.addEventListener('loadedmetadata', () => {
@@ -725,9 +739,8 @@ export class AnnotationPlayer {
       this.updateBufferedBar();
     }
 
-    this.handleSubtitles();
     this.applyAnnotations();
-    }
+  }
 
   updateBufferedBar() {
     if (!this.controls.scrubberBuffered || !this.videoElem.duration) return;
@@ -806,7 +819,7 @@ export class AnnotationPlayer {
     this.timeCache = newTime;
   }
 
-  _getSkipBoundary(time) {
+  _getSkipBoundary(time, direction = 'nearest') {
     if (!this.annotations) return null;
 
     const skipEvents = this.annotations.filter(event =>
@@ -818,10 +831,19 @@ export class AnnotationPlayer {
       const end = parseFloat(skip.end);
 
       if (time > start && time < end) {
-        // Time is within skip range - snap to nearest boundary
-        const distToStart = time - start;
-        const distToEnd = end - time;
-        return distToStart < distToEnd ? start : end;
+        // Time is within skip range
+        if (direction === 'forward') {
+          // When moving forward, jump to end of skip
+          return end;
+        } else if (direction === 'backward') {
+          // When moving backward, jump to start of skip
+          return start;
+        } else {
+          // For dragging (nearest), snap to closest boundary
+          const distToStart = time - start;
+          const distToEnd = end - time;
+          return distToStart < distToEnd ? start : end;
+        }
       }
     }
 
@@ -928,32 +950,103 @@ export class AnnotationPlayer {
     this._renderSpeedMenu();
   }
 
-  handleCaptionChange(lang) {
-    document.querySelectorAll('.caption-option').forEach(btn => {
-      btn.classList.toggle('active-value', btn.dataset.lang === lang);
+    _initializeTracks(tracks) {
+    tracks.forEach((trackData, index) => {
+      const track = document.createElement('track');
+
+      // Set default kind to subtitles
+      track.kind = trackData.kind || 'subtitles';
+
+      // Pass through standard track attributes
+      if (trackData.label) track.label = trackData.label;
+      if (trackData.srclang) track.srclang = trackData.srclang;
+      if (trackData.default !== undefined) track.default = trackData.default;
+
+      // Handle src - either from url or vtt content
+      if (trackData.url) {
+        track.src = trackData.url;
+      } else if (trackData.vtt) {
+        // Validate VTT content
+        if (!trackData.vtt.trim().startsWith('WEBVTT')) {
+          console.error(`Track ${index}: VTT content must start with 'WEBVTT'. Provided content:`, trackData.vtt.substring(0, 50));
+          return;
+        }
+
+        // Create blob URL for inline VTT content
+        const blob = new Blob([trackData.vtt], { type: 'text/vtt' });
+        const blobUrl = URL.createObjectURL(blob);
+        track.src = blobUrl;
+
+        // Store blob URL for cleanup
+        this.trackBlobUrls.push(blobUrl);
+      } else {
+        console.error(`Track ${index}: Track object must have either 'url' or 'vtt' property. Received:`, trackData);
+        return;
+      }
+
+      this.videoElem.appendChild(track);
     });
 
-    if (lang === 'off') {
-      this.state.displaySubtitles = null;
-    } else {
-      this.state.displaySubtitles = this.subtitles.find(sub => sub.language === lang);
+    // Update captions menu after tracks are loaded
+    if (this.controls.captionsMenu) {
+      this._renderCaptionsMenu();
     }
   }
 
-  handleSubtitles() {
-    if (!this.controls.subtitleText || !this.state.displaySubtitles?.content) {
-      if (this.controls.subtitleText) {
-        this.controls.subtitleText.textContent = '';
+  _renderCaptionsMenu() {
+    if (!this.controls.captionsMenu) return;
+
+    const tracks = Array.from(this.videoElem.textTracks);
+
+    let menuHTML = '<div class="caption-option" data-track="off" style="padding:4px 16px;cursor:pointer;">Off</div>';
+
+    tracks.forEach((track, index) => {
+      const label = track.label || track.language || `Track ${index + 1}`;
+      menuHTML += `<div class="caption-option" data-track="${index}" style="padding:4px 16px;cursor:pointer;">${label}</div>`;
+    });
+
+    this.controls.captionsMenu.innerHTML = menuHTML;
+  }
+
+  handleCaptionChange(trackIndex) {
+    const tracks = Array.from(this.videoElem.textTracks);
+
+    // Update menu highlighting
+    if (this.controls.captionsMenu) {
+      this.controls.captionsMenu.querySelectorAll('.caption-option').forEach(option => {
+        option.classList.remove('active-value');
+      });
+
+      const selector = trackIndex === 'off' ? '[data-track="off"]' : `[data-track="${trackIndex}"]`;
+      const activeOption = this.controls.captionsMenu.querySelector(selector);
+      if (activeOption) {
+        activeOption.classList.add('active-value');
       }
-      return;
     }
 
-    const subtitle = this.state.displaySubtitles.content.find(
-      sub => this.state.currentTime >= sub.start &&
-             this.state.currentTime <= (sub.end || sub.start + 5)
-    );
+    // Disable all tracks
+    tracks.forEach(track => {
+      track.mode = 'disabled';
+    });
 
-    this.controls.subtitleText.textContent = subtitle ? subtitle.text : '';
+    // Enable selected track
+    if (trackIndex !== 'off' && tracks[trackIndex]) {
+      tracks[trackIndex].mode = 'showing';
+    }
+  }
+
+  /**
+   * Cleanup method to revoke blob URLs
+   */
+  destroy() {
+    // Revoke all blob URLs
+    this.trackBlobUrls.forEach(url => {
+      URL.revokeObjectURL(url);
+    });
+    this.trackBlobUrls = [];
+
+    // Remove event listeners and clean up
+    this.resetAnnotations();
   }
 
   handleMouseMoved() {
@@ -1000,16 +1093,30 @@ export class AnnotationPlayer {
           this._showBezel(AnnotationPlayer.icons.playPauseBtn.play);
         }
         break;
-      case 'ArrowRight':
+      case 'ArrowRight': {
         e.preventDefault();
-        this.skipTo(this.videoElem.paused ? playedTime + 0.1 : playedTime + 5);
+        let newTimeRight = this.videoElem.paused ? playedTime + 0.1 : playedTime + 5;
+        const skipBoundaryRight = this._getSkipBoundary(newTimeRight, 'forward');
+        if (skipBoundaryRight !== null) {
+          newTimeRight = skipBoundaryRight;
+        }
+        this.skipTo(newTimeRight);
         this._showBezel(AnnotationPlayer.icons.speed);  // TODO is this icon right?
         break;
-      case 'ArrowLeft':
+      }
+      case 'ArrowLeft': {
         e.preventDefault();
-        this.skipTo(this.videoElem.paused ? playedTime - 0.1 : playedTime - 5);
+        let skipAmount = this.videoElem.paused ? 0.1 : 5;
+        let newTimeLeft = playedTime - skipAmount;
+        const skipBoundaryLeft = this._getSkipBoundary(newTimeLeft, 'backward');
+        if (skipBoundaryLeft !== null) {
+          // If paused, go to start of skip; if playing, go 5 seconds before skip
+          newTimeLeft = this.videoElem.paused ? skipBoundaryLeft : Math.max(0, skipBoundaryLeft - 5);
+        }
+        this.skipTo(newTimeLeft);
         this._showBezel(AnnotationPlayer.icons.speed);  // TODO is this icon right?
         break;
+      }
       case 'ArrowUp':
         e.preventDefault();
         this.setVolume(this.state.volume + 0.1);
@@ -1034,9 +1141,13 @@ export class AnnotationPlayer {
             this._showBezel(AnnotationPlayer.icons.speed, `${this.playbackRates[currentIndex + 1]}x`);
           }
         } else if (this.paused) { // '.'
-          this.skipTo(playedTime + 0.1 * this.state.playbackRate);
+          let newTimeRight = playedTime + 0.1 * this.state.playbackRate;
+          const skipBoundaryRight = this._getSkipBoundary(newTimeRight, 'forward');
+          if (skipBoundaryRight !== null) {
+            newTimeRight = skipBoundaryRight;
+          }
+          this.skipTo(newTimeRight);
           console.log("Time after microskip: ", this.videoElem.currentTime);
-
         }
         break;
       case 'Comma':
@@ -1048,7 +1159,12 @@ export class AnnotationPlayer {
             this._showBezel(AnnotationPlayer.icons.speed, `${this.playbackRates[currentIndex - 1]}x`);
           }
         } else if (this.paused) { // ','
-          this.skipTo(playedTime - 0.1 * this.state.playbackRate);
+          let newTimeLeft = playedTime - 0.1 * this.state.playbackRate;
+          const skipBoundaryLeft = this._getSkipBoundary(newTimeLeft, 'backward');
+          if (skipBoundaryLeft !== null) {
+            newTimeLeft = skipBoundaryLeft;
+          }
+          this.skipTo(newTimeLeft);
           console.log("Time after microskip: ", this.videoElem.currentTime);
         }
         break;
@@ -1139,7 +1255,7 @@ export class AnnotationPlayer {
         this.updateControlsVisibility();
       });
 
-      const controlButtons = this.controls.container.querySelectorAll('#returnBtn, #reloadJsonBtn, .video-controls');
+      const controlButtons = this.controls.container.querySelectorAll('#returnBtn, #reloadAnnotationsBtn, .video-controls');
       controlButtons.forEach(button => {
         button.addEventListener('mouseenter', () => {
           this.state.controlsHovering = true;
@@ -1190,6 +1306,10 @@ export class AnnotationPlayer {
         e.stopPropagation();
         const menu = this.controls.speedMenu;
         menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+        // Close captions menu if open
+        if (this.controls.captionsMenu) {
+          this.controls.captionsMenu.style.display = 'none';
+        }
       });
       // Click on menu option sets speed
       this.controls.speedMenu.addEventListener('click', (e) => {
@@ -1200,12 +1320,39 @@ export class AnnotationPlayer {
           this.controls.speedMenu.style.display = 'none';
         }
       });
-      // Hide menu on outside click
-      document.addEventListener('click', () => {
+    }
+
+    // Captions menu logic
+    if (this.controls.captionsBtn && this.controls.captionsMenu) {
+      // Click on captions button toggles menu
+      this.controls.captionsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menu = this.controls.captionsMenu;
+        menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+        // Close speed menu if open
         if (this.controls.speedMenu) {
           this.controls.speedMenu.style.display = 'none';
         }
       });
+      // Click on menu option selects track
+      this.controls.captionsMenu.addEventListener('click', (e) => {
+        const target = e.target.closest('.caption-option');
+        if (target) {
+          const trackIndex = target.dataset.track;
+          this.handleCaptionChange(trackIndex === 'off' ? 'off' : parseInt(trackIndex));
+          this.controls.captionsMenu.style.display = 'none';
+        }
+      });
     }
+
+    // Hide menus on outside click
+    document.addEventListener('click', () => {
+      if (this.controls.speedMenu) {
+        this.controls.speedMenu.style.display = 'none';
+      }
+      if (this.controls.captionsMenu) {
+        this.controls.captionsMenu.style.display = 'none';
+      }
+    });
   }
 }

@@ -18,6 +18,23 @@ from .models import User
 
 logger = logging.getLogger(__name__)
 
+TOY_VTT = """WEBVTT
+
+00:00.000 --> 00:00.900
+Hildy!
+
+00:01.000 --> 00:01.400
+How are you?
+
+00:01.500 --> 00:02.900
+Tell me, is the lord of the universe in?
+
+00:03.000 --> 00:04.200
+Yes, he's in - in a bad humor
+
+00:04.300 --> 00:06.000
+Somebody must've stolen the crown jewels"""
+
 
 @login_required
 def index(request):
@@ -52,7 +69,7 @@ def player(request, content_id):
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
         "events": [],
-        "subtitles": [],
+        "subtitles": TOY_VTT,  # TODO: Replace with actual subtitles
         "clips": [],
     }
 
