@@ -299,7 +299,6 @@ class Clip(models.Model):
     start_time = models.CharField(max_length=13, validators=[HMS_VALIDATOR])
     end_time = models.CharField(max_length=13, validators=[HMS_VALIDATOR])
     description = models.TextField(blank=True)
-    tags = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -330,7 +329,6 @@ class Content(models.Model):
     allow_captions = models.BooleanField(default=True)
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
-    words = models.TextField(blank=True)
     annotation = models.ForeignKey(
         Annotation,
         on_delete=models.CASCADE,
@@ -353,6 +351,14 @@ class Content(models.Model):
 
     def __str__(self):
         return f"{self.title} | {self.collection.name} | {self.id}"
+
+
+class ImportantWord(models.Model):
+    content = models.ForeignKey(
+        Content, on_delete=models.CASCADE, null=False, blank=False
+    )
+    word = models.CharField(null=False, blank=True, max_length=50)
+    translation = models.CharField(null=False, blank=True, max_length=100)
 
 
 class Course(models.Model):

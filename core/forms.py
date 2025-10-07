@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 
 from .models import Collection
 from .models import Content
+from .models import ImportantWord
 
 
 class CollectionForm(forms.ModelForm):
@@ -39,3 +40,12 @@ class UpdateContentForm(forms.ModelForm):
         ]
 
     id = forms.CharField(widget=forms.HiddenInput)
+
+
+class ImportantWordForm(forms.ModelForm):
+    class Meta:
+        model = ImportantWord
+        fields = ["word", "translation"]
+
+    word = forms.CharField(required=True)
+    translation = forms.CharField(required=True)

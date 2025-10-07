@@ -10,6 +10,7 @@ from .models import Course
 from .models import Email
 from .models import File
 from .models import FileKey
+from .models import ImportantWord
 from .models import Language
 from .models import Resource
 from .models import ResourceAccess
@@ -189,3 +190,9 @@ class FileKeyAdmin(VersionAdmin):
     list_display = ("user", "file", "created_at")
     list_filter = ("created_at",)
     search_fields = ("user__netid", "file__resource__name")
+
+
+@admin.register(ImportantWord)
+class ImportantWordAdmin(VersionAdmin):
+    list_display = ("word", "translation")
+    search_fields = ("word", "translation", "content__title")

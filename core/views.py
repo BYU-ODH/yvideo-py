@@ -8,13 +8,16 @@ from django.http import HttpResponse
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
+from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .forms import CollectionForm
+from .forms import ImportantWordForm
 from .forms import UpdateContentForm
 from .models import Collection
 from .models import Content
 from .models import FileKey
+from .models import ImportantWord
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -288,7 +291,9 @@ def view_collection(request, pk):
 def display_update_content(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
     form = UpdateContentForm(instance=content)
-    context = {"content": content, "form": form}
+    word_form = ImportantWordForm()
+    words = ImportantWord.objects.filter(content=content)
+    context = {"content": content, "form": form, "word_form": word_form, "words": words}
     return render(request, "partials/edit_content.html", context)
 
 
@@ -304,3 +309,38 @@ def display_collection_contents(request, collection_id):
     contents = Content.objects.filter(collection=collection)
     context = {"collection": collection, "contents": contents}
     return render(request, "partials/collection_contents_display.html", context)
+
+
+@require_POST
+def create_important_word(request):
+    content = get_object_or_404(Content, pk=request.POST["content_id"])
+    form = ImportantWordForm(request.POST)
+    if form.is_valid():
+        if not form.cleaned_data["word"]:
+            return HttpResponse("No word provided", status_code="400")
+        important_word = ImportantWord.objects.create(
+            content=content,
+            word=form.cleaned_data["word"],
+            translation=form.cleaned_data["translation"],
+        )
+        return render(
+            request,
+            "partials/important_word.html",
+            {
+                "word": {
+                    "id": important_word.id,
+                    "word": important_word.word,
+                    "translation": important_word.translation,
+                }
+            },
+        )
+    else:
+        return HttpResponse("Invalid input", 400)
+
+
+@require_http_methods(["DELETE"])
+def delete_important_word(request, word_id):
+    word = get_object_or_404(ImportantWord, pk=word_id)
+    word.delete()
+    return HttpResponse("")
+    # values = loads()

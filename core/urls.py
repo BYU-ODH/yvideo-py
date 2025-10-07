@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import create_collection
+from .views import create_important_word
+from .views import delete_important_word
 from .views import display_collection_contents
 from .views import display_update_content
 from .views import index
@@ -28,6 +30,12 @@ urlpatterns = [
         name="display_update_content",
     ),
     path("content/update", update_content, name="update_content"),
+    path("important-word/create", create_important_word, name="create_important_word"),
+    path(
+        "important-word/delete/<int:word_id>/",
+        delete_important_word,
+        name="delete_important_word",
+    ),
     path("player/<int:content_id>/", player, name="player"),
     path("stream/<int:file_key>/", stream_file, name="stream_file"),
 ]
