@@ -1,3 +1,4 @@
+import json
 import logging
 import mimetypes
 import os
@@ -64,13 +65,19 @@ def player(request, content_id):
     if content.file:
         file_key = FileKey.objects.filter(file=content.file, user=user).first()
 
+    # Prepare subtitle data in the format expected by AnnotationPlayer
+    subtitles_data = {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"}
+
+    has_subtitles = bool(subtitles_data.get("vtt") or subtitles_data.get("url"))
+
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": [],
-        "subtitles": TOY_VTT,  # TODO: Replace with actual subtitles
-        "clips": [],
+        "events": json.dumps([]),
+        "subtitles": json.dumps(subtitles_data),
+        "clips": json.dumps([]),
+        "has_subtitles": has_subtitles,
     }
 
     return render(request, "player.html", context)

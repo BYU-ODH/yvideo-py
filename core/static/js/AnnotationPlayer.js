@@ -1,9 +1,210 @@
-// export class SubtitleSidebar {
-//   constructor(videoElem, trackId) {
-//     this.videoElem = videoElem;
-//     this.trackId = trackId;
-//   }
-// }
+/**
+ * Subtitle sidebar class
+ * - Manages loading and displaying subtitles in a scrollable sidebar
+ * - Highlights (subtly) current subtitle based on video time
+ * - Clicking on a subtitle's seek icon jumps video to 1 second before the
+ *   start of that subtitle
+ * - Displayed/hidden by clicking the transcript button in controls or sidebar's close button
+ * - Designed to be used with AnnotationPlayer but can be used with any HTML5 video
+ * - Uses standard APIs like VTTCue and TextTrack
+ */
+export class SubtitleSidebar {
+  constructor(videoElem, trackIndex = 0) {
+    this.videoElem = videoElem;
+    this.trackIndex = trackIndex;
+    this.visible = false;
+    this.cues = [];
+
+    this._createSidebar();
+    this._loadTrack();
+    this._initEventListeners();
+  }
+
+  _createSidebar() {
+    // Create sidebar container
+    this.sidebar = document.createElement('div');
+    this.sidebar.className = 'subtitle-sidebar';
+    this.sidebar.style.display = 'none';
+
+    // Create header
+    const header = document.createElement('div');
+    header.className = 'subtitle-sidebar-header';
+    header.innerHTML = `
+      <h3>Transcript</h3>
+      <button class="subtitle-sidebar-close" aria-label="Close Transcript">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    `;
+
+    // Create content area
+    this.content = document.createElement('div');
+    this.content.className = 'subtitle-sidebar-content';
+
+    this.sidebar.appendChild(header);
+    this.sidebar.appendChild(this.content);
+
+    // Insert sidebar into player container
+    const container = this.videoElem.closest('.annotation-player-container');
+    if (container) {
+      container.appendChild(this.sidebar);
+    } else {
+      document.body.appendChild(this.sidebar);
+    }
+
+    // Close button handler
+    const closeBtn = header.querySelector('.subtitle-sidebar-close');
+    closeBtn.addEventListener('click', () => this.hide());
+  }
+
+  _loadTrack() {
+    const tracks = Array.from(this.videoElem.textTracks);
+
+    if (tracks.length === 0) {
+      this.content.innerHTML = '<p class="subtitle-sidebar-empty">No subtitles available</p>';
+      return;
+    }
+
+    // Use specified track or first available
+    const track = tracks[this.trackIndex] || tracks[0];
+
+    // Wait for track to load
+    if (track.cues && track.cues.length > 0) {
+      this._renderCues(track);
+    } else {
+      track.addEventListener('load', () => {
+        this._renderCues(track);
+      });
+
+      // Force track to load if it hasn't
+      track.mode = 'hidden';
+    }
+  }
+
+  _renderCues(track) {
+    this.cues = Array.from(track.cues || []);
+
+    if (this.cues.length === 0) {
+      this.content.innerHTML = '<p class="subtitle-sidebar-empty">No subtitles available</p>';
+      return;
+    }
+
+    this.content.innerHTML = '';
+
+    this.cues.forEach((cue, index) => {
+      const cueElement = document.createElement('div');
+      cueElement.className = 'subtitle-cue';
+      cueElement.dataset.index = index;
+      cueElement.dataset.startTime = cue.startTime;
+
+      const timestamp = this._formatTime(cue.startTime);
+
+      cueElement.innerHTML = `
+        <button class="subtitle-cue-seek" aria-label="Seek to ${timestamp}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4 3l8 5-8 5V3z"/>
+          </svg>
+        </button>
+        <div class="subtitle-cue-content">
+          <div class="subtitle-cue-time">${timestamp}</div>
+          <div class="subtitle-cue-text">${this._stripVTTFormatting(cue.text)}</div>
+        </div>
+      `;
+
+      // Seek button handler
+      const seekBtn = cueElement.querySelector('.subtitle-cue-seek');
+      seekBtn.addEventListener('click', () => {
+        // Jump to 1 second before the cue start time
+        const seekTime = Math.max(0, cue.startTime - 1);
+        this.videoElem.currentTime = seekTime;
+      });
+
+      this.content.appendChild(cueElement);
+    });
+  }
+
+  _stripVTTFormatting(text) {
+    // Remove VTT formatting tags like <v Name>, <c>, etc.
+    return text.replace(/<[^>]*>/g, '').trim();
+  }
+
+  _formatTime(seconds) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  _initEventListeners() {
+    // Update highlighted cue as video plays
+    this.videoElem.addEventListener('timeupdate', () => {
+      this._updateActiveCue();
+    });
+  }
+
+  _updateActiveCue() {
+    if (!this.visible) return;
+
+    const currentTime = this.videoElem.currentTime;
+
+    // Remove previous active class
+    const previousActive = this.content.querySelector('.subtitle-cue.active');
+    if (previousActive) {
+      previousActive.classList.remove('active');
+    }
+
+    // Find and highlight current cue
+    const currentCueElement = Array.from(this.content.querySelectorAll('.subtitle-cue')).find(elem => {
+      const startTime = parseFloat(elem.dataset.startTime);
+      const index = parseInt(elem.dataset.index);
+      const cue = this.cues[index];
+
+      return currentTime >= startTime && currentTime < cue.endTime;
+    });
+
+    if (currentCueElement) {
+      currentCueElement.classList.add('active');
+
+      // Scroll into view if needed
+      const contentRect = this.content.getBoundingClientRect();
+      const cueRect = currentCueElement.getBoundingClientRect();
+
+      if (cueRect.top < contentRect.top || cueRect.bottom > contentRect.bottom) {
+        currentCueElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }
+
+  show() {
+    this.sidebar.style.display = 'flex';
+    this.visible = true;
+    this._updateActiveCue();
+  }
+
+  hide() {
+    this.sidebar.style.display = 'none';
+    this.visible = false;
+  }
+
+  toggle() {
+    if (this.visible) {
+      this.hide();
+    } else {
+      this.show();
+    }
+  }
+
+  destroy() {
+    if (this.sidebar && this.sidebar.parentNode) {
+      this.sidebar.parentNode.removeChild(this.sidebar);
+    }
+  }
+}
 
 export class AnnotationPlayer {
   constructor(options = {}) {
@@ -11,6 +212,11 @@ export class AnnotationPlayer {
     this.container = this._getElement(options.container);
     if (!this.container) {
       throw new Error('AnnotationPlayer requires a container element');
+    }
+
+    // Add annotation-player-container class if not present
+    if (!this.container.classList.contains('annotation-player-container')) {
+      this.container.classList.add('annotation-player-container');
     }
 
     // Get or create video element
@@ -83,6 +289,13 @@ export class AnnotationPlayer {
       this._initializeTracks(options.tracks);
     }
 
+    // Initialize subtitle sidebar if requested
+    this.subtitleSidebar = null;
+    if (options.subtitleSidebar === true) {
+      // Create sidebar after tracks are loaded
+      this._pendingSubtitleSidebar = true;
+    }
+
     this.initEventListeners();
     this.placeAnnotationContainer();
   }
@@ -141,11 +354,11 @@ export class AnnotationPlayer {
               <button class="speed-btn" aria-label="Playback Speed"><span class="speed-text">1x</span></button>
               <div class="speed-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:60px;"></div>
             </div>
-            <div class="captions-btn-wrapper" style="position:relative;display:inline-block;">
+            <div class="captions-btn-wrapper" style="position:relative;display:inline-block;display:none;">
               <button class="captions-btn" aria-label="Captions"></button>
               <div class="captions-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:100px;"></div>
             </div>
-            <button class="transcript-btn" aria-label="Transcript"></button>
+            <button class="transcript-btn" aria-label="Transcript" style="display:none;"></button>
             <button class="fullscreen-btn" aria-label="Fullscreen"></button>
           </div>
         </div>
@@ -224,6 +437,20 @@ export class AnnotationPlayer {
 
     // Set container reference for fullscreen and other operations
     this.controls.container = this.container;
+  }
+
+  _updateControlsVisibility() {
+    // Show captions button only if there are subtitle tracks
+    if (this.controls.captionsBtnWrapper && !this.disabledControls.includes('captionsBtn')) {
+      const hasTracks = this.videoElem.textTracks.length > 0;
+      this.controls.captionsBtnWrapper.style.display = hasTracks ? 'inline-block' : 'none';
+    }
+
+    // Show transcript button only if subtitle sidebar is enabled
+    if (this.controls.transcriptBtn && !this.disabledControls.includes('transcriptBtn')) {
+      const hasSubtitleSidebar = this.subtitleSidebar !== null || this._pendingSubtitleSidebar;
+      this.controls.transcriptBtn.style.display = hasSubtitleSidebar ? 'inline-block' : 'none';
+    }
   }
 
   placeAnnotationContainer() {
@@ -991,6 +1218,21 @@ export class AnnotationPlayer {
     if (this.controls.captionsMenu) {
       this._renderCaptionsMenu();
     }
+
+    // Update controls visibility based on track availability
+    this._updateControlsVisibility();
+
+    // Create subtitle sidebar after tracks are loaded
+    if (this._pendingSubtitleSidebar) {
+      // Wait for tracks to be ready
+      this.videoElem.addEventListener('loadedmetadata', () => {
+        setTimeout(() => {
+          this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
+          this._updateControlsVisibility();
+        }, 100);
+      }, { once: true });
+      this._pendingSubtitleSidebar = false;
+    }
   }
 
   _renderCaptionsMenu() {
@@ -1044,6 +1286,11 @@ export class AnnotationPlayer {
       URL.revokeObjectURL(url);
     });
     this.trackBlobUrls = [];
+
+    if (this.subtitleSidebar) {
+      this.subtitleSidebar.destroy();
+      this.subtitleSidebar = null;
+    }
 
     // Remove event listeners and clean up
     this.resetAnnotations();
@@ -1178,6 +1425,8 @@ export class AnnotationPlayer {
   initEventListeners() {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
+      // Update controls visibility when metadata is loaded (tracks might be ready)
+      this._updateControlsVisibility();
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
@@ -1341,6 +1590,15 @@ export class AnnotationPlayer {
           const trackIndex = target.dataset.track;
           this.handleCaptionChange(trackIndex === 'off' ? 'off' : parseInt(trackIndex));
           this.controls.captionsMenu.style.display = 'none';
+        }
+      });
+    }
+
+    // Transcript button logic
+    if (this.controls.transcriptBtn) {
+      this.controls.transcriptBtn.addEventListener('click', () => {
+        if (this.subtitleSidebar) {
+          this.subtitleSidebar.toggle();
         }
       });
     }

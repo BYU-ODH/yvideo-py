@@ -13,41 +13,34 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             return;
         }
 
+        // Prepare tracks array from subtitle data
+        let tracks = [];
+        if (window.playerData && window.playerData.subtitles) {
+            const subtitles = window.playerData.subtitles;
+            // Handle single subtitle object or array
+            const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
+            tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
+        }
+
+        const enableSubtitleSidebar = window.playerData && window.playerData.hasSubtitles && tracks.length > 0;
+
         annotationPlayer = new AnnotationPlayer({
             container: container,
-            disabledControls: [] // Can customize which controls to disable
+            disabledControls: [],
+            tracks: tracks,
+            subtitleSidebar: enableSubtitleSidebar
         });
 
-        // Load player data if available
+        // Load annotation data if available
         if (window.playerData) {
             const data = {
                 annotations: window.playerData.events || [],
-                subtitles: window.playerData.subtitles || [],
             };
             annotationPlayer.loadData(data);
         }
 
         // Expose to window for debugging
         window.videoPlayer = annotationPlayer;
-
-        // Set up Django-specific integrations
-        setupDjangoIntegration();
-    }
-
-    function setupDjangoIntegration() {
-        // Add additional event listeners or customizations specific to Django app
-        // For example, transcript sidebar toggle or other UI elements
-
-        const transcriptBtn = annotationPlayer.controls.transcriptBtn;
-        if (transcriptBtn) {
-            transcriptBtn.addEventListener('click', () => {
-                const transcriptSidebar = document.getElementById('transcript-sidebar');
-                if (transcriptSidebar) {
-                    transcriptSidebar.classList.toggle('hidden');
-                    annotationPlayer.placeAnnotationContainer();
-                }
-            });
-        }
     }
 
     if (document.readyState === 'loading') {
