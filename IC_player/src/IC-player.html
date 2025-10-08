@@ -48,10 +48,12 @@
     <button id="toggleAnnotationModeBtn" onclick="player.toggleAnnotationMode()">Annotation Mode</button>
   </div>
 
-  <div id='player-container'>
-    <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;</button>
-    <button id='reloadAnnotationsBtn' onclick='player.reloadAnnotations()'>Reload Annotations</button>
-    <video id='player' width='1500' height='800'></video>
+  <div class="main-content">
+    <div class='annotation-player-container'>
+      <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;</button>
+      <button id='reloadAnnotationsBtn' onclick='player.reloadAnnotations()'>Reload Annotations</button>
+      <video></video>
+    </div>
   </div>
 
   <script type="module" src="renderer.js"></script>

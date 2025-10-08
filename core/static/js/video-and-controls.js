@@ -1,3 +1,9 @@
+// Y-video Core Player Main JS
+
+// This file should NEVER directly manipulate AnnotationPlayer or SubtitleSidebar.
+// All interactions should go through the player object's exposed API.
+
+
 import { AnnotationPlayer } from './AnnotationPlayer.js';
 
 (function() {
@@ -6,7 +12,7 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
     let annotationPlayer = null;
 
     function init() {
-        const container = document.getElementById('player-container');
+        const container = document.querySelector('.annotation-player-container');
 
         if (!container) {
             console.error('Player container not found');
@@ -22,7 +28,7 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
         }
 
-        const enableSubtitleSidebar = window.playerData && window.playerData.hasSubtitles && tracks.length > 0;
+        const enableSubtitleSidebar = tracks.length > 0;
 
         annotationPlayer = new AnnotationPlayer({
             container: container,

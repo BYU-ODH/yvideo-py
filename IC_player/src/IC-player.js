@@ -1,3 +1,8 @@
+// International Cinema Player Main JS
+
+// This file should NEVER directly manipulate AnnotationPlayer or SubtitleSidebar.
+// All interactions should go through the player object's exposed API.
+
 const fs = window.require("fs");
 const { webUtils } = window.require("electron");
 import { AnnotationPlayer } from "./AnnotationPlayer.js";
@@ -65,8 +70,8 @@ export const player = {
   },
 
   hidePlayer: () => {
-    document.getElementById("splashScreen").style.visibility = "visible";
-    document.getElementById("player-container").style.visibility = "hidden";
+    document.getElementById("splashScreen").style.display = "block";
+    document.querySelector(".annotation-player-container").style.display = "none";
     document.getElementById("playButton").classList.remove("ready");
     document.getElementById("reloadAnnotationsBtn").style.visibility = "hidden";
     document.getElementById("returnBtn").style.visibility = "hidden";
@@ -92,21 +97,21 @@ export const player = {
   },
 
   reloadAnnotations: () => {
-    if (!player.paused) {
+    if (!player.annotationPlayer.isPaused()) {
       player.annotationPlayer.pause();
     }
 
     console.log("Reloading Annotations");
     player.reloadingAnnotations = true;
-    let reloadAnnotationsTime = player.annotationPlayer.videoElem.currentTime;
-    player.paused = player.annotationPlayer.videoElem.paused;
+    let reloadAnnotationsTime = player.annotationPlayer.getCurrentTime();
+    player.paused = player.annotationPlayer.isPaused();
 
     if (player.annotationPlayer) player.annotationPlayer.resetAnnotations();
 
     var annotationData = fs.readFileSync(player.jsonFilePath);
     player.initializePlayerAndPlay(annotationData);
     player.timeCache = reloadAnnotationsTime;
-    player.annotationPlayer.videoElem.currentTime = reloadAnnotationsTime;
+    player.annotationPlayer.setCurrentTime(reloadAnnotationsTime);
     player.reloadingAnnotations = false;
   },
 
@@ -225,8 +230,8 @@ export const player = {
   initializePlayerAndPlay: (annotationData) => {
     if (!player.annotationPlayer) {
       const options = {
-        container: '#player-container',
-        disabledControls: ['transcriptBtn']
+        container: '.annotation-player-container',
+        disabledControls: []
       };
 
       console.log("In initializePlayerAndPlay, player.icfData:", player.icfData);
@@ -254,10 +259,10 @@ export const player = {
 
     const files = player.selectedFiles; // Use cached files
     if (files && files["videoFile"] && files["videoFile"].path) {
-      player.annotationPlayer.videoElem.src = files["videoFile"].path;
+      player.annotationPlayer.setVideoSource(files["videoFile"].path);
     }
 
-    document.getElementById("player-container").style.visibility = "visible";
+    document.querySelector(".annotation-player-container").style.display = "flex";
     document.getElementById("reloadAnnotationsBtn").style.visibility =
       player.annotationMode ? "visible" : "hidden";
     if (!window.screenTop && !window.screenY) {
@@ -265,7 +270,7 @@ export const player = {
     } else {
       document.getElementById("returnBtn").style.visibility = "visible";
     }
-    document.getElementById("splashScreen").style.visibility = "hidden";
+    document.getElementById("splashScreen").style.display = "none";
     document.body.style.background = "black";
     player.annotationPlayer.play();
   },

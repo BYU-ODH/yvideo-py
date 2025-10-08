@@ -213,10 +213,13 @@ export class AnnotationPlayer {
     if (!this.container) {
       throw new Error('AnnotationPlayer requires a container element');
     }
-
-    // Add annotation-player-container class if not present
-    if (!this.container.classList.contains('annotation-player-container')) {
-      this.container.classList.add('annotation-player-container');
+    if (
+      this.container.id ||
+      !this.container.classList.contains('annotation-player-container')
+    ) {
+      throw new Error(
+       'AnnotationPlayer container must have no id and must have the "annotation-player-container" class.'
+      );
     }
 
     // Get or create video element
@@ -228,10 +231,10 @@ export class AnnotationPlayer {
 
     // Get or create annotation container
     this.annotationContainer = this._getElement(options.annotationContainer) ||
-                               this.container.querySelector('.annotation-container');
+                               this.container.querySelector('.annotation-box');
     if (!this.annotationContainer) {
       this.annotationContainer = document.createElement('div');
-      this.annotationContainer.className = 'annotation-container';
+      this.annotationContainer.className = 'annotation-box';
       this.container.appendChild(this.annotationContainer);
     }
 
@@ -439,7 +442,7 @@ export class AnnotationPlayer {
     this.controls.container = this.container;
   }
 
-  _updateControlsVisibility() {
+  _transcriptAndCCVisibility() {
     // Show captions button only if there are subtitle tracks
     if (this.controls.captionsBtnWrapper && !this.disabledControls.includes('captionsBtn')) {
       const hasTracks = this.videoElem.textTracks.length > 0;
@@ -455,42 +458,15 @@ export class AnnotationPlayer {
 
   placeAnnotationContainer() {
     const videoRect = this.videoElem.getBoundingClientRect();
-
-    const videoWidth = this.videoElem.videoWidth;
-    const videoHeight = this.videoElem.videoHeight;
-    if (!videoWidth || !videoHeight) {
-      return;
-    }
-
-    const elemWidth = this.videoElem.clientWidth;
-    const elemHeight = this.videoElem.clientHeight;
-
-    const videoAspect = videoWidth / videoHeight;
-    const elemAspect = elemWidth / elemHeight;
-
-    let displayWidth, displayHeight, offsetLeft, offsetTop;
-
-    if (elemAspect > videoAspect) {
-      // Black bars on left/right
-      displayHeight = elemHeight;
-      displayWidth = elemHeight * videoAspect;
-      offsetLeft = (elemWidth - displayWidth) / 2;
-      offsetTop = 0;
-    } else {
-      // Black bars on top/bottom
-      displayWidth = elemWidth;
-      displayHeight = elemWidth / videoAspect;
-      offsetLeft = 0;
-      offsetTop = (elemHeight - displayHeight) / 2;
-    }
+    const containerRect = this.container.getBoundingClientRect();
 
     const annotationContainer = this.annotationContainer;
     annotationContainer.style.position = "absolute";
     annotationContainer.style.pointerEvents = "none";
-    annotationContainer.style.left = `${videoRect.left + window.scrollX + offsetLeft}px`;
-    annotationContainer.style.top = `${videoRect.top + window.scrollY + offsetTop}px`;
-    annotationContainer.style.width = `${displayWidth}px`;
-    annotationContainer.style.height = `${displayHeight}px`;
+    annotationContainer.style.left = `${videoRect.left - containerRect.left}px`;
+    annotationContainer.style.top = `${videoRect.top - containerRect.top}px`;
+    annotationContainer.style.width = `${videoRect.width}px`;
+    annotationContainer.style.height = `${videoRect.height}px`;
     annotationContainer.style.zIndex = 10;
   }
 
@@ -672,6 +648,22 @@ export class AnnotationPlayer {
     this.videoElem.currentTime = time;
     this.timeCache = time;
     this.applyAnnotations();
+  }
+
+  setVideoSource(src) {
+    this.videoElem.src = src;
+  }
+
+  getCurrentTime() {
+    return this.videoElem.currentTime;
+  }
+
+  setCurrentTime(time) {
+    this.skipTo(time);
+  }
+
+  isPaused() {
+    return this.videoElem.paused;
   }
 
   annotate() {
@@ -1220,7 +1212,7 @@ export class AnnotationPlayer {
     }
 
     // Update controls visibility based on track availability
-    this._updateControlsVisibility();
+    this._transcriptAndCCVisibility();
 
     // Create subtitle sidebar after tracks are loaded
     if (this._pendingSubtitleSidebar) {
@@ -1228,7 +1220,7 @@ export class AnnotationPlayer {
       this.videoElem.addEventListener('loadedmetadata', () => {
         setTimeout(() => {
           this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
-          this._updateControlsVisibility();
+          this._transcriptAndCCVisibility();
         }, 100);
       }, { once: true });
       this._pendingSubtitleSidebar = false;
@@ -1323,11 +1315,16 @@ export class AnnotationPlayer {
                        !this.state.playing ||
                        this.state.controlsHovering;
     if (this.container) {
-      this.container.classList.toggle('controls-hidden', !shouldShow);
+      if (shouldShow) {
+        this.container.classList.remove('controls-hidden');
+      } else {
+        this.container.classList.add('controls-hidden');
+      }
     }
   }
 
   handleKeydown(e) {
+    this.handleMouseMoved();  // to trigger controls visibility/fade
     const playedTime = this.state.currentTime;
 
     switch (e.code) {
@@ -1426,7 +1423,7 @@ export class AnnotationPlayer {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
       // Update controls visibility when metadata is loaded (tracks might be ready)
-      this._updateControlsVisibility();
+      this._transcriptAndCCVisibility();
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
@@ -1455,6 +1452,7 @@ export class AnnotationPlayer {
     this.videoElem.addEventListener('click', (e) => {
       e.preventDefault();
       this.togglePlayPause();
+      this.handleMouseMoved();  // to trigger controls visibility/fade
     });
 
     if (this.controls.playPauseBtn) {
@@ -1518,28 +1516,7 @@ export class AnnotationPlayer {
     }
 
     this.videoElem.addEventListener('mousemove', () => this.handleMouseMoved());
-    this.videoElem.addEventListener('mouseenter', () => {
-      this.state.hovering = true;
-      this.updateControlsVisibility();
-    });
-    this.videoElem.addEventListener('mouseleave', () => {
-      if (!this.state.controlsHovering) {
-        this.state.hovering = false;
-        this.updateControlsVisibility();
-      }
-    });
-
     this.annotationContainer.addEventListener('mousemove', () => this.handleMouseMoved());
-    this.annotationContainer.addEventListener('mouseenter', () => {
-      this.state.hovering = true;
-      this.updateControlsVisibility();
-    });
-    this.annotationContainer.addEventListener('mouseleave', () => {
-      if (!this.state.controlsHovering) {
-        this.state.hovering = false;
-        this.updateControlsVisibility();
-      }
-    });
 
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
 

@@ -1,3 +1,18 @@
+/* International Cinema Stylesheet
+*
+* This file should NEVER contain styles specific to the
+* AnnotationPlayer or SubtitleSidebar.
+*/
+
+
+/* CSS root variables for player control color and visibility */
+:root {
+  --player-controls-bg: rgba(0,0,0,0.7);
+  --player-controls-color: #fff;
+  --player-controls-opacity: 1;
+  --player-controls-transition: opacity 0.4s;
+}
+
 @font-face {
   font-family: 'Lobster';
   src: url('Lobster/Lobster-Regular.ttf')
@@ -149,20 +164,21 @@ h1{
 
 /*PLAYER STYLES*/
 
-#player-container {
-  visibility: hidden;
-  --player-controls-bg: rgba(0,0,0,0.7);
-  --player-controls-color: #fff;
-  --player-controls-opacity: 1;
-  --player-controls-transition: opacity 0.4s;
+.main-content {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#player {
+.annotation-player-container {
     width: 100%;
-    position: absolute;
-    top: 0;
-    height: 100%;
-    left: 0;
+    height: 100vh;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    background-color: black;
+    position: relative; /* Added for correct child positioning */
 }
 
 #returnBtn {
@@ -216,7 +232,9 @@ h1{
 
 video {
   width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 /*Styling the video controls panel*/
@@ -241,21 +259,12 @@ video::-webkit-media-controls-fullscreen-button {
   z-index: 2147483647;
 }
 
-/* CSS root variables for player control color and visibility */
-:root {
-  --player-controls-bg: rgba(0,0,0,0.7);
-  --player-controls-color: #fff;
-  --player-controls-opacity: 1;
-  --player-controls-transition: opacity 0.4s;
-}
 
-#player-container.cursor-hidden {
-  cursor: none;
-}
 
 /* Fade out controls and return button together */
-#player-container.controls-hidden #returnBtn,
-#player-container.controls-hidden #reloadAnnotationsBtn {
+/* It is okay to reference .annotation-player-container here because it does not change it */
+.annotation-player-container.controls-hidden #returnBtn,
+.annotation-player-container.controls-hidden #reloadAnnotationsBtn {
   opacity: 0;
   pointer-events: none;
   transition: var(--player-controls-transition);
