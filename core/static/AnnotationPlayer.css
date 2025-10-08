@@ -5,6 +5,26 @@
   height: 100%;
   background: #000;
   overflow: hidden;
+  display: flex;
+  transition: none;
+}
+
+.video-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: margin-right 0.3s ease;
+  min-width: 0;
+}
+
+.video-wrapper.no-transition {
+  transition: none;
+}
+
+.annotation-player-container.sidebar-open .video-wrapper {
+  margin-right: 320px;
 }
 
 .hidden {
@@ -97,6 +117,7 @@
   position: absolute;
   pointer-events: none;
   z-index: 10;
+  transition: width 0.3s ease, left 0.3s ease;
 }
 
 .annotation-box .censor {
@@ -405,13 +426,55 @@
   top: 0;
   right: 0;
   width: 320px;
+  min-width: 200px;
+  max-width: 600px;
   height: 100%;
   background: rgba(28, 28, 28, 0.95);
   color: white;
-  display: flex;
+  display: none;
   flex-direction: column;
   z-index: 30;
   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.subtitle-sidebar.resizing {
+  transition: none;
+}
+
+.subtitle-sidebar.visible {
+  display: flex;
+  transform: translateX(0);
+}
+
+.subtitle-sidebar-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 31;
+  transition: background 0.2s;
+}
+
+.subtitle-sidebar-resize-handle:hover,
+.subtitle-sidebar-resize-handle.resizing {
+  background: rgba(5, 130, 202, 0.3);
+}
+
+.subtitle-sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 1px;
 }
 
 .subtitle-sidebar-header {
@@ -545,8 +608,14 @@
     gap: 8px;
   }
 
+  .annotation-player-container.sidebar-open .video-wrapper {
+    margin-right: 280px;
+  }
+
   .subtitle-sidebar {
     width: 280px;
+    min-width: 200px;
+    max-width: 500px;
   }
 }
 
@@ -598,8 +667,18 @@
     gap: 4px;
   }
 
+  .annotation-player-container.sidebar-open .video-wrapper {
+    margin-right: 0;
+  }
+
   .subtitle-sidebar {
     width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .subtitle-sidebar-resize-handle {
+    display: none;
   }
 }
 

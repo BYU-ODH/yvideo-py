@@ -71,6 +71,7 @@ export const player = {
 
   hidePlayer: () => {
     document.getElementById("splashScreen").style.display = "block";
+    document.querySelector(".main-content").classList.remove("active");
     document.querySelector(".annotation-player-container").style.display = "none";
     document.getElementById("playButton").classList.remove("ready");
     document.getElementById("reloadAnnotationsBtn").style.visibility = "hidden";
@@ -262,6 +263,7 @@ export const player = {
       player.annotationPlayer.setVideoSource(files["videoFile"].path);
     }
 
+    document.querySelector(".main-content").classList.add("active");
     document.querySelector(".annotation-player-container").style.display = "flex";
     document.getElementById("reloadAnnotationsBtn").style.visibility =
       player.annotationMode ? "visible" : "hidden";

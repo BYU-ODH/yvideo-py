@@ -14,17 +14,29 @@ export class SubtitleSidebar {
     this.trackIndex = trackIndex;
     this.visible = false;
     this.cues = [];
+    this.isResizing = false;
+    this.startX = 0;
+    this.startWidth = 0;
+
+    // Load saved width from localStorage or use default
+    this.width = parseInt(localStorage.getItem('subtitleSidebarWidth')) || 320;
 
     this._createSidebar();
     this._loadTrack();
     this._initEventListeners();
+    this._initResizeListeners();
   }
 
   _createSidebar() {
     // Create sidebar container
     this.sidebar = document.createElement('div');
     this.sidebar.className = 'subtitle-sidebar';
-    this.sidebar.style.display = 'none';
+    this.sidebar.style.width = `${this.width}px`;
+
+    // Create resize handle
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'subtitle-sidebar-resize-handle';
+    this.resizeHandle = resizeHandle;
 
     // Create header
     const header = document.createElement('div');
@@ -42,6 +54,7 @@ export class SubtitleSidebar {
     this.content = document.createElement('div');
     this.content.className = 'subtitle-sidebar-content';
 
+    this.sidebar.appendChild(resizeHandle);
     this.sidebar.appendChild(header);
     this.sidebar.appendChild(this.content);
 
@@ -49,13 +62,109 @@ export class SubtitleSidebar {
     const container = this.videoElem.closest('.annotation-player-container');
     if (container) {
       container.appendChild(this.sidebar);
+      console.log('Subtitle sidebar added to container');
     } else {
       document.body.appendChild(this.sidebar);
+      console.warn('Player container not found, appending sidebar to body');
     }
 
     // Close button handler
     const closeBtn = header.querySelector('.subtitle-sidebar-close');
     closeBtn.addEventListener('click', () => this.hide());
+  }
+
+  _initResizeListeners() {
+    this.resizeHandle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      this.isResizing = true;
+      this.startX = e.clientX;
+      this.startWidth = this.sidebar.offsetWidth;
+      this.resizeHandle.classList.add('resizing');
+
+      // Disable transitions for immediate feedback
+      this.sidebar.classList.add('resizing');
+      const container = this.videoElem.closest('.annotation-player-container');
+      const videoWrapper = container?.querySelector('.video-wrapper');
+      if (videoWrapper) {
+        videoWrapper.classList.add('no-transition');
+      }
+
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    const handleMouseMove = (e) => {
+      if (!this.isResizing) return;
+
+      const container = this.videoElem.closest('.annotation-player-container');
+      if (!container) return;
+
+      // Calculate new width (subtract delta since we're dragging from the left)
+      const deltaX = this.startX - e.clientX;
+      let newWidth = this.startWidth + deltaX;
+
+      // Get constraints from CSS
+      const minWidth = 200;
+      const maxWidth = 600;
+      const containerWidth = container.offsetWidth;
+
+      // Ensure width is within bounds
+      newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+      // Also ensure it doesn't take up more than 70% of container
+      newWidth = Math.min(newWidth, containerWidth * 0.7);
+
+      // Apply new width
+      this.width = newWidth;
+      this.sidebar.style.width = `${newWidth}px`;
+
+      // Update video wrapper margin
+      this._updateVideoWrapperMargin();
+    };
+
+    const handleMouseUp = () => {
+      if (!this.isResizing) return;
+
+      this.isResizing = false;
+      this.resizeHandle.classList.remove('resizing');
+
+      // Re-enable transitions
+      this.sidebar.classList.remove('resizing');
+      const container = this.videoElem.closest('.annotation-player-container');
+      const videoWrapper = container?.querySelector('.video-wrapper');
+      if (videoWrapper) {
+        videoWrapper.classList.remove('no-transition');
+      }
+
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+
+      // Save width to localStorage
+      localStorage.setItem('subtitleSidebarWidth', this.width.toString());
+
+      // Trigger annotation container reposition
+      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
+        window.videoPlayer.placeAnnotationContainer();
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }
+
+  _updateVideoWrapperMargin() {
+    const container = this.videoElem.closest('.annotation-player-container');
+    if (!container) return;
+
+    const videoWrapper = container.querySelector('.video-wrapper');
+    if (videoWrapper && this.visible) {
+      // Check if we're on mobile (where sidebar overlays)
+      if (window.innerWidth <= 425) {
+        videoWrapper.style.marginRight = '0px';
+      } else {
+        videoWrapper.style.marginRight = `${this.width}px`;
+      }
+    }
   }
 
   _loadTrack() {
@@ -181,14 +290,53 @@ export class SubtitleSidebar {
   }
 
   show() {
-    this.sidebar.style.display = 'flex';
+    this.sidebar.classList.add('visible');
     this.visible = true;
+
+    // Add class to container to trigger video resize
+    const container = this.videoElem.closest('.annotation-player-container');
+    if (container) {
+      container.classList.add('sidebar-open');
+    }
+
+    // Update video wrapper margin based on current width
+    this._updateVideoWrapperMargin();
+
     this._updateActiveCue();
+    console.log('Subtitle sidebar shown');
+
+    // Trigger annotation container reposition after transition
+    setTimeout(() => {
+      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
+        window.videoPlayer.placeAnnotationContainer();
+      }
+    }, 300);
   }
 
   hide() {
-    this.sidebar.style.display = 'none';
+    this.sidebar.classList.remove('visible');
     this.visible = false;
+
+    // Remove class from container to restore video size
+    const container = this.videoElem.closest('.annotation-player-container');
+    if (container) {
+      container.classList.remove('sidebar-open');
+    }
+
+    // Reset video wrapper margin
+    const videoWrapper = container?.querySelector('.video-wrapper');
+    if (videoWrapper) {
+      videoWrapper.style.marginRight = '0px';
+    }
+
+    console.log('Subtitle sidebar hidden');
+
+    // Trigger annotation container reposition after transition
+    setTimeout(() => {
+      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
+        window.videoPlayer.placeAnnotationContainer();
+      }
+    }, 300);
   }
 
   toggle() {
@@ -226,16 +374,32 @@ export class AnnotationPlayer {
     this.videoElem = this._getElement(options.video) || this.container.querySelector('video');
     if (!this.videoElem) {
       this.videoElem = document.createElement('video');
-      this.container.appendChild(this.videoElem);
     }
+
+    // Wrap video in a video-wrapper div if not already wrapped
+    let videoWrapper = this.videoElem.closest('.video-wrapper');
+    if (!videoWrapper) {
+      videoWrapper = document.createElement('div');
+      videoWrapper.className = 'video-wrapper';
+
+      // If video is already in container, wrap it in place
+      if (this.videoElem.parentNode === this.container) {
+        this.container.insertBefore(videoWrapper, this.videoElem);
+      } else {
+        this.container.appendChild(videoWrapper);
+      }
+
+      videoWrapper.appendChild(this.videoElem);
+    }
+    this.videoWrapper = videoWrapper;
 
     // Get or create annotation container
     this.annotationContainer = this._getElement(options.annotationContainer) ||
-                               this.container.querySelector('.annotation-box');
+                               this.videoWrapper.querySelector('.annotation-box');
     if (!this.annotationContainer) {
       this.annotationContainer = document.createElement('div');
       this.annotationContainer.className = 'annotation-box';
-      this.container.appendChild(this.annotationContainer);
+      this.videoWrapper.appendChild(this.annotationContainer);
     }
 
     // Create bezel divs for keyboard shortcut feedback
@@ -372,47 +536,47 @@ export class AnnotationPlayer {
     const temp = document.createElement('div');
     temp.innerHTML = controlBarHTML;
 
-    // Append controls to container
+    // Append controls to video-wrapper instead of container
     while (temp.firstChild) {
-      this.container.appendChild(temp.firstChild);
+      this.videoWrapper.appendChild(temp.firstChild);
     }
 
     // Store references to controls (skip disabled ones)
     if (!this.disabledControls.includes('playPauseBtn')) {
-      this.controls.playPauseBtn = this.container.querySelector('.play-pause-btn');
+      this.controls.playPauseBtn = this.videoWrapper.querySelector('.play-pause-btn');
       this.controls.playPauseBtn.innerHTML = AnnotationPlayer.icons.playPauseBtn.play;
     }
     if (!this.disabledControls.includes('volume')) {
-        this.controls.volumeBtn = this.container.querySelector('.volume-btn');
-        this.controls.volumeSlider = this.container.querySelector('.volume-slider');
+        this.controls.volumeBtn = this.videoWrapper.querySelector('.volume-btn');
+        this.controls.volumeSlider = this.videoWrapper.querySelector('.volume-slider');
     }
     if (!this.disabledControls.includes('scrubber')) {
-      this.controls.scrubber = this.container.querySelector('.scrubber');
-      this.controls.scrubberBuffered = this.container.querySelector('.scrubber-buffered');
-      this.controls.scrubberProgress = this.container.querySelector('.scrubber-progress');
-      this.controls.scrubberDot = this.container.querySelector('.scrubber-dot');
+      this.controls.scrubber = this.videoWrapper.querySelector('.scrubber');
+      this.controls.scrubberBuffered = this.videoWrapper.querySelector('.scrubber-buffered');
+      this.controls.scrubberProgress = this.videoWrapper.querySelector('.scrubber-progress');
+      this.controls.scrubberDot = this.videoWrapper.querySelector('.scrubber-dot');
     }
     if (!this.disabledControls.includes('playTime')) {
-      this.controls.playTime = this.container.querySelector('.play-time');
+      this.controls.playTime = this.videoWrapper.querySelector('.play-time');
     }
     if (!this.disabledControls.includes('speedBtn')) {
       // Use wrapper for speed button and menu
-      this.controls.speedBtnWrapper = this.container.querySelector('.speed-btn-wrapper');
-      this.controls.speedBtn = this.container.querySelector('.speed-btn');
-      this.controls.speedMenu = this.container.querySelector('.speed-menu');
+      this.controls.speedBtnWrapper = this.videoWrapper.querySelector('.speed-btn-wrapper');
+      this.controls.speedBtn = this.videoWrapper.querySelector('.speed-btn');
+      this.controls.speedMenu = this.videoWrapper.querySelector('.speed-menu');
     }
     if (!this.disabledControls.includes('captionsBtn')) {
-      this.controls.captionsBtnWrapper = this.container.querySelector('.captions-btn-wrapper');
-      this.controls.captionsBtn = this.container.querySelector('.captions-btn');
-      this.controls.captionsMenu = this.container.querySelector('.captions-menu');
+      this.controls.captionsBtnWrapper = this.videoWrapper.querySelector('.captions-btn-wrapper');
+      this.controls.captionsBtn = this.videoWrapper.querySelector('.captions-btn');
+      this.controls.captionsMenu = this.videoWrapper.querySelector('.captions-menu');
       this.controls.captionsBtn.innerHTML = AnnotationPlayer.icons.captionsBtn;
     }
     if (!this.disabledControls.includes('transcriptBtn')) {
-      this.controls.transcriptBtn = this.container.querySelector('.transcript-btn');
+      this.controls.transcriptBtn = this.videoWrapper.querySelector('.transcript-btn');
       this.controls.transcriptBtn.innerHTML = AnnotationPlayer.icons.transcriptBtn;
     }
     if (!this.disabledControls.includes('fullscreenBtn')) {
-      this.controls.fullscreenBtn = this.container.querySelector('.fullscreen-btn');
+      this.controls.fullscreenBtn = this.videoWrapper.querySelector('.fullscreen-btn');
       this.controls.fullscreenBtn.innerHTML = AnnotationPlayer.icons.fullscreenBtn.enter;
     }
 
@@ -433,7 +597,7 @@ export class AnnotationPlayer {
       };
       const selector = classMap[controlName];
       if (selector) {
-        const element = this.container.querySelector(selector);
+        const element = this.videoWrapper.querySelector(selector);
         if (element) element.remove();
       }
     });
@@ -458,13 +622,13 @@ export class AnnotationPlayer {
 
   placeAnnotationContainer() {
     const videoRect = this.videoElem.getBoundingClientRect();
-    const containerRect = this.container.getBoundingClientRect();
+    const wrapperRect = this.videoWrapper.getBoundingClientRect();
 
     const annotationContainer = this.annotationContainer;
     annotationContainer.style.position = "absolute";
     annotationContainer.style.pointerEvents = "none";
-    annotationContainer.style.left = `${videoRect.left - containerRect.left}px`;
-    annotationContainer.style.top = `${videoRect.top - containerRect.top}px`;
+    annotationContainer.style.left = `${videoRect.left - wrapperRect.left}px`;
+    annotationContainer.style.top = `${videoRect.top - wrapperRect.top}px`;
     annotationContainer.style.width = `${videoRect.width}px`;
     annotationContainer.style.height = `${videoRect.height}px`;
     annotationContainer.style.zIndex = 10;
@@ -1254,20 +1418,35 @@ export class AnnotationPlayer {
       this._renderCaptionsMenu();
     }
 
-    // Update controls visibility based on track availability
-    this._transcriptAndCCVisibility();
-
-    // Create subtitle sidebar after tracks are loaded
+    // Create subtitle sidebar if requested
     if (this._pendingSubtitleSidebar) {
-      // Wait for tracks to be ready
-      this.videoElem.addEventListener('loadedmetadata', () => {
-        setTimeout(() => {
+      // Create sidebar after a short delay to ensure tracks are loaded
+      const createSidebar = () => {
+        if (this.videoElem.textTracks.length > 0) {
           this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
           this._transcriptAndCCVisibility();
-        }, 100);
-      }, { once: true });
+          console.log('Subtitle sidebar created successfully');
+        } else {
+          console.warn('No text tracks available for subtitle sidebar');
+        }
+      };
+
+      // Try immediately first
+      if (this.videoElem.readyState >= 1) {
+        // Metadata already loaded
+        setTimeout(createSidebar, 50);
+      } else {
+        // Wait for metadata
+        this.videoElem.addEventListener('loadedmetadata', () => {
+          setTimeout(createSidebar, 50);
+        }, { once: true });
+      }
+
       this._pendingSubtitleSidebar = false;
     }
+
+    // Update controls visibility based on track availability
+    this._transcriptAndCCVisibility();
   }
 
   _renderCaptionsMenu() {
@@ -1477,6 +1656,16 @@ export class AnnotationPlayer {
       this.renderSkipsOnScrubber();
       // Update controls visibility when metadata is loaded (tracks might be ready)
       this._transcriptAndCCVisibility();
+
+      // If subtitle sidebar is pending and wasn't created yet, try again
+      if (this._pendingSubtitleSidebar && !this.subtitleSidebar && this.videoElem.textTracks.length > 0) {
+        setTimeout(() => {
+          this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
+          this._transcriptAndCCVisibility();
+          console.log('Subtitle sidebar created on loadedmetadata');
+        }, 50);
+        this._pendingSubtitleSidebar = false;
+      }
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
@@ -1628,9 +1817,20 @@ export class AnnotationPlayer {
 
     // Transcript button logic
     if (this.controls.transcriptBtn) {
-      this.controls.transcriptBtn.addEventListener('click', () => {
+      this.controls.transcriptBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Transcript button clicked', { subtitleSidebar: this.subtitleSidebar });
         if (this.subtitleSidebar) {
           this.subtitleSidebar.toggle();
+        } else {
+          console.warn('Subtitle sidebar not initialized');
+          // Try to create it now if tracks are available
+          if (this.videoElem.textTracks.length > 0) {
+            this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
+            this.subtitleSidebar.show();
+            console.log('Subtitle sidebar created on demand');
+          }
         }
       });
     }
