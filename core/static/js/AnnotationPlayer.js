@@ -1214,8 +1214,6 @@ export class AnnotationPlayer {
 
     if (this.controls.container) {
       this.controls.container.classList.remove('cursor-hidden');
-    } else {
-      this.videoElem.controls = true;
     }
 
     this.updateControlsVisibility();
@@ -1425,12 +1423,29 @@ export class AnnotationPlayer {
 
     if (this.controls.container) {
       this.controls.container.addEventListener('mousemove', () => this.handleMouseMoved());
+
       this.controls.container.addEventListener('mouseenter', () => {
         this.state.hovering = true;
+        this.state.mouseInactive = false; // Reset inactive state on enter
+        if (this.mouseTimer) clearTimeout(this.mouseTimer); // Clear any pending timer
+        if (this.controls.container) {
+          this.controls.container.classList.remove('cursor-hidden');
+        }
         this.updateControlsVisibility();
+
+        // Restart the inactivity timer
+        this.mouseTimer = setTimeout(() => {
+          this.state.mouseInactive = true;
+          if (this.controls.container) {
+            this.controls.container.classList.add('cursor-hidden');
+          }
+          this.updateControlsVisibility();
+        }, 3000);
       });
+
       this.controls.container.addEventListener('mouseleave', () => {
         this.state.hovering = false;
+        if (this.mouseTimer) clearTimeout(this.mouseTimer); // Clear timer when leaving
         this.updateControlsVisibility();
       });
 
@@ -1449,6 +1464,19 @@ export class AnnotationPlayer {
 
     this.videoElem.addEventListener('mousemove', () => this.handleMouseMoved());
     this.annotationContainer.addEventListener('mousemove', () => this.handleMouseMoved());
+
+    // Add document-level mousemove listener to catch mouse movement that might be missed
+    // This ensures controls can always be triggered even if state gets out of sync
+    document.addEventListener('mousemove', (e) => {
+      // Check if mouse is over the container
+      if (this.container && this.container.contains(e.target)) {
+        // Update hovering state if it's incorrect
+        if (!this.state.hovering) {
+          this.state.hovering = true;
+        }
+        this.handleMouseMoved();
+      }
+    });
 
     document.addEventListener('keydown', (e) => this.handleKeydown(e));
 

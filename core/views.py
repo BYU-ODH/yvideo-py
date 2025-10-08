@@ -51,7 +51,53 @@ You don't know?
 Yes, but I want to know if you do.
 
 00:04.300 --> 00:06.000
-Oh, well I know too, so we don't have to say."""
+Oh, well I know too, so we don't have to say.
+
+00:06.000 --> 00:06.900
+Look outside!
+
+00:07.000 --> 00:07.900
+They're flying everywhere.
+
+00:08.000 --> 00:08.900
+Did you see the blue one?
+
+00:09.000 --> 00:12.900
+Yes, it landed on the fence.
+
+00:10.000 --> 00:10.900
+What about the red one?
+
+00:11.000 --> 00:11.900
+It was chasing the yellow.
+
+00:12.000 --> 00:12.900
+The flock is growing.
+
+00:13.000 --> 00:13.900
+They're singing loudly.
+
+00:14.000 --> 00:14.900
+Do you hear that melody?
+
+00:15.000 --> 00:15.900
+It's beautiful, isn't it?
+
+00:16.000 --> 00:16.900
+They must be happy.
+
+00:17.000 --> 00:17.900
+The sun is shining.
+
+00:18.000 --> 00:18.900
+Perfect day for birds.
+
+00:19.000 --> 00:19.900
+Let's watch them together.
+
+00:20.000 --> 00:20.900
+Maybe they'll come closer.
+"""
 
 
 @login_required

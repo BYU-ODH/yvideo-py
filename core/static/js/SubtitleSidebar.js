@@ -68,6 +68,8 @@ export class SubtitleSidebar {
     this.isResizing = false;
     this.startX = 0;
     this.startWidth = 0;
+    this.currentTrack = null;
+    this.cueChangeHandler = null;
 
     // Load saved width from localStorage or use default
     this.width = parseInt(localStorage.getItem('subtitleSidebarWidth')) || 320;
@@ -231,8 +233,22 @@ export class SubtitleSidebar {
    * If sidebar is visible, reload cues for the new track
    */
   onTrackChanged() {
+    // Remove event listener from previous track
+    this._detachCueChangeListener();
+
+    const track = this._getActiveTrack();
+
+    // If no track is active and sidebar is visible, close it
+    if (!track && this.visible) {
+      this.hide();
+      return;
+    }
+
     if (this.visible) {
       this._loadCurrentTrack();
+    } else {
+      // Clear current track reference even when hidden
+      this.currentTrack = null;
     }
   }
 
@@ -250,6 +266,7 @@ export class SubtitleSidebar {
     // If cues are already loaded, render them immediately
     if (track.cues && track.cues.length > 0) {
       this._renderCues(track);
+      this._attachCueChangeListener(track);
       return;
     }
 
@@ -259,6 +276,7 @@ export class SubtitleSidebar {
     const onLoad = () => {
       if (track.cues && track.cues.length > 0) {
         this._renderCues(track);
+        this._attachCueChangeListener(track);
       } else {
         this._showEmptyState('No subtitles available');
       }
@@ -276,6 +294,7 @@ export class SubtitleSidebar {
     setTimeout(() => {
       if (track.cues && track.cues.length > 0 && this.cueObjects.length === 0) {
         this._renderCues(track);
+        this._attachCueChangeListener(track);
       }
     }, 200);
   }
@@ -321,35 +340,69 @@ export class SubtitleSidebar {
   }
 
   _initEventListeners() {
-    // Update highlighted cue as video plays
-    this.videoElem.addEventListener('timeupdate', () => {
+    // Event listener is now attached per-track in _attachCueChangeListener
+  }
+
+  /**
+   * Attach cuechange event listener to the given track
+   */
+  _attachCueChangeListener(track) {
+    // Remove any existing listener first
+    this._detachCueChangeListener();
+
+    this.currentTrack = track;
+    this.cueChangeHandler = () => {
       this._updateActiveCue();
-    });
+    };
+
+    track.addEventListener('cuechange', this.cueChangeHandler);
+
+    // Also update immediately
+    this._updateActiveCue();
+  }
+
+  /**
+   * Remove cuechange event listener from current track
+   */
+  _detachCueChangeListener() {
+    if (this.currentTrack && this.cueChangeHandler) {
+      this.currentTrack.removeEventListener('cuechange', this.cueChangeHandler);
+      this.currentTrack = null;
+      this.cueChangeHandler = null;
+    }
   }
 
   _updateActiveCue() {
     if (!this.visible || this.cueObjects.length === 0) return;
 
-    const currentTime = this.videoElem.currentTime;
+    // Remove all previous active classes
+    const previousActives = this.content.querySelectorAll('.subtitle-cue.active');
+    previousActives.forEach(el => el.classList.remove('active'));
 
-    // Remove previous active class
-    const previousActive = this.content.querySelector('.subtitle-cue.active');
-    if (previousActive) {
-      previousActive.classList.remove('active');
-    }
+    // Use activeCues from the track for more accurate current cue detection
+    if (this.currentTrack && this.currentTrack.activeCues && this.currentTrack.activeCues.length > 0) {
+      const activeCues = Array.from(this.currentTrack.activeCues);
 
-    // Find and highlight current cue
-    const activeCueObj = this.cueObjects.find(cueObj => cueObj.isActive(currentTime));
+      // Find and highlight all matching cue objects
+      activeCues.forEach(activeCue => {
+        const activeCueObj = this.cueObjects.find(cueObj => cueObj.cue === activeCue);
 
-    if (activeCueObj && activeCueObj.element) {
-      activeCueObj.element.classList.add('active');
+        if (activeCueObj && activeCueObj.element) {
+          activeCueObj.element.classList.add('active');
+        }
+      });
 
-      // Scroll into view if needed
-      const contentRect = this.content.getBoundingClientRect();
-      const cueRect = activeCueObj.element.getBoundingClientRect();
+      // Always scroll the first active cue into view, aiming for ~25% from the top
+      const firstActiveCueObj = this.cueObjects.find(cueObj => cueObj.cue === activeCues[0]);
+      if (firstActiveCueObj && firstActiveCueObj.element) {
+        const contentHeight = this.content.clientHeight;
+        const cueOffsetTop = firstActiveCueObj.element.offsetTop;
+        const targetScrollTop = cueOffsetTop - contentHeight * 0.25;
 
-      if (cueRect.top < contentRect.top || cueRect.bottom > contentRect.bottom) {
-        activeCueObj.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        this.content.scrollTo({
+          top: targetScrollTop,
+          behavior: 'smooth'
+        });
       }
     }
   }
@@ -379,6 +432,8 @@ export class SubtitleSidebar {
   }
 
   hide() {
+    // Keep event listener attached - don't detach it
+
     this.sidebar.classList.remove('visible');
     this.visible = false;
 
@@ -411,6 +466,9 @@ export class SubtitleSidebar {
   }
 
   destroy() {
+    // Clean up event listener
+    this._detachCueChangeListener();
+
     if (this.sidebar && this.sidebar.parentNode) {
       this.sidebar.parentNode.removeChild(this.sidebar);
     }
