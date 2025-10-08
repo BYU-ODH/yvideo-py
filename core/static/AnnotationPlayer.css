@@ -364,6 +364,16 @@
   stroke: #0582ca;
 }
 
+.transcript-btn.inactive {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.transcript-btn.inactive:hover {
+  transform: none;
+  opacity: 0.3;
+}
+
 /* Fullscreen Button */
 .fullscreen-btn {
   width: 40px;
@@ -382,6 +392,15 @@
   padding: 8px 0;
   z-index: 25;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.captions-menu {
+  min-width: 180px;
+  max-width: 300px;
+}
+
+.speed-menu {
+  min-width: 80px;
 }
 
 .menu-modal h3 {
@@ -405,6 +424,9 @@
   font-size: 14px;
   transition: background-color 0.2s ease;
   outline: none;  /* eslint-disable-line css/use-baseline */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .menu-modal button:hover,

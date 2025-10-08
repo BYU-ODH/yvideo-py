@@ -1,358 +1,4 @@
-/**
- * Subtitle sidebar class
- * - Manages loading and displaying subtitles in a scrollable sidebar
- * - Highlights (subtly) current subtitle based on video time
- * - Clicking on a subtitle's seek icon jumps video to 1 second before the
- *   start of that subtitle
- * - Displayed/hidden by clicking the transcript button in controls or sidebar's close button
- * - Designed to be used with AnnotationPlayer but can be used with any HTML5 video
- * - Uses standard APIs like VTTCue and TextTrack
- */
-export class SubtitleSidebar {
-  constructor(videoElem, trackIndex = 0) {
-    this.videoElem = videoElem;
-    this.trackIndex = trackIndex;
-    this.visible = false;
-    this.cues = [];
-    this.isResizing = false;
-    this.startX = 0;
-    this.startWidth = 0;
-
-    // Load saved width from localStorage or use default
-    this.width = parseInt(localStorage.getItem('subtitleSidebarWidth')) || 320;
-
-    this._createSidebar();
-    this._loadTrack();
-    this._initEventListeners();
-    this._initResizeListeners();
-  }
-
-  _createSidebar() {
-    // Create sidebar container
-    this.sidebar = document.createElement('div');
-    this.sidebar.className = 'subtitle-sidebar';
-    this.sidebar.style.width = `${this.width}px`;
-
-    // Create resize handle
-    const resizeHandle = document.createElement('div');
-    resizeHandle.className = 'subtitle-sidebar-resize-handle';
-    this.resizeHandle = resizeHandle;
-
-    // Create header
-    const header = document.createElement('div');
-    header.className = 'subtitle-sidebar-header';
-    header.innerHTML = `
-      <h3>Transcript</h3>
-      <button class="subtitle-sidebar-close" aria-label="Close Transcript">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-    `;
-
-    // Create content area
-    this.content = document.createElement('div');
-    this.content.className = 'subtitle-sidebar-content';
-
-    this.sidebar.appendChild(resizeHandle);
-    this.sidebar.appendChild(header);
-    this.sidebar.appendChild(this.content);
-
-    // Insert sidebar into player container
-    const container = this.videoElem.closest('.annotation-player-container');
-    if (container) {
-      container.appendChild(this.sidebar);
-      console.log('Subtitle sidebar added to container');
-    } else {
-      document.body.appendChild(this.sidebar);
-      console.warn('Player container not found, appending sidebar to body');
-    }
-
-    // Close button handler
-    const closeBtn = header.querySelector('.subtitle-sidebar-close');
-    closeBtn.addEventListener('click', () => this.hide());
-  }
-
-  _initResizeListeners() {
-    this.resizeHandle.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      this.isResizing = true;
-      this.startX = e.clientX;
-      this.startWidth = this.sidebar.offsetWidth;
-      this.resizeHandle.classList.add('resizing');
-
-      // Disable transitions for immediate feedback
-      this.sidebar.classList.add('resizing');
-      const container = this.videoElem.closest('.annotation-player-container');
-      const videoWrapper = container?.querySelector('.video-wrapper');
-      if (videoWrapper) {
-        videoWrapper.classList.add('no-transition');
-      }
-
-      document.body.style.cursor = 'ew-resize';
-      document.body.style.userSelect = 'none';
-    });
-
-    const handleMouseMove = (e) => {
-      if (!this.isResizing) return;
-
-      const container = this.videoElem.closest('.annotation-player-container');
-      if (!container) return;
-
-      // Calculate new width (subtract delta since we're dragging from the left)
-      const deltaX = this.startX - e.clientX;
-      let newWidth = this.startWidth + deltaX;
-
-      // Get constraints from CSS
-      const minWidth = 200;
-      const maxWidth = 600;
-      const containerWidth = container.offsetWidth;
-
-      // Ensure width is within bounds
-      newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-
-      // Also ensure it doesn't take up more than 70% of container
-      newWidth = Math.min(newWidth, containerWidth * 0.7);
-
-      // Apply new width
-      this.width = newWidth;
-      this.sidebar.style.width = `${newWidth}px`;
-
-      // Update video wrapper margin
-      this._updateVideoWrapperMargin();
-    };
-
-    const handleMouseUp = () => {
-      if (!this.isResizing) return;
-
-      this.isResizing = false;
-      this.resizeHandle.classList.remove('resizing');
-
-      // Re-enable transitions
-      this.sidebar.classList.remove('resizing');
-      const container = this.videoElem.closest('.annotation-player-container');
-      const videoWrapper = container?.querySelector('.video-wrapper');
-      if (videoWrapper) {
-        videoWrapper.classList.remove('no-transition');
-      }
-
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-
-      // Save width to localStorage
-      localStorage.setItem('subtitleSidebarWidth', this.width.toString());
-
-      // Trigger annotation container reposition
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
-        window.videoPlayer.placeAnnotationContainer();
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }
-
-  _updateVideoWrapperMargin() {
-    const container = this.videoElem.closest('.annotation-player-container');
-    if (!container) return;
-
-    const videoWrapper = container.querySelector('.video-wrapper');
-    if (videoWrapper && this.visible) {
-      // Check if we're on mobile (where sidebar overlays)
-      if (window.innerWidth <= 425) {
-        videoWrapper.style.marginRight = '0px';
-      } else {
-        videoWrapper.style.marginRight = `${this.width}px`;
-      }
-    }
-  }
-
-  _loadTrack() {
-    const tracks = Array.from(this.videoElem.textTracks);
-
-    if (tracks.length === 0) {
-      this.content.innerHTML = '<p class="subtitle-sidebar-empty">No subtitles available</p>';
-      return;
-    }
-
-    // Use specified track or first available
-    const track = tracks[this.trackIndex] || tracks[0];
-
-    // Wait for track to load
-    if (track.cues && track.cues.length > 0) {
-      this._renderCues(track);
-    } else {
-      track.addEventListener('load', () => {
-        this._renderCues(track);
-      });
-
-      // Force track to load if it hasn't
-      track.mode = 'hidden';
-    }
-  }
-
-  _renderCues(track) {
-    this.cues = Array.from(track.cues || []);
-
-    if (this.cues.length === 0) {
-      this.content.innerHTML = '<p class="subtitle-sidebar-empty">No subtitles available</p>';
-      return;
-    }
-
-    this.content.innerHTML = '';
-
-    this.cues.forEach((cue, index) => {
-      const cueElement = document.createElement('div');
-      cueElement.className = 'subtitle-cue';
-      cueElement.dataset.index = index;
-      cueElement.dataset.startTime = cue.startTime;
-
-      const timestamp = this._formatTime(cue.startTime);
-
-      cueElement.innerHTML = `
-        <button class="subtitle-cue-seek" aria-label="Seek to ${timestamp}">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M4 3l8 5-8 5V3z"/>
-          </svg>
-        </button>
-        <div class="subtitle-cue-content">
-          <div class="subtitle-cue-time">${timestamp}</div>
-          <div class="subtitle-cue-text">${this._stripVTTFormatting(cue.text)}</div>
-        </div>
-      `;
-
-      // Seek button handler
-      const seekBtn = cueElement.querySelector('.subtitle-cue-seek');
-      seekBtn.addEventListener('click', () => {
-        // Jump to 1 second before the cue start time
-        const seekTime = Math.max(0, cue.startTime - 1);
-        this.videoElem.currentTime = seekTime;
-      });
-
-      this.content.appendChild(cueElement);
-    });
-  }
-
-  _stripVTTFormatting(text) {
-    // Remove VTT formatting tags like <v Name>, <c>, etc.
-    return text.replace(/<[^>]*>/g, '').trim();
-  }
-
-  _formatTime(seconds) {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-
-    if (hrs > 0) {
-      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  _initEventListeners() {
-    // Update highlighted cue as video plays
-    this.videoElem.addEventListener('timeupdate', () => {
-      this._updateActiveCue();
-    });
-  }
-
-  _updateActiveCue() {
-    if (!this.visible) return;
-
-    const currentTime = this.videoElem.currentTime;
-
-    // Remove previous active class
-    const previousActive = this.content.querySelector('.subtitle-cue.active');
-    if (previousActive) {
-      previousActive.classList.remove('active');
-    }
-
-    // Find and highlight current cue
-    const currentCueElement = Array.from(this.content.querySelectorAll('.subtitle-cue')).find(elem => {
-      const startTime = parseFloat(elem.dataset.startTime);
-      const index = parseInt(elem.dataset.index);
-      const cue = this.cues[index];
-
-      return currentTime >= startTime && currentTime < cue.endTime;
-    });
-
-    if (currentCueElement) {
-      currentCueElement.classList.add('active');
-
-      // Scroll into view if needed
-      const contentRect = this.content.getBoundingClientRect();
-      const cueRect = currentCueElement.getBoundingClientRect();
-
-      if (cueRect.top < contentRect.top || cueRect.bottom > contentRect.bottom) {
-        currentCueElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
-  }
-
-  show() {
-    this.sidebar.classList.add('visible');
-    this.visible = true;
-
-    // Add class to container to trigger video resize
-    const container = this.videoElem.closest('.annotation-player-container');
-    if (container) {
-      container.classList.add('sidebar-open');
-    }
-
-    // Update video wrapper margin based on current width
-    this._updateVideoWrapperMargin();
-
-    this._updateActiveCue();
-    console.log('Subtitle sidebar shown');
-
-    // Trigger annotation container reposition after transition
-    setTimeout(() => {
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
-        window.videoPlayer.placeAnnotationContainer();
-      }
-    }, 300);
-  }
-
-  hide() {
-    this.sidebar.classList.remove('visible');
-    this.visible = false;
-
-    // Remove class from container to restore video size
-    const container = this.videoElem.closest('.annotation-player-container');
-    if (container) {
-      container.classList.remove('sidebar-open');
-    }
-
-    // Reset video wrapper margin
-    const videoWrapper = container?.querySelector('.video-wrapper');
-    if (videoWrapper) {
-      videoWrapper.style.marginRight = '0px';
-    }
-
-    console.log('Subtitle sidebar hidden');
-
-    // Trigger annotation container reposition after transition
-    setTimeout(() => {
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
-        window.videoPlayer.placeAnnotationContainer();
-      }
-    }, 300);
-  }
-
-  toggle() {
-    if (this.visible) {
-      this.hide();
-    } else {
-      this.show();
-    }
-  }
-
-  destroy() {
-    if (this.sidebar && this.sidebar.parentNode) {
-      this.sidebar.parentNode.removeChild(this.sidebar);
-    }
-  }
-}
+import { SubtitleSidebar } from "./SubtitleSidebar.js";
 
 export class AnnotationPlayer {
   constructor(options = {}) {
@@ -458,10 +104,7 @@ export class AnnotationPlayer {
 
     // Initialize subtitle sidebar if requested
     this.subtitleSidebar = null;
-    if (options.subtitleSidebar === true) {
-      // Create sidebar after tracks are loaded
-      this._pendingSubtitleSidebar = true;
-    }
+    this._enableSubtitleSidebar = options.subtitleSidebar === true;
 
     this.initEventListeners();
     this.placeAnnotationContainer();
@@ -615,9 +258,46 @@ export class AnnotationPlayer {
 
     // Show transcript button only if subtitle sidebar is enabled
     if (this.controls.transcriptBtn && !this.disabledControls.includes('transcriptBtn')) {
-      const hasSubtitleSidebar = this.subtitleSidebar !== null || this._pendingSubtitleSidebar;
-      this.controls.transcriptBtn.style.display = hasSubtitleSidebar ? 'inline-block' : 'none';
+      this.controls.transcriptBtn.style.display = this._enableSubtitleSidebar ? 'inline-block' : 'none';
+      this._updateTranscriptButtonState();
     }
+  }
+
+  /**
+   * Update transcript button active/inactive state based on track selection
+   */
+  _updateTranscriptButtonState() {
+    if (!this.controls.transcriptBtn) return;
+
+    const hasActiveTrack = this._getActiveTrack() !== null;
+
+    if (hasActiveTrack) {
+      this.controls.transcriptBtn.classList.remove('inactive');
+      this.controls.transcriptBtn.disabled = false;
+      this.controls.transcriptBtn.style.cursor = 'pointer';
+    } else {
+      this.controls.transcriptBtn.classList.add('inactive');
+      this.controls.transcriptBtn.disabled = true;
+      this.controls.transcriptBtn.style.cursor = 'not-allowed';
+    }
+  }
+
+  /**
+   * Get the currently active track (mode = 'showing' or 'hidden')
+   * @returns {TextTrack|null} The active track or null
+   */
+  _getActiveTrack() {
+    const tracks = Array.from(this.videoElem.textTracks);
+    return tracks.find(track => track.mode === 'showing' || track.mode === 'hidden') || null;
+  }
+
+  /**
+   * Get the index of the currently active track
+   * @returns {number} The active track index or -1
+   */
+  _getActiveTrackIndex() {
+    const tracks = Array.from(this.videoElem.textTracks);
+    return tracks.findIndex(track => track.mode === 'showing' || track.mode === 'hidden');
   }
 
   placeAnnotationContainer() {
@@ -1386,7 +1066,8 @@ export class AnnotationPlayer {
       // Pass through standard track attributes
       if (trackData.label) track.label = trackData.label;
       if (trackData.srclang) track.srclang = trackData.srclang;
-      if (trackData.default !== undefined) track.default = trackData.default;
+      // Never set default=true - all tracks start disabled
+      track.default = false;
 
       // Handle src - either from url or vtt content
       if (trackData.url) {
@@ -1402,51 +1083,39 @@ export class AnnotationPlayer {
         const blob = new Blob([trackData.vtt], { type: 'text/vtt' });
         const blobUrl = URL.createObjectURL(blob);
         track.src = blobUrl;
-
-        // Store blob URL for cleanup
         this.trackBlobUrls.push(blobUrl);
       } else {
-        console.error(`Track ${index}: Track object must have either 'url' or 'vtt' property. Received:`, trackData);
+        console.error(`Track ${index}: Track object must have either 'url' or 'vtt' property`);
         return;
       }
 
       this.videoElem.appendChild(track);
     });
 
-    // Update captions menu after tracks are loaded
-    if (this.controls.captionsMenu) {
-      this._renderCaptionsMenu();
-    }
-
-    // Create subtitle sidebar if requested
-    if (this._pendingSubtitleSidebar) {
-      // Create sidebar after a short delay to ensure tracks are loaded
-      const createSidebar = () => {
-        if (this.videoElem.textTracks.length > 0) {
-          this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
-          this._transcriptAndCCVisibility();
-          console.log('Subtitle sidebar created successfully');
-        } else {
-          console.warn('No text tracks available for subtitle sidebar');
-        }
-      };
-
-      // Try immediately first
-      if (this.videoElem.readyState >= 1) {
-        // Metadata already loaded
-        setTimeout(createSidebar, 50);
-      } else {
-        // Wait for metadata
-        this.videoElem.addEventListener('loadedmetadata', () => {
-          setTimeout(createSidebar, 50);
-        }, { once: true });
+    // Wait for tracks to be ready before updating UI
+    const onTracksReady = () => {
+      // Update captions menu
+      if (this.controls.captionsMenu) {
+        this._renderCaptionsMenu();
       }
 
-      this._pendingSubtitleSidebar = false;
-    }
+      // Create subtitle sidebar if requested
+      if (this._enableSubtitleSidebar && !this.subtitleSidebar) {
+        this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
+      }
 
-    // Update controls visibility based on track availability
-    this._transcriptAndCCVisibility();
+      // Update controls visibility
+      this._transcriptAndCCVisibility();
+    };
+
+    // Check if tracks are ready
+    if (this.videoElem.readyState >= 1) {
+      setTimeout(onTracksReady, 50);
+    } else {
+      this.videoElem.addEventListener('loadedmetadata', () => {
+        setTimeout(onTracksReady, 50);
+      }, { once: true });
+    }
   }
 
   _renderCaptionsMenu() {
@@ -1454,31 +1123,52 @@ export class AnnotationPlayer {
 
     const tracks = Array.from(this.videoElem.textTracks);
 
-    let menuHTML = '<div class="caption-option" data-track="off" style="padding:4px 16px;cursor:pointer;">Off</div>';
+    let menuHTML = '<div class="caption-option" data-track="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">Off</div>';
 
     tracks.forEach((track, index) => {
-      const label = track.label || track.language || `Track ${index + 1}`;
-      menuHTML += `<div class="caption-option" data-track="${index}" style="padding:4px 16px;cursor:pointer;">${label}</div>`;
+      let label = track.label || `Track ${index + 1}`;
+      if (track.language) {
+        label += ` (${track.language})`;
+      }
+      menuHTML += `<div class="caption-option" data-track="${index}" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
     });
 
     this.controls.captionsMenu.innerHTML = menuHTML;
+    this.controls.captionsMenu.style.minWidth = '180px';
+
+    // Set initial "Off" as active
+    this._updateCaptionsMenuHighlight();
+  }
+
+  /**
+   * Update the highlighting in the captions menu based on current track state
+   */
+  _updateCaptionsMenuHighlight() {
+    if (!this.controls.captionsMenu) return;
+
+    const activeIndex = this._getActiveTrackIndex();
+
+    // Update menu highlighting
+    this.controls.captionsMenu.querySelectorAll('.caption-option').forEach(option => {
+      option.classList.remove('active-value');
+    });
+
+    if (activeIndex !== -1) {
+      const activeOption = this.controls.captionsMenu.querySelector(`[data-track="${activeIndex}"]`);
+      if (activeOption) {
+        activeOption.classList.add('active-value');
+      }
+    } else {
+      // No track active, highlight "Off"
+      const offOption = this.controls.captionsMenu.querySelector('[data-track="off"]');
+      if (offOption) {
+        offOption.classList.add('active-value');
+      }
+    }
   }
 
   handleCaptionChange(trackIndex) {
     const tracks = Array.from(this.videoElem.textTracks);
-
-    // Update menu highlighting
-    if (this.controls.captionsMenu) {
-      this.controls.captionsMenu.querySelectorAll('.caption-option').forEach(option => {
-        option.classList.remove('active-value');
-      });
-
-      const selector = trackIndex === 'off' ? '[data-track="off"]' : `[data-track="${trackIndex}"]`;
-      const activeOption = this.controls.captionsMenu.querySelector(selector);
-      if (activeOption) {
-        activeOption.classList.add('active-value');
-      }
-    }
 
     // Disable all tracks
     tracks.forEach(track => {
@@ -1488,6 +1178,15 @@ export class AnnotationPlayer {
     // Enable selected track
     if (trackIndex !== 'off' && tracks[trackIndex]) {
       tracks[trackIndex].mode = 'showing';
+    }
+
+    // Update UI
+    this._updateCaptionsMenuHighlight();
+    this._updateTranscriptButtonState();
+
+    // Notify sidebar of track change (sidebar will handle loading cues if visible)
+    if (this.subtitleSidebar) {
+      this.subtitleSidebar.onTrackChanged();
     }
   }
 
@@ -1654,18 +1353,7 @@ export class AnnotationPlayer {
   initEventListeners() {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
-      // Update controls visibility when metadata is loaded (tracks might be ready)
       this._transcriptAndCCVisibility();
-
-      // If subtitle sidebar is pending and wasn't created yet, try again
-      if (this._pendingSubtitleSidebar && !this.subtitleSidebar && this.videoElem.textTracks.length > 0) {
-        setTimeout(() => {
-          this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
-          this._transcriptAndCCVisibility();
-          console.log('Subtitle sidebar created on loadedmetadata');
-        }, 50);
-        this._pendingSubtitleSidebar = false;
-      }
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
@@ -1820,17 +1508,14 @@ export class AnnotationPlayer {
       this.controls.transcriptBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('Transcript button clicked', { subtitleSidebar: this.subtitleSidebar });
+
+        // Don't do anything if button is disabled/inactive
+        if (this.controls.transcriptBtn.classList.contains('inactive') || this.controls.transcriptBtn.disabled) {
+          return;
+        }
+
         if (this.subtitleSidebar) {
           this.subtitleSidebar.toggle();
-        } else {
-          console.warn('Subtitle sidebar not initialized');
-          // Try to create it now if tracks are available
-          if (this.videoElem.textTracks.length > 0) {
-            this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
-            this.subtitleSidebar.show();
-            console.log('Subtitle sidebar created on demand');
-          }
         }
       });
     }

@@ -36,6 +36,23 @@ Yes, he's in - in a bad humor
 00:04.300 --> 00:06.000
 Somebody must've stolen the crown jewels"""
 
+TOY_VTT2 = """WEBVTT
+
+00:00.000 --> 00:00.900
+Birds!
+
+00:01.000 --> 00:01.400
+Where are they?
+
+00:01.500 --> 00:02.900
+You don't know?
+
+00:03.000 --> 00:04.200
+Yes, but I want to know if you do.
+
+00:04.300 --> 00:06.000
+Oh, well I know too, so we don't have to say."""
+
 
 @login_required
 def index(request):
@@ -66,9 +83,12 @@ def player(request, content_id):
         file_key = FileKey.objects.filter(file=content.file, user=user).first()
 
     # Prepare subtitle data in the format expected by AnnotationPlayer
-    subtitles_data = {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"}
+    subtitles_data = [
+        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
+        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+    ]
 
-    has_subtitles = bool(subtitles_data.get("vtt") or subtitles_data.get("url"))
+    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 
     context = {
         "content": content,
