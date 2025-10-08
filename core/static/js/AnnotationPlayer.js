@@ -679,6 +679,7 @@ export class AnnotationPlayer {
     this.state.currentTime = time;
 
     let numAnnotations = this.annotations.length;
+    let muteAnnotationActive = false;
     for (let i = 0; i < numAnnotations; i++) {
       let vMuted = this.videoElem.muted;
       let vBlanked = this.videoElem.classList.contains("blanked");
@@ -698,14 +699,15 @@ export class AnnotationPlayer {
         case "mutePlugin":
           if (this.currently.muting === -1 || this.currently.muting === i) {
             if (time >= aStart && time < aEnd) {
+              muteAnnotationActive = true;
               if (!vMuted) {
                 this.currently.muting = i;
-                this.mute();
+                this.mute(true); // pass true for annotation mute
               }
             } else {
               if (vMuted) {
                 this.currently.muting = -1;
-                this.unmute();
+                this.unmute(true); // pass true for annotation mute
               }
             }
           }
@@ -806,6 +808,10 @@ export class AnnotationPlayer {
           break;
       }
     }
+    // Set mute annotation state and update controls
+    this.muteAnnotationActive = muteAnnotationActive;
+    this._updateVolumeControlsState();
+
     if (this.videoElem.paused) return;
     requestAnimationFrame(() => this.applyAnnotations());
   }
@@ -838,19 +844,34 @@ export class AnnotationPlayer {
     this.videoElem.classList.remove("blurred");
   }
 
-  mute() {
+  mute(isAnnotation = false) {
+    if (!isAnnotation) {
+      this.previousVolume = this.state.volume;
+    }
     this.videoElem.muted = true;
     this.state.muted = true;
+    if (this.controls.volumeSlider) {
+      this.controls.volumeSlider.value = 0;
+    }
     this._updateVolumeIcon();
   }
 
-  unmute() {
+  unmute(isAnnotation = false) {
     this.videoElem.muted = false;
     this.state.muted = false;
+    if (this.controls.volumeSlider) {
+      // Restore previous volume only if not annotation mute
+      this.controls.volumeSlider.value = isAnnotation ? this.previousVolume : this.state.volume;
+    }
     this._updateVolumeIcon();
+    if (!isAnnotation && this.previousVolume !== undefined) {
+      this.setVolume(this.previousVolume);
+    }
   }
 
   toggleMute() {
+    // Block toggleMute if mute annotation is active
+    if (this.muteAnnotationActive) return;
     if (this.videoElem.muted) {
       this.unmute();
       if (this.state.volume < 0.05) {
@@ -862,6 +883,8 @@ export class AnnotationPlayer {
   }
 
   setVolume(value) {
+    // Block setVolume if mute annotation is active
+    if (this.muteAnnotationActive) return;
     // Quantize to nearest 0.1 step
     let volume = Math.round(Math.max(0, Math.min(1, value)) * 10) / 10;
     this.state.volume = volume;
@@ -892,6 +915,26 @@ export class AnnotationPlayer {
   _updateVolumeIcon() {
     if (!this.controls.volumeBtn) return;
     this.controls.volumeBtn.innerHTML = this._getVolumeIcon();
+  }
+
+  _updateVolumeControlsState() {
+    // Gray out volume controls if mute annotation is active
+    if (this.controls.volumeBtn) {
+      if (this.muteAnnotationActive) {
+        this.controls.volumeBtn.classList.add('inactive');
+      } else {
+        this.controls.volumeBtn.classList.remove('inactive');
+      }
+    }
+    if (this.controls.volumeSlider) {
+      if (this.muteAnnotationActive) {
+        this.controls.volumeSlider.classList.add('inactive');
+        this.controls.volumeSlider.disabled = true;
+      } else {
+        this.controls.volumeSlider.classList.remove('inactive');
+        this.controls.volumeSlider.disabled = false;
+      }
+    }
   }
 
   interpolateCensor(annotation) {
@@ -1327,6 +1370,16 @@ export class AnnotationPlayer {
     this.handleMouseMoved();  // to trigger controls visibility/fade
     const playedTime = this.state.currentTime;
 
+    // Block volume/mute keys if mute annotation is active
+    if (this.muteAnnotationActive && (
+      e.code === 'ArrowUp' ||
+      e.code === 'ArrowDown' ||
+      e.code === 'KeyM'
+    )) {
+      e.preventDefault();
+      return;
+    }
+
     switch (e.code) {
       case 'Space':
         e.preventDefault();
@@ -1468,9 +1521,11 @@ export class AnnotationPlayer {
 
     if (this.controls.volumeSlider) {
         this.controls.volumeSlider.addEventListener('input', (e) => {
-            // Quantize slider value to nearest 0.1
-            const quantized = Math.round(parseFloat(e.target.value) * 10) / 10;
-            this.setVolume(quantized);
+            if (!this.muteAnnotationActive) {
+              // Quantize slider value to nearest 0.1
+              const quantized = Math.round(parseFloat(e.target.value) * 10) / 10;
+              this.setVolume(quantized);
+            }
         });
     }
 

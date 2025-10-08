@@ -7,9 +7,13 @@
   overflow: hidden;
 }
 
-/* General hidden class */
 .hidden {
   display: none;
+}
+
+.inactive {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .annotation-player-container.cursor-hidden {
