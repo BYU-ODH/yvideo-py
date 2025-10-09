@@ -28,12 +28,19 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
         }
 
+        // Get clips data if available
+        let clips = [];
+        if (window.playerData && window.playerData.clips) {
+            clips = window.playerData.clips;
+        }
+
         const enableSubtitleSidebar = tracks.length > 0;
 
         annotationPlayer = new AnnotationPlayer({
             container: container,
             disabledControls: [],
             tracks: tracks,
+            clips: clips,
             subtitleSidebar: enableSubtitleSidebar
         });
 

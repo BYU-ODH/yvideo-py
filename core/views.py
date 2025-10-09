@@ -132,8 +132,14 @@ def player(request, content_id):
     subtitles_data = [
         {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
         {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+        # {"srclang": "en", "url": "http://example.com/subtitles.vtt", "label": "Birds"},
     ]
 
+    clips_data = [
+        {"start": 5, "end": 10, "label": "Sample Clip"},
+        {"start": 11, "end": 14, "label": "Another Clip"},
+        {"start": 15, "end": 20, "label": "Final Clip"},
+    ]
     has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 
     context = {
@@ -142,7 +148,7 @@ def player(request, content_id):
         "allow_events": True,
         "events": json.dumps([]),
         "subtitles": json.dumps(subtitles_data),
-        "clips": json.dumps([]),
+        "clips": json.dumps(clips_data),
         "has_subtitles": has_subtitles,
     }
 

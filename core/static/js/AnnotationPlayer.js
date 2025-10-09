@@ -106,6 +106,8 @@ export class AnnotationPlayer {
     this.subtitleSidebar = null;
     this._enableSubtitleSidebar = options.subtitleSidebar === true;
 
+    this.clips = options.clips || []; // <-- Add this line for immediate clips availability
+
     this.initEventListeners();
     this.placeAnnotationContainer();
   }
@@ -125,6 +127,7 @@ export class AnnotationPlayer {
     speed: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 10,24 18.5,18 10,12 V 24 z M 19,12 V 24 L 27.5,18 19,12 z"></path></svg>`,
     captionsBtn: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M11,11 C9.89,11 9,11.9 9,13 L9,23 C9,24.1 9.89,25 11,25 L25,25 C26.1,25 27,24.1 27,23 L27,13 C27,11.9 26.1,11 25,11 L11,11 Z M17,17 L15.5,17 L15.5,16.5 L13.5,16.5 L13.5,19.5 L15.5,19.5 L15.5,19 L17,19 L17,20 C17,20.55 16.55,21 16,21 L13,21 C12.45,21 12,20.55 12,20 L12,16 C12,15.45 12.45,15 13,15 L16,15 C16.55,15 17,15.45 17,16 L17,17 L17,17 Z M24,17 L22.5,17 L22.5,16.5 L20.5,16.5 L20.5,19.5 L22.5,19.5 L22.5,19 L24,19 L24,20 C24,20.55 23.55,21 23,21 L20,21 C19.45,21 19,20.55 19,20 L19,16 C19,15.45 19.45,15 20,15 L23,15 C23.55,15 24,15.45 24,16 L24,17 L24,17 Z"></path></svg>`,
     transcriptBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    clipsBtn: `<svg viewBox="0 0 24 24" fill="currentColor" width="100%" height="100%"><path d="M9.64,7.64c0.23-0.5,0.36-1.05,0.36-1.64c0-2.21-1.79-4-4-4S2,3.79,2,6s1.79,4,4,4c0.59,0,1.14-0.13,1.64-0.36L10,12l-2.36,2.36 C7.14,14.13,6.59,14,6,14c-2.21,0-4,1.79-4,4s1.79,4,4,4s4-1.79,4-4c0-0.59-0.13-1.14-0.36-1.64L12,14l7,7h3v-1L9.64,7.64z M6,8 C4.9,8,4,7.11,4,6s0.9-2,2-2s2,0.89,2,2S7.1,8,6,8z M6,20c-1.1,0-2-0.89-2-2s0.9-2,2-2s2,0.89,2,2S7.1,20,6,20z M12,12.5 c-0.28,0-0.5-0.22-0.5-0.5s0.22-0.5,0.5-0.5s0.5,0.22,0.5,0.5S12.28,12.5,12,12.5z M19,3l-6,6l2,2l7-7V3H19z"/></svg>`,
     fullscreenBtn: {
       enter: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><g><path d="m 10,16 2,0 0,-4 4,0 0,-2 L 10,10 l 0,6 0,0 z"></path></g><g><path d="m 20,10 0,2 4,0 0,4 2,0 L 26,10 l -6,0 0,0 z"></path></g><g><path d="m 24,24 -4,0 0,2 L 26,26 l 0,-6 -2,0 0,4 0,0 z"></path></g><g><path d="M 12,20 10,20 10,26 l 6,0 0,-2 -4,0 0,-4 0,0 z"></path></g></svg>`,
       exit: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><g><path d="m 14,14 -4,0 0,2 6,0 0,-6 -2,0 0,4 0,0 z"></path></g><g><path d="m 22,14 0,-4 -2,0 0,6 6,0 0,-2 -4,0 0,0 z"></path></g><g><path d="m 20,26 2,0 0,-4 4,0 0,-2 -6,0 0,6 0,0 z"></path></g><g><path d="m 10,22 4,0 0,4 2,0 0,-6 -6,0 0,2 0,0 z"></path></g></svg>`
@@ -163,6 +166,10 @@ export class AnnotationPlayer {
             <div class="speed-btn-wrapper" style="position:relative;display:inline-block;">
               <button class="speed-btn" aria-label="Playback Speed"><span class="speed-text">1x</span></button>
               <div class="speed-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:60px;"></div>
+            </div>
+            <div class="clips-btn-wrapper" style="position:relative;display:inline-block;display:none;">
+              <button class="clips-btn" aria-label="Clips"></button>
+              <div class="clips-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:150px;"></div>
             </div>
             <div class="captions-btn-wrapper" style="position:relative;display:inline-block;display:none;">
               <button class="captions-btn" aria-label="Captions"></button>
@@ -208,6 +215,12 @@ export class AnnotationPlayer {
       this.controls.speedBtn = this.videoWrapper.querySelector('.speed-btn');
       this.controls.speedMenu = this.videoWrapper.querySelector('.speed-menu');
     }
+    if (!this.disabledControls.includes('clipsBtn')) {
+      this.controls.clipsBtnWrapper = this.videoWrapper.querySelector('.clips-btn-wrapper');
+      this.controls.clipsBtn = this.videoWrapper.querySelector('.clips-btn');
+      this.controls.clipsMenu = this.videoWrapper.querySelector('.clips-menu');
+      this.controls.clipsBtn.innerHTML = AnnotationPlayer.icons.clipsBtn;
+    }
     if (!this.disabledControls.includes('captionsBtn')) {
       this.controls.captionsBtnWrapper = this.videoWrapper.querySelector('.captions-btn-wrapper');
       this.controls.captionsBtn = this.videoWrapper.querySelector('.captions-btn');
@@ -234,6 +247,7 @@ export class AnnotationPlayer {
         'scrubber': '.scrubber',
         'playTime': '.play-time',
         'speedBtn': '.speed-btn-wrapper',
+        'clipsBtn': '.clips-btn-wrapper',
         'captionsBtn': '.captions-btn-wrapper',
         'transcriptBtn': '.transcript-btn',
         'fullscreenBtn': '.fullscreen-btn',
@@ -260,6 +274,15 @@ export class AnnotationPlayer {
     if (this.controls.transcriptBtn && !this.disabledControls.includes('transcriptBtn')) {
       this.controls.transcriptBtn.style.display = this._enableSubtitleSidebar ? 'inline-block' : 'none';
       this._updateTranscriptButtonState();
+    }
+
+    // Show clips button only if there are clips
+    if (this.controls.clipsBtnWrapper && !this.disabledControls.includes('clipsBtn')) {
+      const hasClips = this.clips && this.clips.length > 0;
+      this.controls.clipsBtnWrapper.style.display = hasClips ? 'inline-block' : 'none';
+      if (hasClips) {
+        this._renderClipsMenu();
+      }
     }
   }
 
@@ -394,10 +417,9 @@ export class AnnotationPlayer {
   loadData(data) {
     if (!data.annotations && Array.isArray(data)) {
       this.annotations = data;
-      this.clips = [];
     } else {
       this.annotations = data.annotations || [];
-      this.clips = data.clips || [];
+      this.clips = data.clips || this.clips;
 
       // Handle tracks if provided in data
       if (data.tracks && Array.isArray(data.tracks)) {
@@ -420,10 +442,12 @@ export class AnnotationPlayer {
     }
     this.annotate();
     this.renderSkipsOnScrubber();
+    this.renderClipsOnScrubber();
 
     // Also update skip markers when video metadata is loaded (duration available)
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
+      this.renderClipsOnScrubber();
     });
   }
 
@@ -451,6 +475,104 @@ export class AnnotationPlayer {
 
       this.controls.scrubber.appendChild(skipElement);
     });
+  }
+
+  /**
+   * Render clip markers on the scrubber.
+   */
+  renderClipsOnScrubber() {
+    if (!this.controls.scrubber || !this.clips || !this.videoElem.duration) return;
+
+    // Remove existing clip markers
+    this.controls.scrubber.querySelectorAll('.clip-on-scrubber').forEach(el => el.remove());
+
+    if (this.selectedClipIndex !== null && this.clips[this.selectedClipIndex]) {
+      const clip = this.clips[this.selectedClipIndex];
+      const startPercent = (parseFloat(clip.start) / this.videoElem.duration) * 100;
+      const endPercent = (parseFloat(clip.end) / this.videoElem.duration) * 100;
+
+      const clipElement = document.createElement('div');
+      clipElement.className = 'clip-on-scrubber active';
+      clipElement.dataset.clipIndex = this.selectedClipIndex;
+      clipElement.style.left = `${startPercent}%`;
+      clipElement.style.width = `${endPercent - startPercent}%`;
+
+      this.controls.scrubber.appendChild(clipElement);
+    }
+  }
+
+  _renderClipsMenu() {
+    if (!this.controls.clipsMenu) return;
+
+    let menuHTML = '<div class="clip-option" data-clip="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">None</div>';
+
+    this.clips.forEach((clip, index) => {
+      const label = clip.label || `Clip ${index + 1}`;
+      menuHTML += `<div class="clip-option" data-clip="${index}" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
+    });
+
+    this.controls.clipsMenu.innerHTML = menuHTML;
+
+    // Set initial "None" as active
+    this._updateClipsMenuHighlight();
+  }
+
+  _updateClipsMenuHighlight() {
+    if (!this.controls.clipsMenu) return;
+
+    this.controls.clipsMenu.querySelectorAll('.clip-option').forEach(option => {
+      option.classList.remove('active-value');
+    });
+
+    if (this.selectedClipIndex !== null) {
+      const activeOption = this.controls.clipsMenu.querySelector(`[data-clip="${this.selectedClipIndex}"]`);
+      if (activeOption) {
+        activeOption.classList.add('active-value');
+      }
+    } else {
+      const offOption = this.controls.clipsMenu.querySelector('[data-clip="off"]');
+      if (offOption) {
+        offOption.classList.add('active-value');
+      }
+    }
+  }
+
+  handleClipChange(clipIndex) {
+    if (clipIndex === 'off') {
+      this.selectedClipIndex = null;
+      this._updateClipHighlighting();
+      this._updateClipsMenuHighlight();
+      return;
+    }
+
+    const index = parseInt(clipIndex);
+    if (index < 0 || index >= this.clips.length) return;
+
+    this.selectedClipIndex = index;
+    const clip = this.clips[index];
+
+    // Jump to clip start time and pause
+    this.skipTo(clip.start);
+    if (!this.videoElem.paused) {
+      this.pause();
+    }
+
+    // Update UI
+    this._updateClipHighlighting();
+    this._updateClipsMenuHighlight();
+  }
+
+  _updateClipHighlighting() {
+    // Update button highlighting
+    if (this.controls.clipsBtn) {
+      if (this.selectedClipIndex !== null) {
+        this.controls.clipsBtn.classList.add('clip-active');
+      } else {
+        this.controls.clipsBtn.classList.remove('clip-active');
+      }
+    }
+
+    this.renderClipsOnScrubber();
   }
 
   play() {
@@ -521,6 +643,18 @@ export class AnnotationPlayer {
     let time = this.videoElem.currentTime;
     this.timeCache = time;
     this.state.currentTime = time;
+
+    // Check if we've passed the end of the selected clip
+    if (this.selectedClipIndex !== null && this.clips && this.clips[this.selectedClipIndex]) {
+      const clip = this.clips[this.selectedClipIndex];
+      if (time >= clip.end) {
+        // Auto-deselect clip and pause
+        this.selectedClipIndex = null;
+        this._updateClipHighlighting();
+        this._updateClipsMenuHighlight();
+        this.pause();
+      }
+    }
 
     let numAnnotations = this.annotations.length;
     let muteAnnotationActive = false;
@@ -1508,6 +1642,32 @@ export class AnnotationPlayer {
       });
     }
 
+    // Clips menu logic
+    if (this.controls.clipsBtn && this.controls.clipsMenu) {
+      // Click on clips button toggles menu
+      this.controls.clipsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menu = this.controls.clipsMenu;
+        menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+        // Close other menus if open
+        if (this.controls.speedMenu) {
+          this.controls.speedMenu.style.display = 'none';
+        }
+        if (this.controls.captionsMenu) {
+          this.controls.captionsMenu.style.display = 'none';
+        }
+      });
+      // Click on menu option selects clip
+      this.controls.clipsMenu.addEventListener('click', (e) => {
+        const target = e.target.closest('.clip-option');
+        if (target) {
+          const clipIndex = target.dataset.clip;
+          this.handleClipChange(clipIndex === 'off' ? 'off' : parseInt(clipIndex));
+          this.controls.clipsMenu.style.display = 'none';
+        }
+      });
+    }
+
     // Captions menu logic
     if (this.controls.captionsBtn && this.controls.captionsMenu) {
       // Click on captions button toggles menu
@@ -1552,6 +1712,9 @@ export class AnnotationPlayer {
     document.addEventListener('click', () => {
       if (this.controls.speedMenu) {
         this.controls.speedMenu.style.display = 'none';
+      }
+      if (this.controls.clipsMenu) {
+        this.controls.clipsMenu.style.display = 'none';
       }
       if (this.controls.captionsMenu) {
         this.controls.captionsMenu.style.display = 'none';

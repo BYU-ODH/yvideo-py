@@ -313,6 +313,44 @@
   height: 14px;
 }
 
+/* Clip button active state (yellow highlight) */
+.clips-btn.clip-active {
+  background-color: #ffd700;
+  color: #000;
+}
+
+.clips-btn.clip-active:hover {
+  background-color: #ffed4e;
+}
+
+.clip-on-scrubber.active {
+  position: absolute;
+  height: 100%;
+  background-color: #ffe600;
+  height: 6px;
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 2;
+  transition: background-color 0.2s ease;
+}
+
+/* Ensure clips render above buffered bar but below progress */
+.scrubber-buffered {
+  z-index: 1;
+}
+
+.skip-on-scrubber {
+  z-index: 3;
+}
+
+.scrubber-progress {
+  z-index: 4;
+}
+
+.scrubber-dot {
+  z-index: 5;
+}
+
 /* Play Time Display */
 .play-time {
   color: white;
