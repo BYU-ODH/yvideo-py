@@ -5,7 +5,7 @@
     </div>
     <div class="collection-list">
         {% for collection in collections %}
-            <div class="collection-item"
+            <div class="collection-item clickable"
                 hx-get="{% url 'display_collection_contents' collection.id %}"
                 hx-trigger="click"
                 hx-target="#collections-detail"

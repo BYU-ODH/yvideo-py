@@ -1001,6 +1001,10 @@ body {
     overflow: hidden;
 }
 
+.collection-item {
+    padding: 0.5rem;
+}
+
 #icon {
     height: 1rem;
     width: 1rem;
