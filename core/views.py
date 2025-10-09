@@ -290,13 +290,31 @@ def view_collection(request, pk):
             return response
 
 
-def display_update_content(request, content_id):
+def get_collection_contents(collection):
+    contents = Content.objects.filter(collection=collection)
+    published = contents.filter(published=True)
+    unpublished = contents.filter(published=False)
+    return {"published": published, "unpublished": unpublished}
+
+
+def display_collection_contents(request, collection_id):
+    collection = get_object_or_404(Collection, pk=collection_id)
+    contents = get_collection_contents(collection)
+    context = {
+        "collection": collection,
+        "published_contents": contents["published"],
+        "unpublished_contents": contents["unpublished"],
+    }
+    return render(request, "partials/collection_contents_display.html", context)
+
+
+def display_content_settings(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
     form = UpdateContentForm(instance=content)
     word_form = ImportantWordForm()
     words = ImportantWord.objects.filter(content=content)
     context = {"content": content, "form": form, "word_form": word_form, "words": words}
-    return render(request, "partials/edit_content.html", context)
+    return render(request, "partials/content_settings.html", context)
 
 
 @require_http_methods(["POST"])
@@ -316,21 +334,18 @@ def update_content(request):
             content.published = form.cleaned_data["published"]
         try:
             content.save()
-            return render(
-                request, "partials/content_display.html", {"content": content}
-            )
+            contents = get_collection_contents(content.collection)
+            context = {
+                "collection": content.collection,
+                "published_contents": contents["published"],
+                "unpublished_contents": contents["unpublished"],
+            }
+            return render(request, "partials/collection_contents_display.html", context)
         except Exception as e:
             logger.error(f"An error occured while updating content. Exception: {e}")
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
-
-
-def display_collection_contents(request, collection_id):
-    collection = get_object_or_404(Collection, pk=collection_id)
-    contents = Content.objects.filter(collection=collection)
-    context = {"collection": collection, "contents": contents}
-    return render(request, "partials/collection_contents_display.html", context)
 
 
 @require_POST

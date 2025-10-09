@@ -2,7 +2,7 @@
     <form class="content-form"
         hx-trigger="submit"
         hx-post="{% url 'update_content' %}"
-        hx-target="closest .content-display"
+        hx-target="#collections-detail"
         hx-swap="innerHTML"
     >
         {% csrf_token %}

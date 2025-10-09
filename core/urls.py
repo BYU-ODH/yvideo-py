@@ -4,7 +4,7 @@ from .views import create_collection
 from .views import create_important_word
 from .views import delete_important_word
 from .views import display_collection_contents
-from .views import display_update_content
+from .views import display_content_settings
 from .views import index
 from .views import manage_collections
 from .views import player
@@ -25,9 +25,9 @@ urlpatterns = [
         name="display_collection_contents",
     ),
     path(
-        "content/display-update/<int:content_id>/",
-        display_update_content,
-        name="display_update_content",
+        "content/display-settings/<int:content_id>/",
+        display_content_settings,
+        name="display_content_settings",
     ),
     path("content/update", update_content, name="update_content"),
     path("important-word/create", create_important_word, name="create_important_word"),

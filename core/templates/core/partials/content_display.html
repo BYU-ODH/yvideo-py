@@ -17,8 +17,8 @@
                         src="../../../static/img/settings.svg"
                         title="Settings"
                         hx-trigger="click"
-                        hx-get="{% url 'display_update_content' content.id %}"
-                        hx-target="next .update-content-form-wrapper"
+                        hx-get="{% url 'display_content_settings' content.id %}"
+                        hx-target="next .content-settings-form-wrapper"
                     />
                 </div>
             </div>
@@ -43,7 +43,7 @@
                 </div>
             </div>
         </div>
-        <div class="update-content-form-wrapper">
+        <div class="content-settings-form-wrapper">
 
         </div>
     </div>
