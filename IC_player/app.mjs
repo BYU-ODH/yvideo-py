@@ -28,7 +28,7 @@ function createWindow() {
 
 app.on('ready', createWindow)
 
-ipcMain.on('request-cmd-argv', (event, arg) => {
+ipcMain.on('request-cmd-argv', (event) => {
   event.reply('response-cmd-argv', argv)
 })
 
