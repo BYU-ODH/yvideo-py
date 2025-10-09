@@ -40,24 +40,24 @@ export class AnnotationPlayer {
     this.videoWrapper = videoWrapper;
 
     // Get or create annotation container
-    this.annotationContainer = this._getElement(options.annotationContainer) ||
+    this.annotationBox = this._getElement(options.annotationBox) ||
                                this.videoWrapper.querySelector('.annotation-box');
-    if (!this.annotationContainer) {
-      this.annotationContainer = document.createElement('div');
-      this.annotationContainer.className = 'annotation-box';
-      this.videoWrapper.appendChild(this.annotationContainer);
+    if (!this.annotationBox) {
+      this.annotationBox = document.createElement('div');
+      this.annotationBox.className = 'annotation-box';
+      this.videoWrapper.appendChild(this.annotationBox);
     }
 
     // Create bezel divs for keyboard shortcut feedback
-    if (!this.annotationContainer.querySelector('.bezel-icon')) {
+    if (!this.annotationBox.querySelector('.bezel-icon')) {
       const bezelIcon = document.createElement('div');
       bezelIcon.className = 'bezel-icon';
-      this.annotationContainer.appendChild(bezelIcon);
+      this.annotationBox.appendChild(bezelIcon);
     }
-    if (!this.annotationContainer.querySelector('.bezel-text')) {
+    if (!this.annotationBox.querySelector('.bezel-text')) {
       const bezelText = document.createElement('div');
       bezelText.className = 'bezel-text';
-      this.annotationContainer.appendChild(bezelText);
+      this.annotationBox.appendChild(bezelText);
     }
 
     // Create controls dynamically
@@ -87,7 +87,7 @@ export class AnnotationPlayer {
     }
 
     this.annotations = [];
-    this.trackBlobUrls = []; // Store subtitle track blob URLs for cleanup
+    this.subtitleTrackBlobUrls = []; // Store subtitle track blob URLs for cleanup
     this.currently = { muting: -1, blanking: -1, blurring: -1 };
 
     this.mouseTimer = null;
@@ -108,8 +108,8 @@ export class AnnotationPlayer {
 
     this.clips = options.clips || []; // <-- Add this line for immediate clips availability
 
-    this.initEventListeners();
-    this.placeAnnotationContainer();
+    this.setupEventListeners();
+    this.placeAnnotationBox();
   }
 
   static icons = {
@@ -236,8 +236,8 @@ export class AnnotationPlayer {
       this.controls.fullscreenBtn.innerHTML = AnnotationPlayer.icons.fullscreenBtn.enter;
     }
 
-    this.bezelIcon = this.annotationContainer.querySelector('.bezel-icon');
-    this.bezelText = this.annotationContainer.querySelector('.bezel-text');
+    this.bezelIcon = this.annotationBox.querySelector('.bezel-icon');
+    this.bezelText = this.annotationBox.querySelector('.bezel-text');
 
     // Remove disabled controls from DOM
     this.disabledControls.forEach(controlName => {
@@ -323,18 +323,18 @@ export class AnnotationPlayer {
     return tracks.findIndex(track => track.mode === 'showing' || track.mode === 'hidden');
   }
 
-  placeAnnotationContainer() {
+  placeAnnotationBox() {
     const videoRect = this.videoElem.getBoundingClientRect();
     const wrapperRect = this.videoWrapper.getBoundingClientRect();
 
-    const annotationContainer = this.annotationContainer;
-    annotationContainer.style.position = "absolute";
-    annotationContainer.style.pointerEvents = "none";
-    annotationContainer.style.left = `${videoRect.left - wrapperRect.left}px`;
-    annotationContainer.style.top = `${videoRect.top - wrapperRect.top}px`;
-    annotationContainer.style.width = `${videoRect.width}px`;
-    annotationContainer.style.height = `${videoRect.height}px`;
-    annotationContainer.style.zIndex = 10;
+    const annotationBox = this.annotationBox;
+    annotationBox.style.position = "absolute";
+    annotationBox.style.pointerEvents = "none";
+    annotationBox.style.left = `${videoRect.left - wrapperRect.left}px`;
+    annotationBox.style.top = `${videoRect.top - wrapperRect.top}px`;
+    annotationBox.style.width = `${videoRect.width}px`;
+    annotationBox.style.height = `${videoRect.height}px`;
+    annotationBox.style.zIndex = 10;
   }
 
   _showBezel(icon, text) {
@@ -486,14 +486,14 @@ export class AnnotationPlayer {
     // Remove existing clip markers
     this.controls.scrubber.querySelectorAll('.clip-on-scrubber').forEach(el => el.remove());
 
-    if (this.selectedClipIndex !== null && this.clips[this.selectedClipIndex]) {
-      const clip = this.clips[this.selectedClipIndex];
+    if (this.activeClipIndex !== null && this.clips[this.activeClipIndex]) {
+      const clip = this.clips[this.activeClipIndex];
       const startPercent = (parseFloat(clip.start) / this.videoElem.duration) * 100;
       const endPercent = (parseFloat(clip.end) / this.videoElem.duration) * 100;
 
       const clipElement = document.createElement('div');
       clipElement.className = 'clip-on-scrubber active';
-      clipElement.dataset.clipIndex = this.selectedClipIndex;
+      clipElement.dataset.clipIndex = this.activeClipIndex;
       clipElement.style.left = `${startPercent}%`;
       clipElement.style.width = `${endPercent - startPercent}%`;
 
@@ -524,8 +524,8 @@ export class AnnotationPlayer {
       option.classList.remove('active-value');
     });
 
-    if (this.selectedClipIndex !== null) {
-      const activeOption = this.controls.clipsMenu.querySelector(`[data-clip="${this.selectedClipIndex}"]`);
+    if (this.activeClipIndex !== null) {
+      const activeOption = this.controls.clipsMenu.querySelector(`[data-clip="${this.activeClipIndex}"]`);
       if (activeOption) {
         activeOption.classList.add('active-value');
       }
@@ -537,9 +537,9 @@ export class AnnotationPlayer {
     }
   }
 
-  handleClipChange(clipIndex) {
+  setActiveClip(clipIndex) {
     if (clipIndex === 'off') {
-      this.selectedClipIndex = null;
+      this.activeClipIndex = null;
       this._updateClipHighlighting();
       this._updateClipsMenuHighlight();
       return;
@@ -548,7 +548,7 @@ export class AnnotationPlayer {
     const index = parseInt(clipIndex);
     if (index < 0 || index >= this.clips.length) return;
 
-    this.selectedClipIndex = index;
+    this.activeClipIndex = index;
     const clip = this.clips[index];
 
     // Jump to clip start time and pause
@@ -565,7 +565,7 @@ export class AnnotationPlayer {
   _updateClipHighlighting() {
     // Update button highlighting
     if (this.controls.clipsBtn) {
-      if (this.selectedClipIndex !== null) {
+      if (this.activeClipIndex !== null) {
         this.controls.clipsBtn.classList.add('clip-active');
       } else {
         this.controls.clipsBtn.classList.remove('clip-active');
@@ -632,7 +632,7 @@ export class AnnotationPlayer {
     return this.videoElem.paused;
   }
 
-  annotate() {
+  annotate() {  // TODO Rename to setupVideoElemAnnotations;why is this separate from applyAnnotations?
     this._onPlaying = () => this.applyAnnotations();
     this.currently = { muting: -1, blanking: -1, blurring: -1 };
     this.videoElem.addEventListener("playing", this._onPlaying);
@@ -645,11 +645,11 @@ export class AnnotationPlayer {
     this.state.currentTime = time;
 
     // Check if we've passed the end of the selected clip
-    if (this.selectedClipIndex !== null && this.clips && this.clips[this.selectedClipIndex]) {
-      const clip = this.clips[this.selectedClipIndex];
+    if (this.activeClipIndex !== null && this.clips && this.clips[this.activeClipIndex]) {
+      const clip = this.clips[this.activeClipIndex];
       if (time >= clip.end) {
         // Auto-deselect clip and pause
-        this.selectedClipIndex = null;
+        this.activeClipIndex = null;
         this._updateClipHighlighting();
         this._updateClipsMenuHighlight();
         this.pause();
@@ -657,7 +657,7 @@ export class AnnotationPlayer {
     }
 
     let numAnnotations = this.annotations.length;
-    let muteAnnotationActive = false;
+    let isMuteAnnotationActive = false;
     for (let i = 0; i < numAnnotations; i++) {
       let vMuted = this.videoElem.muted;
       let vBlanked = this.videoElem.classList.contains("blanked");
@@ -677,7 +677,7 @@ export class AnnotationPlayer {
         case "mutePlugin":
           if (this.currently.muting === -1 || this.currently.muting === i) {
             if (time >= aStart && time < aEnd) {
-              muteAnnotationActive = true;
+              isMuteAnnotationActive = true;
               if (!vMuted) {
                 this.currently.muting = i;
                 this.mute(true); // pass true for annotation mute
@@ -722,7 +722,7 @@ export class AnnotationPlayer {
           break;
         case "censor":
           if (time >= aStart && time < aEnd) {
-            if (!this.annotationContainer.querySelector("#censor" + i)) {
+            if (!this.annotationBox.querySelector("#censor" + i)) {
               const censor = document.createElement("div");
               censor.id = "censor" + i;
               censor.className = "censor " + aDetails["type"];
@@ -737,9 +737,9 @@ export class AnnotationPlayer {
                 censor.style.backdropFilter =
                   "blur(" + aDetails["amount"] + ")";
               }
-              this.annotationContainer.appendChild(censor);
+              this.annotationBox.appendChild(censor);
             } else {
-              const censor = this.annotationContainer.querySelector(
+              const censor = this.annotationBox.querySelector(
                 "#censor" + i,
               );
               let annoTime;
@@ -776,7 +776,7 @@ export class AnnotationPlayer {
               }
             }
           } else {
-            const existingCensor = this.annotationContainer.querySelector(
+            const existingCensor = this.annotationBox.querySelector(
               "#censor" + i,
             );
             if (existingCensor) {
@@ -787,7 +787,7 @@ export class AnnotationPlayer {
       }
     }
     // Set mute annotation state and update controls
-    this.muteAnnotationActive = muteAnnotationActive;
+    this.isMuteAnnotationActive = isMuteAnnotationActive;
     this._updateVolumeControlsState();
 
     if (this.videoElem.paused) return;
@@ -799,7 +799,7 @@ export class AnnotationPlayer {
     this.videoElem.classList.remove("blanked");
     this.videoElem.classList.remove("blurred");
     Array.from(
-      this.annotationContainer.querySelectorAll("[id^=censor]"),
+      this.annotationBox.querySelectorAll("[id^=censor]"),
     ).forEach((el) => el.remove());
     this.unmute();
   }
@@ -849,7 +849,7 @@ export class AnnotationPlayer {
 
   toggleMute() {
     // Block toggleMute if mute annotation is active
-    if (this.muteAnnotationActive) return;
+    if (this.isMuteAnnotationActive) return;
     if (this.videoElem.muted) {
       this.unmute();
       if (this.state.volume < 0.05) {
@@ -862,7 +862,7 @@ export class AnnotationPlayer {
 
   setVolume(value) {
     // Block setVolume if mute annotation is active
-    if (this.muteAnnotationActive) return;
+    if (this.isMuteAnnotationActive) return;
     // Quantize to nearest 0.1 step
     let volume = Math.round(Math.max(0, Math.min(1, value)) * 10) / 10;
     this.state.volume = volume;
@@ -898,14 +898,14 @@ export class AnnotationPlayer {
   _updateVolumeControlsState() {
     // Gray out volume controls if mute annotation is active
     if (this.controls.volumeBtn) {
-      if (this.muteAnnotationActive) {
+      if (this.isMuteAnnotationActive) {
         this.controls.volumeBtn.classList.add('inactive');
       } else {
         this.controls.volumeBtn.classList.remove('inactive');
       }
     }
     if (this.controls.volumeSlider) {
-      if (this.muteAnnotationActive) {
+      if (this.isMuteAnnotationActive) {
         this.controls.volumeSlider.classList.add('inactive');
         this.controls.volumeSlider.disabled = true;
       } else {
@@ -968,7 +968,7 @@ export class AnnotationPlayer {
     }
   }
 
-  handleProgress() {
+  onProgress() {
     this.state.currentTime = this.videoElem.currentTime;
     this.timeCache = this.state.currentTime;
 
@@ -1025,7 +1025,7 @@ export class AnnotationPlayer {
     }
   }
 
-  handleSeekClick(e) {
+  onScrubberClick(e) {
     if (!this.controls.scrubber) return;
     // Prevent seeking if dragging (drag logic handles this)
     if (this.isDragging) return;
@@ -1036,7 +1036,7 @@ export class AnnotationPlayer {
     this.skipTo(newTime);
   }
 
-  handleScrubberDrag(e) {
+  onScrubberDrag(e) {
     if (!this.controls.scrubber) return;
     const rect = this.controls.scrubber.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -1090,7 +1090,7 @@ export class AnnotationPlayer {
     return null;
   }
 
-  startDragging(e) {
+  beginScrubberDrag(e) {
     if (!this.controls.scrubber) return;
     this.isDragging = true;
     this.wasPlayingBeforeDrag = !this.videoElem.paused;
@@ -1098,17 +1098,17 @@ export class AnnotationPlayer {
       this.videoElem.pause();
     }
     this.controls.scrubber.classList.add('scrubber-dragging');
-    this.handleScrubberDrag(e);
+    this.onScrubberDrag(e);
 
     // Prevent text selection while dragging
     e.preventDefault();
 
     // Start following mouse movement with RAF for smoothness
     const moveHandler = (moveEvent) => {
-      this.handleScrubberDrag(moveEvent);
+      this.onScrubberDrag(moveEvent);
     };
     const upHandler = () => {
-      this.stopDragging();
+      this.endScrubberDrag();
       document.removeEventListener('mousemove', moveHandler);
       document.removeEventListener('mouseup', upHandler);
     };
@@ -1116,7 +1116,7 @@ export class AnnotationPlayer {
     document.addEventListener('mouseup', upHandler);
   }
 
-  stopDragging() {
+  endScrubberDrag() {
     if (this.isDragging && this.wasPlayingBeforeDrag) {
       this.videoElem.play();
     }
@@ -1127,7 +1127,7 @@ export class AnnotationPlayer {
     this.wasPlayingBeforeDrag = false;
   }
 
-  handleToggleFullscreen() {
+  toggleFullscreen() {
     if (!this.controls.container) return;
 
     const elem = this.controls.container;
@@ -1148,7 +1148,7 @@ export class AnnotationPlayer {
     this._updateFullscreenIcon();
   }
 
-  handleFullscreenChange() {
+  onFullscreenChange() {
     const isFullscreen = !!(document.fullscreenElement || document.webkitIsFullScreen ||
       document.mozFullScreen || document.msFullscreenElement);
 
@@ -1175,7 +1175,7 @@ export class AnnotationPlayer {
     ).join('');
   }
 
-  handlePlaybackRateChange(rate) {
+  setPlaybackRate(rate) {
     this.state.playbackRate = rate;
     this.videoElem.playbackRate = rate;
 
@@ -1217,7 +1217,7 @@ export class AnnotationPlayer {
         const blob = new Blob([trackData.vtt], { type: 'text/vtt' });
         const blobUrl = URL.createObjectURL(blob);
         track.src = blobUrl;
-        this.trackBlobUrls.push(blobUrl);
+        this.subtitleTrackBlobUrls.push(blobUrl);
       } else {
         console.error(`Track ${index}: Track object must have either 'url' or 'vtt' property`);
         return;
@@ -1301,7 +1301,7 @@ export class AnnotationPlayer {
     }
   }
 
-  handleCaptionChange(trackIndex) {
+  setCaptionTrack(trackIndex) {
     const tracks = Array.from(this.videoElem.textTracks);
 
     // Disable all tracks
@@ -1329,10 +1329,10 @@ export class AnnotationPlayer {
    */
   destroy() {
     // Revoke all blob URLs
-    this.trackBlobUrls.forEach(url => {
+    this.subtitleTrackBlobUrls.forEach(url => {
       URL.revokeObjectURL(url);
     });
-    this.trackBlobUrls = [];
+    this.subtitleTrackBlobUrls = [];
 
     if (this.subtitleSidebar) {
       this.subtitleSidebar.destroy();
@@ -1343,14 +1343,14 @@ export class AnnotationPlayer {
     this.resetAnnotations();
   }
 
-  handleMouseMoved() {
+  onMouseMove() {
     this.state.mouseInactive = false;
 
     if (this.controls.container) {
       this.controls.container.classList.remove('cursor-hidden');
     }
 
-    this.updateControlsVisibility();
+    this.refreshControlsVisibility();
 
     if (this.mouseTimer) clearTimeout(this.mouseTimer);
 
@@ -1359,11 +1359,11 @@ export class AnnotationPlayer {
       if (this.controls.container) {
         this.controls.container.classList.add('cursor-hidden');
       }
-      this.updateControlsVisibility();
+      this.refreshControlsVisibility();
     }, 3000);
   }
 
-  updateControlsVisibility() {
+  refreshControlsVisibility() {
     const shouldShow = (!this.state.mouseInactive && this.state.hovering) ||
                        !this.state.playing ||
                        this.state.controlsHovering;
@@ -1376,12 +1376,12 @@ export class AnnotationPlayer {
     }
   }
 
-  handleKeydown(e) {
-    this.handleMouseMoved();  // to trigger controls visibility/fade
+  onKeydown(e) {
+    this.onMouseMove();  // to trigger controls visibility/fade
     const playedTime = this.state.currentTime;
 
     // Block volume/mute keys if mute annotation is active
-    if (this.muteAnnotationActive && (
+    if (this.isMuteAnnotationActive && (
       e.code === 'ArrowUp' ||
       e.code === 'ArrowDown' ||
       e.code === 'KeyM'
@@ -1444,7 +1444,7 @@ export class AnnotationPlayer {
         if (e.shiftKey) { // '>'
           const currentIndex = this.playbackRates.indexOf(this.state.playbackRate);
           if (currentIndex < this.playbackRates.length - 1) {
-            this.handlePlaybackRateChange(this.playbackRates[currentIndex + 1]);
+            this.setPlaybackRate(this.playbackRates[currentIndex + 1]);
             this._showBezel(AnnotationPlayer.icons.speed, `${this.playbackRates[currentIndex + 1]}x`);
           }
         } else if (this.paused) { // '.'
@@ -1462,7 +1462,7 @@ export class AnnotationPlayer {
         if (e.shiftKey) {  // '<'
           const currentIndex = this.playbackRates.indexOf(this.state.playbackRate);
           if (currentIndex > 0) {
-            this.handlePlaybackRateChange(this.playbackRates[currentIndex - 1]);
+            this.setPlaybackRate(this.playbackRates[currentIndex - 1]);
             this._showBezel(AnnotationPlayer.icons.speed, `${this.playbackRates[currentIndex - 1]}x`);
           }
         } else if (this.paused) { // ','
@@ -1477,18 +1477,18 @@ export class AnnotationPlayer {
         break;
       case 'KeyF':
         e.preventDefault();
-        this.handleToggleFullscreen();
+        this.toggleFullscreen();
         break;
     }
   }
 
-  initEventListeners() {
+  setupEventListeners() {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
       this._transcriptAndCCVisibility();
     });
 
-    this.videoElem.addEventListener('timeupdate', () => this.handleProgress());
+    this.videoElem.addEventListener('timeupdate', () => this.onProgress());
 
     this.videoElem.addEventListener('play', () => {
       this.paused = false;
@@ -1514,7 +1514,7 @@ export class AnnotationPlayer {
     this.videoElem.addEventListener('click', (e) => {
       e.preventDefault();
       this.togglePlayPause();
-      this.handleMouseMoved();  // to trigger controls visibility/fade
+      this.onMouseMove();  // to trigger controls visibility/fade
     });
 
     if (this.controls.playPauseBtn) {
@@ -1530,7 +1530,7 @@ export class AnnotationPlayer {
 
     if (this.controls.volumeSlider) {
         this.controls.volumeSlider.addEventListener('input', (e) => {
-            if (!this.muteAnnotationActive) {
+            if (!this.isMuteAnnotationActive) {
               // Quantize slider value to nearest 0.1
               const quantized = Math.round(parseFloat(e.target.value) * 10) / 10;
               this.setVolume(quantized);
@@ -1539,24 +1539,24 @@ export class AnnotationPlayer {
     }
 
     if (this.controls.scrubber) {
-      this.controls.scrubber.addEventListener('click', (e) => this.handleSeekClick(e));
+      this.controls.scrubber.addEventListener('click', (e) => this.onScrubberClick(e));
 
       this.controls.scrubber.addEventListener('mousedown', (e) => {
-        this.startDragging(e);
+        this.beginScrubberDrag(e);
       });
     }
 
     if (this.controls.fullscreenBtn) {
-      this.controls.fullscreenBtn.addEventListener('click', () => this.handleToggleFullscreen());
+      this.controls.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
     }
 
-    document.addEventListener('fullscreenchange', () => this.handleFullscreenChange());
-    document.addEventListener('webkitfullscreenchange', () => this.handleFullscreenChange());
-    document.addEventListener('mozfullscreenchange', () => this.handleFullscreenChange());
-    document.addEventListener('MSFullscreenChange', () => this.handleFullscreenChange());
+    document.addEventListener('fullscreenchange', () => this.onFullscreenChange());
+    document.addEventListener('webkitfullscreenchange', () => this.onFullscreenChange());
+    document.addEventListener('mozfullscreenchange', () => this.onFullscreenChange());
+    document.addEventListener('MSFullscreenChange', () => this.onFullscreenChange());
 
     if (this.controls.container) {
-      this.controls.container.addEventListener('mousemove', () => this.handleMouseMoved());
+      this.controls.container.addEventListener('mousemove', () => this.onMouseMove());
 
       this.controls.container.addEventListener('mouseenter', () => {
         this.state.hovering = true;
@@ -1565,7 +1565,7 @@ export class AnnotationPlayer {
         if (this.controls.container) {
           this.controls.container.classList.remove('cursor-hidden');
         }
-        this.updateControlsVisibility();
+        this.refreshControlsVisibility();
 
         // Restart the inactivity timer
         this.mouseTimer = setTimeout(() => {
@@ -1573,31 +1573,31 @@ export class AnnotationPlayer {
           if (this.controls.container) {
             this.controls.container.classList.add('cursor-hidden');
           }
-          this.updateControlsVisibility();
+          this.refreshControlsVisibility();
         }, 3000);
       });
 
       this.controls.container.addEventListener('mouseleave', () => {
         this.state.hovering = false;
         if (this.mouseTimer) clearTimeout(this.mouseTimer); // Clear timer when leaving
-        this.updateControlsVisibility();
+        this.refreshControlsVisibility();
       });
 
       const controlButtons = this.controls.container.querySelectorAll('#returnBtn, #reloadAnnotationsBtn, .video-controls');
       controlButtons.forEach(button => {
         button.addEventListener('mouseenter', () => {
           this.state.controlsHovering = true;
-          this.updateControlsVisibility();
+          this.refreshControlsVisibility();
         });
         button.addEventListener('mouseleave', () => {
           this.state.controlsHovering = false;
-          this.updateControlsVisibility();
+          this.refreshControlsVisibility();
         });
       });
     }
 
-    this.videoElem.addEventListener('mousemove', () => this.handleMouseMoved());
-    this.annotationContainer.addEventListener('mousemove', () => this.handleMouseMoved());
+    this.videoElem.addEventListener('mousemove', () => this.onMouseMove());
+    this.annotationBox.addEventListener('mousemove', () => this.onMouseMove());
 
     // Add document-level mousemove listener to catch mouse movement that might be missed
     // This ensures controls can always be triggered even if state gets out of sync
@@ -1608,14 +1608,14 @@ export class AnnotationPlayer {
         if (!this.state.hovering) {
           this.state.hovering = true;
         }
-        this.handleMouseMoved();
+        this.onMouseMove();
       }
     });
 
-    document.addEventListener('keydown', (e) => this.handleKeydown(e));
+    document.addEventListener('keydown', (e) => this.onKeydown(e));
 
-    window.addEventListener('resize', () => this.placeAnnotationContainer());
-    this.videoElem.addEventListener('resize', () => this.placeAnnotationContainer());
+    window.addEventListener('resize', () => this.placeAnnotationBox());
+    this.videoElem.addEventListener('resize', () => this.placeAnnotationBox());
 
     // Playback speed menu logic
     if (this.controls.speedBtn && this.controls.speedMenu) {
@@ -1636,7 +1636,7 @@ export class AnnotationPlayer {
         const target = e.target.closest('.speed-option');
         if (target) {
           const rate = parseFloat(target.dataset.speed);
-          this.handlePlaybackRateChange(rate);
+          this.setPlaybackRate(rate);
           this.controls.speedMenu.style.display = 'none';
         }
       });
@@ -1662,7 +1662,7 @@ export class AnnotationPlayer {
         const target = e.target.closest('.clip-option');
         if (target) {
           const clipIndex = target.dataset.clip;
-          this.handleClipChange(clipIndex === 'off' ? 'off' : parseInt(clipIndex));
+          this.setActiveClip(clipIndex === 'off' ? 'off' : parseInt(clipIndex));
           this.controls.clipsMenu.style.display = 'none';
         }
       });
@@ -1685,7 +1685,7 @@ export class AnnotationPlayer {
         const target = e.target.closest('.caption-option');
         if (target) {
           const trackIndex = target.dataset.track;
-          this.handleCaptionChange(trackIndex === 'off' ? 'off' : parseInt(trackIndex));
+          this.setCaptionTrack(trackIndex === 'off' ? 'off' : parseInt(trackIndex));
           this.controls.captionsMenu.style.display = 'none';
         }
       });

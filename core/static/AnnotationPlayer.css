@@ -23,7 +23,7 @@
   transition: none;
 }
 
-.annotation-player-container.sidebar-open .video-wrapper {
+.annotation-player-container.subtitle-sidebar-open .video-wrapper {
   margin-right: 320px;
 }
 
@@ -668,7 +668,7 @@
     gap: 8px;
   }
 
-  .annotation-player-container.sidebar-open .video-wrapper {
+  .annotation-player-container.subtitle-sidebar-open .video-wrapper {
     margin-right: 280px;
   }
 
@@ -727,7 +727,7 @@
     gap: 4px;
   }
 
-  .annotation-player-container.sidebar-open .video-wrapper {
+  .annotation-player-container.subtitle-sidebar-open .video-wrapper {
     margin-right: 0;
   }
 

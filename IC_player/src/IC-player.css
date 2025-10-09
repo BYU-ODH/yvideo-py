@@ -247,17 +247,6 @@ video::-webkit-media-controls-fullscreen-button {
     display: none;
 }
 
-.censor {
-  position: relative;
-  z-index: 2147483647;
-}
-
-.censor:hover {
-  z-index: 2147483647;
-}
-
-
-
 /* Fade out controls and return button together */
 /* It is okay to reference .annotation-player-container here because it does not change it */
 .annotation-player-container.controls-hidden #returnBtn,

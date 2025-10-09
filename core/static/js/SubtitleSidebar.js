@@ -64,36 +64,36 @@ export class SubtitleSidebar {
   constructor(videoElem) {
     this.videoElem = videoElem;
     this.visible = false;
-    this.cueObjects = [];
+    this.cueInstances = [];
     this.isResizing = false;
     this.startX = 0;
     this.startWidth = 0;
-    this.currentTrack = null;
-    this.cueChangeHandler = null;
+    this.activeTrack = null;
+    this.onCueChange = null;
 
     // Load saved width from localStorage or use default
-    this.width = parseInt(localStorage.getItem('subtitleSidebarWidth')) || 320;
+    this.sidebarWidth = parseInt(localStorage.getItem('subtitleSidebarWidth')) || 320;
 
-    this._createSidebar();
-    this._initEventListeners();
+    this._initSidebarElement();
+    this._setupEventListeners();
     this._initResizeListeners();
   }
 
-  _createSidebar() {
+  _initSidebarElement() {
     // Create sidebar container
-    this.sidebar = document.createElement('div');
-    this.sidebar.className = 'subtitle-sidebar';
-    this.sidebar.style.width = `${this.width}px`;
+    this.sidebarElem = document.createElement('div');
+    this.sidebarElem.className = 'subtitle-sidebar';
+    this.sidebarElem.style.width = `${this.sidebarWidth}px`;
 
     // Create resize handle
-    const resizeHandle = document.createElement('div');
-    resizeHandle.className = 'subtitle-sidebar-resize-handle';
-    this.resizeHandle = resizeHandle;
+    const sidebarResizeHandle = document.createElement('div');
+    sidebarResizeHandle.className = 'subtitle-sidebar-resize-handle';
+    this.sidebarResizeHandle = sidebarResizeHandle;
 
     // Create header
-    const header = document.createElement('div');
-    header.className = 'subtitle-sidebar-header';
-    header.innerHTML = `
+    const sidebarHeader = document.createElement('div');
+    sidebarHeader.className = 'subtitle-sidebar-header';
+    sidebarHeader.innerHTML = `
       <h3>Transcript</h3>
       <button class="subtitle-sidebar-close" aria-label="Close Transcript">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -103,38 +103,38 @@ export class SubtitleSidebar {
     `;
 
     // Create content area
-    this.content = document.createElement('div');
-    this.content.className = 'subtitle-sidebar-content';
+    this.sidebarContent = document.createElement('div');
+    this.sidebarContent.className = 'subtitle-sidebar-content';
 
-    this.sidebar.appendChild(resizeHandle);
-    this.sidebar.appendChild(header);
-    this.sidebar.appendChild(this.content);
+    this.sidebarElem.appendChild(sidebarResizeHandle);
+    this.sidebarElem.appendChild(sidebarHeader);
+    this.sidebarElem.appendChild(this.sidebarContent);
 
     // Insert sidebar into player container
     const container = this.videoElem.closest('.annotation-player-container');
     if (container) {
-      container.appendChild(this.sidebar);
+      container.appendChild(this.sidebarElem);
       console.log('Subtitle sidebar added to container');
     } else {
-      document.body.appendChild(this.sidebar);
+      document.body.appendChild(this.sidebarElem);
       console.warn('Player container not found, appending sidebar to body');
     }
 
     // Close button handler
-    const closeBtn = header.querySelector('.subtitle-sidebar-close');
+    const closeBtn = sidebarHeader.querySelector('.subtitle-sidebar-close');
     closeBtn.addEventListener('click', () => this.hide());
   }
 
   _initResizeListeners() {
-    this.resizeHandle.addEventListener('mousedown', (e) => {
+    this.sidebarResizeHandle.addEventListener('mousedown', (e) => {
       e.preventDefault();
       this.isResizing = true;
       this.startX = e.clientX;
-      this.startWidth = this.sidebar.offsetWidth;
-      this.resizeHandle.classList.add('resizing');
+      this.startWidth = this.sidebarElem.offsetWidth;
+      this.sidebarResizeHandle.classList.add('resizing');
 
       // Disable transitions for immediate feedback
-      this.sidebar.classList.add('resizing');
+      this.sidebarElem.classList.add('resizing');
       const container = this.videoElem.closest('.annotation-player-container');
       const videoWrapper = container?.querySelector('.video-wrapper');
       if (videoWrapper) {
@@ -167,8 +167,8 @@ export class SubtitleSidebar {
       newWidth = Math.min(newWidth, containerWidth * 0.7);
 
       // Apply new width
-      this.width = newWidth;
-      this.sidebar.style.width = `${newWidth}px`;
+      this.sidebarWidth = newWidth;
+      this.sidebarElem.style.width = `${newWidth}px`;
 
       // Update video wrapper margin
       this._updateVideoWrapperMargin();
@@ -178,10 +178,10 @@ export class SubtitleSidebar {
       if (!this.isResizing) return;
 
       this.isResizing = false;
-      this.resizeHandle.classList.remove('resizing');
+      this.sidebarResizeHandle.classList.remove('resizing');
 
       // Re-enable transitions
-      this.sidebar.classList.remove('resizing');
+      this.sidebarElem.classList.remove('resizing');
       const container = this.videoElem.closest('.annotation-player-container');
       const videoWrapper = container?.querySelector('.video-wrapper');
       if (videoWrapper) {
@@ -192,11 +192,11 @@ export class SubtitleSidebar {
       document.body.style.userSelect = '';
 
       // Save width to localStorage
-      localStorage.setItem('subtitleSidebarWidth', this.width.toString());
+      localStorage.setItem('subtitleSidebarWidth', this.sidebarWidth.toString());
 
       // Trigger annotation container reposition
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
-        window.videoPlayer.placeAnnotationContainer();
+      if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
+        window.videoPlayer.placeAnnotationBox();
       }
     };
 
@@ -214,7 +214,7 @@ export class SubtitleSidebar {
       if (window.innerWidth <= 425) {
         videoWrapper.style.marginRight = '0px';
       } else {
-        videoWrapper.style.marginRight = `${this.width}px`;
+        videoWrapper.style.marginRight = `${this.sidebarWidth}px`;
       }
     }
   }
@@ -234,7 +234,7 @@ export class SubtitleSidebar {
    */
   onTrackChanged() {
     // Remove event listener from previous track
-    this._detachCueChangeListener();
+    this._removeCueChangeListener();
 
     const track = this._getActiveTrack();
 
@@ -245,40 +245,40 @@ export class SubtitleSidebar {
     }
 
     if (this.visible) {
-      this._loadCurrentTrack();
+      this._loadActiveTrackCues();
     } else {
       // Clear current track reference even when hidden
-      this.currentTrack = null;
+      this.activeTrack = null;
     }
   }
 
   /**
    * Load cues from the currently active track
    */
-  _loadCurrentTrack() {
+  _loadActiveTrackCues() {
     const track = this._getActiveTrack();
 
     if (!track) {
-      this._showEmptyState('No subtitles selected');
+      this._displayEmptyState('No subtitles selected');
       return;
     }
 
     // If cues are already loaded, render them immediately
     if (track.cues && track.cues.length > 0) {
-      this._renderCues(track);
-      this._attachCueChangeListener(track);
+      this._renderCueListInSidebar(track);
+      this._addCueChangeListener(track);
       return;
     }
 
     // Otherwise, wait for cues to load
-    this._showEmptyState('Loading subtitles...');
+    this._displayEmptyState('Loading subtitles...');
 
     const onLoad = () => {
       if (track.cues && track.cues.length > 0) {
-        this._renderCues(track);
-        this._attachCueChangeListener(track);
+        this._renderCueListInSidebar(track);
+        this._addCueChangeListener(track);
       } else {
-        this._showEmptyState('No subtitles available');
+        this._displayEmptyState('No subtitles available');
       }
     };
 
@@ -292,9 +292,9 @@ export class SubtitleSidebar {
 
     // Fallback: check again after a delay
     setTimeout(() => {
-      if (track.cues && track.cues.length > 0 && this.cueObjects.length === 0) {
-        this._renderCues(track);
-        this._attachCueChangeListener(track);
+      if (track.cues && track.cues.length > 0 && this.cueInstances.length === 0) {
+        this._renderCueListInSidebar(track);
+        this._addCueChangeListener(track);
       }
     }, 200);
   }
@@ -302,25 +302,25 @@ export class SubtitleSidebar {
   /**
    * Show empty state message
    */
-  _showEmptyState(message) {
-    this.cueObjects = [];
-    this.content.innerHTML = `<p class="subtitle-sidebar-empty">${message}</p>`;
+  _displayEmptyState(message) {
+    this.cueInstances = [];
+    this.sidebarContent.innerHTML = `<p class="subtitle-sidebar-empty">${message}</p>`;
   }
 
-  _renderCues(track) {
+  _renderCueListInSidebar(track) {
     const cues = Array.from(track.cues || []);
 
     if (cues.length === 0) {
-      this._showEmptyState('No subtitles available');
+      this._displayEmptyState('No subtitles available');
       return;
     }
 
-    this.content.innerHTML = '';
-    this.cueObjects = [];
+    this.sidebarContent.innerHTML = '';
+    this.cueInstances = [];
 
     cues.forEach((cue, index) => {
       const cueObj = new SubtitleSidebarCue(cue, index);
-      this.cueObjects.push(cueObj);
+      this.cueInstances.push(cueObj);
 
       const cueElement = cueObj.render();
 
@@ -332,60 +332,60 @@ export class SubtitleSidebar {
         this.videoElem.currentTime = seekTime;
       });
 
-      this.content.appendChild(cueElement);
+      this.sidebarContent.appendChild(cueElement);
     });
 
     // Update active cue immediately
-    this._updateActiveCue();
+    this._highlightActiveCue();
   }
 
-  _initEventListeners() {
-    // Event listener is now attached per-track in _attachCueChangeListener
+  _setupEventListeners() {
+    // Event listener is now attached per-track in _addCueChangeListener
   }
 
   /**
    * Attach cuechange event listener to the given track
    */
-  _attachCueChangeListener(track) {
+  _addCueChangeListener(track) {
     // Remove any existing listener first
-    this._detachCueChangeListener();
+    this._removeCueChangeListener();
 
-    this.currentTrack = track;
-    this.cueChangeHandler = () => {
-      this._updateActiveCue();
+    this.activeTrack = track;
+    this.onCueChange = () => {
+      this._highlightActiveCue();
     };
 
-    track.addEventListener('cuechange', this.cueChangeHandler);
+    track.addEventListener('cuechange', this.onCueChange);
 
     // Also update immediately
-    this._updateActiveCue();
+    this._highlightActiveCue();
   }
 
   /**
    * Remove cuechange event listener from current track
    */
-  _detachCueChangeListener() {
-    if (this.currentTrack && this.cueChangeHandler) {
-      this.currentTrack.removeEventListener('cuechange', this.cueChangeHandler);
-      this.currentTrack = null;
-      this.cueChangeHandler = null;
+  _removeCueChangeListener() {
+    if (this.activeTrack && this.onCueChange) {
+      this.activeTrack.removeEventListener('cuechange', this.onCueChange);
+      this.activeTrack = null;
+      this.onCueChange = null;
     }
   }
 
-  _updateActiveCue() {
-    if (!this.visible || this.cueObjects.length === 0) return;
+  _highlightActiveCue() {
+    if (!this.visible || this.cueInstances.length === 0) return;
 
     // Remove all previous active classes
-    const previousActives = this.content.querySelectorAll('.subtitle-cue.active');
+    const previousActives = this.sidebarContent.querySelectorAll('.subtitle-cue.active');
     previousActives.forEach(el => el.classList.remove('active'));
 
     // Use activeCues from the track for more accurate current cue detection
-    if (this.currentTrack && this.currentTrack.activeCues && this.currentTrack.activeCues.length > 0) {
-      const activeCues = Array.from(this.currentTrack.activeCues);
+    if (this.activeTrack && this.activeTrack.activeCues && this.activeTrack.activeCues.length > 0) {
+      const activeCues = Array.from(this.activeTrack.activeCues);
 
       // Find and highlight all matching cue objects
       activeCues.forEach(activeCue => {
-        const activeCueObj = this.cueObjects.find(cueObj => cueObj.cue === activeCue);
+        const activeCueObj = this.cueInstances.find(cueObj => cueObj.cue === activeCue);
 
         if (activeCueObj && activeCueObj.element) {
           activeCueObj.element.classList.add('active');
@@ -393,13 +393,13 @@ export class SubtitleSidebar {
       });
 
       // Always scroll the first active cue into view, aiming for ~25% from the top
-      const firstActiveCueObj = this.cueObjects.find(cueObj => cueObj.cue === activeCues[0]);
+      const firstActiveCueObj = this.cueInstances.find(cueObj => cueObj.cue === activeCues[0]);
       if (firstActiveCueObj && firstActiveCueObj.element) {
-        const contentHeight = this.content.clientHeight;
+        const contentHeight = this.sidebarContent.clientHeight;
         const cueOffsetTop = firstActiveCueObj.element.offsetTop;
         const targetScrollTop = cueOffsetTop - contentHeight * 0.25;
 
-        this.content.scrollTo({
+        this.sidebarContent.scrollTo({
           top: targetScrollTop,
           behavior: 'smooth'
         });
@@ -409,15 +409,15 @@ export class SubtitleSidebar {
 
   show() {
     // Load current track when showing sidebar
-    this._loadCurrentTrack();
+    this._loadActiveTrackCues();
 
-    this.sidebar.classList.add('visible');
+    this.sidebarElem.classList.add('visible');
     this.visible = true;
 
     // Add class to container to trigger video resize
     const container = this.videoElem.closest('.annotation-player-container');
     if (container) {
-      container.classList.add('sidebar-open');
+      container.classList.add('subtitle-sidebar-open');
     }
 
     // Update video wrapper margin based on current width
@@ -425,8 +425,8 @@ export class SubtitleSidebar {
 
     // Trigger annotation container reposition after transition
     setTimeout(() => {
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
-        window.videoPlayer.placeAnnotationContainer();
+      if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
+        window.videoPlayer.placeAnnotationBox();
       }
     }, 300);
   }
@@ -434,13 +434,13 @@ export class SubtitleSidebar {
   hide() {
     // Keep event listener attached - don't detach it
 
-    this.sidebar.classList.remove('visible');
+    this.sidebarElem.classList.remove('visible');
     this.visible = false;
 
     // Remove class from container to restore video size
     const container = this.videoElem.closest('.annotation-player-container');
     if (container) {
-      container.classList.remove('sidebar-open');
+      container.classList.remove('subtitle-sidebar-open');
     }
 
     // Reset video wrapper margin
@@ -451,8 +451,8 @@ export class SubtitleSidebar {
 
     // Trigger annotation container reposition after transition
     setTimeout(() => {
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationContainer) {
-        window.videoPlayer.placeAnnotationContainer();
+      if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
+        window.videoPlayer.placeAnnotationBox();
       }
     }, 300);
   }
@@ -467,10 +467,10 @@ export class SubtitleSidebar {
 
   destroy() {
     // Clean up event listener
-    this._detachCueChangeListener();
+    this._removeCueChangeListener();
 
-    if (this.sidebar && this.sidebar.parentNode) {
-      this.sidebar.parentNode.removeChild(this.sidebar);
+    if (this.sidebarElem && this.sidebarElem.parentNode) {
+      this.sidebarElem.parentNode.removeChild(this.sidebarElem);
     }
   }
 }

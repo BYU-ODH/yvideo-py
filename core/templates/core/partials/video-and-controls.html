@@ -1,7 +1,7 @@
 {% load static %}
 
 <div class="annotation-player-container">
-    <div class="video-wrapper">
+    <div class="video-wrapper">  <!-- TODO video-wrapper automatically added by AnnotationPlayer. Remove? -->
         <video preload="auto">
             {% if file_key %}
                 <source src="{% url 'stream_file' file_key %}" type="video/mp4">
