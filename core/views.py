@@ -6,14 +6,18 @@ import re
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.http import HttpResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 
 from core.forms import CollectionForm
 
+from .models import BlankAnnotation
 from .models import Collection
 from .models import Content
 from .models import FileKey
+from .models import MuteAnnotation
+from .models import SkipAnnotation
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -21,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def index(request):
-    user = request.user
+    user = User.objects.all().first()
     collections = Collection.objects.filter(owner=user)
     all_contents = Content.objects.filter(collection__in=collections)
     filtered_contents = {collection: [] for collection in collections}
@@ -170,7 +174,8 @@ def stream_file(request, file_key):
 
 @login_required
 def manage_collections(request):
-    collections = Collection.objects.filter(owner=request.user)
+    user = User.objects.all().first()
+    collections = Collection.objects.filter(owner=user)
 
     archived = collections.filter(archived=True)
     published = collections.filter(archived=False, published=True)
@@ -223,6 +228,50 @@ def create_collection(request):
         response["HX-Trigger-After-Settle"] = "fail"
 
     return response
+
+
+def add_annotation(request, content_id, annotation_type):
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    # Map strings to model classes
+    annotation_types = {
+        "skip": SkipAnnotation,
+        "mute": MuteAnnotation,
+        "blank": BlankAnnotation,
+    }
+
+    annotation_class = annotation_types.get(annotation_type.lower())
+
+    # Get the File object
+    content_obj = get_object_or_404(Content, id=content_id)
+
+    # Get POST data
+    name = request.POST.get("name", "")
+    owner = request.POST.get("owner", "")  # Change to request.user when auth is set up
+    start_time = float(request.POST.get("start_time", 0))
+    end_time = float(request.POST.get("end_time", 0))
+
+    # Create the annotation
+    annotation = annotation_class.objects.create(
+        content=content_obj,
+        owner=owner,  # change to request.user when auth is set up
+        name=name,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    # Return JSON response
+    return JsonResponse(
+        {
+            "id": annotation.id,
+            "name": annotation.name,
+            "type": annotation.annotation_type,
+            "owner": annotation.owner.netid,
+            "start_time": annotation.start_time,
+            "end_time": annotation.end_time,
+        }
+    )
 
 
 def invalid_login(request):
