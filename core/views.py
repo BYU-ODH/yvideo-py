@@ -184,21 +184,26 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
-def manage_collections(request):
-    # collections = Collection.objects.filter(owner=request.user)
-    collections = Collection.objects.filter(owner=User.objects.all().first())
+def get_collection_types(user):
+    collections = Collection.objects.filter(owner=user)
 
     archived = collections.filter(archived=True)
     published = collections.filter(archived=False, published=True)
     unpublished = collections.filter(archived=False, published=False)
+    return {"archived": archived, "published": published, "unpublished": unpublished}
+
+
+def manage_collections(request):
+    # collections = Collection.objects.filter(owner=request.user)
+    collections = get_collection_types(User.objects.all().first())
 
     return render(
         request,
         "manage_collections.html",
         {
-            "published": published,
-            "unpublished": unpublished,
-            "archived": archived,
+            "published": collections["published"],
+            "unpublished": collections["unpublished"],
+            "archived": collections["archived"],
             "user": request.user,
             "form": CollectionForm(),
         },
@@ -217,21 +222,27 @@ def create_collection(request):
             collection.public = False
             collection.save()
 
+            collections = get_collection_types(request.user)
+
             response = render(
-                request, "partials/load_collection.html", {"collection": collection}
+                request,
+                "partials/finish_adding_collection.html",
+                {
+                    "published": collections["published"],
+                    "unpublished": collections["unpublished"],
+                    "archived": collections["archived"],
+                },
             )
 
         except Exception as e:
-            logger.warning(
+            logger.error(
                 f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
             )
 
-            response = render(
-                request, "partials/add_collection_modal.html", {"form": form}
-            )
+            response = HttpResponseServerError()
 
     else:
-        response = render(request, "partials/add_collection_modal.html", {"form": form})
+        response = HttpResponseBadRequest()
 
     return response
 

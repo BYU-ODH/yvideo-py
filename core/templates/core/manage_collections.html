@@ -5,7 +5,7 @@
 {% block content %}
     <div class="collections-page">
         <div id="collections-container">
-            <button id="collection-create" class="collection-button" onclick="collection_modal.showModal();">
+            <button id="collection-create" class="collection-button position-flex-start" onclick="collection_modal.showModal(); document.getElementById('collection-form').reset();">
                 <img class="icon" src="/static/img/plus.svg" id="icon"> Collection
             </button>
             {% include "partials/add_collection_modal.html" %}
@@ -25,30 +25,4 @@
             </p>
         </div>
     </div>
-
-<script>
-    function closeAndResetModal() {
-        const modal = document.getElementById("collection_modal");
-        const form = document.getElementById("collection-form");
-        const nameInput = form.querySelector('input[name="name"]');
-        const errorLabels = form.querySelectorAll('.text-error');
-
-        modal.close();
-        errorLabels.forEach(label => label.remove());
-
-        if (nameInput) {
-            nameInput.value = '';
-        }
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-        document.body.addEventListener("fail", () => {
-            document.getElementById("collection_modal").showModal();
-        });
-
-        document.body.addEventListener("success", () => {
-            closeAndResetModal();
-        });
-    });
-</script>
 {% endblock %}
