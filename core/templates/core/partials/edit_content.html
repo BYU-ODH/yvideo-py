@@ -1,10 +1,10 @@
 <div class="content-settings">
     <form class="content-form"
         hx-trigger="submit"
-        hx-put="{% url 'update_content' %}"
+        hx-post="{% url 'update_content' %}"
         hx-target="closest .content-display"
-        hx-vals='{"content_id": "{{ content.pk }}"}'
-        hx-swap="innerHTML">
+        hx-swap="innerHTML"
+    >
         {% csrf_token %}
 
         {{ form.non_field_errors }}

@@ -299,11 +299,31 @@ def display_update_content(request, content_id):
     return render(request, "partials/edit_content.html", context)
 
 
-@require_POST
+@require_http_methods(["POST"])
 def update_content(request):
     form = UpdateContentForm(request.POST)
     if form.is_valid():
-        pass
+        content = get_object_or_404(Content, pk=form.cleaned_data["id"])
+        content.title = form.cleaned_data["title"]
+        content.description = form.cleaned_data["description"]
+        if "allow_definitions" in form.cleaned_data:
+            content.allow_definitions = form.cleaned_data["allow_definitions"]
+        if "allow_notes" in form.cleaned_data:
+            content.allow_notes = form.cleaned_data["allow_notes"]
+        if "allow_captions" in form.cleaned_data:
+            content.allow_captions = form.cleaned_data["allow_captions"]
+        if "published" in form.cleaned_data:
+            content.published = form.cleaned_data["published"]
+        try:
+            content.save()
+            return render(
+                request, "partials/content_display.html", {"content": content}
+            )
+        except Exception as e:
+            logger.error(f"An error occured while updating content. Exception: {e}")
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
 
 
 def display_collection_contents(request, collection_id):
