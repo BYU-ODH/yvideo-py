@@ -1,62 +1,67 @@
 <div class="content-settings">
-    <form class="content-form"
-        hx-trigger="submit"
-        hx-post="{% url 'update_content' %}"
-        hx-target="#collections-detail"
-        hx-swap="innerHTML"
-    >
-        {% csrf_token %}
-
-        {{ form.non_field_errors }}
-        {{form.id}}
-        <div class="content-form-top">
-            <div class="content-form-left">
-                <div class="content-form-group">
-                    {{form.title.as_field_group}}
-                </div>
-                <div class="content-form-group">
-                    {{form.published.as_field_group}}
-                </div>
-                <div class="content-form-group">
-                    {{form.allow_definitions.as_field_group}}
-                </div>
-                <div class="content-form-group">
-                    {{form.allow_notes.as_field_group}}
-                </div>
-                <div class="content-form-group">
-                    {{form.allow_captions.as_field_group}}
-                </div>
-            </div>
-            <div class="content-form-right">
-                {{form.description.as_field_group}}
-            </div>
-        </div>
-
-        <input id="content-form-submit" class="small-button" type="submit">
-    </form>
-    <div class="content-important-words">
-        <form class="important-words-form"
+    <div class="content-settings-top">
+        <form class="content-form"
             hx-trigger="submit"
-            hx-post="{% url 'create_important_word' %}"
-            hx-target="next .important-words-display"
-            hx-vals="{'content_id': '{{content.pk}}'}"
-            hx-swap="beforeend"
+            hx-post="{% url 'update_content' %}"
+            hx-target="#collections-detail"
+            hx-swap="innerHTML"
         >
             {% csrf_token %}
-            {{word_form.non_field_errors}}
-            <input type="hidden" value="{{content.pk}}" name="content_id">
-            <div class="content-form-group">
-                {{word_form.word.as_field_group}}
+
+            {{ form.non_field_errors }}
+            {{form.id}}
+            <div class="content-form-top">
+                <div class="content-form-left">
+                    <div class="content-form-group">
+                        {{form.title.as_field_group}}
+                    </div>
+                    <div class="content-form-group">
+                        {{form.published.as_field_group}}
+                    </div>
+                    <div class="content-form-group">
+                        {{form.allow_definitions.as_field_group}}
+                    </div>
+                    <div class="content-form-group">
+                        {{form.allow_notes.as_field_group}}
+                    </div>
+                    <div class="content-form-group">
+                        {{form.allow_captions.as_field_group}}
+                    </div>
+                </div>
+                <div class="content-form-right">
+                    {{form.description.as_field_group}}
+                </div>
             </div>
-            <div class="content-form-group">
-                {{word_form.translation.as_field_group}}
-            </div>
-            <button type="submit" class="small-button">Add</button>
+
+            <input id="content-form-submit" class="small-button" type="submit">
         </form>
-        <div class="important-words-display">
-            {% for word in words %}
-                {% include "partials/important_word.html" with word=word %}
-            {% endfor %}
+        <div class="content-important-words">
+            <form class="important-words-form"
+                hx-trigger="submit"
+                hx-post="{% url 'create_important_word' %}"
+                hx-target="next .important-words-display"
+                hx-vals="{'content_id': '{{content.pk}}'}"
+                hx-swap="beforeend"
+            >
+                {% csrf_token %}
+                {{word_form.non_field_errors}}
+                <input type="hidden" value="{{content.pk}}" name="content_id">
+                <div class="content-form-group">
+                    {{word_form.word.as_field_group}}
+                </div>
+                <div class="content-form-group">
+                    {{word_form.translation.as_field_group}}
+                </div>
+                <button type="submit" class="small-button">Add</button>
+            </form>
+            <div class="important-words-display">
+                {% for word in words %}
+                    {% include "partials/important_word.html" with word=word %}
+                {% endfor %}
+            </div>
         </div>
     </div>
+    <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '.content-settings-form-wrapper')">
+        Cancel
+    </button>
 </div>

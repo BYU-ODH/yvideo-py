@@ -39,11 +39,29 @@ body {
     background-color: var(--deep-blue);
 }
 
+.cancel-button {
+    cursor: pointer;
+    color: white;
+    background-color: var(--grey);
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    border: none;
+}
+
+.cancel-button:hover {
+    background-color: var(--selectable-grey);
+    color: black;
+}
+
 .clickable:hover {
     color: var(--deep-blue);
     cursor: pointer;
     background-color: var(--selectable-grey);
     border-radius: 10px;
+}
+
+.position-flex-start {
+    align-self: flex-start;
 }
 
 /* Player Container Styles */
@@ -978,14 +996,6 @@ body {
     width: 100%;
 }
 
-.cancel-button {
-    font-size: 1rem;
-    color: black;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-}
-
 .create-button {
     font-size: 0.8rem;
     color: var(--medium-blue);
@@ -1054,12 +1064,18 @@ body {
 
 .content-settings {
     display: flex;
-    flex-direction: row;
-    column-gap: 1rem;
+    flex-direction: column;
+    row-gap: 1rem;
     margin-top: 1rem;
     padding: 2rem;
     border-radius: 1rem;
     border: 1px solid #00000025;
+}
+
+.content-settings-top {
+    display: flex;
+    flex-direction: row;
+    column-gap: 1rem;
 }
 
 .content-form {
