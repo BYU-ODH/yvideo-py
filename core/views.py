@@ -5,6 +5,8 @@ import re
 
 from django.http import Http404
 from django.http import HttpResponse
+from django.http import HttpResponseBadRequest
+from django.http import HttpResponseServerError
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
@@ -317,7 +319,14 @@ def create_important_word(request):
     form = ImportantWordForm(request.POST)
     if form.is_valid():
         if not form.cleaned_data["word"]:
-            return HttpResponse("No word provided", status_code="400")
+            return HttpResponseBadRequest()
+        clean_word = form.cleaned_data["word"]
+        # check if important word already exists
+        already_exists = list(
+            ImportantWord.objects.filter(content=content).filter(word=clean_word)
+        )
+        if already_exists:
+            return HttpResponseBadRequest()
         important_word = ImportantWord.objects.create(
             content=content,
             word=form.cleaned_data["word"],
@@ -335,12 +344,17 @@ def create_important_word(request):
             },
         )
     else:
-        return HttpResponse("Invalid input", 400)
+        return HttpResponseBadRequest()
 
 
 @require_http_methods(["DELETE"])
 def delete_important_word(request, word_id):
     word = get_object_or_404(ImportantWord, pk=word_id)
-    word.delete()
-    return HttpResponse("")
-    # values = loads()
+    try:
+        word.delete()
+        return HttpResponse("", status=200)
+    except Exception as e:
+        logger.error(
+            f"An error occured while deleting an important word. word_id: {word_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
