@@ -394,6 +394,26 @@ def update_content(request):
         return HttpResponseBadRequest()
 
 
+@require_http_methods(["DELETE"])
+def delete_content(request, content_id):
+    content = get_object_or_404(Content, pk=content_id)
+    try:
+        contents_count = Content.objects.filter(collection=content.collection).count()
+        content.delete()
+        if contents_count <= 1:
+            return HttpResponse(
+                "There is no published content for this collection", status=200
+            )
+        else:
+            return HttpResponse("", status=200)
+    except Exception as e:
+        logger.error(
+            f"An error occured while deleting content with id: {content_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+    return HttpResponseBadRequest()
+
+
 @require_POST
 def create_important_word(request):
     content = get_object_or_404(Content, pk=request.POST["content_id"])

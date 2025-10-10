@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import create_collection
 from .views import create_important_word
+from .views import delete_content
 from .views import delete_important_word
 from .views import display_collection_contents
 from .views import display_collection_settings
@@ -42,6 +43,7 @@ urlpatterns = [
         name="display_content_settings",
     ),
     path("content/update", update_content, name="update_content"),
+    path("content/delete/<int:content_id>", delete_content, name="delete_content"),
     path("important-word/create", create_important_word, name="create_important_word"),
     path(
         "important-word/delete/<int:word_id>/",

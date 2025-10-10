@@ -65,5 +65,12 @@
             </div>
         </div>
     </div>
-    <button class="red-button position-flex-start">Delete</button>
+    <button class="red-button position-flex-start"
+        hx-target="closest .content-display"
+        hx-swap="outerHTML"
+        hx-delete="{% url 'delete_content' content.id %}"
+        hx-confirm="Are you sure you want to delete this content?"
+        hx-headers="js:{'x-csrftoken': document.querySelector('[name=csrfmiddlewaretoken]').value}"
+    >
+        Delete</button>
 </div>
