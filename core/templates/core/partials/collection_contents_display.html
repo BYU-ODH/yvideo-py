@@ -9,8 +9,16 @@
             hx-target="next #collection-settings-form-wrapper"
         />
     </div>
+    <button class="large-button"
+        hx-get="{% url 'display_create_content' %}"
+        hx-target="next #create-content-wrapper"
+        hx-swap="innerHTML"
+    >
+        + Content
+    </button>
     <div id="collection-settings-form-wrapper"></div>
 </div>
+<div id="create-content-wrapper"></div>
 <div id="collection-content">
     <div id="published-content-wrapper">
         <h3>Published Content</h3>

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import create_collection
+from .views import create_content
 from .views import create_important_word
 from .views import delete_collection
 from .views import delete_content
@@ -8,6 +9,7 @@ from .views import delete_important_word
 from .views import display_collection_contents
 from .views import display_collection_settings
 from .views import display_content_settings
+from .views import display_create_content
 from .views import index
 from .views import manage_collections
 from .views import player
@@ -43,6 +45,10 @@ urlpatterns = [
         delete_collection,
         name="delete_collection",
     ),
+    path(
+        "content/display-create", display_create_content, name="display_create_content"
+    ),
+    path("content/create", create_content, name="create_content"),
     path(
         "content/display-settings/<int:content_id>/",
         display_content_settings,

@@ -5,8 +5,8 @@
 {% block content %}
     <div class="collections-page">
         <div id="collections-container">
-            <button id="collection-create" class="collection-button position-flex-start" onclick="collection_modal.showModal(); document.getElementById('collection-form').reset();">
-                <img class="icon" src="/static/img/plus.svg" id="icon"> Collection
+            <button id="collection-create" class="large-button position-flex-start" onclick="collection_modal.showModal(); document.getElementById('collection-form').reset();">
+                + Collection
             </button>
             {% include "partials/add_collection_modal.html" %}
 

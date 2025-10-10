@@ -10,11 +10,13 @@ from django.http import HttpResponseServerError
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .forms import CollectionForm
 from .forms import CollectionSettingsForm
+from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import UpdateContentForm
 from .models import Collection
@@ -227,7 +229,7 @@ def create_collection(request):
 
             response = render(
                 request,
-                "partials/finish_adding_collection.html",
+                "partials/collection_lists.html",
                 {
                     "published": collections["published"],
                     "unpublished": collections["unpublished"],
@@ -374,13 +376,66 @@ def delete_collection(request, collection_id):
     return HttpResponseBadRequest()
 
 
-def display_content_settings(request, content_id):
+@require_GET
+def display_create_content(request):
+    form = ContentForm()
+    return render(request, "partials/create_content.html", {"form": form})
+
+
+@require_POST
+def create_content(request):
+    form = ContentForm(request.POST)
+    if form.is_valid():
+        data = form.cleaned_data
+        try:
+            Content.objects.create(
+                collection=data["collection"],
+                title=data["title"],
+                description=data["description"],
+                allow_definitions=data["allow_definitions"],
+                allow_notes=data["allow_notes"],
+                allow_captions=data["allow_captions"],
+            )
+        except Exception:
+            logger.error("An error occured while creating a new Content")
+            return HttpResponseServerError()
+
+        try:
+            contents = get_collection_contents(data["collection"])
+        except Exception as e:
+            logger.error(
+                f"An error occured while trying to gather collection contents after content creation. Exception: {e}"
+            )
+            return HttpResponseServerError()
+
+        context = {
+            "published": contents["published"],
+            "unpublished": contents["unpublished"],
+            "archived": contents["archived"],
+        }
+        return render(request, "partials/collection_contents_display.html", context)
+    else:
+        return HttpResponseBadRequest()
+
+
+@require_http_methods(["DELETE"])
+def delete_content(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
-    form = UpdateContentForm(instance=content)
-    word_form = ImportantWordForm()
-    words = ImportantWord.objects.filter(content=content)
-    context = {"content": content, "form": form, "word_form": word_form, "words": words}
-    return render(request, "partials/content_settings.html", context)
+    try:
+        contents_count = Content.objects.filter(collection=content.collection).count()
+        content.delete()
+        if contents_count <= 1:
+            return HttpResponse(
+                "There is no published content for this collection", status=200
+            )
+        else:
+            return HttpResponse("", status=200)
+    except Exception as e:
+        logger.error(
+            f"An error occured while deleting content with id: {content_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+    return HttpResponseBadRequest()
 
 
 @require_POST
@@ -414,24 +469,13 @@ def update_content(request):
         return HttpResponseBadRequest()
 
 
-@require_http_methods(["DELETE"])
-def delete_content(request, content_id):
+def display_content_settings(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
-    try:
-        contents_count = Content.objects.filter(collection=content.collection).count()
-        content.delete()
-        if contents_count <= 1:
-            return HttpResponse(
-                "There is no published content for this collection", status=200
-            )
-        else:
-            return HttpResponse("", status=200)
-    except Exception as e:
-        logger.error(
-            f"An error occured while deleting content with id: {content_id}. Exception: {e}"
-        )
-        return HttpResponseServerError()
-    return HttpResponseBadRequest()
+    form = UpdateContentForm(instance=content)
+    word_form = ImportantWordForm()
+    words = ImportantWord.objects.filter(content=content)
+    context = {"content": content, "form": form, "word_form": word_form, "words": words}
+    return render(request, "partials/content_settings.html", context)
 
 
 @require_POST

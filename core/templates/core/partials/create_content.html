@@ -1,0 +1,33 @@
+<form id="create-content-form"
+    hx-trigger="submit"
+    hx-post="{% url 'create_content' %}"
+    hx-target="#collections-detail"
+    hx-swap="innerHTML"
+>
+    <h2>Create new content</h2>
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+    {{form.collection}}
+    <div class="column-flex">
+        <div class="content-form-group">
+            {{form.title.as_field_group}}
+        </div>
+        <div class="content-form-group">
+            {{form.description.as_field_group}}
+        </div>
+        <div class="content-form-group">
+            {{form.allow_definitions.as_field_group}}
+        </div>
+        <div class="content-form-group">
+            {{form.allow_notes.as_field_group}}
+        </div>
+        <div class="content-form-group">
+            {{form.allow_captions.as_field_group}}
+        </div>
+        <input type="submit" class="small-button position-flex-start">
+        <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '#create-content-wrapper');">
+            Cancel
+        </button>
+    </div>
+</form>
