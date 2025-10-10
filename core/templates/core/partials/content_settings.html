@@ -1,5 +1,5 @@
 <div class="content-settings">
-    <div class="content-settings-top">
+    <div class="row-flex">
         <form class="content-form"
             hx-trigger="submit"
             hx-post="{% url 'update_content' %}"
@@ -32,8 +32,12 @@
                     {{form.description.as_field_group}}
                 </div>
             </div>
-
-            <input id="content-form-submit" class="small-button" type="submit">
+            <div class="row-flex">
+                <input id="content-form-submit" class="small-button" type="submit">
+                <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '.content-settings-form-wrapper')">
+                    Cancel
+                </button>
+            </div>
         </form>
         <div class="content-important-words">
             <form class="important-words-form"
@@ -61,7 +65,5 @@
             </div>
         </div>
     </div>
-    <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '.content-settings-form-wrapper')">
-        Cancel
-    </button>
+    <button class="red-button position-flex-start">Delete</button>
 </div>

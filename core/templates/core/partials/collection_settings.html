@@ -1,4 +1,4 @@
-<div class="collection_settings">
+<div class="collection-settings">
     <form class="collection-settings-form"
         hx-trigger="submit"
         hx-post="{% url 'update_collection_settings' %}"
@@ -18,7 +18,10 @@
         <div class="collection-form-group">
             {{ form.archived.as_field_group }}
         </div>
-        <button class="small-button position-flex-start">Submit</button>
-        <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '#collection-settings-form-wrapper')">Cancel</button>
+        <div class="row-flex">
+            <input class="small-button position-flex-start" type="submit"/>
+            <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '#collection-settings-form-wrapper')">Cancel</button>
+        </div>
     </form>
+    <button class="red-button position-flex-start">Delete</button>
 </div>

@@ -1,11 +1,13 @@
 /* General Styles */
 :root {
     --selectable-grey: #eeeeee;
-    --grey: #828382;
+    --light-grey: #969b9c;
+    --grey: #7c8383;
     --medium-blue: #0582ca;
     --deep-blue: #002e5d;
     --yellow: #ffbf00;
-    --red: #ff4c4c;
+    --light-red: #f34a3f;
+    --red: #f01d0f;
 }
 
 * {
@@ -42,15 +44,27 @@ body {
 .cancel-button {
     cursor: pointer;
     color: white;
-    background-color: var(--grey);
+    background-color: var(--light-grey);
     padding: 0.5rem 1rem;
     border-radius: 1rem;
     border: none;
 }
 
 .cancel-button:hover {
-    background-color: var(--selectable-grey);
-    color: black;
+    background-color: var(--grey);
+}
+
+.red-button {
+    cursor: pointer;
+    color: white;
+    background-color: var(--light-red);
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    border: none;
+}
+
+.red-button:hover {
+    background-color: var(--red);
 }
 
 .clickable:hover {
@@ -872,12 +886,18 @@ body {
 
 .collection-settings {
     display: flex;
-    flex-direction: column;
-    row-gap: 1rem;
+    flex-direction: row;
+    justify-content: space-between;
     margin-top: 1rem;
     padding: 2rem;
     border-radius: 1rem;
     border: 1px solid #00000025;
+}
+
+.collection-settings-form {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
 }
 
 .arrow-icon {
@@ -1085,21 +1105,14 @@ body {
     height: auto;
 }
 
-.content-settings,
-.collection-settings-form {
+.content-settings {
     display: flex;
-    flex-direction: column;
-    row-gap: 1rem;
+    flex-direction: row;
+    justify-content: space-between;
     margin-top: 1rem;
     padding: 2rem;
     border-radius: 1rem;
     border: 1px solid #00000025;
-}
-
-.content-settings-top {
-    display: flex;
-    flex-direction: row;
-    column-gap: 1rem;
 }
 
 .content-form {
