@@ -305,7 +305,7 @@ class AnnotationSet(models.Model):
     owner = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name="%(app_label)s_%(class)s_owner",
+        related_name="user",
     )
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="resources"
