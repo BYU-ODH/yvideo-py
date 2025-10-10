@@ -2,7 +2,6 @@ import { SubtitleSidebar } from "./SubtitleSidebar.js";
 
 export class AnnotationPlayer {
   constructor(options = {}) {
-    // New approach: require a container element
     this.container = this._getElement(options.container);
     if (!this.container) {
       throw new Error('AnnotationPlayer requires a container element');
@@ -16,30 +15,24 @@ export class AnnotationPlayer {
       );
     }
 
-    // Get or create video element
     this.videoElem = this._getElement(options.video) || this.container.querySelector('video');
     if (!this.videoElem) {
       this.videoElem = document.createElement('video');
     }
 
-    // Wrap video in a video-wrapper div if not already wrapped
     let videoWrapper = this.videoElem.closest('.video-wrapper');
     if (!videoWrapper) {
       videoWrapper = document.createElement('div');
       videoWrapper.className = 'video-wrapper';
-
-      // If video is already in container, wrap it in place
       if (this.videoElem.parentNode === this.container) {
         this.container.insertBefore(videoWrapper, this.videoElem);
       } else {
         this.container.appendChild(videoWrapper);
       }
-
       videoWrapper.appendChild(this.videoElem);
     }
     this.videoWrapper = videoWrapper;
 
-    // Get or create annotation container
     this.annotationBox = this._getElement(options.annotationBox) ||
                                this.videoWrapper.querySelector('.annotation-box');
     if (!this.annotationBox) {
@@ -48,7 +41,6 @@ export class AnnotationPlayer {
       this.videoWrapper.appendChild(this.annotationBox);
     }
 
-    // Create bezel divs for keyboard shortcut feedback
     if (!this.annotationBox.querySelector('.bezel-icon')) {
       const bezelIcon = document.createElement('div');
       bezelIcon.className = 'bezel-icon';
@@ -60,11 +52,8 @@ export class AnnotationPlayer {
       this.annotationBox.appendChild(bezelText);
     }
 
-    // Create controls dynamically
     this.disabledControls = options.disabledControls || [];
     this._createControls();
-
-    // Disable native video controls
     this.videoElem.controls = false;
 
     this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
@@ -76,7 +65,6 @@ export class AnnotationPlayer {
       volume: 1.0,
       muted: false,
       fullscreen: false,
-      showTranscript: false,
       mouseInactive: false,
       hovering: false,
       controlsHovering: false,
@@ -97,16 +85,14 @@ export class AnnotationPlayer {
     this.wasPlayingBeforeDrag = false;
     this.draggingRAF = null; // Track requestAnimationFrame for dragging
 
-    // Initialize tracks if provided
     if (options.tracks && Array.isArray(options.tracks)) {
       this._initializeTracks(options.tracks);
     }
 
-    // Initialize subtitle sidebar if requested
     this.subtitleSidebar = null;
     this._enableSubtitleSidebar = options.subtitleSidebar === true;
 
-    this.clips = options.clips || []; // <-- Add this line for immediate clips availability
+    this.clips = options.clips || [];
 
     this.setupEventListeners();
     this.placeAnnotationBox();
@@ -125,8 +111,9 @@ export class AnnotationPlayer {
       high: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M8,21 L12,21 L17,26 L17,10 L12,15 L8,15 L8,21 Z M19,14 L19,22 C20.48,21.32 21.5,19.77 21.5,18 C21.5,16.26 20.48,14.74 19,14 ZM19,11.29 C21.89,12.15 24,14.83 24,18 C24,21.17 21.89,23.85 19,24.71 L19,26.77 C23.01,25.86 26,22.28 26,18 C26,13.72 23.01,10.14 19,9.23 L19,11.29 Z"></path></svg>`
     },
     speed: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 10,24 18.5,18 10,12 V 24 z M 19,12 V 24 L 27.5,18 19,12 z"></path></svg>`,
+    speedLeft: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 26,24 17.5,18 26,12 V 24 z M 17,12 V 24 L 8.5,18 17,12 z"></path></svg>`,
     captionsBtn: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M11,11 C9.89,11 9,11.9 9,13 L9,23 C9,24.1 9.89,25 11,25 L25,25 C26.1,25 27,24.1 27,23 L27,13 C27,11.9 26.1,11 25,11 L11,11 Z M17,17 L15.5,17 L15.5,16.5 L13.5,16.5 L13.5,19.5 L15.5,19.5 L15.5,19 L17,19 L17,20 C17,20.55 16.55,21 16,21 L13,21 C12.45,21 12,20.55 12,20 L12,16 C12,15.45 12.45,15 13,15 L16,15 C16.55,15 17,15.45 17,16 L17,17 L17,17 Z M24,17 L22.5,17 L22.5,16.5 L20.5,16.5 L20.5,19.5 L22.5,19.5 L22.5,19 L24,19 L24,20 C24,20.55 23.55,21 23,21 L20,21 C19.45,21 19,20.55 19,20 L19,16 C19,15.45 19.45,15 20,15 L23,15 C23.55,15 24,15.45 24,16 L24,17 L24,17 Z"></path></svg>`,
-    transcriptBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    subtitleSidebarBtn: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
     clipsBtn: `<svg viewBox="0 0 24 24" fill="currentColor" width="100%" height="100%"><path d="M9.64,7.64c0.23-0.5,0.36-1.05,0.36-1.64c0-2.21-1.79-4-4-4S2,3.79,2,6s1.79,4,4,4c0.59,0,1.14-0.13,1.64-0.36L10,12l-2.36,2.36 C7.14,14.13,6.59,14,6,14c-2.21,0-4,1.79-4,4s1.79,4,4,4s4-1.79,4-4c0-0.59-0.13-1.14-0.36-1.64L12,14l7,7h3v-1L9.64,7.64z M6,8 C4.9,8,4,7.11,4,6s0.9-2,2-2s2,0.89,2,2S7.1,8,6,8z M6,20c-1.1,0-2-0.89-2-2s0.9-2,2-2s2,0.89,2,2S7.1,20,6,20z M12,12.5 c-0.28,0-0.5-0.22-0.5-0.5s0.22-0.5,0.5-0.5s0.5,0.22,0.5,0.5S12.28,12.5,12,12.5z M19,3l-6,6l2,2l7-7V3H19z"/></svg>`,
     fullscreenBtn: {
       enter: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><g><path d="m 10,16 2,0 0,-4 4,0 0,-2 L 10,10 l 0,6 0,0 z"></path></g><g><path d="m 20,10 0,2 4,0 0,4 2,0 L 26,10 l -6,0 0,0 z"></path></g><g><path d="m 24,24 -4,0 0,2 L 26,26 l 0,-6 -2,0 0,4 0,0 z"></path></g><g><path d="M 12,20 10,20 10,26 l 6,0 0,-2 -4,0 0,-4 0,0 z"></path></g></svg>`,
@@ -142,10 +129,8 @@ export class AnnotationPlayer {
   }
 
   _createControls() {
-    // Initialize controls object
     this.controls = {};
 
-    // Create control bar HTML
     const controlBarHTML = `
       <div class="video-controls">
         <div class="scrubber">
@@ -175,20 +160,17 @@ export class AnnotationPlayer {
               <button class="captions-btn" aria-label="Captions"></button>
               <div class="captions-menu" style="display:none;position:absolute;bottom:100%;right:0;z-index:100;background:#222;color:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);padding:4px 0;min-width:100px;"></div>
             </div>
-            <button class="transcript-btn" aria-label="Transcript" style="display:none;"></button>
+            <button class="subtitle-sidebar-btn" aria-label="Subtitle sidebar" style="display:none;"></button>
             <button class="fullscreen-btn" aria-label="Fullscreen"></button>
           </div>
         </div>
       </div>
     `;
 
-    // Create a temporary container to parse the HTML
-    const temp = document.createElement('div');
-    temp.innerHTML = controlBarHTML;
-
-    // Append controls to video-wrapper instead of container
-    while (temp.firstChild) {
-      this.videoWrapper.appendChild(temp.firstChild);
+    const tempControlsDiv = document.createElement('div');
+    tempControlsDiv.innerHTML = controlBarHTML;
+    while (tempControlsDiv.firstChild) {
+      this.videoWrapper.appendChild(tempControlsDiv.firstChild);
     }
 
     // Store references to controls (skip disabled ones)
@@ -210,7 +192,6 @@ export class AnnotationPlayer {
       this.controls.playTime = this.videoWrapper.querySelector('.play-time');
     }
     if (!this.disabledControls.includes('speedBtn')) {
-      // Use wrapper for speed button and menu
       this.controls.speedBtnWrapper = this.videoWrapper.querySelector('.speed-btn-wrapper');
       this.controls.speedBtn = this.videoWrapper.querySelector('.speed-btn');
       this.controls.speedMenu = this.videoWrapper.querySelector('.speed-menu');
@@ -227,9 +208,9 @@ export class AnnotationPlayer {
       this.controls.captionsMenu = this.videoWrapper.querySelector('.captions-menu');
       this.controls.captionsBtn.innerHTML = AnnotationPlayer.icons.captionsBtn;
     }
-    if (!this.disabledControls.includes('transcriptBtn')) {
-      this.controls.transcriptBtn = this.videoWrapper.querySelector('.transcript-btn');
-      this.controls.transcriptBtn.innerHTML = AnnotationPlayer.icons.transcriptBtn;
+    if (!this.disabledControls.includes('subtitleSidebarBtn')) {
+      this.controls.subtitleSidebarBtn = this.videoWrapper.querySelector('.subtitle-sidebar-btn');
+      this.controls.subtitleSidebarBtn.innerHTML = AnnotationPlayer.icons.subtitleSidebarBtn;
     }
     if (!this.disabledControls.includes('fullscreenBtn')) {
       this.controls.fullscreenBtn = this.videoWrapper.querySelector('.fullscreen-btn');
@@ -239,7 +220,6 @@ export class AnnotationPlayer {
     this.bezelIcon = this.annotationBox.querySelector('.bezel-icon');
     this.bezelText = this.annotationBox.querySelector('.bezel-text');
 
-    // Remove disabled controls from DOM
     this.disabledControls.forEach(controlName => {
       const classMap = {
         'playPauseBtn': '.play-pause-btn',
@@ -249,7 +229,7 @@ export class AnnotationPlayer {
         'speedBtn': '.speed-btn-wrapper',
         'clipsBtn': '.clips-btn-wrapper',
         'captionsBtn': '.captions-btn-wrapper',
-        'transcriptBtn': '.transcript-btn',
+        'subtitleSidebarBtn': '.subtitle-sidebar-btn',
         'fullscreenBtn': '.fullscreen-btn',
       };
       const selector = classMap[controlName];
@@ -263,20 +243,17 @@ export class AnnotationPlayer {
     this.controls.container = this.container;
   }
 
-  _transcriptAndCCVisibility() {
-    // Show captions button only if there are subtitle tracks
+  _conditionallyUpdateControlsIconVisibility() {
     if (this.controls.captionsBtnWrapper && !this.disabledControls.includes('captionsBtn')) {
       const hasTracks = this.videoElem.textTracks.length > 0;
       this.controls.captionsBtnWrapper.style.display = hasTracks ? 'inline-block' : 'none';
     }
 
-    // Show transcript button only if subtitle sidebar is enabled
-    if (this.controls.transcriptBtn && !this.disabledControls.includes('transcriptBtn')) {
-      this.controls.transcriptBtn.style.display = this._enableSubtitleSidebar ? 'inline-block' : 'none';
-      this._updateTranscriptButtonState();
+    if (this.controls.subtitleSidebarBtn && !this.disabledControls.includes('subtitleSidebarBtn')) {
+      this.controls.subtitleSidebarBtn.style.display = this._enableSubtitleSidebar ? 'inline-block' : 'none';
+      this._updateSubtitleSidebarButtonDisplay();
     }
 
-    // Show clips button only if there are clips
     if (this.controls.clipsBtnWrapper && !this.disabledControls.includes('clipsBtn')) {
       const hasClips = this.clips && this.clips.length > 0;
       this.controls.clipsBtnWrapper.style.display = hasClips ? 'inline-block' : 'none';
@@ -286,38 +263,27 @@ export class AnnotationPlayer {
     }
   }
 
-  /**
-   * Update transcript button active/inactive state based on track selection
-   */
-  _updateTranscriptButtonState() {
-    if (!this.controls.transcriptBtn) return;
+  _updateSubtitleSidebarButtonDisplay() {
+    if (!this.controls.subtitleSidebarBtn) return;
 
     const hasActiveTrack = this._getActiveTrack() !== null;
 
     if (hasActiveTrack) {
-      this.controls.transcriptBtn.classList.remove('inactive');
-      this.controls.transcriptBtn.disabled = false;
-      this.controls.transcriptBtn.style.cursor = 'pointer';
+      this.controls.subtitleSidebarBtn.classList.remove('inactive');
+      this.controls.subtitleSidebarBtn.disabled = false;
+      this.controls.subtitleSidebarBtn.style.cursor = 'pointer';
     } else {
-      this.controls.transcriptBtn.classList.add('inactive');
-      this.controls.transcriptBtn.disabled = true;
-      this.controls.transcriptBtn.style.cursor = 'not-allowed';
+      this.controls.subtitleSidebarBtn.classList.add('inactive');
+      this.controls.subtitleSidebarBtn.disabled = true;
+      this.controls.subtitleSidebarBtn.style.cursor = 'not-allowed';
     }
   }
 
-  /**
-   * Get the currently active track (mode = 'showing' or 'hidden')
-   * @returns {TextTrack|null} The active track or null
-   */
   _getActiveTrack() {
     const tracks = Array.from(this.videoElem.textTracks);
     return tracks.find(track => track.mode === 'showing' || track.mode === 'hidden') || null;
   }
 
-  /**
-   * Get the index of the currently active track
-   * @returns {number} The active track index or -1
-   */
   _getActiveTrackIndex() {
     const tracks = Array.from(this.videoElem.textTracks);
     return tracks.findIndex(track => track.mode === 'showing' || track.mode === 'hidden');
@@ -351,7 +317,6 @@ export class AnnotationPlayer {
       this.bezelText.textContent = text;
       this.bezelText.classList.add('show');
     }
-
 
     this.bezelTimeout = setTimeout(() => {
       if (this.bezelIcon) this.bezelIcon.classList.remove('show');
@@ -410,10 +375,6 @@ export class AnnotationPlayer {
     return annotations;
   }
 
-  /**
-   * Load annotation data including events and subtitles.
-   * Supports both array and object input.
-   */
   loadData(data) {
     if (!data.annotations && Array.isArray(data)) {
       this.annotations = data;
@@ -421,7 +382,6 @@ export class AnnotationPlayer {
       this.annotations = data.annotations || [];
       this.clips = data.clips || this.clips;
 
-      // Handle tracks if provided in data
       if (data.tracks && Array.isArray(data.tracks)) {
         this._initializeTracks(data.tracks);
       }
@@ -440,24 +400,17 @@ export class AnnotationPlayer {
         this.annotations = [];
       }
     }
-    this.annotate();
+    this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
-    this.renderClipsOnScrubber();
 
-    // Also update skip markers when video metadata is loaded (duration available)
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
-      this.renderClipsOnScrubber();
     });
   }
 
-  /**
-   * Render skip event markers on the scrubber.
-   */
   renderSkipsOnScrubber() {
     if (!this.controls.scrubber || !this.annotations || !this.videoElem.duration) return;
 
-    // Remove existing skip markers
     this.controls.scrubber.querySelectorAll('.skip-on-scrubber').forEach(el => el.remove());
 
     const skipEvents = this.annotations.filter(event =>
@@ -477,13 +430,9 @@ export class AnnotationPlayer {
     });
   }
 
-  /**
-   * Render clip markers on the scrubber.
-   */
-  renderClipsOnScrubber() {
+  renderActiveClipOnScrubber() {
     if (!this.controls.scrubber || !this.clips || !this.videoElem.duration) return;
 
-    // Remove existing clip markers
     this.controls.scrubber.querySelectorAll('.clip-on-scrubber').forEach(el => el.remove());
 
     if (this.activeClipIndex !== null && this.clips[this.activeClipIndex]) {
@@ -513,7 +462,6 @@ export class AnnotationPlayer {
 
     this.controls.clipsMenu.innerHTML = menuHTML;
 
-    // Set initial "None" as active
     this._updateClipsMenuHighlight();
   }
 
@@ -551,19 +499,16 @@ export class AnnotationPlayer {
     this.activeClipIndex = index;
     const clip = this.clips[index];
 
-    // Jump to clip start time and pause
     this.skipTo(clip.start);
     if (!this.videoElem.paused) {
       this.pause();
     }
 
-    // Update UI
     this._updateClipHighlighting();
     this._updateClipsMenuHighlight();
   }
 
   _updateClipHighlighting() {
-    // Update button highlighting
     if (this.controls.clipsBtn) {
       if (this.activeClipIndex !== null) {
         this.controls.clipsBtn.classList.add('clip-active');
@@ -571,8 +516,7 @@ export class AnnotationPlayer {
         this.controls.clipsBtn.classList.remove('clip-active');
       }
     }
-
-    this.renderClipsOnScrubber();
+    this.renderActiveClipOnScrubber();
   }
 
   play() {
@@ -632,7 +576,7 @@ export class AnnotationPlayer {
     return this.videoElem.paused;
   }
 
-  annotate() {  // TODO Rename to setupVideoElemAnnotations;why is this separate from applyAnnotations?
+  setupVideoElemAnnotations() {
     this._onPlaying = () => this.applyAnnotations();
     this.currently = { muting: -1, blanking: -1, blurring: -1 };
     this.videoElem.addEventListener("playing", this._onPlaying);
@@ -786,9 +730,8 @@ export class AnnotationPlayer {
           break;
       }
     }
-    // Set mute annotation state and update controls
     this.isMuteAnnotationActive = isMuteAnnotationActive;
-    this._updateVolumeControlsState();
+    this._updateVolumeControlsDisplay();
 
     if (this.videoElem.paused) return;
     requestAnimationFrame(() => this.applyAnnotations());
@@ -815,7 +758,7 @@ export class AnnotationPlayer {
 
   blur() {  // Blur the whole screen (not just censored areas)
     this.videoElem.classList.add("blurred");
-    // TODO Make this subtype of blanked with CSS options
+    // TODO Make this subtype of `blanked` with CSS options
   }
 
   unblur() {
@@ -848,8 +791,8 @@ export class AnnotationPlayer {
   }
 
   toggleMute() {
-    // Block toggleMute if mute annotation is active
     if (this.isMuteAnnotationActive) return;
+
     if (this.videoElem.muted) {
       this.unmute();
       if (this.state.volume < 0.05) {
@@ -861,8 +804,8 @@ export class AnnotationPlayer {
   }
 
   setVolume(value) {
-    // Block setVolume if mute annotation is active
     if (this.isMuteAnnotationActive) return;
+
     // Quantize to nearest 0.1 step
     let volume = Math.round(Math.max(0, Math.min(1, value)) * 10) / 10;
     this.state.volume = volume;
@@ -895,8 +838,7 @@ export class AnnotationPlayer {
     this.controls.volumeBtn.innerHTML = this._getVolumeIcon();
   }
 
-  _updateVolumeControlsState() {
-    // Gray out volume controls if mute annotation is active
+  _updateVolumeControlsDisplay() {
     if (this.controls.volumeBtn) {
       if (this.isMuteAnnotationActive) {
         this.controls.volumeBtn.classList.add('inactive');
@@ -1027,7 +969,6 @@ export class AnnotationPlayer {
 
   onScrubberClick(e) {
     if (!this.controls.scrubber) return;
-    // Prevent seeking if dragging (drag logic handles this)
     if (this.isDragging) return;
 
     const rect = this.controls.scrubber.getBoundingClientRect();
@@ -1042,19 +983,16 @@ export class AnnotationPlayer {
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     let newTime = percent * (this.videoElem.duration || 0);
 
-    // Check if newTime falls within a skip annotation
     const skipBoundary = this._getSkipBoundary(newTime);
     if (skipBoundary !== null) {
       newTime = skipBoundary;
     }
 
-    // Update UI immediately
     const adjustedPercent = newTime / (this.videoElem.duration || 1);
     this.updateScrubber(adjustedPercent);
     this.state.currentTime = newTime;
     this.updateTimeDisplay();
 
-    // Update video time immediately
     this.videoElem.currentTime = newTime;
     this.timeCache = newTime;
   }
@@ -1071,12 +1009,9 @@ export class AnnotationPlayer {
       const end = parseFloat(skip.end);
 
       if (time > start && time < end) {
-        // Time is within skip range
         if (direction === 'forward') {
-          // When moving forward, jump to end of skip
           return end;
         } else if (direction === 'backward') {
-          // When moving backward, jump to start of skip
           return start;
         } else {
           // For dragging (nearest), snap to closest boundary
@@ -1185,8 +1120,6 @@ export class AnnotationPlayer {
         speedText.textContent = `${rate}x`;
       }
     }
-
-    // Re-render menu to highlight the current rate
     this._renderSpeedMenu();
   }
 
@@ -1194,20 +1127,17 @@ export class AnnotationPlayer {
     tracks.forEach((trackData, index) => {
       const track = document.createElement('track');
 
-      // Set default kind to subtitles
+      // default
       track.kind = trackData.kind || 'subtitles';
 
-      // Pass through standard track attributes
       if (trackData.label) track.label = trackData.label;
       if (trackData.srclang) track.srclang = trackData.srclang;
-      // Never set default=true - all tracks start disabled
-      track.default = false;
+      track.default = false;  // all tracks start disabled
 
-      // Handle src - either from url or vtt content
+      // Set src - either from url or vtt content
       if (trackData.url) {
         track.src = trackData.url;
       } else if (trackData.vtt) {
-        // Validate VTT content
         if (!trackData.vtt.trim().startsWith('WEBVTT')) {
           console.error(`Track ${index}: VTT content must start with 'WEBVTT'. Provided content:`, trackData.vtt.substring(0, 50));
           return;
@@ -1217,7 +1147,7 @@ export class AnnotationPlayer {
         const blob = new Blob([trackData.vtt], { type: 'text/vtt' });
         const blobUrl = URL.createObjectURL(blob);
         track.src = blobUrl;
-        this.subtitleTrackBlobUrls.push(blobUrl);
+        this.subtitleTrackBlobUrls.push(blobUrl);  // Keep track for cleanup
       } else {
         console.error(`Track ${index}: Track object must have either 'url' or 'vtt' property`);
         return;
@@ -1226,23 +1156,18 @@ export class AnnotationPlayer {
       this.videoElem.appendChild(track);
     });
 
-    // Wait for tracks to be ready before updating UI
     const onTracksReady = () => {
-      // Update captions menu
       if (this.controls.captionsMenu) {
         this._renderCaptionsMenu();
       }
 
-      // Create subtitle sidebar if requested
       if (this._enableSubtitleSidebar && !this.subtitleSidebar) {
         this.subtitleSidebar = new SubtitleSidebar(this.videoElem);
       }
 
-      // Update controls visibility
-      this._transcriptAndCCVisibility();
+      this._conditionallyUpdateControlsIconVisibility();
     };
 
-    // Check if tracks are ready
     if (this.videoElem.readyState >= 1) {
       setTimeout(onTracksReady, 50);
     } else {
@@ -1270,19 +1195,14 @@ export class AnnotationPlayer {
     this.controls.captionsMenu.innerHTML = menuHTML;
     this.controls.captionsMenu.style.minWidth = '180px';
 
-    // Set initial "Off" as active
     this._updateCaptionsMenuHighlight();
   }
 
-  /**
-   * Update the highlighting in the captions menu based on current track state
-   */
   _updateCaptionsMenuHighlight() {
     if (!this.controls.captionsMenu) return;
 
     const activeIndex = this._getActiveTrackIndex();
 
-    // Update menu highlighting
     this.controls.captionsMenu.querySelectorAll('.caption-option').forEach(option => {
       option.classList.remove('active-value');
     });
@@ -1293,7 +1213,6 @@ export class AnnotationPlayer {
         activeOption.classList.add('active-value');
       }
     } else {
-      // No track active, highlight "Off"
       const offOption = this.controls.captionsMenu.querySelector('[data-track="off"]');
       if (offOption) {
         offOption.classList.add('active-value');
@@ -1303,32 +1222,23 @@ export class AnnotationPlayer {
 
   setCaptionTrack(trackIndex) {
     const tracks = Array.from(this.videoElem.textTracks);
-
-    // Disable all tracks
     tracks.forEach(track => {
       track.mode = 'disabled';
     });
 
-    // Enable selected track
     if (trackIndex !== 'off' && tracks[trackIndex]) {
       tracks[trackIndex].mode = 'showing';
     }
 
-    // Update UI
     this._updateCaptionsMenuHighlight();
-    this._updateTranscriptButtonState();
+    this._updateSubtitleSidebarButtonDisplay();
 
-    // Notify sidebar of track change (sidebar will handle loading cues if visible)
     if (this.subtitleSidebar) {
       this.subtitleSidebar.onTrackChanged();
     }
   }
 
-  /**
-   * Cleanup method to revoke blob URLs
-   */
   destroy() {
-    // Revoke all blob URLs
     this.subtitleTrackBlobUrls.forEach(url => {
       URL.revokeObjectURL(url);
     });
@@ -1339,7 +1249,6 @@ export class AnnotationPlayer {
       this.subtitleSidebar = null;
     }
 
-    // Remove event listeners and clean up
     this.resetAnnotations();
   }
 
@@ -1380,7 +1289,6 @@ export class AnnotationPlayer {
     this.onMouseMove();  // to trigger controls visibility/fade
     const playedTime = this.state.currentTime;
 
-    // Block volume/mute keys if mute annotation is active
     if (this.isMuteAnnotationActive && (
       e.code === 'ArrowUp' ||
       e.code === 'ArrowDown' ||
@@ -1408,7 +1316,7 @@ export class AnnotationPlayer {
           newTimeRight = skipBoundaryRight;
         }
         this.skipTo(newTimeRight);
-        this._showBezel(AnnotationPlayer.icons.speed);  // TODO is this icon right?
+        this._showBezel(AnnotationPlayer.icons.speed);
         break;
       }
       case 'ArrowLeft': {
@@ -1421,7 +1329,7 @@ export class AnnotationPlayer {
           newTimeLeft = this.videoElem.paused ? skipBoundaryLeft : Math.max(0, skipBoundaryLeft - 5);
         }
         this.skipTo(newTimeLeft);
-        this._showBezel(AnnotationPlayer.icons.speed);  // TODO is this icon right?
+        this._showBezel(AnnotationPlayer.icons.speedLeft);
         break;
       }
       case 'ArrowUp':
@@ -1485,7 +1393,7 @@ export class AnnotationPlayer {
   setupEventListeners() {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
-      this._transcriptAndCCVisibility();
+      this._conditionallyUpdateControlsIconVisibility();
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.onProgress());
@@ -1602,9 +1510,7 @@ export class AnnotationPlayer {
     // Add document-level mousemove listener to catch mouse movement that might be missed
     // This ensures controls can always be triggered even if state gets out of sync
     document.addEventListener('mousemove', (e) => {
-      // Check if mouse is over the container
       if (this.container && this.container.contains(e.target)) {
-        // Update hovering state if it's incorrect
         if (!this.state.hovering) {
           this.state.hovering = true;
         }
@@ -1617,21 +1523,16 @@ export class AnnotationPlayer {
     window.addEventListener('resize', () => this.placeAnnotationBox());
     this.videoElem.addEventListener('resize', () => this.placeAnnotationBox());
 
-    // Playback speed menu logic
     if (this.controls.speedBtn && this.controls.speedMenu) {
-      // Build menu
       this._renderSpeedMenu();
-      // Click on speed button toggles menu
       this.controls.speedBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const menu = this.controls.speedMenu;
         menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
-        // Close captions menu if open
         if (this.controls.captionsMenu) {
           this.controls.captionsMenu.style.display = 'none';
         }
       });
-      // Click on menu option sets speed
       this.controls.speedMenu.addEventListener('click', (e) => {
         const target = e.target.closest('.speed-option');
         if (target) {
@@ -1642,14 +1543,11 @@ export class AnnotationPlayer {
       });
     }
 
-    // Clips menu logic
     if (this.controls.clipsBtn && this.controls.clipsMenu) {
-      // Click on clips button toggles menu
       this.controls.clipsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const menu = this.controls.clipsMenu;
         menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
-        // Close other menus if open
         if (this.controls.speedMenu) {
           this.controls.speedMenu.style.display = 'none';
         }
@@ -1657,7 +1555,6 @@ export class AnnotationPlayer {
           this.controls.captionsMenu.style.display = 'none';
         }
       });
-      // Click on menu option selects clip
       this.controls.clipsMenu.addEventListener('click', (e) => {
         const target = e.target.closest('.clip-option');
         if (target) {
@@ -1668,19 +1565,15 @@ export class AnnotationPlayer {
       });
     }
 
-    // Captions menu logic
     if (this.controls.captionsBtn && this.controls.captionsMenu) {
-      // Click on captions button toggles menu
       this.controls.captionsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const menu = this.controls.captionsMenu;
         menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
-        // Close speed menu if open
         if (this.controls.speedMenu) {
           this.controls.speedMenu.style.display = 'none';
         }
       });
-      // Click on menu option selects track
       this.controls.captionsMenu.addEventListener('click', (e) => {
         const target = e.target.closest('.caption-option');
         if (target) {
@@ -1691,14 +1584,12 @@ export class AnnotationPlayer {
       });
     }
 
-    // Transcript button logic
-    if (this.controls.transcriptBtn) {
-      this.controls.transcriptBtn.addEventListener('click', (e) => {
+    if (this.controls.subtitleSidebarBtn) {
+      this.controls.subtitleSidebarBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
 
-        // Don't do anything if button is disabled/inactive
-        if (this.controls.transcriptBtn.classList.contains('inactive') || this.controls.transcriptBtn.disabled) {
+        if (this.controls.subtitleSidebarBtn.classList.contains('inactive') || this.controls.subtitleSidebarBtn.disabled) {
           return;
         }
 

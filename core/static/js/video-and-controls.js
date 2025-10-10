@@ -19,16 +19,13 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             return;
         }
 
-        // Prepare tracks array from subtitle data
         let tracks = [];
         if (window.playerData && window.playerData.subtitles) {
             const subtitles = window.playerData.subtitles;
-            // Handle single subtitle object or array
             const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
             tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
         }
 
-        // Get clips data if available
         let clips = [];
         if (window.playerData && window.playerData.clips) {
             clips = window.playerData.clips;
@@ -44,7 +41,6 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             subtitleSidebar: enableSubtitleSidebar
         });
 
-        // Load annotation data if available
         if (window.playerData) {
             const data = {
                 annotations: window.playerData.events || [],
@@ -52,7 +48,6 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             annotationPlayer.loadData(data);
         }
 
-        // Expose to window for debugging
         window.videoPlayer = annotationPlayer;
     }
 

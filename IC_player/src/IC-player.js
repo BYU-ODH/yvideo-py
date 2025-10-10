@@ -41,7 +41,6 @@ export const player = {
   toggleAnnotationMode: () => {
     player.annotationMode = !player.annotationMode;
 
-    // Update button appearance to match state
     const toggleBtn = document.getElementById("toggleAnnotationModeBtn");
     if (player.annotationMode) {
       toggleBtn.classList.add("active");

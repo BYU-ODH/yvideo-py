@@ -362,7 +362,7 @@
   user-select: none;  /* eslint-disable-line css/use-baseline */
 }
 
-/* Speed Button */
+
 .speed-btn {
   min-width: 45px;
   font-size: 14px;
@@ -374,7 +374,7 @@
   margin-left: 4px;
 }
 
-/* Captions Button */
+
 .captions-btn {
   position: relative;
 }
@@ -388,31 +388,31 @@
   stroke: #0582ca;
 }
 
-/* Transcript Button */
-.transcript-btn {
+
+.subtitle-sidebar-btn {
   position: relative;
 }
 
-.transcript-btn.active {
+.subtitle-sidebar-btn.active {
   color: #0582ca;
 }
 
-.transcript-btn.active svg {
+.subtitle-sidebar-btn.active svg {
   fill: #0582ca;
   stroke: #0582ca;
 }
 
-.transcript-btn.inactive {
+.subtitle-sidebar-btn.inactive {
   opacity: 0.3;
   cursor: not-allowed;
 }
 
-.transcript-btn.inactive:hover {
+.subtitle-sidebar-btn.inactive:hover {
   transform: none;
   opacity: 0.3;
 }
 
-/* Fullscreen Button */
+
 .fullscreen-btn {
   width: 40px;
   height: 40px;

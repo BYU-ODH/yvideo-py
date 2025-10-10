@@ -1,8 +1,4 @@
-/**
- * Subtitle sidebar cue class
- * - Represents a single cue in the sidebar
- */
-class SubtitleSidebarCue {
+class SubtitleSidebarCue {  // cue = VTTCue = individual subtitle
   constructor(cue, index) {
     this.cue = cue;
     this.index = index;
@@ -53,13 +49,7 @@ class SubtitleSidebarCue {
   }
 }
 
-/**
- * Subtitle sidebar class
- * - Manages loading and displaying subtitles in a scrollable sidebar
- * - Highlights current subtitle based on video time
- * - Clicking on a subtitle's seek icon jumps video to 0.09 seconds before that subtitle
- * - Uses videoElem.textTracks as the single source of truth for which track is active
- */
+
 export class SubtitleSidebar {
   constructor(videoElem) {
     this.videoElem = videoElem;
@@ -71,38 +61,32 @@ export class SubtitleSidebar {
     this.activeTrack = null;
     this.onCueChange = null;
 
-    // Load saved width from localStorage or use default
     this.sidebarWidth = parseInt(localStorage.getItem('subtitleSidebarWidth')) || 320;
 
     this._initSidebarElement();
-    this._setupEventListeners();
     this._initResizeListeners();
   }
 
   _initSidebarElement() {
-    // Create sidebar container
     this.sidebarElem = document.createElement('div');
     this.sidebarElem.className = 'subtitle-sidebar';
     this.sidebarElem.style.width = `${this.sidebarWidth}px`;
 
-    // Create resize handle
     const sidebarResizeHandle = document.createElement('div');
     sidebarResizeHandle.className = 'subtitle-sidebar-resize-handle';
     this.sidebarResizeHandle = sidebarResizeHandle;
 
-    // Create header
     const sidebarHeader = document.createElement('div');
     sidebarHeader.className = 'subtitle-sidebar-header';
     sidebarHeader.innerHTML = `
-      <h3>Transcript</h3>
-      <button class="subtitle-sidebar-close" aria-label="Close Transcript">
+      <h3>Subtitles</h3>
+      <button class="subtitle-sidebar-close" aria-label="Close subtitle sidebar">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
           <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </button>
     `;
 
-    // Create content area
     this.sidebarContent = document.createElement('div');
     this.sidebarContent.className = 'subtitle-sidebar-content';
 
@@ -110,7 +94,6 @@ export class SubtitleSidebar {
     this.sidebarElem.appendChild(sidebarHeader);
     this.sidebarElem.appendChild(this.sidebarContent);
 
-    // Insert sidebar into player container
     const container = this.videoElem.closest('.annotation-player-container');
     if (container) {
       container.appendChild(this.sidebarElem);
@@ -120,7 +103,6 @@ export class SubtitleSidebar {
       console.warn('Player container not found, appending sidebar to body');
     }
 
-    // Close button handler
     const closeBtn = sidebarHeader.querySelector('.subtitle-sidebar-close');
     closeBtn.addEventListener('click', () => this.hide());
   }
@@ -133,7 +115,7 @@ export class SubtitleSidebar {
       this.startWidth = this.sidebarElem.offsetWidth;
       this.sidebarResizeHandle.classList.add('resizing');
 
-      // Disable transitions for immediate feedback
+      // Disable transitions to ensure immediate feedback while resizing (re-enabled on mouseup)
       this.sidebarElem.classList.add('resizing');
       const container = this.videoElem.closest('.annotation-player-container');
       const videoWrapper = container?.querySelector('.video-wrapper');
@@ -155,22 +137,17 @@ export class SubtitleSidebar {
       const deltaX = this.startX - e.clientX;
       let newWidth = this.startWidth + deltaX;
 
-      // Get constraints from CSS
-      const minWidth = 200;
-      const maxWidth = 600;
-      const containerWidth = container.offsetWidth;
-
       // Ensure width is within bounds
+      const computedStyle = window.getComputedStyle(this.sidebarElem);
+      const minWidth = parseInt(computedStyle.minWidth) || 200;
+      const maxWidth = parseInt(computedStyle.maxWidth) || 600;
       newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
       // Also ensure it doesn't take up more than 70% of container
-      newWidth = Math.min(newWidth, containerWidth * 0.7);
+      newWidth = Math.min(newWidth, container.offsetWidth * 0.7);
 
-      // Apply new width
       this.sidebarWidth = newWidth;
       this.sidebarElem.style.width = `${newWidth}px`;
-
-      // Update video wrapper margin
       this._updateVideoWrapperMargin();
     };
 
@@ -180,7 +157,7 @@ export class SubtitleSidebar {
       this.isResizing = false;
       this.sidebarResizeHandle.classList.remove('resizing');
 
-      // Re-enable transitions
+      // Re-enable transitions (disabled on mousedown for immediate feedback)
       this.sidebarElem.classList.remove('resizing');
       const container = this.videoElem.closest('.annotation-player-container');
       const videoWrapper = container?.querySelector('.video-wrapper');
@@ -191,10 +168,8 @@ export class SubtitleSidebar {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
 
-      // Save width to localStorage
       localStorage.setItem('subtitleSidebarWidth', this.sidebarWidth.toString());
 
-      // Trigger annotation container reposition
       if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
         window.videoPlayer.placeAnnotationBox();
       }
@@ -219,26 +194,15 @@ export class SubtitleSidebar {
     }
   }
 
-  /**
-   * Get the currently active track from video element
-   * @returns {TextTrack|null}
-   */
   _getActiveTrack() {
     const tracks = Array.from(this.videoElem.textTracks);
     return tracks.find(track => track.mode === 'showing' || track.mode === 'hidden') || null;
   }
 
-  /**
-   * Called when track selection changes in the player
-   * If sidebar is visible, reload cues for the new track
-   */
   onTrackChanged() {
-    // Remove event listener from previous track
     this._removeCueChangeListener();
-
     const track = this._getActiveTrack();
 
-    // If no track is active and sidebar is visible, close it
     if (!track && this.visible) {
       this.hide();
       return;
@@ -247,14 +211,10 @@ export class SubtitleSidebar {
     if (this.visible) {
       this._loadActiveTrackCues();
     } else {
-      // Clear current track reference even when hidden
       this.activeTrack = null;
     }
   }
 
-  /**
-   * Load cues from the currently active track
-   */
   _loadActiveTrackCues() {
     const track = this._getActiveTrack();
 
@@ -287,9 +247,9 @@ export class SubtitleSidebar {
       track.mode = 'hidden';
     }
 
-    // Listen for load event
     track.addEventListener('load', onLoad, { once: true });
 
+    // Some browsers (e.g. Firefox) may not fire 'load' event reliably
     // Fallback: check again after a delay
     setTimeout(() => {
       if (track.cues && track.cues.length > 0 && this.cueInstances.length === 0) {
@@ -299,9 +259,6 @@ export class SubtitleSidebar {
     }, 200);
   }
 
-  /**
-   * Show empty state message
-   */
   _displayEmptyState(message) {
     this.cueInstances = [];
     this.sidebarContent.innerHTML = `<p class="subtitle-sidebar-empty">${message}</p>`;
@@ -324,30 +281,19 @@ export class SubtitleSidebar {
 
       const cueElement = cueObj.render();
 
-      // Seek button handler
       const seekBtn = cueElement.querySelector('.subtitle-cue-seek');
       seekBtn.addEventListener('click', () => {
-        // Jump to 0.3 seconds before the cue start time
-        const seekTime = Math.max(0, cue.startTime - 0.09);
+        const seekTime = Math.max(0, cue.startTime - 0.08); // Slightly before cue start for context
         this.videoElem.currentTime = seekTime;
       });
 
       this.sidebarContent.appendChild(cueElement);
     });
 
-    // Update active cue immediately
     this._highlightActiveCue();
   }
 
-  _setupEventListeners() {
-    // Event listener is now attached per-track in _addCueChangeListener
-  }
-
-  /**
-   * Attach cuechange event listener to the given track
-   */
   _addCueChangeListener(track) {
-    // Remove any existing listener first
     this._removeCueChangeListener();
 
     this.activeTrack = track;
@@ -357,13 +303,9 @@ export class SubtitleSidebar {
 
     track.addEventListener('cuechange', this.onCueChange);
 
-    // Also update immediately
     this._highlightActiveCue();
   }
 
-  /**
-   * Remove cuechange event listener from current track
-   */
   _removeCueChangeListener() {
     if (this.activeTrack && this.onCueChange) {
       this.activeTrack.removeEventListener('cuechange', this.onCueChange);
@@ -408,7 +350,6 @@ export class SubtitleSidebar {
   }
 
   show() {
-    // Load current track when showing sidebar
     this._loadActiveTrackCues();
 
     this.sidebarElem.classList.add('visible');
@@ -420,10 +361,12 @@ export class SubtitleSidebar {
       container.classList.add('subtitle-sidebar-open');
     }
 
-    // Update video wrapper margin based on current width
     this._updateVideoWrapperMargin();
 
     // Trigger annotation container reposition after transition
+    // TODO make sure this timing (300) dynamically matches CSS transition duration
+    // TODO ... or make sure the annotation box repositions with the same transition
+    // TODO ... better yet, make CSS handle it all automatically!!
     setTimeout(() => {
       if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
         window.videoPlayer.placeAnnotationBox();
@@ -432,8 +375,6 @@ export class SubtitleSidebar {
   }
 
   hide() {
-    // Keep event listener attached - don't detach it
-
     this.sidebarElem.classList.remove('visible');
     this.visible = false;
 
@@ -466,7 +407,6 @@ export class SubtitleSidebar {
   }
 
   destroy() {
-    // Clean up event listener
     this._removeCueChangeListener();
 
     if (this.sidebarElem && this.sidebarElem.parentNode) {

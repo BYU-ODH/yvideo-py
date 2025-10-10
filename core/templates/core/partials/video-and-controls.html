@@ -1,14 +1,12 @@
 {% load static %}
 
 <div class="annotation-player-container">
-    <div class="video-wrapper">  <!-- TODO video-wrapper automatically added by AnnotationPlayer. Remove? -->
-        <video preload="auto">
-            {% if file_key %}
-                <source src="{% url 'stream_file' file_key %}" type="video/mp4">
-            {% endif %}
-            Your browser does not support the video tag.
-        </video>
-    </div>
+    <video preload="auto">
+        {% if file_key %}
+            <source src="{% url 'stream_file' file_key %}" type="video/mp4">
+        {% endif %}
+        Your browser does not support the video tag.
+    </video>
 </div>
 
 <script type="module" src="{% static 'js/video-and-controls.js' %}"></script>
