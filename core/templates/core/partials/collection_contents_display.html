@@ -1,5 +1,15 @@
 <div class="title-section">
-    <h2 id="collection-title">{{ collection.name }}</h2>
+    <div class="row-flex">
+        <h2 id="collection-title">{{ collection.name }}</h2>
+        <img class="clickable position-center settings-button"
+            src="../../../static/img/settings.svg"
+            title="Collection Settings"
+            hx-trigger="click"
+            hx-get="{% url 'display_collection_settings' collection.id %}"
+            hx-target="next #collection-settings-form-wrapper"
+        />
+    </div>
+    <div id="collection-settings-form-wrapper"></div>
 </div>
 <div id="collection-content">
     <div id="published-content-wrapper">

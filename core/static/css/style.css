@@ -64,6 +64,37 @@ body {
     align-self: flex-start;
 }
 
+.position-flex-end {
+    align-self: flex-end;
+}
+
+.position-center {
+    align-self: center;
+}
+
+.row-flex {
+    display: flex;
+    flex-direction: row;
+    align-content: center;
+    column-gap: 1rem;
+}
+
+.hidden {
+    display: none;
+}
+
+.invisible {
+    visibility: hidden;
+}
+
+.absolute {
+    position: absolute;
+}
+
+.settings-button {
+    padding: 0.5rem;
+}
+
 /* Player Container Styles */
 .player-container {
     height: calc(100vh - 6rem);
@@ -502,20 +533,6 @@ body {
     flex: 1;
 }
 
-/* Hidden utility */
-.hidden {
-    display: none;
-}
-
-.invisible {
-    visibility: hidden;
-}
-
-/* Utility for absolute positioning */
-.absolute {
-    position: absolute;
-}
-
 /* Time holder (hidden but used for calculations) */
 .time-holder {
     visibility: hidden;
@@ -853,6 +870,16 @@ body {
     transform: rotate(180deg);
 }
 
+.collection-settings {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+    margin-top: 1rem;
+    padding: 2rem;
+    border-radius: 1rem;
+    border: 1px solid #00000025;
+}
+
 .arrow-icon {
     height: 1rem;
     width: 1rem;
@@ -1053,16 +1080,13 @@ body {
     flex-direction: column;
 }
 
-.update-content-button img {
-    padding: 0.5rem;
-}
-
 .content-thumbnail {
     width: 10rem;
     height: auto;
 }
 
-.content-settings {
+.content-settings,
+.collection-settings-form {
     display: flex;
     flex-direction: column;
     row-gap: 1rem;
@@ -1097,7 +1121,8 @@ body {
 }
 
 .content-form-group,
-.content-form-right {
+.content-form-right,
+.collection-form-group {
     display: flex;
     flex-direction: row;
     column-gap: 0.5rem;

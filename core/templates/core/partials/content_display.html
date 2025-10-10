@@ -13,9 +13,9 @@
                     {% endif %}
                 </a>
                 <div class="update-content-button">
-                    <img class="clickable"
+                    <img class="clickable settings-button"
                         src="../../../static/img/settings.svg"
-                        title="Settings"
+                        title="Content Settings"
                         hx-trigger="click"
                         hx-get="{% url 'display_content_settings' content.id %}"
                         hx-target="next .content-settings-form-wrapper"

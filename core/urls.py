@@ -4,11 +4,13 @@ from .views import create_collection
 from .views import create_important_word
 from .views import delete_important_word
 from .views import display_collection_contents
+from .views import display_collection_settings
 from .views import display_content_settings
 from .views import index
 from .views import manage_collections
 from .views import player
 from .views import stream_file
+from .views import update_collection_settings
 from .views import update_content
 from .views import view_collection
 
@@ -20,9 +22,19 @@ urlpatterns = [
     path("collections/create/", create_collection, name="create_collection"),
     path("collections/view/<int:pk>/", view_collection, name="view_collection"),
     path(
-        "display-collection-contents/<int:collection_id>",
+        "display-collection-contents/<int:collection_id>/",
         display_collection_contents,
         name="display_collection_contents",
+    ),
+    path(
+        "collection/display-settings/<int:collection_id>/",
+        display_collection_settings,
+        name="display_collection_settings",
+    ),
+    path(
+        "collection/update",
+        update_collection_settings,
+        name="update_collection_settings",
     ),
     path(
         "content/display-settings/<int:content_id>/",

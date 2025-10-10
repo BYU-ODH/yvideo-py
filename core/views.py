@@ -14,6 +14,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .forms import CollectionForm
+from .forms import CollectionSettingsForm
 from .forms import ImportantWordForm
 from .forms import UpdateContentForm
 from .models import Collection
@@ -301,6 +302,40 @@ def view_collection(request, pk):
             return response
 
 
+def display_collection_settings(request, collection_id):
+    collection = get_object_or_404(Collection, pk=collection_id)
+    form = CollectionSettingsForm(instance=collection)
+    context = {"collection": collection, "form": form}
+    return render(request, "partials/collection_settings.html", context)
+
+
+@require_POST
+def update_collection_settings(request):
+    form = CollectionSettingsForm(request.POST)
+    if form.is_valid():
+        collection = get_object_or_404(Collection, pk=form.cleaned_data["id"])
+        collection.name = form.cleaned_data["name"]
+        collection.published = form.cleaned_data["published"]
+        collection.archived = form.cleaned_data["archived"]
+        try:
+            collection.save()
+            collection_types = get_collection_types(request.user)
+            context = {
+                "collection": collection,
+                "published": collection_types["published"],
+                "unpublished": collection_types["unpublished"],
+                "archived": collection_types["archived"],
+            }
+            return render(request, "partials/finish_collection_settings.html", context)
+        except Exception as e:
+            logger.error(
+                f"An error occured while attempting to update collection settings. {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+
 def get_collection_contents(collection):
     contents = Content.objects.filter(collection=collection)
     published = contents.filter(published=True)
@@ -328,7 +363,7 @@ def display_content_settings(request, content_id):
     return render(request, "partials/content_settings.html", context)
 
 
-@require_http_methods(["POST"])
+@require_POST
 def update_content(request):
     form = UpdateContentForm(request.POST)
     if form.is_valid():

@@ -26,6 +26,14 @@ class CollectionForm(forms.ModelForm):
         fields = ("name",)
 
 
+class CollectionSettingsForm(forms.ModelForm):
+    class Meta:
+        model = Collection
+        fields = ["id", "name", "published", "archived"]
+
+    id = forms.CharField(widget=forms.HiddenInput)
+
+
 class UpdateContentForm(forms.ModelForm):
     class Meta:
         model = Content
