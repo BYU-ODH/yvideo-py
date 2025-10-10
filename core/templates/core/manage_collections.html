@@ -16,9 +16,7 @@
             {% include "partials/collection_lists.html" with published=published unpublished=unpublished archived=archived %}
         </div>
         <div id="collections-detail">
-            <p id="no-collections-body">
-                Select a Collection to get started.
-            </p>
+            {% include "partials/no_collections_text.html" %}
         </div>
     </div>
 {% endblock %}

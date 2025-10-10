@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import create_collection
 from .views import create_important_word
+from .views import delete_collection
 from .views import delete_content
 from .views import delete_important_word
 from .views import display_collection_contents
@@ -36,6 +37,11 @@ urlpatterns = [
         "collection/update",
         update_collection_settings,
         name="update_collection_settings",
+    ),
+    path(
+        "collection/delete/<int:collection_id>",
+        delete_collection,
+        name="delete_collection",
     ),
     path(
         "content/display-settings/<int:content_id>/",

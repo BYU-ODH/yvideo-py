@@ -354,6 +354,26 @@ def display_collection_contents(request, collection_id):
     return render(request, "partials/collection_contents_display.html", context)
 
 
+@require_http_methods(["DELETE"])
+def delete_collection(request, collection_id):
+    collection = get_object_or_404(Collection, pk=collection_id)
+    try:
+        collection.delete()
+        collections = get_collection_types(request.user)
+        context = {
+            "published": collections["published"],
+            "unpublished": collections["unpublished"],
+            "archived": collections["archived"],
+        }
+        return render(request, "partials/finish_collection_deletion.html", context)
+    except Exception as e:
+        logger.error(
+            f"An error occured while deleting the collection with id: {collection_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+    return HttpResponseBadRequest()
+
+
 def display_content_settings(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
     form = UpdateContentForm(instance=content)
