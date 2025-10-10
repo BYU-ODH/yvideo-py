@@ -300,6 +300,22 @@ class Clip(models.Model):
         return f"{self.name} | {self.start_time}-{self.end_time} | {self.file.resource.name} | {self.file.version} | {self.id}"
 
 
+class AnnotationSet(models.Model):
+    name = models.CharField(max_length=225)
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="%(app_label)s_%(class)s_owner",
+    )
+    resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="resources"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.resource.name})"
+
+
 class Content(models.Model):
     title = models.CharField(max_length=255)
     collection = models.ForeignKey(
@@ -313,6 +329,13 @@ class Content(models.Model):
         File,
         on_delete=models.CASCADE,
         related_name="contents",
+        null=True,
+        blank=True,
+    )
+    annotation_set = models.ForeignKey(
+        AnnotationSet,
+        on_delete=models.SET_NULL,
+        related_name="annotation_set",
         null=True,
         blank=True,
     )
@@ -342,13 +365,21 @@ class Content(models.Model):
 
 
 class Annotation(models.Model):
-    content = models.ForeignKey(
-        Content, on_delete=models.CASCADE, related_name="%(app_label)s_%(class)s_file"
-    )
     owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="%(app_label)s_%(class)s_user"
+        User,
+        on_delete=models.CASCADE,
+        related_name="%(app_label)s_%(class)s_user",
+        null=True,
+        blank=True,
     )
     name = models.CharField(max_length=255, blank=True)
+    annotation_set = models.ForeignKey(
+        AnnotationSet,
+        on_delete=models.CASCADE,
+        related_name="%(app_label)s_%(class)s_annotation_set",
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     start_time = models.FloatField(default=0.0)
@@ -372,7 +403,7 @@ class Annotation(models.Model):
         abstract = True
 
     def __str__(self):
-        return f"{self.owner} | {self.content.resource.name} | {self.content.version} | {self.id}"
+        return f"{self.owner} | {self.annotation_set.resource.name} | {self.id}"
 
 
 class SkipAnnotation(Annotation):

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from reversion.admin import VersionAdmin
 
+from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import Clip
 from .models import Collection
@@ -134,9 +135,9 @@ class LanguageAdmin(VersionAdmin):
 
 
 class AnnotationAdmin(VersionAdmin):
-    list_display = ("name", "owner", "content", "created_at")
+    list_display = ("name", "owner", "annotation_set", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "owner__name", "owner__netid", "file__resource__name")
+    search_fields = ("name", "owner__name", "owner__netid", "resource__name")
 
 
 @admin.register(SkipAnnotation)
@@ -205,3 +206,10 @@ class FileKeyAdmin(VersionAdmin):
     list_display = ("user", "file", "created_at")
     list_filter = ("created_at",)
     search_fields = ("user__netid", "file__resource__name")
+
+
+@admin.register(AnnotationSet)
+class AnnotationSetAdmin(VersionAdmin):
+    list_display = ("name", "owner", "resource", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("name", "owner__name", "resource__name")
