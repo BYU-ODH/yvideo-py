@@ -6,6 +6,9 @@ from .views import index
 from .views import invalid_login
 from .views import manage_collections
 from .views import player
+from .views import spoof_user_search
+from .views import spoof_user_start
+from .views import spoof_user_stop
 from .views import stream_file
 
 app_name = "core"
@@ -22,4 +25,7 @@ urlpatterns = [
         name="add_annotation",
     ),
     path("invalid-login", invalid_login, name="invalid_login"),
+    path("spoof-user-start/", spoof_user_start, name="start_spoofing"),
+    path("spoof-user-stop/", spoof_user_stop, name="stop_spoofing"),
+    path("spoof-user-search/", spoof_user_search, name="spoof_user_search"),
 ]

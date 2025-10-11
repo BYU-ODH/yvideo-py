@@ -3,12 +3,16 @@ import mimetypes
 import os
 import re
 
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.decorators import user_passes_test
+from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.shortcuts import redirect
 from django.shortcuts import render
+from django.template.loader import render_to_string
 
 from core.forms import CollectionForm
 
@@ -23,9 +27,8 @@ from .models import User
 logger = logging.getLogger(__name__)
 
 
-@login_required
 def index(request):
-    user = User.objects.all().first()
+    user = request.user  # Use spoofed or real user from middleware
     collections = Collection.objects.filter(owner=user)
     all_contents = Content.objects.filter(collection__in=collections)
     filtered_contents = {collection: [] for collection in collections}
@@ -42,12 +45,12 @@ def index(request):
     return render(request, "index.html", context)
 
 
-@login_required
+@login_not_required
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    user = User.objects.first()  # TODO: Delete
-    # user = request.user  # TODO: Uncomment
+    user = request.user  # Use spoofed or real user from middleware
+    file_key = None
     if content.file:
         file_key = FileKey.objects.filter(file=content.file, user=user).first()
 
@@ -58,11 +61,13 @@ def player(request, content_id):
         "events": [],
         "subtitles": [],
         "clips": [],
+        "user": user,  # Add user to context if needed by template
     }
 
     return render(request, "player.html", context)
 
 
+@login_not_required  # TODO remove decorator
 def stream_file(request, file_key):
     """Stream file content with support for HTTP Range requests (partial content)."""
     try:
@@ -172,9 +177,8 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
-@login_required
 def manage_collections(request):
-    user = User.objects.all().first()
+    user = request.user  # Use spoofed or real user from middleware
     collections = Collection.objects.filter(owner=user)
 
     archived = collections.filter(archived=True)
@@ -274,5 +278,49 @@ def add_annotation(request, content_id, annotation_type):
     )
 
 
+@login_not_required
 def invalid_login(request):
     return render(request, "invalid_login.html", {})
+
+
+def can_spoof(user):
+    print("can_spoof called", str(user))
+    return getattr(user, "is_admin", False) or getattr(user, "is_superuser", False)
+
+
+@user_passes_test(can_spoof)
+def spoof_user_start(request):
+    if request.method == "POST":
+        spoof_user_id = request.POST.get("spoof_user_id")
+        request.session["spoof_user_id"] = spoof_user_id
+        logger.info(
+            f"Admin/Superuser {getattr(request.user, 'netid', None)} started spoofing as {spoof_user_id}"
+        )
+    return redirect("/")
+
+
+@user_passes_test(can_spoof)
+@login_not_required
+def spoof_user_stop(request):
+    print("spoof_user_stop called")
+    spoofed_id = request.session.pop("spoof_user_id", None)
+    if spoofed_id:
+        print(f"spoofed_id: {spoofed_id}")
+        logger.info(
+            f"Admin/Superuser {getattr(request.user, 'netid', None)} stopped spoofing as {spoofed_id}"
+        )
+    return redirect("/")
+
+
+@user_passes_test(can_spoof)
+def spoof_user_search(request):
+    query = request.POST.get("search", "")
+    users = User.objects.filter(is_active=True).filter(
+        Q(netid__icontains=query)
+        | Q(first_name__icontains=query)
+        | Q(last_name__icontains=query)
+    )[:20]
+    html = render_to_string(
+        "partials/spoof_user_options_for_select.html", {"users": users}
+    )
+    return HttpResponse(html)

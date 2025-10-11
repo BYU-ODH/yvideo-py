@@ -11,10 +11,21 @@
     </head>
     <body>
         <header>
+            {% if request.is_spoofing %}
+            <div style="background: #ffc; color: #a00; padding: 1em; text-align: center; border-bottom: 2px solid #a00;">
+                Currently spoofing
+                <b>{{ request.user.first_name }} {{ request.user.last_name }} ({{ request.user.netid }})</b>
+                as admin/superuser
+                <b>{{ request.original_user.first_name }} {{ request.original_user.last_name }} ({{ request.original_user.netid }})</b>.
+                <a href="{% url 'stop_spoofing' %}" style="color: #a00; text-decoration: underline; margin-left: 1em;">[Stop spoofing]</a>
+            </div>
+            {% endif %}
+
             {% block headerContent %}
                 {% include "partials/header.html" %}
             {% endblock %}
         </header>
+
 
         {% block content %}
         {% endblock %}
