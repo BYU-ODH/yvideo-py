@@ -1,6 +1,7 @@
 from django.contrib import admin
 from reversion.admin import VersionAdmin
 
+from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import Clip
 from .models import Collection
@@ -134,9 +135,9 @@ class LanguageAdmin(VersionAdmin):
 
 
 class AnnotationAdmin(VersionAdmin):
-    list_display = ("name", "owner", "content", "created_at")
+    list_display = ("name", "owner", "annotation_set", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "owner__name", "owner__netid", "file__resource__name")
+    search_fields = ("name", "owner__name", "owner__netid", "resource__name")
 
 
 @admin.register(SkipAnnotation)
@@ -156,25 +157,25 @@ class BlankAnnotationAdmin(AnnotationAdmin):
 
 @admin.register(Clip)
 class ClipAdmin(VersionAdmin):
-    list_display = ("name", "owner", "file", "start_time", "end_time", "created_at")
+    list_display = ("name", "owner", "resource", "start_time", "end_time", "created_at")
     list_filter = ("created_at",)
     search_fields = (
         "name",
         "description",
         "tags",
         "owner__name",
-        "file__resource__name",
+        "resource__name",
     )
 
 
 @admin.register(Subtitle)
 class SubtitleAdmin(VersionAdmin):
-    list_display = ("name", "language", "owner", "file", "created_at")
+    list_display = ("name", "language", "owner", "resource", "created_at")
     list_filter = ("language", "created_at")
     search_fields = (
         "name",
         "owner__name",
-        "file__resource__name",
+        "resource__name",
         "language__language",
     )
 
@@ -205,3 +206,10 @@ class FileKeyAdmin(VersionAdmin):
     list_display = ("user", "file", "created_at")
     list_filter = ("created_at",)
     search_fields = ("user__netid", "file__resource__name")
+
+
+@admin.register(AnnotationSet)
+class AnnotationSetAdmin(VersionAdmin):
+    list_display = ("name", "owner", "resource", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("name", "owner__name", "resource__name")
