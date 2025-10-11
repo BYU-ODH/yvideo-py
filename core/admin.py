@@ -157,25 +157,25 @@ class BlankAnnotationAdmin(AnnotationAdmin):
 
 @admin.register(Clip)
 class ClipAdmin(VersionAdmin):
-    list_display = ("name", "owner", "file", "start_time", "end_time", "created_at")
+    list_display = ("name", "owner", "resource", "start_time", "end_time", "created_at")
     list_filter = ("created_at",)
     search_fields = (
         "name",
         "description",
         "tags",
         "owner__name",
-        "file__resource__name",
+        "resource__name",
     )
 
 
 @admin.register(Subtitle)
 class SubtitleAdmin(VersionAdmin):
-    list_display = ("name", "language", "owner", "file", "created_at")
+    list_display = ("name", "language", "owner", "resource", "created_at")
     list_filter = ("language", "created_at")
     search_fields = (
         "name",
         "owner__name",
-        "file__resource__name",
+        "resource__name",
         "language__language",
     )
 
