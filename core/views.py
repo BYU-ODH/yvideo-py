@@ -1,10 +1,12 @@
+from functools import wraps
 import logging
 import mimetypes
 import os
 import re
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
-from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.views import redirect_to_login
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -25,6 +27,27 @@ from .models import SkipAnnotation
 from .models import User
 
 logger = logging.getLogger(__name__)
+
+
+def _admin_context_user(request):
+    return (
+        request.original_user
+        if getattr(request, "is_spoofing", False)
+        else request.user
+    )
+
+
+def admin_or_superuser_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        admin_user = _admin_context_user(request)
+        if getattr(admin_user, "is_admin", False) or getattr(
+            admin_user, "is_superuser", False
+        ):
+            return view_func(request, *args, **kwargs)
+        return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+
+    return _wrapped
 
 
 def index(request):
@@ -288,38 +311,36 @@ def can_spoof(user):
     return getattr(user, "is_admin", False) or getattr(user, "is_superuser", False)
 
 
-@user_passes_test(can_spoof)
+@admin_or_superuser_required
+@login_not_required
 def spoof_user_start(request):
     if request.method == "POST":
         spoof_user_id = request.POST.get("spoof_user_id")
-        request.session["spoof_user_id"] = spoof_user_id
-        logger.info(
-            f"Admin/Superuser {getattr(request.user, 'netid', None)} started spoofing as {spoof_user_id}"
+        if spoof_user_id:
+            request.session["spoof_user_id"] = int(spoof_user_id)
+        return redirect(
+            request.POST.get("next") or request.headers.get("Referer") or "/"
         )
     return redirect("/")
 
 
-@user_passes_test(can_spoof)
+@admin_or_superuser_required
 @login_not_required
 def spoof_user_stop(request):
-    print("spoof_user_stop called")
-    spoofed_id = request.session.pop("spoof_user_id", None)
-    if spoofed_id:
-        print(f"spoofed_id: {spoofed_id}")
-        logger.info(
-            f"Admin/Superuser {getattr(request.user, 'netid', None)} stopped spoofing as {spoofed_id}"
-        )
-    return redirect("/")
+    request.session.pop("spoof_user_id", None)
+    return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
 
 
-@user_passes_test(can_spoof)
+@admin_or_superuser_required
 def spoof_user_search(request):
-    query = request.POST.get("search", "")
-    users = User.objects.filter(is_active=True).filter(
-        Q(netid__icontains=query)
-        | Q(first_name__icontains=query)
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    query = request.POST.get("search", "").strip()
+    users = User.objects.filter(
+        Q(first_name__icontains=query)
         | Q(last_name__icontains=query)
-    )[:20]
+        | Q(netid__icontains=query)
+    ).order_by("last_name")[:25]
     html = render_to_string(
         "partials/spoof_user_options_for_select.html", {"users": users}
     )

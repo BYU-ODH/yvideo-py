@@ -12,7 +12,7 @@
     <body>
         <header>
             {% if request.is_spoofing %}
-            <div style="background: #ffc; color: #a00; padding: 1em; text-align: center; border-bottom: 2px solid #a00;">
+            <div id="spoofing-warning"style="background: #ffc; color: #a00; padding: 1em; text-align: center; border-bottom: 2px solid #a00;">
                 Currently spoofing
                 <b>{{ request.user.first_name }} {{ request.user.last_name }} ({{ request.user.netid }})</b>
                 as admin/superuser

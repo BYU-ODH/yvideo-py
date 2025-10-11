@@ -1,4 +1,5 @@
 <body>
+    {% load static %}
     <nav class="navbar">
         <a href="{% url 'index' %}">
             <img class="logo" src="/static/img/logo.svg" alt="Logo">
@@ -8,23 +9,27 @@
         </div>
         </a>
 
+        {% with admin_user=request.original_user|default:user %}
+        {% if admin_user.is_admin or admin_user.is_superuser %}
         <form method="post" action="{% url 'start_spoofing' %}">
         {% csrf_token %}
         <input type="search"
                 name="search"
                 placeholder="Begin typing to search users..."
                 hx-post="{% url 'spoof_user_search' %}"
-                hx-trigger="input changed delay:500ms, keyup[key=='Enter'], load"
+                hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
                 hx-target="#spoof-user-select"
                 hx-indicator=".htmx-indicator">
         <span class="htmx-indicator" style="display:none;">
-            <img src="/img/bars.svg"/> Searching...
+            <img src="{% static 'img/bars.svg' %}"/> Searching...
         </span>
         <select name="spoof_user_id" id="spoof-user-select">
             <!-- Options populated by HTMX response -->
         </select>
         <button type="submit">Start spoofing</button>
         </form>
+        {% endif %}
+        {% endwith %}
 
         <aside class="sidebar">
             <h4> {{ user.netid }} </h4>
