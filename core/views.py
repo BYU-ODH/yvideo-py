@@ -40,8 +40,7 @@ def admin_or_superuser_required(view_func):
 
 
 def index(request):
-    user = request.user  # Use spoofed or real user from middleware
-    collections = Collection.objects.filter(owner=user)
+    collections = Collection.objects.filter(owner=request.user)
     all_contents = Content.objects.filter(collection__in=collections)
     filtered_contents = {collection: [] for collection in collections}
 
@@ -49,7 +48,7 @@ def index(request):
         filtered_contents[content.collection].append(content)
 
     context = {
-        "user": user,  # TODO: Replace with actual data
+        "user": request.user,
         "collections": collections,
         "contents": filtered_contents,
         "public_collections": [],
@@ -57,14 +56,12 @@ def index(request):
     return render(request, "index.html", context)
 
 
-@login_not_required
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    user = request.user  # Use spoofed or real user from middleware
     file_key = None
     if content.file:
-        file_key = FileKey.objects.filter(file=content.file, user=user).first()
+        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
 
     context = {
         "content": content,
@@ -73,13 +70,11 @@ def player(request, content_id):
         "events": [],
         "subtitles": [],
         "clips": [],
-        "user": user,  # Add user to context if needed by template
     }
 
     return render(request, "player.html", context)
 
 
-@login_not_required  # TODO remove decorator
 def stream_file(request, file_key):
     """Stream file content with support for HTTP Range requests (partial content)."""
     try:
@@ -190,8 +185,7 @@ def stream_file(request, file_key):
 
 
 def manage_collections(request):
-    user = request.user  # Use spoofed or real user from middleware
-    collections = Collection.objects.filter(owner=user)
+    collections = Collection.objects.filter(owner=request.user)
 
     archived = collections.filter(archived=True)
     published = collections.filter(archived=False, published=True)
