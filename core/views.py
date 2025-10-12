@@ -29,23 +29,12 @@ from .models import User
 logger = logging.getLogger(__name__)
 
 
-def _admin_context_user(request):
-    return (
-        request.original_user
-        if getattr(request, "is_spoofing", False)
-        else request.user
-    )
-
-
 def admin_or_superuser_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
-        admin_user = _admin_context_user(request)
-        if getattr(admin_user, "is_admin", False) or getattr(
-            admin_user, "is_superuser", False
-        ):
-            return view_func(request, *args, **kwargs)
-        return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+        if not getattr(request, "can_spoof", False):
+            return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+        return view_func(request, *args, **kwargs)
 
     return _wrapped
 
@@ -306,11 +295,6 @@ def invalid_login(request):
     return render(request, "invalid_login.html", {})
 
 
-def can_spoof(user):
-    print("can_spoof called", str(user))
-    return getattr(user, "is_admin", False) or getattr(user, "is_superuser", False)
-
-
 @admin_or_superuser_required
 @login_not_required
 def spoof_user_start(request):
@@ -337,9 +321,12 @@ def spoof_user_search(request):
         return HttpResponse(status=405)
     query = request.POST.get("search", "").strip()
     users = User.objects.filter(
-        Q(first_name__icontains=query)
-        | Q(last_name__icontains=query)
-        | Q(netid__icontains=query)
+        (
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(netid__icontains=query)
+        )
+        & ~Q(id=request.user.id)
     ).order_by("last_name")[:25]
     html = render_to_string(
         "partials/spoof_user_options_for_select.html", {"users": users}

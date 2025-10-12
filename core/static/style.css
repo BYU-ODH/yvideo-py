@@ -2,6 +2,95 @@
     --selected-grey: #e6e6e6;
 }
 
+/* Spoofing input/select styles */
+.spoof-form {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.spoof-label {
+    margin-right: 0.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.spoof-input-group {
+    position: relative;
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+#spoof-user-input {
+    padding: 0.7rem 1rem;
+    border: 1px solid #ccc;
+    border-radius: 6px 6px 0 0;
+    font-size: 1rem;
+    background: #f9f9f9;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+    z-index: 2;
+}
+
+#spoof-user-input:focus {
+    border-color: #0582ca;
+    background: #fff;
+}
+
+.spoof-select {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    min-width: 180px;
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    font-size: 1rem;
+    background: #fff;
+    outline: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    z-index: 10;
+    max-height: 66vh;
+    overflow-y: auto;
+    display: none;
+    transition: max-height 0.2s;
+}
+
+.spoof-select.show {
+    display: block;
+}
+
+.spoof-go-btn {
+    margin-left: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 6px;
+    background: #0582ca;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, background 0.2s;
+}
+
+.spoof-go-btn:enabled {
+    opacity: 1;
+    background: #0582ca;
+}
+
+.spoof-go-btn:disabled {
+    background: #0582ca;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Player Container Styles */
 .player-container {
     height: calc(100vh - 6rem);
