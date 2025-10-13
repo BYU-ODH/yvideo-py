@@ -1,0 +1,7 @@
+You can generate a new X.509 certificate and key with the following bash command:
+openssl req -new -x509 -days 3652 -nodes -out sp.cert -keyout sp.key
+
+Your new certification will be stored as "sp.cert" in the same directory that
+you execute the openssl command in. The associated key will be stored in
+the same place and will be named "sp.key". yvideo-py will look for sp.cert
+and sp.key in the yvideo/saml_config/certs directory

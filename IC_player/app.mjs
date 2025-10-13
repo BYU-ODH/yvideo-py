@@ -1,8 +1,12 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
-const path = require('path')
+import { app, BrowserWindow, ipcMain } from 'electron'
+import { fileURLToPath } from 'url'
+import path from 'path'
 
 const argv = process.argv;
 var mainWindow = null;
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 function createWindow() {
   // Create the browser window.
@@ -15,25 +19,24 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      preload: path.join(__dirname, 'preload.js')
     }
   })
 
   // and load the index.html of the app.
-  mainWindow.loadURL('file://' + __dirname + '/renderer/player.html')
+  mainWindow.loadURL('file://' + __dirname + '/src/IC-player.html')
 }
 
 app.on('ready', createWindow)
 
-ipcMain.on('request-cmd-argv', (event, arg) => {
+ipcMain.on('request-cmd-argv', (event) => {
   event.reply('response-cmd-argv', argv)
 })
 
 ipcMain.on('toggle-dev-tools', (event, annotationMode) => {
   if (annotationMode && !mainWindow.webContents.isDevToolsOpened()) {
-    mainWindow.webContents.toggleDevTools()
+    mainWindow.webContents.openDevTools()
   }
   else if (!annotationMode && mainWindow.webContents.isDevToolsOpened()) {
-    mainWindow.webContents.toggleDevTools()
+    mainWindow.webContents.closeDevTools()
   }
 })

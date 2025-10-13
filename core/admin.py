@@ -1,7 +1,8 @@
 from django.contrib import admin
 from reversion.admin import VersionAdmin
 
-from .models import Annotation
+from .models import AnnotationSet
+from .models import BlankAnnotation
 from .models import Clip
 from .models import Collection
 from .models import CollectionUserAccess
@@ -12,8 +13,10 @@ from .models import File
 from .models import FileKey
 from .models import ImportantWord
 from .models import Language
+from .models import MuteAnnotation
 from .models import Resource
 from .models import ResourceAccess
+from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 
@@ -132,34 +135,48 @@ class LanguageAdmin(VersionAdmin):
     search_fields = ("language",)
 
 
-@admin.register(Annotation)
 class AnnotationAdmin(VersionAdmin):
-    list_display = ("name", "owner", "file", "created_at")
+    list_display = ("name", "owner", "annotation_set", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "owner__name", "owner__netid", "file__resource__name")
+    search_fields = ("name", "owner__name", "owner__netid", "resource__name")
+
+
+@admin.register(SkipAnnotation)
+class SkipAnnotationAdmin(AnnotationAdmin):
+    pass
+
+
+@admin.register(MuteAnnotation)
+class MuteAnnotationAdmin(AnnotationAdmin):
+    pass
+
+
+@admin.register(BlankAnnotation)
+class BlankAnnotationAdmin(AnnotationAdmin):
+    pass
 
 
 @admin.register(Clip)
 class ClipAdmin(VersionAdmin):
-    list_display = ("name", "owner", "file", "start_time", "end_time", "created_at")
+    list_display = ("name", "owner", "resource", "start_time", "end_time", "created_at")
     list_filter = ("created_at",)
     search_fields = (
         "name",
         "description",
         "tags",
         "owner__name",
-        "file__resource__name",
+        "resource__name",
     )
 
 
 @admin.register(Subtitle)
 class SubtitleAdmin(VersionAdmin):
-    list_display = ("name", "language", "owner", "file", "created_at")
+    list_display = ("name", "language", "owner", "resource", "created_at")
     list_filter = ("language", "created_at")
     search_fields = (
         "name",
         "owner__name",
-        "file__resource__name",
+        "resource__name",
         "language__language",
     )
 
@@ -196,3 +213,10 @@ class FileKeyAdmin(VersionAdmin):
 class ImportantWordAdmin(VersionAdmin):
     list_display = ("word", "translation")
     search_fields = ("word", "translation", "content__title")
+
+
+@admin.register(AnnotationSet)
+class AnnotationSetAdmin(VersionAdmin):
+    list_display = ("name", "owner", "resource", "created_at")
+    list_filter = ("created_at",)
+    search_fields = ("name", "owner__name", "resource__name")

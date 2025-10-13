@@ -85,9 +85,9 @@ class CustomUserManager(BaseUserManager):
 
 class User(AbstractUser):
     netid = models.CharField(max_length=8, unique=True)
+    byu_id = models.CharField(max_length=9, blank=True, null=True)
     USERNAME_FIELD = "netid"
     REQUIRED_FIELDS = []
-    byu_id = models.CharField(max_length=9, blank=True, null=True)
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
     )
@@ -106,6 +106,14 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} | {self.netid}"
+
+    def to_dict(self):
+        return {
+            "netid": self.netid,
+            "byuid": self.byu_id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+        }
 
     @property
     def is_admin(self):
@@ -242,6 +250,22 @@ class File(models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="files"
     )
+    audio_language = models.ForeignKey(
+        "Language",
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True,
+        blank=True,
+        related_name="files_with_audio_language",
+    )
+    burned_in_subtitles_language = models.ForeignKey(
+        "Language",
+        on_delete=models.SET_NULL,
+        default=None,
+        null=True,
+        blank=True,
+        related_name="files_with_burned_in_subtitles",
+    )
     version = models.CharField(max_length=100)
     full_video = models.BooleanField(
         default=True,
@@ -275,23 +299,10 @@ class File(models.Model):
         unique_together = ("resource", "version")
 
 
-class Annotation(models.Model):
-    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="annotations")
-    owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="annotations"
-    )
-    name = models.CharField(max_length=255, blank=True)
-    annotations = models.JSONField(blank=True)
-    history = models.JSONField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.owner} | {self.file.resource.name} | {self.file.version} | {self.id}"
-
-
 class Clip(models.Model):
-    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="clips")
+    resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="clips"
+    )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="clips"
     )
@@ -303,7 +314,24 @@ class Clip(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} | {self.start_time}-{self.end_time} | {self.file.resource.name} | {self.file.version} | {self.id}"
+        return f"{self.name} | {self.start_time}-{self.end_time} | {self.resource.name} | {self.id}"
+
+
+class AnnotationSet(models.Model):
+    name = models.CharField(max_length=225)
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="user",
+    )
+    resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="resources"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.owner.first_name} {self.owner.last_name}) | {self.updated_at} | {self.resource.name}{self.id}"
 
 
 class Content(models.Model):
@@ -322,6 +350,13 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
+    annotation_set = models.ForeignKey(
+        AnnotationSet,
+        on_delete=models.SET_NULL,
+        related_name="contents",
+        null=True,
+        blank=True,
+    )
     url = models.URLField(max_length=500, blank=True, null=True)
     description = models.TextField(blank=True)
     allow_definitions = models.BooleanField(default=True)
@@ -329,19 +364,12 @@ class Content(models.Model):
     allow_captions = models.BooleanField(default=True)
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
-    annotation = models.ForeignKey(
-        Annotation,
-        on_delete=models.CASCADE,
-        related_name="contents",
-        null=True,
-        blank=True,
-        limit_choices_to={"file": models.F("file")},
-    )
+    words = models.TextField(blank=True)
     clips = models.ManyToManyField(
         Clip,
         related_name="contents",
         blank=True,
-        limit_choices_to={"file": models.F("file")},
+        limit_choices_to=models.Q(resource=models.F("resource")),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -359,6 +387,68 @@ class ImportantWord(models.Model):
     )
     word = models.CharField(null=False, blank=True, max_length=50)
     translation = models.CharField(null=False, blank=True, max_length=100)
+
+
+class Annotation(models.Model):
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="%(app_label)s_%(class)s_user",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=255, blank=True)
+    annotation_set = models.ForeignKey(
+        AnnotationSet,
+        on_delete=models.CASCADE,
+        related_name="%(app_label)s_%(class)s_annotation_set",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    start_time = models.FloatField(default=0.0)
+    end_time = models.FloatField(default=0.0)
+    prev = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="%(app_label)s_%(class)s_prev",
+        null=True,
+        blank=True,
+    )
+    next = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="%(app_label)s_%(class)s_next",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return f"{self.owner} | {self.annotation_set.resource.name} | {self.id}"
+
+
+class SkipAnnotation(Annotation):
+    pass
+
+
+class MuteAnnotation(Annotation):
+    pass
+
+
+class BlankAnnotation(Annotation):
+    type = models.CharField(
+        max_length=10,
+        choices=[
+            ("k", "Black"),  # <video> CSS filter: brightness(0)
+            ("#", "Blur"),  # <video> CSS filter: blur(30px)
+            ("w", "White"),  # <video> CSS filter: brightness(10)
+        ],
+        default="black",
+    )
 
 
 class Course(models.Model):
@@ -434,16 +524,23 @@ class UserCourses(models.Model):
 
 
 class Language(models.Model):
-    language = models.CharField(max_length=30, unique=True, blank=False, null=False)
+    language = models.CharField(max_length=60, unique=True, blank=False, null=False)
+    # TODO ensure that these are ISO 639-1 (2002) or a three-letter code from ISO 639-2 (1998), ISO 639-3 (2007) or ISO 639-5 (2008)
+    lang_tag = models.CharField(max_length=10, unique=True, blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ["language"]
+
     def __str__(self):
-        return f"{self.language}"
+        return f"{self.language} ({self.lang_tag})"
 
 
 class Subtitle(models.Model):
-    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="subtitles")
+    resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="subtitles"
+    )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subtitles"
     )
@@ -457,10 +554,10 @@ class Subtitle(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} | {self.language.language} | {self.file.resource.name} | {self.file.version} | {self.owner.first_name} {self.owner.last_name} | {self.id}"
+        return f"{self.name} | {self.language.language} | {self.resource.name} | {self.owner.first_name} {self.owner.last_name} | {self.id}"
 
     class Meta:
-        unique_together = ("file", "owner", "language", "name")
+        unique_together = ("resource", "owner", "language", "name")
 
 
 class FileKey(models.Model):  # "through" model

@@ -44,14 +44,6 @@
   },
   {
     "options": {
-      "start": "2",
-      "end": "10",
-      "type": "blur",
-      "details": {}
-    }
-  },
-  {
-    "options": {
       "start": "6",
       "end": "19",
       "type": "censor",
@@ -94,6 +86,14 @@
           "18":    [24, 24]
         }
       }
+    }
+  },
+  {
+    "options": {
+      "start": "19",
+      "end": "20",
+      "type": "blur",
+      "details": {}
     }
   },
   {

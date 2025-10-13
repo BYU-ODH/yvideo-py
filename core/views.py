@@ -1,15 +1,24 @@
+from functools import wraps
+import json
 import logging
 import mimetypes
 import os
 import re
 
+from django.conf import settings
+from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.views import redirect_to_login
+from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
+from django.http import JsonResponse
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
+from django.shortcuts import redirect
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
@@ -19,19 +28,110 @@ from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import UpdateContentForm
+from .models import BlankAnnotation
 from .models import Collection
 from .models import Content
 from .models import FileKey
 from .models import ImportantWord
+from .models import MuteAnnotation
+from .models import SkipAnnotation
 from .models import User
 
 logger = logging.getLogger(__name__)
 
+TOY_VTT = """WEBVTT
+
+00:00.000 --> 00:00.900
+Hildy!
+
+00:01.000 --> 00:01.400
+How are you?
+
+00:01.500 --> 00:02.900
+Tell me, is the lord of the universe in?
+
+00:03.000 --> 00:04.200
+Yes, he's in - in a bad humor
+
+00:04.300 --> 00:06.000
+Somebody must've stolen the crown jewels"""
+
+TOY_VTT2 = """WEBVTT
+
+00:00.000 --> 00:00.900
+Birds!
+
+00:01.000 --> 00:01.400
+Where are they?
+
+00:01.500 --> 00:02.900
+You don't know?
+
+00:03.000 --> 00:04.200
+Yes, but I want to know if you do.
+
+00:04.300 --> 00:06.000
+Oh, well I know too, so we don't have to say.
+
+00:06.000 --> 00:06.900
+Look outside!
+
+00:07.000 --> 00:07.900
+They're flying everywhere.
+
+00:08.000 --> 00:08.900
+Did you see the blue one?
+
+00:09.000 --> 00:12.900
+Yes, it landed on the fence.
+
+00:10.000 --> 00:10.900
+What about the red one?
+
+00:11.000 --> 00:11.900
+It was chasing the yellow.
+
+00:12.000 --> 00:12.900
+The flock is growing.
+
+00:13.000 --> 00:13.900
+They're singing loudly.
+
+00:14.000 --> 00:14.900
+Do you hear that melody?
+
+00:15.000 --> 00:15.900
+It's beautiful, isn't it?
+
+00:16.000 --> 00:16.900
+They must be happy.
+
+00:17.000 --> 00:17.900
+The sun is shining.
+
+00:18.000 --> 00:18.900
+Perfect day for birds.
+
+00:19.000 --> 00:19.900
+Let's watch them together.
+
+00:20.000 --> 00:20.900
+Maybe they'll come closer.
+"""
+
+
+def admin_or_superuser_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not getattr(request, "can_spoof", False):
+            return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped
+
 
 def index(request):
-    # user = request.user
-    user = User.objects.all().first()
-    collections = Collection.objects.filter(owner=user)
+    collections = Collection.objects.filter(owner=request.user)
     all_contents = Content.objects.filter(collection__in=collections)
     filtered_contents = {collection: [] for collection in collections}
 
@@ -39,7 +139,7 @@ def index(request):
         filtered_contents[content.collection].append(content)
 
     context = {
-        "user": user,  # TODO: Replace with actual data
+        "user": request.user,
         "collections": collections,
         "contents": filtered_contents,
         "public_collections": [],
@@ -47,32 +147,36 @@ def index(request):
     return render(request, "index.html", context)
 
 
-def login(request):
-    """
-    This is a stub function until SAML is working properly. Until then,
-    it isn't clear what steps should be taken to complete this method.
-    When the SAML integration is completed, this method will need to
-    get the byu_id from the SAML response and create a user if one does
-    not already exist.
-    """
-    pass
-
-
+# @login_required  # TODO: Uncomment
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    user = User.objects.first()  # TODO: Delete
-    # user = request.user  # TODO: Uncomment
+    file_key = None
     if content.file:
-        file_key = FileKey.objects.filter(file=content.file, user=user).first()
+        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
+
+    # Prepare subtitle data in the format expected by AnnotationPlayer
+    subtitles_data = [
+        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
+        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+        # {"srclang": "en", "url": "http://example.com/subtitles.vtt", "label": "Birds"},
+    ]
+
+    clips_data = [
+        {"start": 5, "end": 10, "label": "Sample Clip"},
+        {"start": 11, "end": 14, "label": "Another Clip"},
+        {"start": 15, "end": 20, "label": "Final Clip"},
+    ]
+    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": [],
-        "subtitles": [],
-        "clips": [],
+        "events": json.dumps([]),
+        "subtitles": json.dumps(subtitles_data),
+        "clips": json.dumps(clips_data),
+        "has_subtitles": has_subtitles,
     }
 
     return render(request, "player.html", context)
@@ -197,8 +301,7 @@ def get_collection_types(user):
 
 
 def manage_collections(request):
-    # collections = Collection.objects.filter(owner=request.user)
-    collections = get_collection_types(User.objects.all().first())
+    collections = Collection.objects.filter(owner=request.user)
 
     return render(
         request,
@@ -251,8 +354,7 @@ def create_collection(request):
 
 
 def view_collection(request, pk):
-    # user = request.user
-    user = User.objects.all().first()
+    user = request.user
 
     if request.method == "GET":
         collection_pk = pk
@@ -531,3 +633,91 @@ def delete_important_word(request, word_id):
             f"An error occured while deleting an important word. word_id: {word_id}. Exception: {e}"
         )
         return HttpResponseServerError()
+
+
+def add_annotation(request, content_id, annotation_type):
+    if request.method != "POST":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+
+    # Map strings to model classes
+    annotation_types = {
+        "skip": SkipAnnotation,
+        "mute": MuteAnnotation,
+        "blank": BlankAnnotation,
+    }
+
+    annotation_class = annotation_types.get(annotation_type.lower())
+
+    # Get the File object
+    content_obj = get_object_or_404(Content, id=content_id)
+
+    # Get POST data
+    name = request.POST.get("name", "")
+    owner = request.POST.get("owner", "")  # Change to request.user when auth is set up
+    start_time = float(request.POST.get("start_time", 0))
+    end_time = float(request.POST.get("end_time", 0))
+
+    # Create the annotation
+    annotation = annotation_class.objects.create(
+        content=content_obj,
+        owner=owner,  # change to request.user when auth is set up
+        name=name,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    # Return JSON response
+    return JsonResponse(
+        {
+            "id": annotation.id,
+            "name": annotation.name,
+            "type": annotation.annotation_type,
+            "owner": annotation.owner.netid,
+            "start_time": annotation.start_time,
+            "end_time": annotation.end_time,
+        }
+    )
+
+
+@login_not_required
+def invalid_login(request):
+    return render(request, "invalid_login.html", {})
+
+
+@admin_or_superuser_required
+@login_not_required
+def spoof_user_start(request):
+    if request.method == "POST":
+        spoof_user_id = request.POST.get("spoof_user_id")
+        if spoof_user_id:
+            request.session["spoof_user_id"] = int(spoof_user_id)
+        return redirect(
+            request.POST.get("next") or request.headers.get("Referer") or "/"
+        )
+    return redirect("/")
+
+
+@admin_or_superuser_required
+@login_not_required
+def spoof_user_stop(request):
+    request.session.pop("spoof_user_id", None)
+    return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
+
+
+@admin_or_superuser_required
+def spoof_user_search(request):
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    query = request.POST.get("search", "").strip()
+    users = User.objects.filter(
+        (
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(netid__icontains=query)
+        )
+        & ~Q(id=request.user.id)
+    ).order_by("last_name")[:25]
+    html = render_to_string(
+        "partials/spoof_user_options_for_select.html", {"users": users}
+    )
+    return HttpResponse(html)
