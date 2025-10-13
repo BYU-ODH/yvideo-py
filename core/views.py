@@ -1,15 +1,21 @@
+from functools import wraps
 import json
 import logging
 import mimetypes
 import os
 import re
 
-from django.contrib.auth.decorators import login_required
+from django.conf import settings
+from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.views import redirect_to_login
+from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.shortcuts import redirect
 from django.shortcuts import render
+from django.template.loader import render_to_string
 
 from core.forms import CollectionForm
 
@@ -104,10 +110,18 @@ Maybe they'll come closer.
 """
 
 
-@login_required
+def admin_or_superuser_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not getattr(request, "can_spoof", False):
+            return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped
+
+
 def index(request):
-    user = User.objects.all().first()
-    collections = Collection.objects.filter(owner=user)
+    collections = Collection.objects.filter(owner=request.user)
     all_contents = Content.objects.filter(collection__in=collections)
     filtered_contents = {collection: [] for collection in collections}
 
@@ -115,7 +129,7 @@ def index(request):
         filtered_contents[content.collection].append(content)
 
     context = {
-        "user": user,  # TODO: Replace with actual data
+        "user": request.user,
         "collections": collections,
         "contents": filtered_contents,
         "public_collections": [],
@@ -127,10 +141,9 @@ def index(request):
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    user = User.objects.first()  # TODO: Delete
-    # user = request.user  # TODO: Uncomment
+    file_key = None
     if content.file:
-        file_key = FileKey.objects.filter(file=content.file, user=user).first()
+        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
 
     # Prepare subtitle data in the format expected by AnnotationPlayer
     subtitles_data = [
@@ -268,10 +281,8 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
-@login_required
 def manage_collections(request):
-    user = User.objects.all().first()
-    collections = Collection.objects.filter(owner=user)
+    collections = Collection.objects.filter(owner=request.user)
 
     archived = collections.filter(archived=True)
     published = collections.filter(archived=False, published=True)
@@ -370,5 +381,45 @@ def add_annotation(request, content_id, annotation_type):
     )
 
 
+@login_not_required
 def invalid_login(request):
     return render(request, "invalid_login.html", {})
+
+
+@admin_or_superuser_required
+@login_not_required
+def spoof_user_start(request):
+    if request.method == "POST":
+        spoof_user_id = request.POST.get("spoof_user_id")
+        if spoof_user_id:
+            request.session["spoof_user_id"] = int(spoof_user_id)
+        return redirect(
+            request.POST.get("next") or request.headers.get("Referer") or "/"
+        )
+    return redirect("/")
+
+
+@admin_or_superuser_required
+@login_not_required
+def spoof_user_stop(request):
+    request.session.pop("spoof_user_id", None)
+    return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
+
+
+@admin_or_superuser_required
+def spoof_user_search(request):
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    query = request.POST.get("search", "").strip()
+    users = User.objects.filter(
+        (
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(netid__icontains=query)
+        )
+        & ~Q(id=request.user.id)
+    ).order_by("last_name")[:25]
+    html = render_to_string(
+        "partials/spoof_user_options_for_select.html", {"users": users}
+    )
+    return HttpResponse(html)

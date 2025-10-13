@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth import login
+from django.contrib.auth.decorators import login_not_required
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.http import HttpResponseServerError
@@ -11,12 +12,16 @@ from onelogin.saml2.settings import OneLogin_Saml2_Settings
 
 from core import model_utils as core_model_utils
 
+login = login_not_required(login)
 
+
+@login_not_required
 def init_saml_auth(req):
     auth = OneLogin_Saml2_Auth(req, custom_base_path=settings.SAML_FOLDER)
     return auth
 
 
+@login_not_required
 def prepare_django_request(request):
     # If server is behind proxys or balancers use the HTTP_X_FORWARDED fields
     result = {
@@ -32,6 +37,7 @@ def prepare_django_request(request):
 
 
 @csrf_exempt
+@login_not_required
 def saml_login(request):
     req = prepare_django_request(request)
     auth = init_saml_auth(req)
@@ -106,6 +112,7 @@ def saml_login(request):
             return HttpResponseRedirect("?sso")
 
 
+@login_not_required
 def metadata(request):
     # req = prepare_django_request(request)
     # auth = init_saml_auth(req)
