@@ -191,7 +191,6 @@ h2 {
 .collections-header a {
     font-size: 1rem;
     color: white;
-    outline: none;  /* eslint-disable-line css/use-baseline */
     background-color: #0582ca;
     border: none;
     border-radius: 6px;
@@ -216,7 +215,6 @@ h2 {
     border: none;
     border-radius: 0.5rem;
     padding: 0px 1.25rem 0px 3.25rem;
-    outline: none;  /* eslint-disable-line css/use-baseline */
     box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 5px -1px;
 }
 
@@ -553,7 +551,6 @@ h2 {
     border-left: none;
     border-image: initial;
     border-bottom: 1px solid rgb(204, 204, 204);
-    outline: none;  /* eslint-disable-line css/use-baseline */
     width: 100%;
 }
 
