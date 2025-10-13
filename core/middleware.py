@@ -18,11 +18,10 @@ class SpoofUserMiddleware:
         )
 
         # Check if spoofing is active
-        spoof_user_id = request.session.get("spoof_user_id")
-        if spoof_user_id and request.can_spoof:
+        if "spoof_user_id" in request.session and request.can_spoof:
             User = get_user_model()
             try:
-                spoofed_user = User.objects.get(pk=spoof_user_id)
+                spoofed_user = User.objects.get(pk=request.session["spoof_user_id"])
                 request.user = spoofed_user
                 request.is_spoofing = True
                 request.original_user = original_user
@@ -33,9 +32,9 @@ class SpoofUserMiddleware:
                 )
             except User.DoesNotExist:
                 logger.warning(
-                    f"Spoofed user {spoof_user_id} does not exist; clearing session"
+                    f"Spoofed user {request.session['spoof_user_id']} does not exist; clearing spoofing from session"
                 )
-                request.session.pop("spoof_user_id", None)
+                request.session.pop("spoof_user_id")
                 request.is_spoofing = False
         else:
             request.is_spoofing = False
