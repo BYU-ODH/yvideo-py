@@ -613,7 +613,6 @@ h2 {
     border-radius: 6px 6px 0 0;
     font-size: 1rem;
     background: #f9f9f9;
-    outline: none;
     transition: border-color 0.2s;
     width: 100%;
     z-index: 2;
@@ -635,7 +634,6 @@ h2 {
     border-radius: 0 0 6px 6px;
     font-size: 1rem;
     background: #fff;
-    outline: none;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     z-index: 10;
     max-height: 66vh;
