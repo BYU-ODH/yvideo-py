@@ -1,11 +1,14 @@
 {
-  "name": "electron_player",
-  "version": "0.1.1",
-  "main": "app.js",
+  "name": "ic-player",
+  "productName": "IC Player",
+  "description": "A video player for BYU International Cinema with annotations layer",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "app.mjs",
   "scripts": {
     "start": "electron ."
   },
   "dependencies": {
-    "electron": "^37.2.4"
+    "electron": "^38.2.0"
   }
 }

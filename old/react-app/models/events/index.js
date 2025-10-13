@@ -32,7 +32,7 @@ export default class Event {
 	}
 
 	print(){
-		console.log(`%c Executing event is: `, `color: blue; font-weight: bold; text-decoration: underline;`, this.type) // eslint-disable-line no-console
+		console.log(`%c Executing event is: `, `color: blue; font-weight: bold; text-decoration: underline;`, this.type)
 	}
 }
 

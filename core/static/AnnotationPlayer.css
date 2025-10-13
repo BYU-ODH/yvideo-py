@@ -1,0 +1,762 @@
+/* Container */
+.annotation-player-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  display: flex;
+  transition: none;
+}
+
+.video-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: margin-right 0.3s ease;
+  min-width: 0;
+}
+
+.video-wrapper.no-transition {
+  transition: none;
+}
+
+.annotation-player-container.subtitle-sidebar-open .video-wrapper {
+  margin-right: 320px;
+}
+
+.hidden {
+  display: none;
+}
+
+.inactive {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.annotation-player-container.cursor-hidden {
+  cursor: none;
+}
+
+.annotation-player-container.controls-hidden .video-controls,
+.annotation-player-container.controls-hidden .subtitle-text {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.annotation-box .bezel-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+  pointer-events: none;
+}
+
+.annotation-box .bezel-icon.show {
+  opacity: 1;
+}
+
+.annotation-box .bezel-icon svg {
+  width: 40px;
+  height: 40px;
+  fill: white;
+}
+
+.annotation-box .bezel-text {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.annotation-box .bezel-text.show {
+  opacity: 1;
+}
+
+/* Video Element */
+.annotation-player-container video {
+  width: 100%;
+  display: block;
+  background: #000;
+  transition: filter 0.3s ease;
+  object-fit: contain;
+  max-height: 100%;
+}
+
+.annotation-player-container video.blanked {
+  filter: brightness(0);
+}
+
+.annotation-player-container video.blurred {
+  filter: blur(20px);
+}
+
+/* Annotation Container */
+.annotation-box {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+  transition: width 0.3s ease, left 0.3s ease;
+}
+
+.annotation-box .censor {
+  pointer-events: none;
+}
+
+.annotation-box .censor.black {
+  background-color: black;
+}
+
+.annotation-box .censor.red {
+  background-color: red;
+}
+
+.annotation-box .censor.blur {
+  backdrop-filter: blur(10px);  /* eslint-disable-line css/use-baseline */
+}
+
+/* Video Controls */
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  z-index: 20;
+  opacity: 1;
+  transition: opacity 0.4s;
+  height: auto;
+}
+
+.bottom-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.left-controls, .right-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Control Buttons */
+.video-controls button {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  outline: none;  /* eslint-disable-line css/use-baseline */
+  width: 48px;
+  height: 48px;
+}
+
+.video-controls button:hover {
+  transform: scale(1.1);
+  opacity: 0.8;
+}
+
+.video-controls button:active {
+  transform: scale(0.95);
+}
+
+.video-controls button svg {
+  width: 100%;
+  height: 100%;
+  fill: white;
+  stroke: none;
+}
+
+/* Volume Controls */
+.volume-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: gap 0.2s ease;
+}
+
+.volume-slider {
+  width: 0;
+  height: 4px;
+  background: #0582ca;
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+.volume-controls:hover .volume-slider {
+  width: 80px;
+}
+
+/* Hide thumb by default */
+.volume-slider::-webkit-slider-thumb {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.volume-slider::-moz-range-thumb {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.volume-slider::-ms-thumb {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* Show thumb on hover */
+.volume-controls:hover .volume-slider::-webkit-slider-thumb {
+  opacity: 1;
+}
+.volume-controls:hover .volume-slider::-moz-range-thumb {
+  opacity: 1;
+}
+.volume-controls:hover .volume-slider::-ms-thumb {
+  opacity: 1;
+}
+
+/* Scrubber */
+.scrubber {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+  transition: height 0.2s ease;
+}
+
+.scrubber:hover,
+.scrubber.dragging {
+  height: 6px;
+}
+
+.skip-on-scrubber {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+    z-index: 99;
+}
+
+.scrubber-buffered {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 1;
+  transition: width 0.1s linear;
+}
+
+.scrubber-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #0582ca;
+  border-radius: 3px;
+  pointer-events: none;
+  transition: width 0.1s linear;
+  z-index: 2;
+}
+
+.scrubber-dot {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  background: #0582ca;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: left 0.1s linear;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+}
+
+.scrubber:hover .scrubber-dot,
+.scrubber.dragging .scrubber-dot {
+  opacity: 1;
+  width: 14px;
+  height: 14px;
+}
+
+/* Clip button active state (yellow highlight) */
+.clips-btn.clip-active {
+  background-color: #ffd700;
+  color: #000;
+}
+
+.clips-btn.clip-active:hover {
+  background-color: #ffed4e;
+}
+
+.clip-on-scrubber.active {
+  position: absolute;
+  height: 100%;
+  background-color: #ffe600;
+  height: 6px;
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 2;
+  transition: background-color 0.2s ease;
+}
+
+/* Ensure clips render above buffered bar but below progress */
+.scrubber-buffered {
+  z-index: 1;
+}
+
+.skip-on-scrubber {
+  z-index: 3;
+}
+
+.scrubber-progress {
+  z-index: 4;
+}
+
+.scrubber-dot {
+  z-index: 5;
+}
+
+/* Play Time Display */
+.play-time {
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: auto;
+  text-align: center;
+  user-select: none;  /* eslint-disable-line css/use-baseline */
+}
+
+
+.speed-btn {
+  min-width: 45px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+}
+
+.speed-btn .speed-text {
+  margin-left: 4px;
+}
+
+
+.captions-btn {
+  position: relative;
+}
+
+.captions-btn.active {
+  color: #0582ca;
+}
+
+.captions-btn.active svg {
+  fill: #0582ca;
+  stroke: #0582ca;
+}
+
+
+.subtitle-sidebar-btn {
+  position: relative;
+}
+
+.subtitle-sidebar-btn.active {
+  color: #0582ca;
+}
+
+.subtitle-sidebar-btn.active svg {
+  fill: #0582ca;
+  stroke: #0582ca;
+}
+
+.subtitle-sidebar-btn.inactive {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.subtitle-sidebar-btn.inactive:hover {
+  transform: none;
+  opacity: 0.3;
+}
+
+
+.fullscreen-btn {
+  width: 40px;
+  height: 40px;
+}
+
+/* Menu Modal (for speed/caption selection) */
+.menu-modal {
+  position: absolute;
+  right: 16px;
+  bottom: 70px;
+  min-width: 150px;
+  background: rgba(40, 40, 40, 0.95);
+  color: white;
+  border-radius: 8px;
+  padding: 8px 0;
+  z-index: 25;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.captions-menu {
+  min-width: 180px;
+  max-width: 300px;
+}
+
+.speed-menu {
+  min-width: 80px;
+}
+
+.menu-modal h3 {
+  padding: 8px 12px;
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.menu-modal button,
+.menu-modal input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+  outline: none;  /* eslint-disable-line css/use-baseline */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-modal button:hover,
+.menu-modal input:hover {
+  background-color: rgba(5, 130, 202, 0.8);
+}
+
+/* Highlight for active playback speed option */
+.speed-option.active-value,
+.caption-option.active-value {
+  background: rgba(5, 130, 202, 0.5);
+  color: #fff;
+  position: relative;
+}
+
+/* Subtitle Sidebar */
+.subtitle-sidebar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 320px;
+  min-width: 200px;
+  max-width: 600px;
+  height: 100%;
+  background: rgba(28, 28, 28, 0.95);
+  color: white;
+  display: none;
+  flex-direction: column;
+  z-index: 30;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.subtitle-sidebar.resizing {
+  transition: none;
+}
+
+.subtitle-sidebar.visible {
+  display: flex;
+  transform: translateX(0);
+}
+
+.subtitle-sidebar-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 31;
+  transition: background 0.2s;
+}
+
+.subtitle-sidebar-resize-handle:hover,
+.subtitle-sidebar-resize-handle.resizing {
+  background: rgba(5, 130, 202, 0.3);
+}
+
+.subtitle-sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 1px;
+}
+
+.subtitle-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.subtitle-sidebar-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.subtitle-sidebar-close {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.subtitle-sidebar-close:hover {
+  opacity: 0.7;
+}
+
+.subtitle-sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.subtitle-sidebar-empty {
+  padding: 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.subtitle-cue {
+  display: flex;
+  gap: 8px;
+  padding: 12px 8px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.subtitle-cue:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.subtitle-cue.active {
+  background-color: rgba(5, 130, 202, 0.2);
+  border-left: 3px solid #0582ca;
+  padding-left: 5px;
+}
+
+.subtitle-cue-seek {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.subtitle-cue-seek:hover {
+  color: #0582ca;
+}
+
+.subtitle-cue-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.subtitle-cue-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 4px;
+  font-family: monospace;
+}
+
+.subtitle-cue-text {
+  font-size: 14px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+  .video-controls {
+    height: auto;
+    gap: 6px;
+    padding: 0;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+  }
+
+  .video-controls button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .play-time {
+    font-size: 12px;
+    min-width: auto;
+  }
+
+  .speed-btn {
+    min-width: 38px;
+    font-size: 12px;
+  }
+
+  .subtitle-text {
+    font-size: 16px;
+    bottom: 60px;
+  }
+
+  .left-controls, .right-controls {
+    gap: 8px;
+  }
+
+  .annotation-player-container.subtitle-sidebar-open .video-wrapper {
+    margin-right: 280px;
+  }
+
+  .subtitle-sidebar {
+    width: 280px;
+    min-width: 200px;
+    max-width: 500px;
+  }
+}
+
+@media screen and (max-width: 425px) {
+  .video-controls {
+    height: auto;
+    gap: 4px;
+    padding: 0;
+    bottom: 6px;
+    left: 6px;
+    right: 6px;
+  }
+
+  .video-controls button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .play-time {
+    font-size: 11px;
+    min-width: auto;
+  }
+
+  .speed-btn {
+    min-width: 32px;
+    font-size: 11px;
+  }
+
+  .scrubber {
+    height: 3px;
+  }
+
+  .scrubber:hover {
+    height: 5px;
+  }
+
+  .scrubber-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .subtitle-text {
+    font-size: 14px;
+    bottom: 55px;
+    padding: 6px 12px;
+  }
+
+  .left-controls, .right-controls {
+    gap: 4px;
+  }
+
+  .annotation-player-container.subtitle-sidebar-open .video-wrapper {
+    margin-right: 0;
+  }
+
+  .subtitle-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .subtitle-sidebar-resize-handle {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 320px) {
+  .video-controls {
+    gap: 2px;
+    padding: 0;
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+  }
+
+  .play-time {
+    font-size: 10px;
+    min-width: auto;
+  }
+
+  .left-controls, .right-controls {
+    gap: 4px;
+  }
+}

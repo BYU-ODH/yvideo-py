@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-case-conflict
@@ -24,14 +24,25 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.4
+    rev: v0.14.0
     hooks:
       - id: ruff-check
-        args: [--fix, --exit-non-zero-on-fix]
+        args: [--fix, --exit-non-zero-on-fix, --diff]
       - id: ruff-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     # uv version.
-    rev: 0.7.22
+    rev: 0.9.0
     hooks:
       - id: uv-lock
+
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.36.0
+    hooks:
+      - id: eslint
+        args: [--fix, --config=eslint.config.js]
+        files: ^(?!package-lock\.json$)(?!old/)(?!node_modules/)(?!vendor/).*\.(js|mjs|json|md|css)$
+        types: [file]
+        additional_dependencies:
+          - eslint@9.36.0
+        language_version: 20.14.0

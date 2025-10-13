@@ -120,7 +120,7 @@ export default class InterfaceService {
 			}
 
 		case this.types.TIP_TOGGLE:
-			if(action.payload == null){ // eslint-disable-line eqeqeq
+			if(action.payload == null){
 				// console.log("IT IS NULL")
 				// we need to set modal to false and then pass a null component
 				return {
@@ -207,7 +207,7 @@ export default class InterfaceService {
 			}
 
 		case this.types.INTERFACE_ERROR:
-			console.error(action.payload.error) // eslint-disable-line no-console
+			console.error(action.payload.error)
 			return {
 				...store,
 				loading: false,

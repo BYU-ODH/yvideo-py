@@ -156,7 +156,7 @@ export default class SubtitlesService {
 			dispatch(this.actions.subtitlesGet(result, id))
 			return result
 		} catch (error) {
-			console.error(error.message) // eslint-disable-line no-console
+			console.error(error.message)
 			dispatch(this.actions.subtitlesError(error))
 			return[]
 		}
