@@ -29,6 +29,7 @@ uvx pre-commit install
 
 5. Run database migrations:
 ```bash
+uv run manage.py makemigrations core  # Needed to init new database
 uv run manage.py migrate
 ```
 

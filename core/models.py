@@ -371,7 +371,7 @@ class Content(models.Model):
         Clip,
         related_name="contents",
         blank=True,
-        limit_choices_to={"file": models.F("file")},
+        limit_choices_to=models.Q(resource=models.F("resource")),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -518,13 +518,9 @@ class UserCourses(models.Model):
 
 
 class Language(models.Model):
-    language = models.CharField(
-        max_length=60, unique=True, blank=False, null=False, required=True
-    )
+    language = models.CharField(max_length=60, unique=True, blank=False, null=False)
     # TODO ensure that these are ISO 639-1 (2002) or a three-letter code from ISO 639-2 (1998), ISO 639-3 (2007) or ISO 639-5 (2008)
-    lang_tag = models.CharField(
-        max_length=10, unique=True, blank=False, null=False, required=True
-    )
+    lang_tag = models.CharField(max_length=10, unique=True, blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
