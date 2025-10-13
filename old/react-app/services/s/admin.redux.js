@@ -159,7 +159,7 @@ export default class AdminService {
 			}
 
 		case ADMIN_ERROR:
-			console.error(action.payload.error) // eslint-disable-line no-console
+			console.error(action.payload.error)
 			return {
 				...store,
 				data: null,
@@ -363,7 +363,7 @@ export default class AdminService {
 
 				dispatch(this.actions.adminSearch(finalData))
 			} catch (error) {
-				console.error(error.message) // eslint-disable-line no-console
+				console.error(error.message)
 				dispatch(this.actions.adminError(error))
 			}
 
@@ -442,7 +442,7 @@ export default class AdminService {
 			}
 
 		} catch (error) {
-			console.error(error.message) // eslint-disable-line no-console
+			console.error(error.message)
 			dispatch(this.actions.adminError(error))
 		}
 	}
@@ -481,7 +481,7 @@ export default class AdminService {
 				dispatch(this.actions.adminSearchPublicCollections(result))
 
 			} catch (error) {
-				console.error(error.message) // eslint-disable-line no-console
+				console.error(error.message)
 				dispatch(this.actions.adminError(error))
 			}
 
@@ -511,7 +511,7 @@ export default class AdminService {
 				dispatch(this.actions.adminSearchProfessors(profArray))
 
 			} catch (error) {
-				console.error(error.message) // eslint-disable-line no-console
+				console.error(error.message)
 				dispatch(this.actions.adminError(error))
 			}
 
@@ -529,7 +529,7 @@ export default class AdminService {
 			dispatch(this.actions.adminSetProfessor(new User(results)))
 
 		} catch (error) {
-			console.error(`ERROR: `, error.message) // eslint-disable-line no-console
+			console.error(`ERROR: `, error.message)
 			dispatch(this.actions.adminError(error))
 		}
 	}
@@ -555,7 +555,7 @@ export default class AdminService {
 				return finalData
 
 			} catch (error) {
-				console.error(error.message) // eslint-disable-line no-console
+				console.error(error.message)
 				dispatch(this.actions.adminError(error))
 			}
 
@@ -574,7 +574,7 @@ export default class AdminService {
 			return new User(results)
 
 		} catch (error) {
-			console.error(`ERROR: `, error.message) // eslint-disable-line no-console
+			console.error(`ERROR: `, error.message)
 			dispatch(this.actions.adminError(error))
 		}
 	}
@@ -588,7 +588,7 @@ export default class AdminService {
 			dispatch(this.actions.adminEmptySearchedUser())
 
 		} catch (error) {
-			console.error(`ERROR: `, error.message) // eslint-disable-line no-console
+			console.error(`ERROR: `, error.message)
 			dispatch(this.actions.adminError(error))
 		}
 	}
@@ -610,7 +610,7 @@ export default class AdminService {
 				dispatch(this.actions.adminGetCollectionContent(results))
 
 			} catch (error) {
-				console.error(error.message) // eslint-disable-line no-console
+				console.error(error.message)
 				dispatch(this.actions.adminError(error))
 			}
 

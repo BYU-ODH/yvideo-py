@@ -1,0 +1,260 @@
+/* International Cinema Stylesheet
+*
+* This file should NEVER contain styles specific to the
+* AnnotationPlayer or SubtitleSidebar.
+*/
+
+
+/* CSS root variables for player control color and visibility */
+:root {
+  --player-controls-bg: rgba(0,0,0,0.7);
+  --player-controls-color: #fff;
+  --player-controls-opacity: 1;
+  --player-controls-transition: opacity 0.4s;
+}
+
+@font-face {
+  font-family: 'Lobster';
+  src: url('Lobster/Lobster-Regular.ttf')
+}
+
+@keyframes nudge {
+  0%    { transform: translateX(0);     }
+  30%   { transform: translateX(-5px);  }
+  50%   { transform: translateX(5px);   }
+  70%   { transform: translateX(-2px);  }
+  100%  { transform: translateX(0);     }
+}
+
+body {
+  background-color: #070000;  /* fallback for old browsers */
+  background-image: linear-gradient(to right, #1e425e, #839aa8, #1e425e); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+  color: white;
+  font-family: sans-serif;
+  overflow: hidden;
+  margin: 0;
+  min-width: 340px;
+}
+
+h1{
+  font-family: "Lobster", cursive;
+  font-size: 70px;
+  text-align: center;
+  color: #bebcb6;
+  text-shadow: 5px 5px 5px black;
+  letter-spacing: 4px;
+  cursor: default;
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+}
+
+/*SPLASH SCREEN STYLES*/
+
+.container {
+  width: 100%;
+  text-align: center;
+  margin-top: 5%;
+}
+
+#logo {
+  margin: auto;
+  height: 400px;
+  width: 400px;
+}
+
+#selectFilesButtonContainer {
+  position: fixed;
+  margin-left: calc(50% - 100px);
+  width: 200px;
+  bottom: 15%;
+}
+
+#playButton {
+  height: 100px;
+  border-radius: 100%;
+  -webkit-transition: all 0.5s ease;
+  transition: all 0.5s ease;
+}
+
+#playButton svg{
+  border-radius: 100%;
+  background: black;
+  box-shadow: 0 0 10px black;
+}
+
+#playButton .triangle {
+  -webkit-transition: all 0.7s ease-in-out;
+  transition: all 0.7s ease-in-out;
+  stroke-dasharray: 240;
+  stroke-dashoffset: 480;
+  stroke: grey;
+  transform: translateY(0);
+}
+
+#playButton:hover .triangle {
+  stroke-dashoffset: 0;
+  opacity: 1;
+  stroke: white;
+}
+
+#playButton.ready .triangle {
+  -webkit-transition: all 0.7s ease-in-out;
+  transition: all 0.7s ease-in-out;
+  stroke-dashoffset: 0;
+  stroke: yellow;
+  fill: black;
+}
+
+#playButton:hover.ready .triangle {
+  -webkit-transition: fill 0.7s ease-in-out;
+  transition: fill 0.7s ease-in-out;
+  fill: yellow;
+}
+
+#playButton:hover{
+  box-shadow: 0 0 50px #1e425e;
+}
+
+#filePickerDiv {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
+#files {
+  text-align: center;
+  position:relative;
+  text-decoration: none;
+}
+
+#toggleAnnotationModeBtn {
+  position:fixed;
+  right: 10px;
+  top: 10px;
+  background-color: #00000000;
+  color: darkgray;
+  border: none;
+  border-radius: 7px;
+  display: inline-block;
+  padding: 5px;
+  font-size: 16px;
+  cursor: pointer;
+  text-align: center;
+}
+
+#toggleAnnotationModeBtn:hover {
+  background-color: gray;
+}
+
+#toggleAnnotationModeBtn.active, #toggleAnnotationModeBtn:active {
+  background-color: royalblue;
+  box-shadow: 0 2px gray;
+  transform: translateY(2px);
+}
+
+
+/*PLAYER STYLES*/
+
+.main-content {
+    height: 100vh;
+    display: none; /* Start hidden */
+    align-items: center;
+    justify-content: center;
+}
+
+.main-content.active {
+    display: flex; /* Show when active */
+}
+
+.annotation-player-container {
+    width: 100%;
+    height: 100vh;
+    display: flex; /* Changed from 'none' since parent controls visibility */
+    justify-content: center;
+    align-items: center;
+    background-color: black;
+    position: relative; /* Added for correct child positioning */
+}
+
+#returnBtn {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  z-index: 2000;
+  background-color: var(--player-controls-bg);
+  color: var(--player-controls-color);
+  border: 1px solid black;
+  padding: 15px;
+  font-size: 22px;
+  transition: var(--player-controls-transition);
+  opacity: var(--player-controls-opacity);
+}
+
+#returnBtn:hover {
+  color: rgba(255,255,255,1);
+  border: 1px solid rgb(50, 50, 50);
+}
+
+#returnBtn:active {
+  color: rgba(255,255,255,0.5);
+  background-color: rgba(255,255,255, 0.2);
+  border: 1px solid rgba(255,255,255, 0.2);
+}
+
+#reloadAnnotationsBtn {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  z-index: 2000;
+  background-color: rgba(255,255,255, 0.2);
+  color: rgba(255,255,255,0.5);
+  border: 1px solid black;
+  padding: 10px;
+  font-size: 14px;
+  transition: all .25s;
+}
+
+#reloadAnnotationsBtn:hover {
+  color: rgba(255,255,255,1);
+  border: 1px solid grey;
+}
+
+#reloadAnnotationsBtn:active {
+  color: rgba(255,255,255,0.5);
+  background-color: rgba(255,255,255, 0.2);
+  border: 1px solid rgba(255,255,255, 0.2);
+}
+
+/*Styling the video controls panel*/
+video::-webkit-media-controls-panel {
+  z-index: 400;
+}
+
+::-webkit-media-text-track-container {
+  z-index: 1;
+}
+
+video::-webkit-media-controls-fullscreen-button {
+    display: none;
+}
+
+/* Fade out controls and return button together */
+/* It is okay to reference .annotation-player-container here because it does not change it */
+.annotation-player-container.controls-hidden #returnBtn,
+.annotation-player-container.controls-hidden #reloadAnnotationsBtn {
+  opacity: 0;
+  pointer-events: none;
+  transition: var(--player-controls-transition);
+}
+
+/* Show controls and return button */
+#returnBtn,
+#reloadAnnotationsBtn {
+  opacity: 1;
+  transition: var(--player-controls-transition);
+}
+
+/* General hidden class */
+.hidden {
+  display: none;
+}

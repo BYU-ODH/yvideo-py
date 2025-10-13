@@ -7,18 +7,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Player</title>
+    <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
     <link rel="stylesheet" href="{% static 'style.css' %}">
 </head>
 <body>
-    {% include 'partials/video-and-controls.html' %}
+    <script>
+        window.playerData = {
+            events: {{ events|safe }},
+            subtitles: {{ subtitles|safe }},
+            clips: {{ clips|safe }},
+            hasSubtitles: {{ has_subtitles|yesno:"true,false" }}
+        };
+    </script>
 
-    <!-- Transcript Sidebar -->
-    <div id="transcript-sidebar" class="transcript-sidebar hidden">
-        <h3>Transcript</h3>
-        <div id="transcript-content" class="transcript-content">
-            <!-- Transcript content will be loaded here -->
-        </div>
-    </div>
+    {% include 'partials/video-and-controls.html' %}
 
 </body>
 </html>

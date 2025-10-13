@@ -106,7 +106,7 @@ export default class CollectionService {
 			}
 
 		case COLLECTIONS_ERROR:
-			console.error(action.payload.error) // eslint-disable-line no-console
+			console.error(action.payload.error)
 			return {
 				...store,
 				errorMessage: `${action.payload.error.response.data ? action.payload.error.response.data : null}. Status: ${action.payload.error.response.status}`,
@@ -254,7 +254,7 @@ export default class CollectionService {
 					while(i < courses.length){
 						const response = await apiProxy.courses.getCollections(courses[i])
 						courseCollections.concat(response)
-						setTimeout(() => { // eslint-disable-line no-loop-func
+						setTimeout(() => {
 							i++
 						}, 50)
 					}
@@ -324,7 +324,7 @@ export default class CollectionService {
 			dispatch(this.actions.createdCollectionUpdate(``))
 
 		} catch (error) {
-			console.log(error.message) // eslint-disable-line no-console
+			console.log(error.message)
 			dispatch(this.actions.collectionsError(error))
 		}
 	}
@@ -442,7 +442,7 @@ export default class CollectionService {
 			return result
 
 		} catch (error) {
-			console.log(error.message) // eslint-disable-line no-console
+			console.log(error.message)
 			dispatch(this.actions.collectionsError(error))
 		}
 	}

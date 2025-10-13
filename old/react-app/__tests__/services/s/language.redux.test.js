@@ -67,11 +67,11 @@ describe(`language service test`, () => {
 
 	it(`languageError`, () => {
 
-		console.error = jest.fn() // eslint-disable-line no-console
+		console.error = jest.fn()
 		const result = store.dispatch(languageServiceConstructor.actions.languageError(`test error message`))
 		expect(result.type).toBe(`LANGUAGE_ERROR`)
 
-		expect(console.error).toBeCalled() // eslint-disable-line no-console
+		expect(console.error).toBeCalled()
 		expect(result.payload.error).toBe(`test error message`)
 	})
 

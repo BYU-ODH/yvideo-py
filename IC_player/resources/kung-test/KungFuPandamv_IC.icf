@@ -1,1 +1,5 @@
-{"subtitle": null, "video": "KungFuPandamv_IC.m4v", "annotation": "KungFuPandamv_IC.json"}
+{"subtitle": {"srclang": "en",
+              "url": "HisGirlFriday.vtt",
+              "label": "His Girl Friday"},
+ "video": "KungFuPandamv_IC.m4v",
+ "annotation": "KungFuPandamv_IC.json"}
