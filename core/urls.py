@@ -46,7 +46,9 @@ urlpatterns = [
         name="delete_collection",
     ),
     path(
-        "content/display-create", display_create_content, name="display_create_content"
+        "content/display-create/<int:collection_id>/",
+        display_create_content,
+        name="display_create_content",
     ),
     path("content/create", create_content, name="create_content"),
     path(

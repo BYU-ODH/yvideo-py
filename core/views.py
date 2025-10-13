@@ -377,31 +377,39 @@ def delete_collection(request, collection_id):
 
 
 @require_GET
-def display_create_content(request):
+def display_create_content(request, collection_id):
     form = ContentForm()
-    return render(request, "partials/create_content.html", {"form": form})
+    collection = get_object_or_404(Collection, pk=collection_id)
+    return render(
+        request,
+        "partials/create_content.html",
+        {"form": form, "collection": collection},
+    )
 
 
 @require_POST
 def create_content(request):
+    collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
     form = ContentForm(request.POST)
     if form.is_valid():
         data = form.cleaned_data
         try:
             Content.objects.create(
-                collection=data["collection"],
+                collection=collection,
                 title=data["title"],
                 description=data["description"],
                 allow_definitions=data["allow_definitions"],
                 allow_notes=data["allow_notes"],
                 allow_captions=data["allow_captions"],
             )
-        except Exception:
-            logger.error("An error occured while creating a new Content")
+        except Exception as e:
+            logger.error(
+                f"An error occured while creating a new Content. Exception: {e}"
+            )
             return HttpResponseServerError()
 
         try:
-            contents = get_collection_contents(data["collection"])
+            contents = get_collection_contents(collection)
         except Exception as e:
             logger.error(
                 f"An error occured while trying to gather collection contents after content creation. Exception: {e}"
@@ -409,9 +417,9 @@ def create_content(request):
             return HttpResponseServerError()
 
         context = {
-            "published": contents["published"],
-            "unpublished": contents["unpublished"],
-            "archived": contents["archived"],
+            "collection": collection,
+            "published_contents": contents["published"],
+            "unpublished_contents": contents["unpublished"],
         }
         return render(request, "partials/collection_contents_display.html", context)
     else:

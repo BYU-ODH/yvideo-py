@@ -10,7 +10,7 @@
         />
     </div>
     <button class="large-button"
-        hx-get="{% url 'display_create_content' %}"
+        hx-get="{% url 'display_create_content' collection.id %}"
         hx-target="next #create-content-wrapper"
         hx-swap="innerHTML"
     >
@@ -20,7 +20,7 @@
 </div>
 <div id="create-content-wrapper"></div>
 <div id="collection-content">
-    <div id="published-content-wrapper">
+    <div id="published-content-wrapper" class="column-flex">
         <h3>Published Content</h3>
         {% for content in published_contents %}
             {% include "partials/content_display.html" %}
@@ -28,7 +28,7 @@
             <p>There is no published content for this collection.</p>
         {% endfor %}
     </div>
-    <div id="unpublished-content-wrapper">
+    <div id="unpublished-content-wrapper" class="column-flex">
         <h3>Unpublished Content</h3>
         {% for content in unpublished_contents %}
             {% include "partials/content_display.html" %}

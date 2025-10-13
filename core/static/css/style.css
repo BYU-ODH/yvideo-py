@@ -1062,6 +1062,10 @@ body {
     border: 1px solid #00000025;
 }
 
+#create-content-form h2 {
+    margin-top: 0;
+}
+
 .content-display {
     display: flex;
     flex-direction: column;

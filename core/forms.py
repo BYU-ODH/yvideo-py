@@ -38,15 +38,12 @@ class ContentForm(forms.ModelForm):
     class Meta:
         model = Content
         fields = [
-            "collection",
             "title",
             "description",
             "allow_definitions",
             "allow_notes",
             "allow_captions",
         ]
-
-    collection = forms.CharField(widget=forms.HiddenInput)
 
 
 class UpdateContentForm(forms.ModelForm):
