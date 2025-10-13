@@ -1,4 +1,4 @@
-# electron_player
+# International Cinema video player
 An alternative video player for BYU International Cinemas (based on Electron)
 
 
@@ -16,7 +16,7 @@ npm install -g electron
 
 Run program
 ``` shell
-electron app.js
+electron app.mjs
 ```
 
 You may also need to install libgconf using
@@ -25,8 +25,8 @@ apt-get install libgconf-2-4
 ```
 
 ## Usage
-You should have three files before you begin trying to watch a video using electron_player.
-```
+You should have three files before you begin trying to watch a video using the IC player.
+```console
 ∟ video.mp4 or video.m4v
 ∟ video.icf
 ∟ video.json

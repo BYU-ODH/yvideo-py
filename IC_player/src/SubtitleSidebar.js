@@ -1,0 +1,1 @@
+../../core/static/js/SubtitleSidebar.js

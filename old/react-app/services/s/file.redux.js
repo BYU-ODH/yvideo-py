@@ -64,7 +64,7 @@ export default class FileService {
 			}
 
 		case FILE_ERROR:
-			console.error(action.payload.error) // eslint-disable-line no-console
+			console.error(action.payload.error)
 			return {
 				...store,
 				loading: false,

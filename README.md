@@ -19,8 +19,9 @@ cd yvideo-py
 uv sync --dev
 ```
 
-3. Set up pre-commit hooks:
+3. Set up pre-commit hooks (and dependencies):
 ```bash
+npm install  # eslint and dependencies
 uvx pre-commit install
 ```
 
@@ -48,5 +49,5 @@ The application will be available at http://localhost:8000
 
 To manually run pre-commit on all files:
 ```bash
-uv run pre-commit run --all-files
+uvx pre-commit run --all-files
 ```

@@ -8,7 +8,7 @@ export const validateDept = dept => {
 }
 
 export const validateCourse = course => {
-	if ((course.match(/^\d{3}[A-Z]?$/) && course.indexOf(` `) === -1) || course === ``) return true // eslint-disable-line no-extra-parens
+	if ((course.match(/^\d{3}[A-Z]?$/) && course.indexOf(` `) === -1) || course === ``) return true
 	else return false
 }
 

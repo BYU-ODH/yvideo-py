@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ELECTRON="/home/ic/electron_player/node_modules/.bin/electron"
-APP="/home/ic/electron_player/app.js"
+APP="/home/ic/electron_player/app.mjs"
 OUTPUT="/tmp/electron_player_output.tmp"
 
 ls ${ELECTRON} > ${OUTPUT}

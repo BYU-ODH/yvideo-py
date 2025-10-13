@@ -1,4 +1,5 @@
 from functools import wraps
+import json
 import logging
 import mimetypes
 import os
@@ -28,6 +29,86 @@ from .models import User
 
 logger = logging.getLogger(__name__)
 
+TOY_VTT = """WEBVTT
+
+00:00.000 --> 00:00.900
+Hildy!
+
+00:01.000 --> 00:01.400
+How are you?
+
+00:01.500 --> 00:02.900
+Tell me, is the lord of the universe in?
+
+00:03.000 --> 00:04.200
+Yes, he's in - in a bad humor
+
+00:04.300 --> 00:06.000
+Somebody must've stolen the crown jewels"""
+
+TOY_VTT2 = """WEBVTT
+
+00:00.000 --> 00:00.900
+Birds!
+
+00:01.000 --> 00:01.400
+Where are they?
+
+00:01.500 --> 00:02.900
+You don't know?
+
+00:03.000 --> 00:04.200
+Yes, but I want to know if you do.
+
+00:04.300 --> 00:06.000
+Oh, well I know too, so we don't have to say.
+
+00:06.000 --> 00:06.900
+Look outside!
+
+00:07.000 --> 00:07.900
+They're flying everywhere.
+
+00:08.000 --> 00:08.900
+Did you see the blue one?
+
+00:09.000 --> 00:12.900
+Yes, it landed on the fence.
+
+00:10.000 --> 00:10.900
+What about the red one?
+
+00:11.000 --> 00:11.900
+It was chasing the yellow.
+
+00:12.000 --> 00:12.900
+The flock is growing.
+
+00:13.000 --> 00:13.900
+They're singing loudly.
+
+00:14.000 --> 00:14.900
+Do you hear that melody?
+
+00:15.000 --> 00:15.900
+It's beautiful, isn't it?
+
+00:16.000 --> 00:16.900
+They must be happy.
+
+00:17.000 --> 00:17.900
+The sun is shining.
+
+00:18.000 --> 00:18.900
+Perfect day for birds.
+
+00:19.000 --> 00:19.900
+Let's watch them together.
+
+00:20.000 --> 00:20.900
+Maybe they'll come closer.
+"""
+
 
 def admin_or_superuser_required(view_func):
     @wraps(view_func)
@@ -56,6 +137,7 @@ def index(request):
     return render(request, "index.html", context)
 
 
+# @login_required  # TODO: Uncomment
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
@@ -63,13 +145,28 @@ def player(request, content_id):
     if content.file:
         file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
 
+    # Prepare subtitle data in the format expected by AnnotationPlayer
+    subtitles_data = [
+        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
+        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+        # {"srclang": "en", "url": "http://example.com/subtitles.vtt", "label": "Birds"},
+    ]
+
+    clips_data = [
+        {"start": 5, "end": 10, "label": "Sample Clip"},
+        {"start": 11, "end": 14, "label": "Another Clip"},
+        {"start": 15, "end": 20, "label": "Final Clip"},
+    ]
+    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
+
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": [],
-        "subtitles": [],
-        "clips": [],
+        "events": json.dumps([]),
+        "subtitles": json.dumps(subtitles_data),
+        "clips": json.dumps(clips_data),
+        "has_subtitles": has_subtitles,
     }
 
     return render(request, "player.html", context)
