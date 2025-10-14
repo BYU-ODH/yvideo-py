@@ -11,18 +11,28 @@ from django.contrib.auth.views import redirect_to_login
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
+from django.http import HttpResponseBadRequest
+from django.http import HttpResponseServerError
 from django.http import JsonResponse
+from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
+from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_POST
 
-from core.forms import CollectionForm
-
+from .forms import CollectionForm
+from .forms import CollectionSettingsForm
+from .forms import ContentForm
+from .forms import ImportantWordForm
+from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Collection
 from .models import Content
 from .models import FileKey
+from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import SkipAnnotation
 from .models import User
@@ -281,20 +291,25 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
-def manage_collections(request):
-    collections = Collection.objects.filter(owner=request.user)
+def get_collection_types(user):
+    collections = Collection.objects.filter(owner=user)
 
     archived = collections.filter(archived=True)
     published = collections.filter(archived=False, published=True)
     unpublished = collections.filter(archived=False, published=False)
+    return {"archived": archived, "published": published, "unpublished": unpublished}
+
+
+def manage_collections(request):
+    collections = get_collection_types(request.user)
 
     return render(
         request,
         "manage_collections.html",
         {
-            "published": published,
-            "unpublished": unpublished,
-            "archived": archived,
+            "published": collections["published"],
+            "unpublished": collections["unpublished"],
+            "archived": collections["archived"],
             "user": request.user,
             "form": CollectionForm(),
         },
@@ -313,28 +328,311 @@ def create_collection(request):
             collection.public = False
             collection.save()
 
+            collections = get_collection_types(request.user)
+
             response = render(
-                request, "partials/load_collection.html", {"collection": collection}
+                request,
+                "partials/collection_lists.html",
+                {
+                    "published": collections["published"],
+                    "unpublished": collections["unpublished"],
+                    "archived": collections["archived"],
+                },
             )
-            response["HX-Trigger"] = "success"
+
         except Exception as e:
-            logger.warning(
+            logger.error(
                 f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
             )
 
-            response = render(
-                request, "partials/add_collection_modal.html", {"form": form}
-            )
-            response["HX-Retarget"] = "#collection_modal"
-            response["HX-Reswap"] = "outerHTML"
-            response["HX-Trigger-After-Settle"] = "fail"
+            response = HttpResponseServerError()
+
     else:
-        response = render(request, "partials/add_collection_modal.html", {"form": form})
-        response["HX-Retarget"] = "#collection_modal"
-        response["HX-Reswap"] = "outerHTML"
-        response["HX-Trigger-After-Settle"] = "fail"
+        response = HttpResponseBadRequest()
 
     return response
+
+
+def view_collection(request, pk):
+    user = request.user
+
+    if request.method == "GET":
+        collection_pk = pk
+        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
+        contents = Content.objects.filter(collection=collection)
+        context = {
+            "collection": collection,
+            "contents": contents,
+        }
+        return render(request, "partials/view_collection.html", context)
+    elif request.method == "PUT":
+        collection_pk = pk
+        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
+
+        data = QueryDict(request.body).dict()
+        content_pk = data.get("content_id")
+
+        if not content_pk:
+            logger.error("No content_id provided in PUT request")
+            return HttpResponse("Content ID is required", 400)
+
+        updated_content = get_object_or_404(Content, pk=content_pk)
+        form = UpdateContentForm(data, instance=updated_content)
+
+        if form.is_valid():
+            try:
+                form.save()
+                return render(
+                    request,
+                    "partials/content_display.html",
+                    {"content": updated_content},
+                )
+            except Exception as e:
+                logger.warning(
+                    f"An error occured when the user: {collection.owner} attempted to update the content: {updated_content.title} -> {e}"
+                )
+                response = render(
+                    request,
+                    "partials/edit_content.html",
+                    {"content": updated_content, "form": form},
+                )
+                return response
+        else:
+            response = render(
+                request,
+                "partials/edit_content.html",
+                {"content": updated_content, "form": form},
+            )
+            return response
+
+
+def display_collection_settings(request, collection_id):
+    collection = get_object_or_404(Collection, pk=collection_id)
+    form = CollectionSettingsForm(instance=collection)
+    context = {"collection": collection, "form": form}
+    return render(request, "partials/collection_settings.html", context)
+
+
+@require_POST
+def update_collection_settings(request):
+    form = CollectionSettingsForm(request.POST)
+    if form.is_valid():
+        collection = get_object_or_404(Collection, pk=form.cleaned_data["id"])
+        collection.name = form.cleaned_data["name"]
+        collection.published = form.cleaned_data["published"]
+        collection.archived = form.cleaned_data["archived"]
+        try:
+            collection.save()
+            collection_types = get_collection_types(request.user)
+            context = {
+                "collection": collection,
+                "published": collection_types["published"],
+                "unpublished": collection_types["unpublished"],
+                "archived": collection_types["archived"],
+            }
+            return render(request, "partials/finish_collection_settings.html", context)
+        except Exception as e:
+            logger.error(
+                f"An error occured while attempting to update collection settings. {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+
+def get_collection_contents(collection):
+    contents = Content.objects.filter(collection=collection)
+    published = contents.filter(published=True)
+    unpublished = contents.filter(published=False)
+    return {"published": published, "unpublished": unpublished}
+
+
+def display_collection_contents(request, collection_id):
+    collection = get_object_or_404(Collection, pk=collection_id)
+    contents = get_collection_contents(collection)
+    context = {
+        "collection": collection,
+        "published_contents": contents["published"],
+        "unpublished_contents": contents["unpublished"],
+    }
+    return render(request, "partials/collection_contents_display.html", context)
+
+
+@require_http_methods(["DELETE"])
+def delete_collection(request, collection_id):
+    collection = get_object_or_404(Collection, pk=collection_id)
+    try:
+        collection.delete()
+        collections = get_collection_types(request.user)
+        context = {
+            "published": collections["published"],
+            "unpublished": collections["unpublished"],
+            "archived": collections["archived"],
+        }
+        return render(request, "partials/finish_collection_deletion.html", context)
+    except Exception as e:
+        logger.error(
+            f"An error occured while deleting the collection with id: {collection_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+    return HttpResponseBadRequest()
+
+
+@require_GET
+def display_create_content(request, collection_id):
+    form = ContentForm()
+    collection = get_object_or_404(Collection, pk=collection_id)
+    return render(
+        request,
+        "partials/create_content.html",
+        {"form": form, "collection": collection},
+    )
+
+
+@require_POST
+def create_content(request):
+    collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
+    form = ContentForm(request.POST)
+    if form.is_valid():
+        data = form.cleaned_data
+        try:
+            Content.objects.create(
+                collection=collection,
+                title=data["title"],
+                description=data["description"],
+                allow_definitions=data["allow_definitions"],
+                allow_notes=data["allow_notes"],
+                allow_captions=data["allow_captions"],
+            )
+        except Exception as e:
+            logger.error(
+                f"An error occured while creating a new Content. Exception: {e}"
+            )
+            return HttpResponseServerError()
+
+        try:
+            contents = get_collection_contents(collection)
+        except Exception as e:
+            logger.error(
+                f"An error occured while trying to gather collection contents after content creation. Exception: {e}"
+            )
+            return HttpResponseServerError()
+
+        context = {
+            "collection": collection,
+            "published_contents": contents["published"],
+            "unpublished_contents": contents["unpublished"],
+        }
+        return render(request, "partials/collection_contents_display.html", context)
+    else:
+        return HttpResponseBadRequest()
+
+
+@require_http_methods(["DELETE"])
+def delete_content(request, content_id):
+    content = get_object_or_404(Content, pk=content_id)
+    try:
+        contents_count = Content.objects.filter(collection=content.collection).count()
+        content.delete()
+        if contents_count <= 1:
+            return HttpResponse(
+                "There is no published content for this collection", status=200
+            )
+        else:
+            return HttpResponse("", status=200)
+    except Exception as e:
+        logger.error(
+            f"An error occured while deleting content with id: {content_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+    return HttpResponseBadRequest()
+
+
+@require_POST
+def update_content(request):
+    form = UpdateContentForm(request.POST)
+    if form.is_valid():
+        content = get_object_or_404(Content, pk=form.cleaned_data["id"])
+        content.title = form.cleaned_data["title"]
+        content.description = form.cleaned_data["description"]
+        if "allow_definitions" in form.cleaned_data:
+            content.allow_definitions = form.cleaned_data["allow_definitions"]
+        if "allow_notes" in form.cleaned_data:
+            content.allow_notes = form.cleaned_data["allow_notes"]
+        if "allow_captions" in form.cleaned_data:
+            content.allow_captions = form.cleaned_data["allow_captions"]
+        if "published" in form.cleaned_data:
+            content.published = form.cleaned_data["published"]
+        try:
+            content.save()
+            contents = get_collection_contents(content.collection)
+            context = {
+                "collection": content.collection,
+                "published_contents": contents["published"],
+                "unpublished_contents": contents["unpublished"],
+            }
+            return render(request, "partials/collection_contents_display.html", context)
+        except Exception as e:
+            logger.error(f"An error occured while updating content. Exception: {e}")
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+
+def display_content_settings(request, content_id):
+    content = get_object_or_404(Content, pk=content_id)
+    form = UpdateContentForm(instance=content)
+    word_form = ImportantWordForm()
+    words = ImportantWord.objects.filter(content=content)
+    context = {"content": content, "form": form, "word_form": word_form, "words": words}
+    return render(request, "partials/content_settings.html", context)
+
+
+@require_POST
+def create_important_word(request):
+    content = get_object_or_404(Content, pk=request.POST["content_id"])
+    form = ImportantWordForm(request.POST)
+    if form.is_valid():
+        if not form.cleaned_data["word"]:
+            return HttpResponseBadRequest()
+        clean_word = form.cleaned_data["word"]
+        # check if important word already exists
+        already_exists = list(
+            ImportantWord.objects.filter(content=content).filter(word=clean_word)
+        )
+        if already_exists:
+            return HttpResponseBadRequest()
+        important_word = ImportantWord.objects.create(
+            content=content,
+            word=form.cleaned_data["word"],
+            translation=form.cleaned_data["translation"],
+        )
+        return render(
+            request,
+            "partials/important_word.html",
+            {
+                "word": {
+                    "id": important_word.id,
+                    "word": important_word.word,
+                    "translation": important_word.translation,
+                }
+            },
+        )
+    else:
+        return HttpResponseBadRequest()
+
+
+@require_http_methods(["DELETE"])
+def delete_important_word(request, word_id):
+    word = get_object_or_404(ImportantWord, pk=word_id)
+    try:
+        word.delete()
+        return HttpResponse("", status=200)
+    except Exception as e:
+        logger.error(
+            f"An error occured while deleting an important word. word_id: {word_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
 
 
 def add_annotation(request, content_id, annotation_type):

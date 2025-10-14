@@ -1,0 +1,33 @@
+<div class="collection-settings">
+    <form class="collection-settings-form"
+        hx-trigger="submit"
+        hx-post="{% url 'update_collection_settings' %}"
+        hx-target="#sorted-collections"
+        hx-swap="outerHTML"
+    >
+        {% csrf_token %}
+
+        {{ form.non_field_errors }}
+        {{ form.id }}
+        <div class="collection-form-group">
+            {{ form.name.as_field_group }}
+        </div>
+        <div class="collection-form-group">
+            {{ form.published.as_field_group }}
+        </div>
+        <div class="collection-form-group">
+            {{ form.archived.as_field_group }}
+        </div>
+        <div class="row-flex">
+            <input class="small-button position-flex-start" type="submit"/>
+            <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '#collection-settings-form-wrapper')">Cancel</button>
+        </div>
+    </form>
+    <button class="red-button position-flex-start"
+        hx-target="#collections-detail"
+        hx-swap="innerHTML"
+        hx-delete="{% url 'delete_collection' collection.id %}"
+        hx-confirm="Are you sure you want to delete this collection?"
+        hx-headers="js:{'x-csrftoken': document.querySelector('[name=csrfmiddlewaretoken]').value}"
+    >Delete</button>
+</div>

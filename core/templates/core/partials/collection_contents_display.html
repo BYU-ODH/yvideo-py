@@ -1,0 +1,39 @@
+<div class="title-section">
+    <div class="row-flex">
+        <h2 id="collection-title">{{ collection.name }}</h2>
+        <img class="clickable position-center settings-button"
+            src="../../../static/img/settings.svg"
+            title="Collection Settings"
+            hx-trigger="click"
+            hx-get="{% url 'display_collection_settings' collection.id %}"
+            hx-target="next #collection-settings-form-wrapper"
+        />
+    </div>
+    <button class="large-button"
+        hx-get="{% url 'display_create_content' collection.id %}"
+        hx-target="next #create-content-wrapper"
+        hx-swap="innerHTML"
+    >
+        + Content
+    </button>
+    <div id="collection-settings-form-wrapper"></div>
+</div>
+<div id="create-content-wrapper"></div>
+<div id="collection-content">
+    <div id="published-content-wrapper" class="column-flex">
+        <h3>Published Content</h3>
+        {% for content in published_contents %}
+            {% include "partials/content_display.html" %}
+        {% empty %}
+            <p>There is no published content for this collection.</p>
+        {% endfor %}
+    </div>
+    <div id="unpublished-content-wrapper" class="column-flex">
+        <h3>Unpublished Content</h3>
+        {% for content in unpublished_contents %}
+            {% include "partials/content_display.html" %}
+        {% empty %}
+            <p>There is no unpublished content for this collection.</p>
+        {% endfor %}
+    </div>
+</div>
