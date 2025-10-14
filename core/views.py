@@ -301,7 +301,7 @@ def get_collection_types(user):
 
 
 def manage_collections(request):
-    collections = Collection.objects.filter(owner=request.user)
+    collections = get_collection_types(request.user)
 
     return render(
         request,
