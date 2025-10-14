@@ -3,6 +3,7 @@ from reversion.admin import VersionAdmin
 
 from .models import AnnotationSet
 from .models import BlankAnnotation
+from .models import BlurAnnotation
 from .models import Clip
 from .models import Collection
 from .models import CollectionUserAccess
@@ -153,6 +154,18 @@ class MuteAnnotationAdmin(AnnotationAdmin):
 @admin.register(BlankAnnotation)
 class BlankAnnotationAdmin(AnnotationAdmin):
     pass
+
+
+@admin.register(BlurAnnotation)
+class BlurAnnotationAdmin(AnnotationAdmin):
+    list_display = AnnotationAdmin.list_display + (
+        "x",
+        "y",
+        "width",
+        "height",
+        "blur_all",
+    )
+    list_filter = AnnotationAdmin.list_filter + ("blur_all",)
 
 
 @admin.register(Clip)
