@@ -27,7 +27,7 @@ repos:
     rev: v0.14.0
     hooks:
       - id: ruff-check
-        args: [--fix, --exit-non-zero-on-fix, --diff]
+        args: [--fix, --exit-non-zero-on-fix, --diff, --config=pyproject.toml]
       - id: ruff-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit
