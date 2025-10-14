@@ -37,12 +37,12 @@ repos:
       - id: uv-lock
 
   - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.36.0
+    rev: v9.37.0
     hooks:
       - id: eslint
         args: [--fix, --config=eslint.config.js]
         files: ^(?!package-lock\.json$)(?!old/)(?!node_modules/)(?!vendor/).*\.(js|mjs|json|md|css)$
         types: [file]
         additional_dependencies:
-          - eslint@9.36.0
+          - eslint@9.37.0
         language_version: 20.14.0
