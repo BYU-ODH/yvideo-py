@@ -32,4 +32,4 @@ jobs:
       run: uv sync
 
     - name: Run pre-commit
-      run: uv run pre-commit run --all-files || true
+      run: uv run pre-commit run --all-files || true # remove '|| true' when ready to enable pre-commit again.
