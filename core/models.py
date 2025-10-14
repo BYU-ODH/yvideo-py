@@ -445,6 +445,10 @@ class BlankAnnotation(Annotation):
     )
 
 
+class PauseAnnotation(Annotation):
+    message = models.TextField(max_length=255, blank=True)
+
+
 class Course(models.Model):
     dept = models.CharField(
         max_length=5,
