@@ -39,6 +39,8 @@ uv run manage.py loaddata fixtures/dev.json
 bash fixtures/install_mp4s.sh
 ```
 
+In the dev data, the admin user is `admin` with password `admin`.
+
 ### Running the Development Server
 
 Start the Django development server:
