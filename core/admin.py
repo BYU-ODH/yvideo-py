@@ -14,6 +14,7 @@ from .models import FileKey
 from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
+from .models import PauseAnnotation
 from .models import Resource
 from .models import ResourceAccess
 from .models import SkipAnnotation
@@ -153,6 +154,11 @@ class MuteAnnotationAdmin(AnnotationAdmin):
 
 @admin.register(BlankAnnotation)
 class BlankAnnotationAdmin(AnnotationAdmin):
+    pass
+
+
+@admin.register(PauseAnnotation)
+class PauseAnnotationAdmin(AnnotationAdmin):
     pass
 
 
