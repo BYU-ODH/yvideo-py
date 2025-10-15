@@ -2,12 +2,7 @@
 
 {% block content %}
     <main class="main-content">
-        <header class="collections-header">
-            <span>Collections</span>
-            <span><a href="{% url 'manage_collections' %}"> Manage Collections</a></span>
-        </header>
-
-        {% include "partials/landing_page_collections.html" %}
-
+        {% include "partials/landing_page_collection_list.html" with heading="My Collections" collections=owned_collections %}
+        {% include "partials/landing_page_collection_list.html" with heading="My Assigned Collections" collections=assigned_collections %}
     </main>
 {% endblock %}

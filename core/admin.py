@@ -20,6 +20,7 @@ from .models import ResourceAccess
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
+from .models import UserCourses
 
 
 @admin.register(User)
@@ -226,3 +227,9 @@ class AnnotationSetAdmin(VersionAdmin):
     list_display = ("name", "owner", "resource", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__name", "resource__name")
+
+
+@admin.register(UserCourses)
+class UserCourses(VersionAdmin):
+    list_display = ("user", "course", "yearterm")
+    search_fields = ("user", "course", "yearterm")

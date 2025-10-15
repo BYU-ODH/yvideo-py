@@ -36,6 +36,7 @@ from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import SkipAnnotation
 from .models import User
+from .models import UserCourses
 
 logger = logging.getLogger(__name__)
 
@@ -130,24 +131,58 @@ def admin_or_superuser_required(view_func):
     return _wrapped
 
 
-def index(request):
-    collections = Collection.objects.filter(owner=request.user)
-    all_contents = Content.objects.filter(collection__in=collections)
-    filtered_contents = {collection: [] for collection in collections}
+def prepare_collection_for_display(collection):
+    published_contents = Content.objects.filter(collection=collection).filter(
+        published=True
+    )
+    contents_count = published_contents.count()
+    parsed_collection = {
+        "name": collection.name,
+        "items_display": f"{contents_count} items"
+        if contents_count > 1 or contents_count == 0
+        else f"{contents_count} item",
+        "published_contents": published_contents,
+    }
+    return parsed_collection
 
-    for content in all_contents:
-        filtered_contents[content.collection].append(content)
+
+def index(request):
+    owned_collections = []
+    allowed_privilege_levels = [2, 0]
+    if (
+        request.user.privilege_level in allowed_privilege_levels
+        or request.user.privilege_level_override in allowed_privilege_levels
+    ):
+        owned_collections_raw = Collection.objects.filter(owner=request.user)
+        owned_collections = [
+            prepare_collection_for_display(collection)
+            for collection in owned_collections_raw
+        ]
+
+    user_courses = UserCourses.objects.filter(user=request.user)
+    collections_by_course = []
+    for user_course in user_courses:
+        course_name = user_course.course.__str__()
+        course_collections = Collection.objects.filter(courses=user_course.course)
+        collections_by_course.append(
+            {
+                "name": course_name,
+                "collections": [
+                    prepare_collection_for_display(collection)
+                    for collection in course_collections
+                ],
+            }
+        )
 
     context = {
         "user": request.user,
-        "collections": collections,
-        "contents": filtered_contents,
+        "owned_collections": owned_collections,
+        "assigned_collections": collections_by_course,
         "public_collections": [],
     }
     return render(request, "index.html", context)
 
 
-# @login_required  # TODO: Uncomment
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
