@@ -33,6 +33,12 @@ uv run manage.py makemigrations core  # Needed to init new database
 uv run manage.py migrate
 ```
 
+6. Load development data and install sample media files:
+```bash
+uv run manage.py loaddata fixtures/dev.json
+bash fixtures/install_mp4s.sh
+```
+
 ### Running the Development Server
 
 Start the Django development server:
