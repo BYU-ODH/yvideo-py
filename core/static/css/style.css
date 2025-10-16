@@ -124,10 +124,6 @@ body {
     flex-direction: column;
 }
 
-.arrow {
-    transition: 0.1s ease all;
-}
-
 .accordian-folded {
     height: 0px;
     overflow: hidden;
@@ -708,7 +704,7 @@ header {
 }
 
 .collections-list-content {
-    margin: 0 2rem;
+    padding: 0 2rem;
 }
 
 .landing-page-collection {
@@ -727,6 +723,18 @@ header {
     text-decoration: none;
     color: inherit;
     padding: 0 1rem;
+}
+
+.yearterm-courses-list, .yearterm-course-collections-list {
+    padding: 0 2rem;
+}
+
+.course-header {
+    padding: 0 0.5rem;
+}
+
+.course-collections-list {
+    border-left: 1px solid lightgrey;
 }
 
 /* Left side (sidebar) */

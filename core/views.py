@@ -8,6 +8,7 @@ import re
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.db import connection
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -146,7 +147,15 @@ def prepare_collection_for_display(collection):
     return parsed_collection
 
 
+def display_yearterm(yearterm):
+    term_decoder = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
+    year_string = yearterm[0:4]
+    term_string = yearterm[4:]
+    return f"{term_decoder[term_string]} {year_string}"
+
+
 def index(request):
+    # if admin, gather owned collections
     owned_collections = []
     allowed_privilege_levels = [2, 0]
     if (
@@ -159,25 +168,40 @@ def index(request):
             for collection in owned_collections_raw
         ]
 
-    user_courses = UserCourses.objects.filter(user=request.user)
-    collections_by_course = []
-    for user_course in user_courses:
-        course_name = user_course.course.__str__()
-        course_collections = Collection.objects.filter(courses=user_course.course)
-        collections_by_course.append(
+    # organize assigned collections by yearterm and then by course.
+    yearterms = []
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT yearterm FROM core_usercourses GROUP BY yearterm ORDER BY yearterm"""
+        )
+        yearterms = [result[0] for result in cursor.fetchall()]
+
+    collections_by_course_by_yearterm = []
+    for yearterm in yearterms:
+        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
+        collections_by_course = []
+        for user_course in user_courses:
+            collections = Collection.objects.filter(courses=user_course.course)
+            collections_by_course.append(
+                {
+                    "course_name": user_course.course.__str__(),
+                    "collections": [
+                        prepare_collection_for_display(collection)
+                        for collection in collections
+                    ],
+                }
+            )
+        collections_by_course_by_yearterm.append(
             {
-                "name": course_name,
-                "collections": [
-                    prepare_collection_for_display(collection)
-                    for collection in course_collections
-                ],
+                "yearterm_display": display_yearterm(yearterm),
+                "collections_by_course": collections_by_course,
             }
         )
 
     context = {
         "user": request.user,
         "owned_collections": owned_collections,
-        "assigned_collections": collections_by_course,
+        "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
         "public_collections": [],
     }
     return render(request, "index.html", context)
