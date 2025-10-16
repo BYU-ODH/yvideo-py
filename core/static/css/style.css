@@ -152,10 +152,6 @@ body {
     padding: 0.5rem;
 }
 
-header {
-    height: var(--header-height);
-}
-
 .zoom-in-zoom-out {
     animation: zoom-in-zoom-out 2s ease-out infinite;
 }
@@ -1142,6 +1138,10 @@ header {
 }
 
 /* Spoofing input/select styles */
+#spoof-header {
+    height: var(--header-height);
+}
+
 .spoof-form {
     display: flex;
     flex-direction: row;
