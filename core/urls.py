@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import add_annotation
+from .views import clip_editor
 from .views import create_collection
 from .views import create_content
 from .views import create_important_word
@@ -70,6 +71,7 @@ urlpatterns = [
         name="delete_important_word",
     ),
     path("player/<int:content_id>/", player, name="player"),
+    path("clip-editor/<int:content_id>/", clip_editor, name="clip_editor"),
     path("stream/<int:file_key>/", stream_file, name="stream_file"),
     path("player/<int:content_id>", player, name="player"),
     path("stream/<int:file_key>", stream_file, name="stream_file"),

@@ -1,0 +1,57 @@
+<!-- filepath: /Users/rob/repos/BYU-ODH/yvideo-py/core/templates/core/clip_editor.html -->
+{% load static %}
+{% include 'base.html' %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clip Editor - {{ content.title }}</title>
+    <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/clip-editor.css' %}">
+</head>
+<body>
+    <script>
+        window.playerData = {
+            events: {{ events|safe }},
+            subtitles: {{ subtitles|safe }},
+            clips: {{ clips|safe }},
+            hasSubtitles: {{ has_subtitles|yesno:"true,false" }}
+        };
+    </script>
+
+    <div class="clip-editor-container" data-content-id="{{ content.id }}">
+        <!-- Top Panel: Video Player (left) and Detail Form (right) -->
+        <div class="top-panel">
+            <div class="video-section">
+                {% include 'partials/video-and-controls.html' %}
+            </div>
+
+            <!-- Vertical resizer between video and form -->
+            <div class="resizer resizer-vertical" data-direction="horizontal"></div>
+
+            <div class="detail-form-section">
+                <div id="detail-form" class="detail-form">
+                    <div class="detail-form-placeholder">
+                        <p>Select a clip to edit</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Horizontal resizer between top panel and timeline -->
+        <div class="resizer resizer-horizontal" data-direction="vertical"></div>
+
+        <!-- Bottom Panel: Timeline -->
+        <div class="timeline-section">
+            <div class="timeline-placeholder">
+                <p>Timeline will appear here</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="{% static 'js/clip-editor.js' %}"></script>
+</body>
+</html>

@@ -119,6 +119,19 @@ class User(AbstractUser):
     def is_admin(self):
         return self.privilege_level == PrivilegeLevel.ADMIN
 
+    def can_view_content(self, content):
+        if content.collection.published:
+            if content.collection.owner == self:
+                return True
+            if self.is_admin or self.is_superuser or self.is_staff:
+                return True
+            if CollectionUserAccess.objects.filter(
+                user=self, collection=content.collection
+            ).exists():
+                return True
+            # TODO Check course enrollment
+        return False
+
 
 class ResourceAccess(models.Model):  # "through" model
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

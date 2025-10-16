@@ -1,0 +1,119 @@
+/* Clip Editor Container */
+.clip-editor-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--navbar-height, 0px));  /* eslint-disable-line css/no-invalid-properties */
+    width: 100%;
+    overflow: hidden;
+    background-color: #f5f5f5;
+}
+
+/* Top Panel: Video and Form */
+.top-panel {
+    display: flex;
+    flex: 1;
+    min-height: 200px;
+    overflow: hidden;
+}
+
+/* Video Section */
+.video-section {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    background-color: #000;
+    position: relative;
+}
+
+.video-section .annotation-player-container {
+    width: 100%;
+    height: 100%;
+}
+
+/* Detail Form Section */
+.detail-form-section {
+    flex: 0 0 400px;
+    min-width: 250px;
+    max-width: 600px;
+    background-color: #fff;
+    border-left: 1px solid #ccc;
+    overflow-y: auto;
+}
+
+.detail-form {
+    padding: 1.5rem;
+    height: 100%;
+}
+
+.detail-form-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+    font-size: 1.4rem;
+}
+
+/* Timeline Section */
+.timeline-section {
+    flex: 0 0 300px;
+    min-height: 150px;
+    max-height: 500px;
+    background-color: #fff;
+    border-top: 1px solid #ccc;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.timeline-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+    font-size: 1.4rem;
+}
+
+/* Resizers */
+.resizer {
+    background-color: #e0e0e0;
+    position: relative;
+    z-index: 10;
+}
+
+.resizer:hover {
+    background-color: #0582ca;
+}
+
+.resizer:active {
+    background-color: #046ba5;
+}
+
+/* Vertical resizer (between video and form) */
+.resizer-vertical {
+    width: 4px;
+    cursor: ew-resize;
+    flex-shrink: 0;
+}
+
+/* Horizontal resizer (between top panel and timeline) */
+.resizer-horizontal {
+    height: 4px;
+    cursor: ns-resize;
+    flex-shrink: 0;
+}
+
+/* Prevent text selection during resize */
+body.resizing {
+    user-select: none;  /* eslint-disable-line css/use-baseline */
+    cursor: inherit;
+}
+
+body.resizing-horizontal {
+    cursor: ew-resize;
+}
+
+body.resizing-vertical {
+    cursor: ns-resize;
+}

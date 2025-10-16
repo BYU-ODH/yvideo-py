@@ -151,9 +151,16 @@ def index(request):
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = None
-    if content.file:
+    if request.user.can_view_content(content):
         file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
+        if not file_key:
+            # create a new FileKey if one doesn't exist
+            file_key = FileKey.objects.create(file=content.file, user=request.user)
+            file_key.save()
+    else:
+        return HttpResponse(
+            "User does not have permission to view this content", status=403
+        )
 
     # Prepare subtitle data in the format expected by AnnotationPlayer
     subtitles_data = [
@@ -721,3 +728,36 @@ def spoof_user_search(request):
         "partials/spoof_user_options_for_select.html", {"users": users}
     )
     return HttpResponse(html)
+
+
+def clip_editor(request, content_id):
+    """Render the clip editor page."""
+    content = get_object_or_404(Content, id=content_id)
+    file_key = None
+    if content.file:
+        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
+
+    # Prepare subtitle data in the format expected by AnnotationPlayer
+    subtitles_data = [
+        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
+        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+    ]
+
+    clips_data = [
+        {"start": 5, "end": 10, "label": "Sample Clip"},
+        {"start": 11, "end": 14, "label": "Another Clip"},
+        {"start": 15, "end": 20, "label": "Final Clip"},
+    ]
+    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
+
+    context = {
+        "content": content,
+        "file_key": file_key.id if file_key else None,
+        "allow_events": True,
+        "events": json.dumps([]),
+        "subtitles": json.dumps(subtitles_data),
+        "clips": json.dumps(clips_data),
+        "has_subtitles": has_subtitles,
+    }
+
+    return render(request, "clip_editor.html", context)
