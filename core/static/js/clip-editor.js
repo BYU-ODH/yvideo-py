@@ -146,21 +146,160 @@
     class Timeline {
         constructor() {
             this.tickMarksContainer = document.querySelector('.tick-marks-container');
+            this.timelineTicks = document.querySelector('.timeline-ticks');
             this.layerContent = document.querySelector('.layer-content');
             this.duration = parseFloat(document.querySelector('.clip-editor-container').dataset.duration) || 120;
             this.zoomLevel = 1; // 1x to 10x scale
+            this.hoverScrubber = null;
+            this.isDragging = false;
+            this.wasPlayingBeforeDrag = false;
 
             this.init();
         }
 
         init() {
+            this.createHoverScrubber();
             this.renderTickMarks();
+            this.attachTimelineListeners();
 
             // Re-render tick marks when zoom changes (future enhancement)
             window.addEventListener('timeline:zoom', (e) => {
                 this.zoomLevel = e.detail.zoomLevel;
                 this.renderTickMarks();
             });
+        }
+
+        createHoverScrubber() {
+            if (!this.timelineTicks) return;
+
+            this.hoverScrubber = document.createElement('div');
+            this.hoverScrubber.className = 'timeline-hover-scrubber';
+            this.timelineTicks.appendChild(this.hoverScrubber);
+        }
+
+        attachTimelineListeners() {
+            if (!this.timelineTicks) return;
+
+            this.timelineTicks.addEventListener('mousemove', (e) => {
+                if (!this.isDragging) {
+                    this.updateHoverScrubber(e);
+                }
+            });
+
+            this.timelineTicks.addEventListener('mouseleave', () => {
+                if (this.hoverScrubber && !this.isDragging) {
+                    this.hoverScrubber.style.opacity = '0';
+                }
+            });
+
+            this.timelineTicks.addEventListener('mouseenter', () => {
+                if (this.hoverScrubber && !this.isDragging) {
+                    this.hoverScrubber.style.opacity = '1';
+                }
+            });
+
+            this.timelineTicks.addEventListener('mousedown', (e) => {
+                this.startDrag(e);
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (this.isDragging) {
+                    this.updateDragPosition(e);
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (this.isDragging) {
+                    this.endDrag();
+                }
+            });
+        }
+
+        startDrag(e) {
+            this.isDragging = true;
+            this.timelineTicks.classList.add('dragging');
+
+            // Get video and check if it was playing
+            const video = document.querySelector('.annotation-player-container video');
+            if (video) {
+                this.wasPlayingBeforeDrag = !video.paused;
+                if (this.wasPlayingBeforeDrag) {
+                    video.pause();
+                }
+            }
+
+            // Hide hover scrubber during drag
+            if (this.hoverScrubber) {
+                this.hoverScrubber.style.opacity = '0';
+            }
+
+            // Seek to initial position
+            this.updateDragPosition(e);
+
+            e.preventDefault();
+        }
+
+        updateDragPosition(e) {
+            if (!this.isDragging) return;
+
+            const rect = this.timelineTicks.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = Math.max(0, Math.min(1, x / rect.width));
+            const targetTime = percent * this.duration;
+
+            // Seek the video
+            const video = document.querySelector('.annotation-player-container video');
+            if (video) {
+                video.currentTime = targetTime;
+            }
+
+            // Also update via the player API if available
+            if (window.videoPlayer && window.videoPlayer.skipTo) {
+                window.videoPlayer.skipTo(targetTime);
+            }
+
+            e.preventDefault();
+        }
+
+        endDrag() {
+            this.isDragging = false;
+            this.timelineTicks.classList.remove('dragging');
+
+            // Resume playback if it was playing before
+            const video = document.querySelector('.annotation-player-container video');
+            if (video && this.wasPlayingBeforeDrag) {
+                video.play();
+            }
+
+            this.wasPlayingBeforeDrag = false;
+        }
+
+        updateHoverScrubber(e) {
+            if (!this.hoverScrubber) return;
+
+            const rect = this.timelineTicks.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
+
+            this.hoverScrubber.style.left = `${percent}%`;
+        }
+
+        seekToPosition(e) {
+            const rect = this.timelineTicks.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = Math.max(0, Math.min(1, x / rect.width));
+            const targetTime = percent * this.duration;
+
+            // Seek the video
+            const video = document.querySelector('.annotation-player-container video');
+            if (video) {
+                video.currentTime = targetTime;
+            }
+
+            // Also update via the player API if available
+            if (window.videoPlayer && window.videoPlayer.skipTo) {
+                window.videoPlayer.skipTo(targetTime);
+            }
         }
 
         renderTickMarks() {
@@ -271,17 +410,28 @@
             const layerItem = e.target.closest('.layer-item');
             if (!layerItem) return;
 
+            // Always trigger the form load first, regardless of where clicked
+            const contentArea = layerItem.querySelector('.layer-item-content');
+            if (contentArea) {
+                // Use htmx to trigger the GET request to load the form if available,
+                // otherwise dispatch a DOM event so other code can listen for it.
+                if (window.htmx && typeof window.htmx.trigger === 'function') {
+                    window.htmx.trigger(contentArea, 'layer-item-click');
+                } else {
+                    const evt = new CustomEvent('layer-item-click', { bubbles: true, cancelable: true });
+                    contentArea.dispatchEvent(evt);
+                }
+            }
+
             const resizeHandle = e.target.closest('.resize-handle:not(.resize-trigger)');
 
             if (resizeHandle) {
                 this.startResize(layerItem, resizeHandle, e);
                 e.preventDefault();
-                e.stopPropagation(); // Prevent HTMX click from firing during resize
+                e.stopPropagation();
             } else if (!e.target.closest('.resize-handle')) {
-                // Only start drag if not on any resize handle
                 this.startDrag(layerItem, e);
                 e.preventDefault();
-                // Don't stopPropagation - we'll let the click through if no drag happens
             }
         }
 
@@ -329,6 +479,9 @@
             layerItem.dataset.deltaWidth = '0';
 
             document.body.classList.add('resizing', 'resizing-item');
+
+            // Seek video to the handle position being dragged
+            this.seekToHandlePosition(isLeft, parseFloat(layerItem.style.left), parseFloat(layerItem.style.width));
         }
 
         handleMouseMove(e) {
@@ -370,6 +523,18 @@
             // Store delta from original position
             const deltaFromOriginal = newLeft - this.dragState.originalLeft;
             this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
+
+            // Seek video to the left edge of the item
+            const video = document.querySelector('.annotation-player-container video');
+            if (video) {
+                const targetTime = (newLeft / 100) * this.duration;
+                video.currentTime = targetTime;
+
+                // Also update via the player API if available
+                if (window.videoPlayer && window.videoPlayer.skipTo) {
+                    window.videoPlayer.skipTo(targetTime);
+                }
+            }
         }
 
         updateResizePosition(e) {
@@ -398,6 +563,9 @@
                 const deltaWidth = newWidth - this.dragState.originalWidth;
                 this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
                 this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
+
+                // Seek video to left handle position
+                this.seekToHandlePosition(true, newLeft, newWidth);
             } else {
                 // Resize from right
                 let newWidth = this.dragState.startWidth + deltaPercent;
@@ -412,6 +580,26 @@
                 // Store delta from original width (left unchanged)
                 const deltaWidth = newWidth - this.dragState.originalWidth;
                 this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
+
+                // Seek video to right handle position
+                this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
+            }
+        }
+
+        seekToHandlePosition(isLeft, leftPercent, widthPercent) {
+            const video = document.querySelector('.annotation-player-container video');
+            if (!video) return;
+
+            // Calculate time based on which handle is being dragged
+            const timePercent = isLeft ? leftPercent : (leftPercent + widthPercent);
+            const targetTime = (timePercent / 100) * this.duration;
+
+            // Seek the video (this will trigger timeupdate and update the scrubber)
+            video.currentTime = targetTime;
+
+            // Also update via the player API if available
+            if (window.videoPlayer && window.videoPlayer.skipTo) {
+                window.videoPlayer.skipTo(targetTime);
             }
         }
 
@@ -549,6 +737,41 @@
             }
         }
     }
+
+    // Helper functions for new clip creation
+    window.getNewClipStartTime = function() {
+        const video = document.querySelector('.annotation-player-container video');
+        if (video) {
+            return video.currentTime;
+        }
+        return 0;
+    };
+
+    window.getNewClipEndTime = function() {
+        const video = document.querySelector('.annotation-player-container video');
+        const container = document.querySelector('.clip-editor-container');
+        const duration = parseFloat(container?.dataset.duration) || 120;
+
+        if (video) {
+            const startTime = video.currentTime;
+            // Add 20% of duration or 10 seconds, whichever is smaller
+            const clipDuration = Math.min(duration * 0.2, 10);
+            const endTime = Math.min(startTime + clipDuration, duration);
+            return endTime;
+        }
+        return Math.min(10, duration);
+    };
+
+    // Listen for successful clip creation to reinitialize interactions
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.classList?.contains('layer-items')) {
+            // Reinitialize layer interaction handler for new items
+            const newItems = event.detail.target.querySelectorAll('.layer-item:not([data-initialized])');
+            newItems.forEach(item => {
+                item.dataset.initialized = 'true';
+            });
+        }
+    });
 
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {

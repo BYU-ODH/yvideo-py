@@ -180,6 +180,7 @@
 .timeline-ticks {
     position: relative;
     overflow: hidden;
+    cursor: pointer;
 }
 
 .tick-marks-container {
@@ -218,6 +219,42 @@
     user-select: none;  /* eslint-disable-line css/use-baseline */
 }
 
+/* Hover Scrubber */
+.timeline-hover-scrubber {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: rgba(5, 130, 202, 0.3);
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+}
+
+.timeline-hover-scrubber::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    background: rgba(5, 130, 202, 0.5);
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.timeline-ticks:hover .timeline-hover-scrubber {
+    opacity: 1;
+}
+
+.timeline-ticks.dragging .timeline-hover-scrubber {
+    opacity: 0;
+}
+
 /* Layer - Grid Layout */
 .layer {
     display: grid;
@@ -229,13 +266,42 @@
 .layer-label {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    gap: 8px;
     background-color: #f8f9fa;
     border-right: 1px solid #ccc;
     font-weight: 600;
     font-size: 0.9rem;
     color: #333;
     padding: 0.5rem;
+}
+
+.add-clip-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #fff;
+    color: #333;
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+}
+
+.add-clip-btn:hover {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.add-clip-btn:active {
+    transform: scale(0.95);
 }
 
 .layer-content {
@@ -341,7 +407,7 @@
     top: 0;
     width: 2px;
     height: 100%;
-    background: #e74c3c;
+    background: #0582ca;
     pointer-events: none;
     z-index: 100;
     transition: left 0.05s linear;
@@ -351,10 +417,11 @@
     content: '';
     position: absolute;
     top: -6px;
-    left: -5px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 12px;
     height: 12px;
-    background: #e74c3c;
+    background: #0582ca;
     border-radius: 50%;
     border: 2px solid #fff;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);

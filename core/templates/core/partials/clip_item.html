@@ -28,7 +28,7 @@
     <div class="resize-handle resize-handle-left"></div>
     <div class="layer-item-content"
          hx-get="{% url 'load_clip_form' clip.id %}?content_id={{ content.id }}"
-         hx-trigger="click"
+         hx-trigger="layer-item-click"
          hx-target="#detail-form"
          hx-swap="innerHTML">
         <span class="layer-item-label">{{ clip.name }}</span>

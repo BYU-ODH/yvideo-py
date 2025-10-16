@@ -504,17 +504,6 @@ header {
     max-height: 100%;
 }
 
-.video-with-transcript {
-    display: flex;
-    height: 100%;
-    overflow: hidden;
-    align-content: center;
-}
-
-.video-with-transcript .player-wrapper {
-    flex: 1;
-}
-
 /* Time holder (hidden but used for calculations) */
 .time-holder {
     visibility: hidden;

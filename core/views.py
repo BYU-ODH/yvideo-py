@@ -1003,6 +1003,80 @@ def update_clip(request, clip_id):
     return response
 
 
+@require_POST
+def create_clip(request, content_id):
+    """Create a new clip and return updated HTML with JSON OOB."""
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    # Get start and end times from POST
+    start_time = float(request.POST.get("start_time", 0))
+    end_time = float(request.POST.get("end_time", 10))
+
+    # Validate times
+    duration = content.duration
+    if start_time < 0 or end_time > duration or start_time >= end_time:
+        return HttpResponse("Invalid clip times", status=400)
+
+    # Get resource from content's file
+    if not content.file or not content.file.resource:
+        return HttpResponse("Content has no associated resource", status=400)
+
+    # Create new clip
+    clip = Clip.objects.create(
+        resource=content.file.resource,
+        owner=request.user,
+        name=f"Clip {content.clips.count() + 1}",
+        start_time=seconds2hms(start_time),
+        end_time=seconds2hms(end_time),
+    )
+
+    # Add to content
+    content.clips.add(clip)
+    content.save()
+
+    # Calculate position
+    start_percent = (start_time / duration * 100) if duration > 0 else 0
+    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
+
+    position = {
+        "left": f"{start_percent:.2f}%",
+        "width": f"{width_percent:.2f}%",
+        "start": start_time,
+        "end": end_time,
+    }
+
+    # Generate updated JSON for player
+    clips_json_data = generate_clips_json_data(content)
+
+    # Render the new layer item
+    item_html = render_to_string(
+        "partials/clip_item.html",
+        {
+            "clip": clip,
+            "content": content,
+            "position": position,
+        },
+    )
+
+    # Render JSON OOB update
+    json_html = render_to_string(
+        "partials/clips_json_oob.html",
+        {
+            "clips_json": json.dumps(clips_json_data),
+        },
+    )
+
+    # Combine responses with OOB swap for layer-items
+    response = HttpResponse(
+        f'<div hx-swap-oob="beforeend:.layer-items">{item_html}</div>{json_html}'
+    )
+    return response
+
+
 @require_http_methods(["DELETE"])
 def delete_clip(request, clip_id):
     """Delete or remove clip from content and return updated JSON OOB."""

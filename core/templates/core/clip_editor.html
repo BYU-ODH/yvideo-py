@@ -57,7 +57,7 @@
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
         <div class="top-panel">
             <div class="video-section">
-                {% include 'partials/video-and-controls.html' %}
+                {% include 'partials/player-wrapper.html' %}
             </div>
 
             <!-- Vertical resizer between video and form -->
@@ -89,7 +89,18 @@
 
                 <!-- Layer: Clips -->
                 <div class="layer" data-layer-type="clips">
-                    <div class="layer-label">Clips</div>
+                    <div class="layer-label">
+                        Clips
+                        <button class="add-clip-btn"
+                                id="add-clip-btn"
+                                hx-post="{% url 'clip-create' content.id %}"
+                                hx-vals='js:{start_time: getNewClipStartTime(), end_time: getNewClipEndTime()}'
+                                hx-swap="none"
+                                hx-trigger="click"
+                                title="Add new clip at current time">
+                            +
+                        </button>
+                    </div>
                     <div class="layer-content">
                         <div class="layer-items">
                             {% for item in clips_with_positions %}
