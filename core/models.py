@@ -332,6 +332,21 @@ class Clip(models.Model):
     def __str__(self):
         return f"{self.name} | {self.start_time}-{self.end_time} | {self.resource.name} | {self.id}"
 
+    def can_edit(self, user):
+        """Check if user can edit this clip."""
+        return self.owner == user or user.is_staff or user.is_superuser
+
+    def clone_for_user(self, user):
+        """Create a copy of this clip owned by a different user."""
+        return Clip.objects.create(
+            resource=self.resource,
+            owner=user,
+            name=self.name,
+            start_time=self.start_time,
+            end_time=self.end_time,
+            description=self.description,
+        )
+
 
 class AnnotationSet(models.Model):
     name = models.CharField(max_length=225)

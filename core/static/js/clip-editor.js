@@ -244,16 +244,326 @@
         }
     }
 
+    class LayerInteractionHandler {
+        constructor() {
+            this.layerContainer = document.querySelector('.layer-items');
+            this.duration = parseFloat(document.querySelector('.clip-editor-container').dataset.duration) || 120;
+            this.dragState = null;
+
+            this.init();
+        }
+
+        init() {
+            // Event delegation for drag/resize - selection is handled by HTMX attributes
+            this.layerContainer.addEventListener('mousedown', this.handleMouseDown.bind(this));
+            document.addEventListener('mousemove', this.handleMouseMove.bind(this));
+            document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+
+            // Listen for "set time" button clicks
+            document.addEventListener('click', (e) => {
+                if (e.target.dataset.setTime) {
+                    this.setTimeFromVideo(e.target.dataset.setTime);
+                }
+            });
+        }
+
+        handleMouseDown(e) {
+            const layerItem = e.target.closest('.layer-item');
+            if (!layerItem) return;
+
+            const resizeHandle = e.target.closest('.resize-handle:not(.resize-trigger)');
+
+            if (resizeHandle) {
+                this.startResize(layerItem, resizeHandle, e);
+                e.preventDefault();
+                e.stopPropagation(); // Prevent HTMX click from firing during resize
+            } else if (!e.target.closest('.resize-handle')) {
+                // Only start drag if not on any resize handle
+                this.startDrag(layerItem, e);
+                e.preventDefault();
+                // Don't stopPropagation - we'll let the click through if no drag happens
+            }
+        }
+
+        startDrag(layerItem, e) {
+            const rect = this.layerContainer.getBoundingClientRect();
+
+            this.dragState = {
+                type: 'drag',
+                item: layerItem,
+                startX: e.clientX,
+                startLeft: parseFloat(layerItem.style.left),
+                containerWidth: rect.width,
+                hasMoved: false,
+                originalLeft: parseFloat(layerItem.dataset.originalLeft),
+                originalWidth: parseFloat(layerItem.dataset.originalWidth)
+            };
+
+            // Reset deltas
+            layerItem.dataset.deltaLeft = '0';
+            layerItem.dataset.deltaWidth = '0';
+
+            layerItem.classList.add('dragging');
+            document.body.classList.add('dragging', 'dragging-item');
+        }
+
+        startResize(layerItem, handle, e) {
+            const isLeft = handle.classList.contains('resize-handle-left');
+
+            this.dragState = {
+                type: 'resize',
+                item: layerItem,
+                handle: handle,
+                isLeft: isLeft,
+                startX: e.clientX,
+                startLeft: parseFloat(layerItem.style.left),
+                startWidth: parseFloat(layerItem.style.width),
+                containerWidth: this.layerContainer.offsetWidth,
+                hasMoved: false,
+                originalLeft: parseFloat(layerItem.dataset.originalLeft),
+                originalWidth: parseFloat(layerItem.dataset.originalWidth)
+            };
+
+            // Reset deltas
+            layerItem.dataset.deltaLeft = '0';
+            layerItem.dataset.deltaWidth = '0';
+
+            document.body.classList.add('resizing', 'resizing-item');
+        }
+
+        handleMouseMove(e) {
+            if (!this.dragState) return;
+
+            // Define a threshold (in pixels) to determine if this is a real drag
+            const DRAG_THRESHOLD = 3;
+
+            const deltaX = Math.abs(e.clientX - this.dragState.startX);
+
+            // Only mark as moved if we've exceeded the threshold
+            if (deltaX > DRAG_THRESHOLD) {
+                this.dragState.hasMoved = true;
+            }
+
+            // Only update position if we've started moving
+            if (this.dragState.hasMoved) {
+                if (this.dragState.type === 'drag') {
+                    this.updateDragPosition(e);
+                } else if (this.dragState.type === 'resize') {
+                    this.updateResizePosition(e);
+                }
+            }
+
+            e.preventDefault();
+        }
+
+        updateDragPosition(e) {
+            const deltaX = e.clientX - this.dragState.startX;
+            const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
+            let newLeft = this.dragState.startLeft + deltaPercent;
+
+            // Constrain to 0-100%
+            const width = parseFloat(this.dragState.item.style.width);
+            newLeft = Math.max(0, Math.min(newLeft, 100 - width));
+
+            this.dragState.item.style.left = `${newLeft}%`;
+
+            // Store delta from original position
+            const deltaFromOriginal = newLeft - this.dragState.originalLeft;
+            this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
+        }
+
+        updateResizePosition(e) {
+            const deltaX = e.clientX - this.dragState.startX;
+            const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
+
+            if (this.dragState.isLeft) {
+                // Resize from left
+                let newLeft = this.dragState.startLeft + deltaPercent;
+                let newWidth = this.dragState.startWidth - deltaPercent;
+
+                // Constrain
+                newLeft = Math.max(0, newLeft);
+                newWidth = Math.max(1, newWidth); // Minimum 1% width
+
+                // Don't extend past right edge
+                if (newLeft + newWidth > 100) {
+                    newWidth = 100 - newLeft;
+                }
+
+                this.dragState.item.style.left = `${newLeft}%`;
+                this.dragState.item.style.width = `${newWidth}%`;
+
+                // Store deltas from original
+                const deltaLeft = newLeft - this.dragState.originalLeft;
+                const deltaWidth = newWidth - this.dragState.originalWidth;
+                this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
+                this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
+            } else {
+                // Resize from right
+                let newWidth = this.dragState.startWidth + deltaPercent;
+
+                // Constrain
+                newWidth = Math.max(1, newWidth);
+                const maxWidth = 100 - this.dragState.startLeft;
+                newWidth = Math.min(newWidth, maxWidth);
+
+                this.dragState.item.style.width = `${newWidth}%`;
+
+                // Store delta from original width (left unchanged)
+                const deltaWidth = newWidth - this.dragState.originalWidth;
+                this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
+            }
+        }
+
+        handleMouseUp(e) {
+            if (!this.dragState) return;
+
+            const state = this.dragState;
+            this.dragState = null;
+
+            state.item.classList.remove('dragging');
+            document.body.classList.remove('dragging', 'dragging-item', 'resizing', 'resizing-item');
+
+            if (state.hasMoved) {
+                this.triggerSave(state);
+                // Prevent the click event from firing if we actually dragged
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Also prevent the next click event (for better browser compatibility)
+                const preventNextClick = (clickEvent) => {
+                    clickEvent.preventDefault();
+                    clickEvent.stopPropagation();
+                    document.removeEventListener('click', preventNextClick, true);
+                };
+                document.addEventListener('click', preventNextClick, true);
+            }
+            // If !hasMoved, don't prevent - let the click bubble to HTMX
+        }
+
+        triggerSave(state) {
+            const item = state.item;
+            const clipId = item.dataset.itemId;
+
+            // Find and click the appropriate hidden trigger
+            // HTMX attributes on trigger handle the POST automatically
+            let trigger;
+            if (state.type === 'resize') {
+                const handleClass = state.isLeft ? 'resize-handle-left' : 'resize-handle-right';
+                trigger = item.querySelector(`.${handleClass}.resize-trigger`);
+            } else {
+                // For drag, just use the first trigger
+                trigger = item.querySelector('.resize-trigger');
+            }
+
+            if (trigger) {
+                trigger.click();
+            } else {
+                console.error('Save trigger not found for item:', clipId);
+                // Revert on error
+                item.style.left = `${state.originalLeft}%`;
+                item.style.width = `${state.originalWidth}%`;
+                item.dataset.deltaLeft = '0';
+                item.dataset.deltaWidth = '0';
+            }
+        }
+
+        setTimeFromVideo(fieldName) {
+            const video = document.querySelector('.annotation-player-container video');
+            if (!video) return;
+
+            const currentTime = video.currentTime;
+            const timeString = this.secondsToHMS(currentTime);
+
+            // Update the form field
+            const input = document.getElementById(fieldName);
+            if (input) {
+                input.value = timeString;
+            }
+        }
+
+        secondsToHMS(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+    }
+
+    class VideoPlayerSync {
+        constructor() {
+            this.video = null;
+            this.jsonContainer = document.getElementById('clips-json');
+
+            this.init();
+        }
+
+        init() {
+            // Wait for video to be available
+            const checkVideo = setInterval(() => {
+                this.video = document.querySelector('.annotation-player-container video');
+                if (this.video && window.annotationPlayer) {
+                    clearInterval(checkVideo);
+                    this.setupJSONWatch();
+                    this.updatePlayerFromJSON();
+                }
+            }, 100);
+        }
+
+        setupJSONWatch() {
+            // Watch for HTMX updates to JSON container
+            const observer = new MutationObserver(() => {
+                this.updatePlayerFromJSON();
+            });
+
+            if (this.jsonContainer) {
+                observer.observe(this.jsonContainer, {
+                    childList: true,
+                    characterData: true,
+                    subtree: true
+                });
+            }
+
+            // Also listen for HTMX afterSwap events
+            document.body.addEventListener('htmx:afterSwap', (e) => {
+                if (e.detail.target.id === 'clips-json') {
+                    this.updatePlayerFromJSON();
+                }
+            });
+        }
+
+        updatePlayerFromJSON() {
+            if (!this.jsonContainer || !window.annotationPlayer) return;
+
+            try {
+                const clipsData = JSON.parse(this.jsonContainer.textContent);
+
+                // Update the player's clips
+                if (window.annotationPlayer.updateClips) {
+                    window.annotationPlayer.updateClips(clipsData);
+                } else if (window.annotationPlayer.setClips) {
+                    window.annotationPlayer.setClips(clipsData);
+                }
+            } catch (e) {
+                console.error('Failed to parse clips JSON:', e);
+            }
+        }
+    }
+
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             new ClipEditorResizer();
             new ClipEditorScrubber();
             new Timeline();
+            new LayerInteractionHandler();
+            new VideoPlayerSync();
         });
     } else {
         new ClipEditorResizer();
         new ClipEditorScrubber();
         new Timeline();
+        new LayerInteractionHandler();
+        new VideoPlayerSync();
     }
 })();

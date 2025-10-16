@@ -1,0 +1,59 @@
+<div class="layer-item"
+     id="clip-{{ clip.id }}"
+     style="left: {{ position.left }}; width: {{ position.width }};"
+     data-item-id="{{ clip.id }}"
+     data-item-type="clip"
+     data-start="{{ position.start }}"
+     data-end="{{ position.end }}"
+     data-label="{{ clip.name }}"
+     data-original-left="{{ position.left }}"
+     data-original-width="{{ position.width }}"
+     data-delta-left="0"
+     data-delta-width="0"
+     tabindex="0">
+
+    <div class="resize-handle resize-handle-left resize-trigger"
+         hx-post="{% url 'update_clip' clip.id %}"
+         hx-trigger="click"
+         hx-vals='js:{
+           delta_left: document.getElementById("clip-{{ clip.id }}").dataset.deltaLeft,
+           delta_width: document.getElementById("clip-{{ clip.id }}").dataset.deltaWidth,
+           name: document.querySelector("#clip-form-{{ clip.id }} [name=name]")?.value || "{{ clip.name }}",
+           content_id: {{ content.id }}
+         }'
+         hx-target="#clip-{{ clip.id }}"
+         hx-swap="outerHTML"
+         style="display: none;"></div>
+
+    <div class="resize-handle resize-handle-left"></div>
+    <div class="layer-item-content"
+         hx-get="{% url 'load_clip_form' clip.id %}?content_id={{ content.id }}"
+         hx-trigger="click"
+         hx-target="#detail-form"
+         hx-swap="innerHTML">
+        <span class="layer-item-label">{{ clip.name }}</span>
+    </div>
+    <div class="resize-handle resize-handle-right"></div>
+
+    <div class="resize-handle resize-handle-right resize-trigger"
+         hx-post="{% url 'update_clip' clip.id %}"
+         hx-trigger="click"
+         hx-vals='js:{
+           delta_left: document.getElementById("clip-{{ clip.id }}").dataset.deltaLeft,
+           delta_width: document.getElementById("clip-{{ clip.id }}").dataset.deltaWidth,
+           name: document.querySelector("#clip-form-{{ clip.id }} [name=name]")?.value || "{{ clip.name }}",
+           content_id: {{ content.id }}
+         }'
+         hx-target="#clip-{{ clip.id }}"
+         hx-swap="outerHTML"
+         style="display: none;"></div>
+</div>
+
+<!-- Hidden form for this clip -->
+<form id="clip-form-{{ clip.id }}" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" name="name" value="{{ clip.name }}">
+    <input type="hidden" name="start_time" value="{{ clip.start_time }}">
+    <input type="hidden" name="end_time" value="{{ clip.end_time }}">
+    <input type="hidden" name="content_id" value="{{ content.id }}">
+</form>

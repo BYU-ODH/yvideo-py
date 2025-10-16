@@ -1,9 +1,11 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
+from .models import Clip
 from .models import Collection
 from .models import Content
 from .models import ImportantWord
+from .utils import hms2seconds
 
 
 class CollectionForm(forms.ModelForm):
@@ -69,3 +71,23 @@ class ImportantWordForm(forms.ModelForm):
 
     word = forms.CharField(required=True)
     translation = forms.CharField(required=True)
+
+
+class ClipForm(forms.ModelForm):
+    class Meta:
+        model = Clip
+        fields = ["name", "start_time", "end_time"]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get("start_time")
+        end_time = cleaned_data.get("end_time")
+
+        if start_time and end_time:
+            start_seconds = hms2seconds(start_time)
+            end_seconds = hms2seconds(end_time)
+
+            if start_seconds >= end_seconds:
+                raise forms.ValidationError("End time must be after start time.")
+
+        return cleaned_data
