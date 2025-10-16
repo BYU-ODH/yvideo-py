@@ -36,6 +36,7 @@ from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import SkipAnnotation
 from .models import User
+from .utils import hms2seconds
 
 logger = logging.getLogger(__name__)
 
@@ -147,17 +148,25 @@ def index(request):
     return render(request, "index.html", context)
 
 
-# @login_required  # TODO: Uncomment
-def player(request, content_id):
-    """Render the video player page."""
-    content = get_object_or_404(Content, id=content_id)
+def get_file_key(request, content):
+    """Get or create a FileKey for the given content and user."""
     if request.user.can_view_content(content):
         file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
         if not file_key:
             # create a new FileKey if one doesn't exist
             file_key = FileKey.objects.create(file=content.file, user=request.user)
             file_key.save()
+        return file_key
     else:
+        return None
+
+
+# @login_required  # TODO: Uncomment
+def player(request, content_id):
+    """Render the video player page."""
+    content = get_object_or_404(Content, id=content_id)
+    file_key = get_file_key(request, content)
+    if not file_key:
         return HttpResponse(
             "User does not have permission to view this content", status=403
         )
@@ -730,12 +739,33 @@ def spoof_user_search(request):
     return HttpResponse(html)
 
 
+# TODO add permission check
 def clip_editor(request, content_id):
     """Render the clip editor page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = None
-    if content.file:
-        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
+    file_key = get_file_key(request, content)
+
+    # Calculate clip positions
+    duration = content.duration
+    clips_with_positions = []
+
+    for clip in content.clips.all():
+        start_time = hms2seconds(clip.start_time)
+        end_time = hms2seconds(clip.end_time)
+        start_percent = (start_time / duration * 100) if duration > 0 else 0
+        width_percent = (
+            ((end_time - start_time) / duration * 100) if duration > 0 else 0
+        )
+
+        clips_with_positions.append(
+            {
+                "clip": clip,
+                "left": f"{start_percent:.2f}%",
+                "width": f"{width_percent:.2f}%",
+                "start": start_time,
+                "end": end_time,
+            }
+        )
 
     # Prepare subtitle data in the format expected by AnnotationPlayer
     subtitles_data = [
@@ -756,8 +786,9 @@ def clip_editor(request, content_id):
         "allow_events": True,
         "events": json.dumps([]),
         "subtitles": json.dumps(subtitles_data),
-        "clips": json.dumps(clips_data),
         "has_subtitles": has_subtitles,
+        "duration": duration,
+        "clips_with_positions": clips_with_positions,
     }
 
     return render(request, "clip_editor.html", context)

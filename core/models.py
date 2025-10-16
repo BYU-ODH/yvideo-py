@@ -289,6 +289,7 @@ class File(models.Model):
         max_length=16, blank=True, editable=False, unique=True, null=True
     )
     checksum_at = models.DateTimeField(null=True, blank=True, editable=False)
+    duration = models.FloatField(default=0.0)  # duration in seconds
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -303,6 +304,8 @@ class File(models.Model):
         if self.file and not self.checksum:
             self.checksum = _calculate_checksum_for_file(self.file)
             self.checksum_at = timezone.now()
+        if self.file and not self.duration:
+            self.duration = get_video_duration(self.file)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -392,6 +395,16 @@ class Content(models.Model):
 
     def __str__(self):
         return f"{self.title} | {self.collection.name} | {self.id}"
+
+    @property
+    def duration(self):
+        """Get video duration in seconds from the file."""
+        try:
+            return self.file.duration
+        except AttributeError:
+            # TODO: Extract actual duration from video file metadata
+            # For now, return a placeholder
+            return 20.0  # 20 seconds default
 
 
 class ImportantWord(models.Model):

@@ -1,4 +1,3 @@
-<!-- filepath: /Users/rob/repos/BYU-ODH/yvideo-py/core/templates/core/clip_editor.html -->
 {% load static %}
 {% include 'base.html' %}
 
@@ -18,11 +17,12 @@
             events: {{ events|safe }},
             subtitles: {{ subtitles|safe }},
             clips: {{ clips|safe }},
-            hasSubtitles: {{ has_subtitles|yesno:"true,false" }}
+            hasSubtitles: {{ has_subtitles|yesno:"true,false" }},
+            duration: {{ duration }}
         };
     </script>
 
-    <div class="clip-editor-container" data-content-id="{{ content.id }}">
+    <div class="clip-editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
         <div class="top-panel">
             <div class="video-section">
@@ -46,8 +46,38 @@
 
         <!-- Bottom Panel: Timeline -->
         <div class="timeline-section">
-            <div class="timeline-placeholder">
-                <p>Timeline will appear here</p>
+            <div class="timeline-container">
+                <!-- Timeline tick marks row -->
+                <div class="timeline-ticks-row">
+                    <div class="timeline-ticks-label"></div>
+                    <div class="timeline-ticks">
+                        <div class="tick-marks-container"></div>
+                    </div>
+                </div>
+
+                <!-- Layer: Clips -->
+                <div class="layer" data-layer-type="clips">
+                    <div class="layer-label">Clips</div>
+                    <div class="layer-content">
+                        <div class="layer-items">
+                            {% for item in clips_with_positions %}
+                                <div class="layer-item"
+                                     style="left: {{ item.left }}; width: {{ item.width }};"
+                                     data-item-id="{{ item.clip.id }}"
+                                     data-item-type="clip"
+                                     data-start="{{ item.start }}"
+                                     data-end="{{ item.end }}"
+                                     data-label="{{ item.clip.name }}"
+                                     tabindex="0">
+                                    <div class="layer-item-content">
+                                        <span class="layer-item-label">{{ item.clip.name }}</span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

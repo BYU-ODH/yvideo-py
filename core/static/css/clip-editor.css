@@ -66,13 +66,164 @@
     flex-direction: column;
 }
 
-.timeline-placeholder {
+.timeline-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+/* Timeline Ticks Row - Grid Layout */
+.timeline-ticks-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    height: 30px;
+    border-bottom: 1px solid #ccc;
+    background-color: #fafafa;
+}
+
+.timeline-ticks-label {
+    background-color: #f8f9fa;
+    border-right: 1px solid #ccc;
+}
+
+/* Timeline Ticks */
+.timeline-ticks {
+    position: relative;
+    overflow: hidden;
+}
+
+.tick-marks-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform: scaleX(var(--timeline-scale, 1));  /* eslint-disable-line css/no-invalid-properties */
+    transform-origin: 0 0;
+    transition: transform 0.2s ease-out;
+}
+
+.tick-mark {
+    position: absolute;
+    bottom: 0;
+    width: 1px;
+    background-color: #999;
+}
+
+.tick-mark.major {
+    height: 15px;
+    background-color: #666;
+}
+
+.tick-mark.minor {
+    height: 8px;
+    background-color: #bbb;
+}
+
+.tick-label {
+    position: absolute;
+    bottom: 16px;
+    font-size: 11px;
+    color: #333;
+    white-space: nowrap;
+    transform: translateX(-50%);
+    user-select: none;  /* eslint-disable-line css/use-baseline */
+}
+
+/* Layer - Grid Layout */
+.layer {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    min-height: 60px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.layer-label {
     display: flex;
     align-items: center;
     justify-content: center;
+    background-color: #f8f9fa;
+    border-right: 1px solid #ccc;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #333;
+    padding: 0.5rem;
+}
+
+.layer-content {
+    position: relative;
+    background-color: #fafafa;
+    min-height: 60px;
+}
+
+.layer-items {
+    position: relative;
+    width: 100%;
     height: 100%;
-    color: #999;
-    font-size: 1.4rem;
+}
+
+/* Layer Items */
+.layer-item {
+    position: absolute;
+    top: 10px;
+    height: 40px;
+    background: #4a90e2;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.layer-item:hover {
+    background: #357abd;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.layer-item:focus {
+    outline: 2px solid #357abd;  /* eslint-disable-line css/use-baseline */
+    outline-offset: 2px;
+}
+
+.layer-item-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.layer-item-label {
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Editor Scrubber */
+.editor-scrubber {
+    position: absolute;
+    left: var(--scrubber-position, 0%);
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #e74c3c;
+    pointer-events: none;
+    z-index: 100;
+    transition: left 0.05s linear;
+}
+
+.editor-scrubber::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: -5px;
+    width: 12px;
+    height: 12px;
+    background: #e74c3c;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Resizers */
