@@ -62,17 +62,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-if DEBUG:
-    INSTALLED_APPS.append("debug_toolbar")  # django-debug-toolbar
-
-    DEBUG_TOOLBAR_MIDDLEWARE_INDEX = (
-        1  # as close to the top as possible after middleware that encodes data
-    )
-    MIDDLEWARE.insert(
-        DEBUG_TOOLBAR_MIDDLEWARE_INDEX,
-        "debug_toolbar.middleware.DebugToolbarMiddleware",
-    )
-    INTERNAL_IPS = ["127.0.0.1", "localhost"]
 
 ROOT_URLCONF = "yvideo.urls"
 
@@ -153,3 +142,16 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
+
+
+if DEBUG:
+    INSTALLED_APPS.append("debug_toolbar")  # django-debug-toolbar
+
+    DEBUG_TOOLBAR_MIDDLEWARE_INDEX = (
+        1  # as close to the top as possible after middleware that encodes data
+    )
+    MIDDLEWARE.insert(
+        DEBUG_TOOLBAR_MIDDLEWARE_INDEX,
+        "debug_toolbar.middleware.DebugToolbarMiddleware",
+    )
+    INTERNAL_IPS = ["127.0.0.1", "localhost"]
