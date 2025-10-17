@@ -1113,10 +1113,13 @@ def delete_clip(request, clip_id):
             },
         )
 
-        # Render placeholder for form
+        # Render placeholder for form with OOB swap
         form_placeholder = render_to_string("partials/clip_form_placeholder.html")
+        form_html = (
+            f'<div hx-swap-oob="innerHTML:#detail-form">{form_placeholder}</div>'
+        )
 
-        response = HttpResponse(json_html + form_placeholder)
+        response = HttpResponse(json_html + form_html)
         return response
     except Exception as e:
         logger.error(f"Error deleting clip {clip_id}: {e}")
