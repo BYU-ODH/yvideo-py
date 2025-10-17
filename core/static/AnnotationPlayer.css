@@ -108,7 +108,7 @@
 }
 
 .annotation-player-container video.blurred {
-  filter: blur(20px);
+  filter: blur(80px);
 }
 
 /* Annotation Container */
