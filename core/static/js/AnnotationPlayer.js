@@ -95,7 +95,6 @@ export class AnnotationPlayer {
     this.clips = options.clips || [];
 
     this.setupEventListeners();
-    this.placeAnnotationBox();
   }
 
   static icons = {
@@ -287,17 +286,6 @@ export class AnnotationPlayer {
   _getActiveTrackIndex() {
     const tracks = Array.from(this.videoElem.textTracks);
     return tracks.findIndex(track => track.mode === 'showing' || track.mode === 'hidden');
-  }
-
-  placeAnnotationBox() {
-    const videoRect = this.videoElem.getBoundingClientRect();
-    const wrapperRect = this.videoWrapper.getBoundingClientRect();
-
-    const annotationBox = this.annotationBox;
-    annotationBox.style.left = `${videoRect.left - wrapperRect.left}px`;
-    annotationBox.style.top = `${videoRect.top - wrapperRect.top}px`;
-    annotationBox.style.width = `${videoRect.width}px`;
-    annotationBox.style.height = `${videoRect.height}px`;
   }
 
   _showBezel(icon, text) {
@@ -1516,9 +1504,6 @@ export class AnnotationPlayer {
     });
 
     document.addEventListener('keydown', (e) => this.onKeydown(e));
-
-    window.addEventListener('resize', () => this.placeAnnotationBox());
-    this.videoElem.addEventListener('resize', () => this.placeAnnotationBox());
 
     if (this.controls.speedBtn && this.controls.speedMenu) {
       this._renderSpeedMenu();
