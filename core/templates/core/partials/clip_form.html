@@ -1,6 +1,5 @@
 <div id="clip-form-container"
-     data-clip-id="{{ clip.id }}"
-     hx-swap-oob="innerHTML:#detail-form">
+     data-clip-id="{{ clip.id }}">
     <h3>Edit Clip</h3>
 
     {% if not can_edit %}
@@ -15,6 +14,7 @@
           hx-trigger="submit">
         {% csrf_token %}
         <input type="hidden" name="content_id" value="{{ content.id }}">
+        <input type="hidden" name="update_form" value="1">
 
         <div class="form-group">
             <label for="name">Name</label>

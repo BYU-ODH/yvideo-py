@@ -975,20 +975,20 @@ def update_clip(request, clip_id):
         },
     )
 
-    # Render the form if it's the selected item
-    form_html = ""
-    if request.POST.get("update_form"):
-        form_html = render_to_string(
-            "partials/clip_form.html",
-            {
-                "clip": clip,
-                "content": content,
-                "can_edit": True,
-                "form": ClipForm(instance=clip),
-                "start_seconds": start_time,
-                "end_seconds": end_time,
-            },
-        )
+    # Always render the updated form with OOB swap
+    form_content = render_to_string(
+        "partials/clip_form.html",
+        {
+            "clip": clip,
+            "content": content,
+            "can_edit": True,
+            "form": ClipForm(instance=clip),
+            "start_seconds": start_time,
+            "end_seconds": end_time,
+        },
+    )
+    # Wrap with OOB swap directive
+    form_html = f'<div hx-swap-oob="innerHTML:#detail-form">{form_content}</div>'
 
     # Render JSON OOB update
     json_html = render_to_string(
