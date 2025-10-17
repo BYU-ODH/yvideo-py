@@ -294,8 +294,6 @@ export class AnnotationPlayer {
     const wrapperRect = this.videoWrapper.getBoundingClientRect();
 
     const annotationBox = this.annotationBox;
-    annotationBox.style.position = "absolute";
-    annotationBox.style.pointerEvents = "none";
     annotationBox.style.left = `${videoRect.left - wrapperRect.left}px`;
     annotationBox.style.top = `${videoRect.top - wrapperRect.top}px`;
     annotationBox.style.width = `${videoRect.width}px`;
