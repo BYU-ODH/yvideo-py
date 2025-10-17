@@ -117,7 +117,6 @@
   position: absolute;
   pointer-events: none;
   z-index: 10;
-  transition: width 0.3s ease, left 0.3s ease;
 }
 
 .annotation-box .censor {
