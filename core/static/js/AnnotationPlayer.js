@@ -300,7 +300,6 @@ export class AnnotationPlayer {
     annotationBox.style.top = `${videoRect.top - wrapperRect.top}px`;
     annotationBox.style.width = `${videoRect.width}px`;
     annotationBox.style.height = `${videoRect.height}px`;
-    annotationBox.style.zIndex = 10;
   }
 
   _showBezel(icon, text) {
