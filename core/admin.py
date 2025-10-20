@@ -12,13 +12,16 @@ from .models import Course
 from .models import Email
 from .models import File
 from .models import FileKey
+from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
+from .models import PauseAnnotation
 from .models import Resource
 from .models import ResourceAccess
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
+from .models import UserCourses
 
 
 @admin.register(User)
@@ -156,6 +159,11 @@ class BlankAnnotationAdmin(AnnotationAdmin):
     pass
 
 
+@admin.register(PauseAnnotation)
+class PauseAnnotationAdmin(AnnotationAdmin):
+    pass
+
+
 @admin.register(BlurAnnotation)
 class BlurAnnotationAdmin(AnnotationAdmin):
     pass
@@ -214,8 +222,20 @@ class FileKeyAdmin(VersionAdmin):
     search_fields = ("user__netid", "file__resource__name")
 
 
+@admin.register(ImportantWord)
+class ImportantWordAdmin(VersionAdmin):
+    list_display = ("word", "translation")
+    search_fields = ("word", "translation", "content__title")
+
+
 @admin.register(AnnotationSet)
 class AnnotationSetAdmin(VersionAdmin):
     list_display = ("name", "owner", "resource", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__name", "resource__name")
+
+
+@admin.register(UserCourses)
+class UserCourses(VersionAdmin):
+    list_display = ("user", "course", "yearterm")
+    search_fields = ("user", "course", "yearterm")

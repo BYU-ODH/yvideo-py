@@ -2,29 +2,52 @@
 
 {% block content %}
     <main class="main-content">
-        <header class="collections-header">
-            <span>Collections</span>
-            <span><a href="{% url 'manage_collections' %}"> Manage Collections</a></span>
-        </header>
+        {% if user.privilege_level == 2 or user.privilege_level == 0 %}
+        <div class="landing-page-collection-list column-flex">
+            <header class="collections-header row-flex flex-apart-aligned">
+                <h1>My Collections</h1>
+                <a href="{% url 'manage_collections' %}">
+                    <button class="large-button">Manage Collections</button>
+                </a>
+            </header>
+            <div class="collections-list-content column-flex">
+                {% for collection in owned_collections %}
+                    {% include "partials/landing_page_collection.html" with collection=collection %}
+                {% empty %}
+                    <p>No Collections</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
-        {% include "partials/collection_list.html" %}
-
-        <header class="collections-header">
-            <h3>Public Collections</h3>
-            <form class="resource-search-submit" id="searchSubmit">
-                <input id="resource-search-input" type="search" placeholder="Search public collections" value="">
-            </form>
-            <h3><a href="#">Manage Public Collections</a></h3>
-        </header>
-
-        <div class="public-collections-list">
-            {% for collection in public_collections %}
-                {# Render public collections similarly to user collections #}
-            {% empty %}
-                <div class="message-public-collection">
-                    <p>There are no public collections</p>
-                </div>
-            {% endfor %}
+        <div class="landing-page-collection-list column-flex">
+            <header class="collections-header">
+                <h1>My Assigned Collections</h1>
+            </header>
+            <div class="yearterm-courses-list">
+                {% for yearterm in assigned_courses_by_yearterm %}
+                    <h2 class="yearterm-courses-header">{{ yearterm.yearterm_display }}</h2>
+                    <div class="yearterm-course-collections-list">
+                        {% for course in yearterm.collections_by_course %}
+                            <div class="course-header row-flex clickable" onclick="handleAccordian(this)">
+                                <p>{{ course.course_name }}</p>
+                                <img src="/static/img/arrow.svg" class="arrow">
+                            </div>
+                            <div class="collections-list-content course-collections-list column-flex accordian-folded">
+                                {% for collection in course.collections %}
+                                    {% include "partials/landing_page_collection.html" with collection=collection %}
+                                {% empty %}
+                                    <p>No collections for {{course.course_name}}</p>
+                                {% endfor %}
+                            </div>
+                        {% empty %}
+                            <p>No courses with assigned collections for {{ yearterm.yearterm_display }}</p>
+                        {% endfor %}
+                    </div>
+                {% empty %}
+                    <p>No semesters with courses assigned</p>
+                {% endfor %}
+            </div>
         </div>
     </main>
 {% endblock %}

@@ -1,0 +1,22 @@
+<div id="{{collections_type}}-collection-list" class="collection-section">
+    <div class="collection-status">
+        <p>{{ collections_type }} collections</p>
+        <img src="/static/img/arrow.svg" class="arrow-icon">
+    </div>
+    <div class="collection-list">
+        {% for collection in collections %}
+            <div class="collection-item clickable"
+                hx-get="{% url 'display_collection_contents' collection.id %}"
+                hx-trigger="click"
+                hx-target="#collections-detail"
+                hx-swap="innerHTML"
+                >
+                {{ collection.name }}
+            </div>
+        {% empty %}
+            <div class="collection-item">
+                No {{ collections_type }} collections.
+            </div>
+        {% endfor %}
+    </div>
+</div>

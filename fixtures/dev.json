@@ -1,0 +1,676 @@
+[
+{
+  "model": "core.resource",
+  "pk": 1,
+  "fields": {
+    "name": "Birds",
+    "media_type": "vid",
+    "requester_netid": "inst01",
+    "copyrighted": false,
+    "physical_copy_exists": false,
+    "views": 0,
+    "notes": "",
+    "created_at": "2025-10-14T22:47:07.468Z",
+    "updated_at": "2025-10-14T22:47:07.468Z"
+  }
+},
+{
+  "model": "core.resource",
+  "pk": 2,
+  "fields": {
+    "name": "Grid with transparent background",
+    "media_type": "vid",
+    "requester_netid": "inst01",
+    "copyrighted": true,
+    "physical_copy_exists": false,
+    "views": 0,
+    "notes": "",
+    "created_at": "2025-10-14T22:47:57.054Z",
+    "updated_at": "2025-10-14T22:47:57.054Z"
+  }
+},
+{
+  "model": "core.resource",
+  "pk": 3,
+  "fields": {
+    "name": "Grid",
+    "media_type": "vid",
+    "requester_netid": "inst02",
+    "copyrighted": true,
+    "physical_copy_exists": false,
+    "views": 0,
+    "notes": "",
+    "created_at": "2025-10-14T22:48:30.378Z",
+    "updated_at": "2025-10-14T22:48:30.378Z"
+  }
+},
+{
+  "model": "core.user",
+  "pk": 1,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$WxSNDEfZaHMMPQXn50nSW6$8sl4A9h0NHHzAesgWA0SW0VT1ZjdJoCKJSU4tLNx+GA=",
+    "last_login": "2025-10-14T22:17:49Z",
+    "is_superuser": true,
+    "username": "admin",
+    "first_name": "Admin",
+    "last_name": "McAdams",
+    "email": "admin@example.com",
+    "is_staff": true,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:17:21Z",
+    "netid": "admin",
+    "byu_id": null,
+    "privilege_level": 0,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.user",
+  "pk": 2,
+  "fields": {
+    "password": "stud01",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "stud01",
+    "first_name": "Student",
+    "last_name": "Number01",
+    "email": "stud01@example.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:19:37Z",
+    "netid": "stud01",
+    "byu_id": null,
+    "privilege_level": 3,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.user",
+  "pk": 3,
+  "fields": {
+    "password": "stud02",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "stud02",
+    "first_name": "Student",
+    "last_name": "Number02",
+    "email": "stud02@example.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:32:53Z",
+    "netid": "stud02",
+    "byu_id": null,
+    "privilege_level": 3,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.user",
+  "pk": 4,
+  "fields": {
+    "password": "stud03",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "stud03",
+    "first_name": "Student",
+    "last_name": "Number03",
+    "email": "stud03@example.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:33:52Z",
+    "netid": "stud03",
+    "byu_id": null,
+    "privilege_level": 3,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.user",
+  "pk": 5,
+  "fields": {
+    "password": "stud04",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "stud04",
+    "first_name": "Student",
+    "last_name": "Number04",
+    "email": "stud04@example.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:34:56Z",
+    "netid": "stud04",
+    "byu_id": null,
+    "privilege_level": 3,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.user",
+  "pk": 6,
+  "fields": {
+    "password": "inst01",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "inst01",
+    "first_name": "Instructor",
+    "last_name": "Number01",
+    "email": "inst01@example.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:35:39Z",
+    "netid": "inst01",
+    "byu_id": null,
+    "privilege_level": 2,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.user",
+  "pk": 7,
+  "fields": {
+    "password": "inst02",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "inst02",
+    "first_name": "Instructor",
+    "last_name": "Number02",
+    "email": "inst02@example.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:36:23Z",
+    "netid": "inst02",
+    "byu_id": null,
+    "privilege_level": 2,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.user",
+  "pk": 8,
+  "fields": {
+    "password": "lab01",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "lab01",
+    "first_name": "Lab",
+    "last_name": "Assistant01",
+    "email": "lab01@example.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-10-14T22:37:03Z",
+    "netid": "lab01",
+    "byu_id": null,
+    "privilege_level": 1,
+    "privilege_level_override": null,
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "core.resourceaccess",
+  "pk": 1,
+  "fields": {
+    "user": 6,
+    "resource": 1,
+    "last_verified": "2025-10-14T22:47:07.470Z",
+    "created_at": "2025-10-14T22:47:07.471Z",
+    "updated_at": "2025-10-14T22:47:07.471Z"
+  }
+},
+{
+  "model": "core.resourceaccess",
+  "pk": 2,
+  "fields": {
+    "user": 6,
+    "resource": 2,
+    "last_verified": "2025-10-14T22:47:57.055Z",
+    "created_at": "2025-10-14T22:47:57.055Z",
+    "updated_at": "2025-10-14T22:47:57.055Z"
+  }
+},
+{
+  "model": "core.resourceaccess",
+  "pk": 3,
+  "fields": {
+    "user": 7,
+    "resource": 3,
+    "last_verified": "2025-10-14T22:48:30.379Z",
+    "created_at": "2025-10-14T22:48:30.379Z",
+    "updated_at": "2025-10-14T22:48:30.379Z"
+  }
+},
+{
+  "model": "core.collection",
+  "pk": 1,
+  "fields": {
+    "name": "Collection 01",
+    "owner": 6,
+    "published": true,
+    "archived": false,
+    "public": false,
+    "created_at": "2025-10-14T22:54:17.395Z",
+    "updated_at": "2025-10-14T23:10:31.204Z",
+    "courses": [
+      1
+    ]
+  }
+},
+{
+  "model": "core.collection",
+  "pk": 2,
+  "fields": {
+    "name": "Collection 02",
+    "owner": 7,
+    "published": true,
+    "archived": false,
+    "public": false,
+    "created_at": "2025-10-14T22:55:13.508Z",
+    "updated_at": "2025-10-14T23:10:38.792Z",
+    "courses": [
+      2
+    ]
+  }
+},
+{
+  "model": "core.collectionuseraccess",
+  "pk": 1,
+  "fields": {
+    "user": 4,
+    "collection": 1,
+    "collection_role": 1,
+    "created_at": "2025-10-14T22:56:43.955Z",
+    "updated_at": "2025-10-14T22:56:43.955Z"
+  }
+},
+{
+  "model": "core.collectionuseraccess",
+  "pk": 2,
+  "fields": {
+    "user": 5,
+    "collection": 2,
+    "collection_role": 1,
+    "created_at": "2025-10-14T22:56:59.530Z",
+    "updated_at": "2025-10-14T22:56:59.530Z"
+  }
+},
+{
+  "model": "core.collectionuseraccess",
+  "pk": 3,
+  "fields": {
+    "user": 2,
+    "collection": 1,
+    "collection_role": 2,
+    "created_at": "2025-10-14T22:58:59.173Z",
+    "updated_at": "2025-10-14T22:58:59.173Z"
+  }
+},
+{
+  "model": "core.collectionuseraccess",
+  "pk": 4,
+  "fields": {
+    "user": 3,
+    "collection": 2,
+    "collection_role": 2,
+    "created_at": "2025-10-14T22:59:09.822Z",
+    "updated_at": "2025-10-14T22:59:09.822Z"
+  }
+},
+{
+  "model": "core.file",
+  "pk": 1,
+  "fields": {
+    "file": "Birds/original_no_audio.mp4",
+    "resource": 1,
+    "audio_language": 1,
+    "burned_in_subtitles_language": null,
+    "version": "original; no audio",
+    "full_video": true,
+    "notes": "",
+    "checksum": "c473d2a1df193c99",
+    "checksum_at": "2025-10-14T22:51:53.989Z",
+    "created_at": "2025-10-14T22:51:53.990Z",
+    "updated_at": "2025-10-15T03:00:49.777Z"
+  }
+},
+{
+  "model": "core.file",
+  "pk": 2,
+  "fields": {
+    "file": "Grid/original.mp4",
+    "resource": 3,
+    "audio_language": 4,
+    "burned_in_subtitles_language": 4,
+    "version": "original",
+    "full_video": true,
+    "notes": "",
+    "checksum": "ee83c1e661139ad5",
+    "checksum_at": "2025-10-14T22:52:57.383Z",
+    "created_at": "2025-10-14T22:52:57.384Z",
+    "updated_at": "2025-10-15T03:01:08.469Z"
+  }
+},
+{
+  "model": "core.file",
+  "pk": 3,
+  "fields": {
+    "file": "Grid/transparent_border.mp4",
+    "resource": 3,
+    "audio_language": 6,
+    "burned_in_subtitles_language": null,
+    "version": "transparent border",
+    "full_video": true,
+    "notes": "",
+    "checksum": "53f88add11fd2e30",
+    "checksum_at": "2025-10-14T22:53:27.068Z",
+    "created_at": "2025-10-14T22:53:27.068Z",
+    "updated_at": "2025-10-15T03:01:22.849Z"
+  }
+},
+{
+  "model": "core.clip",
+  "pk": 1,
+  "fields": {
+    "resource": 1,
+    "owner": 6,
+    "name": "that one bird",
+    "start_time": "0:00:05",
+    "end_time": "0:00:08",
+    "description": "This bird is a good one.",
+    "created_at": "2025-10-15T02:40:13.496Z",
+    "updated_at": "2025-10-15T02:40:13.496Z"
+  }
+},
+{
+  "model": "core.clip",
+  "pk": 2,
+  "fields": {
+    "resource": 3,
+    "owner": 7,
+    "name": "not much happening",
+    "start_time": "0:00:03",
+    "end_time": "0:00:06",
+    "description": "It's just a grid.",
+    "created_at": "2025-10-15T02:42:19.958Z",
+    "updated_at": "2025-10-15T02:42:19.958Z"
+  }
+},
+{
+  "model": "core.annotationset",
+  "pk": 1,
+  "fields": {
+    "name": "birds",
+    "owner": 6,
+    "resource": 1,
+    "created_at": "2025-10-15T02:53:31.223Z",
+    "updated_at": "2025-10-15T02:53:31.223Z"
+  }
+},
+{
+  "model": "core.annotationset",
+  "pk": 2,
+  "fields": {
+    "name": "color grid",
+    "owner": 7,
+    "resource": 3,
+    "created_at": "2025-10-15T02:54:07.130Z",
+    "updated_at": "2025-10-15T02:54:07.131Z"
+  }
+},
+{
+  "model": "core.content",
+  "pk": 1,
+  "fields": {
+    "title": "Birds 01",
+    "collection": 1,
+    "file": 1,
+    "annotation_set": null,
+    "url": null,
+    "description": "",
+    "allow_definitions": true,
+    "allow_notes": true,
+    "allow_captions": true,
+    "views": 0,
+    "published": false,
+    "words": "",
+    "created_at": "2025-10-14T23:00:39.706Z",
+    "updated_at": "2025-10-15T02:46:03.113Z",
+    "clips": [
+      1
+    ]
+  }
+},
+{
+  "model": "core.content",
+  "pk": 2,
+  "fields": {
+    "title": "Grid 02",
+    "collection": 2,
+    "file": 2,
+    "annotation_set": null,
+    "url": null,
+    "description": "",
+    "allow_definitions": true,
+    "allow_notes": true,
+    "allow_captions": true,
+    "views": 0,
+    "published": false,
+    "words": "",
+    "created_at": "2025-10-14T23:01:19.391Z",
+    "updated_at": "2025-10-14T23:01:55.783Z",
+    "clips": []
+  }
+},
+{
+  "model": "core.content",
+  "pk": 3,
+  "fields": {
+    "title": "Transparent Grid 02",
+    "collection": 2,
+    "file": 3,
+    "annotation_set": null,
+    "url": null,
+    "description": "",
+    "allow_definitions": true,
+    "allow_notes": true,
+    "allow_captions": true,
+    "views": 0,
+    "published": false,
+    "words": "",
+    "created_at": "2025-10-14T23:02:16.257Z",
+    "updated_at": "2025-10-15T02:46:23.616Z",
+    "clips": [
+      2
+    ]
+  }
+},
+{
+  "model": "core.muteannotation",
+  "pk": 1,
+  "fields": {
+    "owner": 6,
+    "name": "fowl language",
+    "annotation_set": 1,
+    "created_at": "2025-10-15T02:59:28.939Z",
+    "updated_at": "2025-10-15T02:59:28.939Z",
+    "start_time": 10.0,
+    "end_time": 11.0,
+    "prev": null,
+    "next": null
+  }
+},
+{
+  "model": "core.muteannotation",
+  "pk": 2,
+  "fields": {
+    "owner": 7,
+    "name": "bad word",
+    "annotation_set": 2,
+    "created_at": "2025-10-15T03:00:23.764Z",
+    "updated_at": "2025-10-15T03:00:23.764Z",
+    "start_time": 0.5,
+    "end_time": 1.5,
+    "prev": null,
+    "next": null
+  }
+},
+{
+  "model": "core.blankannotation",
+  "pk": 1,
+  "fields": {
+    "owner": 6,
+    "name": "naked bird",
+    "annotation_set": 1,
+    "created_at": "2025-10-15T02:55:22.139Z",
+    "updated_at": "2025-10-15T02:55:22.139Z",
+    "start_time": 1.0,
+    "end_time": 2.0,
+    "prev": null,
+    "next": null,
+    "type": "#"
+  }
+},
+{
+  "model": "core.blankannotation",
+  "pk": 2,
+  "fields": {
+    "owner": 6,
+    "name": "sun mooning",
+    "annotation_set": 1,
+    "created_at": "2025-10-15T02:56:43.284Z",
+    "updated_at": "2025-10-15T02:56:43.284Z",
+    "start_time": 7.0,
+    "end_time": 8.0,
+    "prev": null,
+    "next": null,
+    "type": "k"
+  }
+},
+{
+  "model": "core.blankannotation",
+  "pk": 3,
+  "fields": {
+    "owner": 7,
+    "name": "exposed square",
+    "annotation_set": 2,
+    "created_at": "2025-10-15T02:57:45.328Z",
+    "updated_at": "2025-10-15T02:57:45.328Z",
+    "start_time": 3.0,
+    "end_time": 4.0,
+    "prev": null,
+    "next": null,
+    "type": "#"
+  }
+},
+{
+  "model": "core.blankannotation",
+  "pk": 4,
+  "fields": {
+    "owner": 7,
+    "name": "red line district",
+    "annotation_set": 2,
+    "created_at": "2025-10-15T02:58:31.605Z",
+    "updated_at": "2025-10-15T02:58:31.605Z",
+    "start_time": 2.0,
+    "end_time": 3.0,
+    "prev": null,
+    "next": null,
+    "type": "k"
+  }
+},
+{
+  "model": "core.course",
+  "pk": 1,
+  "fields": {
+    "dept": "UNIV",
+    "catalog_number": "101",
+    "section_number": "001",
+    "created_at": "2025-10-14T22:54:33.594Z",
+    "updated_at": "2025-10-14T22:54:33.594Z"
+  }
+},
+{
+  "model": "core.course",
+  "pk": 2,
+  "fields": {
+    "dept": "UNIV",
+    "catalog_number": "101",
+    "section_number": "002",
+    "created_at": "2025-10-14T22:55:05.845Z",
+    "updated_at": "2025-10-14T22:55:05.845Z"
+  }
+},
+{
+  "model": "core.language",
+  "pk": 1,
+  "fields": {
+    "language": "English",
+    "lang_tag": "eng",
+    "created_at": "2025-10-15T02:51:38.451Z",
+    "updated_at": "2025-10-15T02:51:38.451Z"
+  }
+},
+{
+  "model": "core.language",
+  "pk": 2,
+  "fields": {
+    "language": "Russian",
+    "lang_tag": "rus",
+    "created_at": "2025-10-15T02:51:43.023Z",
+    "updated_at": "2025-10-15T02:51:43.023Z"
+  }
+},
+{
+  "model": "core.language",
+  "pk": 3,
+  "fields": {
+    "language": "Spanish",
+    "lang_tag": "esp",
+    "created_at": "2025-10-15T02:51:53.629Z",
+    "updated_at": "2025-10-15T02:51:53.629Z"
+  }
+},
+{
+  "model": "core.language",
+  "pk": 4,
+  "fields": {
+    "language": "German",
+    "lang_tag": "deu",
+    "created_at": "2025-10-15T02:52:00.615Z",
+    "updated_at": "2025-10-15T02:52:00.615Z"
+  }
+},
+{
+  "model": "core.language",
+  "pk": 5,
+  "fields": {
+    "language": "French",
+    "lang_tag": "fra",
+    "created_at": "2025-10-15T02:52:09.456Z",
+    "updated_at": "2025-10-15T02:52:09.456Z"
+  }
+},
+{
+  "model": "core.language",
+  "pk": 6,
+  "fields": {
+    "language": "Japanese",
+    "lang_tag": "jap",
+    "created_at": "2025-10-15T02:52:19.438Z",
+    "updated_at": "2025-10-15T02:52:19.438Z"
+  }
+}
+]

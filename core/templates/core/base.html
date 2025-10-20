@@ -5,12 +5,14 @@
     <head>
         <meta charset="UTF-8">
         <title>{% block title %}YVideo{% endblock %}</title>
-        <link rel="stylesheet" href="{% static 'style.css' %}">
+        <link rel="stylesheet" href="{% static 'css/style.css' %}">
+        <link rel="stylesheet" href="{% static 'css/mobile_styles.css' %}">
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+        <script src="../../static/js/general.js"></script>
         <link rel="shortcut icon" type="image/png" href="{% static 'img/favicon.ico' %}" >
     </head>
     <body>
-        <header>
+        <header id="spoof-header">
             {% if request.is_spoofing %}
             <div id="spoofing-warning"style="background: #ffc; color: #a00; padding: 1em; text-align: center; border-bottom: 2px solid #a00;">
                 Currently spoofing
@@ -25,8 +27,9 @@
                 {% include "partials/header.html" %}
             {% endblock %}
         </header>
-
-        {% block content %}
-        {% endblock %}
+        <div id="site-content">
+            {% block content %}
+            {% endblock %}
+        </div>
     </body>
 </html>

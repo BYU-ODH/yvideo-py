@@ -1,0 +1,4 @@
+{% include "partials/no_collections_text.html" %}
+<div id="sorted-collections" hx-swap-oob="true">
+    {% include "partials/collection_lists.html" with published=published unpublished=unpublished archived=archived %}
+</div>
