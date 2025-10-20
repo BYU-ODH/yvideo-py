@@ -158,14 +158,7 @@ class BlankAnnotationAdmin(AnnotationAdmin):
 
 @admin.register(BlurAnnotation)
 class BlurAnnotationAdmin(AnnotationAdmin):
-    list_display = AnnotationAdmin.list_display + (
-        "x",
-        "y",
-        "width",
-        "height",
-        "blur_all",
-    )
-    list_filter = AnnotationAdmin.list_filter + ("blur_all",)
+    pass
 
 
 @admin.register(Clip)

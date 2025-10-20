@@ -446,14 +446,8 @@ class BlankAnnotation(Annotation):
 
 
 class BlurAnnotation(Annotation):
-    width = models.FloatField(default=0.0)
-    height = models.FloatField(default=0.0)
-    x = models.FloatField(default=0.0)
-    y = models.FloatField(default=0.0)
+    data = models.JSONField(default=dict, blank=True)
     blur_all = models.BooleanField(default=False)
-
-    def __str__(self):
-        return f"Blur Area: ({self.x}, {self.y}, {self.width}, {self.height}) | Blur All: {self.blur_all}"
 
 
 class Course(models.Model):
