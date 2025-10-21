@@ -323,7 +323,6 @@
     top: 10px;
     height: 40px;
     background: #4a90e2;
-    border: 1px solid var(--handle-border-white);
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.2s, box-shadow 0.2s;
@@ -331,13 +330,13 @@
     flex-direction: row;
     align-items: center;
     column-gap: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     user-select: none; /* eslint-disable-line css/use-baseline */
 }
 
 .layer-item:hover {
     background: #357abd;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
@@ -386,9 +385,9 @@
 
 .resize-handle-indicator {
     background-color: white;
-    height: 80%;
+    height: 60%;
     width: 2px;
-    margin: 0 4px;
+    margin: 0 6px;
     border-radius: 8px;}
 
 .layer-item-content {
