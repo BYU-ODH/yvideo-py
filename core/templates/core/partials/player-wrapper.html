@@ -1,7 +1,7 @@
 {% load static %}
 
 <div class="annotation-player-container">
-    <video preload="auto">
+    <video id="video-player" preload="auto">
         {% if file_key %}
             <source src="{% url 'stream_file' file_key %}" type="video/mp4">
         {% endif %}

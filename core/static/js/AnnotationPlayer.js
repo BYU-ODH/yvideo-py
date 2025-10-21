@@ -120,6 +120,37 @@ export class AnnotationPlayer {
     }
   };
 
+  setAspectRatio() {
+    this.videoHeight = this.videoElem.videoHeight;
+    this.videoWidth = this.videoElem.videoWidth;
+    this.aspectRatio;
+    if (this.videoHeight == 0) {
+      this.aspectRatio = 0;
+    } else {
+      this.aspectRatio = this.videoWidth / this.videoHeight;
+    }
+  }
+
+  setVidWrapperToWide() {
+    this.videoWrapper.classList.remove("full-height");
+  }
+
+  setVidWrapperToTall() {
+    this.videoWrapper.classList.add("full-height");
+  }
+
+  setVideoWrapperStyling() {
+    const containerDim = this.container.getBoundingClientRect();
+    const containerAspectRatio = containerDim.width / containerDim.height;
+
+    if (containerAspectRatio > this.aspectRatio) {
+      this.setVidWrapperToTall();
+    }
+    else {
+      this.setVidWrapperToWide();
+    }
+  }
+
   _getElement(selector) {
     if (!selector) return null;
     if (selector instanceof HTMLElement) return selector;
@@ -1504,6 +1535,18 @@ export class AnnotationPlayer {
     });
 
     document.addEventListener('keydown', (e) => this.onKeydown(e));
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (!this.aspectRatio) {
+        this.setAspectRatio();
+      }
+      for (let entry of entries) {
+        if (entry.target == this.container) {
+          this.setVideoWrapperStyling();
+        }
+      }
+    });
+    resizeObserver.observe(this.container);
 
     if (this.controls.speedBtn && this.controls.speedMenu) {
       this._renderSpeedMenu();
