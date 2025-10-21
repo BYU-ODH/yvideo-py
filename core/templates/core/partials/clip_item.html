@@ -1,4 +1,4 @@
-<div class="layer-item"
+<div class="layer-item elevated"
      id="clip-{{ clip.id }}"
      style="left: {{ position.left }}; width: {{ position.width }};"
      data-item-id="{{ clip.id }}"
@@ -10,7 +10,8 @@
      data-original-width="{{ position.width }}"
      data-delta-left="0"
      data-delta-width="0"
-     tabindex="0">
+     tabindex="0"
+     onmousedown="elevateFromSiblings(this)">
 
     <div class="resize-handle resize-handle-left"
          hx-post="{% url 'update_clip' clip.id %}"

@@ -914,7 +914,7 @@ def update_clip(request, clip_id):
 
             context = {
                 "clip": clip,
-                "content": content,  # Add content to context
+                "content": content,
                 "position": position,
                 "error": "Invalid clip position",
             }
