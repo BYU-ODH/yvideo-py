@@ -10,7 +10,6 @@
 }
 
 .video-wrapper {
-  flex: 1;
   position: relative;
   display: flex;
   align-items: center;
@@ -100,7 +99,7 @@
   height: 100%;
   display: block;
   background: #000;
-  object-fit: contain;
+  object-fit: fill;
 }
 
 .annotation-player-container video.blanked {
@@ -163,7 +162,6 @@
 .left-controls, .right-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
 }
 
 /* Control Buttons */
