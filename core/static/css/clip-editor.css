@@ -415,7 +415,6 @@
     background: #0582ca;
     pointer-events: none;
     z-index: 100;
-    transition: left 0.05s linear;
 }
 
 .editor-scrubber::before {
