@@ -423,7 +423,7 @@
                 }
             }
 
-            const resizeHandle = e.target.closest('.resize-handle:not(.resize-trigger)');
+            const resizeHandle = e.target.closest('.resize-handle');
 
             if (resizeHandle) {
                 this.startResize(layerItem, resizeHandle, e);
@@ -638,10 +638,10 @@
             let trigger;
             if (state.type === 'resize') {
                 const handleClass = state.isLeft ? 'resize-handle-left' : 'resize-handle-right';
-                trigger = item.querySelector(`.${handleClass}.resize-trigger`);
+                trigger = item.querySelector(`.${handleClass}`);
             } else {
                 // For drag, just use the first trigger
-                trigger = item.querySelector('.resize-trigger');
+                trigger = item.querySelector('.resize-handle-left');
             }
 
             if (trigger) {

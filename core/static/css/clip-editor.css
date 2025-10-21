@@ -1,3 +1,7 @@
+:root {
+    --handle-border-white: #ffffff90;
+}
+
 /* Clip Editor Container */
 .clip-editor-container {
     flex: 1;
@@ -157,7 +161,6 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
 }
 
 /* Timeline Ticks Row - Grid Layout */
@@ -257,7 +260,7 @@
 .layer {
     display: grid;
     grid-template-columns: 100px 1fr;
-    min-height: 60px;
+    min-height: 120px;
     border-bottom: 1px solid #e0e0e0;
 }
 
@@ -320,19 +323,21 @@
     top: 10px;
     height: 40px;
     background: #4a90e2;
+    border: 1px solid var(--handle-border-white);
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.2s, box-shadow 0.2s;
     display: flex;
+    flex-direction: row;
     align-items: center;
-    padding: 0 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    user-select: none;  /* eslint-disable-line css/use-baseline */
+    column-gap: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    user-select: none; /* eslint-disable-line css/use-baseline */
 }
 
 .layer-item:hover {
     background: #357abd;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
@@ -354,34 +359,37 @@
 
 /* Resize Handles */
 .resize-handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
     cursor: ew-resize;
-    z-index: 10;
     transition: background 0.2s;
     pointer-events: auto;
 }
 
-.resize-handle.resize-trigger {
-    display: none;
-    pointer-events: none;
-}
-
-.resize-handle:not(.resize-trigger):hover {
+.resize-handle:hover {
     background: rgba(255, 255, 255, 0.3);
 }
 
 .resize-handle-left {
     left: 0;
     border-radius: 4px 0 0 4px;
+    border-right: 1px solid var(--handle-border-white);
 }
 
 .resize-handle-right {
     right: 0;
     border-radius: 0 4px 4px 0;
+    border-left: 1px solid var(--handle-border-white);
 }
+
+.resize-handle-indicator {
+    background-color: white;
+    height: 80%;
+    width: 2px;
+    margin: 0 4px;
+    border-radius: 8px;}
 
 .layer-item-content {
     flex: 1;

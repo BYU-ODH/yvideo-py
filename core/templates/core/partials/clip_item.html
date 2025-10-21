@@ -12,7 +12,7 @@
      data-delta-width="0"
      tabindex="0">
 
-    <div class="resize-handle resize-handle-left resize-trigger"
+    <div class="resize-handle resize-handle-left"
          hx-post="{% url 'update_clip' clip.id %}"
          hx-trigger="click"
          hx-vals='js:{
@@ -22,10 +22,11 @@
            content_id: {{ content.id }}
          }'
          hx-target="#clip-{{ clip.id }}"
-         hx-swap="outerHTML"
-         style="display: none;"></div>
+         hx-swap="outerHTML">
+         <div class="resize-handle-indicator indicator-left"></div>
+     </div>
 
-    <div class="resize-handle resize-handle-left"></div>
+
     <div class="layer-item-content"
          hx-get="{% url 'load_clip_form' clip.id %}?content_id={{ content.id }}"
          hx-trigger="layer-item-click"
@@ -33,9 +34,9 @@
          hx-swap="innerHTML">
         <span class="layer-item-label">{{ clip.name }}</span>
     </div>
-    <div class="resize-handle resize-handle-right"></div>
 
-    <div class="resize-handle resize-handle-right resize-trigger"
+
+    <div class="resize-handle resize-handle-right"
          hx-post="{% url 'update_clip' clip.id %}"
          hx-trigger="click"
          hx-vals='js:{
@@ -45,8 +46,9 @@
            content_id: {{ content.id }}
          }'
          hx-target="#clip-{{ clip.id }}"
-         hx-swap="outerHTML"
-         style="display: none;"></div>
+         hx-swap="outerHTML">
+          <div class="resize-handle-indicator indicator-right"></div>
+     </div>
 
      <form id="clip-form-{{ clip.id }}" style="display: none;">
           {% csrf_token %}
