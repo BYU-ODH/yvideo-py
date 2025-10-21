@@ -47,13 +47,12 @@
          hx-target="#clip-{{ clip.id }}"
          hx-swap="outerHTML"
          style="display: none;"></div>
-</div>
 
-<!-- Hidden form for this clip -->
-<form id="clip-form-{{ clip.id }}" style="display: none;">
-    {% csrf_token %}
-    <input type="hidden" name="name" value="{{ clip.name }}">
-    <input type="hidden" name="start_time" value="{{ clip.start_time }}">
-    <input type="hidden" name="end_time" value="{{ clip.end_time }}">
-    <input type="hidden" name="content_id" value="{{ content.id }}">
-</form>
+     <form id="clip-form-{{ clip.id }}" style="display: none;">
+          {% csrf_token %}
+          <input type="hidden" name="name" value="{{ clip.name }}">
+          <input type="hidden" name="start_time" value="{{ clip.start_time }}">
+          <input type="hidden" name="end_time" value="{{ clip.end_time }}">
+          <input type="hidden" name="content_id" value="{{ content.id }}">
+     </form>
+</div>
