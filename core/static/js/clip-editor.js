@@ -404,6 +404,8 @@
                     this.setTimeFromVideo(e.target.dataset.setTime);
                 }
             });
+            this.placeLayerItems();
+            document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
         }
 
         handleMouseDown(e) {
@@ -675,6 +677,87 @@
             const minutes = Math.floor((seconds % 3600) / 60);
             const secs = Math.floor(seconds % 60);
             return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        placeLayerItems() {
+            // for every item in layerItems container
+            // check if the siblings above the current item overlap with the current item
+            // if they do overlap, get the position of the lowest positioned sibling
+            // place the current sibling below the lowed positioned sibling
+            // if there are no overlaping siblings, place the current item as is
+            const layerItems = this.layerContainer.children
+            const layerContainerDim = this.layerContainer.getBoundingClientRect();
+            const itemCount = layerItems.length;
+
+            // place each layer item
+            for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
+                const currentLayerItem = layerItems[itemIndex];
+                const currentItemStart = Number(currentLayerItem.attributes["data-start"].value);
+                const currentItemEnd = Number(currentLayerItem.attributes["data-end"].value);
+
+                // find the lowest positionted overlapping sibling so we know where to place currentLayerItem
+                let allOverlappingSiblings = [];
+                let lowestPositionedOverlappingSibling;
+                for (let siblingItemIndex = 0; siblingItemIndex < itemIndex; siblingItemIndex++) {
+                    const siblingItem = layerItems[siblingItemIndex];
+                    if (siblingItem == currentLayerItem) { // this should never happen
+                        break;
+                    }
+                    const siblingItemStart = Number(siblingItem.attributes["data-start"].value);
+                    const siblingItemEnd = Number(siblingItem.attributes["data-end"].value);
+                    // sibling can be smaller and completely overlap with current item
+                    // sibling can be larger and completely oever lap with curren item
+                    // sibling can overlap with current item on current item start but not end time
+                    // sibling can overlap with current item on item end but not start time
+                    const isOverlapping = ((currentItemStart <= siblingItemStart && currentItemEnd >= siblingItemEnd)
+                        || (currentItemStart >= siblingItemStart && currentItemEnd <= siblingItemEnd)
+                        || (currentItemStart >= siblingItemStart && currentItemStart <= siblingItemEnd)
+                        || (currentItemEnd >= siblingItemStart && currentItemEnd <= siblingItemEnd));
+                    if (isOverlapping) {
+                        allOverlappingSiblings.push(siblingItem);
+                        let lowestSiblingDim;
+                        const siblingDim = siblingItem.getBoundingClientRect();
+                        if (lowestPositionedOverlappingSibling) {
+                            lowestSiblingDim = lowestPositionedOverlappingSibling.getBoundingClientRect();
+                        }
+
+                        if (!lowestSiblingDim) {
+                            lowestPositionedOverlappingSibling = siblingItem;
+                        }
+                        else if(lowestSiblingDim.bottom < siblingDim.bottom) {
+                            lowestPositionedOverlappingSibling = siblingItem;
+                        }
+                    }
+                }
+
+                // place currentLayerItem if there is a overlapping sibling
+                if (lowestPositionedOverlappingSibling) {
+                    // check if there is room at the top
+                    let isSiblingOccupyingTopSpot = false;
+                    for (let sibling of allOverlappingSiblings) {
+                        const overLapSibDim = sibling.getBoundingClientRect();
+                        if (overLapSibDim.bottom - layerContainerDim.top <= 35) {
+                            isSiblingOccupyingTopSpot = true;
+                            break;
+                        }
+                    }
+                    if (isSiblingOccupyingTopSpot) {
+                        // take the bottom of sibling, subtract the top of the container, add 5 pixels
+                        const siblingDim = lowestPositionedOverlappingSibling.getBoundingClientRect();
+                        currentLayerItem.style.top = siblingDim.bottom - layerContainerDim.top + 5 + "px";
+                    }
+                    // else place at the top
+                }
+                // at this point, the element has no overlapping siblings and can be placed in the container like normal
+            }
+        }
+
+        handleLayerItemPlacementAfterEvent(e) {
+            const classList = e.detail.target.classList;
+            const id = e.detail.target.id;
+            if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.contains("clip-")) {
+                this.placeLayerItems();
+            }
         }
     }
 
