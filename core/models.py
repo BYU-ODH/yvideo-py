@@ -496,6 +496,32 @@ class PauseAnnotation(Annotation):
     message = models.TextField(max_length=255, blank=True)
 
 
+class BlurAnnotation(Annotation):
+    positions = models.JSONField(default=dict, blank=True)
+    blur_all = models.BooleanField(default=False)
+
+    def clean(self):
+        if not self.positions:
+            return
+
+        position_keys = [float(t) for t in self.positions.keys()]
+        sorted_keys = sorted(position_keys)
+
+        if position_keys != sorted_keys:
+            # TODO Decide whether to autofix or raise a ValidationError
+            raise ValidationError(
+                "Positions must be sorted by start time in ascending order."
+            )
+
+        if self.start != position_keys[0]:
+            # TODO Decide whether to autofix or raise a ValidationError
+            raise ValidationError("Start time must match the first position start.")
+
+        if self.end < position_keys[-1]:
+            # TODO Decide whether to autofix or raise a ValidationError
+            raise ValidationError("End time cannot be before the last position end.")
+
+
 class Course(models.Model):
     dept = models.CharField(
         max_length=5,
