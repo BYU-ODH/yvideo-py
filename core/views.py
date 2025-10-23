@@ -8,6 +8,7 @@ import re
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.db import connection
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -38,6 +39,7 @@ from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import SkipAnnotation
 from .models import User
+from .models import UserCourses
 from .utils import hms2seconds
 from .utils import seconds2hms
 
@@ -134,18 +136,76 @@ def admin_or_superuser_required(view_func):
     return _wrapped
 
 
-def index(request):
-    collections = Collection.objects.filter(owner=request.user)
-    all_contents = Content.objects.filter(collection__in=collections)
-    filtered_contents = {collection: [] for collection in collections}
+def prepare_collection_for_display(collection):
+    published_contents = Content.objects.filter(collection=collection).filter(
+        published=True
+    )
+    contents_count = published_contents.count()
+    parsed_collection = {
+        "name": collection.name,
+        "items_display": f"{contents_count} items"
+        if contents_count > 1 or contents_count == 0
+        else f"{contents_count} item",
+        "published_contents": published_contents,
+    }
+    return parsed_collection
 
-    for content in all_contents:
-        filtered_contents[content.collection].append(content)
+
+def display_yearterm(yearterm):
+    term_decoder = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
+    year_string = yearterm[0:4]
+    term_string = yearterm[4:]
+    return f"{term_decoder[term_string]} {year_string}"
+
+
+def index(request):
+    # if admin, gather owned collections
+    owned_collections = []
+    allowed_privilege_levels = [2, 0]
+    if (
+        request.user.privilege_level in allowed_privilege_levels
+        or request.user.privilege_level_override in allowed_privilege_levels
+    ):
+        owned_collections_raw = Collection.objects.filter(owner=request.user)
+        owned_collections = [
+            prepare_collection_for_display(collection)
+            for collection in owned_collections_raw
+        ]
+
+    # organize assigned collections by yearterm and then by course.
+    yearterms = []
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT yearterm FROM core_usercourses GROUP BY yearterm ORDER BY yearterm"""
+        )
+        yearterms = [result[0] for result in cursor.fetchall()]
+
+    collections_by_course_by_yearterm = []
+    for yearterm in yearterms:
+        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
+        collections_by_course = []
+        for user_course in user_courses:
+            collections = Collection.objects.filter(courses=user_course.course)
+            collections_by_course.append(
+                {
+                    "course_name": user_course.course.__str__(),
+                    "collections": [
+                        prepare_collection_for_display(collection)
+                        for collection in collections
+                    ],
+                }
+            )
+        collections_by_course_by_yearterm.append(
+            {
+                "yearterm_display": display_yearterm(yearterm),
+                "collections_by_course": collections_by_course,
+            }
+        )
 
     context = {
         "user": request.user,
-        "collections": collections,
-        "contents": filtered_contents,
+        "owned_collections": owned_collections,
+        "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
         "public_collections": [],
     }
     return render(request, "index.html", context)
