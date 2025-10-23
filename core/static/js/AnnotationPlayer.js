@@ -95,7 +95,6 @@ export class AnnotationPlayer {
     this.clips = options.clips || [];
 
     this.setupEventListeners();
-    this.placeAnnotationBox();
   }
 
   static icons = {
@@ -120,6 +119,37 @@ export class AnnotationPlayer {
       exit: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><g><path d="m 14,14 -4,0 0,2 6,0 0,-6 -2,0 0,4 0,0 z"></path></g><g><path d="m 22,14 0,-4 -2,0 0,6 6,0 0,-2 -4,0 0,0 z"></path></g><g><path d="m 20,26 2,0 0,-4 4,0 0,-2 -6,0 0,6 0,0 z"></path></g><g><path d="m 10,22 4,0 0,4 2,0 0,-6 -6,0 0,2 0,0 z"></path></g></svg>`
     }
   };
+
+  setAspectRatio() {
+    this.videoHeight = this.videoElem.videoHeight;
+    this.videoWidth = this.videoElem.videoWidth;
+    this.aspectRatio;
+    if (this.videoHeight == 0) {
+      this.aspectRatio = 0;
+    } else {
+      this.aspectRatio = this.videoWidth / this.videoHeight;
+    }
+  }
+
+  setVidWrapperToWide() {
+    this.videoWrapper.classList.remove("full-height");
+  }
+
+  setVidWrapperToTall() {
+    this.videoWrapper.classList.add("full-height");
+  }
+
+  setVideoWrapperStyling() {
+    const containerDim = this.container.getBoundingClientRect();
+    const containerAspectRatio = containerDim.width / containerDim.height;
+
+    if (containerAspectRatio > this.aspectRatio) {
+      this.setVidWrapperToTall();
+    }
+    else {
+      this.setVidWrapperToWide();
+    }
+  }
 
   _getElement(selector) {
     if (!selector) return null;
@@ -287,20 +317,6 @@ export class AnnotationPlayer {
   _getActiveTrackIndex() {
     const tracks = Array.from(this.videoElem.textTracks);
     return tracks.findIndex(track => track.mode === 'showing' || track.mode === 'hidden');
-  }
-
-  placeAnnotationBox() {
-    const videoRect = this.videoElem.getBoundingClientRect();
-    const wrapperRect = this.videoWrapper.getBoundingClientRect();
-
-    const annotationBox = this.annotationBox;
-    annotationBox.style.position = "absolute";
-    annotationBox.style.pointerEvents = "none";
-    annotationBox.style.left = `${videoRect.left - wrapperRect.left}px`;
-    annotationBox.style.top = `${videoRect.top - wrapperRect.top}px`;
-    annotationBox.style.width = `${videoRect.width}px`;
-    annotationBox.style.height = `${videoRect.height}px`;
-    annotationBox.style.zIndex = 10;
   }
 
   _showBezel(icon, text) {
@@ -1520,8 +1536,17 @@ export class AnnotationPlayer {
 
     document.addEventListener('keydown', (e) => this.onKeydown(e));
 
-    window.addEventListener('resize', () => this.placeAnnotationBox());
-    this.videoElem.addEventListener('resize', () => this.placeAnnotationBox());
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (!this.aspectRatio) {
+        this.setAspectRatio();
+      }
+      for (let entry of entries) {
+        if (entry.target == this.container) {
+          this.setVideoWrapperStyling();
+        }
+      }
+    });
+    resizeObserver.observe(this.container);
 
     if (this.controls.speedBtn && this.controls.speedMenu) {
       this._renderSpeedMenu();

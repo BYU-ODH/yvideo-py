@@ -390,7 +390,6 @@
     "start_time": "0:00:05",
     "end_time": "0:00:08",
     "description": "This bird is a good one.",
-    "tags": "",
     "created_at": "2025-10-15T02:40:13.496Z",
     "updated_at": "2025-10-15T02:40:13.496Z"
   }
@@ -405,7 +404,6 @@
     "start_time": "0:00:03",
     "end_time": "0:00:06",
     "description": "It's just a grid.",
-    "tags": "",
     "created_at": "2025-10-15T02:42:19.958Z",
     "updated_at": "2025-10-15T02:42:19.958Z"
   }
@@ -442,7 +440,6 @@
     "annotation_set": null,
     "url": null,
     "description": "",
-    "tags": "",
     "allow_definitions": true,
     "allow_notes": true,
     "allow_captions": true,
@@ -466,7 +463,6 @@
     "annotation_set": null,
     "url": null,
     "description": "",
-    "tags": "",
     "allow_definitions": true,
     "allow_notes": true,
     "allow_captions": true,
@@ -488,7 +484,6 @@
     "annotation_set": null,
     "url": null,
     "description": "",
-    "tags": "",
     "allow_definitions": true,
     "allow_notes": true,
     "allow_captions": true,

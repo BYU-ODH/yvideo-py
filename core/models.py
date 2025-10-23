@@ -119,6 +119,19 @@ class User(AbstractUser):
     def is_admin(self):
         return self.privilege_level == PrivilegeLevel.ADMIN
 
+    def can_view_content(self, content):
+        if content.collection.published:
+            if content.collection.owner == self:
+                return True
+            if self.is_admin or self.is_superuser or self.is_staff:
+                return True
+            if CollectionUserAccess.objects.filter(
+                user=self, collection=content.collection
+            ).exists():
+                return True
+            # TODO Check course enrollment
+        return False
+
 
 class ResourceAccess(models.Model):  # "through" model
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -276,6 +289,7 @@ class File(models.Model):
         max_length=16, blank=True, editable=False, unique=True, null=True
     )
     checksum_at = models.DateTimeField(null=True, blank=True, editable=False)
+    duration = models.FloatField(default=0.0)  # duration in seconds
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -290,6 +304,8 @@ class File(models.Model):
         if self.file and not self.checksum:
             self.checksum = _calculate_checksum_for_file(self.file)
             self.checksum_at = timezone.now()
+        if self.file and not self.duration:
+            self.duration = get_video_duration(self.file)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -315,6 +331,21 @@ class Clip(models.Model):
 
     def __str__(self):
         return f"{self.name} | {self.start_time}-{self.end_time} | {self.resource.name} | {self.id}"
+
+    def can_edit(self, user):
+        """Check if user can edit this clip."""
+        return self.owner == user or user.is_staff or user.is_superuser
+
+    def clone_for_user(self, user):
+        """Create a copy of this clip owned by a different user."""
+        return Clip.objects.create(
+            resource=self.resource,
+            owner=user,
+            name=self.name,
+            start_time=self.start_time,
+            end_time=self.end_time,
+            description=self.description,
+        )
 
 
 class AnnotationSet(models.Model):
@@ -379,6 +410,16 @@ class Content(models.Model):
 
     def __str__(self):
         return f"{self.title} | {self.collection.name} | {self.id}"
+
+    @property
+    def duration(self):
+        """Get video duration in seconds from the file."""
+        try:
+            return self.file.duration
+        except AttributeError:
+            # TODO: Extract actual duration from video file metadata
+            # For now, return a placeholder
+            return 20.0  # 20 seconds default
 
 
 class ImportantWord(models.Model):
