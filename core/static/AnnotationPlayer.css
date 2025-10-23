@@ -117,6 +117,13 @@
   z-index: 10;
   height: 100%;
   width: 100%;
+  /* the subsequent 2 rules prevent the video from showing a 1 px line on any side.
+  Sometimes during and after resizing, a 1px vertical or horizontal line at the edges
+  of the video would appear. adding a black border around the annotation-box content
+  prevents this. content-box forces the annotation box to copy the exact dimensions
+  of the video element while allowing for a border to trace around the outside. */
+  border: 1px solid black;
+  box-sizing: content-box;
 }
 
 .annotation-box .censor {
