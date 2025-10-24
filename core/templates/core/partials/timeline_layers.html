@@ -3,7 +3,7 @@
     <div class="layer-label">
         {{ layer.label }}
         {% if layer.can_edit and layer.add_button %}
-        <button class="add-{{ layer.type }}-btn"
+        <button class="add-item-btn add-{{ layer.type }}-btn"
                 {% if layer.add_button.url %}
                 hx-get="{{ layer.add_button.url }}"
                 hx-target="{{ layer.add_button.target|default:'#detail-form' }}"

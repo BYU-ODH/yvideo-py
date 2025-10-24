@@ -9,8 +9,7 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>Clip Editor - {{ content.title }}</title>
     <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
-    <link rel="stylesheet" href="{% static 'css/clip-editor.css' %}">
-    <link rel="stylesheet" href="{% static 'css/timeline-common.css' %}">
+    <link rel="stylesheet" href="{% static 'css/editor.css' %}">
 
     <!-- HTMX CSRF Configuration -->
     <script>
@@ -53,7 +52,7 @@
 {{ items_json|safe }}
     </script>
 
-    <div class="clip-editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">
+    <div class="editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
         <div class="top-panel">
             <div class="video-section">
@@ -65,7 +64,7 @@
                      class="detail-form"
                      hx-trigger="loadForm"
                      hx-swap="innerHTML">
-                    {% include 'partials/clip_form_placeholder.html' %}
+                    {% include 'partials/editor_detail_form_placeholder.html' %}
                 </div>
             </div>
         </div>

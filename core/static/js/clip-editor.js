@@ -3,7 +3,7 @@ import { LayerInteractionHandler, Timeline, TimelineScrubber, VideoPlayerSync } 
 (function() {
     'use strict';
 
-    class ClipEditorResizer {
+    class EditorResizer {
         constructor() {
             this.isResizing = false;
             this.currentResizer = null;
@@ -104,8 +104,7 @@ import { LayerInteractionHandler, Timeline, TimelineScrubber, VideoPlayerSync } 
     // Helper function for new item creation
     window.getNewItemStartEndTimes = function() {
         const video = document.querySelector('.annotation-player-container video');
-        // Support both clip-editor-container and video-editor-container
-        const container = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
+        const container = document.querySelector('.editor-container');
         const duration = parseFloat(container?.dataset.duration) || 120;
 
         if (video) {
@@ -132,14 +131,14 @@ import { LayerInteractionHandler, Timeline, TimelineScrubber, VideoPlayerSync } 
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            new ClipEditorResizer();
+            new EditorResizer();
             new TimelineScrubber();
             new Timeline();
             new LayerInteractionHandler();
             new VideoPlayerSync();
         });
     } else {
-        new ClipEditorResizer();
+        new EditorResizer();
         new TimelineScrubber();
         new Timeline();
         new LayerInteractionHandler();

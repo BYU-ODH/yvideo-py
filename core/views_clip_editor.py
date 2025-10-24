@@ -413,7 +413,9 @@ def delete_clip(request, clip_id):
         )
 
         # Render placeholder for form with OOB swap
-        form_placeholder = render_to_string("partials/clip_form_placeholder.html")
+        form_placeholder = render_to_string(
+            "partials/editor_detail_form_placeholder.html"
+        )
         form_html = (
             f'<div hx-swap-oob="innerHTML:#detail-form">{form_placeholder}</div>'
         )

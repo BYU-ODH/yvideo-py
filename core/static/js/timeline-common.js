@@ -3,8 +3,7 @@ export class Timeline {
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.layerContent = document.querySelector('.layer-content');
-        // Support both clip-editor-container and video-editor-container
-        const editorContainer = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
+        const editorContainer = document.querySelector('.editor-container');
         this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
         this.zoomLevel = 1; // 1x to 10x scale
         this.hoverScrubber = null;
@@ -247,8 +246,7 @@ export class Timeline {
 export class LayerInteractionHandler {
     constructor() {
         this.layerContainer = document.querySelector('.layer-items');
-        // Support both clip-editor-container and video-editor-container
-        const editorContainer = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
+        const editorContainer = document.querySelector('.editor-container');
         this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
         this.dragState = null;
 
@@ -496,7 +494,6 @@ export class LayerInteractionHandler {
 
     triggerSave(state) {
         const item = state.item;
-        const clipId = item.dataset.itemId;
 
         // Find and click the appropriate hidden trigger
         // HTMX attributes on trigger handle the POST automatically
@@ -512,7 +509,7 @@ export class LayerInteractionHandler {
         if (trigger) {
             trigger.click();
         } else {
-            console.error('Save trigger not found for item:', clipId);
+            console.error('Save trigger not found for item:', item.dataset.itemId);
             // Revert on error
             item.style.left = `${state.originalLeft}%`;
             item.style.width = `${state.originalWidth}%`;
@@ -618,7 +615,7 @@ export class LayerInteractionHandler {
     handleLayerItemPlacementAfterEvent(e) {
         const classList = e.detail.target.classList;
         const id = e.detail.target.id;
-        if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.includes("clip-")) {
+        if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.includes("item-")) {
             this.placeLayerItems();
         }
     }
@@ -628,8 +625,7 @@ export class TimelineScrubber {
     constructor() {
         this.scrubber = document.querySelector('.editor-scrubber');
         this.layerContent = document.querySelector('.layer-content');
-        // Support both clip-editor-container and video-editor-container
-        const editorContainer = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
+        const editorContainer = document.querySelector('.editor-container');
         this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
         this.video = null;
 
@@ -712,7 +708,7 @@ export class VideoPlayerSync {
         });
     }
 
-    updatePlayerFromJSON() {
+    updatePlayerFromJSON() {  // TODO update both clips and annotations
         if (!this.jsonContainer || !window.annotationPlayer) return;
 
         try {

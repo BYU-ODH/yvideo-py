@@ -140,19 +140,20 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    # Prepare subtitle data in the format expected by AnnotationPlayer
+    # TODO : Replace with actual subtitle data from the database
     subtitles_data = [
         {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
         {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
         # {"srclang": "en", "url": "http://example.com/subtitles.vtt", "label": "Birds"},
     ]
+    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 
+    # TODO : Replace with actual clip data from the database
     clips_data = [
         {"start": 5, "end": 10, "label": "Sample Clip"},
         {"start": 11, "end": 14, "label": "Another Clip"},
         {"start": 15, "end": 20, "label": "Final Clip"},
     ]
-    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 
     context = {
         "content": content,
