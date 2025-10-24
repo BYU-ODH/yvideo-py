@@ -148,6 +148,10 @@ body {
     position: absolute;
 }
 
+.elevated {
+    z-index: 10;
+}
+
 .settings-button {
     padding: 0.5rem;
 }
@@ -166,6 +170,10 @@ body {
     100% {
         transform: scale(1, 1);
     }
+}
+
+.full-height {
+    height: 100%;
 }
 
 /* Video Overlay and Blank Screen */
@@ -520,17 +528,6 @@ body {
     border-left: 1px solid #ddd;
     overflow-y: auto;
     max-height: 100%;
-}
-
-.video-with-transcript {
-    display: flex;
-    height: 100%;
-    overflow: hidden;
-    align-content: center;
-}
-
-.video-with-transcript .player-wrapper {
-    flex: 1;
 }
 
 /* Time holder (hidden but used for calculations) */

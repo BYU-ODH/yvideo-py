@@ -3,6 +3,7 @@ from reversion.admin import VersionAdmin
 
 from .models import AnnotationSet
 from .models import BlankAnnotation
+from .models import BlurAnnotation
 from .models import Clip
 from .models import Collection
 from .models import CollectionUserAccess
@@ -160,6 +161,11 @@ class BlankAnnotationAdmin(AnnotationAdmin):
 
 @admin.register(PauseAnnotation)
 class PauseAnnotationAdmin(AnnotationAdmin):
+    pass
+
+
+@admin.register(BlurAnnotation)
+class BlurAnnotationAdmin(AnnotationAdmin):
     pass
 
 

@@ -12,6 +12,17 @@ function emptyParentInnerHTML(element, cssSelectorForParent) {
   }
 }
 
+function elevateFromSiblings(element) {
+  const parent = element.parentElement;
+  for (let sibling of parent.children) {
+    if (sibling != element) {
+      sibling.classList.remove("elevated");
+    } else {
+      sibling.classList.add("elevated");
+    }
+  }
+}
+
 function doesArrayContainString(array, string) {
   for (let value of array) {
     if (value == string) {
