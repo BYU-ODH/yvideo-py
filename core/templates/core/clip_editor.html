@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
     <link rel="stylesheet" href="{% static 'style.css' %}">
     <link rel="stylesheet" href="{% static 'css/clip-editor.css' %}">
+    <link rel="stylesheet" href="{% static 'css/timeline-common.css' %}">
 
     <!-- HTMX CSRF Configuration -->
     <script>
@@ -71,41 +72,10 @@
         </div>
 
         <!-- Bottom Panel: Timeline -->
-        <div class="timeline-section">
-            <div class="timeline-container">
-                <!-- Timeline tick marks row -->
-                <div class="timeline-ticks-row">
-                    <div class="timeline-ticks-label"></div>
-                    <div class="timeline-ticks">
-                        <div class="tick-marks-container"></div>
-                    </div>
-                </div>
-
-                <!-- Layer: Clips -->
-                <div class="layer" data-layer-type="clips">
-                    <div class="layer-label">
-                        Clips
-                        <button class="add-clip-btn"
-                                id="add-clip-btn"
-                                hx-post="{% url 'clip-create' content.id %}"
-                                hx-vals='js:{start_time: getNewClipStartTime(), end_time: getNewClipEndTime()}'
-                                hx-swap="none"
-                                hx-trigger="click"
-                                title="Add new clip at current time">
-                            +
-                        </button>
-                    </div>
-                    <div class="layer-content">
-                        <div class="layer-items">
-                            {% for item in clips_with_positions %}
-                                {% include 'partials/clip_item.html' with clip=item.clip content=item.content position=item %}
-                            {% endfor %}
-                        </div>
-                        <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% include 'partials/timeline_base.html' %}
+        {% block timeline_layers %}
+            {% include 'core/partials/timeline_layers.html' with layers=layers %}
+        {% endblock %}
     </div>
 
     <script type="module" src="{% static 'js/clip-editor.js' %}"></script>

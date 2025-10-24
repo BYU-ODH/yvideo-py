@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_video_editor
 
 app_name = "core"
 
@@ -72,4 +73,63 @@ urlpatterns = [
     path("clips/<int:clip_id>/update/", views.update_clip, name="update_clip"),
     path("clips/<int:clip_id>/delete/", views.delete_clip, name="delete_clip"),
     path("clips/create/<int:content_id>/", views.create_clip, name="clip-create"),
+    # Video editor page
+    path(
+        "content/<int:content_id>/video-editor/",
+        views_video_editor.video_editor,
+        name="video_editor",
+    ),
+    # AnnotationSet management
+    path(
+        "content/<int:content_id>/select-annotation-set/",
+        views_video_editor.select_annotation_set,
+        name="select_annotation_set",
+    ),
+    path(
+        "annotation-set/<int:annotation_set_id>/add-editor/",
+        views_video_editor.add_editor_to_annotation_set,
+        name="add_editor_to_annotation_set",
+    ),
+    path(
+        "annotation-set/<int:annotation_set_id>/remove-editor/<int:user_id>/",
+        views_video_editor.remove_editor_from_annotation_set,
+        name="remove_editor_from_annotation_set",
+    ),
+    # Undo/Redo (per-annotation)
+    path(
+        "content/<int:content_id>/undo/",
+        views_video_editor.undo_annotation,
+        name="undo_annotation",
+    ),
+    path(
+        "content/<int:content_id>/redo/",
+        views_video_editor.redo_annotation,
+        name="redo_annotation",
+    ),
+    # Annotation CRUD
+    path(
+        "content/<int:content_id>/annotations/<str:annotation_type>/create/",
+        views_video_editor.create_annotation,
+        name="create_annotation",
+    ),
+    path(
+        "annotations/<int:annotation_id>/update/",
+        views_video_editor.update_annotation,
+        name="update_annotation",
+    ),
+    path(
+        "annotations/<int:annotation_id>/delete/",
+        views_video_editor.delete_annotation,
+        name="delete_annotation",
+    ),
+    path(
+        "annotations/<int:annotation_id>/form/",
+        views_video_editor.load_annotation_form,
+        name="load_annotation_form",
+    ),
+    path(
+        "content/<int:content_id>/annotations/<str:annotation_type>/form/",
+        views_video_editor.create_annotation_form,
+        name="create_annotation_form",
+    ),
 ]

@@ -20,6 +20,7 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
@@ -808,10 +809,9 @@ def clip_editor(request, content_id):
     content = get_object_or_404(Content, id=content_id)
     file_key = get_file_key(request, content)
 
-    # Calculate clip positions
     duration = content.duration
-    clips_with_positions = []
     clips_json = []
+    clip_items = []
 
     for clip in content.clips.all():
         start_time = hms2seconds(clip.start_time)
@@ -821,16 +821,6 @@ def clip_editor(request, content_id):
             ((end_time - start_time) / duration * 100) if duration > 0 else 0
         )
 
-        clips_with_positions.append(
-            {
-                "clip": clip,
-                "content": content,  # Add content to each item context
-                "left": f"{start_percent:.2f}%",
-                "width": f"{width_percent:.2f}%",
-                "start": start_time,
-                "end": end_time,
-            }
-        )
         clips_json.append(
             {
                 "start": start_time,
@@ -838,7 +828,36 @@ def clip_editor(request, content_id):
                 "label": clip.name,
             }
         )
+        clip_items.append(
+            {
+                "template": "partials/clip_item.html",
+                "clip": clip,
+                "content": content,
+                "position": {
+                    "left": f"{start_percent:.2f}%",
+                    "width": f"{width_percent:.2f}%",
+                    "start": start_time,
+                    "end": end_time,
+                },
+            }
+        )
     clips_json = json.dumps(clips_json)
+
+    layers = [
+        {
+            "type": "clips",
+            "label": "Clips",
+            "can_edit": True,
+            "items": clip_items,
+            "add_button": {
+                "post_url": reverse("clip-create", args=[content_id]),
+                "vals": "js:{start_time: getNewClipStartTime(), end_time: getNewClipEndTime()}",
+                "swap": "none",
+                "title": "Add new clip at current time",
+            },
+        }
+    ]
+
     # Prepare subtitle data in the format expected by AnnotationPlayer
     subtitles_data = [
         {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
@@ -856,7 +875,7 @@ def clip_editor(request, content_id):
         "clips_json": clips_json,
         "has_subtitles": has_subtitles,
         "duration": duration,
-        "clips_with_positions": clips_with_positions,
+        "layers": layers,
     }
 
     return render(request, "clip_editor.html", context)

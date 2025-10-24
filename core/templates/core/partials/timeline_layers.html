@@ -1,0 +1,31 @@
+{% for layer in layers %}
+<div class="layer" data-layer-type="{{ layer.type }}">
+    <div class="layer-label">
+        {{ layer.label }}
+        {% if layer.can_edit and layer.add_button %}
+        <button class="add-{{ layer.type }}-btn"
+                {% if layer.add_button.url %}
+                hx-get="{{ layer.add_button.url }}"
+                hx-target="{{ layer.add_button.target|default:'#detail-form' }}"
+                {% elif layer.add_button.post_url %}
+                hx-post="{{ layer.add_button.post_url }}"
+                {% if layer.add_button.vals %}
+                hx-vals='{{ layer.add_button.vals }}'
+                {% endif %}
+                {% endif %}
+                hx-swap="{{ layer.add_button.swap|default:'none' }}"
+                title="{{ layer.add_button.title }}">
+            +
+        </button>
+        {% endif %}
+    </div>
+    <div class="layer-content">
+        <div class="layer-items {{ layer.type }}">
+            {% for item in layer.items %}
+                {% include item.template with clip=item.clip content=item.content position=item.position annotation=item.annotation type=item.type can_edit=item.can_edit %}
+            {% endfor %}
+        </div>
+        <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
+    </div>
+</div>
+{% endfor %}
