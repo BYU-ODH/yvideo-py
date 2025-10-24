@@ -48,9 +48,9 @@
         };
     </script>
 
-    <!-- Hidden JSON container for clips (updated via HTMX OOB) -->
-    <script type="application/json" id="clips-json" style="display: none;">
-{{ clips_json|safe }}
+    <!-- Hidden JSON container for items (updated via HTMX OOB) -->
+    <script type="application/json" id="items-json" style="display: none;">
+{{ items_json|safe }}
     </script>
 
     <div class="clip-editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">

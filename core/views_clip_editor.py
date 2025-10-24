@@ -30,28 +30,28 @@ def clip_editor(request, content_id):
     file_key = get_file_key(request, content)
 
     duration = content.duration
-    clips_json = []
-    clip_items = []
+    items_json = []
+    layer_items = []
 
-    for clip in content.clips.all():
-        start_time = hms2seconds(clip.start_time)
-        end_time = hms2seconds(clip.end_time)
+    for item in content.clips.all():
+        start_time = hms2seconds(item.start_time)
+        end_time = hms2seconds(item.end_time)
         start_percent = (start_time / duration * 100) if duration > 0 else 0
         width_percent = (
             ((end_time - start_time) / duration * 100) if duration > 0 else 0
         )
 
-        clips_json.append(
+        items_json.append(
             {
                 "start": start_time,
                 "end": end_time,
-                "label": clip.name,
+                "label": item.name,
             }
         )
-        clip_items.append(
+        layer_items.append(
             {
                 "template": "partials/clip_item.html",
-                "instance": clip,
+                "instance": item,
                 "content": content,
                 "position": {
                     "left": f"{start_percent:.2f}%",
@@ -61,14 +61,14 @@ def clip_editor(request, content_id):
                 },
             }
         )
-    clips_json = json.dumps(clips_json)
+    items_json = json.dumps(items_json)
 
     layers = [
         {
             "type": "clips",
             "label": "Clips",
             "can_edit": True,
-            "items": clip_items,
+            "items": layer_items,
             "add_button": {
                 "post_url": reverse("create_clip", args=[content_id]),
                 "vals": "js:...getNewItemStartEndTimes()",
@@ -92,7 +92,7 @@ def clip_editor(request, content_id):
         "allow_events": True,
         "events": json.dumps([]),
         "subtitles": json.dumps(subtitles_data),
-        "clips_json": clips_json,
+        "items_json": items_json,
         "has_subtitles": has_subtitles,
         "duration": duration,
         "layers": layers,
@@ -103,22 +103,22 @@ def clip_editor(request, content_id):
 
 def generate_clips_json_data(content):
     """Generate clips JSON data for AnnotationPlayer."""
-    clips = []
-    for clip in content.clips.all():
-        clips.append(
+    items = []
+    for item in content.clips.all():
+        items.append(
             {
-                "start": hms2seconds(clip.start_time),
-                "end": hms2seconds(clip.end_time),
-                "label": clip.name,
+                "start": hms2seconds(item.start_time),
+                "end": hms2seconds(item.end_time),
+                "label": item.name,
             }
         )
-    return clips
+    return items
 
 
 @require_GET
 def load_clip_form(request, clip_id):
     """Load clip editing form via HTMX."""
-    clip = get_object_or_404(Clip, id=clip_id)
+    instance = get_object_or_404(Clip, id=clip_id)
 
     # Get content from query parameter (required for context)
     content_id = request.GET.get("content_id")
@@ -131,18 +131,18 @@ def load_clip_form(request, clip_id):
     if not request.user.can_view_content(content):
         return HttpResponse("Unauthorized", status=403)
 
-    # Check if user can edit this clip
-    can_edit = clip.can_edit(request.user)
+    # Check if user can edit this item
+    can_edit = instance.can_edit(request.user)
 
-    form = ClipForm(instance=clip)
+    form = ClipForm(instance=instance)
 
     context = {
-        "clip": clip,
+        "instance": instance,
         "content": content,
         "can_edit": can_edit,
         "form": form,
-        "start_seconds": hms2seconds(clip.start_time),
-        "end_seconds": hms2seconds(clip.end_time),
+        "start_seconds": hms2seconds(instance.start_time),
+        "end_seconds": hms2seconds(instance.end_time),
     }
 
     return render(request, "partials/clip_form.html", context)
@@ -151,7 +151,7 @@ def load_clip_form(request, clip_id):
 @require_POST
 def update_clip(request, clip_id):
     """Update clip and return updated HTML with JSON OOB."""
-    clip = get_object_or_404(Clip, id=clip_id)
+    instance = get_object_or_404(Clip, id=clip_id)
 
     # Get content from POST data (required for context)
     content_id = request.POST.get("content_id")
@@ -164,14 +164,14 @@ def update_clip(request, clip_id):
     if not request.user.can_view_content(content):
         return HttpResponse("Unauthorized", status=403)
 
-    # If user doesn't own this clip, clone it
-    if not clip.can_edit(request.user):
-        original_clip = clip
-        clip = clip.clone_for_user(request.user)
+    # If user doesn't own this item, clone it
+    if not instance.can_edit(request.user):
+        original_instance = instance
+        instance = instance.clone_for_user(request.user)
 
-        # Add the new clip to the content (replacing the original)
-        content.clips.remove(original_clip)
-        content.clips.add(clip)
+        # Add the new item to the content (replacing the original)
+        content.clips.remove(original_instance)
+        content.clips.add(instance)
         content.save()
 
     # Check if this is a delta-based update (from drag/resize)
@@ -183,8 +183,8 @@ def update_clip(request, clip_id):
         duration = content.duration
 
         # Get current position percentages
-        start_time = hms2seconds(clip.start_time)
-        end_time = hms2seconds(clip.end_time)
+        start_time = hms2seconds(instance.start_time)
+        end_time = hms2seconds(instance.end_time)
         current_left = (start_time / duration * 100) if duration > 0 else 0
         current_width = (
             ((end_time - start_time) / duration * 100) if duration > 0 else 0
@@ -212,45 +212,45 @@ def update_clip(request, clip_id):
             }
 
             context = {
-                "instance": clip,
+                "instance": instance,
                 "content": content,
                 "position": position,
-                "error": "Invalid clip position",
+                "error": "Invalid item position",
             }
             return render(request, "partials/clip_item.html", context)
 
-        # Update clip with new times
-        clip.start_time = seconds2hms(new_start)
-        clip.end_time = seconds2hms(new_end)
+        # Update item with new times
+        instance.start_time = seconds2hms(new_start)
+        instance.end_time = seconds2hms(new_end)
 
         # Update name if provided
         name = request.POST.get("name")
         if name:
-            clip.name = name
+            instance.name = name
 
-        clip.save()
+        instance.save()
     else:
         # Form-based update
-        form = ClipForm(request.POST, instance=clip)
+        form = ClipForm(request.POST, instance=instance)
 
         if not form.is_valid():
             # Return form with errors
             context = {
-                "clip": clip,
+                "instance": instance,
                 "content": content,
                 "can_edit": True,
                 "form": form,
-                "start_seconds": hms2seconds(clip.start_time),
-                "end_seconds": hms2seconds(clip.end_time),
+                "start_seconds": hms2seconds(instance.start_time),
+                "end_seconds": hms2seconds(instance.end_time),
             }
             return render(request, "partials/clip_form.html", context)
 
-        clip = form.save()
+        instance = form.save()
 
     # Calculate new position
     duration = content.duration
-    start_time = hms2seconds(clip.start_time)
-    end_time = hms2seconds(clip.end_time)
+    start_time = hms2seconds(instance.start_time)
+    end_time = hms2seconds(instance.end_time)
     start_percent = (start_time / duration * 100) if duration > 0 else 0
     width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
 
@@ -262,14 +262,14 @@ def update_clip(request, clip_id):
     }
 
     # Generate updated JSON for player - use the content being edited
-    clips_json_data = generate_clips_json_data(content)
+    items_json_data = generate_clips_json_data(content)
 
     # Render the layer item
     item_html = render_to_string(
         "partials/clip_item.html",
         {
-            "instance": clip,
-            "content": content,  # Add content to context
+            "instance": instance,
+            "content": content,
             "position": position,
         },
     )
@@ -278,10 +278,10 @@ def update_clip(request, clip_id):
     form_content = render_to_string(
         "partials/clip_form.html",
         {
-            "clip": clip,
+            "instance": instance,
             "content": content,
             "can_edit": True,
-            "form": ClipForm(instance=clip),
+            "form": ClipForm(instance=instance),
             "start_seconds": start_time,
             "end_seconds": end_time,
         },
@@ -293,7 +293,7 @@ def update_clip(request, clip_id):
     json_html = render_to_string(
         "partials/clips_json_oob.html",
         {
-            "clips_json": json.dumps(clips_json_data),
+            "items_json": json.dumps(items_json_data),
         },
     )
 
@@ -318,14 +318,14 @@ def create_clip(request, content_id):
     # Validate times
     duration = content.duration
     if start_time < 0 or end_time > duration or start_time >= end_time:
-        return HttpResponse("Invalid clip times", status=400)
+        return HttpResponse("Invalid item times", status=400)
 
     # Get resource from content's file
     if not content.file or not content.file.resource:
         return HttpResponse("Content has no associated resource", status=400)
 
-    # Create new clip
-    clip = Clip.objects.create(
+    # Create new item
+    new_item = Clip.objects.create(
         resource=content.file.resource,
         owner=request.user,
         name=f"Clip {content.clips.count() + 1}",
@@ -334,7 +334,7 @@ def create_clip(request, content_id):
     )
 
     # Add to content
-    content.clips.add(clip)
+    content.clips.add(new_item)
     content.save()
 
     # Calculate position
@@ -349,13 +349,13 @@ def create_clip(request, content_id):
     }
 
     # Generate updated JSON for player
-    clips_json_data = generate_clips_json_data(content)
+    items_json_data = generate_clips_json_data(content)
 
     # Render the new layer item
     item_html = render_to_string(
         "partials/clip_item.html",
         {
-            "instance": clip,
+            "instance": new_item,
             "content": content,
             "position": position,
         },
@@ -365,7 +365,7 @@ def create_clip(request, content_id):
     json_html = render_to_string(
         "partials/clips_json_oob.html",
         {
-            "clips_json": json.dumps(clips_json_data),
+            "items_json": json.dumps(items_json_data),
         },
     )
 
@@ -379,7 +379,7 @@ def create_clip(request, content_id):
 @require_http_methods(["DELETE"])
 def delete_clip(request, clip_id):
     """Delete or remove clip from content and return updated JSON OOB."""
-    clip = get_object_or_404(Clip, id=clip_id)
+    instance = get_object_or_404(Clip, id=clip_id)
 
     # Get content from query/body parameter
     content_id = request.GET.get("content_id") or request.POST.get("content_id")
@@ -393,22 +393,22 @@ def delete_clip(request, clip_id):
         return HttpResponse("Unauthorized", status=403)
 
     try:
-        if clip.can_edit(request.user):
-            # User owns the clip, can fully delete it
-            clip.delete()
+        if instance.can_edit(request.user):
+            # User owns the item, can fully delete it
+            instance.delete()
         else:
             # User doesn't own it, just remove from their content
-            content.clips.remove(clip)
+            content.clips.remove(instance)
             content.save()
 
         # Generate updated JSON for player
-        clips_json_data = generate_clips_json_data(content)
+        items_json_data = generate_clips_json_data(content)
 
         # Render JSON OOB update
         json_html = render_to_string(
             "partials/clips_json_oob.html",
             {
-                "clips_json": json.dumps(clips_json_data),
+                "items_json": json.dumps(items_json_data),
             },
         )
 
@@ -421,5 +421,5 @@ def delete_clip(request, clip_id):
         response = HttpResponse(json_html + form_html)
         return response
     except Exception as e:
-        logger.error(f"Error deleting clip {clip_id}: {e}")
+        logger.error(f"Error deleting item {clip_id}: {e}")
         return HttpResponseServerError()

@@ -118,7 +118,7 @@ import { LayerInteractionHandler, Timeline, TimelineScrubber, VideoPlayerSync } 
         return {start_time: 0, end_time: Math.min(10, duration)};
     };
 
-    // Listen for successful clip creation to reinitialize interactions
+    // Listen for successful item creation to reinitialize interactions
     document.body.addEventListener('htmx:afterSwap', function(event) {
         if (event.detail.target.classList?.contains('layer-items')) {
             // Reinitialize layer interaction handler for new items

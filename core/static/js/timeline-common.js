@@ -673,7 +673,7 @@ export class TimelineScrubber {
 export class VideoPlayerSync {
     constructor() {
         this.video = null;
-        this.jsonContainer = document.getElementById('clips-json');
+        this.jsonContainer = document.getElementById('items-json');
 
         this.init();
     }
@@ -706,7 +706,7 @@ export class VideoPlayerSync {
 
         // Also listen for HTMX afterSwap events
         document.body.addEventListener('htmx:afterSwap', (e) => {
-            if (e.detail.target.id === 'clips-json') {
+            if (e.detail.target.id === 'items-json') {
                 this.updatePlayerFromJSON();
             }
         });
@@ -716,16 +716,16 @@ export class VideoPlayerSync {
         if (!this.jsonContainer || !window.annotationPlayer) return;
 
         try {
-            const clipsData = JSON.parse(this.jsonContainer.textContent);
+            const itemsData = JSON.parse(this.jsonContainer.textContent);
 
             // Update the player's clips
             if (window.annotationPlayer.updateClips) {
-                window.annotationPlayer.updateClips(clipsData);
+                window.annotationPlayer.updateClips(itemsData);
             } else if (window.annotationPlayer.setClips) {
-                window.annotationPlayer.setClips(clipsData);
+                window.annotationPlayer.setClips(itemsData);
             }
         } catch (e) {
-            console.error('Failed to parse clips JSON:', e);
+            console.error('Failed to parse items JSON:', e);
         }
     }
 }
