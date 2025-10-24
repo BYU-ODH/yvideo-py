@@ -11,6 +11,7 @@ from .views import display_collection_contents
 from .views import display_collection_settings
 from .views import display_content_settings
 from .views import display_create_content
+from .views import display_resources_files
 from .views import index
 from .views import invalid_login
 from .views import manage_collections
@@ -68,6 +69,11 @@ urlpatterns = [
         "important-word/delete/<int:word_id>/",
         delete_important_word,
         name="delete_important_word",
+    ),
+    path(
+        "display-resources-files/",
+        display_resources_files,
+        name="display_resources_files",
     ),
     path("player/<int:content_id>/", player, name="player"),
     path("stream/<int:file_key>/", stream_file, name="stream_file"),
