@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_clip_editor
 from . import views_video_editor
 
 app_name = "core"
@@ -56,7 +57,11 @@ urlpatterns = [
         name="delete_important_word",
     ),
     path("player/<int:content_id>/", views.player, name="player"),
-    path("clip-editor/<int:content_id>/", views.clip_editor, name="clip_editor"),
+    path(
+        "clip-editor/<int:content_id>/",
+        views_clip_editor.clip_editor,
+        name="clip_editor",
+    ),
     path("stream/<int:file_key>/", views.stream_file, name="stream_file"),
     path("player/<int:content_id>", views.player, name="player"),
     path("stream/<int:file_key>", views.stream_file, name="stream_file"),
@@ -69,10 +74,22 @@ urlpatterns = [
     path("spoof-user-start/", views.spoof_user_start, name="start_spoofing"),
     path("spoof-user-stop/", views.spoof_user_stop, name="stop_spoofing"),
     path("spoof-user-search/", views.spoof_user_search, name="spoof_user_search"),
-    path("clips/<int:clip_id>/edit/", views.load_clip_form, name="load_clip_form"),
-    path("clips/<int:clip_id>/update/", views.update_clip, name="update_clip"),
-    path("clips/<int:clip_id>/delete/", views.delete_clip, name="delete_clip"),
-    path("clips/create/<int:content_id>/", views.create_clip, name="clip-create"),
+    path(
+        "clips/<int:clip_id>/edit/",
+        views_clip_editor.load_clip_form,
+        name="load_clip_form",
+    ),
+    path(
+        "clips/<int:clip_id>/update/", views_clip_editor.update_clip, name="update_clip"
+    ),
+    path(
+        "clips/<int:clip_id>/delete/", views_clip_editor.delete_clip, name="delete_clip"
+    ),
+    path(
+        "clips/create/<int:content_id>/",
+        views_clip_editor.create_clip,
+        name="create_clip",
+    ),
     # Video editor page
     path(
         "content/<int:content_id>/video-editor/",
@@ -128,8 +145,8 @@ urlpatterns = [
         name="load_annotation_form",
     ),
     path(
-        "content/<int:content_id>/annotations/<str:annotation_type>/form/",
-        views_video_editor.create_annotation_form,
-        name="create_annotation_form",
+        "content/<int:content_id>/create-annotation/<str:annotation_type>/",
+        views_video_editor.create_annotation,
+        name="create_annotation",
     ),
 ]

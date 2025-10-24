@@ -3,7 +3,9 @@ export class Timeline {
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.layerContent = document.querySelector('.layer-content');
-        this.duration = parseFloat(document.querySelector('.clip-editor-container').dataset.duration) || 120;
+        // Support both clip-editor-container and video-editor-container
+        const editorContainer = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
+        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
         this.zoomLevel = 1; // 1x to 10x scale
         this.hoverScrubber = null;
         this.isDragging = false;
@@ -245,7 +247,9 @@ export class Timeline {
 export class LayerInteractionHandler {
     constructor() {
         this.layerContainer = document.querySelector('.layer-items');
-        this.duration = parseFloat(document.querySelector('.clip-editor-container').dataset.duration) || 120;
+        // Support both clip-editor-container and video-editor-container
+        const editorContainer = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
+        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
         this.dragState = null;
 
         this.init();
@@ -614,7 +618,7 @@ export class LayerInteractionHandler {
     handleLayerItemPlacementAfterEvent(e) {
         const classList = e.detail.target.classList;
         const id = e.detail.target.id;
-        if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.contains("clip-")) {
+        if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.includes("clip-")) {
             this.placeLayerItems();
         }
     }
@@ -624,7 +628,9 @@ export class TimelineScrubber {
     constructor() {
         this.scrubber = document.querySelector('.editor-scrubber');
         this.layerContent = document.querySelector('.layer-content');
-        this.duration = parseFloat(document.querySelector('.clip-editor-container').dataset.duration) || 120;
+        // Support both clip-editor-container and video-editor-container
+        const editorContainer = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
+        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
         this.video = null;
 
         this.init();

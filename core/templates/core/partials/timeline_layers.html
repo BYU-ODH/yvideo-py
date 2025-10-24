@@ -22,10 +22,9 @@
     <div class="layer-content">
         <div class="layer-items {{ layer.type }}">
             {% for item in layer.items %}
-                {% include item.template with clip=item.clip content=item.content position=item.position annotation=item.annotation type=item.type can_edit=item.can_edit %}
+                {% include item.template with instance=item.instance content=item.content position=item.position annotation=item.annotation type=item.type can_edit=item.can_edit %}
             {% endfor %}
         </div>
-        <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
     </div>
 </div>
 {% endfor %}

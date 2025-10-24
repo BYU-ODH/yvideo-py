@@ -101,18 +101,11 @@ import { LayerInteractionHandler, Timeline, TimelineScrubber, VideoPlayerSync } 
         }
     }
 
-    // Helper functions for new clip creation
-    window.getNewClipStartTime = function() {
+    // Helper function for new item creation
+    window.getNewItemStartEndTimes = function() {
         const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            return video.currentTime;
-        }
-        return 0;
-    };
-
-    window.getNewClipEndTime = function() {
-        const video = document.querySelector('.annotation-player-container video');
-        const container = document.querySelector('.clip-editor-container');
+        // Support both clip-editor-container and video-editor-container
+        const container = document.querySelector('.clip-editor-container') || document.querySelector('.video-editor-container');
         const duration = parseFloat(container?.dataset.duration) || 120;
 
         if (video) {
@@ -120,9 +113,9 @@ import { LayerInteractionHandler, Timeline, TimelineScrubber, VideoPlayerSync } 
             // Add 20% of duration or 10 seconds, whichever is smaller
             const clipDuration = Math.min(duration * 0.2, 10);
             const endTime = Math.min(startTime + clipDuration, duration);
-            return endTime;
+            return {start_time: startTime, end_time: endTime};
         }
-        return Math.min(10, duration);
+        return {start_time: 0, end_time: Math.min(10, duration)};
     };
 
     // Listen for successful clip creation to reinitialize interactions

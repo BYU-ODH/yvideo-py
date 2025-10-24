@@ -955,13 +955,6 @@ body {
     position: relative;
 }
 
-.create-form {
-    /* display: grid; */
-    gap: 1rem;
-    min-width: 100%;
-    margin-bottom: 0;
-}
-
 .dialog-buttons {
     display: flex;
     -webkit-box-pack: justify;
