@@ -22,7 +22,8 @@
     <div class="layer-content">
         <div class="layer-items {{ layer.type }}">
             {% for item in layer.items %}
-                {% include item.template with instance=item.instance content=item.content position=item.position annotation=item.annotation type=item.type can_edit=item.can_edit %}
+            {% comment %} TODO add can_edit to context? {% endcomment %}
+                {% include item.template with instance=item.instance content=item.content position=item.position item_type=item.item_type update_url=item.update_url load_form_url=item.load_form_url %}
             {% endfor %}
         </div>
     </div>

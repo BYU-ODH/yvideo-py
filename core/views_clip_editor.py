@@ -50,9 +50,12 @@ def clip_editor(request, content_id):
         )
         layer_items.append(
             {
-                "template": "partials/clip_item.html",
+                "template": "partials/item.html",
                 "instance": item,
                 "content": content,
+                "item_type": "clip",
+                "update_url": "update_clip",
+                "load_form_url": "load_clip_form",
                 "position": {
                     "left": f"{start_percent:.2f}%",
                     "width": f"{width_percent:.2f}%",
@@ -141,11 +144,15 @@ def load_clip_form(request, clip_id):
         "content": content,
         "can_edit": can_edit,
         "form": form,
+        "item_type": "clip",
+        "item_type_label": "Clip",
+        "update_url": "update_clip",
+        "delete_url": "delete_clip",
         "start_seconds": hms2seconds(instance.start_time),
         "end_seconds": hms2seconds(instance.end_time),
     }
 
-    return render(request, "partials/clip_form.html", context)
+    return render(request, "partials/item_form.html", context)
 
 
 @require_POST
@@ -214,10 +221,13 @@ def update_clip(request, clip_id):
             context = {
                 "instance": instance,
                 "content": content,
+                "item_type": "clip",
+                "update_url": "update_clip",
+                "load_form_url": "load_clip_form",
                 "position": position,
                 "error": "Invalid item position",
             }
-            return render(request, "partials/clip_item.html", context)
+            return render(request, "partials/item.html", context)
 
         # Update item with new times
         instance.start_time = seconds2hms(new_start)
@@ -240,10 +250,14 @@ def update_clip(request, clip_id):
                 "content": content,
                 "can_edit": True,
                 "form": form,
+                "item_type": "clip",
+                "item_type_label": "Clip",
+                "update_url": "update_clip",
+                "delete_url": "delete_clip",
                 "start_seconds": hms2seconds(instance.start_time),
                 "end_seconds": hms2seconds(instance.end_time),
             }
-            return render(request, "partials/clip_form.html", context)
+            return render(request, "partials/item_form.html", context)
 
         instance = form.save()
 
@@ -266,22 +280,29 @@ def update_clip(request, clip_id):
 
     # Render the layer item
     item_html = render_to_string(
-        "partials/clip_item.html",
+        "partials/item.html",
         {
             "instance": instance,
             "content": content,
+            "item_type": "clip",
+            "update_url": "update_clip",
+            "load_form_url": "load_clip_form",
             "position": position,
         },
     )
 
     # Always render the updated form with OOB swap
     form_content = render_to_string(
-        "partials/clip_form.html",
+        "partials/item_form.html",
         {
             "instance": instance,
             "content": content,
             "can_edit": True,
             "form": ClipForm(instance=instance),
+            "item_type": "clip",
+            "item_type_label": "Clip",
+            "update_url": "update_clip",
+            "delete_url": "delete_clip",
             "start_seconds": start_time,
             "end_seconds": end_time,
         },
@@ -291,7 +312,7 @@ def update_clip(request, clip_id):
 
     # Render JSON OOB update
     json_html = render_to_string(
-        "partials/clips_json_oob.html",
+        "partials/items_json_oob.html",
         {
             "items_json": json.dumps(items_json_data),
         },
@@ -353,17 +374,20 @@ def create_clip(request, content_id):
 
     # Render the new layer item
     item_html = render_to_string(
-        "partials/clip_item.html",
+        "partials/item.html",
         {
             "instance": new_item,
             "content": content,
+            "item_type": "clip",
+            "update_url": "update_clip",
+            "load_form_url": "load_clip_form",
             "position": position,
         },
     )
 
     # Render JSON OOB update
     json_html = render_to_string(
-        "partials/clips_json_oob.html",
+        "partials/items_json_oob.html",
         {
             "items_json": json.dumps(items_json_data),
         },
@@ -406,7 +430,7 @@ def delete_clip(request, clip_id):
 
         # Render JSON OOB update
         json_html = render_to_string(
-            "partials/clips_json_oob.html",
+            "partials/items_json_oob.html",
             {
                 "items_json": json.dumps(items_json_data),
             },

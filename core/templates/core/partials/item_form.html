@@ -1,6 +1,7 @@
 <div id="item-form-container"
-     data-item-id="{{ instance.id }}">
-    <h3>Edit Clip</h3>
+     data-item-id="{{ instance.id }}"
+     data-item-type="{{ item_type }}">
+    <h3>Edit {{ item_type_label|default:item_type|title }}</h3>
 
     {% if not can_edit %}
     <div class="info-message">
@@ -8,7 +9,7 @@
     </div>
     {% endif %}
 
-    <form hx-post="{% url 'update_clip' instance.id %}"
+    <form hx-post="{% url update_url instance.id %}"
           hx-target="#item-{{ instance.id }}"
           hx-swap="outerHTML"
           hx-trigger="submit">
@@ -55,7 +56,7 @@
                        id="end_time"
                        name="end_time"
                        value="{{ form.end_time.value|default:instance.end_time }}"
-                   required
+                       required
                        placeholder="HH:MM:SS">
                 <button type="button"
                         class="btn-set-time"
@@ -74,7 +75,7 @@
             </button>
             <button type="button"
                     class="btn btn-danger"
-                    hx-delete="{% url 'delete_clip' instance.id %}?content_id={{ content.id }}"
+                    hx-delete="{% url delete_url instance.id %}?content_id={{ content.id }}"
                     hx-target="#item-{{ instance.id }}"
                     hx-swap="outerHTML"
                     hx-confirm="Are you sure you want to {% if can_edit %}delete{% else %}remove{% endif %} this item?">

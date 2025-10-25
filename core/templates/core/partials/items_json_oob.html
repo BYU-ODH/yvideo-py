@@ -1,0 +1,6 @@
+<script type="application/json"
+        id="{{ json_id|default:'items-json' }}"
+        style="display: none;"
+        hx-swap-oob="innerHTML:#{{ json_id|default:'items-json' }}">
+{{ items_json|safe }}
+</script>
