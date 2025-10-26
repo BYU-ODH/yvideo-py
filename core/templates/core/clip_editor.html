@@ -47,10 +47,9 @@
         };
     </script>
 
+
     <!-- Hidden JSON container for items (updated via HTMX OOB) -->
-    <script type="application/json" id="items-json" style="display: none;">
-{{ items_json|safe }}
-    </script>
+    {% include 'partials/items_json_oob.html' with items_json=items_json json_id=json_id %}
 
     <div class="editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
@@ -70,10 +69,8 @@
         </div>
 
         <!-- Bottom Panel: Timeline -->
-        {% include 'partials/timeline_base.html' %}
-        {% block timeline_layers %}
-            {% include 'core/partials/timeline_layers.html' with layers=layers %}
-        {% endblock %}
+        {% include 'partials/timeline_base.html' with layers=layers %}
+
     </div>
 
     <script type="module" src="{% static 'js/editor.js' %}"></script>

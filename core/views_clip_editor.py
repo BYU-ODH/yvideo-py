@@ -64,7 +64,7 @@ def clip_editor(request, content_id):
                 },
             }
         )
-    items_json = json.dumps(items_json)
+    items_json = json.dumps(items_json, indent=2)
 
     layers = [
         {
@@ -314,7 +314,7 @@ def update_clip(request, clip_id):
     json_html = render_to_string(
         "partials/items_json_oob.html",
         {
-            "items_json": json.dumps(items_json_data),
+            "items_json": json.dumps(items_json_data, indent=2),
         },
     )
 
@@ -389,7 +389,7 @@ def create_clip(request, content_id):
     json_html = render_to_string(
         "partials/items_json_oob.html",
         {
-            "items_json": json.dumps(items_json_data),
+            "items_json": json.dumps(items_json_data, indent=2),
         },
     )
 
@@ -432,7 +432,7 @@ def delete_clip(request, clip_id):
         json_html = render_to_string(
             "partials/items_json_oob.html",
             {
-                "items_json": json.dumps(items_json_data),
+                "items_json": json.dumps(items_json_data, indent=2),
             },
         )
 

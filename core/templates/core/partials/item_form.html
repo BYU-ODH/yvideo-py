@@ -1,3 +1,11 @@
+{% comment %}
+TODO add undo/redo buttons for annotation items
+<!-- Undo/Redo Controls -->
+<div id="undo-redo-controls">
+    {% include 'partials/item_undo_redo_buttons.html' %}
+</div>
+{% endcomment %}
+
 <div id="item-form-container"
      data-item-id="{{ instance.id }}"
      data-item-type="{{ item_type }}">
