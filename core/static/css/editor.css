@@ -260,7 +260,7 @@
 .layer {
     display: grid;
     grid-template-columns: 100px 1fr;
-    min-height: 120px;
+    min-height: 40px;
     border-bottom: 1px solid #e0e0e0;
 }
 
@@ -308,7 +308,7 @@
 .layer-content {
     position: relative;
     background-color: #fafafa;
-    min-height: 60px;
+    min-height: 40px;
 }
 
 .layer-items {

@@ -712,6 +712,9 @@ export class LayerInteractionHandler {
             const layerContainerDim = layerContainer.getBoundingClientRect();
             const itemCount = layerItems.length;
 
+            // Track the bottom of each row (stack)
+            let rowBottoms = [];
+
             // place each layer item
             for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
                 const currentLayerItem = layerItems[itemIndex];
@@ -770,8 +773,31 @@ export class LayerInteractionHandler {
                         currentLayerItem.style.top = siblingDim.bottom - layerContainerDim.top + 5 + "px";
                     }
                     // else place at the top (default)
+                } else {
+                    currentLayerItem.style.top = "0px";
                 }
-                // at this point, the element has no overlapping siblings and can be placed in the container like normal
+
+                // Track the bottom of this item for stacking calculation
+                const itemTop = parseFloat(currentLayerItem.style.top) || 0;
+                const itemBottom = itemTop + 30; // item height is 30px
+                rowBottoms.push(itemBottom);
+            }
+
+            // Calculate the number of stacked rows (find max top value / 35 + 1)
+            let maxStack = 1;
+            if (layerItems.length > 0) {
+                // Find all unique top positions (rounded to nearest 5px)
+                const tops = layerItems.map(item => Math.round((parseFloat(item.style.top) || 0) / 5) * 5);
+                const uniqueRows = Array.from(new Set(tops));
+                maxStack = uniqueRows.length;
+            }
+
+            // Set min-height on the parent .layer
+            const layer = layerContainer.closest('.layer');
+            if (layer) {
+                // 1 item = 40px; 2 = 75px; 3 = 110px; 4 = 145px; etc. (diff = 35px)
+                const minHeight = (maxStack * 35) + 5;
+                layer.style.minHeight = `${minHeight}px`;
             }
         });
     }

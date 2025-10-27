@@ -116,6 +116,16 @@ urlpatterns = [
         views_video_editor.remove_editor_from_annotation_set,
         name="remove_editor_from_annotation_set",
     ),
+    path(
+        "annotation-set/<int:annotation_set_id>/settings/",
+        views_video_editor.load_annotation_set_settings,
+        name="load_annotation_set_settings",
+    ),
+    path(
+        "annotation-set/<int:annotation_set_id>/update-name/",
+        views_video_editor.update_annotation_set_name,
+        name="update_annotation_set_name",
+    ),
     # Undo/Redo (per-annotation)
     path(
         "content/<int:content_id>/undo/",
