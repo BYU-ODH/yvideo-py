@@ -99,6 +99,7 @@ def clip_editor(request, content_id):
         "has_subtitles": has_subtitles,
         "duration": duration,
         "layers": layers,
+        "json_id": "items-json",
     }
 
     return render(request, "clip_editor.html", context)
@@ -119,8 +120,10 @@ def generate_clips_json_data(content):
 
 
 @require_GET
-def load_clip_form(request, clip_id):
+def load_clip_form(request, item_type, clip_id):
     """Load clip editing form via HTMX."""
+    if item_type != "clip":
+        return HttpResponse("Invalid item type", status=400)
     instance = get_object_or_404(Clip, id=clip_id)
 
     # Get content from query parameter (required for context)
@@ -156,8 +159,11 @@ def load_clip_form(request, clip_id):
 
 
 @require_POST
-def update_clip(request, clip_id):
+def update_clip(request, item_type, clip_id):
     """Update clip and return updated HTML with JSON OOB."""
+    if item_type != "clip":
+        return HttpResponse("Invalid item type", status=400)
+
     instance = get_object_or_404(Clip, id=clip_id)
 
     # Get content from POST data (required for context)
@@ -401,8 +407,11 @@ def create_clip(request, content_id):
 
 
 @require_http_methods(["DELETE"])
-def delete_clip(request, clip_id):
+def delete_clip(request, item_type, clip_id):
     """Delete or remove clip from content and return updated JSON OOB."""
+    if item_type != "clip":
+        return HttpResponse("Invalid item type", status=400)
+
     instance = get_object_or_404(Clip, id=clip_id)
 
     # Get content from query/body parameter

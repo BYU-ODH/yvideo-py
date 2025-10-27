@@ -75,15 +75,19 @@ urlpatterns = [
     path("spoof-user-stop/", views.spoof_user_stop, name="stop_spoofing"),
     path("spoof-user-search/", views.spoof_user_search, name="spoof_user_search"),
     path(
-        "clips/<int:clip_id>/edit/",
+        "clips/<str:item_type>/<int:clip_id>/edit/",
         views_clip_editor.load_clip_form,
         name="load_clip_form",
     ),
     path(
-        "clips/<int:clip_id>/update/", views_clip_editor.update_clip, name="update_clip"
+        "clips/<str:item_type>/<int:clip_id>/update/",
+        views_clip_editor.update_clip,
+        name="update_clip",
     ),
     path(
-        "clips/<int:clip_id>/delete/", views_clip_editor.delete_clip, name="delete_clip"
+        "clips/<str:item_type>/<int:clip_id>/delete/",
+        views_clip_editor.delete_clip,
+        name="delete_clip",
     ),
     path(
         "clips/create/<int:content_id>/",
@@ -130,17 +134,17 @@ urlpatterns = [
         name="create_annotation",
     ),
     path(
-        "annotations/<int:annotation_id>/update/",
+        "annotations/<str:annotation_type>/<int:annotation_id>/update/",
         views_video_editor.update_annotation,
         name="update_annotation",
     ),
     path(
-        "annotations/<int:annotation_id>/delete/",
+        "annotations/<str:annotation_type>/<int:annotation_id>/delete/",
         views_video_editor.delete_annotation,
         name="delete_annotation",
     ),
     path(
-        "annotations/<int:annotation_id>/form/",
+        "annotations/<str:annotation_type>/<int:annotation_id>/form/",
         views_video_editor.load_annotation_form,
         name="load_annotation_form",
     ),

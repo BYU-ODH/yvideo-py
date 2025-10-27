@@ -17,7 +17,7 @@ TODO add undo/redo buttons for annotation items
     </div>
     {% endif %}
 
-    <form hx-post="{% url update_url instance.id %}"
+    <form hx-post="{% url update_url item_type instance.id %}"
           hx-target="#item-{{ instance.id }}"
           hx-swap="outerHTML"
           hx-trigger="submit">
@@ -83,7 +83,7 @@ TODO add undo/redo buttons for annotation items
             </button>
             <button type="button"
                     class="btn btn-danger"
-                    hx-delete="{% url delete_url instance.id %}?content_id={{ content.id }}"
+                    hx-delete="{% url delete_url item_type instance.id %}?content_id={{ content.id }}"
                     hx-target="#item-{{ instance.id }}"
                     hx-swap="outerHTML"
                     hx-confirm="Are you sure you want to {% if can_edit %}delete{% else %}remove{% endif %} this item?">

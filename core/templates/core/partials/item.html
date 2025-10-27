@@ -14,7 +14,7 @@
      onmousedown="elevateFromSiblings(this)">
 
     <div class="resize-handle resize-handle-left"
-         hx-post="{% url update_url instance.id %}"
+         hx-post="{% url update_url item_type instance.id %}"
          hx-trigger="click"
          hx-vals='js:{
            delta_left: document.getElementById("item-{{ instance.id }}").dataset.deltaLeft,
@@ -28,7 +28,7 @@
      </div>
 
     <div class="layer-item-content"
-         hx-get="{% url load_form_url instance.id %}?content_id={{ content.id }}"
+         hx-get="{% url load_form_url item_type instance.id %}?content_id={{ content.id }}"
          hx-trigger="layer-item-click"
          hx-target="#detail-form"
          hx-swap="innerHTML">
@@ -36,7 +36,7 @@
     </div>
 
     <div class="resize-handle resize-handle-right"
-         hx-post="{% url update_url instance.id %}"
+         hx-post="{% url update_url item_type instance.id %}"
          hx-trigger="click"
          hx-vals='js:{
            delta_left: document.getElementById("item-{{ instance.id }}").dataset.deltaLeft,
