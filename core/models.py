@@ -582,6 +582,21 @@ class Language(models.Model):
         return f"{self.language} ({self.lang_tag})"
 
 
+def subtitle_file_upload_path(instance, filename):
+    """Generate upload path to media/<resource name>/subtitles/<filename>"""
+    if isinstance(instance, Subtitle):
+        return f"media/{instance.resource.name}/subtitles/{filename}"
+
+
+def validate_subtitle_file(filename):
+    """Ensure filetype is .vtt"""
+    file_ext = os.path.splitext(filename)[1]
+    if file_ext != ".vtt":
+        raise ValidationError(
+            f"Subtitles must be .vtt format. Format provided: {file_ext}"
+        )
+
+
 class Subtitle(models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="subtitles"
@@ -593,7 +608,11 @@ class Subtitle(models.Model):
         Language, on_delete=models.CASCADE, related_name="subtitles"
     )
     name = models.CharField(max_length=255)
-    subtitles = models.JSONField(blank=True)
+    subtitles_file = models.FileField(
+        upload_to=subtitle_file_upload_path,
+        validators=[validate_subtitle_file],
+    )
+    is_original = models.BooleanField(null=False, blank=False, default=False)
     words = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

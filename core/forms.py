@@ -5,6 +5,7 @@ from .models import Clip
 from .models import Collection
 from .models import Content
 from .models import ImportantWord
+from .models import Subtitle
 from .utils import hms2seconds
 
 
@@ -91,3 +92,19 @@ class ClipForm(forms.ModelForm):
                 raise forms.ValidationError("End time must be after start time.")
 
         return cleaned_data
+
+
+class SubtitleForm(forms.ModelForm):
+    class Meta:
+        model = Subtitle
+        fields = [
+            "resource",
+            "owner",
+            "language",
+            "name",
+            "subtitles_file",
+            "is_original",
+        ]
+
+    resource = forms.CharField(widget=forms.HiddenInput)
+    owner = forms.CharField(widget=forms.HiddenInput)

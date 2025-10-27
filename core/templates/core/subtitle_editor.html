@@ -1,0 +1,28 @@
+{% load static %}
+{% include 'base.html' %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Subtitle Editor - {{ content.title }}</title>
+    <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
+    <link rel="stylesheet" href="{% static 'css/subtitle-editor.css' %}">
+</head>
+<body>
+    <script>
+        window.playerData = {
+            events: {{ events|safe }},
+            subtitles: {{ subtitles|safe }},
+            hasSubtitles: {{ has_subtitles|yesno:"true,false" }},
+            duration: {{ duration }}
+        };
+    </script>
+
+    <div class="subtitle-editor-container">
+        {% include 'partials/player-wrapper.html' %}
+    </div>
+</body>
+</html>

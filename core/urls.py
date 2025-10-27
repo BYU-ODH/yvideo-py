@@ -72,4 +72,9 @@ urlpatterns = [
     path("clips/<int:clip_id>/update/", views.update_clip, name="update_clip"),
     path("clips/<int:clip_id>/delete/", views.delete_clip, name="delete_clip"),
     path("clips/create/<int:content_id>/", views.create_clip, name="clip-create"),
+    path(
+        "subtitle-editor/<int:content_id>/",
+        views.subtitle_editor,
+        name="subtitle_editor",
+    ),
 ]

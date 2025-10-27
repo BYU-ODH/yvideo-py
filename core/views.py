@@ -29,6 +29,7 @@ from .forms import CollectionForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
+from .forms import SubtitleForm
 from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Clip
@@ -38,6 +39,7 @@ from .models import FileKey
 from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import SkipAnnotation
+from .models import Subtitle
 from .models import User
 from .models import UserCourses
 from .utils import hms2seconds
@@ -1184,3 +1186,154 @@ def delete_clip(request, clip_id):
     except Exception as e:
         logger.error(f"Error deleting clip {clip_id}: {e}")
         return HttpResponseServerError()
+
+
+@require_GET
+def subtitle_editor(request, content_id):
+    try:
+        content = get_object_or_404(Content, id=content_id)
+        subtitle_options = Subtitle.objects.filter(resource=content.file.resource)
+    except Exception as e:
+        logger.error(
+            f"Error retrieving subtitles for content_id: {content_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+    return render(
+        request,
+        "subtitle_editor.html",
+        {"content": content, "subtitle_tracks": subtitle_options},
+    )
+
+
+@require_POST
+def create_subtitle(request):
+    form = SubtitleForm(request.POST)
+    if form.is_valid():
+        data = form.cleaned_data
+        try:
+            new_subtitle = Subtitle.objects.create(
+                resource=data["resource"],
+                owner=data["owner"],
+                language=data["language"],
+                name=data["name"],
+                subtitles_file=data["subtitles_file"],
+                is_original=data["is_original"],
+            )
+        except Exception as e:
+            logger.error(
+                f"Error createing Subtitles object. data: {data}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+    return render(
+        request, "partials/subtitle_track.html", {"subtitle_track": new_subtitle}
+    )
+
+
+@require_POST
+def update_subtitle(request):
+    form = SubtitleForm(request.POST)
+    if form.is_valid():
+        data = form.cleaned_data
+        try:
+            if "subtitle_id" in request.POST:
+                subtitle_obj = get_object_or_404(
+                    Subtitle, id=request.POST.get("subtitle_id")
+                )
+            else:
+                return HttpResponseBadRequest()
+
+            if "language" in data:
+                subtitle_obj.language = data["language"]
+            if "name" in data:
+                subtitle_obj.name = data["name"]
+            if "subtitles_file" in data:
+                subtitle_obj.subtitles_file = data["subtitles_file"]
+            if "is_original" in data:
+                subtitle_obj.is_original = data["is_original"]
+            if "words" in request.POST:
+                subtitle_obj.words = data["words"]
+            subtitle_obj.save()
+            return render(
+                request,
+                "partials/subtitle_track.html",
+                {"subtitle_track": subtitle_obj},
+            )
+        except Exception as e:
+            logger.error(
+                f"Error while updating subtitle object with id: {request.POST.get('subtitle_id')}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+
+@require_http_methods(["DELETE"])
+def delete_subtitle(request, subtitle_id):
+    subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
+    try:
+        subtitle_obj.delete()
+        return HttpResponse("", status=200)
+    except Exception as e:
+        logger.error(
+            f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
+### this method may not be needed (and is incomplete). See https://developer.mozilla.org/en-US/docs/Web/API/WebVTT_API for details on how js may already have methods to handle this.
+# def parse_vtt_file(filepath):
+#     def parse_cue_timing_line(cue_line):
+#         parsed_timing = {}
+#         components = line.strip().split(' ')
+#         start = components[0]
+#         end = components[2]
+#         has_positioning = len(components) > 3
+#         positioning = ""
+#         if has_positioning:
+#             positioning = components[3:]
+#         parsed_timing["start"] = start
+#         parsed_timing["end"] = end
+#         parsed_timing["positioning"] = positioning
+#         return parsed_timing
+
+#     with open(filepath, "r") as vtt_f:
+#         blocks = []
+#         block_index = 0
+#         is_building_entry = False
+#         for line in vtt_f:
+
+#             if line == '\n' and is_building_entry:
+#                 block_index += 1
+#                 is_building_entry = False
+#             elif line[:3] == "NOTE":
+#                 pass
+#             elif line.strip() == "STYLE":
+#                 pass
+#             # lines with content that are not NOTE, STYLE, WEBVTT and are new blocks must be cues.
+#             elif not is_building_entry and line != '\n':
+#                 blocks.append({"type": "cue", "identifier": "", "timing": {"start": "", "end": ""}, "positioning": "", "payload": []})
+#                 block = blocks[-1]
+#                 # cues can start with an identifier line or with the timing line
+#                 if "-->" in line:
+#                     timing_data = parse_cue_timing_line(line)
+#                     block["timing"]["start"] = timing_data["start"]
+#                     block["timing"]["end"] = timing_data["end"]
+#                     block["positioning"] = timing_data["positioning"]
+#                 else:
+#                     block["identifier"] = line.strip()
+#                 is_building_entry = True
+#                 continue
+#             if is_building_entry:
+#                 block = blocks[-1]
+#                 if "-->" in line:
+#                     timing_data = parse_cue_timing_line(line)
+#                     block["timing"]["start"] = timing_data["start"]
+#                     block["timing"]["end"] = timing_data["end"]
+#                     block["positioning"] = timing_data["positioning"]
+#                 else:
+#                     block["payload"].append(line.strip())
+#     return blocks
