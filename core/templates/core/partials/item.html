@@ -35,6 +35,7 @@
         <span class="layer-item-label">{{ instance.name }}</span>
     </div>
 
+    {% if item_type != "pause"%}
     <div class="resize-handle resize-handle-right"
          hx-post="{% url update_url item_type instance.id %}"
          hx-trigger="click"
@@ -48,6 +49,7 @@
          hx-swap="outerHTML">
           <div class="resize-handle-indicator indicator-right"></div>
      </div>
+     {% endif %}
 
      <form id="item-form-{{ instance.id }}" style="display: none;">
           {% csrf_token %}

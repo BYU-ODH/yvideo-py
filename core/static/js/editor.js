@@ -526,25 +526,42 @@ export class LayerInteractionHandler {
         const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
         let newLeft = this.dragState.startLeft + deltaPercent;
 
-        // Constrain to 0-100%
-        const width = parseFloat(this.dragState.item.style.width);
-        newLeft = Math.max(0, Math.min(newLeft, 100 - width));
+        // Special handling for pause items (width is fixed, only left moves)
+        if (this.dragState.item.dataset.itemType === "pause") {
+            // For pause, width is a fixed px value, so use a minimal percent width for bounds checking
+            // Use 0.5% as a safe minimal width for bounds
+            const minWidthPercent = 0.5;
+            newLeft = Math.max(0, Math.min(newLeft, 100 - minWidthPercent));
 
-        this.dragState.item.style.left = `${newLeft}%`;
+            this.dragState.item.style.left = `${newLeft}%`;
 
-        // Store delta from original position
-        const deltaFromOriginal = newLeft - this.dragState.originalLeft;
-        this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
+            // Store delta from original position
+            const deltaLeft = newLeft - this.dragState.originalLeft;
+            this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
 
-        // Seek video to the left edge of the item
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            const targetTime = (newLeft / 100) * this.duration;
-            video.currentTime = targetTime;
+            // Seek video to the new position
+            this.seekToHandlePosition(true, newLeft, minWidthPercent);
+        } else {
+            // Default: move left edge, keep width the same
+            const width = parseFloat(this.dragState.item.style.width);
+            newLeft = Math.max(0, Math.min(newLeft, 100 - width));
 
-            // Also update via the player API if available
-            if (window.videoPlayer && window.videoPlayer.skipTo) {
-                window.videoPlayer.skipTo(targetTime);
+            this.dragState.item.style.left = `${newLeft}%`;
+
+            // Store delta from original position
+            const deltaFromOriginal = newLeft - this.dragState.originalLeft;
+            this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
+
+            // Seek video to the left edge of the item
+            const video = document.querySelector('.annotation-player-container video');
+            if (video) {
+                const targetTime = (newLeft / 100) * this.duration;
+                video.currentTime = targetTime;
+
+                // Also update via the player API if available
+                if (window.videoPlayer && window.videoPlayer.skipTo) {
+                    window.videoPlayer.skipTo(targetTime);
+                }
             }
         }
     }

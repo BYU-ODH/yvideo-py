@@ -721,7 +721,7 @@ class PauseAnnotation(BaseAnnotation):
             "left": f"{start_percent:.2f}%",
             "width": "2px",
             "start": self.start_time,
-            "end": self.start_time,
+            "end": self.start_time,  # TODO: Would None be better?
         }
 
     def to_player_json(self):
