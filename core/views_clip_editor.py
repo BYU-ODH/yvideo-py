@@ -297,7 +297,7 @@ def update_clip(request, item_type, clip_id):
 
     # Render JSON OOB update
     json_html = render_to_string(
-        "partials/items_json_oob.html",
+        "partials/player_json_oob.html",
         {
             "items_json": items_json,
         },
@@ -372,7 +372,7 @@ def create_clip(request, content_id):
 
     # Render JSON OOB update
     json_html = render_to_string(
-        "partials/items_json_oob.html",
+        "partials/player_json_oob.html",
         {
             "items_json": items_json,
         },
@@ -418,7 +418,7 @@ def delete_clip(request, item_type, clip_id):
 
         # Render JSON OOB update
         json_html = render_to_string(
-            "partials/items_json_oob.html",
+            "partials/player_json_oob.html",
             {
                 "items_json": items_json,
             },

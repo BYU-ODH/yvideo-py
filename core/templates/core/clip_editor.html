@@ -49,7 +49,7 @@
 
 
     <!-- Hidden JSON container for items (updated via HTMX OOB) -->
-    {% include 'partials/items_json_oob.html' with items_json=items_json json_id=json_id %}
+    {% include 'partials/player_json_oob.html' with items_json=items_json json_id=json_id %}
 
     <div class="editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
