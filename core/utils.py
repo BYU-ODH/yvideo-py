@@ -1,19 +1,3 @@
-from .models import FileKey
-
-
-def get_file_key(request, content):
-    """Get or create a FileKey for the given content and user."""
-    if request.user.can_view_content(content):
-        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
-        if not file_key:
-            # create a new FileKey if one doesn't exist
-            file_key = FileKey.objects.create(file=content.file, user=request.user)
-            file_key.save()
-        return file_key
-    else:
-        return None
-
-
 def hms2seconds(hms):
     """Convert a time string in 'HH:MM:SS.SS' format to total seconds."""
     parts = hms.split(":")

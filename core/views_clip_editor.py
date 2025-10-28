@@ -16,7 +16,6 @@ from .models import Clip
 from .models import Content
 from .utils import TOY_VTT
 from .utils import TOY_VTT2
-from .utils import get_file_key
 from .utils import hms2seconds
 from .utils import seconds2hms
 
@@ -27,10 +26,9 @@ logger = logging.getLogger(__name__)
 def clip_editor(request, content_id):
     """Render the clip editor page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = get_file_key(request, content)
+    file_key = request.user.get_filekey(content)
 
     duration = content.duration
-    items_json = []
     layer_items = []
 
     for item in content.clips.all():
@@ -41,13 +39,6 @@ def clip_editor(request, content_id):
             ((end_time - start_time) / duration * 100) if duration > 0 else 0
         )
 
-        items_json.append(
-            {
-                "start": start_time,
-                "end": end_time,
-                "label": item.name,
-            }
-        )
         layer_items.append(
             {
                 "template": "partials/item.html",
@@ -64,7 +55,9 @@ def clip_editor(request, content_id):
                 },
             }
         )
-    items_json = json.dumps(items_json, indent=2)
+
+    # Get JSON from model method
+    items_json = content.get_clips_json()
 
     layers = [
         {
@@ -103,20 +96,6 @@ def clip_editor(request, content_id):
     }
 
     return render(request, "clip_editor.html", context)
-
-
-def generate_clips_json_data(content):
-    """Generate clips JSON data for AnnotationPlayer."""
-    items = []
-    for item in content.clips.all():
-        items.append(
-            {
-                "start": hms2seconds(item.start_time),
-                "end": hms2seconds(item.end_time),
-                "label": item.name,
-            }
-        )
-    return items
 
 
 @require_GET
@@ -281,8 +260,8 @@ def update_clip(request, item_type, clip_id):
         "end": end_time,
     }
 
-    # Generate updated JSON for player - use the content being edited
-    items_json_data = generate_clips_json_data(content)
+    # Get JSON from model method
+    items_json = json.dumps(content.get_clips_json(), indent=2)
 
     # Render the layer item
     item_html = render_to_string(
@@ -320,7 +299,7 @@ def update_clip(request, item_type, clip_id):
     json_html = render_to_string(
         "partials/items_json_oob.html",
         {
-            "items_json": json.dumps(items_json_data, indent=2),
+            "items_json": items_json,
         },
     )
 
@@ -375,8 +354,8 @@ def create_clip(request, content_id):
         "end": end_time,
     }
 
-    # Generate updated JSON for player
-    items_json_data = generate_clips_json_data(content)
+    # Get JSON from model method
+    items_json = json.dumps(content.get_clips_json(), indent=2)
 
     # Render the new layer item
     item_html = render_to_string(
@@ -395,7 +374,7 @@ def create_clip(request, content_id):
     json_html = render_to_string(
         "partials/items_json_oob.html",
         {
-            "items_json": json.dumps(items_json_data, indent=2),
+            "items_json": items_json,
         },
     )
 
@@ -434,14 +413,14 @@ def delete_clip(request, item_type, clip_id):
             content.clips.remove(instance)
             content.save()
 
-        # Generate updated JSON for player
-        items_json_data = generate_clips_json_data(content)
+        # Get JSON from model method
+        items_json = json.dumps(content.get_clips_json(), indent=2)
 
         # Render JSON OOB update
         json_html = render_to_string(
             "partials/items_json_oob.html",
             {
-                "items_json": json.dumps(items_json_data, indent=2),
+                "items_json": items_json,
             },
         )
 

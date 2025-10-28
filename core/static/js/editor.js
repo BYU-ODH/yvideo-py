@@ -853,18 +853,20 @@ export class VideoPlayerSync {
         });
     }
 
-    updatePlayerFromJSON() {  // TODO update both clips and annotations
+    updatePlayerFromJSON() {
         if (!this.jsonContainer || !window.annotationPlayer) return;
 
         try {
             const itemsData = JSON.parse(this.jsonContainer.textContent);
 
-            // Update the player's clips
-            if (window.annotationPlayer.updateClips) {
-                window.annotationPlayer.updateClips(itemsData);
-            } else if (window.annotationPlayer.setClips) {
-                window.annotationPlayer.setClips(itemsData);
-            }
+            // Use loadData() to update both annotations and clips
+            // This ensures proper parsing and setup
+            window.annotationPlayer.loadData({
+                annotations: itemsData
+            });
+
+            // Also render skips on scrubber after data is loaded
+            window.annotationPlayer.renderSkipsOnScrubber();
         } catch (e) {
             console.error('Failed to parse items JSON:', e);
         }

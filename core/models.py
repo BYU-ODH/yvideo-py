@@ -11,6 +11,8 @@ from django.db import transaction
 from django.utils import timezone
 import xxhash
 
+from .utils import hms2seconds
+
 HMS_VALIDATOR = RegexValidator(
     regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",
     message="Time must be in H:MM:SS format (e.g., 1:23:45.67 or 12:34:56.78)",
@@ -132,6 +134,17 @@ class User(AbstractUser):
                 return True
             # TODO Check course enrollment
         return False
+
+    def get_filekey(self, content):
+        """Get or create a FileKey for the given content."""
+        if self.can_view_content(content):
+            file_key = FileKey.objects.filter(file=content.file, user=self).first()
+            if not file_key:
+                file_key = FileKey.objects.create(file=content.file, user=self)
+                file_key.save()
+            return file_key
+        else:
+            return None
 
 
 class ResourceAccess(models.Model):  # "through" model
@@ -438,7 +451,7 @@ class AnnotationSet(models.Model):
         return sorted(annotations, key=lambda a: a.start_time)
 
     def to_player_json(self):
-        """Export all active annotations in this set for the video player."""
+        """Export all active annotations in this set for the AnnotationPlayer."""
         return [
             annotation.to_player_json() for annotation in self.get_active_annotations()
         ]
@@ -505,6 +518,33 @@ class Content(models.Model):
         if not self.file or not self.file.resource:
             return AnnotationSet.objects.none()
         return AnnotationSet.objects.filter(resource=self.file.resource)
+
+    def get_clips_json(self):
+        """
+        Get all clips as list of dictionaries for the AnnotationPlayer.
+        """
+        clips_data = []
+        for clip in self.clips.all():
+            clips_data.append(
+                {
+                    "start": hms2seconds(clip.start_time),
+                    "end": hms2seconds(clip.end_time),
+                    "label": clip.name,
+                }
+            )
+        return clips_data
+
+    def get_all_json_for_player(self):
+        """
+        Generate complete JSON data for AnnotationPlayer.loadData().
+        Returns a dict with 'annotations' and 'clips' keys, each containing JSON strings.
+        """
+        return {
+            "annotations": self.annotation_set.to_player_json()
+            if self.annotation_set
+            else [],
+            "clips": self.get_clips_json(),
+        }
 
 
 class ImportantWord(models.Model):

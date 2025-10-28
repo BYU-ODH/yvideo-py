@@ -40,7 +40,6 @@ from .models import User
 from .models import UserCourses
 from .utils import TOY_VTT
 from .utils import TOY_VTT2
-from .utils import get_file_key
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +133,7 @@ def index(request):
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = get_file_key(request, content)
+    file_key = request.user.get_filekey(content)
     if not file_key:
         return HttpResponse(
             "User does not have permission to view this content", status=403
@@ -148,20 +147,16 @@ def player(request, content_id):
     ]
     has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 
-    # TODO : Replace with actual clip data from the database
-    clips_data = [
-        {"start": 5, "end": 10, "label": "Sample Clip"},
-        {"start": 11, "end": 14, "label": "Another Clip"},
-        {"start": 15, "end": 20, "label": "Final Clip"},
-    ]
+    # Get JSON data from model methods
+    player_data = content.get_all_json_for_player()
 
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": json.dumps([]),
+        "events": player_data["annotations"],
         "subtitles": json.dumps(subtitles_data),
-        "clips": json.dumps(clips_data),
+        "clips": player_data["clips"],
         "has_subtitles": has_subtitles,
     }
 
