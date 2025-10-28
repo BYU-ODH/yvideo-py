@@ -573,7 +573,11 @@ export class AnnotationPlayer {
   skipTo(time) {
     this.videoElem.currentTime = time;
     this.timeCache = time;
-    this.applyAnnotations();
+    cancelAnimationFrame(this._pendingSkipApply);
+    this._pendingSkipApply = requestAnimationFrame(() => {
+        this._pendingSkipApply = null;
+        this.applyAnnotations();
+    });
   }
 
   setVideoSource(src) {

@@ -823,7 +823,8 @@ export class VideoPlayerSync {
         // Wait for video to be available
         const checkVideo = setInterval(() => {
             this.video = document.querySelector('.annotation-player-container video');
-            if (this.video && window.annotationPlayer) {
+            this.player = window.videoPlayer || window.annotationPlayer;
+            if (this.video && this.player) {
                 clearInterval(checkVideo);
                 this.setupJSONWatch();
                 this.updatePlayerFromJSON();
@@ -851,18 +852,20 @@ export class VideoPlayerSync {
                 this.updatePlayerFromJSON();
             }
         });
+
+        // Listen for OOB swaps as well
+        document.body.addEventListener('htmx:oobAfterSwap', (e) => {
+            if (e.detail.target && e.detail.target.id === 'player-json') {
+                this.updatePlayerFromJSON();
+            }
+        });
     }
 
     updatePlayerFromJSON() {
-        if (!this.jsonContainer || !window.annotationPlayer) return;
-
-        try {
-            const playerJsonObj = JSON.parse(this.jsonContainer.textContent);
-            window.annotationPlayer.loadData(playerJsonObj);
-            window.annotationPlayer.renderSkipsOnScrubber();
-        } catch (e) {
-            console.error('Failed to parse items JSON:', e);
-        }
+        if (!this.jsonContainer || !this.player?.loadData) return;
+        const data = JSON.parse(this.jsonContainer.textContent);
+        this.player.loadData(data);
+        this.player.renderSkipsOnScrubber?.();
     }
 }
 
