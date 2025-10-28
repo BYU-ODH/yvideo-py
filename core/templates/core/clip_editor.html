@@ -1,0 +1,113 @@
+{% load static %}
+{% include 'base.html' %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>Clip Editor - {{ content.title }}</title>
+    <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/clip-editor.css' %}">
+
+    <!-- HTMX CSRF Configuration -->
+    <script>
+        // Get CSRF token from cookie
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Configure HTMX to include CSRF token in all requests
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.addEventListener('htmx:configRequest', function(event) {
+                event.detail.headers['X-CSRFToken'] = getCookie('csrftoken');
+            });
+        });
+    </script>
+</head>
+<body>
+    <script>
+        window.playerData = {
+            events: {{ events|safe }},
+            subtitles: {{ subtitles|safe }},
+            hasSubtitles: {{ has_subtitles|yesno:"true,false" }},
+            duration: {{ duration }}
+        };
+    </script>
+
+    <!-- Hidden JSON container for clips (updated via HTMX OOB) -->
+    <script type="application/json" id="clips-json" style="display: none;">
+{{ clips_json|safe }}
+    </script>
+
+    <div class="clip-editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">
+        <!-- Top Panel: Video Player (left) and Detail Form (right) -->
+        <div class="top-panel">
+            <div class="video-section">
+                {% include 'partials/player-wrapper.html' %}
+            </div>
+
+            <div class="detail-form-section">
+                <div id="detail-form"
+                     class="detail-form"
+                     hx-trigger="loadForm"
+                     hx-swap="innerHTML">
+                    {% include 'partials/clip_form_placeholder.html' %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Panel: Timeline -->
+        <div class="timeline-section">
+            <div class="timeline-container">
+                <!-- Timeline tick marks row -->
+                <div class="timeline-ticks-row">
+                    <div class="timeline-ticks-label"></div>
+                    <div class="timeline-ticks">
+                        <div class="tick-marks-container"></div>
+                    </div>
+                </div>
+
+                <!-- Layer: Clips -->
+                <div class="layer" data-layer-type="clips">
+                    <div class="layer-label">
+                        Clips
+                        <button class="add-clip-btn"
+                                id="add-clip-btn"
+                                hx-post="{% url 'clip-create' content.id %}"
+                                hx-vals='js:{start_time: getNewClipStartTime(), end_time: getNewClipEndTime()}'
+                                hx-swap="none"
+                                hx-trigger="click"
+                                title="Add new clip at current time">
+                            +
+                        </button>
+                    </div>
+                    <div class="layer-content">
+                        <div class="layer-items">
+                            {% for item in clips_with_positions %}
+                                {% include 'partials/clip_item.html' with clip=item.clip content=item.content position=item %}
+                            {% endfor %}
+                        </div>
+                        <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="{% static 'js/clip-editor.js' %}"></script>
+</body>
+</html>
