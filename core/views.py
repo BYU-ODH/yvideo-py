@@ -619,7 +619,7 @@ def display_resources_files(request):
     resource_id = request.GET.get("resource_id")
     resource = get_object_or_404(Resource, id=resource_id)
     files = resource.files.all()  # uses related_name="files" in File model
-    return render(request, "partials/choose_file.html", {"files": files})
+    return render(request, "partials/select_file.html", {"files": files})
 
 
 @require_http_methods(["DELETE"])

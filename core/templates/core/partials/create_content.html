@@ -16,7 +16,7 @@
                     hx-get="{% url 'display_resources_files' %}"
                     hx-target="#file_select_wrapper"
                     hx-trigger="change">
-                    <option value="">Choose a Resource/option>
+                    <option value="">Choose a Resource</option>
                     {% for resource in resources %}
                         <option value="{{ resource.id }}">{{ resource.name }}</option>
                     {% endfor %}
