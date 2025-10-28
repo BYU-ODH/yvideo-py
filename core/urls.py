@@ -39,7 +39,7 @@ urlpatterns = [
         "display-resources-files/",
         views.display_resources_files,
         name="display_resources_files",
-    )
+    ),
     path(
         "content/display-settings/<int:content_id>/",
         views.display_content_settings,
