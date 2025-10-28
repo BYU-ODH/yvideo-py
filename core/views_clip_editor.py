@@ -57,7 +57,7 @@ def clip_editor(request, content_id):
         )
 
     # Get JSON from model method
-    items_json = content.get_clips_json()
+    player_json = json.dumps(content.get_player_json(), indent=2)
 
     layers = [
         {
@@ -88,11 +88,10 @@ def clip_editor(request, content_id):
         "allow_events": True,
         "events": json.dumps([]),
         "subtitles": json.dumps(subtitles_data),
-        "items_json": items_json,
+        "player_json": player_json,
         "has_subtitles": has_subtitles,
         "duration": duration,
         "layers": layers,
-        "json_id": "items-json",
     }
 
     return render(request, "clip_editor.html", context)
@@ -261,7 +260,7 @@ def update_clip(request, item_type, clip_id):
     }
 
     # Get JSON from model method
-    items_json = json.dumps(content.get_clips_json(), indent=2)
+    player_json = json.dumps(content.get_player_json(), indent=2)
 
     # Render the layer item
     item_html = render_to_string(
@@ -299,7 +298,7 @@ def update_clip(request, item_type, clip_id):
     json_html = render_to_string(
         "partials/player_json_oob.html",
         {
-            "items_json": items_json,
+            "player_json": player_json,
         },
     )
 
@@ -355,7 +354,7 @@ def create_clip(request, content_id):
     }
 
     # Get JSON from model method
-    items_json = json.dumps(content.get_clips_json(), indent=2)
+    player_json = json.dumps(content.get_player_json(), indent=2)
 
     # Render the new layer item
     item_html = render_to_string(
@@ -374,7 +373,7 @@ def create_clip(request, content_id):
     json_html = render_to_string(
         "partials/player_json_oob.html",
         {
-            "items_json": items_json,
+            "player_json": player_json,
         },
     )
 
@@ -414,13 +413,13 @@ def delete_clip(request, item_type, clip_id):
             content.save()
 
         # Get JSON from model method
-        items_json = json.dumps(content.get_clips_json(), indent=2)
+        player_json = json.dumps(content.get_player_json(), indent=2)
 
         # Render JSON OOB update
         json_html = render_to_string(
             "partials/player_json_oob.html",
             {
-                "items_json": items_json,
+                "player_json": player_json,
             },
         )
 

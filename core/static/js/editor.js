@@ -814,7 +814,7 @@ export class LayerInteractionHandler {
 export class VideoPlayerSync {
     constructor() {
         this.video = null;
-        this.jsonContainer = document.getElementById('items-json');
+        this.jsonContainer = document.getElementById('player-json');
 
         this.init();
     }
@@ -847,7 +847,7 @@ export class VideoPlayerSync {
 
         // Also listen for HTMX afterSwap events
         document.body.addEventListener('htmx:afterSwap', (e) => {
-            if (e.detail.target.id === 'items-json') {
+            if (e.detail.target.id === 'player-json') {
                 this.updatePlayerFromJSON();
             }
         });
@@ -857,15 +857,8 @@ export class VideoPlayerSync {
         if (!this.jsonContainer || !window.annotationPlayer) return;
 
         try {
-            const itemsData = JSON.parse(this.jsonContainer.textContent);
-
-            // Use loadData() to update both annotations and clips
-            // This ensures proper parsing and setup
-            window.annotationPlayer.loadData({
-                annotations: itemsData
-            });
-
-            // Also render skips on scrubber after data is loaded
+            const playerJsonObj = JSON.parse(this.jsonContainer.textContent);
+            window.annotationPlayer.loadData(playerJsonObj);
             window.annotationPlayer.renderSkipsOnScrubber();
         } catch (e) {
             console.error('Failed to parse items JSON:', e);

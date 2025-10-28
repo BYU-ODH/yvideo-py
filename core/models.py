@@ -11,6 +11,8 @@ from django.db import transaction
 from django.utils import timezone
 import xxhash
 
+from .utils import TOY_VTT
+from .utils import TOY_VTT2
 from .utils import hms2seconds
 
 HMS_VALIDATOR = RegexValidator(
@@ -534,7 +536,30 @@ class Content(models.Model):
             )
         return clips_data
 
-    def get_all_json_for_player(self):
+    def get_subtitles_json(self):
+        """
+        Get all subtitles as list of dicts for the AnnotationPlayer.
+        Each dict has the following keys:
+            - 'srclang'
+            - 'vtt' or 'url'
+            - 'label'
+        """
+        subtitles = []
+        # TODO: Get actual subtitles from database
+        # TODO : Remove toy subtitles
+        toy_data = [
+            {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
+            {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+            {
+                "srclang": "en",
+                "url": "http://example.com/subtitles.vtt",
+                "label": "Birds",
+            },
+        ]
+        subtitles.extend(toy_data)
+        return subtitles
+
+    def get_player_json(self):
         """
         Generate complete JSON data for AnnotationPlayer.loadData().
         Returns a dict with 'annotations' and 'clips' keys, each containing JSON strings.
@@ -544,6 +569,7 @@ class Content(models.Model):
             if self.annotation_set
             else [],
             "clips": self.get_clips_json(),
+            "subtitleTracks": self.get_subtitles_json(),
         }
 
 

@@ -85,8 +85,8 @@ export class AnnotationPlayer {
     this.wasPlayingBeforeDrag = false;
     this.draggingRAF = null; // Track requestAnimationFrame for dragging
 
-    if (options.tracks && Array.isArray(options.tracks)) {
-      this._initializeTracks(options.tracks);
+    if (options.subtitleTracks && Array.isArray(options.subtitleTracks)) {
+      this._loadSubtitleTracks(options.subtitleTracks);
     }
 
     this.subtitleSidebar = null;
@@ -310,13 +310,13 @@ export class AnnotationPlayer {
   }
 
   _getActiveTrack() {
-    const tracks = Array.from(this.videoElem.textTracks);
-    return tracks.find(track => track.mode === 'showing' || track.mode === 'hidden') || null;
+    const subtitleTracks = Array.from(this.videoElem.textTracks);
+    return subtitleTracks.find(subtitleTrack => subtitleTrack.mode === 'showing' || subtitleTrack.mode === 'hidden') || null;
   }
 
   _getActiveTrackIndex() {
-    const tracks = Array.from(this.videoElem.textTracks);
-    return tracks.findIndex(track => track.mode === 'showing' || track.mode === 'hidden');
+    const subtitleTracks = Array.from(this.videoElem.textTracks);
+    return subtitleTracks.findIndex(subtitleTrack => subtitleTrack.mode === 'showing' || subtitleTrack.mode === 'hidden');
   }
 
   _showBezel(icon, text) {
@@ -398,8 +398,8 @@ export class AnnotationPlayer {
       this.annotations = data.annotations || [];
       this.clips = data.clips || this.clips;
 
-      if (data.tracks && Array.isArray(data.tracks)) {
-        this._initializeTracks(data.tracks);
+      if (data.subtitleTracks && Array.isArray(data.subtitleTracks)) {
+        this._loadSubtitleTracks(data.subtitleTracks);
       }
     }
 
@@ -1139,37 +1139,37 @@ export class AnnotationPlayer {
     this._renderSpeedMenu();
   }
 
-    _initializeTracks(tracks) {
-    tracks.forEach((trackData, index) => {
-      const track = document.createElement('track');
+    _loadSubtitleTracks(subtitleObjs) {
+    subtitleObjs.forEach((trackData, index) => {
+      const subtitleTrackElem = document.createElement('track');
 
       // default
-      track.kind = trackData.kind || 'subtitles';
+      subtitleTrackElem.kind = trackData.kind || 'subtitles';
 
-      if (trackData.label) track.label = trackData.label;
-      if (trackData.srclang) track.srclang = trackData.srclang;
-      track.default = false;  // all tracks start disabled
+      if (trackData.label) subtitleTrackElem.label = trackData.label;
+      if (trackData.srclang) subtitleTrackElem.srclang = trackData.srclang;
+      subtitleTrackElem.default = false;  // all subtitleTracks start disabled
 
       // Set src - either from url or vtt content
       if (trackData.url) {
-        track.src = trackData.url;
+        subtitleTrackElem.src = trackData.url;
       } else if (trackData.vtt) {
         if (!trackData.vtt.trim().startsWith('WEBVTT')) {
-          console.error(`Track ${index}: VTT content must start with 'WEBVTT'. Provided content:`, trackData.vtt.substring(0, 50));
+          console.error(`Subtitle track ${index}: VTT content must start with 'WEBVTT'. Provided content:`, trackData.vtt.substring(0, 50));
           return;
         }
 
         // Create blob URL for inline VTT content
         const blob = new Blob([trackData.vtt], { type: 'text/vtt' });
         const blobUrl = URL.createObjectURL(blob);
-        track.src = blobUrl;
-        this.subtitleTrackBlobUrls.push(blobUrl);  // Keep track for cleanup
+        subtitleTrackElem.src = blobUrl;
+        this.subtitleTrackBlobUrls.push(blobUrl);  // Keep subtitle track for cleanup
       } else {
-        console.error(`Track ${index}: Track object must have either 'url' or 'vtt' property`);
+        console.error(`Subtitle track ${index}: Subtitle object must have either 'url' or 'vtt' property`);
         return;
       }
 
-      this.videoElem.appendChild(track);
+      this.videoElem.appendChild(subtitleTrackElem);
     });
 
     const onTracksReady = () => {
@@ -1196,16 +1196,16 @@ export class AnnotationPlayer {
   _renderCaptionsMenu() {
     if (!this.controls.captionsMenu) return;
 
-    const tracks = Array.from(this.videoElem.textTracks);
+    const subtitleTrackElems = Array.from(this.videoElem.textTracks);
 
-    let menuHTML = '<div class="caption-option" data-track="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">Off</div>';
+    let menuHTML = '<div class="caption-option" data-subtitle-track="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">Off</div>';
 
-    tracks.forEach((track, index) => {
-      let label = track.label || `Track ${index + 1}`;
-      if (track.language) {
-        label += ` (${track.language})`;
+    subtitleTrackElems.forEach((trackElem, index) => {
+      let label = trackElem.label || `Subtitle track ${index + 1}`;
+      if (trackElem.language) {
+        label += ` (${trackElem.language})`;
       }
-      menuHTML += `<div class="caption-option" data-track="${index}" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
+      menuHTML += `<div class="caption-option" data-subtitle-track="${index}" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
     });
 
     this.controls.captionsMenu.innerHTML = menuHTML;
@@ -1224,12 +1224,12 @@ export class AnnotationPlayer {
     });
 
     if (activeIndex !== -1) {
-      const activeOption = this.controls.captionsMenu.querySelector(`[data-track="${activeIndex}"]`);
+      const activeOption = this.controls.captionsMenu.querySelector(`[data-subtitle-track="${activeIndex}"]`);
       if (activeOption) {
         activeOption.classList.add('active-value');
       }
     } else {
-      const offOption = this.controls.captionsMenu.querySelector('[data-track="off"]');
+      const offOption = this.controls.captionsMenu.querySelector('[data-subtitle-track="off"]');
       if (offOption) {
         offOption.classList.add('active-value');
       }
@@ -1237,13 +1237,13 @@ export class AnnotationPlayer {
   }
 
   setCaptionTrack(trackIndex) {
-    const tracks = Array.from(this.videoElem.textTracks);
-    tracks.forEach(track => {
-      track.mode = 'disabled';
+    const subtitleTrackElems = Array.from(this.videoElem.textTracks);
+    subtitleTrackElems.forEach(trackElem => {
+      trackElem.mode = 'disabled';
     });
 
-    if (trackIndex !== 'off' && tracks[trackIndex]) {
-      tracks[trackIndex].mode = 'showing';
+    if (trackIndex !== 'off' && subtitleTrackElems[trackIndex]) {
+      subtitleTrackElems[trackIndex].mode = 'showing';
     }
 
     this._updateCaptionsMenuHighlight();
@@ -1602,7 +1602,7 @@ export class AnnotationPlayer {
       this.controls.captionsMenu.addEventListener('click', (e) => {
         const target = e.target.closest('.caption-option');
         if (target) {
-          const trackIndex = target.dataset.track;
+          const trackIndex = target.dataset.subtitleTrack;
           this.setCaptionTrack(trackIndex === 'off' ? 'off' : parseInt(trackIndex));
           this.controls.captionsMenu.style.display = 'none';
         }

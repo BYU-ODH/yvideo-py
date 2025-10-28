@@ -1,5 +1,4 @@
 from functools import wraps
-import json
 import logging
 import mimetypes
 import os
@@ -38,8 +37,6 @@ from .models import MuteAnnotation
 from .models import SkipAnnotation
 from .models import User
 from .models import UserCourses
-from .utils import TOY_VTT
-from .utils import TOY_VTT2
 
 logger = logging.getLogger(__name__)
 
@@ -139,24 +136,18 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    # TODO : Replace with actual subtitle data from the database
-    subtitles_data = [
-        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
-        # {"srclang": "en", "url": "http://example.com/subtitles.vtt", "label": "Birds"},
-    ]
-    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
-
-    # Get JSON data from model methods
-    player_data = content.get_all_json_for_player()
+    player_json = content.get_player_json()
+    has_subtitles = bool(
+        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
+    )
 
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": player_data["annotations"],
-        "subtitles": json.dumps(subtitles_data),
-        "clips": player_data["clips"],
+        "events": player_json["annotations"],
+        "subtitles": player_json["subtitleTracks"],
+        "clips": player_json["clips"],
         "has_subtitles": has_subtitles,
     }
 
