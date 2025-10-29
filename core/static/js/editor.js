@@ -166,6 +166,9 @@ export class Timeline {
         this.attachTimelineListeners();
         this.attachZoomListener();
         this.syncScroll();
+        if (this.timelineContainer) {
+            this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
+        }
     }
 
     attachZoomListener() {
@@ -179,65 +182,33 @@ export class Timeline {
 
     handleZoom(newZoomLevel) {
         const video = document.querySelector('.annotation-player-container video');
-        if (!video) return;
+        const currentTime = video?.currentTime || 0;
+        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
 
-        const currentTime = video.currentTime;
-        const currentPercent = currentTime / this.duration;
-
-        // Get current scroll position
-        const scrollLeft = this.timelineContentWrapper.scrollLeft;
         const viewportWidth = this.timelineContentWrapper.clientWidth;
         const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+        const scrollLeft = this.timelineContentWrapper.scrollLeft;
+        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
+        let scrubberViewportRatio = viewportWidth
+            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
+            : 0;
+        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
 
-        // Calculate where the scrubber is in the viewport
-        const scrubberPositionInViewport = oldContentWidth > viewportWidth
-            ? (scrollLeft + (currentPercent * oldContentWidth)) / oldContentWidth
-            : currentPercent;
-
-        // Update zoom level
         this.zoomLevel = newZoomLevel;
 
-        // Apply scale transform to timeline ticks content
-        if (this.timelineTicksContent) {
-            this.timelineTicksContent.style.transform = `scaleX(${newZoomLevel})`;
-            this.timelineTicksContent.style.transformOrigin = '0 0';
-            this.timelineTicksContent.style.width = `${newZoomLevel * 100}%`;
+        if (this.timelineContainer) {
+            this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
         }
 
-        // Apply scale transform to all layer content areas
-        this.layerContent.forEach(layer => {
-            const layerItems = layer.querySelector('.layer-items');
-            if (layerItems) {
-                layerItems.style.transform = `scaleX(${newZoomLevel})`;
-                layerItems.style.transformOrigin = '0 0';
-                layerItems.style.width = `${newZoomLevel * 100}%`;
-            }
-        });
-
-        // Re-render tick marks
         this.renderTickMarks();
 
-        // Calculate new scroll position after DOM update
         requestAnimationFrame(() => {
             const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
             const newViewportWidth = this.timelineContentWrapper.clientWidth;
-
-            // Calculate where scrubber should be in the new zoomed content
             const scrubberPixelPosition = currentPercent * newContentWidth;
-
-            // Calculate ideal scroll position to keep scrubber in same viewport position
-            let targetScrollLeft = scrubberPixelPosition - (scrubberPositionInViewport * newViewportWidth);
-
-            // Handle edge cases
-            const maxScrollLeft = newContentWidth - newViewportWidth;
-
-            if (maxScrollLeft <= 0) {
-                targetScrollLeft = 0;
-            } else {
-                targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
-            }
-
-            // Apply scroll position
+            let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
+            const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
+            targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
             this.timelineContentWrapper.scrollLeft = targetScrollLeft;
         });
     }
@@ -537,6 +508,7 @@ export class LayerInteractionHandler {
     startDrag(layerItem, e) {
         const layerContainer = layerItem.closest('.layer-items');
         const rect = layerContainer.getBoundingClientRect();
+        const containerWidth = layerContainer.scrollWidth || rect.width;
 
         this.dragState = {
             type: 'drag',
@@ -544,7 +516,7 @@ export class LayerInteractionHandler {
             container: layerContainer,
             startX: e.clientX,
             startLeft: parseFloat(layerItem.style.left),
-            containerWidth: rect.width / this.zoomLevel, // Adjust for zoom
+            containerWidth,
             hasMoved: false,
             originalLeft: parseFloat(layerItem.dataset.originalLeft),
             originalWidth: parseFloat(layerItem.dataset.originalWidth)
@@ -562,17 +534,18 @@ export class LayerInteractionHandler {
         const isLeft = handle.classList.contains('resize-handle-left');
         const layerContainer = layerItem.closest('.layer-items');
         const rect = layerContainer.getBoundingClientRect();
+        const containerWidth = layerContainer.scrollWidth || rect.width;
 
         this.dragState = {
             type: 'resize',
             item: layerItem,
             container: layerContainer,
-            handle: handle,
-            isLeft: isLeft,
+            handle,
+            isLeft,
             startX: e.clientX,
             startLeft: parseFloat(layerItem.style.left),
             startWidth: parseFloat(layerItem.style.width),
-            containerWidth: rect.width / this.zoomLevel, // Adjust for zoom
+            containerWidth,
             hasMoved: false,
             originalLeft: parseFloat(layerItem.dataset.originalLeft),
             originalWidth: parseFloat(layerItem.dataset.originalWidth)
