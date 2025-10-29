@@ -1,28 +1,8 @@
 {% for layer in layers %}
 <div class="layer" data-layer-type="{{ layer.type }}">
-    <div class="layer-label">
-        {{ layer.label }}
-        {% if layer.can_edit and layer.add_button %}
-        <button class="add-item-btn add-{{ layer.type }}-btn"
-                {% if layer.add_button.url %}
-                hx-get="{{ layer.add_button.url }}"
-                hx-target="{{ layer.add_button.target|default:'#detail-form' }}"
-                {% elif layer.add_button.post_url %}
-                hx-post="{{ layer.add_button.post_url }}"
-                {% if layer.add_button.vals %}
-                hx-vals='{{ layer.add_button.vals }}'
-                {% endif %}
-                {% endif %}
-                hx-swap="{{ layer.add_button.swap|default:'none' }}"
-                title="{{ layer.add_button.title }}">
-            +
-        </button>
-        {% endif %}
-    </div>
     <div class="layer-content">
         <div class="layer-items {{ layer.type }}" data-layer-type="{{ layer.type }}">
             {% for item in layer.items %}
-            {% comment %} TODO add can_edit to context? {% endcomment %}
                 {% include item.template with instance=item.instance content=item.content position=item.position item_type=item.item_type update_url=item.update_url load_form_url=item.load_form_url %}
             {% endfor %}
         </div>

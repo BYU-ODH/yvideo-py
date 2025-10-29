@@ -90,7 +90,7 @@ urlpatterns = [
         name="delete_clip",
     ),
     path(
-        "clips/create/<int:content_id>/",
+        "clips/<str:annotation_type>/create/content/<int:content_id>/",
         views_clip_editor.create_clip,
         name="create_clip",
     ),
@@ -139,7 +139,7 @@ urlpatterns = [
     ),
     # Annotation CRUD
     path(
-        "content/<int:content_id>/annotations/<str:annotation_type>/create/",
+        "annotations/<str:annotation_type>/create/content/<int:content_id>/",
         views_video_editor.create_annotation,
         name="create_annotation",
     ),
@@ -157,10 +157,5 @@ urlpatterns = [
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",
         views_video_editor.load_annotation_form,
         name="load_annotation_form",
-    ),
-    path(
-        "content/<int:content_id>/create-annotation/<str:annotation_type>/",
-        views_video_editor.create_annotation,
-        name="create_annotation",
     ),
 ]

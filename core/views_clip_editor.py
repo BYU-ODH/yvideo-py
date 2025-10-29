@@ -59,20 +59,30 @@ def clip_editor(request, content_id):
     # Get JSON from model method
     player_json = json.dumps(content.get_player_json(), indent=2)
 
-    layers = [
+    # Create layers as a list (for iteration in template)
+    layers_list = [
         {
-            "type": "clips",
+            "type": "clip",
             "label": "Clips",
             "can_edit": True,
             "items": layer_items,
             "add_button": {
-                "post_url": reverse("create_clip", args=[content_id]),
+                "post_url": reverse("create_clip", args=["clip", content_id]),
                 "vals": "js:...getNewItemStartEndTimes()",
                 "swap": "none",
                 "title": "Add new clip at current time",
             },
         }
     ]
+
+    # Create layers as dict (for the label column in timeline_base.html)
+    layers_dict = {
+        "clip": {
+            "display_name": "Clips",
+            "can_add": True,
+            "add_form_url": "create_clip",
+        }
+    }
 
     # Prepare subtitle data in the format expected by AnnotationPlayer
     subtitles_data = [
@@ -91,7 +101,8 @@ def clip_editor(request, content_id):
         "player_json": player_json,
         "has_subtitles": has_subtitles,
         "duration": duration,
-        "layers": layers,
+        "layers": layers_dict,  # For timeline_base.html label column
+        "layers_list": layers_list,  # For timeline_layers.html content
     }
 
     return render(request, "clip_editor.html", context)
@@ -308,9 +319,11 @@ def update_clip(request, item_type, clip_id):
 
 
 @require_POST
-def create_clip(request, content_id):
+def create_clip(request, annotation_type, content_id):
     """Create a new clip and return updated HTML with JSON OOB."""
     content = get_object_or_404(Content, id=content_id)
+    if annotation_type != "clip":
+        return HttpResponse("Invalid annotation type", status=400)
 
     # Check permissions
     if not request.user.can_view_content(content):

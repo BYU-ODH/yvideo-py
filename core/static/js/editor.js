@@ -145,10 +145,14 @@ export class Timeline {
     constructor() {
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
-        this.layerContent = document.querySelector('.layer-content');
+        this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
+        this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
+        this.timelineContainer = document.querySelector('.timeline-container');
+        this.layerContent = document.querySelectorAll('.layer-content');
+        this.zoomSlider = document.getElementById('zoom-slider');
         const editorContainer = document.querySelector('.editor-container');
         this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
-        this.zoomLevel = 1; // 1x to 10x scale
+        this.zoomLevel = 1;
         this.hoverScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
@@ -160,20 +164,98 @@ export class Timeline {
         this.createHoverScrubber();
         this.renderTickMarks();
         this.attachTimelineListeners();
+        this.attachZoomListener();
+        this.syncScroll();
+    }
 
-        // Re-render tick marks when zoom changes (future enhancement)
-        window.addEventListener('timeline:zoom', (e) => {
-            this.zoomLevel = e.detail.zoomLevel;
-            this.renderTickMarks();
+    attachZoomListener() {
+        if (!this.zoomSlider) return;
+
+        this.zoomSlider.addEventListener('input', (e) => {
+            const newZoomLevel = parseFloat(e.target.value);
+            this.handleZoom(newZoomLevel);
         });
     }
 
-    createHoverScrubber() {
-        if (!this.timelineTicks) return;
+    handleZoom(newZoomLevel) {
+        const video = document.querySelector('.annotation-player-container video');
+        if (!video) return;
 
-        this.hoverScrubber = document.createElement('div');
-        this.hoverScrubber.className = 'timeline-hover-scrubber';
-        this.timelineTicks.appendChild(this.hoverScrubber);
+        const currentTime = video.currentTime;
+        const currentPercent = currentTime / this.duration;
+
+        // Get current scroll position
+        const scrollLeft = this.timelineContentWrapper.scrollLeft;
+        const viewportWidth = this.timelineContentWrapper.clientWidth;
+        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+
+        // Calculate where the scrubber is in the viewport
+        const scrubberPositionInViewport = oldContentWidth > viewportWidth
+            ? (scrollLeft + (currentPercent * oldContentWidth)) / oldContentWidth
+            : currentPercent;
+
+        // Update zoom level
+        this.zoomLevel = newZoomLevel;
+
+        // Apply scale transform to timeline ticks content
+        if (this.timelineTicksContent) {
+            this.timelineTicksContent.style.transform = `scaleX(${newZoomLevel})`;
+            this.timelineTicksContent.style.transformOrigin = '0 0';
+            this.timelineTicksContent.style.width = `${newZoomLevel * 100}%`;
+        }
+
+        // Apply scale transform to all layer content areas
+        this.layerContent.forEach(layer => {
+            const layerItems = layer.querySelector('.layer-items');
+            if (layerItems) {
+                layerItems.style.transform = `scaleX(${newZoomLevel})`;
+                layerItems.style.transformOrigin = '0 0';
+                layerItems.style.width = `${newZoomLevel * 100}%`;
+            }
+        });
+
+        // Re-render tick marks
+        this.renderTickMarks();
+
+        // Calculate new scroll position after DOM update
+        requestAnimationFrame(() => {
+            const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+            const newViewportWidth = this.timelineContentWrapper.clientWidth;
+
+            // Calculate where scrubber should be in the new zoomed content
+            const scrubberPixelPosition = currentPercent * newContentWidth;
+
+            // Calculate ideal scroll position to keep scrubber in same viewport position
+            let targetScrollLeft = scrubberPixelPosition - (scrubberPositionInViewport * newViewportWidth);
+
+            // Handle edge cases
+            const maxScrollLeft = newContentWidth - newViewportWidth;
+
+            if (maxScrollLeft <= 0) {
+                targetScrollLeft = 0;
+            } else {
+                targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
+            }
+
+            // Apply scroll position
+            this.timelineContentWrapper.scrollLeft = targetScrollLeft;
+        });
+    }
+
+    syncScroll() {
+        // No need to sync scroll anymore since we have a single scrollbar
+        // Keep this method in case we need it for future enhancements
+    }
+
+    createHoverScrubber() {
+        this.hoverScrubber = document.querySelector('.timeline-hover-scrubber');
+        if (!this.hoverScrubber) {
+            this.hoverScrubber = document.createElement('div');
+            this.hoverScrubber.className = 'timeline-hover-scrubber';
+            if (this.timelineTicksContent) {
+                this.timelineTicksContent.appendChild(this.hoverScrubber);
+            }
+        }
     }
 
     attachTimelineListeners() {
@@ -280,7 +362,7 @@ export class Timeline {
     updateHoverScrubber(e) {
         if (!this.hoverScrubber) return;
 
-        const rect = this.timelineTicks.getBoundingClientRect();
+        const rect = this.timelineTicksContent.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
 
@@ -392,6 +474,7 @@ export class LayerInteractionHandler {
         const editorContainer = document.querySelector('.editor-container');
         this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
         this.dragState = null;
+        this.zoomLevel = 1;
 
         this.init();
     }
@@ -403,6 +486,14 @@ export class LayerInteractionHandler {
         });
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
         document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+
+        // Listen for zoom changes
+        const zoomSlider = document.getElementById('zoom-slider');
+        if (zoomSlider) {
+            zoomSlider.addEventListener('input', (e) => {
+                this.zoomLevel = parseFloat(e.target.value);
+            });
+        }
 
         // Listen for "set time" button clicks
         document.addEventListener('click', (e) => {
@@ -453,7 +544,7 @@ export class LayerInteractionHandler {
             container: layerContainer,
             startX: e.clientX,
             startLeft: parseFloat(layerItem.style.left),
-            containerWidth: rect.width,
+            containerWidth: rect.width / this.zoomLevel, // Adjust for zoom
             hasMoved: false,
             originalLeft: parseFloat(layerItem.dataset.originalLeft),
             originalWidth: parseFloat(layerItem.dataset.originalWidth)
@@ -470,6 +561,7 @@ export class LayerInteractionHandler {
     startResize(layerItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
         const layerContainer = layerItem.closest('.layer-items');
+        const rect = layerContainer.getBoundingClientRect();
 
         this.dragState = {
             type: 'resize',
@@ -480,7 +572,7 @@ export class LayerInteractionHandler {
             startX: e.clientX,
             startLeft: parseFloat(layerItem.style.left),
             startWidth: parseFloat(layerItem.style.width),
-            containerWidth: layerContainer.offsetWidth,
+            containerWidth: rect.width / this.zoomLevel, // Adjust for zoom
             hasMoved: false,
             originalLeft: parseFloat(layerItem.dataset.originalLeft),
             originalWidth: parseFloat(layerItem.dataset.originalWidth)
@@ -523,42 +615,35 @@ export class LayerInteractionHandler {
 
     updateDragPosition(e) {
         const deltaX = e.clientX - this.dragState.startX;
+        // Don't account for zoom in percent calculation - container width is already adjusted
         const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
         let newLeft = this.dragState.startLeft + deltaPercent;
 
         // Special handling for pause items (width is fixed, only left moves)
         if (this.dragState.item.dataset.itemType === "pause") {
-            // For pause, width is a fixed px value, so use a minimal percent width for bounds checking
-            // Use 0.5% as a safe minimal width for bounds
             const minWidthPercent = 0.5;
             newLeft = Math.max(0, Math.min(newLeft, 100 - minWidthPercent));
 
             this.dragState.item.style.left = `${newLeft}%`;
 
-            // Store delta from original position
             const deltaLeft = newLeft - this.dragState.originalLeft;
             this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
 
-            // Seek video to the new position
             this.seekToHandlePosition(true, newLeft, minWidthPercent);
         } else {
-            // Default: move left edge, keep width the same
             const width = parseFloat(this.dragState.item.style.width);
             newLeft = Math.max(0, Math.min(newLeft, 100 - width));
 
             this.dragState.item.style.left = `${newLeft}%`;
 
-            // Store delta from original position
             const deltaFromOriginal = newLeft - this.dragState.originalLeft;
             this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
 
-            // Seek video to the left edge of the item
             const video = document.querySelector('.annotation-player-container video');
             if (video) {
                 const targetTime = (newLeft / 100) * this.duration;
                 video.currentTime = targetTime;
 
-                // Also update via the player API if available
                 if (window.videoPlayer && window.videoPlayer.skipTo) {
                     window.videoPlayer.skipTo(targetTime);
                 }
@@ -568,18 +653,16 @@ export class LayerInteractionHandler {
 
     updateResizePosition(e) {
         const deltaX = e.clientX - this.dragState.startX;
+        // Don't account for zoom in percent calculation - container width is already adjusted
         const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
 
         if (this.dragState.isLeft) {
-            // Resize from left
             let newLeft = this.dragState.startLeft + deltaPercent;
             let newWidth = this.dragState.startWidth - deltaPercent;
 
-            // Constrain
             newLeft = Math.max(0, newLeft);
-            newWidth = Math.max(1, newWidth); // Minimum 1% width
+            newWidth = Math.max(1, newWidth);
 
-            // Don't extend past right edge
             if (newLeft + newWidth > 100) {
                 newWidth = 100 - newLeft;
             }
@@ -587,30 +670,24 @@ export class LayerInteractionHandler {
             this.dragState.item.style.left = `${newLeft}%`;
             this.dragState.item.style.width = `${newWidth}%`;
 
-            // Store deltas from original
             const deltaLeft = newLeft - this.dragState.originalLeft;
             const deltaWidth = newWidth - this.dragState.originalWidth;
             this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
             this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
 
-            // Seek video to left handle position
             this.seekToHandlePosition(true, newLeft, newWidth);
         } else {
-            // Resize from right
             let newWidth = this.dragState.startWidth + deltaPercent;
 
-            // Constrain
             newWidth = Math.max(1, newWidth);
             const maxWidth = 100 - this.dragState.startLeft;
             newWidth = Math.min(newWidth, maxWidth);
 
             this.dragState.item.style.width = `${newWidth}%`;
 
-            // Store delta from original width (left unchanged)
             const deltaWidth = newWidth - this.dragState.originalWidth;
             this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
 
-            // Seek video to right handle position
             this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
         }
     }

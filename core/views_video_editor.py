@@ -66,8 +66,10 @@ def video_editor(request, content_id):
     # Get JSON data from model methods
     player_json = json.dumps(content.get_player_json(), indent=2)
 
-    # Prepare layer data for timeline (matching clip editor structure)
-    layers = []
+    # Prepare layer data for timeline
+    layers_list = []
+    layers_dict = {}
+
     for type_name, model_class in ANNOTATION_MODELS.items():
         layer_items = []
         if active_set:
@@ -100,7 +102,8 @@ def video_editor(request, content_id):
                     }
                 )
 
-        layers.append(
+        # Add to list (for timeline_layers.html)
+        layers_list.append(
             {
                 "type": type_name,
                 "label": type_name.title(),
@@ -108,7 +111,7 @@ def video_editor(request, content_id):
                 "items": layer_items,
                 "add_button": {
                     "post_url": reverse(
-                        "create_annotation", args=[content_id, type_name]
+                        "create_annotation", args=[type_name, content_id]
                     ),
                     "vals": "js:...getNewItemStartEndTimes()",
                     "swap": "none",
@@ -118,6 +121,13 @@ def video_editor(request, content_id):
                 else None,
             }
         )
+
+        # Add to dict (for timeline_base.html)
+        layers_dict[type_name] = {
+            "display_name": type_name.title(),
+            "can_add": can_edit,
+            "add_form_url": "create_annotation",
+        }
 
     context = {
         "content": content,
@@ -132,7 +142,8 @@ def video_editor(request, content_id):
         "can_edit": can_edit,
         "can_edit_annotation_set": can_edit_annotation_set,
         "duration": duration,
-        "layers": layers,
+        "layers": layers_dict,  # For timeline_base.html label column
+        "layers_list": layers_list,  # For timeline_layers.html content
     }
 
     return render(request, "core/video_editor.html", context)
@@ -254,7 +265,7 @@ def select_annotation_set(request, content_id):
                 "items": layer_items,
                 "add_button": {
                     "post_url": reverse(
-                        "create_annotation", args=[content_id, type_name]
+                        "create_annotation", args=[type_name, content_id]
                     ),
                     "vals": "js:...getNewItemStartEndTimes()",
                     "swap": "none",
@@ -565,7 +576,7 @@ def remove_editor_from_annotation_set(request, annotation_set_id, user_id):
 @require_POST
 @login_required
 @transaction.atomic
-def create_annotation(request, content_id, annotation_type):
+def create_annotation(request, annotation_type, content_id):
     """Create annotation in the active AnnotationSet."""
     content = get_object_or_404(Content, id=content_id)
 
@@ -813,7 +824,7 @@ def update_annotation(request, annotation_type, annotation_id):
 @require_http_methods(["DELETE"])
 @login_required
 @transaction.atomic
-def delete_annotation(request, content_id, annotation_type, annotation_id):
+def delete_annotation(request, annotation_type, annotation_id):
     """Delete annotation by marking it inactive."""
     # Use the annotation_type parameter to get the correct model
     model_class = ANNOTATION_MODELS.get(annotation_type.lower())
@@ -829,6 +840,7 @@ def delete_annotation(request, content_id, annotation_type, annotation_id):
     if not annotation.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
+    content_id = request.GET.get("content_id")
     content = Content.objects.get(id=content_id)
 
     # Use delete_with_history() to preserve undo capability
