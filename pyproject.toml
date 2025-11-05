@@ -13,15 +13,19 @@ dependencies = [
     "xxhash>=3.5.0",
 ]
 
-[build-system]
-requires = ["setuptools >= 80.9.0"]
-
 [dependency-groups]
 dev = [
     "django-debug-toolbar==6.0.0",
     "pre-commit==4.3.0",
     "ruff==0.14.0",
 ]
+
+
+[build-system]
+requires = ["setuptools >= 80.9.0"]
+
+[tool.setuptools.packages.find]
+include = ["yvideo", "core"]
 
 [tool.ruff]
     lint.extend-select = ["I", "UP"] # Extend with isort, pydocstyle, and pyupgrade

@@ -47,10 +47,10 @@ repos:
           - eslint@9.37.0
         language_version: 20.14.0
 
-  # -   repo: local
-  #     hooks:
-  #     -   id: check-fixtures
-  #         name: Check Django fixtures up-to-date
-  #         entry: /bin/bash scripts/check_fixtures.sh
-  #         language: script
-  #         pass_filenames: false
+  -   repo: local
+      hooks:
+      -   id: check-fixtures
+          name: Check Django fixtures up-to-date
+          entry: /bin/bash scripts/check_fixtures.sh
+          language: script
+          pass_filenames: false
