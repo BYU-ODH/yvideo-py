@@ -128,3 +128,6 @@ def metadata(request):
     else:
         resp = HttpResponseServerError(content=", ".join(errors))
     return resp
+
+
+# test to see if github will fail
