@@ -131,6 +131,7 @@ class ContentAdmin(VersionAdmin):
                 "file"
             ].help_text = "Select collection, then save to see available files. You will be unable to see files that belong to Resources that you do not have Resource Access to."
 
+            # No clips until file is selected and saved.
             form.base_fields["clips"].queryset = Clip.objects.none()
             form.base_fields[
                 "clips"
