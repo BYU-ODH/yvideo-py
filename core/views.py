@@ -8,6 +8,7 @@ import re
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.core.files.base import ContentFile
 from django.db import connection
 from django.db.models import Q
 from django.http import Http404
@@ -1200,6 +1201,15 @@ def update_subtitle(request):
             if "words" in request.POST:
                 subtitle_obj.words = data["words"]
             subtitle_obj.save()
+
+            # remove temp file when main file is updated
+            # this is not included where subtitles_file is set because we want
+            # to ensure we don't over write the temp file unless the main file
+            # is successfully updated.
+            if new_file_exists:
+                subtitle_obj.subtitles_temp_file = None
+                subtitle_obj.save()
+
             return render(
                 request,
                 "partials/subtitle_track.html",
@@ -1212,6 +1222,25 @@ def update_subtitle(request):
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
+
+
+@require_POST
+def update_subtitle_temp_file(request):
+    subtitle_id = request.POST.get("subtitle_id")
+    file_content = request.POST.get("file_content")
+    if subtitle_id is None or subtitle_id == "" or file_content is None:
+        return HttpResponseBadRequest()
+
+    try:
+        subtitle_object = get_object_or_404(Subtitle, id=subtitle_id)
+        subtitle_object.subtitles_file = ContentFile(file_content)
+        subtitle_object.save()
+
+    except Exception as e:
+        logger.error(
+            f"An error occurred while trying to save a subtitle temp file. id: {subtitle_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
 
 
 @login_not_required
