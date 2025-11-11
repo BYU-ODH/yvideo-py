@@ -1,0 +1,7 @@
+<label for="id_file">Select File</label>
+<select name="file" id="id_file" required>
+    <option value="">Choose a File</option>
+    {% for file in files %}
+        <option value="{{ file.id }}">{{ file.file.name }}</option>
+    {% endfor %}
+</select>

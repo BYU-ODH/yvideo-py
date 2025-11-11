@@ -10,6 +10,25 @@
     {{ form.non_field_errors }}
     <input type="hidden" value="{{collection.id}}" name="collection_id">
     <div class="column-flex">
+          <div class="content-form-group">
+            <label for="resource_select">Select Resource</label>
+            <select id="resource_select" name="resource_id"
+                    hx-get="{% url 'display_resources_files' %}"
+                    hx-target="#file_select_wrapper"
+                    hx-trigger="change">
+                    <option value="">Choose a Resource</option>
+                    {% for resource in resources %}
+                        <option value="{{ resource.id }}">{{ resource.name }}</option>
+                    {% endfor %}
+            </select>
+        </div>
+        <div id="file_select_wrapper" class="content-form-group">
+            <label for="id_file">Select File</label>
+            <select name="file" id="id_file" disabled>
+                <option value="">Choose a File</option>
+            </select>
+        </div>
+
         <div class="content-form-group">
             {{form.title.as_field_group}}
         </div>

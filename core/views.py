@@ -37,6 +37,7 @@ from .models import Content
 from .models import FileKey
 from .models import ImportantWord
 from .models import MuteAnnotation
+from .models import Resource
 from .models import SkipAnnotation
 from .models import User
 from .models import UserCourses
@@ -561,10 +562,15 @@ def delete_collection(request, collection_id):
 def display_create_content(request, collection_id):
     form = ContentForm()
     collection = get_object_or_404(Collection, pk=collection_id)
+    resources = Resource.objects.all()
     return render(
         request,
         "partials/create_content.html",
-        {"form": form, "collection": collection},
+        {
+            "form": form,
+            "collection": collection,
+            "resources": resources,
+        },
     )
 
 
@@ -572,6 +578,7 @@ def display_create_content(request, collection_id):
 def create_content(request):
     collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
     form = ContentForm(request.POST)
+
     if form.is_valid():
         data = form.cleaned_data
         try:
@@ -582,6 +589,7 @@ def create_content(request):
                 allow_definitions=data["allow_definitions"],
                 allow_notes=data["allow_notes"],
                 allow_captions=data["allow_captions"],
+                file=data["file"],
             )
         except Exception as e:
             logger.error(
@@ -605,6 +613,13 @@ def create_content(request):
         return render(request, "partials/collection_contents_display.html", context)
     else:
         return HttpResponseBadRequest()
+
+
+def display_resources_files(request):
+    resource_id = request.GET.get("resource_id")
+    resource = get_object_or_404(Resource, id=resource_id)
+    files = resource.files.all()  # uses related_name="files" in File model
+    return render(request, "partials/select_file.html", {"files": files})
 
 
 @require_http_methods(["DELETE"])
