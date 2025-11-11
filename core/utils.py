@@ -1,5 +1,7 @@
 from re import sub
 
+from django.core.files.base import ContentFile
+
 
 def hms2seconds(hms):
     """Convert a time string in 'HH:MM:SS.SS' format to total seconds."""
@@ -26,6 +28,17 @@ def convert_srt_to_vtt(srt_file):
 
     with open(srt_file) as srt_file:
         return "WEBVTT\n\n" + sub(r",[0-9]{3}", swap_comma_for_period, srt_file.read())
+
+
+def convert_srt_to_vtt_or_return_original(content_file):
+    file_name_split = content_file.name.split(".")
+    file_ext = file_name_split[len(file_name_split) - 1]
+    if file_ext == "srt":
+        vtt_content = convert_srt_to_vtt(content_file)
+        new_file_name = file_name_split[0] + ".vtt"
+        return ContentFile(content=vtt_content, name=new_file_name)
+    else:
+        return content_file
 
 
 # TODO : Remove these toy VTTs after testing is complete

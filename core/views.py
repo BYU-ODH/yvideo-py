@@ -8,7 +8,6 @@ import re
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
-from django.core.files.base import ContentFile
 from django.db import connection
 from django.db.models import Q
 from django.http import Http404
@@ -46,7 +45,7 @@ from .models import User
 from .models import UserCourses
 from .utils import TOY_VTT
 from .utils import TOY_VTT2
-from .utils import convert_srt_to_vtt
+from .utils import convert_srt_to_vtt_or_return_original
 from .utils import hms2seconds
 from .utils import seconds2hms
 
@@ -1139,14 +1138,12 @@ def create_subtitle(request):
     if form.is_valid():
         data = form.cleaned_data
         uploaded_file = request.FILES["subtitles_file"]
+        if uploaded_file is None:
+            logger.error("No subtitle file provided.")
+            return HttpResponseBadRequest()
 
         # automatically convert .srt files to .vtt
-        file_name_split = uploaded_file.name.split(".")
-        file_ext = file_name_split[len(file_name_split) - 1]
-        if file_ext == "srt":
-            vtt_content = convert_srt_to_vtt(uploaded_file)
-            new_file_name = file_name_split[0] + ".vtt"
-            uploaded_file = ContentFile(content=vtt_content, name=new_file_name)
+        uploaded_file = convert_srt_to_vtt_or_return_original(uploaded_file)
 
         # create new subtitle object
         try:
@@ -1174,9 +1171,16 @@ def create_subtitle(request):
 @login_not_required
 @require_POST
 def update_subtitle(request):
-    form = SubtitleForm(request.POST)
+    form = SubtitleForm(request.POST, request.FILES)
     if form.is_valid():
         data = form.cleaned_data
+
+        uploaded_file = request.FILES["subtitles_file"]
+        new_file_exists = uploaded_file is not None
+
+        if new_file_exists:
+            uploaded_file = convert_srt_to_vtt_or_return_original(uploaded_file)
+
         try:
             if "subtitle_id" in request.POST:
                 subtitle_obj = get_object_or_404(
@@ -1189,8 +1193,8 @@ def update_subtitle(request):
                 subtitle_obj.language = data["language"]
             if "name" in data:
                 subtitle_obj.name = data["name"]
-            if "subtitles_file" in data:
-                subtitle_obj.subtitles_file = data["subtitles_file"]
+            if new_file_exists:
+                subtitle_obj.subtitles_file = uploaded_file
             if "is_original" in data:
                 subtitle_obj.is_original = data["is_original"]
             if "words" in request.POST:
