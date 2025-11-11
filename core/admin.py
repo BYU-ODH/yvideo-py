@@ -114,6 +114,15 @@ class ContentAdmin(VersionAdmin):
             else:
                 # If no collection or owner, show no files.
                 form.base_fields["file"].queryset = File.objects.none()
+
+            # Filter clips to show only those associated with the selected file
+            if obj.file:
+                form.base_fields["clips"].queryset = Clip.objects.filter(
+                    resource=obj.file.resource
+                )
+            else:
+                form.base_fields["clips"].queryset = Clip.objects.none()
+
         else:
             # On the 'add' page, we can't filter by collection owner yet.
             # Showing no files until a collection is selected and saved.
@@ -121,6 +130,12 @@ class ContentAdmin(VersionAdmin):
             form.base_fields[
                 "file"
             ].help_text = "Select collection, then save to see available files. You will be unable to see files that belong to Resources that you do not have Resource Access to."
+
+            # No clips until file is selected and saved.
+            form.base_fields["clips"].queryset = Clip.objects.none()
+            form.base_fields[
+                "clips"
+            ].help_text = "Select a file and save to see available clips."
 
         return form
 
