@@ -7,8 +7,13 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db import transaction
 from django.utils import timezone
 import xxhash
+
+from .utils import TOY_VTT
+from .utils import TOY_VTT2
+from .utils import hms2seconds
 
 HMS_VALIDATOR = RegexValidator(
     regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",
@@ -132,6 +137,17 @@ class User(AbstractUser):
             # TODO Check course enrollment
         return False
 
+    def get_filekey(self, content):
+        """Get or create a FileKey for the given content."""
+        if self.can_view_content(content):
+            file_key = FileKey.objects.filter(file=content.file, user=self).first()
+            if not file_key:
+                file_key = FileKey.objects.create(file=content.file, user=self)
+                file_key.save()
+            return file_key
+        else:
+            return None
+
 
 class ResourceAccess(models.Model):  # "through" model
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -164,6 +180,14 @@ class Collection(models.Model):
 
     class Meta:
         unique_together = ("name", "owner")
+
+    def get_instructors_and_tas(self):
+        """Get all users with instructor or TA access to this collection."""
+        instructor_tas = CollectionUserAccess.objects.filter(
+            collection=self,
+            account_role__in=[0, 1],  # 0=instructor, 1=TA
+        ).select_related("user")
+        return [access.user for access in instructor_tas]
 
 
 class CollectionUserAccess(models.Model):  # "through" model
@@ -349,20 +373,90 @@ class Clip(models.Model):
 
 
 class AnnotationSet(models.Model):
-    name = models.CharField(max_length=225)
-    owner = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="user",
-    )
+    """
+    A collection of annotations for a Resource.
+    Multiple contents can use the same AnnotationSet.
+    """
+
+    name = models.CharField(max_length=255)
     resource = models.ForeignKey(
-        Resource, on_delete=models.CASCADE, related_name="resources"
+        "Resource", on_delete=models.CASCADE, related_name="annotation_sets"
+    )
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="owned_annotation_sets"
+    )
+    editors = models.ManyToManyField(
+        User, related_name="editable_annotation_sets", blank=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        unique_together = [["name", "resource"]]
+        ordering = ["name"]
+
     def __str__(self):
-        return f"{self.name} ({self.owner.first_name} {self.owner.last_name}) | {self.updated_at} | {self.resource.name}{self.id}"
+        return f"{self.name} ({self.owner.first_name} {self.owner.last_name}) | {self.resource.name}"
+
+    def can_edit(self, user):
+        """Check if user can edit this annotation set."""
+        return user == self.owner or user in self.editors.all()
+
+    def can_be_viewed_by(self, user):
+        """Check if user can view this annotation set (through any content using the resource)."""
+        return Content.objects.filter(file__resource=self.resource).filter(
+            collection__owner=user
+        ).exists() or self.can_edit(user)
+
+    @classmethod
+    def create_for_content(cls, content, user):
+        """
+        Create a new AnnotationSet for a content's resource.
+        Automatically adds collection owner and instructor/TAs as editors.
+        """
+        collection = content.collection
+        resource = content.file.resource if content.file else None
+
+        if not resource:
+            raise ValueError(
+                "Content must have a file with a resource to create an AnnotationSet"
+            )
+
+        # Create annotation set with user as owner
+        annotation_set = cls.objects.create(
+            name=f"{user.get_full_name()}'s Annotations", resource=resource, owner=user
+        )
+
+        # Add all collection instructors/TAs as editors
+        instructors_and_tas = collection.get_instructors_and_tas()
+        annotation_set.editors.add(*instructors_and_tas)
+
+        return annotation_set
+
+    def get_active_annotations(self):
+        """
+        Get all currently active annotations across all types.
+        Active annotations are the current state (tip of linked list).
+        """
+        annotations = []
+        for model_class in [
+            SkipAnnotation,
+            MuteAnnotation,
+            BlankAnnotation,
+            PauseAnnotation,
+            BlurAnnotation,
+            CommentAnnotation,
+        ]:
+            annotations.extend(
+                model_class.objects.filter(annotation_set=self, active=True)
+            )
+        return sorted(annotations, key=lambda a: a.start_time)
+
+    def to_player_json(self):
+        """Export all active annotations in this set for the AnnotationPlayer."""
+        return [
+            annotation.to_player_json() for annotation in self.get_active_annotations()
+        ]
 
 
 class Content(models.Model):
@@ -421,6 +515,63 @@ class Content(models.Model):
             # For now, return a placeholder
             return 20.0  # 20 seconds default
 
+    def get_available_annotation_sets(self):
+        """Get all AnnotationSets available for this content's resource."""
+        if not self.file or not self.file.resource:
+            return AnnotationSet.objects.none()
+        return AnnotationSet.objects.filter(resource=self.file.resource)
+
+    def get_clips_json(self):
+        """
+        Get all clips as list of dictionaries for the AnnotationPlayer.
+        """
+        clips_data = []
+        for clip in self.clips.all():
+            clips_data.append(
+                {
+                    "start": hms2seconds(clip.start_time),
+                    "end": hms2seconds(clip.end_time),
+                    "label": clip.name,
+                }
+            )
+        return clips_data
+
+    def get_subtitles_json(self):
+        """
+        Get all subtitles as list of dicts for the AnnotationPlayer.
+        Each dict has the following keys:
+            - 'srclang'
+            - 'vtt' or 'url'
+            - 'label'
+        """
+        subtitles = []
+        # TODO: Get actual subtitles from database
+        # TODO : Remove toy subtitles
+        toy_data = [
+            {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
+            {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+            {
+                "srclang": "en",
+                "url": "http://example.com/subtitles.vtt",
+                "label": "Birds",
+            },
+        ]
+        subtitles.extend(toy_data)
+        return subtitles
+
+    def get_player_json(self):
+        """
+        Generate complete JSON data for AnnotationPlayer.loadData().
+        Returns a dict with 'annotations' and 'clips' keys, each containing JSON strings.
+        """
+        return {
+            "annotations": self.annotation_set.to_player_json()
+            if self.annotation_set
+            else [],
+            "clips": self.get_clips_json(),
+            "subtitleTracks": self.get_subtitles_json(),
+        }
+
 
 class ImportantWord(models.Model):
     content = models.ForeignKey(
@@ -430,11 +581,17 @@ class ImportantWord(models.Model):
     translation = models.CharField(null=False, blank=True, max_length=100)
 
 
-class Annotation(models.Model):
+class BaseAnnotation(models.Model):
+    """
+    Base class for all annotation types.
+    Implements linked list for undo/redo functionality.
+    Undo/redo is per-annotation: each annotation has its own version history.
+    """
+
     owner = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name="%(app_label)s_%(class)s_user",
+        related_name="%(app_label)s_%(class)s_owner",
         null=True,
         blank=True,
     )
@@ -442,7 +599,7 @@ class Annotation(models.Model):
     annotation_set = models.ForeignKey(
         AnnotationSet,
         on_delete=models.CASCADE,
-        related_name="%(app_label)s_%(class)s_annotation_set",
+        related_name="%(app_label)s_%(class)s_annotations",
         null=True,
         blank=True,
     )
@@ -450,37 +607,160 @@ class Annotation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     start_time = models.FloatField(default=0.0)
     end_time = models.FloatField(default=0.0)
+
+    # Linked list pointers for undo/redo
     prev = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
-        related_name="%(app_label)s_%(class)s_prev",
+        related_name="%(app_label)s_%(class)s_prev_relation",
         null=True,
         blank=True,
     )
     next = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
-        related_name="%(app_label)s_%(class)s_next",
+        related_name="%(app_label)s_%(class)s_next_relation",
         null=True,
         blank=True,
     )
 
+    # Only active annotations are visible/used
+    active = models.BooleanField(default=True)
+
     class Meta:
         abstract = True
 
-    def __str__(self):
-        return f"{self.owner} | {self.annotation_set.resource.name} | {self.id}"
+    @property
+    def annotation_type(self):
+        """Return the annotation type string (e.g., 'skip', 'pause')."""
+        return self.__class__.__name__.replace("Annotation", "").lower()
+
+    def calculate_position(self, duration):
+        """Calculate visual position on timeline."""
+        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
+        width_percent = (
+            ((self.end_time - self.start_time) / duration * 100)
+            if self.end_time and duration > 0
+            else 0
+        )
+        return {
+            "left": f"{start_percent:.2f}%",
+            "width": f"{width_percent:.2f}%",
+            "start": self.start_time,
+            "end": self.end_time,
+        }
+
+    def to_player_json(self):
+        """Convert annotation to JSON format for video player."""
+        return {
+            "id": self.id,
+            "type": self.annotation_type,
+            "start": self.start_time,
+            "end": self.end_time,
+            "label": self.name,
+        }
+
+    @transaction.atomic
+    def edit(self, **update_fields):
+        """
+        Edit this annotation by creating a new version in the linked list.
+        """
+        # Step 1: Mark this annotation as inactive
+        self.active = False
+        self.save()
+
+        # Step 2: Recursively delete any next versions (clear redo history)
+        self._delete_next_chain()
+
+        # Step 3: Create new version with updated fields
+        new_data = {
+            field.name: getattr(self, field.name)
+            for field in self._meta.fields
+            if field.name
+            not in ["id", "created_at", "updated_at", "prev", "next", "active"]
+        }
+
+        # Apply updates
+        new_data.update(update_fields)
+
+        # Create new annotation
+        new_annotation = self.__class__.objects.create(
+            **new_data, prev=self, next=None, active=True
+        )
+
+        # Step 4: Link new annotation as this annotation's next
+        self.next = new_annotation
+        self.save()
+
+        return new_annotation
+
+    def _delete_next_chain(self):
+        """Recursively delete all next annotations in the chain."""
+        if self.next is not None:
+            next_annotation = self.next
+            self.next = None
+            self.save()
+
+            # Recursively delete the rest of the chain
+            next_annotation._delete_next_chain()
+            next_annotation.delete()
+
+    @transaction.atomic
+    def delete_with_history(self):
+        """
+        Mark this annotation as deleted by creating an inactive version.
+        """
+        # Mark current as inactive
+        self.active = False
+        self.save()
+
+        # Clear any redo history
+        self._delete_next_chain()
+
+    @transaction.atomic
+    def undo(self):
+        """
+        Undo this annotation: revert to the previous version in the linked list.
+        Returns the previous version if undo is possible, else None.
+        """
+        if self.prev is None:
+            return None
+        self.active = False
+        self.save()
+        self.prev.active = True
+        self.prev.save()
+        return self.prev
+
+    @transaction.atomic
+    def redo(self):
+        """
+        Redo this annotation: move forward to the next version in the linked list.
+        Returns the next version if redo is possible, else None.
+        """
+        if self.next is None:
+            return None
+        self.active = False
+        self.save()
+        self.next.active = True
+        self.next.save()
+        return self.next
 
 
-class SkipAnnotation(Annotation):
+class SkipAnnotation(BaseAnnotation):
+    """Skip annotation - standard time range."""
+
     pass
 
 
-class MuteAnnotation(Annotation):
+class MuteAnnotation(BaseAnnotation):
+    """Mute annotation - standard time range."""
+
     pass
 
 
-class BlankAnnotation(Annotation):
+class BlankAnnotation(BaseAnnotation):
+    """Blank annotation - standard time range."""
+
     type = models.CharField(
         max_length=10,
         choices=[
@@ -488,12 +768,101 @@ class BlankAnnotation(Annotation):
             ("#", "Blur"),  # <video> CSS filter: blur(30px)
             ("w", "White"),  # <video> CSS filter: brightness(10)
         ],
-        default="black",
+        default="k",
     )
 
 
-class PauseAnnotation(Annotation):
+class PauseAnnotation(BaseAnnotation):
+    """Pause annotation - point in time, not a range."""
+
     message = models.TextField(max_length=255, blank=True)
+
+    def calculate_position(self, duration):
+        """Override: pause is a point marker, not a range."""
+        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
+        return {
+            "left": f"{start_percent:.2f}%",
+            "width": "2px",
+            "start": self.start_time,
+            "end": self.start_time,  # TODO: Would None be better?
+        }
+
+    def to_player_json(self):
+        """Override: pause uses 'time' instead of 'start/end'."""
+        return {
+            "id": self.id,
+            "type": "pause",
+            "time": self.start_time,
+            "label": self.name,
+            "message": self.message,
+        }
+
+
+class CommentAnnotation(BaseAnnotation):
+    """Comment annotation with text and position."""
+
+    text = models.TextField()
+    x = models.FloatField()
+    y = models.FloatField()
+
+    def to_player_json(self):
+        """Override: include text and coordinates."""
+        data = super().to_player_json()
+        data.update(
+            {
+                "text": self.text,
+                "x": self.x,
+                "y": self.y,
+            }
+        )
+        return data
+
+
+class BlurAnnotation(BaseAnnotation):
+    positions = models.JSONField(default=list, blank=True)
+
+    def clean(self):
+        if not self.positions:
+            return
+
+        position_keys = [float(t) for t in self.positions.keys()]
+        sorted_keys = sorted(position_keys)
+
+        if position_keys != sorted_keys:
+            # TODO Decide whether to autofix or raise a ValidationError
+            raise ValidationError(
+                "Positions must be sorted by start time in ascending order."
+            )
+
+        if self.start != position_keys[0]:
+            # TODO Decide whether to autofix or raise a ValidationError
+            raise ValidationError("Start time must match the first position start.")
+
+        if self.end < position_keys[-1]:
+            # TODO Decide whether to autofix or raise a ValidationError
+            raise ValidationError("End time cannot be before the last position end.")
+
+    def to_player_json(self):
+        """Override: include positions data."""
+        data = super().to_player_json()
+        data["positions"] = self.positions
+        return data
+
+    @classmethod
+    def validate_positions(
+        cls, positions_dict
+    ):  # TODO is this correct/needed? cf clean()
+        """Validate positions format."""
+        try:
+            for time, pos in positions_dict.items():
+                if not isinstance(pos, list) or len(pos) != 4:
+                    return (
+                        False,
+                        "Invalid position format: must be [x, y, width, height]",
+                    )
+            return True, None
+        except (TypeError, AttributeError):
+            return False, "Invalid positions structure"
 
 
 class Course(models.Model):

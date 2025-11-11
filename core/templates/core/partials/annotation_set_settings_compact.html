@@ -1,0 +1,46 @@
+{% load static %}
+
+<div class="annotation-set-settings-compact">
+    <form hx-post="{% url 'update_annotation_set_name' annotation_set.id %}"
+          hx-target="#annotation-set-settings-panel"
+          hx-swap="outerHTML"
+          style="margin-bottom: 0.5em;">
+        <label for="annotation-set-name">Name:</label>
+        <input type="text" id="annotation-set-name" name="name" value="{{ annotation_set.name }}" required>
+        <button type="submit" class="btn-primary" style="margin-left: 0.5em;">Save</button>
+        <button type="button"
+                hx-post="{% url 'load_annotation_set_form' content.id %}"
+                hx-target="#annotation-set-settings-panel"
+                hx-swap="outerHTML"
+                style="margin-left: 0.5em;">Cancel</button>
+    </form>
+
+    <div>
+        <h4>Allow others to edit this annotation set</h4>
+        <ul>
+            {% for editor in annotation_set.editors.all %}
+                <li style="display: flex; align-items: center; gap: 0.5em;">
+                    {{ editor.get_full_name }} ({{ editor.netid }})
+                    <button hx-delete="{% url 'remove_editor_from_annotation_set' annotation_set.id editor.id %}?content_id={{ content.id }}"
+                            hx-target="#annotation-set-settings-panel"
+                            style="background: none; border: none; cursor: pointer;">
+                        <img src="{% static 'img/trash.svg' %}" alt="Remove" style="width: 16px; height: 16px; color: red;">
+                    </button>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <form hx-post="{% url 'add_editor_to_annotation_set' annotation_set.id %}"
+          hx-target="#annotation-set-settings-compact"
+          hx-swap="outerHTML"
+          autocomplete="off"
+          style="margin-top: 0.5em;">
+        <input type="hidden" name="content_id" value="{{ content.id }}">
+        <input type="text" name="search" id="editor-search" placeholder="Search for user..." hx-post="{% url 'spoof_user_search' %}" hx-trigger="keyup changed delay:300ms" hx-target="#editor-search-results" hx-swap="innerHTML">
+        <select name="username" id="editor-search-results" size="4" required style="width: 100%; margin-top: 0.25em;">
+            <option disabled selected>Type to search for a user...</option>
+        </select>
+        <button type="submit" class="btn-primary" style="margin-top: 0.25em;">Add Editor</button>
+    </form>
+</div>

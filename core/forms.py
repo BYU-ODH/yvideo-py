@@ -46,6 +46,7 @@ class ContentForm(forms.ModelForm):
             "allow_definitions",
             "allow_notes",
             "allow_captions",
+            "file",
         ]
 
 

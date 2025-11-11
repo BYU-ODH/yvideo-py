@@ -23,24 +23,24 @@
                 </div>
             </div>
             <div class="content-actions">
-                <div class="content-action-wrapper clickable">
+                <a href="{% url 'video_editor' content.id %}" class="content-action-wrapper clickable">
                     <img src="../../../static/img/video-editor.svg">
                     <p>
                         Video Editor
                     </p>
-                </div>
+                </a>
                 <div class="content-action-wrapper clickable">
                     <img src="../../../static/img/subtitle-editor.svg">
                     <p>
                         Subtitle Editor
                     </p>
                 </div>
-                <div class="content-action-wrapper clickable">
+                <a href="{% url 'clip_editor' content.id %}" class="content-action-wrapper clickable">
                     <img src="../../../static/img/clip-manager.svg">
                     <p>
                         Clip Manager
                     </p>
-                </div>
+                </a>
             </div>
         </div>
         <div class="content-settings-form-wrapper"></div>

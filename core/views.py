@@ -1,5 +1,4 @@
 from functools import wraps
-import json
 import logging
 import mimetypes
 import os
@@ -38,6 +37,7 @@ from .models import Content
 from .models import FileKey
 from .models import ImportantWord
 from .models import MuteAnnotation
+from .models import Resource
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
@@ -46,86 +46,6 @@ from .utils import hms2seconds
 from .utils import seconds2hms
 
 logger = logging.getLogger(__name__)
-
-TOY_VTT = """WEBVTT
-
-00:00.000 --> 00:00.900
-Hildy!
-
-00:01.000 --> 00:01.400
-How are you?
-
-00:01.500 --> 00:02.900
-Tell me, is the lord of the universe in?
-
-00:03.000 --> 00:04.200
-Yes, he's in - in a bad humor
-
-00:04.300 --> 00:06.000
-Somebody must've stolen the crown jewels"""
-
-TOY_VTT2 = """WEBVTT
-
-00:00.000 --> 00:00.900
-Birds!
-
-00:01.000 --> 00:01.400
-Where are they?
-
-00:01.500 --> 00:02.900
-You don't know?
-
-00:03.000 --> 00:04.200
-Yes, but I want to know if you do.
-
-00:04.300 --> 00:06.000
-Oh, well I know too, so we don't have to say.
-
-00:06.000 --> 00:06.900
-Look outside!
-
-00:07.000 --> 00:07.900
-They're flying everywhere.
-
-00:08.000 --> 00:08.900
-Did you see the blue one?
-
-00:09.000 --> 00:12.900
-Yes, it landed on the fence.
-
-00:10.000 --> 00:10.900
-What about the red one?
-
-00:11.000 --> 00:11.900
-It was chasing the yellow.
-
-00:12.000 --> 00:12.900
-The flock is growing.
-
-00:13.000 --> 00:13.900
-They're singing loudly.
-
-00:14.000 --> 00:14.900
-Do you hear that melody?
-
-00:15.000 --> 00:15.900
-It's beautiful, isn't it?
-
-00:16.000 --> 00:16.900
-They must be happy.
-
-00:17.000 --> 00:17.900
-The sun is shining.
-
-00:18.000 --> 00:18.900
-Perfect day for birds.
-
-00:19.000 --> 00:19.900
-Let's watch them together.
-
-00:20.000 --> 00:20.900
-Maybe they'll come closer.
-"""
 
 
 def admin_or_superuser_required(view_func):
@@ -213,50 +133,28 @@ def index(request):
     return render(request, "index.html", context)
 
 
-def get_file_key(request, content):
-    """Get or create a FileKey for the given content and user."""
-    if request.user.can_view_content(content):
-        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
-        if not file_key:
-            # create a new FileKey if one doesn't exist
-            file_key = FileKey.objects.create(file=content.file, user=request.user)
-            file_key.save()
-        return file_key
-    else:
-        return None
-
-
 # @login_required  # TODO: Uncomment
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = get_file_key(request, content)
+    file_key = request.user.get_filekey(content)
     if not file_key:
         return HttpResponse(
             "User does not have permission to view this content", status=403
         )
 
-    # Prepare subtitle data in the format expected by AnnotationPlayer
-    subtitles_data = [
-        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
-        # {"srclang": "en", "url": "http://example.com/subtitles.vtt", "label": "Birds"},
-    ]
-
-    clips_data = [
-        {"start": 5, "end": 10, "label": "Sample Clip"},
-        {"start": 11, "end": 14, "label": "Another Clip"},
-        {"start": 15, "end": 20, "label": "Final Clip"},
-    ]
-    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
+    player_json = content.get_player_json()
+    has_subtitles = bool(
+        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
+    )
 
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": json.dumps([]),
-        "subtitles": json.dumps(subtitles_data),
-        "clips": json.dumps(clips_data),
+        "events": player_json["annotations"],
+        "subtitles": player_json["subtitleTracks"],
+        "clips": player_json["clips"],
         "has_subtitles": has_subtitles,
     }
 
@@ -563,10 +461,15 @@ def delete_collection(request, collection_id):
 def display_create_content(request, collection_id):
     form = ContentForm()
     collection = get_object_or_404(Collection, pk=collection_id)
+    resources = Resource.objects.all()
     return render(
         request,
         "partials/create_content.html",
-        {"form": form, "collection": collection},
+        {
+            "form": form,
+            "collection": collection,
+            "resources": resources,
+        },
     )
 
 
@@ -574,6 +477,7 @@ def display_create_content(request, collection_id):
 def create_content(request):
     collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
     form = ContentForm(request.POST)
+
     if form.is_valid():
         data = form.cleaned_data
         try:
@@ -584,6 +488,7 @@ def create_content(request):
                 allow_definitions=data["allow_definitions"],
                 allow_notes=data["allow_notes"],
                 allow_captions=data["allow_captions"],
+                file=data["file"],
             )
         except Exception as e:
             logger.error(
@@ -607,6 +512,13 @@ def create_content(request):
         return render(request, "partials/collection_contents_display.html", context)
     else:
         return HttpResponseBadRequest()
+
+
+def display_resources_files(request):
+    resource_id = request.GET.get("resource_id")
+    resource = get_object_or_404(Resource, id=resource_id)
+    files = resource.files.all()  # uses related_name="files" in File model
+    return render(request, "partials/select_file.html", {"files": files})
 
 
 @require_http_methods(["DELETE"])
@@ -1282,58 +1194,3 @@ def delete_subtitle(request, subtitle_id):
             f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
         )
         return HttpResponseServerError()
-
-
-### this method may not be needed (and is incomplete). See https://developer.mozilla.org/en-US/docs/Web/API/WebVTT_API for details on how js may already have methods to handle this.
-# def parse_vtt_file(filepath):
-#     def parse_cue_timing_line(cue_line):
-#         parsed_timing = {}
-#         components = line.strip().split(' ')
-#         start = components[0]
-#         end = components[2]
-#         has_positioning = len(components) > 3
-#         positioning = ""
-#         if has_positioning:
-#             positioning = components[3:]
-#         parsed_timing["start"] = start
-#         parsed_timing["end"] = end
-#         parsed_timing["positioning"] = positioning
-#         return parsed_timing
-
-#     with open(filepath, "r") as vtt_f:
-#         blocks = []
-#         block_index = 0
-#         is_building_entry = False
-#         for line in vtt_f:
-
-#             if line == '\n' and is_building_entry:
-#                 block_index += 1
-#                 is_building_entry = False
-#             elif line[:3] == "NOTE":
-#                 pass
-#             elif line.strip() == "STYLE":
-#                 pass
-#             # lines with content that are not NOTE, STYLE, WEBVTT and are new blocks must be cues.
-#             elif not is_building_entry and line != '\n':
-#                 blocks.append({"type": "cue", "identifier": "", "timing": {"start": "", "end": ""}, "positioning": "", "payload": []})
-#                 block = blocks[-1]
-#                 # cues can start with an identifier line or with the timing line
-#                 if "-->" in line:
-#                     timing_data = parse_cue_timing_line(line)
-#                     block["timing"]["start"] = timing_data["start"]
-#                     block["timing"]["end"] = timing_data["end"]
-#                     block["positioning"] = timing_data["positioning"]
-#                 else:
-#                     block["identifier"] = line.strip()
-#                 is_building_entry = True
-#                 continue
-#             if is_building_entry:
-#                 block = blocks[-1]
-#                 if "-->" in line:
-#                     timing_data = parse_cue_timing_line(line)
-#                     block["timing"]["start"] = timing_data["start"]
-#                     block["timing"]["end"] = timing_data["end"]
-#                     block["positioning"] = timing_data["positioning"]
-#                 else:
-#                     block["payload"].append(line.strip())
-#     return blocks

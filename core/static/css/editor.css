@@ -1,0 +1,583 @@
+:root {
+    --handle-border-white: #ffffff90;
+}
+
+/* Editor Container */
+.editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* Top Panel: Video and Form */
+.top-panel {
+    display: flex;
+    flex: 1;
+    min-height: 200px;
+    overflow: hidden;
+}
+
+/* Video Section */
+.video-section {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    background-color: #000;
+    position: relative;
+}
+
+.video-section .annotation-player-container {
+    width: 100%;
+    height: 100%;
+}
+
+/* Detail Form Section */
+.detail-form-section {
+    width: 400px;
+    overflow-y: auto;
+}
+
+@media screen and (max-width: 1367px) {
+    .detail-form-section {
+        width: 250px;
+    }
+}
+
+.detail-form {
+    padding: 1rem;
+    height: 100%;
+}
+
+.editor-detail-form-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+    font-size: 1.4rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.form-group input:focus {
+    outline: none;  /* eslint-disable-line css/use-baseline */
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.time-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.time-input-group input {
+    flex: 1;
+}
+
+.btn-set-time {
+    padding: 0.5rem 0.75rem;
+    background: #4a90e2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.btn-set-time:hover {
+    background: #357abd;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background: #4a90e2;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #357abd;
+}
+
+.btn-danger {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c0392b;
+}
+
+.error-message {
+    color: #e74c3c;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+/* Timeline Section */
+.timeline-section {
+    background-color: #fff;
+    border-top: 1px solid #ccc;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.timeline-wrapper {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* Fixed left column for labels and zoom */
+.timeline-labels-column {
+    width: 100px;
+    flex-shrink: 0;
+    background-color: #f8f9fa;
+    border-right: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.timeline-zoom-controls {
+    height: 30px;
+    padding: 5px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    border-bottom: 1px solid #ccc;
+    background-color: #f8f9fa;
+    flex-shrink: 0;
+}
+
+#timeline-layer-labels {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.layer-label-fixed {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #333;
+    padding: 0.5rem;
+    min-height: 40px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* Scrollable content area */
+.timeline-content-wrapper {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;  /* eslint-disable-line css/use-baseline */
+}
+
+.timeline-content-wrapper::-webkit-scrollbar {
+    height: 6px;
+}
+
+.timeline-content-wrapper::-webkit-scrollbar-thumb {
+    background: #999;
+    border-radius: 3px;
+}
+
+.timeline-content-wrapper::-webkit-scrollbar-track {
+    background: #f0f0f0;
+}
+
+.timeline-container {
+    --timeline-zoom: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: min-content;
+    height: 100%;
+    width: calc(100% * var(--timeline-zoom, 1));  /* eslint-disable-line css/no-invalid-properties */
+}
+
+/* Timeline Ticks Row */
+.timeline-ticks-row {
+    height: 30px;
+    border-bottom: 1px solid #ccc;
+    background-color: #fafafa;
+    flex-shrink: 0;
+}
+
+/* Timeline Ticks */
+.timeline-ticks {
+    position: relative;
+    overflow: visible;
+    cursor: pointer;
+    height: 100%;
+}
+
+.timeline-ticks-content {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    min-width: 100%;
+}
+
+.tick-marks-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-width: 100%;
+    transform: scaleX(var(--timeline-scale, 1));  /* eslint-disable-line css/no-invalid-properties */
+    transform-origin: 0 0;
+    transition: transform 0.2s ease-out;
+}
+
+.tick-mark {
+    position: absolute;
+    bottom: 0;
+    width: 1px;
+    background-color: #999;
+}
+
+.tick-mark.major {
+    height: 15px;
+    background-color: #666;
+}
+
+.tick-mark.minor {
+    height: 8px;
+    background-color: #bbb;
+}
+
+.tick-label {
+    position: absolute;
+    bottom: 16px;
+    font-size: 11px;
+    color: #333;
+    white-space: nowrap;
+    transform: translateX(-50%);
+    user-select: none;  /* eslint-disable-line css/use-baseline */
+}
+
+/* Hover Scrubber */
+.timeline-hover-scrubber {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: rgba(5, 130, 202, 0.3);
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+}
+
+.timeline-hover-scrubber::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    background: rgba(5, 130, 202, 0.5);
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.timeline-ticks:hover .timeline-hover-scrubber {
+    opacity: 1;
+}
+
+.timeline-ticks.dragging .timeline-hover-scrubber {
+    opacity: 0;
+}
+
+/* Layer - Simplified Layout */
+.layer {
+    min-height: 40px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+}
+
+.layer-content {
+    position: relative;
+    background-color: #fafafa;
+    min-height: 40px;
+    overflow: visible;
+    flex: 1;
+    width: 100%;
+}
+
+/* Layer Items */
+.layer-item {
+    position: absolute;
+    height: 30px;
+    background: #4a90e2;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    user-select: none; /* eslint-disable-line css/use-baseline */
+}
+
+.layer-item:hover {
+    background: #357abd;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Use CSS :has() selector to detect when form is loaded for this item */
+.layer-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
+#detail-form:has([data-clip-id]) ~ .layer-items .layer-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
+    background: #2a5f8f;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2a5f8f;
+}
+
+.layer-item.dragging {
+    opacity: 0.8;
+    z-index: 50;
+}
+
+.layer-item:focus {
+    outline: 2px solid #357abd;  /* eslint-disable-line css/use-baseline */
+    outline-offset: 2px;
+}
+
+/* Resize Handles */
+.resize-handle {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+    width: 14px;
+    flex-shrink: 0;
+    cursor: ew-resize;
+    transition: background 0.2s;
+    pointer-events: auto;
+}
+
+.resize-handle:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.resize-handle-left {
+    left: 0;
+    border-radius: 4px 0 0 4px;
+    border-right: 1px solid var(--handle-border-white);
+}
+
+.resize-handle-right {
+    right: 0;
+    border-radius: 0 4px 4px 0;
+    border-left: 1px solid var(--handle-border-white);
+}
+
+.resize-handle-indicator {
+    background-color: white;
+    height: 60%;
+    width: 2px;
+    margin: 0 auto;
+    border-radius: 8px;
+}
+
+.layer-item-content {
+    flex: 1;
+    overflow: hidden;
+    pointer-events: none;
+    min-width: 0;
+}
+
+.layer-item-label {
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Editor Scrubber */
+.editor-scrubber {
+    position: absolute;
+    left: var(--scrubber-position, 0%);
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #0582ca;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.editor-scrubber::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    background: #0582ca;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Resizers */
+.resizer {
+    background-color: #e0e0e0;
+    position: relative;
+    z-index: 10;
+}
+
+.resizer:hover {
+    background-color: #0582ca;
+}
+
+.resizer:active {
+    background-color: #046ba5;
+}
+
+/* Vertical resizer (between video and form) */
+#resizer-vertical {
+    width: 4px;
+    cursor: ew-resize;
+    flex-shrink: 0;
+}
+
+/* Horizontal resizer (between top panel and timeline) */
+#resizer-horizontal {
+    height: 4px;
+    cursor: ns-resize;
+    flex-shrink: 0;
+}
+
+/* Prevent text selection during resize */
+body.resizing {
+    user-select: none;  /* eslint-disable-line css/use-baseline */
+    cursor: inherit;
+}
+
+body.resizing-horizontal {
+    cursor: ew-resize;
+}
+
+body.resizing-vertical {
+    cursor: ns-resize;
+}
+
+/* Prevent text selection during drag */
+body.dragging,
+body.resizing {
+    user-select: none;  /* eslint-disable-line css/use-baseline */
+    cursor: inherit;
+}
+
+body.dragging-item {
+    cursor: move;
+}
+
+body.resizing-item {
+    cursor: ew-resize;
+}
+
+/* Ownership Info Message */
+.info-message {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.info-message p {
+    margin: 0;
+    color: #1565c0;
+    font-size: 0.9rem;
+}
+
+.info-message strong {
+    font-weight: 600;
+}
+
+.zoom-label {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 2px;
+    text-align: center;
+}
+
+.zoom-slider {
+    width: 100%;
+    height: 4px;
+    background: #ddd;
+    outline: none;  /* eslint-disable-line css/use-baseline */
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #0582ca;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.zoom-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: #0582ca;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+}
+
+/* Remove individual scrollbars */
+.timeline-ticks::-webkit-scrollbar,
+.layer-content::-webkit-scrollbar {
+    display: none;
+}
