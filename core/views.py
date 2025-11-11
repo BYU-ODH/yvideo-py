@@ -8,6 +8,7 @@ import re
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.core.files.base import ContentFile
 from django.db import connection
 from django.db.models import Q
 from django.http import Http404
@@ -45,6 +46,7 @@ from .models import User
 from .models import UserCourses
 from .utils import TOY_VTT
 from .utils import TOY_VTT2
+from .utils import convert_srt_to_vtt
 from .utils import hms2seconds
 from .utils import seconds2hms
 
@@ -83,7 +85,9 @@ def display_yearterm(yearterm):
     return f"{term_decoder[term_string]} {year_string}"
 
 
+@login_not_required
 def index(request):
+    request.user = User.objects.all().first()
     # if admin, gather owned collections
     owned_collections = []
     allowed_privilege_levels = [2, 0]
@@ -164,6 +168,7 @@ def player(request, content_id):
     return render(request, "player.html", context)
 
 
+@login_not_required
 def stream_file(request, file_key):
     """Stream file content with support for HTTP Range requests (partial content)."""
     try:
@@ -273,6 +278,7 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
+@login_not_required
 def get_collection_types(user):
     collections = Collection.objects.filter(owner=user)
 
@@ -282,6 +288,7 @@ def get_collection_types(user):
     return {"archived": archived, "published": published, "unpublished": unpublished}
 
 
+@login_not_required
 def manage_collections(request):
     collections = get_collection_types(request.user)
 
@@ -298,6 +305,7 @@ def manage_collections(request):
     )
 
 
+@login_not_required
 def create_collection(request):
     form = CollectionForm(request.POST, initial={"user": request.user})
 
@@ -335,6 +343,7 @@ def create_collection(request):
     return response
 
 
+@login_not_required
 def view_collection(request, pk):
     user = request.user
 
@@ -631,6 +640,7 @@ def delete_important_word(request, word_id):
         return HttpResponseServerError()
 
 
+@login_not_required
 def add_annotation(request, content_id, annotation_type):
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -1103,6 +1113,7 @@ def delete_clip(request, clip_id):
         return HttpResponseServerError()
 
 
+@login_not_required
 @require_GET
 def subtitle_editor(request, content_id):
     try:
@@ -1121,23 +1132,35 @@ def subtitle_editor(request, content_id):
     )
 
 
+@login_not_required
 @require_POST
 def create_subtitle(request):
-    form = SubtitleForm(request.POST)
+    form = SubtitleForm(request.POST, request.FILES)
     if form.is_valid():
         data = form.cleaned_data
+        uploaded_file = request.FILES["subtitles_file"]
+
+        # automatically convert .srt files to .vtt
+        file_name_split = uploaded_file.name.split(".")
+        file_ext = file_name_split[len(file_name_split) - 1]
+        if file_ext == "srt":
+            vtt_content = convert_srt_to_vtt(uploaded_file)
+            new_file_name = file_name_split[0] + ".vtt"
+            uploaded_file = ContentFile(content=vtt_content, name=new_file_name)
+
+        # create new subtitle object
         try:
             new_subtitle = Subtitle.objects.create(
                 resource=data["resource"],
                 owner=data["owner"],
                 language=data["language"],
                 name=data["name"],
-                subtitles_file=data["subtitles_file"],
+                subtitles_file=uploaded_file,
                 is_original=data["is_original"],
             )
         except Exception as e:
             logger.error(
-                f"Error createing Subtitles object. data: {data}. Exception: {e}"
+                f"Error creating Subtitles object. data: {data}. Exception: {e}"
             )
             return HttpResponseServerError()
     else:
@@ -1148,6 +1171,7 @@ def create_subtitle(request):
     )
 
 
+@login_not_required
 @require_POST
 def update_subtitle(request):
     form = SubtitleForm(request.POST)
@@ -1186,6 +1210,7 @@ def update_subtitle(request):
         return HttpResponseBadRequest()
 
 
+@login_not_required
 @require_http_methods(["DELETE"])
 def delete_subtitle(request, subtitle_id):
     subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)

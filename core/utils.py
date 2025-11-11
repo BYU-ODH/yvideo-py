@@ -20,16 +20,12 @@ def seconds2hms(seconds):
     return f"{hours}:{minutes:02}:{secs:05.2f}"
 
 
-def convert_srt_to_vtt(srt_file_path):
-    new_file_path = srt_file_path.replace(".srt", ".vtt")
-
+def convert_srt_to_vtt(srt_file):
     def swap_comma_for_period(match):
         return match[0].replace(",", ".")
 
-    with open(new_file_path, "w") as vtt_file:
-        vtt_file.write("WEBVTT\n\n")
-        with open(srt_file_path) as srt_file:
-            vtt_file.write(sub(r",[0-9]{3}", swap_comma_for_period, srt_file.read()))
+    with open(srt_file) as srt_file:
+        return "WEBVTT\n\n" + sub(r",[0-9]{3}", swap_comma_for_period, srt_file.read())
 
 
 # TODO : Remove these toy VTTs after testing is complete
