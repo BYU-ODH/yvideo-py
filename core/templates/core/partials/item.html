@@ -1,0 +1,61 @@
+<div class="layer-item elevated"
+     id="{{ item_type }}-{{ instance.id }}"
+     style="left: {{ position.left }}; width: {{ position.width }};"
+     data-item-id="{{ instance.id }}"
+     data-item-type="{{ item_type }}"
+     data-start="{{ position.start }}"
+     data-end="{{ position.end }}"
+     data-label="{{ instance.name }}"
+     data-original-left="{{ position.left }}"
+     data-original-width="{{ position.width }}"
+     data-delta-left="0"
+     data-delta-width="0"
+     tabindex="0"
+     onmousedown="elevateFromSiblings(this)">
+
+    <div class="resize-handle resize-handle-left"
+         hx-post="{% url update_url item_type instance.id %}"
+         hx-trigger="click"
+         hx-vals='js:{
+           delta_left: document.getElementById("{{ item_type }}-{{ instance.id }}").dataset.deltaLeft,
+           delta_width: document.getElementById("{{ item_type }}-{{ instance.id }}").dataset.deltaWidth,
+           name: document.querySelector("#item-form-{{ instance.id }} [name=name]")?.value || "{{ instance.name }}",
+           content_id: {{ content.id }}
+         }'
+         hx-target="#{{ item_type }}-{{ instance.id }}"
+         hx-swap="outerHTML">
+         <div class="resize-handle-indicator indicator-left"></div>
+     </div>
+
+    <div class="layer-item-content"
+         hx-get="{% url load_form_url item_type instance.id %}?content_id={{ content.id }}"
+         hx-trigger="layer-item-click"
+         hx-target="#detail-form"
+         hx-swap="innerHTML">
+        <span class="layer-item-label">{{ instance.name }}</span>
+    </div>
+
+    {% if item_type != "pause"%}
+    <div class="resize-handle resize-handle-right"
+         hx-post="{% url update_url item_type instance.id %}"
+         hx-trigger="click"
+         hx-vals='js:{
+           delta_left: document.getElementById("{{ item_type }}-{{ instance.id }}").dataset.deltaLeft,
+           delta_width: document.getElementById("{{ item_type }}-{{ instance.id }}").dataset.deltaWidth,
+           name: document.querySelector("#item-form-{{ instance.id }} [name=name]")?.value || "{{ instance.name }}",
+           content_id: {{ content.id }}
+         }'
+         hx-target="#{{ item_type }}-{{ instance.id }}"
+         hx-swap="outerHTML">
+          <div class="resize-handle-indicator indicator-right"></div>
+     </div>
+     {% endif %}
+
+     <form id="item-form-{{ instance.id }}" style="display: none;">
+          {% csrf_token %}
+          <input type="hidden" name="name" value="{{ instance.name }}">
+          <input type="hidden" name="start_time" value="{{ instance.start_time }}">
+          <input type="hidden" name="end_time" value="{{ instance.end_time }}">
+          <input type="hidden" name="content_id" value="{{ content.id }}">
+     </form>
+</div>

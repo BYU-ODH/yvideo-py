@@ -1,0 +1,955 @@
+import json
+
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.shortcuts import render
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_POST
+
+from .models import AnnotationSet
+from .models import BlankAnnotation
+from .models import BlurAnnotation
+from .models import CommentAnnotation
+from .models import Content
+from .models import MuteAnnotation
+from .models import PauseAnnotation
+from .models import SkipAnnotation
+from .models import User
+
+# Map annotation type strings to model classes
+ANNOTATION_MODELS = {
+    "skip": SkipAnnotation,
+    "mute": MuteAnnotation,
+    "blank": BlankAnnotation,
+    "pause": PauseAnnotation,
+    "censor": BlurAnnotation,
+    "comment": CommentAnnotation,
+}
+
+
+@require_GET
+@login_required
+def video_editor(request, content_id):
+    """Main video editor page."""
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check if user can view this content
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    # Get available annotation sets
+    available_sets = content.get_available_annotation_sets()
+
+    # Determine if user can edit the active annotation set
+    active_set = content.annotation_set
+    can_edit = active_set.can_edit(request.user) if active_set else True
+
+    can_edit_annotation_set = active_set is not None and (
+        active_set.owner == request.user or request.user.is_admin
+    )
+
+    # Get video duration
+    duration = content.duration if hasattr(content, "duration") else 0
+
+    # Get file key for video streaming
+    file_key = request.user.get_filekey(content)
+
+    # Prepare subtitles (TODO: get from content)
+    subtitles_data = []
+    has_subtitles = False
+
+    # Get JSON data from model methods
+    player_json = json.dumps(content.get_player_json(), indent=2)
+
+    # Prepare layer data for timeline
+    layers_list = []
+    layers_dict = {}
+
+    for type_name, model_class in ANNOTATION_MODELS.items():
+        layer_items = []
+        if active_set:
+            annotations = model_class.objects.filter(
+                annotation_set=active_set, active=True
+            ).order_by("start_time")
+
+            for annotation in annotations:
+                start_time = annotation.start_time
+                end_time = getattr(annotation, "end_time", start_time)
+                start_percent = (start_time / duration * 100) if duration > 0 else 0
+                width_percent = (
+                    ((end_time - start_time) / duration * 100) if duration > 0 else 0
+                )
+
+                layer_items.append(
+                    {
+                        "template": "partials/item.html",
+                        "instance": annotation,
+                        "content": content,
+                        "item_type": type_name,
+                        "update_url": "update_annotation",
+                        "load_form_url": "load_annotation_form",
+                        "position": {
+                            "left": f"{start_percent:.2f}%",
+                            "width": f"{width_percent:.2f}%",
+                            "start": start_time,
+                            "end": end_time,
+                        },
+                    }
+                )
+
+        # Add to list (for timeline_layers.html)
+        layers_list.append(
+            {
+                "type": type_name,
+                "label": type_name.title(),
+                "can_edit": can_edit,
+                "items": layer_items,
+                "add_button": {
+                    "post_url": reverse(
+                        "create_annotation", args=[type_name, content_id]
+                    ),
+                    "vals": "js:...getNewItemStartEndTimes()",
+                    "swap": "none",
+                    "title": f"Add new {type_name} annotation",
+                }
+                if can_edit
+                else None,
+            }
+        )
+
+        # Add to dict (for timeline_base.html)
+        layers_dict[type_name] = {
+            "display_name": type_name.title(),
+            "can_add": can_edit,
+            "add_form_url": "create_annotation",
+        }
+
+    context = {
+        "content": content,
+        "file_key": file_key.id if file_key else None,
+        "allow_events": True,
+        "events": json.dumps([]),
+        "subtitles": json.dumps(subtitles_data),
+        "player_json": player_json,
+        "has_subtitles": has_subtitles,
+        "available_annotation_sets": available_sets,
+        "annotation_set": active_set,
+        "can_edit": can_edit,
+        "can_edit_annotation_set": can_edit_annotation_set,
+        "duration": duration,
+        "layers": layers_dict,  # For timeline_base.html label column
+        "layers_list": layers_list,  # For timeline_layers.html content
+    }
+
+    return render(request, "core/video_editor.html", context)
+
+
+@login_required
+def load_annotation_set_form(request, content_id):
+    """Load the annotation set selection form."""
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    annotation_set = content.annotation_set
+
+    can_edit = annotation_set.can_edit(request.user) if annotation_set else True
+
+    can_edit_annotation_set = annotation_set is not None and (
+        annotation_set.owner == request.user or request.user.is_admin
+    )
+
+    form_html = render_to_string(
+        "core/partials/annotation_set_form.html",
+        {
+            "content": content,
+            "annotation_set": annotation_set,
+            "can_edit": can_edit,
+            "can_edit_annotation_set": can_edit_annotation_set,
+            "available_annotation_sets": content.get_available_annotation_sets(),
+        },
+        request=request,
+    )
+
+    return HttpResponse(form_html)
+
+
+@require_POST
+@login_required
+def select_annotation_set(request, content_id):
+    """Switch the active AnnotationSet for a content."""
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    annotation_set_id = request.POST.get("annotation_set_id")
+
+    if annotation_set_id == "new":
+        annotation_set = AnnotationSet.create_for_content(content, request.user)
+    elif annotation_set_id:
+        annotation_set = get_object_or_404(
+            AnnotationSet, id=annotation_set_id, resource=content.file.resource
+        )
+        if not annotation_set.can_be_viewed_by(request.user):
+            return HttpResponse("Unauthorized", status=403)
+    else:
+        annotation_set = None
+
+    content.annotation_set = annotation_set
+    content.save()
+
+    can_edit = annotation_set.can_edit(request.user) if annotation_set else True
+
+    can_edit_annotation_set = annotation_set is not None and (
+        annotation_set.owner == request.user or request.user.is_admin
+    )
+
+    form_html = render_to_string(
+        "core/partials/annotation_set_form.html",
+        {
+            "content": content,
+            "annotation_set": annotation_set,
+            "can_edit": can_edit,
+            "can_edit_annotation_set": can_edit_annotation_set,
+            "available_annotation_sets": content.get_available_annotation_sets(),
+        },
+        request=request,
+    )
+
+    # Prepare layers for timeline rendering (matching clip editor structure)
+    layers = []
+    duration = content.duration if hasattr(content, "duration") else 0
+    for type_name, model_class in ANNOTATION_MODELS.items():
+        layer_items = []
+        if annotation_set:
+            annotations = model_class.objects.filter(
+                annotation_set=annotation_set, active=True
+            ).order_by("start_time")
+            for annotation in annotations:
+                start_time = annotation.start_time
+                end_time = getattr(annotation, "end_time", start_time)
+                start_percent = (start_time / duration * 100) if duration > 0 else 0
+                width_percent = (
+                    ((end_time - start_time) / duration * 100) if duration > 0 else 0
+                )
+                layer_items.append(
+                    {
+                        "template": "partials/item.html",
+                        "instance": annotation,
+                        "content": content,
+                        "item_type": type_name,
+                        "update_url": "update_annotation",
+                        "load_form_url": "load_annotation_form",
+                        "position": {
+                            "left": f"{start_percent:.2f}%",
+                            "width": f"{width_percent:.2f}%",
+                            "start": start_time,
+                            "end": end_time,
+                        },
+                    }
+                )
+        layers.append(
+            {
+                "type": type_name,
+                "label": type_name.title(),
+                "can_edit": can_edit,
+                "items": layer_items,
+                "add_button": {
+                    "post_url": reverse(
+                        "create_annotation", args=[type_name, content_id]
+                    ),
+                    "vals": "js:...getNewItemStartEndTimes()",
+                    "swap": "none",
+                    "title": f"Add new {type_name} annotation",
+                }
+                if can_edit
+                else None,
+            }
+        )
+
+    # Render timeline using shared partial
+    timeline_html = render_to_string(
+        "core/partials/timeline_layers.html", {"layers": layers}, request=request
+    )
+
+    # Get JSON from model method
+    player_json = json.dumps(content.get_player_json(), indent=2)
+    json_html = render_to_string(
+        "partials/player_json_oob.html", {"player_json": player_json}, request=request
+    )
+
+    return HttpResponse(
+        f'<div hx-swap-oob="innerHTML:#annotation-set-form-wrapper">{form_html}</div>'
+        f'<div hx-swap-oob="innerHTML:#annotation-timeline">{timeline_html}</div>'
+        f"{json_html}"
+    )
+
+
+@require_POST
+@login_required
+def undo_annotation(request, content_id):
+    """Undo the last annotation edit for a specific annotation."""
+    content = get_object_or_404(Content, id=content_id)
+    annotation_set = content.annotation_set
+
+    if not annotation_set:
+        return HttpResponse("No active annotation set", status=400)
+
+    # Check edit permissions
+    if not annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
+    # Get both annotation ID and type from POST data
+    annotation_id = request.POST.get("annotation_id")
+    annotation_type = request.POST.get("annotation_type")
+
+    if not annotation_id or not annotation_type:
+        return HttpResponse("No annotation_id or annotation_type provided", status=400)
+
+    # Use annotation_type to get the correct model
+    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
+    if not model_class:
+        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
+
+    try:
+        annotation = model_class.objects.get(id=annotation_id, active=True)
+    except model_class.DoesNotExist:
+        return HttpResponse("Annotation not found or inactive", status=404)
+
+    # Perform undo on this specific annotation
+    prev_version = annotation.undo()
+    if not prev_version:
+        return HttpResponse("Nothing to undo for this annotation", status=400)
+
+    # Prepare layers for timeline rendering
+    layers = []
+    for type_name, model_class in ANNOTATION_MODELS.items():
+        items = []
+        if annotation_set:
+            annotations = model_class.objects.filter(
+                annotation_set=annotation_set, active=True
+            ).order_by("start_time")
+            for annotation in annotations:
+                start_time = annotation.start_time
+                end_time = getattr(annotation, "end_time", start_time)
+                start_percent = (
+                    (start_time / content.duration * 100) if content.duration > 0 else 0
+                )
+                width_percent = (
+                    ((end_time - start_time) / content.duration * 100)
+                    if content.duration > 0
+                    else 0
+                )
+                items.append(
+                    {
+                        "template": "core/partials/item.html",
+                        "annotation": annotation,
+                        "content": content,
+                        "type": type_name,
+                        "can_edit": True,
+                        "position": {
+                            "left": f"{start_percent:.2f}%",
+                            "width": f"{width_percent:.2f}%",
+                            "start": start_time,
+                            "end": end_time,
+                        },
+                    }
+                )
+        layers.append(
+            {
+                "type": type_name,
+                "label": type_name.title(),
+                "can_edit": True,
+                "items": items,
+                "add_button": {
+                    "url": f"/content/{content_id}/annotations/create/{type_name}/",
+                    "target": "#annotation-form-wrapper",
+                    "swap": "innerHTML",
+                    "title": f"Add new {type_name} annotation",
+                    "vals": "js:...getNewItemStartEndTimes()",
+                },
+            }
+        )
+
+    # Re-render timeline with updated active annotations using shared partial
+    timeline_html = render_to_string(
+        "core/partials/timeline_layers.html",
+        {
+            "layers": layers,
+        },
+        request=request,
+    )
+
+    json_html = render_to_string(
+        "partials/player_json_oob.html",
+        {"player_json": json.dumps(content.get_player_json(), indent=2)},
+        request=request,
+    )
+
+    return HttpResponse(
+        f'<div hx-swap-oob="innerHTML:#annotation-timeline">{timeline_html}</div>'
+        f"{json_html}"
+    )
+
+
+@require_POST
+@login_required
+def redo_annotation(request, content_id):
+    """Redo the last undone annotation edit for a specific annotation."""
+    content = get_object_or_404(Content, id=content_id)
+    annotation_set = content.annotation_set
+
+    if not annotation_set:
+        return HttpResponse("No active annotation set", status=400)
+
+    # Check edit permissions
+    if not annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
+    # Get both annotation ID and type from POST data
+    annotation_id = request.POST.get("annotation_id")
+    annotation_type = request.POST.get("annotation_type")
+
+    if not annotation_id or not annotation_type:
+        return HttpResponse("No annotation_id or annotation_type provided", status=400)
+
+    # Use annotation_type to get the correct model
+    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
+    if not model_class:
+        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
+
+    try:
+        annotation = model_class.objects.get(id=annotation_id)
+    except model_class.DoesNotExist:
+        return HttpResponse("Annotation not found", status=404)
+
+    # Perform redo on this specific annotation
+    next_version = annotation.redo()
+    if not next_version:
+        return HttpResponse("Nothing to redo for this annotation", status=400)
+
+    # Prepare layers for timeline rendering
+    layers = []
+    for type_name, model_class in ANNOTATION_MODELS.items():
+        items = []
+        if annotation_set:
+            annotations = model_class.objects.filter(
+                annotation_set=annotation_set, active=True
+            ).order_by("start_time")
+            for annotation in annotations:
+                start_time = annotation.start_time
+                end_time = getattr(annotation, "end_time", start_time)
+                start_percent = (
+                    (start_time / content.duration * 100) if content.duration > 0 else 0
+                )
+                width_percent = (
+                    ((end_time - start_time) / content.duration * 100)
+                    if content.duration > 0
+                    else 0
+                )
+                items.append(
+                    {
+                        "template": "core/partials/item.html",
+                        "annotation": annotation,
+                        "content": content,
+                        "type": type_name,
+                        "can_edit": True,
+                        "position": {
+                            "left": f"{start_percent:.2f}%",
+                            "width": f"{width_percent:.2f}%",
+                            "start": start_time,
+                            "end": end_time,
+                        },
+                    }
+                )
+        layers.append(
+            {
+                "type": type_name,
+                "label": type_name.title(),
+                "can_edit": True,
+                "items": items,
+                "add_button": {
+                    "url": f"/content/{content_id}/annotations/create/{type_name}/",
+                    "target": "#annotation-form-wrapper",
+                    "swap": "innerHTML",
+                    "title": f"Add new {type_name} annotation",
+                    "vals": "js:...getNewItemStartEndTimes()",
+                },
+            }
+        )
+
+    # Re-render timeline with updated active annotations using shared partial
+    timeline_html = render_to_string(
+        "core/partials/timeline_layers.html",
+        {
+            "layers": layers,
+        },
+        request=request,
+    )
+
+    # Get JSON from model method
+    json_html = render_to_string(
+        "partials/player_json_oob.html",
+        {"player_json": json.dumps(content.get_player_json(), indent=2)},
+        request=request,
+    )
+
+    return HttpResponse(
+        f'<div hx-swap-oob="innerHTML:#annotation-timeline">{timeline_html}</div>'
+        f"{json_html}"
+    )
+
+
+@require_POST
+@login_required
+def add_editor_to_annotation_set(request, annotation_set_id):
+    """Add a user as an editor to an AnnotationSet."""
+    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+
+    # Only owner can add editors
+    if request.user != annotation_set.owner:
+        return HttpResponse("Unauthorized", status=403)
+
+    username = request.POST.get("username")
+    user = get_object_or_404(User, username=username)
+
+    annotation_set.editors.add(user)
+
+    # Re-render annotation set form with updated editors
+    content_id = request.POST.get("content_id")
+    content = get_object_or_404(Content, id=content_id)
+
+    form_html = render_to_string(
+        "core/partials/annotation_set_form.html",
+        {
+            "content": content,
+            "annotation_set": annotation_set,
+            "can_edit": True,
+            "available_annotation_sets": content.get_available_annotation_sets(),
+        },
+        request=request,
+    )
+
+    return HttpResponse(form_html)
+
+
+@require_http_methods(["DELETE"])
+@login_required
+def remove_editor_from_annotation_set(request, annotation_set_id, user_id):
+    """Remove a user as an editor from an AnnotationSet."""
+    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+
+    # Only owner can remove editors
+    if request.user != annotation_set.owner:
+        return HttpResponse("Unauthorized", status=403)
+
+    user = get_object_or_404(User, id=user_id)
+    annotation_set.editors.remove(user)
+
+    # Re-render annotation set form
+    content_id = request.GET.get("content_id")
+    content = get_object_or_404(Content, id=content_id)
+
+    form_html = render_to_string(
+        "core/partials/annotation_set_form.html",
+        {
+            "content": content,
+            "annotation_set": annotation_set,
+            "can_edit": True,
+            "available_annotation_sets": content.get_available_annotation_sets(),
+        },
+        request=request,
+    )
+
+    return HttpResponse(form_html)
+
+
+@require_POST
+@login_required
+@transaction.atomic
+def create_annotation(request, annotation_type, content_id):
+    """Create annotation in the active AnnotationSet."""
+    content = get_object_or_404(Content, id=content_id)
+
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    annotation_set = content.annotation_set
+    if not annotation_set:
+        return HttpResponse("No active AnnotationSet", status=400)
+
+    if not annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
+    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
+    if not model_class:
+        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
+
+    start_time = float(request.POST.get("start_time", 0))
+    end_time = (
+        float(request.POST.get("end_time", 0))
+        if annotation_type != "pause"
+        else start_time
+    )
+
+    data = {
+        "annotation_set": annotation_set,
+        "owner": request.user,
+        "name": f"{annotation_type.title()} {model_class.objects.filter(annotation_set=annotation_set).count() + 1}",
+        "start_time": start_time,
+        "active": True,
+        "prev": None,
+        "next": None,
+    }
+
+    if annotation_type != "pause":
+        data["end_time"] = end_time
+
+    if annotation_type == "censor":
+        data["positions"] = {}
+    elif annotation_type == "comment":
+        data.update({"text": "", "x": 50.0, "y": 50.0})
+    elif annotation_type == "pause":
+        data["message"] = ""
+    elif annotation_type == "blank":
+        data["type"] = "k"
+
+    annotation = model_class.objects.create(**data)
+
+    # Calculate position
+    duration = content.duration if hasattr(content, "duration") else 0
+    start_percent = (start_time / duration * 100) if duration > 0 else 0
+    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
+
+    position = {
+        "left": f"{start_percent:.2f}%",
+        "width": f"{width_percent:.2f}%",
+        "start": start_time,
+        "end": end_time,
+    }
+
+    # Render item using shared partial
+    item_html = render_to_string(
+        "partials/item.html",
+        {
+            "instance": annotation,
+            "content": content,
+            "item_type": annotation_type,
+            "update_url": "update_annotation",
+            "load_form_url": "load_annotation_form",
+            "position": position,
+        },
+        request=request,
+    )
+
+    # Render JSON OOB update
+    json_html = render_to_string(
+        "partials/player_json_oob.html",
+        {"player_json": json.dumps(content.get_player_json(), indent=2)},
+        request=request,
+    )
+
+    return HttpResponse(
+        f'<div hx-swap-oob="beforeend:.layer-items.{annotation_type}">{item_html}</div>'
+        f"{json_html}"
+    )
+
+
+@require_POST
+@login_required
+@transaction.atomic
+def update_annotation(request, annotation_type, annotation_id):
+    """Update annotation by creating a new version in the linked list."""
+    # Use the annotation_type parameter to get the correct model
+    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
+    if not model_class:
+        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
+
+    try:
+        annotation = model_class.objects.get(id=annotation_id, active=True)
+    except model_class.DoesNotExist:
+        return HttpResponse("Annotation not found or inactive", status=404)
+
+    content_id = request.POST.get("content_id")
+    content = get_object_or_404(Content, id=content_id)
+
+    if not annotation.annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
+    # Check if this is a delta-based update (from drag/resize)
+    delta_left = request.POST.get("delta_left")
+    delta_width = request.POST.get("delta_width")
+    duration = content.duration if hasattr(content, "duration") else 0
+
+    update_fields = {}
+
+    if delta_left is not None or delta_width is not None:
+        # Delta-based update from drag/resize
+        start_time = annotation.start_time
+        end_time = (
+            getattr(annotation, "end_time", start_time)
+            if annotation_type != "pause"
+            else start_time
+        )
+
+        current_left = (start_time / duration * 100) if duration > 0 else 0
+        current_width = (
+            ((end_time - start_time) / duration * 100)
+            if duration > 0 and annotation_type != "pause"
+            else 0
+        )
+
+        delta_left_float = float(delta_left) if delta_left else 0
+        delta_width_float = float(delta_width) if delta_width else 0
+
+        new_left = current_left + delta_left_float
+        new_width = current_width + delta_width_float
+
+        new_start = (new_left / 100) * duration
+        update_fields["start_time"] = new_start
+
+        if annotation_type != "pause":
+            new_end = ((new_left + new_width) / 100) * duration
+            if new_start < 0 or new_end > duration or new_start >= new_end:
+                return HttpResponse("Invalid annotation position", status=400)
+            update_fields["end_time"] = new_end
+        else:
+            if new_start < 0 or new_start > duration:
+                return HttpResponse("Invalid annotation position", status=400)
+    else:
+        # Form-based update
+        update_fields = {
+            "name": request.POST.get("name", annotation.name),
+            "start_time": float(request.POST.get("start_time", annotation.start_time)),
+        }
+
+        if annotation_type != "pause":
+            update_fields["end_time"] = float(
+                request.POST.get("end_time", annotation.end_time)
+            )
+
+        if annotation_type == "censor":
+            positions_json = request.POST.get("positions")
+            if positions_json:
+                positions = json.loads(positions_json)
+                is_valid, error = BlurAnnotation.validate_positions(positions)
+                if not is_valid:
+                    return HttpResponse(error, status=400)
+                update_fields["positions"] = positions
+        elif annotation_type == "comment":
+            update_fields["text"] = request.POST.get("text", annotation.text)
+            x = request.POST.get("x")
+            y = request.POST.get("y")
+            if x is not None:
+                update_fields["x"] = float(x)
+            if y is not None:
+                update_fields["y"] = float(y)
+        elif annotation_type == "pause":
+            update_fields["message"] = request.POST.get("message", annotation.message)
+        elif annotation_type == "blank":
+            update_fields["type"] = request.POST.get("blank_type", annotation.type)
+
+    new_annotation = annotation.edit(**update_fields)
+
+    # Update the data-label attribute on the element
+    new_annotation.refresh_from_db()
+
+    # Calculate new position
+    start_time = new_annotation.start_time
+    end_time = getattr(new_annotation, "end_time", start_time)
+    start_percent = (start_time / duration * 100) if duration > 0 else 0
+    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
+
+    position = {
+        "left": f"{start_percent:.2f}%",
+        "width": f"{width_percent:.2f}%",
+        "start": start_time,
+        "end": end_time,
+    }
+
+    # Render updated item
+    item_html = render_to_string(
+        "partials/item.html",
+        {
+            "instance": new_annotation,
+            "content": content,
+            "item_type": annotation_type,
+            "update_url": "update_annotation",
+            "load_form_url": "load_annotation_form",
+            "position": position,
+        },
+        request=request,
+    )
+
+    json_html = render_to_string(
+        "partials/player_json_oob.html",
+        {"player_json": json.dumps(content.get_player_json(), indent=2)},
+        request=request,
+    )
+
+    # Render updated form with OOB swap
+    form_content = render_to_string(
+        "core/partials/annotation_form.html",
+        {
+            "instance": new_annotation,
+            "content": content,
+            "can_edit": True,
+            "item_type": annotation_type,
+            "item_type_label": annotation_type.title(),
+            "update_url": "update_annotation",
+            "delete_url": "delete_annotation",
+            "start_seconds": start_time,
+            "end_seconds": end_time,
+        },
+        request=request,
+    )
+    form_html = f'<div hx-swap-oob="innerHTML:#detail-form">{form_content}</div>'
+
+    return HttpResponse(
+        f"<div hx-swap-oob=\"outerHTML:[data-item-id='{annotation.id}']\">{item_html}</div>"
+        f"{form_html}"
+        f"{json_html}"
+    )
+
+
+@require_http_methods(["DELETE"])
+@login_required
+@transaction.atomic
+def delete_annotation(request, annotation_type, annotation_id):
+    """Delete annotation by marking it inactive."""
+    # Use the annotation_type parameter to get the correct model
+    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
+    if not model_class:
+        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
+
+    try:
+        annotation = model_class.objects.get(id=annotation_id, active=True)
+    except model_class.DoesNotExist:
+        return HttpResponse("Annotation not found or inactive", status=404)
+
+    # Check edit permissions
+    if not annotation.annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
+    content_id = request.GET.get("content_id")
+    content = Content.objects.get(id=content_id)
+
+    # Use delete_with_history() to preserve undo capability
+    annotation.delete_with_history()
+
+    json_html = render_to_string(
+        "partials/player_json_oob.html",
+        {"player_json": json.dumps(content.get_player_json(), indent=2)},
+        request=request,
+    )
+
+    return HttpResponse(json_html)
+
+
+@require_GET
+@login_required
+def load_annotation_form(request, annotation_type, annotation_id):
+    """Load form for editing an annotation."""
+    # Use the annotation_type parameter to get the correct model
+    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
+    if not model_class:
+        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
+
+    try:
+        annotation = model_class.objects.get(id=annotation_id, active=True)
+    except model_class.DoesNotExist:
+        return HttpResponse("Annotation not found or inactive", status=404)
+
+    content_id = request.GET.get("content_id")
+    content = get_object_or_404(Content, id=content_id)
+
+    can_edit = annotation.annotation_set.can_edit(request.user)
+
+    start_seconds = annotation.start_time
+    end_seconds = getattr(annotation, "end_time", start_seconds)
+
+    form_html = render_to_string(
+        "partials/annotation_form.html",
+        {
+            "instance": annotation,
+            "content": content,
+            "can_edit": can_edit,
+            "item_type": annotation_type,
+            "item_type_label": annotation_type.title(),
+            "update_url": "update_annotation",
+            "delete_url": "delete_annotation",
+            "start_seconds": start_seconds,
+            "end_seconds": end_seconds,
+        },
+        request=request,
+    )
+
+    return HttpResponse(form_html)
+
+
+@require_GET
+def create_annotation_form(request, content_id, annotation_type):
+    """Load blank form for creating a new annotation."""
+    # This view is no longer needed since we create annotations directly
+    # But keeping it for backward compatibility if any links still reference it
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    annotation_set = content.annotation_set
+    if not annotation_set or not annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
+    # Return empty response or redirect to main page
+    return HttpResponse("")
+
+
+@require_GET
+@login_required
+def load_annotation_set_settings(request, annotation_set_id):
+    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+    content_id = request.GET.get("content_id")
+    content = get_object_or_404(Content, id=content_id)
+    if not (request.user == annotation_set.owner or request.user.is_admin):
+        return HttpResponse("Unauthorized", status=403)
+    return render(
+        request,
+        "partials/annotation_set_settings_compact.html",
+        {
+            "annotation_set": annotation_set,
+            "content": content,
+        },
+    )
+
+
+@require_POST
+@login_required
+def update_annotation_set_name(request, annotation_set_id):
+    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+    if not (request.user == annotation_set.owner or request.user.is_admin):
+        return HttpResponse("Unauthorized", status=403)
+    name = request.POST.get("name", "").strip()
+    if name:
+        annotation_set.name = name
+        annotation_set.save()
+    content_id = request.POST.get("content_id")
+    content = get_object_or_404(Content, id=content_id)
+    return render(
+        request,
+        "core/partials/annotation_set_settings_compact.html",
+        {
+            "annotation_set": annotation_set,
+            "content": content,
+        },
+    )
