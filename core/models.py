@@ -625,13 +625,10 @@ class BaseAnnotation(models.Model):
     )
 
     # Only active annotations are visible/used
-    active = models.BooleanField(default=True, db_index=True)
+    active = models.BooleanField(default=True)
 
     class Meta:
         abstract = True
-        indexes = [
-            models.Index(fields=["annotation_set", "active"]),
-        ]
 
     @property
     def annotation_type(self):
