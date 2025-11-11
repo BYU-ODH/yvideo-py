@@ -1,4 +1,5 @@
 from functools import wraps
+import json
 import logging
 import mimetypes
 import os
@@ -42,6 +43,8 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
+from .utils import TOY_VTT
+from .utils import TOY_VTT2
 from .utils import hms2seconds
 from .utils import seconds2hms
 
@@ -720,7 +723,7 @@ def spoof_user_search(request):
 def clip_editor(request, content_id):
     """Render the clip editor page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = get_file_key(request, content)
+    file_key = request.user.get_filekey(content)
 
     # Calculate clip positions
     duration = content.duration
