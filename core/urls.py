@@ -85,6 +85,11 @@ urlpatterns = [
         name="subtitle_editor",
     ),
     path(
+        "subtitle-editor/update-temp-file",
+        views.update_subtitle_temp_file,
+        name="update_subtitle_temp_file",
+    ),
+    path(
         "clips/<str:item_type>/<int:clip_id>/edit/",
         views_clip_editor.load_clip_form,
         name="load_clip_form",

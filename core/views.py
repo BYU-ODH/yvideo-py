@@ -1242,6 +1242,8 @@ def update_subtitle_temp_file(request):
         )
         return HttpResponseServerError()
 
+    return HttpResponse(status=200)
+
 
 @login_not_required
 @require_http_methods(["DELETE"])
