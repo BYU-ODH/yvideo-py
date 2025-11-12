@@ -1,0 +1,7 @@
+#subtitle-editor-container {
+    height: calc(100% - 69px);
+}
+
+#subtitle-editor {
+    width: 40rem;
+}
