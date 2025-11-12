@@ -647,8 +647,8 @@ body {
 }
 
 .main-content {
-    max-width: 100rem;
-    padding: 1rem 8.4rem 0px;
+    width: 100rem;
+    padding: 1rem;
     margin: 0px auto;
 }
 

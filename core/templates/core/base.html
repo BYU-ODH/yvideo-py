@@ -28,9 +28,7 @@
                 {% include "partials/header.html" %}
             {% endblock %}
         </header>
-        <div id="site-content">
-            {% block content %}
-            {% endblock %}
-        </div>
+        {% block content %}
+        {% endblock %}
     </body>
 </html>
