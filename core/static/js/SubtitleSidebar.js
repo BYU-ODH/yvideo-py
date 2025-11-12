@@ -21,12 +21,16 @@ class SubtitleSidebarCue {  // cue = VTTCue = individual subtitle
       </button>
       <div class="subtitle-cue-content">
         <div class="subtitle-cue-time">${timestamp}</div>
-        <div class="subtitle-cue-text">${this.cue.text}</div>
+        <div class="subtitle-cue-text">${this._stripVTTFormatting(this.cue.text)}</div>
       </div>
     `;
 
     this.element = cueElement;
     return cueElement;
+  }
+
+  _stripVTTFormatting(text) {
+    return text.replace(/<[^>]*>/g, '').trim();
   }
 
   _formatTime(seconds) {
