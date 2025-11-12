@@ -304,9 +304,10 @@ class File(models.Model):
         if self.file and not self.checksum:
             self.checksum = _calculate_checksum_for_file(self.file)
             self.checksum_at = timezone.now()
-        if self.file and not self.duration:
-            self.duration = get_video_duration(self.file)
         super().save(*args, **kwargs)
+        if self.file and not self.duration:
+            self.duration = get_video_duration(self.file.path)
+            super().save(update_fields=["duration"])
 
     def __str__(self):
         return f"{self.file} | {self.resource.name}"
@@ -463,6 +464,11 @@ class Annotation(models.Model):
         related_name="%(app_label)s_%(class)s_next",
         null=True,
         blank=True,
+    )
+    description = models.TextField(
+        blank=False,
+        null=False,
+        help_text="Short description of what content this annotation covers.",
     )
 
     class Meta:
