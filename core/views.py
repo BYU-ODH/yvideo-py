@@ -141,6 +141,7 @@ def index(request):
 
 
 # @login_required  # TODO: Uncomment
+@login_not_required
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
@@ -1113,12 +1114,54 @@ def delete_clip(request, clip_id):
         return HttpResponseServerError()
 
 
+def generate_vtt_cues(file):
+    cues = []
+    current_cue = {"start": None, "end": None, "text": ""}
+    with open(file) as vtt_file:
+        for line in vtt_file:
+            if "WEBVTT" in line:
+                continue
+            elif line == "\n":
+                if current_cue["start"] is not None and current_cue["end"] is not None:
+                    cues.append(current_cue.copy())
+                    current_cue = {"start": None, "end": None, "text": ""}
+                else:
+                    continue
+            else:
+                if "-->" in line:
+                    start_and_end = line.split("-->")
+                    current_cue["start"] = hms2seconds(start_and_end[0].strip())
+                    current_cue["end"] = hms2seconds(start_and_end[1].strip())
+                else:
+                    current_cue["text"] += line
+
+    if current_cue["start"] is not None and current_cue["end"] is not None:
+        cues.append(current_cue)
+    return cues
+
+
 @login_not_required
 @require_GET
 def subtitle_editor(request, content_id):
     try:
         content = get_object_or_404(Content, id=content_id)
-        subtitle_options = Subtitle.objects.filter(resource=content.file.resource)
+        subtitle_files = Subtitle.objects.filter(resource=content.file.resource)
+        subtitle_options = []
+        for sub_file in subtitle_files:
+            subtitle_options.append(
+                {
+                    "name": sub_file.name,
+                    "info": json.dumps(
+                        {
+                            "id": sub_file.pk,
+                            "cues": generate_vtt_cues(sub_file.subtitles_file.path),
+                            "kind": "subtitles",
+                            "srclang": sub_file.language.lang_tag.lower(),
+                        }
+                    ),
+                }
+            )
+        file_key = request.user.get_filekey(content)
     except Exception as e:
         logger.error(
             f"Error retrieving subtitles for content_id: {content_id}. Exception: {e}"
@@ -1128,7 +1171,7 @@ def subtitle_editor(request, content_id):
     return render(
         request,
         "subtitle_editor.html",
-        {"content": content, "subtitle_tracks": subtitle_options},
+        {"content": content, "subtitle_tracks": subtitle_options, "file_key": file_key},
     )
 
 
