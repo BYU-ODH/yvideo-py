@@ -954,18 +954,18 @@ class Language(models.Model):
 def subtitle_file_upload_path(instance, filename):
     """Generate upload path to media/<resource name>/subtitles/<filename>"""
     if isinstance(instance, Subtitle):
-        return f"media/{instance.resource.name}/subtitles/{filename}"
+        return f"{instance.resource.name}/subtitles/{filename}"
 
 
 def subtitle_temp_file_upload_path(instance):
     """Generate upload path to media/<resource name>/subtitles/<filename>"""
     if isinstance(instance, Subtitle):
-        return f"media/{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
+        return f"{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
 
 
-def validate_subtitle_file(filename):
+def validate_subtitle_file(file):
     """Ensure filetype is .vtt"""
-    file_ext = os.path.splitext(filename)[1]
+    file_ext = os.path.splitext(file.name)[1]
     if file_ext != ".vtt":
         raise ValidationError(
             f"Subtitles must be .vtt format. Format provided: {file_ext}"
@@ -991,6 +991,7 @@ class Subtitle(models.Model):
         upload_to=subtitle_temp_file_upload_path,
         validators=[validate_subtitle_file],
         null=True,
+        blank=True,
     )
     is_original = models.BooleanField(null=False, blank=False, default=False)
     words = models.TextField(blank=True)
