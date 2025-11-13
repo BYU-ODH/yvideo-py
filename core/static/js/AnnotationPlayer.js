@@ -1286,7 +1286,6 @@ export class AnnotationPlayer {
     const controlsDim = controls.getBoundingClientRect();
     const controlHeightAsPercentOfVideoHeight = Math.round(controlsDim.height / videoDim.height * 100)
     const subtitlePlacementHeight = 100 - controlHeightAsPercentOfVideoHeight - 2;
-    console.log(subtitlePlacementHeight);
 
     const cues = currentTrack.cues
     for (let cue of cues) {
