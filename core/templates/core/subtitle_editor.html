@@ -1,28 +1,35 @@
+{% extends 'base.html' %}
 {% load static %}
-{% include 'base.html' %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>Subtitle Editor - {{ content.title }}</title>
+{% block title %}
+    YVideo - Subtitle Editor
+{% endblock %}
+
+{% block extra_css %}
     <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
     <link rel="stylesheet" href="{% static 'css/subtitle-editor.css' %}">
-</head>
-<body>
-    <script>
-        window.playerData = {
-            events: {{ events|safe }},
-            subtitles: {{ subtitles|safe }},
-            hasSubtitles: {{ has_subtitles|yesno:"true,false" }},
-            duration: {{ duration }}
-        };
-    </script>
+{% endblock %}
 
-    <div class="subtitle-editor-container">
-        {% include 'partials/player-wrapper.html' %}
+{% block content %}
+    <div id="subtitle-editor-container" class="row-flex">
+        {% include 'partials/player-wrapper.html' with file_key=file_key.id %}
+        <div id="subtitle-editor">
+            <select id="subtitle-track-selector">
+                <option value="">Choose a Subtitle Track</option>
+                {% for track in subtitle_tracks %}
+                    <option value="{{track.info}}" data-name="{{track.name}}">
+                        {{ track.name }}
+                    </option>
+                {% endfor %}
+            </select>
+            <div id="subtitle-cues">
+
+            </div>
+            <div id="subtitle-cue-editor">
+
+            </div>
+        </div>
     </div>
-</body>
-</html>
+
+    <script src="{% static 'js/SubtitleEditor.js' %}"></script>
+{% endblock %}
