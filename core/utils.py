@@ -1,3 +1,4 @@
+from re import findall
 from re import sub
 
 from django.core.files.base import ContentFile
@@ -125,3 +126,69 @@ Let's watch them together.
 00:20.000 --> 00:20.900
 Maybe they'll come closer.
 """
+
+
+class VTTCue:
+    def __init__(
+        self, type=None, payload=None, identifier=None, startTime=None, endTime=None
+    ):
+        self.type = type
+        self.payload = payload
+        self.identifier = identifier
+        self.startTime = startTime
+        self.endTime = endTime
+
+    def from_string(self, vtt_string):
+        if not isinstance(vtt_string, str):
+            return None
+
+        lines = [line for line in vtt_string.split("\n")]
+        lines = [line for line in lines if line]  # Remove empty lines
+
+        # find the header line. Some cues have identifiers before heading line
+        header_line_index = 0
+        for line in lines:
+            if line.startswith("STYLE"):
+                self.type = "STYLE"
+                break
+            elif line.startswith("NOTE"):
+                self.type = "NOTE"
+                note_inline_payload = findall(r"NOTE (.*)", line)
+                if note_inline_payload:
+                    self.payload = note_inline_payload[0]
+                break
+            elif line.startswith("REGION"):
+                # I'm not sure we need to support REGION tags - BDR
+                self.type = "REGION"
+                break
+            elif "-->" in line:
+                self.type = "CUE"
+                if header_line_index == 1:
+                    self.identifier = lines[0]
+                time_matches = findall(r"(\d*:?\d{1,2}:\d{1,2}.\d{1,3})", line)
+                self.startTime = hms2seconds(time_matches[0])
+                self.endTime = hms2seconds(time_matches[1])
+                break
+            header_line_index += 1
+
+        payload_start_index = header_line_index + 1
+        if self.payload is None:
+            self.payload = ""
+        for line in lines[payload_start_index:]:
+            self.payload += line
+
+    def to_string(self):
+        if self.type is None or self.payload is None:
+            return ""
+        vtt_string = ""
+        if self.identifier:
+            vtt_string += self.identifier.strip() + "\n"
+        if self.type == "STYLE" or self.type == "NOTE" or self.type == "REGION":
+            vtt_string += self.type.strip() + "\n"
+        elif self.type == "CUE":
+            vtt_string += (
+                f"{seconds2hms(self.startTime)} --> {seconds2hms(self.endTime)}\n"
+            )
+
+        vtt_string += self.payload.strip()
+        return vtt_string
