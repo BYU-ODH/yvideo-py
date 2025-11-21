@@ -1,5 +1,4 @@
 from functools import wraps
-import json
 import logging
 import mimetypes
 import os
@@ -24,14 +23,12 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
-from .forms import ClipForm
 from .forms import CollectionForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import UpdateContentForm
 from .models import BlankAnnotation
-from .models import Clip
 from .models import Collection
 from .models import Content
 from .models import FileKey
@@ -41,90 +38,8 @@ from .models import Resource
 from .models import SkipAnnotation
 from .models import User
 from .models import UserCourses
-from .utils import hms2seconds
-from .utils import seconds2hms
 
 logger = logging.getLogger(__name__)
-
-TOY_VTT = """WEBVTT
-
-00:00.000 --> 00:00.900
-Hildy!
-
-00:01.000 --> 00:01.400
-How are you?
-
-00:01.500 --> 00:02.900
-Tell me, is the lord of the universe in?
-
-00:03.000 --> 00:04.200
-Yes, he's in - in a bad humor
-
-00:04.300 --> 00:06.000
-Somebody must've stolen the crown jewels"""
-
-TOY_VTT2 = """WEBVTT
-
-00:00.000 --> 00:00.900
-Birds!
-
-00:01.000 --> 00:01.400
-Where are they?
-
-00:01.500 --> 00:02.900
-You don't know?
-
-00:03.000 --> 00:04.200
-Yes, but I want to know if you do.
-
-00:04.300 --> 00:06.000
-Oh, well I know too, so we don't have to say.
-
-00:06.000 --> 00:06.900
-Look outside!
-
-00:07.000 --> 00:07.900
-They're flying everywhere.
-
-00:08.000 --> 00:08.900
-Did you see the blue one?
-
-00:09.000 --> 00:12.900
-Yes, it landed on the fence.
-
-00:10.000 --> 00:10.900
-What about the red one?
-
-00:11.000 --> 00:11.900
-It was chasing the yellow.
-
-00:12.000 --> 00:12.900
-The flock is growing.
-
-00:13.000 --> 00:13.900
-They're singing loudly.
-
-00:14.000 --> 00:14.900
-Do you hear that melody?
-
-00:15.000 --> 00:15.900
-It's beautiful, isn't it?
-
-00:16.000 --> 00:16.900
-They must be happy.
-
-00:17.000 --> 00:17.900
-The sun is shining.
-
-00:18.000 --> 00:18.900
-Perfect day for birds.
-
-00:19.000 --> 00:19.900
-Let's watch them together.
-
-00:20.000 --> 00:20.900
-Maybe they'll come closer.
-"""
 
 
 def admin_or_superuser_required(view_func):
@@ -212,50 +127,28 @@ def index(request):
     return render(request, "index.html", context)
 
 
-def get_file_key(request, content):
-    """Get or create a FileKey for the given content and user."""
-    if request.user.can_view_content(content):
-        file_key = FileKey.objects.filter(file=content.file, user=request.user).first()
-        if not file_key:
-            # create a new FileKey if one doesn't exist
-            file_key = FileKey.objects.create(file=content.file, user=request.user)
-            file_key.save()
-        return file_key
-    else:
-        return None
-
-
 # @login_required  # TODO: Uncomment
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = get_file_key(request, content)
+    file_key = request.user.get_filekey(content)
     if not file_key:
         return HttpResponse(
             "User does not have permission to view this content", status=403
         )
 
-    # Prepare subtitle data in the format expected by AnnotationPlayer
-    subtitles_data = [
-        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
-        # {"srclang": "en", "url": "http://example.com/subtitles.vtt", "label": "Birds"},
-    ]
-
-    clips_data = [
-        {"start": 5, "end": 10, "label": "Sample Clip"},
-        {"start": 11, "end": 14, "label": "Another Clip"},
-        {"start": 15, "end": 20, "label": "Final Clip"},
-    ]
-    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
+    player_json = content.get_player_json()
+    has_subtitles = bool(
+        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
+    )
 
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": json.dumps([]),
-        "subtitles": json.dumps(subtitles_data),
-        "clips": json.dumps(clips_data),
+        "events": player_json["annotations"],
+        "subtitles": player_json["subtitleTracks"],
+        "clips": player_json["clips"],
         "has_subtitles": has_subtitles,
     }
 
@@ -746,19 +639,33 @@ def add_annotation(request, content_id, annotation_type):
     content_obj = get_object_or_404(Content, id=content_id)
 
     # Get POST data
+    annotation_id = request.POST.get("annotation_id")
     name = request.POST.get("name", "")
     owner = request.POST.get("owner", "")  # Change to request.user when auth is set up
     start_time = float(request.POST.get("start_time", 0))
     end_time = float(request.POST.get("end_time", 0))
+    description = request.POST.get("description", "")
 
-    # Create the annotation
-    annotation = annotation_class.objects.create(
-        content=content_obj,
-        owner=owner,  # change to request.user when auth is set up
-        name=name,
-        start_time=start_time,
-        end_time=end_time,
-    )
+    if annotation_id:
+        # Update existing annotation
+        annotation = get_object_or_404(annotation_class, id=annotation_id)
+        annotation = annotation.objects.edit(
+            name=name,
+            start_time=start_time,
+            end_time=end_time,
+            description=description,
+        )
+    else:
+        # Create new annotation
+        annotation_set = content_obj.annotation_set
+        annotation = annotation_class.objects.create(
+            content=content_obj,
+            owner=owner,
+            name=name,
+            start_time=start_time,
+            end_time=end_time,
+            description=description,
+        )
 
     # Return JSON response
     return JsonResponse(
@@ -769,6 +676,7 @@ def add_annotation(request, content_id, annotation_type):
             "owner": annotation.owner.netid,
             "start_time": annotation.start_time,
             "end_time": annotation.end_time,
+            "description": annotation.description,
         }
     )
 
@@ -815,387 +723,3 @@ def spoof_user_search(request):
         "partials/spoof_user_options_for_select.html", {"users": users}
     )
     return HttpResponse(html)
-
-
-# TODO add permission check
-def clip_editor(request, content_id):
-    """Render the clip editor page."""
-    content = get_object_or_404(Content, id=content_id)
-    file_key = get_file_key(request, content)
-
-    # Calculate clip positions
-    duration = content.duration
-    clips_with_positions = []
-    clips_json = []
-
-    for clip in content.clips.all():
-        start_time = hms2seconds(clip.start_time)
-        end_time = hms2seconds(clip.end_time)
-        start_percent = (start_time / duration * 100) if duration > 0 else 0
-        width_percent = (
-            ((end_time - start_time) / duration * 100) if duration > 0 else 0
-        )
-
-        clips_with_positions.append(
-            {
-                "clip": clip,
-                "content": content,  # Add content to each item context
-                "left": f"{start_percent:.2f}%",
-                "width": f"{width_percent:.2f}%",
-                "start": start_time,
-                "end": end_time,
-            }
-        )
-        clips_json.append(
-            {
-                "start": start_time,
-                "end": end_time,
-                "label": clip.name,
-            }
-        )
-    clips_json = json.dumps(clips_json)
-    # Prepare subtitle data in the format expected by AnnotationPlayer
-    subtitles_data = [
-        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
-    ]
-
-    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
-
-    context = {
-        "content": content,
-        "file_key": file_key.id if file_key else None,
-        "allow_events": True,
-        "events": json.dumps([]),
-        "subtitles": json.dumps(subtitles_data),
-        "clips_json": clips_json,
-        "has_subtitles": has_subtitles,
-        "duration": duration,
-        "clips_with_positions": clips_with_positions,
-    }
-
-    return render(request, "clip_editor.html", context)
-
-
-def generate_clips_json_data(content):
-    """Generate clips JSON data for AnnotationPlayer."""
-    clips = []
-    for clip in content.clips.all():
-        clips.append(
-            {
-                "start": hms2seconds(clip.start_time),
-                "end": hms2seconds(clip.end_time),
-                "label": clip.name,
-            }
-        )
-    return clips
-
-
-@require_GET
-def load_clip_form(request, clip_id):
-    """Load clip editing form via HTMX."""
-    clip = get_object_or_404(Clip, id=clip_id)
-
-    # Get content from query parameter (required for context)
-    content_id = request.GET.get("content_id")
-    if not content_id:
-        return HttpResponse("Missing content_id parameter", status=400)
-
-    content = get_object_or_404(Content, id=content_id)
-
-    # Check permissions on the content
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
-
-    # Check if user can edit this clip
-    can_edit = clip.can_edit(request.user)
-
-    form = ClipForm(instance=clip)
-
-    context = {
-        "clip": clip,
-        "content": content,
-        "can_edit": can_edit,
-        "form": form,
-        "start_seconds": hms2seconds(clip.start_time),
-        "end_seconds": hms2seconds(clip.end_time),
-    }
-
-    return render(request, "partials/clip_form.html", context)
-
-
-@require_POST
-def update_clip(request, clip_id):
-    """Update clip and return updated HTML with JSON OOB."""
-    clip = get_object_or_404(Clip, id=clip_id)
-
-    # Get content from POST data (required for context)
-    content_id = request.POST.get("content_id")
-    if not content_id:
-        return HttpResponse("Missing content_id", status=400)
-
-    content = get_object_or_404(Content, id=content_id)
-
-    # Check permissions on the content
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
-
-    # If user doesn't own this clip, clone it
-    if not clip.can_edit(request.user):
-        original_clip = clip
-        clip = clip.clone_for_user(request.user)
-
-        # Add the new clip to the content (replacing the original)
-        content.clips.remove(original_clip)
-        content.clips.add(clip)
-        content.save()
-
-    # Check if this is a delta-based update (from drag/resize)
-    delta_left = request.POST.get("delta_left")
-    delta_width = request.POST.get("delta_width")
-
-    if delta_left is not None or delta_width is not None:
-        # Delta-based update from drag/resize
-        duration = content.duration
-
-        # Get current position percentages
-        start_time = hms2seconds(clip.start_time)
-        end_time = hms2seconds(clip.end_time)
-        current_left = (start_time / duration * 100) if duration > 0 else 0
-        current_width = (
-            ((end_time - start_time) / duration * 100) if duration > 0 else 0
-        )
-
-        # Apply deltas
-        delta_left_float = float(delta_left) if delta_left else 0
-        delta_width_float = float(delta_width) if delta_width else 0
-
-        new_left = current_left + delta_left_float
-        new_width = current_width + delta_width_float
-
-        # Convert back to times
-        new_start = (new_left / 100) * duration
-        new_end = ((new_left + new_width) / 100) * duration
-
-        # Validate
-        if new_start < 0 or new_end > duration or new_start >= new_end:
-            # Return error - keep original position
-            position = {
-                "left": f"{current_left:.2f}%",
-                "width": f"{current_width:.2f}%",
-                "start": start_time,
-                "end": end_time,
-            }
-
-            context = {
-                "clip": clip,
-                "content": content,
-                "position": position,
-                "error": "Invalid clip position",
-            }
-            return render(request, "partials/clip_item.html", context)
-
-        # Update clip with new times
-        clip.start_time = seconds2hms(new_start)
-        clip.end_time = seconds2hms(new_end)
-
-        # Update name if provided
-        name = request.POST.get("name")
-        if name:
-            clip.name = name
-
-        clip.save()
-    else:
-        # Form-based update
-        form = ClipForm(request.POST, instance=clip)
-
-        if not form.is_valid():
-            # Return form with errors
-            context = {
-                "clip": clip,
-                "content": content,
-                "can_edit": True,
-                "form": form,
-                "start_seconds": hms2seconds(clip.start_time),
-                "end_seconds": hms2seconds(clip.end_time),
-            }
-            return render(request, "partials/clip_form.html", context)
-
-        clip = form.save()
-
-    # Calculate new position
-    duration = content.duration
-    start_time = hms2seconds(clip.start_time)
-    end_time = hms2seconds(clip.end_time)
-    start_percent = (start_time / duration * 100) if duration > 0 else 0
-    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
-
-    position = {
-        "left": f"{start_percent:.2f}%",
-        "width": f"{width_percent:.2f}%",
-        "start": start_time,
-        "end": end_time,
-    }
-
-    # Generate updated JSON for player - use the content being edited
-    clips_json_data = generate_clips_json_data(content)
-
-    # Render the layer item
-    item_html = render_to_string(
-        "partials/clip_item.html",
-        {
-            "clip": clip,
-            "content": content,  # Add content to context
-            "position": position,
-        },
-    )
-
-    # Always render the updated form with OOB swap
-    form_content = render_to_string(
-        "partials/clip_form.html",
-        {
-            "clip": clip,
-            "content": content,
-            "can_edit": True,
-            "form": ClipForm(instance=clip),
-            "start_seconds": start_time,
-            "end_seconds": end_time,
-        },
-    )
-    # Wrap with OOB swap directive
-    form_html = f'<div hx-swap-oob="innerHTML:#detail-form">{form_content}</div>'
-
-    # Render JSON OOB update
-    json_html = render_to_string(
-        "partials/clips_json_oob.html",
-        {
-            "clips_json": json.dumps(clips_json_data),
-        },
-    )
-
-    # Combine responses
-    response = HttpResponse(item_html + form_html + json_html)
-    return response
-
-
-@require_POST
-def create_clip(request, content_id):
-    """Create a new clip and return updated HTML with JSON OOB."""
-    content = get_object_or_404(Content, id=content_id)
-
-    # Check permissions
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
-
-    # Get start and end times from POST
-    start_time = float(request.POST.get("start_time", 0))
-    end_time = float(request.POST.get("end_time", 10))
-
-    # Validate times
-    duration = content.duration
-    if start_time < 0 or end_time > duration or start_time >= end_time:
-        return HttpResponse("Invalid clip times", status=400)
-
-    # Get resource from content's file
-    if not content.file or not content.file.resource:
-        return HttpResponse("Content has no associated resource", status=400)
-
-    # Create new clip
-    clip = Clip.objects.create(
-        resource=content.file.resource,
-        owner=request.user,
-        name=f"Clip {content.clips.count() + 1}",
-        start_time=seconds2hms(start_time),
-        end_time=seconds2hms(end_time),
-    )
-
-    # Add to content
-    content.clips.add(clip)
-    content.save()
-
-    # Calculate position
-    start_percent = (start_time / duration * 100) if duration > 0 else 0
-    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
-
-    position = {
-        "left": f"{start_percent:.2f}%",
-        "width": f"{width_percent:.2f}%",
-        "start": start_time,
-        "end": end_time,
-    }
-
-    # Generate updated JSON for player
-    clips_json_data = generate_clips_json_data(content)
-
-    # Render the new layer item
-    item_html = render_to_string(
-        "partials/clip_item.html",
-        {
-            "clip": clip,
-            "content": content,
-            "position": position,
-        },
-    )
-
-    # Render JSON OOB update
-    json_html = render_to_string(
-        "partials/clips_json_oob.html",
-        {
-            "clips_json": json.dumps(clips_json_data),
-        },
-    )
-
-    # Combine responses with OOB swap for layer-items
-    response = HttpResponse(
-        f'<div hx-swap-oob="beforeend:.layer-items">{item_html}</div>{json_html}'
-    )
-    return response
-
-
-@require_http_methods(["DELETE"])
-def delete_clip(request, clip_id):
-    """Delete or remove clip from content and return updated JSON OOB."""
-    clip = get_object_or_404(Clip, id=clip_id)
-
-    # Get content from query/body parameter
-    content_id = request.GET.get("content_id") or request.POST.get("content_id")
-    if not content_id:
-        return HttpResponse("Missing content_id parameter", status=400)
-
-    content = get_object_or_404(Content, id=content_id)
-
-    # Check permissions
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
-
-    try:
-        if clip.can_edit(request.user):
-            # User owns the clip, can fully delete it
-            clip.delete()
-        else:
-            # User doesn't own it, just remove from their content
-            content.clips.remove(clip)
-            content.save()
-
-        # Generate updated JSON for player
-        clips_json_data = generate_clips_json_data(content)
-
-        # Render JSON OOB update
-        json_html = render_to_string(
-            "partials/clips_json_oob.html",
-            {
-                "clips_json": json.dumps(clips_json_data),
-            },
-        )
-
-        # Render placeholder for form with OOB swap
-        form_placeholder = render_to_string("partials/clip_form_placeholder.html")
-        form_html = (
-            f'<div hx-swap-oob="innerHTML:#detail-form">{form_placeholder}</div>'
-        )
-
-        response = HttpResponse(json_html + form_html)
-        return response
-    except Exception as e:
-        logger.error(f"Error deleting clip {clip_id}: {e}")
-        return HttpResponseServerError()

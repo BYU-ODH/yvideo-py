@@ -1,15 +1,24 @@
-<div id="clip-form-container"
-     data-clip-id="{{ clip.id }}">
-    <h3>Edit Clip</h3>
+{% comment %}
+TODO add undo/redo buttons for annotation items
+<!-- Undo/Redo Controls -->
+<div id="undo-redo-controls">
+    {% include 'partials/item_undo_redo_buttons.html' %}
+</div>
+{% endcomment %}
+
+<div id="item-form-container"
+     data-item-id="{{ instance.id }}"
+     data-item-type="{{ item_type }}">
+    <h3>Edit {{ item_type_label|default:item_type|title }}</h3>
 
     {% if not can_edit %}
     <div class="info-message">
-        <p><strong>Note:</strong> This clip is owned by {{ clip.owner.get_full_name }}. Editing it will create your own copy.</p>
+        <p><strong>Note:</strong> This item is owned by {{ instance.owner.get_full_name }}. Editing it will create your own copy.</p>
     </div>
     {% endif %}
 
-    <form hx-post="{% url 'update_clip' clip.id %}"
-          hx-target="#clip-{{ clip.id }}"
+    <form hx-post="{% url update_url item_type instance.id %}"
+          hx-target="#item-{{ instance.id }}"
           hx-swap="outerHTML"
           hx-trigger="submit">
         {% csrf_token %}
@@ -21,7 +30,7 @@
             <input type="text"
                    id="name"
                    name="name"
-                   value="{{ form.name.value|default:clip.name }}"
+                   value="{{ form.name.value|default:instance.name }}"
                    required>
             {% if form.name.errors %}
                 <div class="error-message">{{ form.name.errors.0 }}</div>
@@ -34,7 +43,7 @@
                 <input type="text"
                        id="start_time"
                        name="start_time"
-                       value="{{ form.start_time.value|default:clip.start_time }}"
+                       value="{{ form.start_time.value|default:instance.start_time }}"
                        required
                        placeholder="HH:MM:SS">
                 <button type="button"
@@ -54,8 +63,8 @@
                 <input type="text"
                        id="end_time"
                        name="end_time"
-                       value="{{ form.end_time.value|default:clip.end_time }}"
-                   required
+                       value="{{ form.end_time.value|default:instance.end_time }}"
+                       required
                        placeholder="HH:MM:SS">
                 <button type="button"
                         class="btn-set-time"
@@ -68,16 +77,26 @@
             {% endif %}
         </div>
 
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description"
+                    name="description"
+                    placeholder="Add a brief description…">{{ form.description.value|default:instance.description }}</textarea>
+            {% if form.description.errors %}
+                <div class="error-message">{{ form.description.errors.0 }}</div>
+            {% endif %}
+        </div>
+
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
                 {% if can_edit %}Save Changes{% else %}Save as My Copy{% endif %}
             </button>
             <button type="button"
                     class="btn btn-danger"
-                    hx-delete="{% url 'delete_clip' clip.id %}?content_id={{ content.id }}"
-                    hx-target="#clip-{{ clip.id }}"
+                    hx-delete="{% url delete_url item_type instance.id %}?content_id={{ content.id }}"
+                    hx-target="#item-{{ instance.id }}"
                     hx-swap="outerHTML"
-                    hx-confirm="Are you sure you want to {% if can_edit %}delete{% else %}remove{% endif %} this clip?">
+                    hx-confirm="Are you sure you want to {% if can_edit %}delete{% else %}remove{% endif %} this item?">
                 {% if can_edit %}Delete{% else %}Remove from Content{% endif %}
             </button>
         </div>

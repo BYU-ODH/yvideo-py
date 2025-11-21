@@ -1,0 +1,19 @@
+<div class="undo-redo-toolbar">
+    <button hx-post="{% url 'undo_annotation' content.id %}"
+            hx-target="#annotation-timeline"
+            hx-swap="innerHTML"
+            {% if not can_undo or not can_edit %}disabled{% endif %}
+            class="undo-btn"
+            title="Undo last change (Ctrl+Z)">
+        ← Undo
+    </button>
+
+    <button hx-post="{% url 'redo_annotation' content.id %}"
+            hx-target="#annotation-timeline"
+            hx-swap="innerHTML"
+            {% if not can_redo or not can_edit %}disabled{% endif %}
+            class="redo-btn"
+            title="Redo last undone change (Ctrl+Shift+Z)">
+        Redo →
+    </button>
+</div>
