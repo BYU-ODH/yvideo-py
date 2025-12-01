@@ -398,6 +398,7 @@ def view_collection(request, pk):
             return response
 
 
+@login_not_required
 def display_collection_settings(request, collection_id):
     collection = get_object_or_404(Collection, pk=collection_id)
     form = CollectionSettingsForm(instance=collection)
@@ -405,6 +406,7 @@ def display_collection_settings(request, collection_id):
     return render(request, "partials/collection_settings.html", context)
 
 
+@login_not_required
 @require_POST
 def update_collection_settings(request):
     form = CollectionSettingsForm(request.POST)
@@ -432,6 +434,7 @@ def update_collection_settings(request):
         return HttpResponseBadRequest()
 
 
+@login_not_required
 def get_collection_contents(collection):
     contents = Content.objects.filter(collection=collection)
     published = contents.filter(published=True)
@@ -439,6 +442,7 @@ def get_collection_contents(collection):
     return {"published": published, "unpublished": unpublished}
 
 
+@login_not_required
 def display_collection_contents(request, collection_id):
     collection = get_object_or_404(Collection, pk=collection_id)
     contents = get_collection_contents(collection)
@@ -450,6 +454,7 @@ def display_collection_contents(request, collection_id):
     return render(request, "partials/collection_contents_display.html", context)
 
 
+@login_not_required
 @require_http_methods(["DELETE"])
 def delete_collection(request, collection_id):
     collection = get_object_or_404(Collection, pk=collection_id)
@@ -470,6 +475,7 @@ def delete_collection(request, collection_id):
     return HttpResponseBadRequest()
 
 
+@login_not_required
 @require_GET
 def display_create_content(request, collection_id):
     form = ContentForm()
@@ -486,6 +492,7 @@ def display_create_content(request, collection_id):
     )
 
 
+@login_not_required
 @require_POST
 def create_content(request):
     collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
@@ -534,6 +541,7 @@ def display_resources_files(request):
     return render(request, "partials/select_file.html", {"files": files})
 
 
+@login_not_required
 @require_http_methods(["DELETE"])
 def delete_content(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
@@ -554,6 +562,7 @@ def delete_content(request, content_id):
     return HttpResponseBadRequest()
 
 
+@login_not_required
 @require_POST
 def update_content(request):
     form = UpdateContentForm(request.POST)
@@ -585,6 +594,7 @@ def update_content(request):
         return HttpResponseBadRequest()
 
 
+@login_not_required
 def display_content_settings(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
     form = UpdateContentForm(instance=content)
@@ -594,6 +604,7 @@ def display_content_settings(request, content_id):
     return render(request, "partials/content_settings.html", context)
 
 
+@login_not_required
 @require_POST
 def create_important_word(request):
     content = get_object_or_404(Content, pk=request.POST["content_id"])
@@ -628,6 +639,7 @@ def create_important_word(request):
         return HttpResponseBadRequest()
 
 
+@login_not_required
 @require_http_methods(["DELETE"])
 def delete_important_word(request, word_id):
     word = get_object_or_404(ImportantWord, pk=word_id)
@@ -711,6 +723,7 @@ def spoof_user_stop(request):
     return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
 
 
+@login_not_required
 @admin_or_superuser_required
 def spoof_user_search(request):
     if request.method != "POST":
@@ -730,6 +743,7 @@ def spoof_user_search(request):
     return HttpResponse(html)
 
 
+@login_not_required
 # TODO add permission check
 def clip_editor(request, content_id):
     """Render the clip editor page."""
@@ -790,6 +804,7 @@ def clip_editor(request, content_id):
     return render(request, "clip_editor.html", context)
 
 
+@login_not_required
 def generate_clips_json_data(content):
     """Generate clips JSON data for AnnotationPlayer."""
     clips = []
@@ -804,6 +819,7 @@ def generate_clips_json_data(content):
     return clips
 
 
+@login_not_required
 @require_GET
 def load_clip_form(request, clip_id):
     """Load clip editing form via HTMX."""
@@ -837,6 +853,7 @@ def load_clip_form(request, clip_id):
     return render(request, "partials/clip_form.html", context)
 
 
+@login_not_required
 @require_POST
 def update_clip(request, clip_id):
     """Update clip and return updated HTML with JSON OOB."""
@@ -991,6 +1008,7 @@ def update_clip(request, clip_id):
     return response
 
 
+@login_not_required
 @require_POST
 def create_clip(request, content_id):
     """Create a new clip and return updated HTML with JSON OOB."""
@@ -1065,6 +1083,7 @@ def create_clip(request, content_id):
     return response
 
 
+@login_not_required
 @require_http_methods(["DELETE"])
 def delete_clip(request, clip_id):
     """Delete or remove clip from content and return updated JSON OOB."""
@@ -1112,32 +1131,6 @@ def delete_clip(request, clip_id):
     except Exception as e:
         logger.error(f"Error deleting clip {clip_id}: {e}")
         return HttpResponseServerError()
-
-
-def generate_vtt_cues(file):
-    cues = []
-    current_cue = {"start": None, "end": None, "text": ""}
-    with open(file) as vtt_file:
-        for line in vtt_file:
-            if "WEBVTT" in line:
-                continue
-            elif line == "\n":
-                if current_cue["start"] is not None and current_cue["end"] is not None:
-                    cues.append(current_cue.copy())
-                    current_cue = {"start": None, "end": None, "text": ""}
-                else:
-                    continue
-            else:
-                if "-->" in line:
-                    start_and_end = line.split("-->")
-                    current_cue["start"] = hms2seconds(start_and_end[0].strip())
-                    current_cue["end"] = hms2seconds(start_and_end[1].strip())
-                else:
-                    current_cue["text"] += line
-
-    if current_cue["start"] is not None and current_cue["end"] is not None:
-        cues.append(current_cue)
-    return cues
 
 
 @login_not_required

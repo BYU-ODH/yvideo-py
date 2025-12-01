@@ -130,13 +130,20 @@ Maybe they'll come closer.
 
 class VTTCue:
     def __init__(
-        self, type=None, payload=None, identifier=None, startTime=None, endTime=None
+        self,
+        type=None,
+        payload=None,
+        identifier=None,
+        start_time=None,
+        end_time=None,
+        cue_settings=None,
     ):
         self.type = type
         self.payload = payload
         self.identifier = identifier
-        self.startTime = startTime
-        self.endTime = endTime
+        self.start_time = start_time
+        self.end_time = end_time
+        self.cue_settings = None
 
     def from_string(self, vtt_string):
         if not isinstance(vtt_string, str):
@@ -166,8 +173,11 @@ class VTTCue:
                 if header_line_index == 1:
                     self.identifier = lines[0]
                 time_matches = findall(r"(\d*:?\d{1,2}:\d{1,2}.\d{1,3})", line)
-                self.startTime = hms2seconds(time_matches[0])
-                self.endTime = hms2seconds(time_matches[1])
+                self.start_time = hms2seconds(time_matches[0])
+                self.end_time = hms2seconds(time_matches[1])
+                cue_settings_matches = findall(r"\s([^-->].*)", line)
+                if cue_settings_matches:
+                    self.cue_settings = cue_settings_matches[0]
                 break
             header_line_index += 1
 
@@ -187,8 +197,10 @@ class VTTCue:
             vtt_string += self.type.strip() + "\n"
         elif self.type == "CUE":
             vtt_string += (
-                f"{seconds2hms(self.startTime)} --> {seconds2hms(self.endTime)}\n"
+                f"{seconds2hms(self.start_time)} --> {seconds2hms(self.end_time)}"
             )
-
+            if self.cue_settings is not None:
+                vtt_string += f" {self.cue_settings}"
+            vtt_string += "\n"
         vtt_string += self.payload.strip()
         return vtt_string
