@@ -47,6 +47,7 @@ from .models import UserCourses
 from .utils import TOY_VTT
 from .utils import TOY_VTT2
 from .utils import convert_srt_to_vtt_or_return_original
+from .utils import generate_vtt_cues_from_file_path
 from .utils import hms2seconds
 from .utils import seconds2hms
 
@@ -333,7 +334,7 @@ def create_collection(request):
 
         except Exception as e:
             logger.error(
-                f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
+                f"An error occured when the user: {request.user} attempted to create a collection -> {e}"
             )
 
             response = HttpResponseServerError()
@@ -472,7 +473,6 @@ def delete_collection(request, collection_id):
             f"An error occured while deleting the collection with id: {collection_id}. Exception: {e}"
         )
         return HttpResponseServerError()
-    return HttpResponseBadRequest()
 
 
 @login_not_required
@@ -1147,7 +1147,9 @@ def subtitle_editor(request, content_id):
                     "info": json.dumps(
                         {
                             "id": sub_file.pk,
-                            "cues": generate_vtt_cues(sub_file.subtitles_file.path),
+                            "cues": generate_vtt_cues_from_file_path(
+                                sub_file.subtitles_file.path
+                            ),
                             "kind": "subtitles",
                             "srclang": sub_file.language.lang_tag.lower(),
                         }

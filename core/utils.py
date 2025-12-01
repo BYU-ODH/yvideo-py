@@ -145,12 +145,11 @@ class VTTCue:
         self.end_time = end_time
         self.cue_settings = None
 
-    def from_string(self, vtt_string):
-        if not isinstance(vtt_string, str):
+    def from_string(self, vtt_cue_string):
+        if not isinstance(vtt_cue_string, str):
             return None
 
-        lines = [line for line in vtt_string.split("\n")]
-        lines = [line for line in lines if line]  # Remove empty lines
+        lines = [line for line in vtt_cue_string.split("\n")]
 
         # find the header line. Some cues have identifiers before heading line
         header_line_index = 0
@@ -204,3 +203,46 @@ class VTTCue:
             vtt_string += "\n"
         vtt_string += self.payload.strip()
         return vtt_string
+
+
+def build_vtt_file_string_from_cues(cues: list[VTTCue]) -> str:
+    vtt_string = "WEBVTT\n\n"
+    cue_index = 0
+    cue_count = len(cues)
+    for cue in cues:
+        vtt_string += cue.to_string()
+        cue_index += 1
+        if cue_index < cue_count:
+            vtt_string += "\n\n"
+    return vtt_string
+
+
+def build_cues_from_vtt_file_string(vtt_string: str) -> list[VTTCue]:
+    cue_list: list[VTTCue] = []
+    cue_string = ""
+
+    def add_cue_to_list_if_string_is_not_empty():
+        nonlocal cue_string
+        if cue_string != "":
+            new_cue = VTTCue()
+            new_cue.from_string(cue_string)
+            cue_list.append(new_cue)
+            cue_string = ""
+
+    lines = [line for line in vtt_string.split("\n")]
+    for line in lines:
+        if line == "WEBVTT" or line == "":
+            add_cue_to_list_if_string_is_not_empty()
+        else:
+            cue_string += line
+
+    # check for a left over cue
+    if cue_string != "":
+        add_cue_to_list_if_string_is_not_empty()
+
+    return cue_list
+
+
+def generate_vtt_cues_from_file_path(file_path: str) -> list[VTTCue]:
+    with open(file_path) as f:
+        return build_cues_from_vtt_file_string(f.read())
