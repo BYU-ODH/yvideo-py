@@ -46,9 +46,12 @@ from .models import User
 from .models import UserCourses
 from .utils import TOY_VTT
 from .utils import TOY_VTT2
+from .utils import VTTCue
+from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_to_vtt_or_return_original
-from .utils import generate_vtt_cues_from_file_path
+from .utils import generate_vtt_cues_html_from_file_path
 from .utils import hms2seconds
+from .utils import nudge_cue_times
 from .utils import seconds2hms
 
 logger = logging.getLogger(__name__)
@@ -1147,7 +1150,7 @@ def subtitle_editor(request, content_id):
                     "info": json.dumps(
                         {
                             "id": sub_file.pk,
-                            "cues": generate_vtt_cues_from_file_path(
+                            "cues": generate_vtt_cues_html_from_file_path(
                                 sub_file.subtitles_file.path
                             ),
                             "kind": "subtitles",
@@ -1209,7 +1212,7 @@ def create_subtitle(request):
 
 @login_not_required
 @require_POST
-def update_subtitle(request):
+def update_subtitle_metadata(request):
     form = SubtitleForm(request.POST, request.FILES)
     if form.is_valid():
         data = form.cleaned_data
@@ -1263,24 +1266,38 @@ def update_subtitle(request):
 
 
 @require_POST
-def update_subtitle_temp_file(request):
-    subtitle_id = request.POST.get("subtitle_id")
-    file_content = request.POST.get("file_content")
-    if subtitle_id is None or subtitle_id == "" or file_content is None:
-        return HttpResponseBadRequest()
-
+def update_subtitle_content(request):
     try:
-        subtitle_object = get_object_or_404(Subtitle, id=subtitle_id)
-        subtitle_object.subtitles_file = ContentFile(file_content)
-        subtitle_object.save()
+        # build VTTCue list
+        subtitle_id = request.POST.get("subtitle_id")
+        dict_cue_list = json.loads(request.POST.get("cues"))
+        cues_list: list[VTTCue] = []
+        for dict_cue in dict_cue_list:
+            new_cue = VTTCue()
+            new_cue.from_json_dict(dict_cue)
+            cues_list.append(new_cue)
+
+        # change timing of cues if applicable
+        seconds_nudge = request.POST.get("seconds_nudge")
+        nudge_excluded_cues = request.POST.get("nudge_excluded_cues")
+        if seconds_nudge:
+            nudge_cue_times(cues_list, nudge_excluded_cues, seconds_nudge)
+
+        # build and save new vtt file
+        new_vtt_string = build_vtt_file_string_from_cues(cues_list)
+        subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
+        is_autosave = request.POST.get("is_autosave")
+        new_file = ContentFile(new_vtt_string)
+        if is_autosave:
+            subtitle_obj.subtitles_temp_file = new_file
+        else:
+            subtitle_obj.subtitles_file = new_file
+        subtitle_obj.save()
+        return HttpResponse("", status=200)
 
     except Exception as e:
-        logger.error(
-            f"An error occurred while trying to save a subtitle temp file. id: {subtitle_id}. Exception: {e}"
-        )
+        logger.error(f"Error while updating subtitle content: {e}")
         return HttpResponseServerError()
-
-    return HttpResponse(status=200)
 
 
 @login_not_required

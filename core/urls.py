@@ -85,9 +85,9 @@ urlpatterns = [
         name="subtitle_editor",
     ),
     path(
-        "subtitle-editor/update-temp-file",
-        views.update_subtitle_temp_file,
-        name="update_subtitle_temp_file",
+        "subtitle-editor/update-subtitle-file",
+        views.update_subtitle_content,
+        name="update_subtitle_content",
     ),
     path(
         "clips/<str:item_type>/<int:clip_id>/edit/",
