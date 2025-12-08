@@ -12,19 +12,17 @@
 
 {% block content %}
     <div id="subtitle-editor-container" class="row-flex">
-        {% include 'partials/player-wrapper.html' with file_key=file_key.id %}
-        <div id="subtitle-editor">
+        {% include 'partials/player-wrapper.html' with file_key=file_key.id events=events subtitles=subtitles clips=clips has_subtitles=has_subtitles %}
+        <div id="subtitle-editor" class="column-flex">
             <select id="subtitle-track-selector">
                 <option value="">Choose a Subtitle Track</option>
                 {% for track in subtitle_tracks %}
-                    <option value="{{track.info}}" data-name="{{track.name}}">
+                    <option value="{{track.id}}" data-name="{{track.name}}">
                         {{ track.name }}
                     </option>
                 {% endfor %}
             </select>
-            <div id="subtitle-cues">
-
-            </div>
+            <div id="editable-cues"></div>
             <div id="subtitle-cue-editor">
 
             </div>

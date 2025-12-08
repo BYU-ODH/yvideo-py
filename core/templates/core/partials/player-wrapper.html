@@ -1,5 +1,14 @@
 {% load static %}
 
+<script>
+    window.playerData = {
+        events: {{ events|safe }},
+        subtitles: {{ subtitles|safe }},
+        clips: {{ clips|safe }},
+        hasSubtitles: {{ has_subtitles|yesno:"true,false" }}
+    };
+</script>
+
 <div class="annotation-player-container">
     <video id="video-player" preload="auto">
         {% if file_key %}

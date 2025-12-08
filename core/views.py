@@ -144,6 +144,22 @@ def index(request):
     return render(request, "index.html", context)
 
 
+def get_player_info(content_obj: Content):
+    player_json = content_obj.get_player_json()
+    has_subs = bool(
+        any(
+            track.get("vtt") or track.get("url")
+            for track in player_json["subtitleTracks"]
+        )
+    )
+    return {
+        "events": player_json["annotations"],
+        "subtitles": player_json["subtitleTracks"],
+        "clips": player_json["clips"],
+        "has_subtitles": has_subs,
+    }
+
+
 # @login_required  # TODO: Uncomment
 @login_not_required
 def player(request, content_id):
@@ -155,19 +171,16 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    player_json = content.get_player_json()
-    has_subtitles = bool(
-        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
-    )
+    player_info = get_player_info(content)
 
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": player_json["annotations"],
-        "subtitles": player_json["subtitleTracks"],
-        "clips": player_json["clips"],
-        "has_subtitles": has_subtitles,
+        "events": player_info["events"],
+        "subtitles": player_info["subtitles"],
+        "clips": player_info["clips"],
+        "has_subtitles": player_info["has_subtitles"],
     }
 
     return render(request, "player.html", context)
@@ -1158,13 +1171,24 @@ def subtitle_editor(request, content_id):
         )
         return HttpResponseServerError()
 
+    player_info = get_player_info(content)
+
     return render(
         request,
         "subtitle_editor.html",
-        {"content": content, "subtitle_tracks": subtitle_options, "file_key": file_key},
+        {
+            "content": content,
+            "subtitle_tracks": subtitle_options,
+            "file_key": file_key,
+            "events": player_info["events"],
+            "subtitles": player_info["subtitles"],
+            "clips": player_info["clips"],
+            "has_subtitles": player_info["has_subtitles"],
+        },
     )
 
 
+@login_not_required
 @require_GET
 def get_editable_subtitles(request):
     try:
@@ -1267,6 +1291,7 @@ def update_subtitle_metadata(request):
         return HttpResponseBadRequest()
 
 
+@login_not_required
 @require_POST
 def update_subtitle_content(request):
     try:
