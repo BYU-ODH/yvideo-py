@@ -1139,6 +1139,7 @@ def delete_clip(request, clip_id):
 @login_not_required
 @require_GET
 def subtitle_editor(request, content_id):
+    request.user = User.objects.all().first()
     try:
         content = get_object_or_404(Content, id=content_id)
         subtitle_files = Subtitle.objects.filter(resource=content.file.resource)
@@ -1147,16 +1148,7 @@ def subtitle_editor(request, content_id):
             subtitle_options.append(
                 {
                     "name": sub_file.name,
-                    "info": json.dumps(
-                        {
-                            "id": sub_file.pk,
-                            "cues": generate_vtt_cues_html_from_file_path(
-                                sub_file.subtitles_file.path
-                            ),
-                            "kind": "subtitles",
-                            "srclang": sub_file.language.lang_tag.lower(),
-                        }
-                    ),
+                    "id": sub_file.pk,
                 }
             )
         file_key = request.user.get_filekey(content)
@@ -1171,6 +1163,16 @@ def subtitle_editor(request, content_id):
         "subtitle_editor.html",
         {"content": content, "subtitle_tracks": subtitle_options, "file_key": file_key},
     )
+
+
+@require_GET
+def get_editable_subtitles(request):
+    try:
+        subtitle_obj = get_object_or_404(Subtitle, id=request.GET.get("subtitle_id"))
+        return generate_vtt_cues_html_from_file_path(subtitle_obj.subtitles_file.path)
+    except Exception as e:
+        logger.error(f"Error generating html cues from file path. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @login_not_required

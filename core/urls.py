@@ -85,6 +85,11 @@ urlpatterns = [
         name="subtitle_editor",
     ),
     path(
+        "subtitle-editor/get-editable-subtitles/<int:subtitle_id>/",
+        views.get_editable_subtitles,
+        name="get_editable_subtitles",
+    ),
+    path(
         "subtitle-editor/update-subtitle-file",
         views.update_subtitle_content,
         name="update_subtitle_content",
