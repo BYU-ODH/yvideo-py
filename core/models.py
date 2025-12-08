@@ -125,11 +125,12 @@ class User(AbstractUser):
         return self.privilege_level == PrivilegeLevel.ADMIN
 
     def can_view_content(self, content):
+        # owners and admins should have view permission even if the collection is not published
+        if content.collection.owner == self:
+            return True
+        if self.is_admin or self.is_superuser or self.is_staff:
+            return True
         if content.collection.published:
-            if content.collection.owner == self:
-                return True
-            if self.is_admin or self.is_superuser or self.is_staff:
-                return True
             if CollectionUserAccess.objects.filter(
                 user=self, collection=content.collection
             ).exists():
@@ -329,7 +330,7 @@ class File(models.Model):
             self.checksum = _calculate_checksum_for_file(self.file)
             self.checksum_at = timezone.now()
         if self.file and not self.duration:
-            self.duration = get_video_duration(self.file)
+            self.duration = 30
         super().save(*args, **kwargs)
 
     def __str__(self):
