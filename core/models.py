@@ -11,8 +11,6 @@ from django.db import transaction
 from django.utils import timezone
 import xxhash
 
-from .utils import TOY_VTT
-from .utils import TOY_VTT2
 from .utils import hms2seconds
 
 HMS_VALIDATOR = RegexValidator(
@@ -545,19 +543,15 @@ class Content(models.Model):
             - 'vtt' or 'url'
             - 'label'
         """
-        subtitles = []
-        # TODO: Get actual subtitles from database
-        # TODO : Remove toy subtitles
-        toy_data = [
-            {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-            {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+        sub_objs = Subtitle.objects.filter(resource=self.file.resource)
+        subtitles = [
             {
-                "srclang": "en",
-                "url": "http://example.com/subtitles.vtt",
-                "label": "Birds",
-            },
+                "srclang": sub.language.lang_tag,
+                "vtt": sub.subtitles_file.read().decode("utf-8"),
+                "label": sub.name,
+            }
+            for sub in sub_objs
         ]
-        subtitles.extend(toy_data)
         return subtitles
 
     def get_player_json(self):

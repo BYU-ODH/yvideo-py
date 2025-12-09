@@ -86,8 +86,8 @@ export class AnnotationPlayer {
     this.wasPlayingBeforeDrag = false;
     this.draggingRAF = null; // Track requestAnimationFrame for dragging
 
-    if (options.subtitleTracks && Array.isArray(options.subtitleTracks)) {
-      this._loadSubtitleTracks(options.subtitleTracks);
+    if (options.tracks && Array.isArray(options.tracks)) {
+      this._loadSubtitleTracks(options.tracks);
     }
 
     this.subtitleSidebar = null;
@@ -399,8 +399,8 @@ export class AnnotationPlayer {
       this.annotations = data.annotations || [];
       this.clips = data.clips || this.clips;
 
-      if (data.subtitleTracks && Array.isArray(data.subtitleTracks)) {
-        this._loadSubtitleTracks(data.subtitleTracks);
+      if (data.tracks && Array.isArray(data.subtitles)) {
+        this._loadSubtitleTracks(data.subtitles);
       }
     }
 
