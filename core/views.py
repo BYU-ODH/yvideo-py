@@ -48,7 +48,7 @@ from .utils import TOY_VTT
 from .utils import TOY_VTT2
 from .utils import VTTCue
 from .utils import build_vtt_file_string_from_cues
-from .utils import convert_srt_to_vtt_or_return_original
+from .utils import convert_srt_content_to_vtt
 from .utils import generate_vtt_cues_html_from_file_path
 from .utils import hms2seconds
 from .utils import nudge_cue_times
@@ -1211,7 +1211,9 @@ def create_subtitle(request):
             return HttpResponseBadRequest()
 
         # automatically convert .srt files to .vtt
-        uploaded_file = convert_srt_to_vtt_or_return_original(uploaded_file)
+        uploaded_file_content = convert_srt_content_to_vtt(
+            uploaded_file.read().decode("utf-8")
+        )
 
         # create new subtitle object
         try:
@@ -1220,7 +1222,9 @@ def create_subtitle(request):
                 owner=data["owner"],
                 language=data["language"],
                 name=data["name"],
-                subtitles_file=uploaded_file,
+                subtitles_file=ContentFile(
+                    content=uploaded_file_content, name=uploaded_file.name
+                ),
                 is_original=data["is_original"],
             )
         except Exception as e:
@@ -1244,10 +1248,12 @@ def update_subtitle_metadata(request):
         data = form.cleaned_data
 
         uploaded_file = request.FILES["subtitles_file"]
-        new_file_exists = uploaded_file is not None
 
-        if new_file_exists:
-            uploaded_file = convert_srt_to_vtt_or_return_original(uploaded_file)
+        if uploaded_file is not None:
+            uploaded_file_content = convert_srt_content_to_vtt(
+                uploaded_file.read().decode("utf-8")
+            )
+            uploaded_file_name = uploaded_file.name
 
         try:
             if "subtitle_id" in request.POST:
@@ -1261,8 +1267,10 @@ def update_subtitle_metadata(request):
                 subtitle_obj.language = data["language"]
             if "name" in data:
                 subtitle_obj.name = data["name"]
-            if new_file_exists:
-                subtitle_obj.subtitles_file = uploaded_file
+            if uploaded_file is not None:
+                subtitle_obj.subtitles_file = ContentFile(
+                    content=uploaded_file_content, name=uploaded_file_name
+                )
             if "is_original" in data:
                 subtitle_obj.is_original = data["is_original"]
             if "words" in request.POST:

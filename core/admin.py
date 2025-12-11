@@ -1,4 +1,7 @@
+import os
+
 from django.contrib import admin
+from django.core.files.base import ContentFile
 from reversion.admin import VersionAdmin
 
 from .models import AnnotationSet
@@ -22,6 +25,7 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
+from .utils import convert_srt_content_to_vtt
 
 
 @admin.register(User)
@@ -199,6 +203,19 @@ class ClipAdmin(VersionAdmin):
 
 @admin.register(Subtitle)
 class SubtitleAdmin(VersionAdmin):
+    def save_model(self, request, obj, form, change):
+        obj.save()
+        file_name_split = os.path.splitext(obj.subtitles_file.name)
+        file_ext = file_name_split[1]
+        if file_ext == ".srt":
+            vtt_content = convert_srt_content_to_vtt(
+                obj.subtitles_file.read().decode("utf-8")
+            )
+            new_file_name = file_name_split[0] + ".vtt"
+            obj.subtitles_file = ContentFile(content=vtt_content, name=new_file_name)
+            obj.save()
+        super().save_model(request, obj, form, change)
+
     list_display = ("name", "language", "owner", "resource", "created_at")
     list_filter = ("language", "created_at")
     search_fields = (

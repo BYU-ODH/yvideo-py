@@ -959,11 +959,12 @@ def subtitle_temp_file_upload_path(instance):
 
 
 def validate_subtitle_file(file):
-    """Ensure filetype is .vtt"""
-    file_ext = os.path.splitext(file.name)[1]
-    if file_ext != ".vtt":
+    """Ensure filetype is .vtt or .srt"""
+    file_name_split = os.path.splitext(file.name)
+    file_ext = file_name_split[1]
+    if file_ext != ".vtt" and file_ext != ".srt":
         raise ValidationError(
-            f"Subtitles must be .vtt format. Format provided: {file_ext}"
+            f"Subtitles must be .vtt or .srt format. Format provided: {file_ext}"
         )
 
 
