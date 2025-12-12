@@ -1,8 +1,6 @@
 from re import findall
 from re import sub
 
-from django.template.loader import render_to_string
-
 
 def hms2seconds(hms):
     """Convert a time string in 'HH:MM:SS.SS' format to total seconds."""
@@ -239,16 +237,19 @@ def build_cues_from_vtt_file_string(vtt_string: str) -> list[VTTCue]:
     def add_cue_to_list_if_string_is_not_empty():
         nonlocal cue_string
         if cue_string != "":
+            print(cue_string)
             new_cue = VTTCue()
             new_cue.from_string(cue_string)
             cue_list.append(new_cue)
+            cue_string = ""
 
     lines = [line for line in vtt_string.split("\n")]
+    print(lines)
     for line in lines:
         if line == "WEBVTT" or line == "":
             add_cue_to_list_if_string_is_not_empty()
         else:
-            cue_string += line
+            cue_string += line + "\n"
 
     # check for a left over cue
     if cue_string != "":
@@ -257,11 +258,11 @@ def build_cues_from_vtt_file_string(vtt_string: str) -> list[VTTCue]:
     return cue_list
 
 
-def generate_vtt_cues_html_from_file_path(vtt_file_path: str) -> str:
+def generate_vtt_cues_from_file_path(vtt_file_path: str) -> list[VTTCue]:
     with open(vtt_file_path) as f:
         vtt_str = f.read()
         cues = build_cues_from_vtt_file_string(vtt_str)
-        return render_to_string("partials/vtt_cues.html", {"cues": cues})
+        return cues
 
 
 def nudge_cue_times(

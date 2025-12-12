@@ -49,7 +49,7 @@ from .utils import TOY_VTT2
 from .utils import VTTCue
 from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_content_to_vtt
-from .utils import generate_vtt_cues_html_from_file_path
+from .utils import generate_vtt_cues_from_file_path
 from .utils import hms2seconds
 from .utils import nudge_cue_times
 from .utils import seconds2hms
@@ -1190,10 +1190,12 @@ def subtitle_editor(request, content_id):
 
 @login_not_required
 @require_GET
-def get_editable_subtitles(request):
+def get_editable_subtitles(request, subtitle_id):
     try:
-        subtitle_obj = get_object_or_404(Subtitle, id=request.GET.get("subtitle_id"))
-        return generate_vtt_cues_html_from_file_path(subtitle_obj.subtitles_file.path)
+        subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
+        cues = generate_vtt_cues_from_file_path(subtitle_obj.subtitles_file.path)
+        return HttpResponse(render_to_string("partials/vtt_cues.html", {"cues": cues}))
+
     except Exception as e:
         logger.error(f"Error generating html cues from file path. Exception: {e}")
         return HttpResponseServerError()

@@ -31,8 +31,8 @@ class SubtitleEditor {
         const trackName = trackInfo["name"];
         if (trackName) {
           const trackId = Number(trackInfo["id"]);
-          const cuesHTML = await fetch(`subtitle-editor/get-editable-subtitles/${trackId}/`);
-          this.cuesDisplayEl.innerHTML = cuesHTML;
+          const cuesResponse = await fetch(`/subtitle-editor/get-editable-subtitles/${trackId}/`);
+          this.cuesDisplayEl.innerHTML = await cuesResponse.text();
         }
     }
 
