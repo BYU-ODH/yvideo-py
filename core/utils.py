@@ -237,14 +237,12 @@ def build_cues_from_vtt_file_string(vtt_string: str) -> list[VTTCue]:
     def add_cue_to_list_if_string_is_not_empty():
         nonlocal cue_string
         if cue_string != "":
-            print(cue_string)
             new_cue = VTTCue()
             new_cue.from_string(cue_string)
             cue_list.append(new_cue)
             cue_string = ""
 
     lines = [line for line in vtt_string.split("\n")]
-    print(lines)
     for line in lines:
         if line == "WEBVTT" or line == "":
             add_cue_to_list_if_string_is_not_empty()
