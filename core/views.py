@@ -1306,8 +1306,9 @@ def update_subtitle_metadata(request):
 def update_subtitle_content(request):
     try:
         # build VTTCue list
-        subtitle_id = request.POST.get("subtitle_id")
-        dict_cue_list = json.loads(request.POST.get("cues"))
+        request_data = json.loads(request.body)
+        subtitle_id = request_data["subtitle_id"]
+        dict_cue_list = json.loads(request_data["cues"])
         cues_list: list[VTTCue] = []
         for dict_cue in dict_cue_list:
             new_cue = VTTCue()
@@ -1315,19 +1316,21 @@ def update_subtitle_content(request):
             cues_list.append(new_cue)
 
         # change timing of cues if applicable
-        seconds_nudge = request.POST.get("seconds_nudge")
-        nudge_excluded_cues = request.POST.get("nudge_excluded_cues")
+        seconds_nudge = request_data["seconds_nudge"]
+        nudge_excluded_cues = request_data["nudge_excluded_cues"]
         if seconds_nudge:
             nudge_cue_times(cues_list, nudge_excluded_cues, seconds_nudge)
 
         # build and save new vtt file
         new_vtt_string = build_vtt_file_string_from_cues(cues_list)
         subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
-        is_autosave = request.POST.get("is_autosave")
+        is_autosave = request_data["is_autosave"]
         new_file = ContentFile(new_vtt_string)
         if is_autosave:
+            new_file.name = subtitle_obj.subtitles_temp_file.name
             subtitle_obj.subtitles_temp_file = new_file
         else:
+            new_file.name = subtitle_obj.subtitles_file.name
             subtitle_obj.subtitles_file = new_file
         subtitle_obj.save()
         return HttpResponse("", status=200)

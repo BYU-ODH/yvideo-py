@@ -19,7 +19,7 @@
                 <p class="cue-payload">{{ cue.payload }}</p>
             {% endif %}
         </div>
-        <form class="cue-edit hidden">
+        <div class="cue-edit hidden">
             {% if cue.type != "CUE" %}
                 <p class="cue-type">{{ cue.type }}</p>
                 <input class="cue-payload" type="text" value="{{cue.payload}}" />
@@ -38,7 +38,8 @@
                 <input type="text" class="cue-payload" value="{{cue.payload}}" />
             {% endif %}
             <button class="cancel-cue-edit-button">Cancel</button>
-        </form>
+            <button class="save-cue-edit-button">Save</button>
+        </div>
     </div>
 {% empty %}
     <p id="no-cues-found">
