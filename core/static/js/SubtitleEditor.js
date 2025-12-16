@@ -1,3 +1,16 @@
+function findEditableCue(element) {
+  if (element == null) {
+    return null;
+  }
+  const cssClasses = element.classList;
+  for (let cssClass of cssClasses) {
+    if (cssClass == "editable-cue") {
+      return element;
+    }
+  }
+  return findEditableCue(element.parentElement);
+}
+
 class SubtitleEditor {
   constructor() {
     this.videoEl = null;
@@ -13,19 +26,6 @@ class SubtitleEditor {
   }
 
   toggleCueDisplay(e) {
-    function findEditableCue(element) {
-      if (element == null) {
-        return null;
-      }
-      const cssClasses = element.classList;
-      for (let cssClass of cssClasses) {
-        if (cssClass == "editable-cue") {
-          return element;
-        }
-      }
-      return findEditableCue(element.parentElement);
-    }
-
     e.preventDefault();
     const cueContainer = findEditableCue(this)
     const cue = cueContainer.querySelector(".cue-display");
@@ -48,7 +48,49 @@ class SubtitleEditor {
     }
 
     for (let saveCue of this.saveCues) {
-      saveCue.addEventListener("click", () => this._saveCues(true))
+      saveCue.addEventListener("click", () => {
+        const parentContainer = findEditableCue(saveCue);
+        const cueEdit = parentContainer.querySelector(".cue-edit");
+        const cueEditPayload = cueEdit.querySelector(".cue-payload")
+        const cueEditStartTime = cueEdit.querySelector(".cue-start-time input");
+        const cueEditEndTime = cueEdit.querySelector(".cue-end-time input");
+        const cueEditSettings = cueEdit.querySelector(".cue-settings input");
+
+        const cueDisplay = parentContainer.querySelector(".cue-display");
+
+        if (cueEditPayload) {
+          const cueDisplayPayload = cueDisplay.querySelector(".cue-payload");
+          if (cueDisplayPayload) {
+            cueDisplayPayload.innerText = cueEditPayload.value;
+          }
+        }
+
+        if (cueEditStartTime) {
+          const cueDisplayStartTime = cueDisplay.querySelector(".cue-start-time");
+          if (cueDisplayStartTime) {
+            cueDisplayStartTime.innerText = cueEditStartTime.value;
+          }
+        }
+
+        if (cueEditEndTime) {
+          const cueDisplayEndTime = cueDisplay.querySelector(".cue-end-time");
+          if (cueDisplayEndTime) {
+            cueDisplayEndTime.innerText = cueEditEndTime.value
+          }
+        }
+
+        if (cueEditSettings) {
+          const cueDisplaySettings = cueDisplay.querySelector(".cue-settings");
+          if (cueDisplaySettings) {
+            cueDisplaySettings.innerText = cueEditSettings.value;
+          }
+        }
+
+        cueEdit.classList.toggle("hidden");
+        cueDisplay.classList.toggle("hidden");
+
+        this._saveCues(true);
+      })
     }
   }
 
