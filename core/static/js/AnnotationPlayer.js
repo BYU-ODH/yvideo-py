@@ -1369,15 +1369,17 @@ export class AnnotationPlayer {
     }
 
     switch (e.code) {
-      case 'Space':
-        e.preventDefault();
-        this.togglePlayPause();
-        if (this.videoElem.paused) {
-          this._showBezel(AnnotationPlayer.icons.playPauseBtn.pause);
-        } else {
-          this._showBezel(AnnotationPlayer.icons.playPauseBtn.play);
-        }
-        break;
+      // adding this event listener makes it impossible to use the space key when editing subtitles, or entering
+      // other text while the Annotation player is on the page. - BDR 12/16/2025
+      // case 'Space':
+      //   e.preventDefault();
+      //   this.togglePlayPause();
+      //   if (this.videoElem.paused) {
+      //     this._showBezel(AnnotationPlayer.icons.playPauseBtn.pause);
+      //   } else {
+      //     this._showBezel(AnnotationPlayer.icons.playPauseBtn.play);
+      //   }
+      //   break;
       case 'ArrowRight': {
         e.preventDefault();
         let newTimeRight = this.videoElem.paused ? playedTime + 0.1 : playedTime + 5;
