@@ -184,7 +184,10 @@ class VTTCue:
         if self.payload is None:
             self.payload = ""
         for line in lines[payload_start_index:]:
-            self.payload += line
+            if len(self.payload) > 0:
+                self.payload += "\n" + line
+            else:
+                self.payload += line
 
     def to_string(self) -> str:
         if self.type is None or self.payload is None:
