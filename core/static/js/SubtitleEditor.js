@@ -22,6 +22,7 @@ class SubtitleEditor {
     this.editCues = null;
     this.saveCues = null;
     this.cuesAreBeingUpdated = false;
+    this.permanentSaveButton = null;
     this._initialize();
   }
 
@@ -92,8 +93,12 @@ class SubtitleEditor {
         this._saveCues(true);
       })
     }
-  }
 
+    this.permanentSaveButton = document.getElementById("subtitle-save-changes");
+    this.permanentSaveButton.addEventListener("click", () => {
+      this._saveCues(false);
+    })
+  }
 
   _packageCuesAsJSON() {
     const packagedCues = [];
@@ -144,14 +149,21 @@ class SubtitleEditor {
 
 
   async _saveCues(isAutosave, secondsNudge = 0, nudgeExcludedCues = []) {
-    const cues = this._packageCuesAsJSON();
-    const result = await fetch("/subtitle-editor/update-subtitle-file", {
-      method: "POST",
-      headers: {"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value},
-      body: JSON.stringify({ subtitle_id: this.selectedTrackId, cues: cues, is_autosave: isAutosave, seconds_nudge: secondsNudge, nudge_excluded_cues: nudgeExcludedCues })
-    });
-    if (!result.ok) {
-      console.log("Request to update subtitles failed! " + result.status);
+    if (this.cuesAreBeingUpdated) {
+      setTimeout(() => { this._saveCues(isAutosave, secondsNudge, nudgeExcludedCues) }, 50);
+    }
+    else {
+      this.cuesAreBeingUpdated = true;
+      const cues = this._packageCuesAsJSON();
+      const result = await fetch("/subtitle-editor/update-subtitle-file", {
+        method: "POST",
+        headers: {"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value},
+        body: JSON.stringify({ subtitle_id: this.selectedTrackId, cues: cues, is_autosave: isAutosave, seconds_nudge: secondsNudge, nudge_excluded_cues: nudgeExcludedCues })
+      });
+      if (!result.ok) {
+        console.log("Request to update subtitles failed! " + result.status);
+      }
+      this.cuesAreBeingUpdated = false;
     }
   }
 
