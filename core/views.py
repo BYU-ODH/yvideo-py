@@ -1325,13 +1325,18 @@ def update_subtitle_content(request):
         new_vtt_string = build_vtt_file_string_from_cues(cues_list)
         subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
         is_autosave = request_data["is_autosave"]
-        new_file = ContentFile(new_vtt_string)
+
+        # something is giong on here where part of the path name is being duplicated
+        # files are saved as media/filename where in this case, filename is something like
+        # "resource name/subtitles/original filename"
+        # but the model is set to attach the current filename in place of "original filename"
+        # so we end up with "resource name/subtitles/resource name/subtitles/.../intended filename"
         if is_autosave:
-            new_file.name = subtitle_obj.subtitles_temp_file.name
-            subtitle_obj.subtitles_temp_file = new_file
+            with subtitle_obj.subtitles_temp_file.open("w") as f:
+                f.write(new_vtt_string)
         else:
-            new_file.name = subtitle_obj.subtitles_file.name
-            subtitle_obj.subtitles_file = new_file
+            with subtitle_obj.subtitles_file.open("w") as f:
+                f.write(new_vtt_string)
         subtitle_obj.save()
         return HttpResponse("", status=200)
 
