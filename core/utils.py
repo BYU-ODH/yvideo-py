@@ -184,6 +184,9 @@ class VTTCue:
         if self.payload is None:
             self.payload = ""
         for line in lines[payload_start_index:]:
+            if line == "":
+                continue
+
             if len(self.payload) > 0:
                 self.payload += "\n" + line
             else:
@@ -246,11 +249,16 @@ def build_cues_from_vtt_file_string(vtt_string: str) -> list[VTTCue]:
             cue_string = ""
 
     lines = [line for line in vtt_string.split("\n")]
+    line_count = len(lines)
+    line_index = 0
     for line in lines:
+        line_index += 1
         if line == "WEBVTT" or line == "":
             add_cue_to_list_if_string_is_not_empty()
-        else:
+        elif line_index < line_count:
             cue_string += line + "\n"
+        else:
+            cue_string += line
 
     # check for a left over cue
     if cue_string != "":
@@ -271,10 +279,9 @@ def nudge_cue_times(
 ):
     """Moves the start and end time of the cue by the amount provided in seconds_nudge.
     All cues whose index is in nudge_excluded_cues will not be nudged."""
-    cue_index = 0
-    for cue in cue_list:
+    for cue_index in range(0, len(cue_list)):
+        cue = cue_list[cue_index]
         if cue.type != "CUE":
             continue
         if cue_index not in nudge_excluded_cues:
             cue.nudge_times(seconds_nudge)
-        cue_index += 1
