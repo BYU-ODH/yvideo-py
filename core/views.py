@@ -515,7 +515,7 @@ def display_resources_files(request):
     resource = get_object_or_404(Resource, id=resource_id)
     resource_files = (
         resource.resource_files.all()
-    )  # uses related_name="files" in File model
+    )  # uses related_name="resource_files" in File model
     return render(
         request, "partials/select_file.html", {"resource_files": resource_files}
     )
