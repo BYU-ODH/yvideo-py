@@ -89,9 +89,7 @@ def display_yearterm(yearterm):
     return f"{term_decoder[term_string]} {year_string}"
 
 
-@login_not_required
 def index(request):
-    request.user = User.objects.all().first()
     # if admin, gather owned collections
     owned_collections = []
     allowed_privilege_levels = [2, 0]
@@ -161,7 +159,6 @@ def get_player_info(content_obj: Content):
 
 
 # @login_required  # TODO: Uncomment
-@login_not_required
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
@@ -186,7 +183,6 @@ def player(request, content_id):
     return render(request, "player.html", context)
 
 
-@login_not_required
 def stream_file(request, file_key):
     """Stream file content with support for HTTP Range requests (partial content)."""
     try:
@@ -296,7 +292,6 @@ def stream_file(request, file_key):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
-@login_not_required
 def get_collection_types(user):
     collections = Collection.objects.filter(owner=user)
 
@@ -306,7 +301,6 @@ def get_collection_types(user):
     return {"archived": archived, "published": published, "unpublished": unpublished}
 
 
-@login_not_required
 def manage_collections(request):
     collections = get_collection_types(request.user)
 
@@ -323,7 +317,6 @@ def manage_collections(request):
     )
 
 
-@login_not_required
 def create_collection(request):
     form = CollectionForm(request.POST, initial={"user": request.user})
 
@@ -361,7 +354,6 @@ def create_collection(request):
     return response
 
 
-@login_not_required
 def view_collection(request, pk):
     user = request.user
 
@@ -415,7 +407,6 @@ def view_collection(request, pk):
             return response
 
 
-@login_not_required
 def display_collection_settings(request, collection_id):
     collection = get_object_or_404(Collection, pk=collection_id)
     form = CollectionSettingsForm(instance=collection)
@@ -423,7 +414,6 @@ def display_collection_settings(request, collection_id):
     return render(request, "partials/collection_settings.html", context)
 
 
-@login_not_required
 @require_POST
 def update_collection_settings(request):
     form = CollectionSettingsForm(request.POST)
@@ -451,7 +441,6 @@ def update_collection_settings(request):
         return HttpResponseBadRequest()
 
 
-@login_not_required
 def get_collection_contents(collection):
     contents = Content.objects.filter(collection=collection)
     published = contents.filter(published=True)
@@ -459,7 +448,6 @@ def get_collection_contents(collection):
     return {"published": published, "unpublished": unpublished}
 
 
-@login_not_required
 def display_collection_contents(request, collection_id):
     collection = get_object_or_404(Collection, pk=collection_id)
     contents = get_collection_contents(collection)
@@ -471,7 +459,6 @@ def display_collection_contents(request, collection_id):
     return render(request, "partials/collection_contents_display.html", context)
 
 
-@login_not_required
 @require_http_methods(["DELETE"])
 def delete_collection(request, collection_id):
     collection = get_object_or_404(Collection, pk=collection_id)
@@ -491,7 +478,6 @@ def delete_collection(request, collection_id):
         return HttpResponseServerError()
 
 
-@login_not_required
 @require_GET
 def display_create_content(request, collection_id):
     form = ContentForm()
@@ -508,7 +494,6 @@ def display_create_content(request, collection_id):
     )
 
 
-@login_not_required
 @require_POST
 def create_content(request):
     collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
@@ -557,7 +542,6 @@ def display_resources_files(request):
     return render(request, "partials/select_file.html", {"files": files})
 
 
-@login_not_required
 @require_http_methods(["DELETE"])
 def delete_content(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
@@ -578,7 +562,6 @@ def delete_content(request, content_id):
     return HttpResponseBadRequest()
 
 
-@login_not_required
 @require_POST
 def update_content(request):
     form = UpdateContentForm(request.POST)
@@ -610,7 +593,6 @@ def update_content(request):
         return HttpResponseBadRequest()
 
 
-@login_not_required
 def display_content_settings(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
     form = UpdateContentForm(instance=content)
@@ -620,7 +602,6 @@ def display_content_settings(request, content_id):
     return render(request, "partials/content_settings.html", context)
 
 
-@login_not_required
 @require_POST
 def create_important_word(request):
     content = get_object_or_404(Content, pk=request.POST["content_id"])
@@ -655,7 +636,6 @@ def create_important_word(request):
         return HttpResponseBadRequest()
 
 
-@login_not_required
 @require_http_methods(["DELETE"])
 def delete_important_word(request, word_id):
     word = get_object_or_404(ImportantWord, pk=word_id)
@@ -669,7 +649,6 @@ def delete_important_word(request, word_id):
         return HttpResponseServerError()
 
 
-@login_not_required
 def add_annotation(request, content_id, annotation_type):
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -720,7 +699,6 @@ def invalid_login(request):
 
 
 @admin_or_superuser_required
-@login_not_required
 def spoof_user_start(request):
     if request.method == "POST":
         spoof_user_id = request.POST.get("spoof_user_id")
@@ -733,13 +711,11 @@ def spoof_user_start(request):
 
 
 @admin_or_superuser_required
-@login_not_required
 def spoof_user_stop(request):
     request.session.pop("spoof_user_id", None)
     return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
 
 
-@login_not_required
 @admin_or_superuser_required
 def spoof_user_search(request):
     if request.method != "POST":
@@ -759,7 +735,6 @@ def spoof_user_search(request):
     return HttpResponse(html)
 
 
-@login_not_required
 # TODO add permission check
 def clip_editor(request, content_id):
     """Render the clip editor page."""
@@ -820,7 +795,6 @@ def clip_editor(request, content_id):
     return render(request, "clip_editor.html", context)
 
 
-@login_not_required
 def generate_clips_json_data(content):
     """Generate clips JSON data for AnnotationPlayer."""
     clips = []
@@ -835,7 +809,6 @@ def generate_clips_json_data(content):
     return clips
 
 
-@login_not_required
 @require_GET
 def load_clip_form(request, clip_id):
     """Load clip editing form via HTMX."""
@@ -869,7 +842,6 @@ def load_clip_form(request, clip_id):
     return render(request, "partials/clip_form.html", context)
 
 
-@login_not_required
 @require_POST
 def update_clip(request, clip_id):
     """Update clip and return updated HTML with JSON OOB."""
@@ -1024,7 +996,6 @@ def update_clip(request, clip_id):
     return response
 
 
-@login_not_required
 @require_POST
 def create_clip(request, content_id):
     """Create a new clip and return updated HTML with JSON OOB."""
@@ -1099,7 +1070,6 @@ def create_clip(request, content_id):
     return response
 
 
-@login_not_required
 @require_http_methods(["DELETE"])
 def delete_clip(request, clip_id):
     """Delete or remove clip from content and return updated JSON OOB."""
@@ -1149,10 +1119,8 @@ def delete_clip(request, clip_id):
         return HttpResponseServerError()
 
 
-@login_not_required
 @require_GET
 def subtitle_editor(request, content_id):
-    request.user = User.objects.all().first()
     try:
         content = get_object_or_404(Content, id=content_id)
         subtitle_files = Subtitle.objects.filter(resource=content.file.resource)
@@ -1188,7 +1156,6 @@ def subtitle_editor(request, content_id):
     )
 
 
-@login_not_required
 @require_GET
 def get_editable_subtitles(request, subtitle_id):
     try:
@@ -1201,7 +1168,6 @@ def get_editable_subtitles(request, subtitle_id):
         return HttpResponseServerError()
 
 
-@login_not_required
 @require_POST
 def create_subtitle(request):
     form = SubtitleForm(request.POST, request.FILES)
@@ -1242,7 +1208,6 @@ def create_subtitle(request):
     )
 
 
-@login_not_required
 @require_POST
 def update_subtitle_metadata(request):
     form = SubtitleForm(request.POST, request.FILES)
@@ -1301,7 +1266,6 @@ def update_subtitle_metadata(request):
         return HttpResponseBadRequest()
 
 
-@login_not_required
 @require_POST
 def update_subtitle_content(request):
     try:
@@ -1345,7 +1309,6 @@ def update_subtitle_content(request):
         return HttpResponseServerError()
 
 
-@login_not_required
 @require_http_methods(["DELETE"])
 def delete_subtitle(request, subtitle_id):
     subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
