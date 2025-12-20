@@ -279,10 +279,6 @@ def file_upload_path(instance, filename):
     return filename
 
 
-def get_video_duration(file):
-    pass
-
-
 class File(models.Model):
     file = models.FileField(
         upload_to=file_upload_path,
@@ -333,9 +329,6 @@ class File(models.Model):
             self.checksum = _calculate_checksum_for_file(self.file)
             self.checksum_at = timezone.now()
         super().save(*args, **kwargs)
-        if self.file and not self.duration:
-            self.duration = get_video_duration(self.file)
-            super().save(update_fields=["duration"])
 
     def __str__(self):
         return f"{self.file} | {self.resource.name}"

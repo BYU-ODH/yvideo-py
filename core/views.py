@@ -649,12 +649,11 @@ def add_annotation(request, content_id, annotation_type):
     if annotation_id:
         # Update existing annotation
         annotation = get_object_or_404(annotation_class, id=annotation_id)
-        annotation = annotation.objects.edit(
-            name=name,
-            start_time=start_time,
-            end_time=end_time,
-            description=description,
-        )
+        annotation.name = name
+        annotation.start_time = start_time
+        annotation.end_time = end_time
+        annotation.description = description
+        annotation.save()
     else:
         # Create new annotation
         annotation_set = content_obj.annotation_set
