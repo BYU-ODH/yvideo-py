@@ -11,8 +11,8 @@
 
 <div class="annotation-player-container">
     <video id="video-player" preload="auto">
-        {% if file_key %}
-            <source src="{% url 'stream_file' file_key %}" type="video/mp4">
+        {% if resource_file_key_id %}
+            <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">
         {% endif %}
         Your browser does not support the video tag.
     </video>

@@ -330,7 +330,7 @@
   }
 },
 {
-  "model": "core.file",
+  "model": "core.resourcefile",
   "pk": 1,
   "fields": {
     "file": "Birds/original_no_audio.mp4",
@@ -347,7 +347,7 @@
   }
 },
 {
-  "model": "core.file",
+  "model": "core.resourcefile",
   "pk": 2,
   "fields": {
     "file": "Grid/original.mp4",
@@ -364,7 +364,7 @@
   }
 },
 {
-  "model": "core.file",
+  "model": "core.resourcefile",
   "pk": 3,
   "fields": {
     "file": "Grid/transparent_border.mp4",
@@ -436,7 +436,7 @@
   "fields": {
     "title": "Birds 01",
     "collection": 1,
-    "file": 1,
+    "resource_file": 1,
     "annotation_set": null,
     "url": null,
     "description": "",
@@ -459,7 +459,7 @@
   "fields": {
     "title": "Grid 02",
     "collection": 2,
-    "file": 2,
+    "resource_file": 2,
     "annotation_set": null,
     "url": null,
     "description": "",
@@ -480,7 +480,7 @@
   "fields": {
     "title": "Transparent Grid 02",
     "collection": 2,
-    "file": 3,
+    "resource_file": 3,
     "annotation_set": null,
     "url": null,
     "description": "",

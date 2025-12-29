@@ -136,14 +136,18 @@ class User(AbstractUser):
             # TODO Check course enrollment
         return False
 
-    def get_filekey(self, content):
+    def get_resource_filekey(self, content):
         """Get or create a FileKey for the given content."""
         if self.can_view_content(content):
-            file_key = FileKey.objects.filter(file=content.file, user=self).first()
-            if not file_key:
-                file_key = FileKey.objects.create(file=content.file, user=self)
-                file_key.save()
-            return file_key
+            resource_file_key = ResourceFileKey.objects.filter(
+                resource_file=content.resource_file, user=self
+            ).first()
+            if not resource_file_key:
+                resource_file_key = ResourceFileKey.objects.create(
+                    resource_file=content.resource_file, user=self
+                )
+                resource_file_key.save()
+            return resource_file_key
         else:
             return None
 
@@ -259,7 +263,7 @@ def validate_unique_checksum(file):
     """Validator to ensure the uploaded file's content is unique."""
     new_checksum = _calculate_checksum_for_file(file)
     if new_checksum:
-        query = File.objects.filter(checksum=new_checksum)
+        query = ResourceFile.objects.filter(checksum=new_checksum)
         if file.instance.pk:
             query = query.exclude(pk=file.instance.pk)
 
@@ -278,13 +282,13 @@ def file_upload_path(instance, filename):
     return filename
 
 
-class File(models.Model):
+class ResourceFile(models.Model):
     file = models.FileField(
         upload_to=file_upload_path,
         validators=[validate_media_file, validate_unique_checksum],
     )
     resource = models.ForeignKey(
-        Resource, on_delete=models.CASCADE, related_name="files"
+        Resource, on_delete=models.CASCADE, related_name="resource_files"
     )
     audio_language = models.ForeignKey(
         "Language",
@@ -403,7 +407,7 @@ class AnnotationSet(models.Model):
 
     def can_be_viewed_by(self, user):
         """Check if user can view this annotation set (through any content using the resource)."""
-        return Content.objects.filter(file__resource=self.resource).filter(
+        return Content.objects.filter(resource_file__resource=self.resource).filter(
             collection__owner=user
         ).exists() or self.can_edit(user)
 
@@ -414,7 +418,7 @@ class AnnotationSet(models.Model):
         Automatically adds collection owner and instructor/TAs as editors.
         """
         collection = content.collection
-        resource = content.file.resource if content.file else None
+        resource = content.resource_file.resource if content.resource_file else None
 
         if not resource:
             raise ValueError(
@@ -467,8 +471,8 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
-    file = models.ForeignKey(
-        File,
+    resource_file = models.ForeignKey(
+        ResourceFile,
         on_delete=models.CASCADE,
         related_name="contents",
         null=True,
@@ -508,7 +512,7 @@ class Content(models.Model):
     def duration(self):
         """Get video duration in seconds from the file."""
         try:
-            return self.file.duration
+            return self.resource_file.duration
         except AttributeError:
             # TODO: Extract actual duration from video file metadata
             # For now, return a placeholder
@@ -516,9 +520,9 @@ class Content(models.Model):
 
     def get_available_annotation_sets(self):
         """Get all AnnotationSets available for this content's resource."""
-        if not self.file or not self.file.resource:
+        if not self.resource_file or not self.resource_file.resource:
             return AnnotationSet.objects.none()
-        return AnnotationSet.objects.filter(resource=self.file.resource)
+        return AnnotationSet.objects.filter(resource=self.resource_file.resource)
 
     def get_clips_json(self):
         """
@@ -1001,16 +1005,20 @@ class Subtitle(models.Model):
         unique_together = ("resource", "owner", "language", "name")
 
 
-class FileKey(models.Model):  # "through" model
+class ResourceFileKey(models.Model):  # "through" model
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="file_keys"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="resource_file_keys",
     )
-    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name="file_keys")
+    resource_file = models.ForeignKey(
+        ResourceFile, on_delete=models.CASCADE, related_name="resource_file_keys"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.first_name} {self.user.last_name} | {self.file.resource.name} | {self.file.version} | {self.id}"
+        return f"{self.user.first_name} {self.user.last_name} | {self.resource_file.resource.name} | {self.resource_file.version} | {self.id}"
 
 
 class Email(models.Model):
