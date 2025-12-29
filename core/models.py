@@ -1005,7 +1005,7 @@ class AuthToken(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
-class ResourceContentRequest(models.Model):
+class ResourceContentIntakeRequest(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -1016,13 +1016,17 @@ class ResourceContentRequest(models.Model):
     )
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)
-    checked_out_from_other_library = models.BooleanField(default=False)
+    checked_out_from_other_byu_library = models.BooleanField(default=False)
+    checked_out_from_non_byu_library = models.BooleanField(default=False)
+    # Purpose of use fields
+    is_for_course_use = models.BooleanField(default=False)
+    is_for_ic_use = models.BooleanField(default=False)
     # Content advisory fields
-    nudity = models.BooleanField(default=False)
-    violence = models.BooleanField(default=False)
-    blood_and_gore = models.BooleanField(default=False)
-    sexual_references = models.BooleanField(default=False)
-    strong_language = models.BooleanField(default=False)
+    violence_or_blood_and_gore = models.BooleanField(default=False)
+    nudity_or_sexual_content = models.BooleanField(default=False)
+    profanity_or_vulgarity = models.BooleanField(default=False)
+    self_harm_or_suicide = models.BooleanField(default=False)
+    drug_use = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Content request for {self.resource.title}"

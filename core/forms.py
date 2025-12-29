@@ -5,7 +5,7 @@ from .models import Clip
 from .models import Collection
 from .models import Content
 from .models import ImportantWord
-from .models import ResourceContentRequest
+from .models import ResourceContentIntakeRequest
 from .utils import hms2seconds
 
 
@@ -95,15 +95,21 @@ class ClipForm(forms.ModelForm):
         return cleaned_data
 
 
-class ResourceContentRequestForm(forms.ModelForm):
+class ResourceContentIntakeRequestForm(forms.ModelForm):
     class Meta:
-        model = ResourceContentRequest
+        model = ResourceContentIntakeRequest
         fields = [
+            # Checkout information
             "checked_out_from_hbll",
-            "checked_out_from_other_library",
-            "nudity",
-            "violence",
-            "blood_and_gore",
-            "sexual_references",
-            "strong_language",
+            "checked_out_from_other_byu_library",
+            "checked_out_from_non_byu_library",
+            # Purpose of use
+            "is_for_course_use",
+            "is_for_ic_use",
+            # Content advisory fields
+            "violence_or_blood_and_gore",
+            "nudity_or_sexual_content",
+            "profanity_or_vulgarity",
+            "self_harm_or_suicide",
+            "drug_use",
         ]
