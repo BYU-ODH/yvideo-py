@@ -14,8 +14,6 @@ from django.views.decorators.http import require_POST
 from .forms import ClipForm
 from .models import Clip
 from .models import Content
-from .utils import TOY_VTT
-from .utils import TOY_VTT2
 from .utils import hms2seconds
 from .utils import seconds2hms
 
@@ -85,10 +83,7 @@ def clip_editor(request, content_id):
     }
 
     # Prepare subtitle data in the format expected by AnnotationPlayer
-    subtitles_data = [
-        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
-    ]
+    subtitles_data = []
 
     has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 

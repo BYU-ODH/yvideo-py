@@ -44,8 +44,6 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
-from .utils import TOY_VTT
-from .utils import TOY_VTT2
 from .utils import VTTCue
 from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_content_to_vtt
@@ -142,7 +140,7 @@ def index(request):
     return render(request, "index.html", context)
 
 
-def get_player_info(content_obj: Content):
+def get_data_for_player(content_obj: Content):
     player_json = content_obj.get_player_json()
     has_subs = bool(
         any(
@@ -168,7 +166,7 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    player_info = get_player_info(content)
+    player_info = get_data_for_player(content)
 
     context = {
         "content": content,
@@ -773,10 +771,7 @@ def clip_editor(request, content_id):
         )
     clips_json = json.dumps(clips_json)
     # Prepare subtitle data in the format expected by AnnotationPlayer
-    subtitles_data = [
-        {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-        {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
-    ]
+    subtitles_data = []
 
     has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
 
@@ -1139,7 +1134,7 @@ def subtitle_editor(request, content_id):
         )
         return HttpResponseServerError()
 
-    player_info = get_player_info(content)
+    player_info = get_data_for_player(content)
 
     return render(
         request,
