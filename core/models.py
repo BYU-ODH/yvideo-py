@@ -328,8 +328,6 @@ class File(models.Model):
         if self.file and not self.checksum:
             self.checksum = _calculate_checksum_for_file(self.file)
             self.checksum_at = timezone.now()
-        if self.file and not self.duration:
-            self.duration = get_video_duration(self.file)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -1005,3 +1003,26 @@ class Email(models.Model):
 class AuthToken(models.Model):
     token = models.CharField(max_length=150, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ResourceContentRequest(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Resource-specific fields
+    resource = models.ForeignKey(
+        "Resource", on_delete=models.CASCADE, related_name="content_requests"
+    )
+    # Checkout information
+    checked_out_from_hbll = models.BooleanField(default=False)
+    checked_out_from_other_library = models.BooleanField(default=False)
+    # Content advisory fields
+    nudity = models.BooleanField(default=False)
+    violence = models.BooleanField(default=False)
+    blood_and_gore = models.BooleanField(default=False)
+    sexual_references = models.BooleanField(default=False)
+    strong_language = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Content request for {self.resource.title}"

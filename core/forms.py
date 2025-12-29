@@ -5,6 +5,7 @@ from .models import Clip
 from .models import Collection
 from .models import Content
 from .models import ImportantWord
+from .models import ResourceContentRequest
 from .utils import hms2seconds
 
 
@@ -92,3 +93,17 @@ class ClipForm(forms.ModelForm):
                 raise forms.ValidationError("End time must be after start time.")
 
         return cleaned_data
+
+
+class ResourceContentRequestForm(forms.ModelForm):
+    class Meta:
+        model = ResourceContentRequest
+        fields = [
+            "checked_out_from_hbll",
+            "checked_out_from_other_library",
+            "nudity",
+            "violence",
+            "blood_and_gore",
+            "sexual_references",
+            "strong_language",
+        ]
