@@ -10,14 +10,14 @@ from .models import CollectionUserAccess
 from .models import Content
 from .models import Course
 from .models import Email
-from .models import File
-from .models import FileKey
 from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
 from .models import Resource
 from .models import ResourceAccess
+from .models import ResourceFile
+from .models import ResourceFileKey
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
@@ -72,8 +72,8 @@ class CollectionAdmin(VersionAdmin):
     search_fields = ("name", "owner__name", "owner__netid")
 
 
-@admin.register(File)
-class FileAdmin(VersionAdmin):
+@admin.register(ResourceFile)
+class ResourceFileAdmin(VersionAdmin):
     list_display = ("file", "resource", "version", "full_video", "created_at")
     list_filter = ("full_video", "created_at")
     search_fields = ("file", "version", "resource__name")
@@ -94,7 +94,7 @@ class ContentAdmin(VersionAdmin):
     search_fields = ("title", "description", "collection__name")
 
     def get_form(self, request, obj=None, **kwargs):
-        """Dynamically filters the 'file' field's queryset.
+        """Dynamically filters the 'resource_file' field's queryset.
 
         If editing an existing Content object, it shows only the files
         associated with resources owned by the content's collection owner.
@@ -106,19 +106,21 @@ class ContentAdmin(VersionAdmin):
         if obj:
             # Check if the content has a collection and the collection has an owner.
             if obj.collection and obj.collection.owner:
-                # Filter the 'file' field to show only files whose resource is accessible
+                # Filter the 'resource_file' field to show only files whose resource is accessible
                 # by the collection's owner.
-                form.base_fields["file"].queryset = File.objects.filter(
+                form.base_fields[
+                    "resource_file"
+                ].queryset = ResourceFile.objects.filter(
                     resource__users=obj.collection.owner
                 )
             else:
                 # If no collection or owner, show no files.
-                form.base_fields["file"].queryset = File.objects.none()
+                form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
 
             # Filter clips to show only those associated with the selected file
-            if obj.file:
+            if obj.resource_file:
                 form.base_fields["clips"].queryset = Clip.objects.filter(
-                    resource=obj.file.resource
+                    resource=obj.resource_file.resource
                 )
             else:
                 form.base_fields["clips"].queryset = Clip.objects.none()
@@ -126,16 +128,16 @@ class ContentAdmin(VersionAdmin):
         else:
             # On the 'add' page, we can't filter by collection owner yet.
             # Showing no files until a collection is selected and saved.
-            form.base_fields["file"].queryset = File.objects.none()
+            form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
             form.base_fields[
-                "file"
-            ].help_text = "Select collection, then save to see available files. You will be unable to see files that belong to Resources that you do not have Resource Access to."
+                "resource_file"
+            ].help_text = "Select collection, then save to see available resource files. You will be unable to see resource files that belong to Resources that you do not have Resource Access to."
 
-            # No clips until file is selected and saved.
+            # No clips until resource_file is selected and saved.
             form.base_fields["clips"].queryset = Clip.objects.none()
             form.base_fields[
                 "clips"
-            ].help_text = "Select a file and save to see available clips."
+            ].help_text = "Select a resource_file and save to see available clips."
 
         return form
 
@@ -230,11 +232,11 @@ class CollectionUserAccessAdmin(VersionAdmin):
     search_fields = ("user__netid", "collection__name")
 
 
-@admin.register(FileKey)
-class FileKeyAdmin(VersionAdmin):
-    list_display = ("user", "file", "created_at")
+@admin.register(ResourceFileKey)
+class ResourceFileKeyAdmin(VersionAdmin):
+    list_display = ("user", "resource_file", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("user__netid", "file__resource__name")
+    search_fields = ("user__netid", "resource_file__resource__name")
 
 
 @admin.register(ImportantWord)

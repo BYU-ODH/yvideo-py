@@ -31,10 +31,10 @@ from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Collection
 from .models import Content
-from .models import FileKey
 from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import Resource
+from .models import ResourceFileKey
 from .models import SkipAnnotation
 from .models import User
 from .models import UserCourses
@@ -131,8 +131,8 @@ def index(request):
 def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = request.user.get_filekey(content)
-    if not file_key:
+    resource_file_key = request.user.get_resource_filekey(content)
+    if not resource_file_key:
         return HttpResponse(
             "User does not have permission to view this content", status=403
         )
@@ -144,7 +144,7 @@ def player(request, content_id):
 
     context = {
         "content": content,
-        "file_key": file_key.id if file_key else None,
+        "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "allow_events": True,
         "events": player_json["annotations"],
         "subtitles": player_json["subtitleTracks"],
@@ -155,12 +155,14 @@ def player(request, content_id):
     return render(request, "player.html", context)
 
 
-def stream_file(request, file_key):
+def stream_file(request, resource_file_key_id):
     """Stream file content with support for HTTP Range requests (partial content)."""
     try:
         # Get the FileKey object
-        file_key_obj = get_object_or_404(FileKey, id=file_key)
-        file_obj = file_key_obj.file
+        resource_file_key_obj = get_object_or_404(
+            ResourceFileKey, id=resource_file_key_id
+        )
+        file_obj = resource_file_key_obj.resource_file
 
         # Check if file exists
         if not file_obj.file or not os.path.exists(file_obj.file.path):
@@ -258,8 +260,8 @@ def stream_file(request, file_key):
 
         return response
 
-    except FileKey.DoesNotExist:
-        raise Http404("Invalid file key")
+    except ResourceFileKey.DoesNotExist:
+        raise Http404("Invalid resource file key")
     except Exception as e:
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
@@ -482,7 +484,7 @@ def create_content(request):
                 allow_definitions=data["allow_definitions"],
                 allow_notes=data["allow_notes"],
                 allow_captions=data["allow_captions"],
-                file=data["file"],
+                resource_file=data["resource_file"],
             )
         except Exception as e:
             logger.error(
@@ -511,8 +513,12 @@ def create_content(request):
 def display_resources_files(request):
     resource_id = request.GET.get("resource_id")
     resource = get_object_or_404(Resource, id=resource_id)
-    files = resource.files.all()  # uses related_name="files" in File model
-    return render(request, "partials/select_file.html", {"files": files})
+    resource_files = (
+        resource.resource_files.all()
+    )  # uses related_name="resource_files" in File model
+    return render(
+        request, "partials/select_file.html", {"resource_files": resource_files}
+    )
 
 
 @require_http_methods(["DELETE"])
@@ -635,7 +641,6 @@ def add_annotation(request, content_id, annotation_type):
 
     annotation_class = annotation_types.get(annotation_type.lower())
 
-    # Get the File object
     content_obj = get_object_or_404(Content, id=content_id)
 
     # Get POST data
