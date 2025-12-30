@@ -684,6 +684,16 @@ body {
     align-items: center;
 }
 
+.annotation-box-showing-message {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: black;
+    color: white;
+    font-size: 2em;
+}
+
 /* LANDING PAGE */
 .collection-header {
     display: inline-grid;
