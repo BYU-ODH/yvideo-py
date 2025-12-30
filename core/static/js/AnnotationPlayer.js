@@ -633,7 +633,7 @@ export class AnnotationPlayer {
       let aDetails = a["details"];
       switch (aType) {
         case "skip":
-          if (time >= aStart && time < aEnd && !this.paused) {
+          if (time >= aStart && time < aEnd) {
             this.skipTo(aEnd);
           }
           break;
