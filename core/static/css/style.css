@@ -6,6 +6,7 @@
     --medium-blue: #0582ca;
     --deep-blue: #002e5d;
     --yellow: #ffbf00;
+    --light-yellow: #ffc;
     --light-red: #f34a3f;
     --red: #f01d0f;
     --header-height: 69px;
@@ -541,7 +542,8 @@ body {
 /* Navigation bar */
 .navbar {
     width: 100%;
-    background-color: white;
+    position: relative;
+    z-index: 1;
     color: black;
     padding: 1rem;
     padding-right: 5rem;
@@ -1218,6 +1220,23 @@ body {
     background: #0582ca;
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+#spoofing-warning {
+    background: var(--light-yellow);
+    position: absolute;
+    width: 100%;
+    color: var(--red);
+    padding: 1em;
+    text-align: center;
+    border-bottom: 2px solid var(--red);
+}
+
+#spoofing-warning p {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    z-index: 2;
 }
 
 /* Player Container Styles */
