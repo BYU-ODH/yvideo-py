@@ -67,9 +67,9 @@ urlpatterns = [
         views_clip_editor.clip_editor,
         name="clip_editor",
     ),
-    path("stream/<int:file_key>/", views.stream_file, name="stream_file"),
+    path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),
     path("player/<int:content_id>", views.player, name="player"),
-    path("stream/<int:file_key>", views.stream_file, name="stream_file"),
+    path("stream/<int:resource_file_key_id>", views.stream_file, name="stream_file"),
     path(
         "add_annotation/<str:annotation_type>/<int:file_id>/",
         views.add_annotation,
@@ -162,5 +162,10 @@ urlpatterns = [
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",
         views_video_editor.load_annotation_form,
         name="load_annotation_form",
+    ),
+    path(
+        "resources/<int:resource_id>/request-content/",
+        views.request_content,
+        name="request_content",
     ),
 ]

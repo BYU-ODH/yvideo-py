@@ -1,0 +1,67 @@
+<form method="post">
+    {% csrf_token %}
+
+    <fieldset>
+        <legend>Checkout Information</legend>
+
+        {{ form.checked_out_from_hbll }}
+        <label for="{{ form.checked_out_from_hbll.id_for_label }}">
+            Checked out from HBLL
+        </label><br>
+
+        {{ form.checked_out_from_other_byu_library }}
+        <label for="{{ form.checked_out_from_other_byu_library.id_for_label }}">
+            Checked out from another BYU library
+        </label><br>
+
+        {{ form.checked_out_from_non_byu_library }}
+        <label for="{{ form.checked_out_from_non_byu_library.id_for_label }}">
+            Checked out from a non-BYU library
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Purpose of Use</legend>
+
+        {{ form.is_for_course_use }}
+        <label for="{{ form.is_for_course_use.id_for_label }}">
+            For course use
+        </label><br>
+
+        {{ form.is_for_ic_use }}
+        <label for="{{ form.is_for_ic_use.id_for_label }}">
+            For IC use
+        </label>
+    </fieldset>
+
+    <fieldset>
+        <legend>Content Advisories</legend>
+
+        {{ form.violence_or_blood_and_gore }}
+        <label for="{{ form.violence_or_blood_and_gore.id_for_label }}">
+            Violence or blood and gore
+        </label><br>
+
+        {{ form.nudity_or_sexual_content }}
+        <label for="{{ form.nudity_or_sexual_content.id_for_label }}">
+            Nudity or sexual content
+        </label><br>
+
+        {{ form.profanity_or_vulgarity }}
+        <label for="{{ form.profanity_or_vulgarity.id_for_label }}">
+            Profanity or vulgarity
+        </label><br>
+
+        {{ form.self_harm_or_suicide }}
+        <label for="{{ form.self_harm_or_suicide.id_for_label }}">
+            Self-harm or suicide
+        </label><br>
+
+        {{ form.drug_use }}
+        <label for="{{ form.drug_use.id_for_label }}">
+            Drug use
+        </label>
+    </fieldset>
+
+    <button type="submit">Submit</button>
+</form>
