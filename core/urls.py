@@ -163,4 +163,9 @@ urlpatterns = [
         views_video_editor.load_annotation_form,
         name="load_annotation_form",
     ),
+    path(
+        "resources/<int:resource_id>/request-content/",
+        views.request_content,
+        name="request_content",
+    ),
 ]
