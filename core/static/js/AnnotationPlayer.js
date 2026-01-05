@@ -1306,6 +1306,11 @@ export class AnnotationPlayer {
   }
 
   onKeydown(e) {
+    if (e.target.localName == "input" || e.target.localName == "textarea") {
+      e.stopPropagation();
+      return;
+    }
+
     this.onMouseMove();  // to trigger controls visibility/fade
     const playedTime = this.state.currentTime;
 
