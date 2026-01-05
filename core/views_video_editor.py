@@ -57,7 +57,7 @@ def video_editor(request, content_id):
     duration = content.duration if hasattr(content, "duration") else 0
 
     # Get file key for video streaming
-    file_key = request.user.get_filekey(content)
+    file_key = request.user.get_resource_filekey(content)
 
     # Prepare subtitles (TODO: get from content)
     subtitles_data = []
