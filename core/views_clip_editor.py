@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def clip_editor(request, content_id):
     """Render the clip editor page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = request.user.get_filekey(content)
+    file_key = request.user.get_resource_filekey(content)
 
     duration = content.duration
     layer_items = []
