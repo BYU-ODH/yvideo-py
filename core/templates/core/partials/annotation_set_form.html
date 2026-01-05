@@ -8,7 +8,6 @@
             style="margin: 0;">
         <select name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
             <option value="">-- Select Annotation Set --</option>
-            <option value="new">+ Create New Annotation Set</option>
             {% for set in available_annotation_sets %}
                 <option value="{{ set.id }}"
                         {% if annotation_set and set.id == annotation_set.id %}selected{% endif %}>
@@ -24,7 +23,7 @@
                 title="Edit Annotation Set"
                 hx-get="{% url 'load_annotation_set_settings' annotation_set.id %}?content_id={{ content.id }}"
                 hx-target="#annotation-set-settings-panel"
-                hx-swap="outerHTML"
+                hx-swap="innerHTML"
                 style="background: none; border: none; cursor: pointer; padding: 0;">
             <img src="{% static 'img/settings.svg' %}" alt="Settings" style="width: 20px; height: 20px; vertical-align: middle;">
         </button>

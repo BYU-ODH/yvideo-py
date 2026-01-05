@@ -12,6 +12,15 @@ function emptyParentInnerHTML(element, cssSelectorForParent) {
   }
 }
 
+function deleteParent(element, cssSelectorForParent) {
+  const parent = element.closest(cssSelectorForParent);
+  if (parent) {
+    parent.remove();
+  } else {
+    console.log("element with selector: " + cssSelectorForParent + " not found!");
+  }
+}
+
 function elevateFromSiblings(element) {
   const parent = element.parentElement;
   for (let sibling of parent.children) {
