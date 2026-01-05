@@ -31,6 +31,7 @@ from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import SubtitleForm
+from .forms import ResourceContentIntakeRequestForm
 from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Clip
@@ -1320,3 +1321,28 @@ def delete_subtitle(request, subtitle_id):
             f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
         )
         return HttpResponseServerError()
+def request_content(request, resource_id):
+    resource = get_object_or_404(Resource, id=resource_id)
+
+    if request.method == "POST":
+        form = ResourceContentIntakeRequestForm(request.POST)
+        if form.is_valid():
+            content_request = form.save(commit=False)
+            content_request.resource = resource
+
+            if request.user.is_authenticated:
+                content_request.owner = request.user
+
+            content_request.save()
+            return redirect("request_content", resource_id=resource.id)
+    else:
+        form = ResourceContentIntakeRequestForm()
+
+    return render(
+        request,
+        "partials/resource_content_intake_request.html",
+        {
+            "form": form,
+            "resource": resource,
+        },
+    )
