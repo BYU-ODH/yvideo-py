@@ -104,7 +104,7 @@ urlpatterns = [
     ),
     # Video editor page
     path(
-        "content/<int:content_id>/video-editor/",
+        "video-editor/<int:content_id>/",
         views_video_editor.video_editor,
         name="video_editor",
     ),
