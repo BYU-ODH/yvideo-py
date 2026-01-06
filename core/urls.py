@@ -61,6 +61,9 @@ urlpatterns = [
         views.delete_important_word,
         name="delete_important_word",
     ),
+    path(
+        "player-data/<int:content_id>/", views.get_player_data, name="get_player_data"
+    ),
     path("player/<int:content_id>/", views.player, name="player"),
     path(
         "clip-editor/<int:content_id>/",

@@ -12,24 +12,11 @@
     <link rel="stylesheet" href="{% static 'css/editor.css' %}">
 </head>
 <body>
-    <script>
-        window.playerData = {
-            events: {{ events|safe }},
-            subtitles: {{ subtitles|safe }},
-            hasSubtitles: {{ has_subtitles|yesno:"true,false" }},
-            duration: {{ duration }}
-        };
-    </script>
-
-    <!-- Hidden JSON container for items (updated via HTMX OOB) -->
-    {% include 'partials/player_json_oob.html' with player_json=player_json %}
-
-
-    <div class="editor-container" data-content-id="{{ content.id }}" data-duration="{{ duration }}">
+    <div class="editor-container">
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
         <div class="top-panel">
             <div class="video-section">
-                {% include 'partials/player-wrapper.html' %}
+                {% include 'partials/player-wrapper.html' with content_id=content.pk %}
             </div>
 
             <div class="detail-form-section">

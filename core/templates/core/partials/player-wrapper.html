@@ -1,6 +1,6 @@
 {% load static %}
 
-<div class="annotation-player-container">
+<div data-contentId="{{content_id}}" class="annotation-player-container">
     <video id="video-player" preload="auto">
         {% if resource_file_key_id %}
             <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">

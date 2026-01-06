@@ -11,24 +11,32 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
 
     let annotationPlayer = null;
 
-    function init() {
+    async function init() {
         const container = document.querySelector('.annotation-player-container');
-
         if (!container) {
             console.error('Player container not found');
             return;
         }
 
+        // fetch player subtitles, annotations, and clips
+        const contentId = container.dataset.contentid;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const playerData = await (await fetch("/player-data/" + contentId + '/', {
+            method: "POST",
+            headers: {"X-CSRFToken": csrfToken},
+            mode: "same-origin"
+        })).json();
+
         let tracks = [];
-        if (window.playerData && window.playerData.subtitles) {
-            const subtitles = window.playerData.subtitles;
+        if (playerData && playerData.subtitleTracks) {
+            const subtitles = playerData.subtitleTracks;
             const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
             tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
         }
 
         let clips = [];
-        if (window.playerData && window.playerData.clips) {
-            clips = window.playerData.clips;
+        if (playerData && playerData.clips) {
+            clips = playerData.clips;
         }
 
         const enableSubtitleSidebar = tracks.length > 0;
@@ -41,9 +49,9 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             subtitleSidebar: enableSubtitleSidebar
         });
 
-        if (window.playerData) {
+        if (playerData) {
             const data = {
-                annotations: window.playerData.events || [],
+                annotations: playerData.annotations || [],
             };
             annotationPlayer.loadData(data);
         }

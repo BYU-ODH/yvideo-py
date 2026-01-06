@@ -100,8 +100,7 @@ export class EditorScrubber {
     constructor() {
         this.scrubber = document.querySelector('.editor-scrubber');
         this.layerContent = document.querySelector('.layer-content');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
+        this.duration = 0;
         this.video = null;
 
         this.init();
@@ -114,6 +113,7 @@ export class EditorScrubber {
             if (this.video) {
                 clearInterval(checkVideo);
                 this.attachVideoListeners();
+                this.duration = this.video.duration;
             }
         }, 100);
     }
@@ -150,8 +150,7 @@ export class Timeline {
         this.timelineContainer = document.querySelector('.timeline-container');
         this.layerContent = document.querySelectorAll('.layer-content');
         this.zoomSlider = document.getElementById('zoom-slider');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
+        this.duration = 0;
         this.zoomLevel = 1;
         this.hoverScrubber = null;
         this.isDragging = false;
@@ -161,6 +160,8 @@ export class Timeline {
     }
 
     init() {
+        const video = document.querySelector('.annotation-player-container video');
+        this.duration = video.duration;
         this.createHoverScrubber();
         this.renderTickMarks();
         this.attachTimelineListeners();
@@ -442,8 +443,7 @@ export class Timeline {
 export class LayerInteractionHandler {
     constructor() {
         this.layerContainers = document.querySelectorAll('.layer-items');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
+        this.duration = 0;
         this.dragState = null;
         this.zoomLevel = 1;
 
@@ -451,6 +451,8 @@ export class LayerInteractionHandler {
     }
 
     init() {
+        const video = document.querySelector('.annotation-player-container video');
+        this.duration = video.duration;
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.layerContainers.forEach(container => {
             container.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -923,8 +925,7 @@ export class VideoPlayerSync {
 // Helper function for new item creation
 window.getNewItemStartEndTimes = function() {
     const video = document.querySelector('.annotation-player-container video');
-    const container = document.querySelector('.editor-container');
-    const duration = parseFloat(container?.dataset.duration) || 120;
+    const duration = video.duration;
 
     if (video) {
         const startTime = video.currentTime;
