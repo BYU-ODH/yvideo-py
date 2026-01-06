@@ -59,13 +59,6 @@ def video_editor(request, content_id):
     # Get file key for video streaming
     file_key = request.user.get_resource_filekey(content)
 
-    # Prepare subtitles (TODO: get from content)
-    subtitles_data = []
-    has_subtitles = False
-
-    # Get JSON data from model methods
-    player_json = json.dumps(content.get_player_json(), indent=2)
-
     # Prepare layer data for timeline
     layers_list = []
     layers_dict = {}
@@ -133,15 +126,10 @@ def video_editor(request, content_id):
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": json.dumps([]),
-        "subtitles": json.dumps(subtitles_data),
-        "player_json": player_json,
-        "has_subtitles": has_subtitles,
         "available_annotation_sets": available_sets,
         "annotation_set": active_set,
         "can_edit": can_edit,
         "can_edit_annotation_set": can_edit_annotation_set,
-        "duration": duration,
         "layers": layers_dict,  # For timeline_base.html label column
         "layers_list": layers_list,  # For timeline_layers.html content
     }

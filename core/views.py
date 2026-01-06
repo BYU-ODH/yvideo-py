@@ -159,19 +159,10 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    # player_json = content.get_player_json()
-    # has_subtitles = bool(
-    #     any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
-    # )
-
     context = {
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "allow_events": True,
-        # "events": player_json["annotations"],
-        # "subtitles": player_json["subtitleTracks"],
-        # "clips": player_json["clips"],
-        # "has_subtitles": has_subtitles,
     }
 
     return render(request, "player.html", context)
