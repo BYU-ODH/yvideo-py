@@ -145,7 +145,8 @@ def get_player_data(request, content_id):
         }
 
         return JsonResponse(data)
-    except:
+    except Exception as e:
+        logger.error(f"An error occurred while getting player data: {e}")
         return HttpResponseServerError()
 
 
