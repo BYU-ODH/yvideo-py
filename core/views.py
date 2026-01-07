@@ -645,19 +645,32 @@ def add_annotation(request, content_id, annotation_type):
     content_obj = get_object_or_404(Content, id=content_id)
 
     # Get POST data
+    annotation_id = request.POST.get("annotation_id")
     name = request.POST.get("name", "")
     owner = request.POST.get("owner", "")  # Change to request.user when auth is set up
     start_time = float(request.POST.get("start_time", 0))
     end_time = float(request.POST.get("end_time", 0))
+    description = request.POST.get("description", "")
 
-    # Create the annotation
-    annotation = annotation_class.objects.create(
-        content=content_obj,
-        owner=owner,  # change to request.user when auth is set up
-        name=name,
-        start_time=start_time,
-        end_time=end_time,
-    )
+    if annotation_id:
+        # Update existing annotation
+        annotation = get_object_or_404(annotation_class, id=annotation_id)
+        annotation.name = name
+        annotation.start_time = start_time
+        annotation.end_time = end_time
+        annotation.description = description
+        annotation.save()
+    else:
+        # Create new annotation
+        annotation_set = content_obj.annotation_set
+        annotation = annotation_class.objects.create(
+            content=content_obj,
+            owner=owner,
+            name=name,
+            start_time=start_time,
+            end_time=end_time,
+            description=description,
+        )
 
     # Return JSON response
     return JsonResponse(
@@ -668,6 +681,7 @@ def add_annotation(request, content_id, annotation_type):
             "owner": annotation.owner.netid,
             "start_time": annotation.start_time,
             "end_time": annotation.end_time,
+            "description": annotation.description,
         }
     )
 

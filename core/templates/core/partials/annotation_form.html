@@ -61,6 +61,13 @@
         </div>
         {% endif %}
 
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description"
+                    name="description"
+                    {% if not can_edit %}readonly{% endif %}>{{ instance.description }}</textarea>
+        </div>
+
         {% if can_edit %}
         <div class="form-actions">
             <button type="submit" class="btn-primary">Update</button>

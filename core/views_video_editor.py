@@ -732,6 +732,10 @@ def update_annotation(request, annotation_type, annotation_id):
             "start_time": float(request.POST.get("start_time", annotation.start_time)),
         }
 
+        description = request.POST.get("description")
+        if description is not None:
+            update_fields["description"] = description
+
         if annotation_type != "pause":
             update_fields["end_time"] = float(
                 request.POST.get("end_time", annotation.end_time)
@@ -758,7 +762,11 @@ def update_annotation(request, annotation_type, annotation_id):
         elif annotation_type == "blank":
             update_fields["type"] = request.POST.get("blank_type", annotation.type)
 
-    new_annotation = annotation.edit(**update_fields)
+    for field, value in update_fields.items():
+        setattr(annotation, field, value)
+
+    annotation.save()
+    new_annotation = annotation
 
     # Update the data-label attribute on the element
     new_annotation.refresh_from_db()

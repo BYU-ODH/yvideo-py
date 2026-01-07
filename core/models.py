@@ -625,6 +625,11 @@ class BaseAnnotation(models.Model):
         null=True,
         blank=True,
     )
+    description = models.TextField(
+        blank=False,
+        null=False,
+        help_text="Short description of what content this annotation covers.",
+    )
 
     # Only active annotations are visible/used
     active = models.BooleanField(default=True)
