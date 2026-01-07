@@ -104,9 +104,9 @@ urlpatterns = [
     ),
     # Video editor page
     path(
-        "video-editor/<int:content_id>/",
+        "video-annotator/<int:content_id>/",
         views_video_editor.video_editor,
-        name="video_editor",
+        name="video_annotator",
     ),
     # AnnotationSet management
     path(
