@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
+from django.http import HttpResponseServerError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
@@ -93,6 +94,19 @@ def build_annotation_layers(content, annotation_set, can_edit):
             "add_form_url": "create_annotation",
         }
     return {"layers": layers, "layer_buttons": layer_buttons}
+
+
+def build_timeline_layers_html(request, content, annotation_set, can_edit):
+    layers_build_result = build_annotation_layers(content, annotation_set, can_edit)
+    layers = layers_build_result["layers"]
+    timeline_layers_html = render_to_string(
+        "core/partials/timeline_layers.html",
+        {
+            "layers": layers,
+        },
+        request=request,
+    )
+    return timeline_layers_html
 
 
 def return_annotation_if_authorized_and_exists(
@@ -301,19 +315,13 @@ def undo_annotation(request, content_id):
         return HttpResponse("Nothing to undo for this annotation", status=400)
 
     # Prepare layers for timeline rendering
-    build_result = build_annotation_layers(content, annotation_set, True)
-    layers = build_result["layers"]
-
-    # Re-render timeline with updated active annotations using shared partial
-    timeline_html = render_to_string(
-        "core/partials/timeline_layers.html",
-        {
-            "layers": layers,
-        },
-        request=request,
+    timeline_layers_html = build_timeline_layers_html(
+        request, content, annotation_set, True
     )
-
-    return HttpResponse(timeline_html)
+    if timeline_layers_html:
+        return HttpResponse(timeline_layers_html)
+    else:
+        return HttpResponseServerError()
 
 
 @require_POST
@@ -340,19 +348,13 @@ def redo_annotation(request, content_id):
         return HttpResponse("Nothing to redo for this annotation", status=400)
 
     # Prepare layers for timeline rendering
-    build_response = build_annotation_layers(content, annotation_set, True)
-    layers = build_response["layers"]
-
-    # Re-render timeline with updated active annotations using shared partial
-    timeline_html = render_to_string(
-        "core/partials/timeline_layers.html",
-        {
-            "layers": layers,
-        },
-        request=request,
+    timeline_layers_html = build_timeline_layers_html(
+        request, content, annotation_set, True
     )
-
-    return HttpResponse(timeline_html)
+    if timeline_layers_html:
+        return HttpResponse(timeline_layers_html)
+    else:
+        return HttpResponseServerError()
 
 
 @require_POST
