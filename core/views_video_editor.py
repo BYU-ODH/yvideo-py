@@ -37,7 +37,7 @@ ANNOTATION_MODELS = {
 }
 
 
-def buildAnnotationLayers(content, annotation_set, can_edit):
+def build_annotation_layers(content, annotation_set, can_edit):
     layers = []
     layer_buttons = {}
     for type_name, model_class in ANNOTATION_MODELS.items():
@@ -95,6 +95,51 @@ def buildAnnotationLayers(content, annotation_set, can_edit):
     return {"layers": layers, "layer_buttons": layer_buttons}
 
 
+def return_annotation_if_authorized_and_exists(
+    annotation_set, user, annotation_id, annotation_type
+):
+    if not annotation_set:
+        return {
+            "success": False,
+            "result": HttpResponse("No active annotation set", status=400),
+        }
+
+    # Check edit permissions
+    if not annotation_set.can_edit(user):
+        return {
+            "success": False,
+            "result": HttpResponse("Cannot edit this AnnotationSet", status=403),
+        }
+
+    if not annotation_id or not annotation_type:
+        return {
+            "success": False,
+            "result": HttpResponse(
+                "No annotation_id or annotation_type provided", status=400
+            ),
+        }
+
+    # Use annotation_type to get the correct model
+    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
+    if not model_class:
+        return {
+            "success": False,
+            "result": HttpResponse(
+                f"Unknown annotation type: {annotation_type}", status=400
+            ),
+        }
+
+    try:
+        annotation = model_class.objects.get(id=annotation_id, active=True)
+    except model_class.DoesNotExist:
+        return {
+            "success": False,
+            "result": HttpResponse("Annotation not found or inactive", status=404),
+        }
+
+    return {"success": True, "result": annotation}
+
+
 @require_GET
 @login_required
 def video_editor(request, content_id):
@@ -120,7 +165,7 @@ def video_editor(request, content_id):
     file_key = request.user.get_resource_filekey(content)
 
     # Prepare layer data for timeline
-    layer_results = buildAnnotationLayers(content, annotation_set, can_edit)
+    layer_results = build_annotation_layers(content, annotation_set, can_edit)
 
     context = {
         "content": content,
@@ -206,7 +251,7 @@ def select_annotation_set(request):
     )
 
     # Prepare layers for timeline rendering (matching clip editor structure)
-    layer_results = buildAnnotationLayers(content, annotation_set, can_edit)
+    layer_results = build_annotation_layers(content, annotation_set, can_edit)
     layers = layer_results["layers"]
     layer_buttons = layer_results["layer_buttons"]
 
@@ -239,29 +284,16 @@ def undo_annotation(request, content_id):
     content = get_object_or_404(Content, id=content_id)
     annotation_set = content.annotation_set
 
-    if not annotation_set:
-        return HttpResponse("No active annotation set", status=400)
-
-    # Check edit permissions
-    if not annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
-
     # Get both annotation ID and type from POST data
     annotation_id = request.POST.get("annotation_id")
     annotation_type = request.POST.get("annotation_type")
 
-    if not annotation_id or not annotation_type:
-        return HttpResponse("No annotation_id or annotation_type provided", status=400)
-
-    # Use annotation_type to get the correct model
-    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
-    if not model_class:
-        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
-
-    try:
-        annotation = model_class.objects.get(id=annotation_id, active=True)
-    except model_class.DoesNotExist:
-        return HttpResponse("Annotation not found or inactive", status=404)
+    annotation_response = return_annotation_if_authorized_and_exists(
+        annotation_set, request.user, annotation_id, annotation_type
+    )
+    if not annotation_response["success"]:
+        return annotation_response["result"]
+    annotation = annotation_response["result"]
 
     # Perform undo on this specific annotation
     prev_version = annotation.undo()
@@ -269,54 +301,8 @@ def undo_annotation(request, content_id):
         return HttpResponse("Nothing to undo for this annotation", status=400)
 
     # Prepare layers for timeline rendering
-    layers = []
-    for type_name, model_class in ANNOTATION_MODELS.items():
-        items = []
-        if annotation_set:
-            annotations = model_class.objects.filter(
-                annotation_set=annotation_set, active=True
-            ).order_by("start_time")
-            for annotation in annotations:
-                start_time = annotation.start_time
-                end_time = getattr(annotation, "end_time", start_time)
-                start_percent = (
-                    (start_time / content.duration * 100) if content.duration > 0 else 0
-                )
-                width_percent = (
-                    ((end_time - start_time) / content.duration * 100)
-                    if content.duration > 0
-                    else 0
-                )
-                items.append(
-                    {
-                        "template": "core/partials/item.html",
-                        "annotation": annotation,
-                        "content": content,
-                        "type": type_name,
-                        "can_edit": True,
-                        "position": {
-                            "left": f"{start_percent:.2f}%",
-                            "width": f"{width_percent:.2f}%",
-                            "start": start_time,
-                            "end": end_time,
-                        },
-                    }
-                )
-        layers.append(
-            {
-                "type": type_name,
-                "label": type_name.title(),
-                "can_edit": True,
-                "items": items,
-                "add_button": {
-                    "url": f"/content/{content_id}/annotations/create/{type_name}/",
-                    "target": "#annotation-form-wrapper",
-                    "swap": "innerHTML",
-                    "title": f"Add new {type_name} annotation",
-                    "vals": "js:...getNewItemStartEndTimes()",
-                },
-            }
-        )
+    build_result = build_annotation_layers(content, annotation_set, True)
+    layers = build_result["layers"]
 
     # Re-render timeline with updated active annotations using shared partial
     timeline_html = render_to_string(
@@ -327,16 +313,7 @@ def undo_annotation(request, content_id):
         request=request,
     )
 
-    json_html = render_to_string(
-        "partials/player_json_oob.html",
-        {"player_json": json.dumps(content.get_player_json(), indent=2)},
-        request=request,
-    )
-
-    return HttpResponse(
-        f'<div hx-swap-oob="innerHTML:#annotation-timeline">{timeline_html}</div>'
-        f"{json_html}"
-    )
+    return HttpResponse(timeline_html)
 
 
 @require_POST
@@ -346,29 +323,16 @@ def redo_annotation(request, content_id):
     content = get_object_or_404(Content, id=content_id)
     annotation_set = content.annotation_set
 
-    if not annotation_set:
-        return HttpResponse("No active annotation set", status=400)
-
-    # Check edit permissions
-    if not annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
-
     # Get both annotation ID and type from POST data
     annotation_id = request.POST.get("annotation_id")
     annotation_type = request.POST.get("annotation_type")
 
-    if not annotation_id or not annotation_type:
-        return HttpResponse("No annotation_id or annotation_type provided", status=400)
-
-    # Use annotation_type to get the correct model
-    model_class = ANNOTATION_MODELS.get(annotation_type.lower())
-    if not model_class:
-        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
-
-    try:
-        annotation = model_class.objects.get(id=annotation_id)
-    except model_class.DoesNotExist:
-        return HttpResponse("Annotation not found", status=404)
+    annotation_response = return_annotation_if_authorized_and_exists(
+        annotation_set, request.user, annotation_id, annotation_type
+    )
+    if not annotation_response["success"]:
+        return annotation_response["result"]
+    annotation = annotation_response["result"]
 
     # Perform redo on this specific annotation
     next_version = annotation.redo()
@@ -516,14 +480,14 @@ def remove_editor_from_annotation_set(request, annotation_set_id, user_id):
 @transaction.atomic
 def create_annotation(request, annotation_type, content_id):
     """Create annotation in the active AnnotationSet."""
-    content = get_object_or_404(Content, id=content_id)
 
+    content = get_object_or_404(Content, id=content_id)
     if not request.user.can_view_content(content):
         return HttpResponse("Unauthorized", status=403)
 
     annotation_set = content.annotation_set
     if not annotation_set:
-        return HttpResponse("No active AnnotationSet", status=400)
+        return HttpResponse("No active AnnotationSet", status=404)
 
     if not annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
@@ -607,6 +571,12 @@ def create_annotation(request, annotation_type, content_id):
 @transaction.atomic
 def update_annotation(request, annotation_type, annotation_id):
     """Update annotation by creating a new version in the linked list."""
+    content_id = request.POST.get("content_id")
+    content = get_object_or_404(Content, id=content_id)
+
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
     # Use the annotation_type parameter to get the correct model
     model_class = ANNOTATION_MODELS.get(annotation_type.lower())
     if not model_class:
@@ -616,9 +586,6 @@ def update_annotation(request, annotation_type, annotation_id):
         annotation = model_class.objects.get(id=annotation_id, active=True)
     except model_class.DoesNotExist:
         return HttpResponse("Annotation not found or inactive", status=404)
-
-    content_id = request.POST.get("content_id")
-    content = get_object_or_404(Content, id=content_id)
 
     if not annotation.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
