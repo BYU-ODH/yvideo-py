@@ -110,7 +110,7 @@ urlpatterns = [
     ),
     # AnnotationSet management
     path(
-        "content/<int:content_id>/select-annotation-set/",
+        "select-annotation-set",
         views_video_editor.select_annotation_set,
         name="select_annotation_set",
     ),

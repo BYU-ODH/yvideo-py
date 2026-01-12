@@ -6,7 +6,7 @@
 
 import { AnnotationPlayer } from './AnnotationPlayer.js';
 
-(function() {
+function attachAnnotationPlayer() {
     'use strict';
 
     let annotationPlayer = null;
@@ -21,11 +21,12 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
         // fetch player subtitles, annotations, and clips
         const contentId = container.dataset.contentid;
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const playerData = await (await fetch("/player-data/" + contentId + '/', {
+        const playerDataResponse = await fetch("/player-data/" + contentId + '/', {
             method: "POST",
             headers: {"X-CSRFToken": csrfToken},
             mode: "same-origin"
-        })).json();
+        });
+        const playerData = await playerDataResponse.json();
 
         let tracks = [];
         if (playerData && playerData.subtitleTracks) {
@@ -64,4 +65,17 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
     } else {
         init();
     }
-})();
+}
+
+attachAnnotationPlayer();
+
+// watch for changes in video section. reload annotation player if changes occur
+function handleVideoSectionChanges(mutationList) {
+  for (let mutation of mutationList) {
+    if (mutation.type == "childList") {
+      attachAnnotationPlayer();
+    }
+  }
+}
+const videoSectionObserver = new MutationObserver(handleVideoSectionChanges)
+videoSectionObserver.observe(document.getElementById("video-section") , {childList: true})

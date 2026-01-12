@@ -3,42 +3,44 @@
 
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>Video Editor - {{ content.title }}</title>
-    <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
-    <link rel="stylesheet" href="{% static 'css/editor.css' %}">
-</head>
-<body>
-    <div class="editor-container">
-        <!-- Top Panel: Video Player (left) and Detail Form (right) -->
-        <div class="top-panel">
-            <div class="video-section">
-                {% include 'partials/player-wrapper.html' with content_id=content.pk %}
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="csrf-token" content="{{ csrf_token }}">
+        <title>Video Editor - {{ content.title }}</title>
+        <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
+        <link rel="stylesheet" href="{% static 'css/editor.css' %}">
+    </head>
+    <body>
+        <div class="editor-container">
+            <!-- Top Panel: Video Player (left) and Detail Form (right) -->
+            <div class="top-panel">
+                <div id="video-section" class="video-section">
+                    {% include 'partials/player-wrapper.html' with content_id=content.pk %}
+                </div>
+
+                <div class="detail-form-section">
+                    <!-- Annotation Set Selector -->
+                    <div id="annotation-set-form-wrapper">
+                        {% include 'partials/annotation_set_form.html' %}
+                    </div>
+
+                    <!-- Annotation Detail Form -->
+                    <div id="detail-form"
+                        class="detail-form"
+                        hx-trigger="loadForm"
+                        hx-swap="innerHTML">
+                        {% include 'partials/item_form_placeholder.html' %}
+                    </div>
+                </div>
             </div>
 
-            <div class="detail-form-section">
-                <!-- Annotation Set Selector -->
-                <div id="annotation-set-form-wrapper">
-                    {% include 'partials/annotation_set_form.html' %}
-                </div>
-
-                <!-- Annotation Detail Form -->
-                <div id="detail-form"
-                     class="detail-form"
-                     hx-trigger="loadForm"
-                     hx-swap="innerHTML">
-                    {% include 'partials/item_form_placeholder.html' %}
-                </div>
+            <!-- Bottom Panel: Timeline -->
+            <div id="timeline-section">
+                {% include 'partials/timeline_base.html' with layers=layers %}
             </div>
         </div>
 
-        <!-- Bottom Panel: Timeline -->
-        {% include 'partials/timeline_base.html' with layers=layers %}
-    </div>
-
-    <script type="module" src="{% static 'js/editor.js' %}"></script>
-</body>
+        <script type="module" src="{% static 'js/editor.js' %}"></script>
+    </body>
 </html>

@@ -921,6 +921,53 @@ export class VideoPlayerSync {
     }
 }
 
+async function handleAnnotationSetChange(event) {
+    event.stopPropagation();
+    let annotationSetId;
+    const selectorOptions = event.target.children;
+    for (let option of selectorOptions) {
+        if (option.selected) {
+            annotationSetId = Number(option.value);
+            break;
+        }
+    }
+
+    if (isNaN(annotationSetId) || annotationSetId === undefined) {
+        console.error("Selected value was not defined!");
+        return;
+    }
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const content_id = document.getElementById("annotation-player-container")?.dataset?.contentid;
+    if (!content_id) {
+        console.error("could not retrieve content id while switching annotation sets!");
+        return;
+    }
+    const htmlContentResponse = await fetch("/select-annotation-set", {
+        method: "POST",
+        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": content_id}),
+        headers: {"X-CSRFToken": csrfToken},
+        mode: "same-origin"
+    });
+
+    const newHTMLContent = await htmlContentResponse.json();
+
+    const videoSection = document.getElementById("video-section");
+    videoSection.innerHTML = newHTMLContent["video_section"];
+
+    const timelineSection = document.getElementById("timeline-section");
+    timelineSection.innerHTML = newHTMLContent["timeline_section"];
+}
+
+function setupAnnotationSelectorFunctions() {
+    const setSelector = document.getElementById("annotation-set-selector");
+    if (!setSelector) {
+        console.error("Annotation set selector cannot be found!");
+        return;
+    }
+
+    setSelector.addEventListener("change", handleAnnotationSetChange);
+}
 
 // Helper function for new item creation
 window.getNewItemStartEndTimes = function() {
@@ -949,18 +996,22 @@ document.body.addEventListener('htmx:afterSwap', function(event) {
 });
 
 // Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
+function init() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            new EditorResizer();
+            new EditorScrubber();
+            new Timeline();
+            new LayerInteractionHandler();
+            new VideoPlayerSync();
+        });
+    } else {
         new EditorResizer();
         new EditorScrubber();
         new Timeline();
         new LayerInteractionHandler();
         new VideoPlayerSync();
-    });
-} else {
-    new EditorResizer();
-    new EditorScrubber();
-    new Timeline();
-    new LayerInteractionHandler();
-    new VideoPlayerSync();
+    }
+    setupAnnotationSelectorFunctions();
 }
+init();

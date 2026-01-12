@@ -1,12 +1,8 @@
 {% load static %}
 
 <div class="annotation-set-selector-row" style="display: flex; align-items: center; gap: 0.5rem;">
-    <form id="annotation-set-select-form"
-            hx-post="{% url 'select_annotation_set' content.id %}"
-            hx-target="#annotation-set-select-form"
-            hx-swap="outerHTML"
-            style="margin: 0;">
-        <select name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
+    <div id="annotation-set-select-form">
+        <select id="annotation-set-selector" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
             <option value="">-- Select Annotation Set --</option>
             {% for set in available_annotation_sets %}
                 <option value="{{ set.id }}"
@@ -15,8 +11,7 @@
                 </option>
             {% endfor %}
         </select>
-        <button type="submit" style="display: none;"></button>
-    </form>
+    </div>
     {% if can_edit_annotation_set %}
         <button id="annotation-set-settings-btn"
                 type="button"
