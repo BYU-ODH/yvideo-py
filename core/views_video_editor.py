@@ -340,54 +340,8 @@ def redo_annotation(request, content_id):
         return HttpResponse("Nothing to redo for this annotation", status=400)
 
     # Prepare layers for timeline rendering
-    layers = []
-    for type_name, model_class in ANNOTATION_MODELS.items():
-        items = []
-        if annotation_set:
-            annotations = model_class.objects.filter(
-                annotation_set=annotation_set, active=True
-            ).order_by("start_time")
-            for annotation in annotations:
-                start_time = annotation.start_time
-                end_time = getattr(annotation, "end_time", start_time)
-                start_percent = (
-                    (start_time / content.duration * 100) if content.duration > 0 else 0
-                )
-                width_percent = (
-                    ((end_time - start_time) / content.duration * 100)
-                    if content.duration > 0
-                    else 0
-                )
-                items.append(
-                    {
-                        "template": "core/partials/item.html",
-                        "annotation": annotation,
-                        "content": content,
-                        "type": type_name,
-                        "can_edit": True,
-                        "position": {
-                            "left": f"{start_percent:.2f}%",
-                            "width": f"{width_percent:.2f}%",
-                            "start": start_time,
-                            "end": end_time,
-                        },
-                    }
-                )
-        layers.append(
-            {
-                "type": type_name,
-                "label": type_name.title(),
-                "can_edit": True,
-                "items": items,
-                "add_button": {
-                    "url": f"/content/{content_id}/annotations/create/{type_name}/",
-                    "target": "#annotation-form-wrapper",
-                    "swap": "innerHTML",
-                    "title": f"Add new {type_name} annotation",
-                    "vals": "js:...getNewItemStartEndTimes()",
-                },
-            }
-        )
+    build_response = build_annotation_layers(content, annotation_set, True)
+    layers = build_response["layers"]
 
     # Re-render timeline with updated active annotations using shared partial
     timeline_html = render_to_string(
@@ -398,17 +352,7 @@ def redo_annotation(request, content_id):
         request=request,
     )
 
-    # Get JSON from model method
-    json_html = render_to_string(
-        "partials/player_json_oob.html",
-        {"player_json": json.dumps(content.get_player_json(), indent=2)},
-        request=request,
-    )
-
-    return HttpResponse(
-        f'<div hx-swap-oob="innerHTML:#annotation-timeline">{timeline_html}</div>'
-        f"{json_html}"
-    )
+    return HttpResponse(timeline_html)
 
 
 @require_POST
