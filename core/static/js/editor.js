@@ -955,8 +955,8 @@ async function handleAnnotationSetChange(event) {
     const videoSection = document.getElementById("video-section");
     videoSection.innerHTML = newHTMLContent["video_section"];
 
-    const timelineSection = document.getElementById("timeline-section");
-    timelineSection.innerHTML = newHTMLContent["timeline_section"];
+    const timelineLayers = document.getElementById("annotation-timeline");
+    timelineLayers.innerHTML = newHTMLContent["timeline_layers"];
 }
 
 function setupAnnotationSelectorFunctions() {
@@ -977,8 +977,8 @@ window.getNewItemStartEndTimes = function() {
     if (video) {
         const startTime = video.currentTime;
         // Add 20% of duration or 10 seconds, whichever is smaller
-        const clipDuration = Math.min(duration * 0.2, 10);
-        const endTime = Math.min(startTime + clipDuration, duration);
+        const itemDuration = Math.min(duration * 0.2, 10);
+        const endTime = Math.min(startTime + itemDuration, duration);
         return {start_time: startTime, end_time: endTime};
     }
     return {start_time: 0, end_time: Math.min(10, duration)};

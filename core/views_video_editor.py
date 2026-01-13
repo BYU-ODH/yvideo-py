@@ -267,12 +267,11 @@ def select_annotation_set(request):
     # Prepare layers for timeline rendering (matching clip editor structure)
     layer_results = build_annotation_layers(content, annotation_set, can_edit)
     layers = layer_results["layers"]
-    layer_buttons = layer_results["layer_buttons"]
 
     # Render timeline using shared partial
-    timeline_html = render_to_string(
-        "core/partials/timeline_base.html",
-        {"layers": layers, "layer_buttons": layer_buttons, "content_id": content_id},
+    timeline_layers_html = render_to_string(
+        "core/partials/timeline_layers.html",
+        {"layers": layers, "content_id": content_id},
         request=request,
     )
 
@@ -287,7 +286,7 @@ def select_annotation_set(request):
     )
 
     return JsonResponse(
-        {"video_section": video_html, "timeline_section": timeline_html}
+        {"video_section": video_html, "timeline_layers": timeline_layers_html}
     )
 
 
@@ -499,16 +498,8 @@ def create_annotation(request, annotation_type, content_id):
         request=request,
     )
 
-    # Render JSON OOB update
-    json_html = render_to_string(
-        "partials/player_json_oob.html",
-        {"player_json": json.dumps(content.get_player_json(), indent=2)},
-        request=request,
-    )
-
     return HttpResponse(
         f'<div hx-swap-oob="beforeend:.layer-items.{annotation_type}">{item_html}</div>'
-        f"{json_html}"
     )
 
 
