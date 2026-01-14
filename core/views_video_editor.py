@@ -53,9 +53,6 @@ def video_editor(request, content_id):
         active_set.owner == request.user or request.user.is_admin
     )
 
-    # Get video duration
-    duration = content.duration if hasattr(content, "duration") else 0
-
     # Get file key for video streaming
     file_key = request.user.get_resource_filekey(content)
 
@@ -80,10 +77,6 @@ def video_editor(request, content_id):
             for annotation in annotations:
                 start_time = annotation.start_time
                 end_time = getattr(annotation, "end_time", start_time)
-                start_percent = (start_time / duration * 100) if duration > 0 else 0
-                width_percent = (
-                    ((end_time - start_time) / duration * 100) if duration > 0 else 0
-                )
 
                 layer_items.append(
                     {
@@ -94,8 +87,6 @@ def video_editor(request, content_id):
                         "update_url": "update_annotation",
                         "load_form_url": "load_annotation_form",
                         "position": {
-                            "left": f"{start_percent:.2f}%",
-                            "width": f"{width_percent:.2f}%",
                             "start": start_time,
                             "end": end_time,
                         },
@@ -141,7 +132,6 @@ def video_editor(request, content_id):
         "annotation_set": active_set,
         "can_edit": can_edit,
         "can_edit_annotation_set": can_edit_annotation_set,
-        "duration": duration,
         "layers": layers_dict,  # For timeline_base.html label column
         "layers_list": layers_list,  # For timeline_layers.html content
     }
@@ -227,7 +217,6 @@ def select_annotation_set(request, content_id):
 
     # Prepare layers for timeline rendering (matching clip editor structure)
     layers = []
-    duration = content.duration if hasattr(content, "duration") else 0
     for type_name, model_class in ANNOTATION_MODELS.items():
         layer_items = []
         if annotation_set:
@@ -237,10 +226,6 @@ def select_annotation_set(request, content_id):
             for annotation in annotations:
                 start_time = annotation.start_time
                 end_time = getattr(annotation, "end_time", start_time)
-                start_percent = (start_time / duration * 100) if duration > 0 else 0
-                width_percent = (
-                    ((end_time - start_time) / duration * 100) if duration > 0 else 0
-                )
                 layer_items.append(
                     {
                         "template": "partials/item.html",
@@ -250,8 +235,6 @@ def select_annotation_set(request, content_id):
                         "update_url": "update_annotation",
                         "load_form_url": "load_annotation_form",
                         "position": {
-                            "left": f"{start_percent:.2f}%",
-                            "width": f"{width_percent:.2f}%",
                             "start": start_time,
                             "end": end_time,
                         },
@@ -341,14 +324,6 @@ def undo_annotation(request, content_id):
             for annotation in annotations:
                 start_time = annotation.start_time
                 end_time = getattr(annotation, "end_time", start_time)
-                start_percent = (
-                    (start_time / content.duration * 100) if content.duration > 0 else 0
-                )
-                width_percent = (
-                    ((end_time - start_time) / content.duration * 100)
-                    if content.duration > 0
-                    else 0
-                )
                 items.append(
                     {
                         "template": "core/partials/item.html",
@@ -357,8 +332,6 @@ def undo_annotation(request, content_id):
                         "type": type_name,
                         "can_edit": True,
                         "position": {
-                            "left": f"{start_percent:.2f}%",
-                            "width": f"{width_percent:.2f}%",
                             "start": start_time,
                             "end": end_time,
                         },
@@ -448,14 +421,6 @@ def redo_annotation(request, content_id):
             for annotation in annotations:
                 start_time = annotation.start_time
                 end_time = getattr(annotation, "end_time", start_time)
-                start_percent = (
-                    (start_time / content.duration * 100) if content.duration > 0 else 0
-                )
-                width_percent = (
-                    ((end_time - start_time) / content.duration * 100)
-                    if content.duration > 0
-                    else 0
-                )
                 items.append(
                     {
                         "template": "core/partials/item.html",
@@ -464,8 +429,6 @@ def redo_annotation(request, content_id):
                         "type": type_name,
                         "can_edit": True,
                         "position": {
-                            "left": f"{start_percent:.2f}%",
-                            "width": f"{width_percent:.2f}%",
                             "start": start_time,
                             "end": end_time,
                         },
@@ -626,13 +589,7 @@ def create_annotation(request, annotation_type, content_id):
     annotation = model_class.objects.create(**data)
 
     # Calculate position
-    duration = content.duration if hasattr(content, "duration") else 0
-    start_percent = (start_time / duration * 100) if duration > 0 else 0
-    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
-
     position = {
-        "left": f"{start_percent:.2f}%",
-        "width": f"{width_percent:.2f}%",
         "start": start_time,
         "end": end_time,
     }
@@ -688,7 +645,6 @@ def update_annotation(request, annotation_type, annotation_id):
     # Check if this is a delta-based update (from drag/resize)
     delta_left = request.POST.get("delta_left")
     delta_width = request.POST.get("delta_width")
-    duration = content.duration if hasattr(content, "duration") else 0
 
     update_fields = {}
 
@@ -700,31 +656,6 @@ def update_annotation(request, annotation_type, annotation_id):
             if annotation_type != "pause"
             else start_time
         )
-
-        current_left = (start_time / duration * 100) if duration > 0 else 0
-        current_width = (
-            ((end_time - start_time) / duration * 100)
-            if duration > 0 and annotation_type != "pause"
-            else 0
-        )
-
-        delta_left_float = float(delta_left) if delta_left else 0
-        delta_width_float = float(delta_width) if delta_width else 0
-
-        new_left = current_left + delta_left_float
-        new_width = current_width + delta_width_float
-
-        new_start = (new_left / 100) * duration
-        update_fields["start_time"] = new_start
-
-        if annotation_type != "pause":
-            new_end = ((new_left + new_width) / 100) * duration
-            if new_start < 0 or new_end > duration or new_start >= new_end:
-                return HttpResponse("Invalid annotation position", status=400)
-            update_fields["end_time"] = new_end
-        else:
-            if new_start < 0 or new_start > duration:
-                return HttpResponse("Invalid annotation position", status=400)
     else:
         # Form-based update
         update_fields = {
@@ -774,12 +705,8 @@ def update_annotation(request, annotation_type, annotation_id):
     # Calculate new position
     start_time = new_annotation.start_time
     end_time = getattr(new_annotation, "end_time", start_time)
-    start_percent = (start_time / duration * 100) if duration > 0 else 0
-    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
 
     position = {
-        "left": f"{start_percent:.2f}%",
-        "width": f"{width_percent:.2f}%",
         "start": start_time,
         "end": end_time,
     }
