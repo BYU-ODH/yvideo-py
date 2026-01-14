@@ -100,34 +100,19 @@ export class EditorScrubber {
     constructor() {
         this.scrubber = document.querySelector('.editor-scrubber');
         this.layerContent = document.querySelector('.layer-content');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
-        this.video = null;
+        this.video = document.querySelector('.annotation-player-container video');
+        this.duration = this.video.duration;
 
         this.init();
     }
 
     init() {
-        // Wait for video element to be available
-        const checkVideo = setInterval(() => {
-            this.video = document.querySelector('.annotation-player-container video');
-            if (this.video) {
-                clearInterval(checkVideo);
-                this.attachVideoListeners();
-            }
-        }, 100);
+      this.attachVideoListeners();
     }
 
     attachVideoListeners() {
         this.video.addEventListener('timeupdate', () => {
             this.updatePosition(this.video.currentTime);
-        });
-
-        this.video.addEventListener('loadedmetadata', () => {
-            // Update duration if available from video
-            if (this.video.duration) {
-                this.duration = this.video.duration;
-            }
         });
     }
 
@@ -150,8 +135,8 @@ export class Timeline {
         this.timelineContainer = document.querySelector('.timeline-container');
         this.layerContent = document.querySelectorAll('.layer-content');
         this.zoomSlider = document.getElementById('zoom-slider');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
+        this.video = document.querySelector('.annotation-player-container video');
+        this.duration = this.video.duration;
         this.zoomLevel = 1;
         this.hoverScrubber = null;
         this.isDragging = false;
@@ -442,8 +427,8 @@ export class Timeline {
 export class LayerInteractionHandler {
     constructor() {
         this.layerContainers = document.querySelectorAll('.layer-items');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
+        this.video = document.querySelector('.annotation-player-container video');
+        this.duration = this.video.duration;
         this.dragState = null;
         this.zoomLevel = 1;
 
@@ -919,47 +904,57 @@ export class VideoPlayerSync {
     }
 }
 
+function editorInit() {
+  // Helper function for new item creation
+  window.getNewItemStartEndTimes = function() {
+      const video = document.querySelector('.annotation-player-container video');
+      const duration = video.duration;
 
-// Helper function for new item creation
-window.getNewItemStartEndTimes = function() {
-    const video = document.querySelector('.annotation-player-container video');
-    const container = document.querySelector('.editor-container');
-    const duration = parseFloat(container?.dataset.duration) || 120;
+      if (video) {
+          const startTime = video.currentTime;
+          // Add 20% of duration or 10 seconds, whichever is smaller
+          const clipDuration = Math.min(duration * 0.2, 10);
+          const endTime = Math.min(startTime + clipDuration, duration);
+          return {start_time: startTime, end_time: endTime};
+      }
+      return {start_time: 0, end_time: Math.min(10, duration)};
+  };
 
-    if (video) {
-        const startTime = video.currentTime;
-        // Add 20% of duration or 10 seconds, whichever is smaller
-        const clipDuration = Math.min(duration * 0.2, 10);
-        const endTime = Math.min(startTime + clipDuration, duration);
-        return {start_time: startTime, end_time: endTime};
-    }
-    return {start_time: 0, end_time: Math.min(10, duration)};
-};
+  // Listen for successful item creation to reinitialize interactions
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+      if (event.detail.target.classList?.contains('layer-items')) {
+          // Reinitialize layer interaction handler for new items
+          const newItems = event.detail.target.querySelectorAll('.layer-item:not([data-initialized])');
+          newItems.forEach(item => {
+              item.dataset.initialized = 'true';
+          });
+      }
+  });
 
-// Listen for successful item creation to reinitialize interactions
-document.body.addEventListener('htmx:afterSwap', function(event) {
-    if (event.detail.target.classList?.contains('layer-items')) {
-        // Reinitialize layer interaction handler for new items
-        const newItems = event.detail.target.querySelectorAll('.layer-item:not([data-initialized])');
-        newItems.forEach(item => {
-            item.dataset.initialized = 'true';
-        });
-    }
-});
-
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        new EditorResizer();
-        new EditorScrubber();
-        new Timeline();
-        new LayerInteractionHandler();
-        new VideoPlayerSync();
-    });
-} else {
-    new EditorResizer();
-    new EditorScrubber();
-    new Timeline();
-    new LayerInteractionHandler();
-    new VideoPlayerSync();
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+          new EditorResizer();
+          new EditorScrubber();
+          new Timeline();
+          new LayerInteractionHandler();
+          new VideoPlayerSync();
+      });
+  } else {
+      new EditorResizer();
+      new EditorScrubber();
+      new Timeline();
+      new LayerInteractionHandler();
+      new VideoPlayerSync();
+  }
 }
+
+// Do not allow editor to initialize until the video is in place.
+// The video must be in place before we can determine video duration
+const checkVideo = setInterval(() => {
+    const video = document.querySelector('.annotation-player-container video');
+    if (video && !isNaN(video.duration)) {
+      clearInterval(checkVideo);
+      editorInit();
+    }
+}, 100);
