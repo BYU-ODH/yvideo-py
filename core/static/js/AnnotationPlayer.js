@@ -7,11 +7,10 @@ export class AnnotationPlayer {
       throw new Error('AnnotationPlayer requires a container element');
     }
     if (
-      this.container.id ||
       !this.container.classList.contains('annotation-player-container')
     ) {
       throw new Error(
-       'AnnotationPlayer container must have no id and must have the "annotation-player-container" class.'
+       'AnnotationPlayer container must have the "annotation-player-container" class.'
       );
     }
 

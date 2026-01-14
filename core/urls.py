@@ -61,6 +61,9 @@ urlpatterns = [
         views.delete_important_word,
         name="delete_important_word",
     ),
+    path(
+        "player-data/<int:content_id>/", views.get_player_data, name="get_player_data"
+    ),
     path("player/<int:content_id>/", views.player, name="player"),
     path(
         "clip-editor/<int:content_id>/",
@@ -100,13 +103,13 @@ urlpatterns = [
     ),
     # Video editor page
     path(
-        "content/<int:content_id>/video-editor/",
+        "video-annotator/<int:content_id>/",
         views_video_editor.video_editor,
-        name="video_editor",
+        name="video_annotator",
     ),
     # AnnotationSet management
     path(
-        "content/<int:content_id>/select-annotation-set/",
+        "select-annotation-set",
         views_video_editor.select_annotation_set,
         name="select_annotation_set",
     ),

@@ -146,6 +146,8 @@ export class Timeline {
     }
 
     init() {
+        const video = document.querySelector('.annotation-player-container video');
+        this.duration = video.duration;
         this.createHoverScrubber();
         this.renderTickMarks();
         this.attachTimelineListeners();
@@ -436,6 +438,8 @@ export class LayerInteractionHandler {
     }
 
     init() {
+        const video = document.querySelector('.annotation-player-container video');
+        this.duration = video.duration;
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.layerContainers.forEach(container => {
             container.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -904,6 +908,54 @@ export class VideoPlayerSync {
     }
 }
 
+async function handleAnnotationSetChange(event) {
+    event.stopPropagation();
+    let annotationSetId;
+    const selectorOptions = event.target.children;
+    for (let option of selectorOptions) {
+        if (option.selected) {
+            annotationSetId = Number(option.value);
+            break;
+        }
+    }
+
+    if (isNaN(annotationSetId) || annotationSetId === undefined) {
+        console.error("Selected value was not defined!");
+        return;
+    }
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const content_id = document.getElementById("annotation-player-container")?.dataset?.contentid;
+    if (!content_id) {
+        console.error("could not retrieve content id while switching annotation sets!");
+        return;
+    }
+    const htmlContentResponse = await fetch("/select-annotation-set", {
+        method: "POST",
+        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": content_id}),
+        headers: {"X-CSRFToken": csrfToken},
+        mode: "same-origin"
+    });
+
+    const newHTMLContent = await htmlContentResponse.json();
+
+    const videoSection = document.getElementById("video-section");
+    videoSection.innerHTML = newHTMLContent["video_section"];
+
+    const timelineLayers = document.getElementById("annotation-timeline");
+    timelineLayers.innerHTML = newHTMLContent["timeline_layers"];
+}
+
+function setupAnnotationSelectorFunctions() {
+    const setSelector = document.getElementById("annotation-set-selector");
+    if (!setSelector) {
+        console.error("Annotation set selector cannot be found!");
+        return;
+    }
+
+    setSelector.addEventListener("change", handleAnnotationSetChange);
+}
+
 function editorInit() {
   // Helper function for new item creation
   window.getNewItemStartEndTimes = function() {
@@ -913,8 +965,8 @@ function editorInit() {
       if (video) {
           const startTime = video.currentTime;
           // Add 20% of duration or 10 seconds, whichever is smaller
-          const clipDuration = Math.min(duration * 0.2, 10);
-          const endTime = Math.min(startTime + clipDuration, duration);
+          const itemDuration = Math.min(duration * 0.2, 10);
+          const endTime = Math.min(startTime + itemDuration, duration);
           return {start_time: startTime, end_time: endTime};
       }
       return {start_time: 0, end_time: Math.min(10, duration)};
@@ -947,10 +999,9 @@ function editorInit() {
       new LayerInteractionHandler();
       new VideoPlayerSync();
   }
+  setupAnnotationSelectorFunctions();
 }
 
-// Do not allow editor to initialize until the video is in place.
-// The video must be in place before we can determine video duration
 const checkVideo = setInterval(() => {
     const video = document.querySelector('.annotation-player-container video');
     if (video && !isNaN(video.duration)) {
