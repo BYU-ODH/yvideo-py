@@ -69,7 +69,6 @@ urlpatterns = [
     ),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),
     path("player/<int:content_id>", views.player, name="player"),
-    path("stream/<int:resource_file_key_id>", views.stream_file, name="stream_file"),
     path(
         "add_annotation/<str:annotation_type>/<int:file_id>/",
         views.add_annotation,
