@@ -129,6 +129,28 @@ def index(request):
     return render(request, "index.html", context)
 
 
+@require_POST
+def get_player_data(request, content_id):
+    content = get_object_or_404(Content, id=content_id)
+    try:
+        player_json = content.get_player_json()
+        has_subtitles = bool(
+            any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
+        )
+
+        data = {
+            "annotations": player_json["annotations"],
+            "subtitleTracks": player_json["subtitleTracks"],
+            "has_subtitles": has_subtitles,
+            "clips": player_json["clips"],
+        }
+
+        return JsonResponse(data)
+    except Exception as e:
+        logger.error(f"An error occurred while getting player data: {e}")
+        return HttpResponseServerError()
+
+
 # @login_required  # TODO: Uncomment
 def player(request, content_id):
     """Render the video player page."""
@@ -139,19 +161,10 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    player_json = content.get_player_json()
-    has_subtitles = bool(
-        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
-    )
-
     context = {
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "allow_events": True,
-        "events": player_json["annotations"],
-        "subtitles": player_json["subtitleTracks"],
-        "clips": player_json["clips"],
-        "has_subtitles": has_subtitles,
     }
 
     return render(request, "player.html", context)

@@ -96,11 +96,6 @@ def clip_editor(request, content_id):
         "content": content,
         "file_key": file_key.id if file_key else None,
         "allow_events": True,
-        "events": json.dumps([]),
-        "subtitles": json.dumps(subtitles_data),
-        "player_json": player_json,
-        "has_subtitles": has_subtitles,
-        "duration": duration,
         "layers": layers_dict,  # For timeline_base.html label column
         "layers_list": layers_list,  # For timeline_layers.html content
     }
