@@ -10,16 +10,6 @@
     <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
 </head>
 <body>
-    <script>
-        window.playerData = {
-            events: {{ events|safe }},
-            subtitles: {{ subtitles|safe }},
-            clips: {{ clips|safe }},
-            hasSubtitles: {{ has_subtitles|yesno:"true,false" }}
-        };
-    </script>
-
-    {% include 'partials/player-wrapper.html' %}
-
+    {% include 'partials/player-wrapper.html' with content_id=content.pk %}
 </body>
 </html>
