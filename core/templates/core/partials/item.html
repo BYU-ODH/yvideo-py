@@ -28,8 +28,8 @@
      </div>
 
     <div class="layer-item-content"
+         hx-trigger="click"
          hx-get="{% url load_form_url item_type instance.id %}?content_id={{ content.id }}"
-         hx-trigger="layer-item-click"
          hx-target="#detail-form"
          hx-swap="innerHTML">
         <span class="layer-item-label">{{ instance.name }}</span>

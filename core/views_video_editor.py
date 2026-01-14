@@ -798,12 +798,6 @@ def update_annotation(request, annotation_type, annotation_id):
         request=request,
     )
 
-    json_html = render_to_string(
-        "partials/player_json_oob.html",
-        {"player_json": json.dumps(content.get_player_json(), indent=2)},
-        request=request,
-    )
-
     # Render updated form with OOB swap
     form_content = render_to_string(
         "core/partials/annotation_form.html",
@@ -825,7 +819,6 @@ def update_annotation(request, annotation_type, annotation_id):
     return HttpResponse(
         f"<div hx-swap-oob=\"outerHTML:[data-item-id='{annotation.id}']\">{item_html}</div>"
         f"{form_html}"
-        f"{json_html}"
     )
 
 
@@ -848,19 +841,14 @@ def delete_annotation(request, annotation_type, annotation_id):
     if not annotation.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
-    content_id = request.GET.get("content_id")
-    content = Content.objects.get(id=content_id)
-
     # Use delete_with_history() to preserve undo capability
-    annotation.delete_with_history()
+    try:
+        annotation.delete_with_history()
+    except Exception as e:
+        logger.error(f"Exception occurred while deleting annotation: {e}")
+        return HttpResponseServerError()
 
-    json_html = render_to_string(
-        "partials/player_json_oob.html",
-        {"player_json": json.dumps(content.get_player_json(), indent=2)},
-        request=request,
-    )
-
-    return HttpResponse(json_html)
+    return HttpResponse(status=200)
 
 
 @require_GET
