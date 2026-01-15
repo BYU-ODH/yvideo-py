@@ -440,6 +440,7 @@ export class LayerInteractionHandler {
     init() {
         const video = document.querySelector('.annotation-player-container video');
         this.duration = video.duration;
+        this.determineLayerItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.layerContainers.forEach(container => {
             container.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -463,6 +464,20 @@ export class LayerInteractionHandler {
         });
         this.placeLayerItems();
         document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
+    }
+
+    // Items are not positioned correctly from the template because the backend doesn't have a record
+    // of the video duration. The video duration is known only after the video has been loaded
+    determineLayerItemPositions() {
+      this.layerContainers.forEach(layerContainer => {
+        const layerItems = Array.from(layerContainer.children);
+
+        for (let item of layerItems) {
+          const itemDuration = parseFloat(item.dataset["end"] - item.dataset["start"]);
+          item.style.width = `${parseFloat(itemDuration / this.duration) * 100}%`;
+          item.style.left = `${parseFloat(item.dataset["start"] / this.duration) * 100}%`;
+        }
+      });
     }
 
     handleMouseDown(e) {
@@ -957,7 +972,6 @@ function setupAnnotationSelectorFunctions() {
 }
 
 function editorInit() {
-  console.log("here");
   // Helper function for new item creation
   window.getNewItemStartEndTimes = function() {
       const video = document.querySelector('.annotation-player-container video');
@@ -1006,7 +1020,6 @@ function editorInit() {
 const checkVideo = setInterval(() => {
     const video = document.querySelector('.annotation-player-container video');
     if (video && !isNaN(video.duration)) {
-      console.log(video.duration);
       clearInterval(checkVideo);
       editorInit();
     }
