@@ -957,6 +957,7 @@ function setupAnnotationSelectorFunctions() {
 }
 
 function editorInit() {
+  console.log("here");
   // Helper function for new item creation
   window.getNewItemStartEndTimes = function() {
       const video = document.querySelector('.annotation-player-container video');
@@ -1005,6 +1006,7 @@ function editorInit() {
 const checkVideo = setInterval(() => {
     const video = document.querySelector('.annotation-player-container video');
     if (video && !isNaN(video.duration)) {
+      console.log(video.duration);
       clearInterval(checkVideo);
       editorInit();
     }
