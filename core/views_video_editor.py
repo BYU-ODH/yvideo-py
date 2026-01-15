@@ -50,8 +50,6 @@ def build_annotation_layers(content, annotation_set, can_edit):
             for annotation in annotations:
                 start_time = annotation.start_time
                 end_time = getattr(annotation, "end_time", start_time)
-                start_percent = 0
-                width_percent = 0
                 layer_items.append(
                     {
                         "instance": annotation,
@@ -60,8 +58,6 @@ def build_annotation_layers(content, annotation_set, can_edit):
                         "update_url": "update_annotation",
                         "load_form_url": "load_annotation_form",
                         "position": {
-                            "left": f"{start_percent:.2f}%",
-                            "width": f"{width_percent:.2f}%",
                             "start": start_time,
                             "end": end_time,
                         },
@@ -259,10 +255,6 @@ def select_annotation_set(request):
     content.save()
 
     can_edit = annotation_set.can_edit(request.user) if annotation_set else True
-
-    can_edit_annotation_set = annotation_set is not None and (
-        annotation_set.owner == request.user or request.user.is_admin
-    )
 
     # Prepare layers for timeline rendering (matching clip editor structure)
     layer_results = build_annotation_layers(content, annotation_set, can_edit)

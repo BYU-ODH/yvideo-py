@@ -360,7 +360,7 @@ class Clip(models.Model):
 
     def can_edit(self, user):
         """Check if user can edit this clip."""
-        return self.owner == user or user.is_staff or user.is_superuser
+        return self.owner == user or user.is_staff or user.is_superuser or user.is_admin
 
     def clone_for_user(self, user):
         """Create a copy of this clip owned by a different user."""
@@ -402,7 +402,7 @@ class AnnotationSet(models.Model):
 
     def can_edit(self, user):
         """Check if user can edit this annotation set."""
-        return user == self.owner or user in self.editors.all()
+        return user == self.owner or user in self.editors.all() or user.is_admin
 
     def can_be_viewed_by(self, user):
         """Check if user can view this annotation set (through any content using the resource)."""
