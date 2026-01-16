@@ -1,3 +1,12 @@
+function convertPercentStringToDecimal(percentString) {
+  if (typeof(percentString) === 'string') {
+    const newString = percentString.replace('%', '');
+    return parseFloat(newString) / 100;
+  }
+
+  return;
+}
+
 export class EditorResizer {
     constructor() {
         this.isResizing = false;
@@ -433,11 +442,14 @@ export class LayerInteractionHandler {
         this.duration = this.video.duration;
         this.dragState = null;
         this.zoomLevel = 1;
+        this.contentId = null;
 
         this.init();
     }
 
     init() {
+        const playerContainer = document.getElementById("annotation-player-container");
+        this.contentId = playerContainer.dataset["contentid"];
         const video = document.querySelector('.annotation-player-container video');
         this.duration = video.duration;
         this.determineLayerItemPositions();
@@ -712,29 +724,55 @@ export class LayerInteractionHandler {
         // If !hasMoved, don't prevent - let the click bubble to HTMX
     }
 
+    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, was_resized=false, was_dragged=false) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfToken },
+        body: JSON.stringify({
+          "content_id": this.contentId,
+          "name": name,
+          "description": description,
+          "start_time": startTime,
+          "end_time": endTime,
+          "was_resized": was_resized,
+          "was_dragged": was_dragged
+        })
+      });
+
+      if (response.status != 200) {
+        console.error("An error occurred while updating an annotation");
+      }
+    }
+
     triggerSave(state) {
         const item = state.item;
+        const annotationType = item.dataset["itemType"];
+        const annotationId = item.dataset["itemId"];
 
-        // Find and click the appropriate hidden trigger
-        // HTMX attributes on trigger handle the POST automatically
-        let trigger;
-        if (state.type === 'resize') {
-            const handleClass = state.isLeft ? 'resize-handle-left' : 'resize-handle-right';
-            trigger = item.querySelector(`.${handleClass}`);
-        } else {
-            // For drag, just use the first trigger
-            trigger = item.querySelector('.resize-handle-left');
+        if ((state.type !== "resize" && state.type !== "drag") || (!item.style.left || item.style.left != '' || !item.style.width || item.style.width != '')) {
+          if (state.type !== "resize" && state.type !== "drag") {
+            console.error('Unknown state type:', state.type);
+          }
+          else {
+            console.error("could not determine item start and end times");
+          }
+
+          // Revert on error
+          item.style.left = `${state.originalLeft}%`;
+          item.style.width = `${state.originalWidth}%`;
+          item.dataset.deltaLeft = '0';
+          item.dataset.deltaWidth = '0';
         }
 
-        if (trigger) {
-            trigger.click();
-        } else {
-            console.error('Save trigger not found for item:', item.dataset.itemId);
-            // Revert on error
-            item.style.left = `${state.originalLeft}%`;
-            item.style.width = `${state.originalWidth}%`;
-            item.dataset.deltaLeft = '0';
-            item.dataset.deltaWidth = '0';
+        const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
+        const newStartTime = leftAsDecimal * this.duration;
+        const newEndTime = (leftAsDecimal + convertPercentStringToDecimal(item.style.width)) * this.duration;
+        if (state.type === 'resize') {
+          this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true, false)
+        }
+        else if (state.type === "drag") {
+          this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, false, true)
         }
     }
 

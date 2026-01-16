@@ -494,7 +494,8 @@ def create_annotation(request, annotation_type, content_id):
 @transaction.atomic
 def update_annotation(request, annotation_type, annotation_id):
     """Update annotation by creating a new version in the linked list."""
-    content_id = request.POST.get("content_id")
+    parsed_post = json.loads(request.body)
+    content_id = parsed_post["content_id"]
     content = get_object_or_404(Content, id=content_id)
 
     if not request.user.can_view_content(content):
@@ -514,37 +515,32 @@ def update_annotation(request, annotation_type, annotation_id):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
     # Check if this is a delta-based update (from drag/resize)
-    delta_left = request.POST.get("delta_left")
-    delta_width = request.POST.get("delta_width")
-
+    was_dragged = parsed_post["was_dragged"]
+    was_resized = parsed_post["was_resized"]
     update_fields = {}
 
-    if delta_left is not None or delta_width is not None:
+    if was_dragged or was_resized:
         # Delta-based update from drag/resize
-        start_time = annotation.start_time
-        end_time = (
-            getattr(annotation, "end_time", start_time)
-            if annotation_type != "pause"
-            else start_time
-        )
+        annotation.start_time = parsed_post["start_time"]
+        if annotation_type != "pause":
+            annotation.end_time = parsed_post["end_time"]
+
     else:
         # Form-based update
-        update_fields = {
-            "name": request.POST.get("name", annotation.name),
-            "start_time": float(request.POST.get("start_time", annotation.start_time)),
-        }
+        update_fields = {}
+        if "name" in parsed_post:
+            update_fields["name"] = parsed_post["name"]
+        if "start_time" in parsed_post:
+            update_fields["start_time"] = parsed_post["start_time"]
 
-        description = request.POST.get("description")
-        if description is not None:
-            update_fields["description"] = description
+        if "description" in parsed_post:
+            update_fields["description"] = parsed_post["description"]
 
-        if annotation_type != "pause":
-            update_fields["end_time"] = float(
-                request.POST.get("end_time", annotation.end_time)
-            )
+        if annotation_type != "pause" and "end_time" in parsed_post:
+            update_fields["end_time"] = parsed_post["end_time"]
 
         if annotation_type == "censor":
-            positions_json = request.POST.get("positions")
+            positions_json = parsed_post["positions"]
             if positions_json:
                 positions = json.loads(positions_json)
                 is_valid, error = BlurAnnotation.validate_positions(positions)
@@ -552,30 +548,29 @@ def update_annotation(request, annotation_type, annotation_id):
                     return HttpResponse(error, status=400)
                 update_fields["positions"] = positions
         elif annotation_type == "comment":
-            update_fields["text"] = request.POST.get("text", annotation.text)
-            x = request.POST.get("x")
-            y = request.POST.get("y")
+            update_fields["text"] = parsed_post["text"]
+            x = parsed_post["x"]
+            y = parsed_post["y"]
             if x is not None:
                 update_fields["x"] = float(x)
             if y is not None:
                 update_fields["y"] = float(y)
-        elif annotation_type == "pause":
-            update_fields["message"] = request.POST.get("message", annotation.message)
-        elif annotation_type == "blank":
-            update_fields["type"] = request.POST.get("blank_type", annotation.type)
+        elif annotation_type == "pause" and "message" in parsed_post:
+            update_fields["message"] = parsed_post["message"]
+        elif annotation_type == "blank" and "blank_type" in parsed_post:
+            update_fields["type"] = parsed_post["blank_type"]
 
     for field, value in update_fields.items():
         setattr(annotation, field, value)
 
     annotation.save()
-    new_annotation = annotation
 
     # Update the data-label attribute on the element
-    new_annotation.refresh_from_db()
+    annotation.refresh_from_db()
 
     # Calculate new position
-    start_time = new_annotation.start_time
-    end_time = getattr(new_annotation, "end_time", start_time)
+    start_time = annotation.start_time
+    end_time = getattr(annotation, "end_time", start_time)
 
     position = {
         "start": start_time,
@@ -586,7 +581,7 @@ def update_annotation(request, annotation_type, annotation_id):
     item_html = render_to_string(
         "partials/item.html",
         {
-            "instance": new_annotation,
+            "instance": annotation,
             "content": content,
             "item_type": annotation_type,
             "update_url": "update_annotation",
@@ -596,17 +591,11 @@ def update_annotation(request, annotation_type, annotation_id):
         request=request,
     )
 
-    json_html = render_to_string(
-        "partials/player_json_oob.html",
-        {"player_json": json.dumps(content.get_player_json(), indent=2)},
-        request=request,
-    )
-
     # Render updated form with OOB swap
     form_content = render_to_string(
         "core/partials/annotation_form.html",
         {
-            "instance": new_annotation,
+            "instance": annotation,
             "content": content,
             "can_edit": True,
             "item_type": annotation_type,
@@ -623,7 +612,6 @@ def update_annotation(request, annotation_type, annotation_id):
     return HttpResponse(
         f"<div hx-swap-oob=\"outerHTML:[data-item-id='{annotation.id}']\">{item_html}</div>"
         f"{form_html}"
-        f"{json_html}"
     )
 
 
