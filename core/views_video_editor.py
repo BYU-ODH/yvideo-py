@@ -592,7 +592,7 @@ def update_annotation(request, annotation_type, annotation_id):
     )
 
     # Render updated form with OOB swap
-    form_content = render_to_string(
+    form_html = render_to_string(
         "core/partials/annotation_form.html",
         {
             "instance": annotation,
@@ -607,12 +607,8 @@ def update_annotation(request, annotation_type, annotation_id):
         },
         request=request,
     )
-    form_html = f'<div hx-swap-oob="innerHTML:#detail-form">{form_content}</div>'
 
-    return HttpResponse(
-        f"<div hx-swap-oob=\"outerHTML:[data-item-id='{annotation.id}']\">{item_html}</div>"
-        f"{form_html}"
-    )
+    return JsonResponse({"item_html": item_html, "form_html": form_html})
 
 
 @require_http_methods(["DELETE"])

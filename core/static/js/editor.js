@@ -480,14 +480,19 @@ export class LayerInteractionHandler {
 
     // Items are not positioned correctly from the template because the backend doesn't have a record
     // of the video duration. The video duration is known only after the video has been loaded
+
+    placeItem(item) {
+      const itemDuration = parseFloat(item.dataset["end"]) - parseFloat(item.dataset["start"]);
+      item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
+      item.style.setProperty("left", `${parseFloat(item.dataset["start"]) / this.duration * 100}%`);
+    }
+
     determineLayerItemPositions() {
       this.layerContainers.forEach(layerContainer => {
         const layerItems = Array.from(layerContainer.children);
 
         for (let item of layerItems) {
-          const itemDuration = parseFloat(item.dataset["end"] - item.dataset["start"]);
-          item.style.width = `${parseFloat(itemDuration / this.duration) * 100}%`;
-          item.style.left = `${parseFloat(item.dataset["start"] / this.duration) * 100}%`;
+          this.placeItem(item);
         }
       });
     }
@@ -743,6 +748,17 @@ export class LayerInteractionHandler {
       if (response.status != 200) {
         console.error("An error occurred while updating an annotation");
       }
+
+      const responseData = await response.json();
+      const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
+      targetItem.outerHTML = responseData["item_html"];
+      // if you pass the previous targetItem into this.placeItem, it will make changes to an
+      // element that no longer exists. You must get the new element before making style changes.
+      const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
+      this.placeItem(newTargetItem);
+
+      const targetForm = document.getElementById("detail-form");
+      targetForm.innerHTML = responseData["form_html"];
     }
 
     triggerSave(state) {
@@ -750,30 +766,30 @@ export class LayerInteractionHandler {
         const annotationType = item.dataset["itemType"];
         const annotationId = item.dataset["itemId"];
 
-        if ((state.type !== "resize" && state.type !== "drag") || (!item.style.left || item.style.left != '' || !item.style.width || item.style.width != '')) {
-          if (state.type !== "resize" && state.type !== "drag") {
-            console.error('Unknown state type:', state.type);
-          }
-          else {
-            console.error("could not determine item start and end times");
-          }
+        const stateTypeIsUnknown = state.type !== "resize" && state.type !== "drag";
+        const startAndEndTimesAreUnknown = !item.style.left || item.style.left == '' || !item.style.width || item.style.width == '';
 
+        if (stateTypeIsUnknown) {
+          console.error("Unknown state type:", state.type);
+        }
+
+        if (startAndEndTimesAreUnknown) {
+          console.error("Could not determine item start and end times");
+        }
+
+        if (stateTypeIsUnknown || startAndEndTimesAreUnknown) {
           // Revert on error
           item.style.left = `${state.originalLeft}%`;
           item.style.width = `${state.originalWidth}%`;
           item.dataset.deltaLeft = '0';
           item.dataset.deltaWidth = '0';
+          return;
         }
 
         const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
         const newStartTime = leftAsDecimal * this.duration;
         const newEndTime = (leftAsDecimal + convertPercentStringToDecimal(item.style.width)) * this.duration;
-        if (state.type === 'resize') {
-          this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true, false)
-        }
-        else if (state.type === "drag") {
-          this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, false, true)
-        }
+        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, state.type === "resize", state.type === "drag");
     }
 
     setTimeFromVideo(fieldName) {
