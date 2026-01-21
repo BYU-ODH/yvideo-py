@@ -478,9 +478,6 @@ export class LayerInteractionHandler {
         document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
     }
 
-    // Items are not positioned correctly from the template because the backend doesn't have a record
-    // of the video duration. The video duration is known only after the video has been loaded
-
     placeItem(item) {
       const itemDuration = parseFloat(item.dataset["end"]) - parseFloat(item.dataset["start"]);
       item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
