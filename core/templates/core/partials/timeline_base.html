@@ -1,53 +1,51 @@
-<div class="timeline-section">
-    <div class="timeline-wrapper">
-        <!-- Fixed left column for labels -->
-        <div class="timeline-labels-column">
-            <!-- Zoom controls at top -->
-            <div class="timeline-zoom-controls">
-                <input type="range"
-                    id="zoom-slider"
-                    class="zoom-slider"
-                    min="1"
-                    max="10"
-                    value="1"
-                    step="any">
-            </div>
-            <!-- Layer labels will be added here dynamically or via includes -->
-            <div id="timeline-layer-labels">
-                {% for layer_type, layer_data in layers.items %}
-                <div class="layer-label-fixed" data-layer-type="{{ layer_type }}">
-                    <span>{{ layer_data.display_name }}</span>
-                    {% if layer_data.can_add %}
-                    <button class="add-item-btn"
-                            hx-post="{% url layer_data.add_form_url content_id=content.id annotation_type=layer_type %}"
-                            hx-target="#annotation-timeline"
-                            hx-swap="none"
-                            hx-vals='js:...getNewItemStartEndTimes()'
-                            type="button">+</button>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
+<div class="timeline-wrapper">
+    <!-- Fixed left column for labels -->
+    <div class="timeline-labels-column">
+        <!-- Zoom controls at top -->
+        <div class="timeline-zoom-controls">
+            <input type="range"
+                id="zoom-slider"
+                class="zoom-slider"
+                min="1"
+                max="10"
+                value="1"
+                step="any">
         </div>
+        <!-- Layer labels will be added here dynamically or via includes -->
+        <div id="timeline-layer-labels">
+            {% for layer_type, layer_data in layer_buttons.items %}
+            <div class="layer-label-fixed" data-layer-type="{{ layer_type }}">
+                <span>{{ layer_data.display_name }}</span>
+                {% if layer_data.can_add %}
+                <button class="add-item-btn"
+                        hx-post="{% url layer_data.add_form_url content_id=content_id annotation_type=layer_type %}"
+                        hx-target="#annotation-timeline"
+                        hx-swap="none"
+                        hx-vals='js:...getNewItemStartEndTimes()'
+                        type="button">+</button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 
-        <!-- Scrollable content area -->
-        <div class="timeline-content-wrapper">
-            <div class="timeline-container">
-                <!-- Timeline tick marks row -->
-                <div class="timeline-ticks-row">
-                    <div class="timeline-ticks">
-                        <div class="timeline-ticks-content">
-                            <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
-                            <div class="timeline-hover-scrubber"></div>
-                            <div class="tick-marks-container"></div>
-                        </div>
+    <!-- Scrollable content area -->
+    <div class="timeline-content-wrapper">
+        <div class="timeline-container">
+            <!-- Timeline tick marks row -->
+            <div class="timeline-ticks-row">
+                <div class="timeline-ticks">
+                    <div class="timeline-ticks-content">
+                        <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
+                        <div class="timeline-hover-scrubber"></div>
+                        <div class="tick-marks-container"></div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Timeline layers -->
-                <div id="annotation-timeline">
-                    {% include 'partials/timeline_layers.html' with layers=layers_list %}
-                </div>
+            <!-- Timeline layers -->
+            <div id="annotation-timeline">
+                {% include 'partials/timeline_layers.html' with layers=layers %}
             </div>
         </div>
     </div>

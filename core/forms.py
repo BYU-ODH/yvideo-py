@@ -39,6 +39,8 @@ class CollectionSettingsForm(forms.ModelForm):
 
 
 class ContentForm(forms.ModelForm):
+    confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
+
     class Meta:
         model = Content
         fields = [
@@ -52,6 +54,8 @@ class ContentForm(forms.ModelForm):
 
 
 class UpdateContentForm(forms.ModelForm):
+    confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
+
     class Meta:
         model = Content
         fields = [

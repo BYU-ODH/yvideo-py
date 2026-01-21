@@ -7,11 +7,10 @@ export class AnnotationPlayer {
       throw new Error('AnnotationPlayer requires a container element');
     }
     if (
-      this.container.id ||
       !this.container.classList.contains('annotation-player-container')
     ) {
       throw new Error(
-       'AnnotationPlayer container must have no id and must have the "annotation-player-container" class.'
+       'AnnotationPlayer container must have the "annotation-player-container" class.'
       );
     }
 
@@ -40,6 +39,7 @@ export class AnnotationPlayer {
       this.annotationBox.className = 'annotation-box';
       this.videoWrapper.appendChild(this.annotationBox);
     }
+    this.messageIsShowing = false;
 
     if (!this.annotationBox.querySelector('.bezel-icon')) {
       const bezelIcon = document.createElement('div');
@@ -386,6 +386,7 @@ export class AnnotationPlayer {
         start: anno.start,
         end: anno.end,
         type: anno.type,
+        message: anno.message || "",
         details: anno.details || {},
       });
     }
@@ -543,17 +544,39 @@ export class AnnotationPlayer {
     this.state.started = true;
   }
 
-  pause() {
+  toggleAnnotationBoxMessageAppearance() {
+    this.annotationBox.classList.toggle("annotation-box-showing-message");
+  }
+
+  presentMessage(message) {
+    this.toggleAnnotationBoxMessageAppearance();
+    this.annotationBox.innerText = message;
+    this.messageIsShowing = true;
+  }
+
+  removeMessage() {
+    this.toggleAnnotationBoxMessageAppearance();
+    this.annotationBox.innerText = "";
+    this.messageIsShowing = false;
+  }
+
+  pause(optionalMessage) {
     this.videoElem.pause();
     this.paused = true;
     this.state.playing = false;
     if (this.container) {
       this.container.classList.remove("controls-hidden");
     }
+    if (optionalMessage) {
+      this.presentMessage(optionalMessage);
+    }
   }
 
   togglePlayPause() {
     if (this.videoElem.paused) {
+      if (this.messageIsShowing) {
+        this.removeMessage();
+      }
       this.play();
     } else {
       this.pause();
@@ -634,7 +657,12 @@ export class AnnotationPlayer {
       let aDetails = a["details"];
       switch (aType) {
         case "skip":
-          if (time >= aStart && time < aEnd && !this.paused) {
+          if (time >= aStart && time < aEnd) {
+            if (a["message"]) {
+              this.pause(a["message"]);
+            } else {
+              this.pause();
+            }
             this.skipTo(aEnd);
           }
           break;
@@ -1356,6 +1384,11 @@ export class AnnotationPlayer {
   }
 
   onKeydown(e) {
+    if (e.target.localName == "input" || e.target.localName == "textarea") {
+      e.stopPropagation();
+      return;
+    }
+
     this.onMouseMove();  // to trigger controls visibility/fade
     const playedTime = this.state.currentTime;
 

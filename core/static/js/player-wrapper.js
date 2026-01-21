@@ -6,29 +6,38 @@
 
 import { AnnotationPlayer } from './AnnotationPlayer.js';
 
-(function() {
+function attachAnnotationPlayer() {
     'use strict';
 
     let annotationPlayer = null;
 
-    function init() {
+    async function init() {
         const container = document.querySelector('.annotation-player-container');
-
         if (!container) {
             console.error('Player container not found');
             return;
         }
 
+        // fetch player subtitles, annotations, and clips
+        const contentId = container.dataset.contentid;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const playerDataResponse = await fetch("/player-data/" + contentId + '/', {
+            method: "POST",
+            headers: {"X-CSRFToken": csrfToken},
+            mode: "same-origin"
+        });
+        const playerData = await playerDataResponse.json();
+
         let tracks = [];
-        if (window.playerData && window.playerData.subtitles) {
-            const subtitles = window.playerData.subtitles;
+        if (playerData && playerData.subtitleTracks) {
+            const subtitles = playerData.subtitleTracks;
             const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
             tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
         }
 
         let clips = [];
-        if (window.playerData && window.playerData.clips) {
-            clips = window.playerData.clips;
+        if (playerData && playerData.clips) {
+            clips = playerData.clips;
         }
 
         const enableSubtitleSidebar = tracks.length > 0;
@@ -41,9 +50,9 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
             subtitleSidebar: enableSubtitleSidebar
         });
 
-        if (window.playerData) {
+        if (playerData) {
             const data = {
-                annotations: window.playerData.events || [],
+                annotations: playerData.annotations || [],
             };
             annotationPlayer.loadData(data);
         }
@@ -56,4 +65,17 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
     } else {
         init();
     }
-})();
+}
+
+attachAnnotationPlayer();
+
+// watch for changes in video section. reload annotation player if changes occur
+function handleVideoSectionChanges(mutationList) {
+  for (let mutation of mutationList) {
+    if (mutation.type == "childList") {
+      attachAnnotationPlayer();
+    }
+  }
+}
+const videoSectionObserver = new MutationObserver(handleVideoSectionChanges)
+videoSectionObserver.observe(document.getElementById("video-section") , {childList: true})

@@ -620,6 +620,11 @@ class BaseAnnotation(models.Model):
         null=True,
         blank=True,
     )
+    description = models.TextField(
+        blank=False,
+        null=False,
+        help_text="Short description of what content this annotation covers.",
+    )
 
     # Only active annotations are visible/used
     active = models.BooleanField(default=True)
@@ -744,9 +749,28 @@ class BaseAnnotation(models.Model):
 
 
 class SkipAnnotation(BaseAnnotation):
-    """Skip annotation - standard time range."""
+    """Skip annotation - standard time range. Allows optional message to be displayed at the beginning of a skip."""
 
-    pass
+    message = models.TextField(max_length=255, blank=True)
+
+    def calculate_position(self, duration):
+        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
+        return {
+            "left": f"{start_percent:.2f}%",
+            "width": "2px",
+            "start": self.start_time,
+            "end": self.end_time,
+        }
+
+    def to_player_json(self):
+        return {
+            "id": self.id,
+            "type": "skip",
+            "start": self.start_time,
+            "end": self.end_time,
+            "label": self.name,
+            "message": self.message,
+        }
 
 
 class MuteAnnotation(BaseAnnotation):

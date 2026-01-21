@@ -6,8 +6,8 @@
 {% endblock %}
 {% block extra_css %}
     <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
-{% endblock %}
-
-{% block content %}
-    {% include 'partials/player-wrapper.html' %}
-{% endblock %}
+</head>
+<body>
+    {% include 'partials/player-wrapper.html' with content_id=content.pk %}
+</body>
+</html>

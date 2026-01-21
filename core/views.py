@@ -90,6 +90,7 @@ def display_yearterm(yearterm):
 
 def index(request):
     # if admin, gather owned collections
+    request.user = User.objects.all().first()
     owned_collections = []
     allowed_privilege_levels = [2, 0]
     if (
@@ -141,20 +142,26 @@ def index(request):
     return render(request, "index.html", context)
 
 
-def get_data_for_player(content_obj: Content):
-    player_json = content_obj.get_player_json()
-    has_subs = bool(
-        any(
-            track.get("vtt") or track.get("url")
-            for track in player_json["subtitleTracks"]
+@require_POST
+def get_player_data(request, content_id):
+    content = get_object_or_404(Content, id=content_id)
+    try:
+        player_json = content.get_player_json()
+        has_subtitles = bool(
+            any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
         )
-    )
-    return {
-        "events": player_json["annotations"],
-        "subtitles": player_json["subtitleTracks"],
-        "clips": player_json["clips"],
-        "has_subtitles": has_subs,
-    }
+
+        data = {
+            "annotations": player_json["annotations"],
+            "subtitleTracks": player_json["subtitleTracks"],
+            "has_subtitles": has_subtitles,
+            "clips": player_json["clips"],
+        }
+
+        return JsonResponse(data)
+    except Exception as e:
+        logger.error(f"An error occurred while getting player data: {e}")
+        return HttpResponseServerError()
 
 
 # @login_required  # TODO: Uncomment
@@ -167,16 +174,10 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    player_info = get_data_for_player(content)
-
     context = {
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "allow_events": True,
-        "events": player_info["events"],
-        "subtitles": player_info["subtitles"],
-        "clips": player_info["clips"],
-        "has_subtitles": player_info["has_subtitles"],
     }
 
     return render(request, "player.html", context)
@@ -670,19 +671,32 @@ def add_annotation(request, content_id, annotation_type):
     content_obj = get_object_or_404(Content, id=content_id)
 
     # Get POST data
+    annotation_id = request.POST.get("annotation_id")
     name = request.POST.get("name", "")
     owner = request.POST.get("owner", "")  # Change to request.user when auth is set up
     start_time = float(request.POST.get("start_time", 0))
     end_time = float(request.POST.get("end_time", 0))
+    description = request.POST.get("description", "")
 
-    # Create the annotation
-    annotation = annotation_class.objects.create(
-        content=content_obj,
-        owner=owner,  # change to request.user when auth is set up
-        name=name,
-        start_time=start_time,
-        end_time=end_time,
-    )
+    if annotation_id:
+        # Update existing annotation
+        annotation = get_object_or_404(annotation_class, id=annotation_id)
+        annotation.name = name
+        annotation.start_time = start_time
+        annotation.end_time = end_time
+        annotation.description = description
+        annotation.save()
+    else:
+        # Create new annotation
+        annotation_set = content_obj.annotation_set
+        annotation = annotation_class.objects.create(
+            content=content_obj,
+            owner=owner,
+            name=name,
+            start_time=start_time,
+            end_time=end_time,
+            description=description,
+        )
 
     # Return JSON response
     return JsonResponse(
@@ -693,6 +707,7 @@ def add_annotation(request, content_id, annotation_type):
             "owner": annotation.owner.netid,
             "start_time": annotation.start_time,
             "end_time": annotation.end_time,
+            "description": annotation.description,
         }
     )
 
