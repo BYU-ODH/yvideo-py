@@ -11,10 +11,12 @@ def seconds2hms(seconds):
     """Convert total seconds to a time string in 'HH:MM:SS.SS' format."""
     if seconds < 0:
         raise ValueError("Seconds cannot be negative")
+
+    seconds = round(seconds, 2)
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    return f"{hours}:{minutes:02}:{secs:05.2f}"
+    secs = seconds - (hours * 3600 + minutes * 60)
+    return f"{hours}:{minutes:02d}:{secs:05.2f}"
 
 
 # TODO : Remove these toy VTTs after testing is complete
