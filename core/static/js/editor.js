@@ -1,3 +1,12 @@
+function convertPercentStringToDecimal(percentString) {
+  if (typeof(percentString) === 'string') {
+    const newString = percentString.replace('%', '');
+    return parseFloat(newString) / 100;
+  }
+
+  return;
+}
+
 export class EditorResizer {
     constructor() {
         this.isResizing = false;
@@ -100,34 +109,19 @@ export class EditorScrubber {
     constructor() {
         this.scrubber = document.querySelector('.editor-scrubber');
         this.layerContent = document.querySelector('.layer-content');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
-        this.video = null;
+        this.video = document.querySelector('.annotation-player-container video');
+        this.duration = this.video.duration;
 
         this.init();
     }
 
     init() {
-        // Wait for video element to be available
-        const checkVideo = setInterval(() => {
-            this.video = document.querySelector('.annotation-player-container video');
-            if (this.video) {
-                clearInterval(checkVideo);
-                this.attachVideoListeners();
-            }
-        }, 100);
+      this.attachVideoListeners();
     }
 
     attachVideoListeners() {
         this.video.addEventListener('timeupdate', () => {
             this.updatePosition(this.video.currentTime);
-        });
-
-        this.video.addEventListener('loadedmetadata', () => {
-            // Update duration if available from video
-            if (this.video.duration) {
-                this.duration = this.video.duration;
-            }
         });
     }
 
@@ -150,8 +144,8 @@ export class Timeline {
         this.timelineContainer = document.querySelector('.timeline-container');
         this.layerContent = document.querySelectorAll('.layer-content');
         this.zoomSlider = document.getElementById('zoom-slider');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
+        this.video = document.querySelector('.annotation-player-container video');
+        this.duration = this.video.duration;
         this.zoomLevel = 1;
         this.hoverScrubber = null;
         this.isDragging = false;
@@ -161,6 +155,8 @@ export class Timeline {
     }
 
     init() {
+        const video = document.querySelector('.annotation-player-container video');
+        this.duration = video.duration;
         this.createHoverScrubber();
         this.renderTickMarks();
         this.attachTimelineListeners();
@@ -442,15 +438,21 @@ export class Timeline {
 export class LayerInteractionHandler {
     constructor() {
         this.layerContainers = document.querySelectorAll('.layer-items');
-        const editorContainer = document.querySelector('.editor-container');
-        this.duration = parseFloat(editorContainer?.dataset.duration) || 120;
+        this.video = document.querySelector('.annotation-player-container video');
+        this.duration = this.video.duration;
         this.dragState = null;
         this.zoomLevel = 1;
+        this.contentId = null;
 
         this.init();
     }
 
     init() {
+        const playerContainer = document.getElementById("annotation-player-container");
+        this.contentId = playerContainer.dataset["contentid"];
+        const video = document.querySelector('.annotation-player-container video');
+        this.duration = video.duration;
+        this.determineLayerItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.layerContainers.forEach(container => {
             container.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -474,6 +476,22 @@ export class LayerInteractionHandler {
         });
         this.placeLayerItems();
         document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
+    }
+
+    placeItem(item) {
+      const itemDuration = parseFloat(item.dataset["end"]) - parseFloat(item.dataset["start"]);
+      item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
+      item.style.setProperty("left", `${parseFloat(item.dataset["start"]) / this.duration * 100}%`);
+    }
+
+    determineLayerItemPositions() {
+      this.layerContainers.forEach(layerContainer => {
+        const layerItems = Array.from(layerContainer.children);
+
+        for (let item of layerItems) {
+          this.placeItem(item);
+        }
+      });
     }
 
     handleMouseDown(e) {
@@ -708,30 +726,67 @@ export class LayerInteractionHandler {
         // If !hasMoved, don't prevent - let the click bubble to HTMX
     }
 
+    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, was_resized=false, was_dragged=false) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfToken },
+        body: JSON.stringify({
+          "content_id": this.contentId,
+          "name": name,
+          "description": description,
+          "start_time": startTime,
+          "end_time": endTime,
+          "was_resized": was_resized,
+          "was_dragged": was_dragged
+        })
+      });
+
+      if (response.status != 200) {
+        console.error("An error occurred while updating an annotation");
+      }
+
+      const responseData = await response.json();
+      const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
+      targetItem.outerHTML = responseData["item_html"];
+      // if you pass the previous targetItem into this.placeItem, it will make changes to an
+      // element that no longer exists. You must get the new element before making style changes.
+      const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
+      this.placeItem(newTargetItem);
+
+      const targetForm = document.getElementById("detail-form");
+      targetForm.innerHTML = responseData["form_html"];
+    }
+
     triggerSave(state) {
         const item = state.item;
+        const annotationType = item.dataset["itemType"];
+        const annotationId = item.dataset["itemId"];
 
-        // Find and click the appropriate hidden trigger
-        // HTMX attributes on trigger handle the POST automatically
-        let trigger;
-        if (state.type === 'resize') {
-            const handleClass = state.isLeft ? 'resize-handle-left' : 'resize-handle-right';
-            trigger = item.querySelector(`.${handleClass}`);
-        } else {
-            // For drag, just use the first trigger
-            trigger = item.querySelector('.resize-handle-left');
+        const stateTypeIsUnknown = state.type !== "resize" && state.type !== "drag";
+        const startAndEndTimesAreUnknown = !item.style.left || item.style.left == '' || !item.style.width || item.style.width == '';
+
+        if (stateTypeIsUnknown) {
+          console.error("Unknown state type:", state.type);
         }
 
-        if (trigger) {
-            trigger.click();
-        } else {
-            console.error('Save trigger not found for item:', item.dataset.itemId);
-            // Revert on error
-            item.style.left = `${state.originalLeft}%`;
-            item.style.width = `${state.originalWidth}%`;
-            item.dataset.deltaLeft = '0';
-            item.dataset.deltaWidth = '0';
+        if (startAndEndTimesAreUnknown) {
+          console.error("Could not determine item start and end times");
         }
+
+        if (stateTypeIsUnknown || startAndEndTimesAreUnknown) {
+          // Revert on error
+          item.style.left = `${state.originalLeft}%`;
+          item.style.width = `${state.originalWidth}%`;
+          item.dataset.deltaLeft = '0';
+          item.dataset.deltaWidth = '0';
+          return;
+        }
+
+        const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
+        const newStartTime = leftAsDecimal * this.duration;
+        const newEndTime = (leftAsDecimal + convertPercentStringToDecimal(item.style.width)) * this.duration;
+        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, state.type === "resize", state.type === "drag");
     }
 
     setTimeFromVideo(fieldName) {
@@ -919,47 +974,104 @@ export class VideoPlayerSync {
     }
 }
 
-
-// Helper function for new item creation
-window.getNewItemStartEndTimes = function() {
-    const video = document.querySelector('.annotation-player-container video');
-    const container = document.querySelector('.editor-container');
-    const duration = parseFloat(container?.dataset.duration) || 120;
-
-    if (video) {
-        const startTime = video.currentTime;
-        // Add 20% of duration or 10 seconds, whichever is smaller
-        const clipDuration = Math.min(duration * 0.2, 10);
-        const endTime = Math.min(startTime + clipDuration, duration);
-        return {start_time: startTime, end_time: endTime};
+async function handleAnnotationSetChange(event) {
+    event.stopPropagation();
+    let annotationSetId;
+    const selectorOptions = event.target.children;
+    for (let option of selectorOptions) {
+        if (option.selected) {
+            annotationSetId = Number(option.value);
+            break;
+        }
     }
-    return {start_time: 0, end_time: Math.min(10, duration)};
-};
 
-// Listen for successful item creation to reinitialize interactions
-document.body.addEventListener('htmx:afterSwap', function(event) {
-    if (event.detail.target.classList?.contains('layer-items')) {
-        // Reinitialize layer interaction handler for new items
-        const newItems = event.detail.target.querySelectorAll('.layer-item:not([data-initialized])');
-        newItems.forEach(item => {
-            item.dataset.initialized = 'true';
-        });
+    if (isNaN(annotationSetId) || annotationSetId === undefined) {
+        console.error("Selected value was not defined!");
+        return;
     }
-});
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        new EditorResizer();
-        new EditorScrubber();
-        new Timeline();
-        new LayerInteractionHandler();
-        new VideoPlayerSync();
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const content_id = document.getElementById("annotation-player-container")?.dataset?.contentid;
+    if (!content_id) {
+        console.error("could not retrieve content id while switching annotation sets!");
+        return;
+    }
+    const htmlContentResponse = await fetch("/select-annotation-set", {
+        method: "POST",
+        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": content_id}),
+        headers: {"X-CSRFToken": csrfToken},
+        mode: "same-origin"
     });
-} else {
-    new EditorResizer();
-    new EditorScrubber();
-    new Timeline();
-    new LayerInteractionHandler();
-    new VideoPlayerSync();
+
+    const newHTMLContent = await htmlContentResponse.json();
+
+    const videoSection = document.getElementById("video-section");
+    videoSection.innerHTML = newHTMLContent["video_section"];
+
+    const timelineLayers = document.getElementById("annotation-timeline");
+    timelineLayers.innerHTML = newHTMLContent["timeline_layers"];
 }
+
+function setupAnnotationSelectorFunctions() {
+    const setSelector = document.getElementById("annotation-set-selector");
+    if (!setSelector) {
+        console.error("Annotation set selector cannot be found!");
+        return;
+    }
+
+    setSelector.addEventListener("change", handleAnnotationSetChange);
+}
+
+function editorInit() {
+  // Helper function for new item creation
+  window.getNewItemStartEndTimes = function() {
+      const video = document.querySelector('.annotation-player-container video');
+      const duration = video.duration;
+
+      if (video) {
+          const startTime = video.currentTime;
+          // Add 20% of duration or 10 seconds, whichever is smaller
+          const itemDuration = Math.min(duration * 0.2, 10);
+          const endTime = Math.min(startTime + itemDuration, duration);
+          return {start_time: startTime, end_time: endTime};
+      }
+      return {start_time: 0, end_time: Math.min(10, duration)};
+  };
+
+  // Listen for successful item creation to reinitialize interactions
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+      if (event.detail.target.classList?.contains('layer-items')) {
+          // Reinitialize layer interaction handler for new items
+          const newItems = event.detail.target.querySelectorAll('.layer-item:not([data-initialized])');
+          newItems.forEach(item => {
+              item.dataset.initialized = 'true';
+          });
+      }
+  });
+
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+          new EditorResizer();
+          new EditorScrubber();
+          new Timeline();
+          new LayerInteractionHandler();
+          new VideoPlayerSync();
+      });
+  } else {
+      new EditorResizer();
+      new EditorScrubber();
+      new Timeline();
+      new LayerInteractionHandler();
+      new VideoPlayerSync();
+  }
+  setupAnnotationSelectorFunctions();
+}
+
+const checkVideo = setInterval(() => {
+    const video = document.querySelector('.annotation-player-container video');
+    if (video && !isNaN(video.duration)) {
+      clearInterval(checkVideo);
+      editorInit();
+    }
+}, 100);
