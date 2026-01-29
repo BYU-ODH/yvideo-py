@@ -7,36 +7,6 @@ function convertPercentStringToDecimal(percentString) {
   return;
 }
 
-export class EditorScrubber {
-    constructor() {
-        this.scrubber = document.querySelector('.editor-scrubber');
-        this.layerContent = document.querySelector('.layer-content');
-        this.video = document.querySelector('.annotation-player-container video');
-        this.duration = this.video.duration;
-
-        this.init();
-    }
-
-    init() {
-      this.attachVideoListeners();
-    }
-
-    attachVideoListeners() {
-        this.video.addEventListener('timeupdate', () => {
-            this.updatePosition(this.video.currentTime);
-        });
-    }
-
-    updatePosition(currentTime) {
-        if (this.duration <= 0) return;
-
-        const percent = (currentTime / this.duration) * 100;
-        if (this.scrubber) {
-            this.scrubber.style.setProperty('--scrubber-position', `${percent}%`);
-        }
-    }
-}
-
 export class Timeline {
     constructor() {
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
@@ -46,6 +16,7 @@ export class Timeline {
         this.timelineContainer = document.querySelector('.timeline-container');
         this.layerContent = document.querySelectorAll('.layer-content');
         this.zoomSlider = document.getElementById('zoom-slider');
+        this.scrubber = document.querySelector('.editor-scrubber');
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.zoomLevel = 1;
@@ -60,6 +31,7 @@ export class Timeline {
         const video = document.querySelector('.annotation-player-container video');
         this.duration = video.duration;
         this.createHoverScrubber();
+        this.attachVideoListeners();
         this.renderTickMarks();
         this.attachTimelineListeners();
         this.attachZoomListener();
@@ -229,6 +201,23 @@ export class Timeline {
         this.wasPlayingBeforeDrag = false;
     }
 
+    // handle editor scrubber
+    attachVideoListeners() {
+        this.video.addEventListener('timeupdate', () => {
+            this.updateScrubberPosition(this.video.currentTime);
+        });
+    }
+
+    updateScrubberPosition(currentTime) {
+        if (this.duration <= 0) return;
+
+        const percent = (currentTime / this.duration) * 100;
+        if (this.scrubber) {
+            this.scrubber.style.setProperty('--scrubber-position', `${percent}%`);
+        }
+    }
+
+    // handle hover scrubber
     updateHoverScrubber(e) {
         if (!this.hoverScrubber) return;
 
@@ -980,12 +969,10 @@ function editorInit() {
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-          new EditorScrubber();
           new Timeline();
           new LayerInteractionHandler();
       });
   } else {
-      new EditorScrubber();
       new Timeline();
       new LayerInteractionHandler();
   }
