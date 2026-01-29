@@ -349,8 +349,12 @@ class Clip(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="clips"
     )
     name = models.CharField(max_length=255)
-    start_time = models.CharField(max_length=13, validators=[HMS_VALIDATOR])
-    end_time = models.CharField(max_length=13, validators=[HMS_VALIDATOR])
+    start_time = models.CharField(
+        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
+    )
+    end_time = models.CharField(
+        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
+    )
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -607,8 +611,12 @@ class BaseAnnotation(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    start_time = models.FloatField(default=0.0)
-    end_time = models.FloatField(default=0.0)
+    start_time = models.CharField(
+        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
+    )
+    end_time = models.CharField(
+        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
+    )
 
     # Linked list pointers for undo/redo
     prev = models.ForeignKey(
