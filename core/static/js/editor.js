@@ -369,7 +369,6 @@ export class LayerInteractionHandler {
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.dragState = null;
-        this.zoomLevel = 1;
         this.contentId = null;
 
         this.init();
