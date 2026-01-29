@@ -28,25 +28,82 @@ export class Timeline {
     }
 
     init() {
-        this.createHoverScrubber();
-        this.attachVideoListeners();
-        this.renderTickMarks();
-        this.attachTimelineListeners();
+        this.renderTickMarksAndLabels();
         this.attachZoomListener();
-        this.syncScroll();
+        this.createHoverScrubber();
+        this.attachTimelineListeners();
+        this.attachVideoListeners();
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
-        this.listenForNewItemCreation();
     }
 
-    attachZoomListener() {
-        if (!this.zoomSlider) return;
+    // This is the tick line on the timeline
+    createTickMark(time, isMajor) {
+        const tick = document.createElement('div');
+        tick.className = `tick-mark ${isMajor ? 'major' : 'minor'}`;
 
-        this.zoomSlider.addEventListener('input', (e) => {
-            const newZoomLevel = parseFloat(e.target.value);
-            this.handleZoom(newZoomLevel);
-        });
+        const percent = (time / this.duration) * 100;
+        tick.style.left = `${percent}%`;
+
+        return tick;
+    }
+
+    // this is for the time stamp above each labeled tick line on the timeline
+    createTickLabel(time) {
+        const label = document.createElement('div');
+        label.className = 'tick-label';
+        label.textContent = this.formatTime(time);
+
+        const percent = (time / this.duration) * 100;
+        label.style.left = `${percent}%`;
+
+        return label;
+    }
+
+    calculateTickInterval() {
+        // Calculate how many seconds fit in viewport at current zoom
+        const viewportSeconds = this.duration / this.zoomLevel;
+
+        // Choose interval to show 4-6 labels
+        const targetLabels = 5;
+        const rawInterval = viewportSeconds / targetLabels;
+
+        // Snap to nice intervals: 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, etc.
+        const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600];
+
+        for (const interval of niceIntervals) {
+            if (interval >= rawInterval) {
+                return interval;
+            }
+        }
+
+        // For very long videos, use multiples of an hour
+        return Math.ceil(rawInterval / 3600) * 3600;
+    }
+
+    renderTickMarksAndLabels() {
+        if (!this.tickMarksContainer) return;
+
+        // Clear existing tick marks
+        this.tickMarksContainer.innerHTML = '';
+
+        // Calculate appropriate interval based on zoom and duration
+        const interval = this.calculateTickInterval();
+        const minorInterval = interval / 5;
+
+        // Generate tick marks
+        for (let time = 0; time <= this.duration; time += minorInterval) {
+            const isMajor = Math.abs(time % interval) < 0.01;
+            const tick = this.createTickMark(time, isMajor);
+            this.tickMarksContainer.appendChild(tick);
+
+            // Add label for major ticks
+            if (isMajor) {
+                const label = this.createTickLabel(time);
+                this.tickMarksContainer.appendChild(label);
+            }
+        }
     }
 
     handleZoom(newZoomLevel) {
@@ -69,7 +126,7 @@ export class Timeline {
             this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
         }
 
-        this.renderTickMarks();
+        this.renderTickMarksAndLabels();
 
         const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
         const newViewportWidth = this.timelineContentWrapper.clientWidth;
@@ -80,9 +137,13 @@ export class Timeline {
         this.timelineContentWrapper.scrollLeft = targetScrollLeft;
     }
 
-    syncScroll() {
-        // No need to sync scroll anymore since we have a single scrollbar
-        // Keep this method in case we need it for future enhancements
+    attachZoomListener() {
+        if (!this.zoomSlider) return;
+
+        this.zoomSlider.addEventListener('input', (e) => {
+            const newZoomLevel = parseFloat(e.target.value);
+            this.handleZoom(newZoomLevel);
+        });
     }
 
     createHoverScrubber() {
@@ -94,6 +155,76 @@ export class Timeline {
                 this.timelineTicksContent.appendChild(this.hoverScrubber);
             }
         }
+    }
+
+    updateHoverScrubber(e) {
+        if (!this.hoverScrubber) return;
+
+        const rect = this.timelineTicksContent.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
+
+        this.hoverScrubber.style.left = `${percent}%`;
+    }
+
+    // timeline listeners and attachement
+    updateDragPosition(e) {
+        if (!this.isDragging) return;
+
+        const rect = this.timelineTicks.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(1, x / rect.width));
+        const targetTime = percent * this.duration;
+
+        // Seek the video
+        const video = document.querySelector('.annotation-player-container video');
+        if (video) {
+            video.currentTime = targetTime;
+        }
+
+        // Also update via the player API if available
+        if (window.videoPlayer && window.videoPlayer.skipTo) {
+            window.videoPlayer.skipTo(targetTime);
+        }
+
+        e.preventDefault();
+    }
+
+    startDrag(e) {
+        this.isDragging = true;
+        this.timelineTicks.classList.add('dragging');
+
+        // Get video and check if it was playing
+        const video = document.querySelector('.annotation-player-container video');
+        if (video) {
+            this.wasPlayingBeforeDrag = !video.paused;
+            if (this.wasPlayingBeforeDrag) {
+                video.pause();
+            }
+        }
+
+        // Hide hover scrubber during drag
+        if (this.hoverScrubber) {
+            this.hoverScrubber.style.opacity = '0';
+        }
+
+        // Seek to initial position
+        this.updateDragPosition(e);
+
+        e.preventDefault();
+    }
+
+    endDrag() {
+        this.isDragging = false;
+        this.timelineTicks.classList.remove('dragging');
+
+        // Resume playback if it was playing before
+        const video = document.querySelector('.annotation-player-container video');
+        if (video && this.wasPlayingBeforeDrag) {
+            video.play();
+        }
+
+        this.wasPlayingBeforeDrag = false;
     }
 
     attachTimelineListeners() {
@@ -138,73 +269,7 @@ export class Timeline {
         });
     }
 
-    startDrag(e) {
-        this.isDragging = true;
-        this.timelineTicks.classList.add('dragging');
-
-        // Get video and check if it was playing
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            this.wasPlayingBeforeDrag = !video.paused;
-            if (this.wasPlayingBeforeDrag) {
-                video.pause();
-            }
-        }
-
-        // Hide hover scrubber during drag
-        if (this.hoverScrubber) {
-            this.hoverScrubber.style.opacity = '0';
-        }
-
-        // Seek to initial position
-        this.updateDragPosition(e);
-
-        e.preventDefault();
-    }
-
-    updateDragPosition(e) {
-        if (!this.isDragging) return;
-
-        const rect = this.timelineTicks.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        const targetTime = percent * this.duration;
-
-        // Seek the video
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            video.currentTime = targetTime;
-        }
-
-        // Also update via the player API if available
-        if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
-        }
-
-        e.preventDefault();
-    }
-
-    endDrag() {
-        this.isDragging = false;
-        this.timelineTicks.classList.remove('dragging');
-
-        // Resume playback if it was playing before
-        const video = document.querySelector('.annotation-player-container video');
-        if (video && this.wasPlayingBeforeDrag) {
-            video.play();
-        }
-
-        this.wasPlayingBeforeDrag = false;
-    }
-
-    // handle editor scrubber
-    attachVideoListeners() {
-        this.video.addEventListener('timeupdate', () => {
-            this.updateScrubberPosition(this.video.currentTime);
-        });
-    }
-
-    updateScrubberPosition(currentTime) {
+    updateEditorScrubberPosition(currentTime) {
         if (this.duration <= 0) return;
 
         const percent = (currentTime / this.duration) * 100;
@@ -213,15 +278,10 @@ export class Timeline {
         }
     }
 
-    // handle hover scrubber
-    updateHoverScrubber(e) {
-        if (!this.hoverScrubber) return;
-
-        const rect = this.timelineTicksContent.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
-
-        this.hoverScrubber.style.left = `${percent}%`;
+    attachVideoListeners() {
+        this.video.addEventListener('timeupdate', () => {
+            this.updateEditorScrubberPosition(this.video.currentTime);
+        });
     }
 
     seekToPosition(e) {
@@ -242,72 +302,6 @@ export class Timeline {
         }
     }
 
-    renderTickMarks() {
-        if (!this.tickMarksContainer) return;
-
-        // Clear existing tick marks
-        this.tickMarksContainer.innerHTML = '';
-
-        // Calculate appropriate interval based on zoom and duration
-        const interval = this.calculateTickInterval();
-        const minorInterval = interval / 5;
-
-        // Generate tick marks
-        for (let time = 0; time <= this.duration; time += minorInterval) {
-            const isMajor = Math.abs(time % interval) < 0.01;
-            const tick = this.createTickMark(time, isMajor);
-            this.tickMarksContainer.appendChild(tick);
-
-            // Add label for major ticks
-            if (isMajor) {
-                const label = this.createTickLabel(time);
-                this.tickMarksContainer.appendChild(label);
-            }
-        }
-    }
-
-    calculateTickInterval() {
-        // Calculate how many seconds fit in viewport at current zoom
-        const viewportSeconds = this.duration / this.zoomLevel;
-
-        // Choose interval to show 4-6 labels
-        const targetLabels = 5;
-        const rawInterval = viewportSeconds / targetLabels;
-
-        // Snap to nice intervals: 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, etc.
-        const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600];
-
-        for (const interval of niceIntervals) {
-            if (interval >= rawInterval) {
-                return interval;
-            }
-        }
-
-        // For very long videos, use multiples of an hour
-        return Math.ceil(rawInterval / 3600) * 3600;
-    }
-
-    createTickMark(time, isMajor) {
-        const tick = document.createElement('div');
-        tick.className = `tick-mark ${isMajor ? 'major' : 'minor'}`;
-
-        const percent = (time / this.duration) * 100;
-        tick.style.left = `${percent}%`;
-
-        return tick;
-    }
-
-    createTickLabel(time) {
-        const label = document.createElement('div');
-        label.className = 'tick-label';
-        label.textContent = this.formatTime(time);
-
-        const percent = (time / this.duration) * 100;
-        label.style.left = `${percent}%`;
-
-        return label;
-    }
-
     formatTime(seconds) {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
@@ -321,44 +315,6 @@ export class Timeline {
             return `0:${String(secs).padStart(2, '0')}`;
         }
     }
-
-    listenForNewItemCreation() {
-      const createItemButtons = document.getElementsByClassName("add-item-btn");
-      for (let button of createItemButtons) {
-        const annotationType = button.dataset["annotationType"];
-        const contentId = button.dataset["contentId"];
-        button.addEventListener("click", async (e) => {
-          e.preventDefault();
-          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-          const response = await fetch(`/annotations/${annotationType}/create/content/${contentId}/`,
-            {
-              method: "POST",
-              headers: {"X-CSRFToken": csrfToken}
-            });
-          if (response.ok) {
-            const newItemHtml = await response.text();
-            const layerContainer = document.getElementById(`${annotationType}-item-container`);
-            const newElement = document.createElement("div");
-            layerContainer.append(newElement);
-            newElement.outerHTML = newItemHtml;
-
-            let startTime = 0;
-            let endTime = 10;
-            if (this.video) {
-                startTime = this.video.currentTime;
-                // Make sure new item can fit on the page
-                const itemDuration = Math.min(this.duration * 0.2, 10);
-                endTime = Math.min(startTime + itemDuration, this.duration);
-            }
-            newElement.dataset["start"] = startTime;
-            newElement.dataset["end"] = endTime;
-          }
-          else {
-            console.error(response);
-          }
-        })
-      }
-    }
 }
 
 export class LayerInteractionHandler {
@@ -368,6 +324,7 @@ export class LayerInteractionHandler {
         this.duration = this.video.duration;
         this.dragState = null;
         this.contentId = null;
+        this.listenForNewItemCreation();
 
         this.init();
     }
@@ -899,6 +856,44 @@ export class LayerInteractionHandler {
         if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.includes("item-")) {
             this.placeLayerItems();
         }
+    }
+
+    listenForNewItemCreation() {
+      const createItemButtons = document.getElementsByClassName("add-item-btn");
+      for (let button of createItemButtons) {
+        const annotationType = button.dataset["annotationType"];
+        const contentId = button.dataset["contentId"];
+        button.addEventListener("click", async (e) => {
+          e.preventDefault();
+          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+          const response = await fetch(`/annotations/${annotationType}/create/content/${contentId}/`,
+            {
+              method: "POST",
+              headers: {"X-CSRFToken": csrfToken}
+            });
+          if (response.ok) {
+            const newItemHtml = await response.text();
+            const layerContainer = document.getElementById(`${annotationType}-item-container`);
+            const newElement = document.createElement("div");
+            layerContainer.append(newElement);
+            newElement.outerHTML = newItemHtml;
+
+            let startTime = 0;
+            let endTime = 10;
+            if (this.video) {
+                startTime = this.video.currentTime;
+                // Make sure new item can fit on the page
+                const itemDuration = Math.min(this.duration * 0.2, 10);
+                endTime = Math.min(startTime + itemDuration, this.duration);
+            }
+            newElement.dataset["start"] = startTime;
+            newElement.dataset["end"] = endTime;
+          }
+          else {
+            console.error(response);
+          }
+        })
+      }
     }
 }
 
