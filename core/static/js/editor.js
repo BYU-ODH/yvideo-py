@@ -49,6 +49,20 @@ export class Timeline {
         return tick;
     }
 
+    formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+
+        if (hours > 0) {
+            return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        } else if (minutes > 0) {
+            return `${minutes}:${String(secs).padStart(2, '0')}`;
+        } else {
+            return `0:${String(secs).padStart(2, '0')}`;
+        }
+    }
+
     // this is for the time stamp above each labeled tick line on the timeline
     createTickLabel(time) {
         const label = document.createElement('div');
@@ -282,38 +296,6 @@ export class Timeline {
         this.video.addEventListener('timeupdate', () => {
             this.updateEditorScrubberPosition(this.video.currentTime);
         });
-    }
-
-    seekToPosition(e) {
-        const rect = this.timelineTicks.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        const targetTime = percent * this.duration;
-
-        // Seek the video
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            video.currentTime = targetTime;
-        }
-
-        // Also update via the player API if available
-        if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
-        }
-    }
-
-    formatTime(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-
-        if (hours > 0) {
-            return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        } else if (minutes > 0) {
-            return `${minutes}:${String(secs).padStart(2, '0')}`;
-        } else {
-            return `0:${String(secs).padStart(2, '0')}`;
-        }
     }
 }
 
