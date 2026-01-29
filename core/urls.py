@@ -151,7 +151,7 @@ urlpatterns = [
         name="create_annotation",
     ),
     path(
-        "annotations/<str:annotation_type>/<int:annotation_id>/update/",
+        "annotations/<str:annotation_type>/<int:annotation_id>/<int:is_from_item>/update/",
         views_video_editor.update_annotation,
         name="update_annotation",
     ),

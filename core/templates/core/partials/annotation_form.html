@@ -3,10 +3,8 @@
 
     <h3>Edit {{ item_type_label }}</h3>
 
-    <form hx-post="{% url update_url item_type instance.id %}"
-          hx-target="[data-item-id='{{ instance.id }}']"
-          hx-swap="outerHTML"
-          {% if not can_edit %}disabled{% endif %}>
+    <form id="annotation-update-form" {% if not can_edit %}disabled{% endif %} data-item-id="{{ instance.id }}"
+    data-item-type="{{ item_type }}">
 
         <input type="hidden" name="content_id" value="{{ content.id }}">
 

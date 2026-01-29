@@ -165,6 +165,7 @@ export class Timeline {
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
+        this.listenForNewItemCreation();
     }
 
     attachZoomListener() {
@@ -433,6 +434,44 @@ export class Timeline {
             return `0:${String(secs).padStart(2, '0')}`;
         }
     }
+
+    listenForNewItemCreation() {
+      const createItemButtons = document.getElementsByClassName("add-item-btn");
+      for (let button of createItemButtons) {
+        const annotationType = button.dataset["annotationType"];
+        const contentId = button.dataset["contentId"];
+        button.addEventListener("click", async (e) => {
+          e.preventDefault();
+          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+          const response = await fetch(`/annotations/${annotationType}/create/content/${contentId}/`,
+            {
+              method: "POST",
+              headers: {"X-CSRFToken": csrfToken}
+            });
+          if (response.ok) {
+            const newItemHtml = await response.text();
+            const layerContainer = document.getElementById(`${annotationType}-item-container`);
+            const newElement = document.createElement("div");
+            layerContainer.append(newElement);
+            newElement.outerHTML = newItemHtml;
+
+            let startTime = 0;
+            let endTime = 10;
+            if (this.video) {
+                startTime = this.video.currentTime;
+                // Make sure new item can fit on the page
+                const itemDuration = Math.min(this.duration * 0.2, 10);
+                endTime = Math.min(startTime + itemDuration, this.duration);
+            }
+            newElement.dataset["start"] = startTime;
+            newElement.dataset["end"] = endTime;
+          }
+          else {
+            console.error(response);
+          }
+        })
+      }
+    }
 }
 
 export class LayerInteractionHandler {
@@ -476,6 +515,7 @@ export class LayerInteractionHandler {
         });
         this.placeLayerItems();
         document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
+        this.watchForItemFormChanges();
     }
 
     placeItem(item) {
@@ -726,20 +766,61 @@ export class LayerInteractionHandler {
         // If !hasMoved, don't prevent - let the click bubble to HTMX
     }
 
-    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, was_resized=false, was_dragged=false) {
+    listenForItemUpdateFormSubmission() {
+      const itemForm = document.getElementById("annotation-update-form");
+      if (!itemForm) {
+        return;
+      }
+      const annotationId = itemForm.dataset["itemId"];
+      const annotationType = itemForm.dataset["itemType"];
+      itemForm.addEventListener("submit", (e) => {
+        console.log('detected');
+        e.preventDefault();
+        this.updateAnnotation(annotationType, annotationId)
+      })
+    }
+
+    handleItemFormChanges(mutationList) {
+      for (let mutation of mutationList) {
+        if (mutation.type == "childList") {
+          this.listenForItemUpdateFormSubmission();
+        }
+      }
+    }
+
+    watchForItemFormChanges() {
+      const itemFormObserver = new MutationObserver(this.handleItemFormChanges.bind(this))
+      const itemForm = document.getElementById("detail-form");
+      itemFormObserver.observe(itemForm, { childList: true });
+    }
+
+    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
-        method: "POST",
-        headers: { "X-CSRFToken": csrfToken },
-        body: JSON.stringify({
+      const isFromItemValue = Number(isFromItem)
+
+      let requestBody, contentType;
+      if (isFromItem) {
+        requestBody = JSON.stringify({
           "content_id": this.contentId,
           "name": name,
           "description": description,
           "start_time": startTime,
           "end_time": endTime,
-          "was_resized": was_resized,
-          "was_dragged": was_dragged
-        })
+        });
+        contentType = "application/json";
+      } else {
+        const annotationUpdateForm = document.getElementById("annotation-update-form");
+        requestBody = new FormData(annotationUpdateForm);
+        contentType = "application/x-www-form-urlencoded";
+      }
+
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/${isFromItemValue}/update/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrfToken,
+          "Content-Type": contentType,
+        },
+        body: requestBody
       });
 
       if (response.status != 200) {
@@ -747,15 +828,19 @@ export class LayerInteractionHandler {
       }
 
       const responseData = await response.json();
+
+      const itemHtml = responseData["item_html"];
+      const formHtml = responseData["form_html"];
+
       const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      targetItem.outerHTML = responseData["item_html"];
+      targetItem.outerHTML = itemHtml;
       // if you pass the previous targetItem into this.placeItem, it will make changes to an
       // element that no longer exists. You must get the new element before making style changes.
       const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
       this.placeItem(newTargetItem);
 
       const targetForm = document.getElementById("detail-form");
-      targetForm.innerHTML = responseData["form_html"];
+      targetForm.innerHTML = formHtml;
     }
 
     triggerSave(state) {
@@ -786,7 +871,7 @@ export class LayerInteractionHandler {
         const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
         const newStartTime = leftAsDecimal * this.duration;
         const newEndTime = (leftAsDecimal + convertPercentStringToDecimal(item.style.width)) * this.duration;
-        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, state.type === "resize", state.type === "drag");
+        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true);
     }
 
     setTimeFromVideo(fieldName) {
@@ -808,6 +893,30 @@ export class LayerInteractionHandler {
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    async getItemFormDetails(annotationType, annotationId, contentId) {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
+        method: "GET"
+      });
+      const detailForm = document.getElementById("detail-form");
+      detailForm.innerHTML = await response.text();
+    }
+
+    addClickListenerToLayerItem(item) {
+      const annotationType = item.dataset["itemType"];
+      const annotationId = item.dataset["itemId"];
+      const contentId = document.getElementById("annotation-player-container").dataset["contentid"];
+      item.addEventListener("click", async (e) => {
+        e.preventDefault(); this.getItemFormDetails(annotationType, annotationId, contentId)
+      });
+    }
+
+    setUpItemClickListeners() {
+      const layerItems = document.getElementsByClassName("layer-item")
+      for (let layerItem of layerItems) {
+        this.addClickListenerToLayerItem(layerItem);
+      }
     }
 
     placeLayerItems() {
@@ -905,6 +1014,7 @@ export class LayerInteractionHandler {
                 layer.style.minHeight = `${minHeight}px`;
             }
         });
+      this.setUpItemClickListeners();
     }
 
     handleLayerItemPlacementAfterEvent(e) {
@@ -1023,32 +1133,6 @@ function setupAnnotationSelectorFunctions() {
 }
 
 function editorInit() {
-  // Helper function for new item creation
-  window.getNewItemStartEndTimes = function() {
-      const video = document.querySelector('.annotation-player-container video');
-      const duration = video.duration;
-
-      if (video) {
-          const startTime = video.currentTime;
-          // Add 20% of duration or 10 seconds, whichever is smaller
-          const itemDuration = Math.min(duration * 0.2, 10);
-          const endTime = Math.min(startTime + itemDuration, duration);
-          return {start_time: startTime, end_time: endTime};
-      }
-      return {start_time: 0, end_time: Math.min(10, duration)};
-  };
-
-  // Listen for successful item creation to reinitialize interactions
-  document.body.addEventListener('htmx:afterSwap', function(event) {
-      if (event.detail.target.classList?.contains('layer-items')) {
-          // Reinitialize layer interaction handler for new items
-          const newItems = event.detail.target.querySelectorAll('.layer-item:not([data-initialized])');
-          newItems.forEach(item => {
-              item.dataset.initialized = 'true';
-          });
-      }
-  });
-
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
