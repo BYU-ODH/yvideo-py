@@ -50,18 +50,18 @@ export class Timeline {
     }
 
     handleZoom(newZoomLevel) {
-        // const video = document.querySelector('.annotation-player-container video');
-        // const currentTime = video?.currentTime || 0;
-        // const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
+        const video = document.querySelector('.annotation-player-container video');
+        const currentTime = video?.currentTime || 0;
+        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
 
-        // const viewportWidth = this.timelineContentWrapper.clientWidth;
-        // const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        // const scrollLeft = this.timelineContentWrapper.scrollLeft;
-        // const scrubberPixelPositionOld = currentPercent * oldContentWidth;
-        // let scrubberViewportRatio = viewportWidth
-        //     ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
-        //     : 0;
-        // scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
+        const viewportWidth = this.timelineContentWrapper.clientWidth;
+        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+        const scrollLeft = this.timelineContentWrapper.scrollLeft;
+        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
+        let scrubberViewportRatio = viewportWidth
+            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
+            : 0;
+        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
 
         this.zoomLevel = newZoomLevel;
 
@@ -71,15 +71,13 @@ export class Timeline {
 
         this.renderTickMarks();
 
-        // requestAnimationFrame(() => {
-        //     const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        //     const newViewportWidth = this.timelineContentWrapper.clientWidth;
-        //     const scrubberPixelPosition = currentPercent * newContentWidth;
-        //     let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
-        //     const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
-        //     targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
-        //     this.timelineContentWrapper.scrollLeft = targetScrollLeft;
-        // });
+        const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+        const newViewportWidth = this.timelineContentWrapper.clientWidth;
+        const scrubberPixelPosition = currentPercent * newContentWidth;
+        let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
+        const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
+        targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
+        this.timelineContentWrapper.scrollLeft = targetScrollLeft;
     }
 
     syncScroll() {
