@@ -928,64 +928,6 @@ export class LayerInteractionHandler {
     }
 }
 
-export class VideoPlayerSync {
-    constructor() {
-        this.video = null;
-        this.jsonContainer = document.getElementById('player-json');
-
-        this.init();
-    }
-
-    init() {
-        // Wait for video to be available
-        const checkVideo = setInterval(() => {
-            this.video = document.querySelector('.annotation-player-container video');
-            this.player = window.videoPlayer || window.annotationPlayer;
-            if (this.video && this.player) {
-                clearInterval(checkVideo);
-                this.setupJSONWatch();
-                this.updatePlayerFromJSON();
-            }
-        }, 100);
-    }
-
-    setupJSONWatch() {
-        // Watch for HTMX updates to JSON container
-        const observer = new MutationObserver(() => {
-            this.updatePlayerFromJSON();
-        });
-
-        if (this.jsonContainer) {
-            observer.observe(this.jsonContainer, {
-                childList: true,
-                characterData: true,
-                subtree: true
-            });
-        }
-
-        // Also listen for HTMX afterSwap events
-        document.body.addEventListener('htmx:afterSwap', (e) => {
-            if (e.detail.target.id === 'player-json') {
-                this.updatePlayerFromJSON();
-            }
-        });
-
-        // Listen for OOB swaps as well
-        document.body.addEventListener('htmx:oobAfterSwap', (e) => {
-            if (e.detail.target && e.detail.target.id === 'player-json') {
-                this.updatePlayerFromJSON();
-            }
-        });
-    }
-
-    updatePlayerFromJSON() {
-        if (!this.jsonContainer || !this.player?.loadData) return;
-        const data = JSON.parse(this.jsonContainer.textContent);
-        this.player.loadData(data);
-        this.player.renderSkipsOnScrubber?.();
-    }
-}
-
 async function handleAnnotationSetChange(event) {
     event.stopPropagation();
     let annotationSetId;
@@ -1041,13 +983,11 @@ function editorInit() {
           new EditorScrubber();
           new Timeline();
           new LayerInteractionHandler();
-          new VideoPlayerSync();
       });
   } else {
       new EditorScrubber();
       new Timeline();
       new LayerInteractionHandler();
-      new VideoPlayerSync();
   }
   setupAnnotationSelectorFunctions();
 }
