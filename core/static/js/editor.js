@@ -20,7 +20,7 @@ export class Timeline {
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.zoomLevel = 1;
-        this.hoverScrubber = null;
+        this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
 
@@ -30,7 +30,7 @@ export class Timeline {
     init() {
         this.renderTickMarksAndLabels();
         this.attachZoomListener();
-        this.createHoverScrubber();
+        this.createtimelineScrubber();
         this.attachTimelineListeners();
         this.attachVideoListeners();
         if (this.timelineContainer) {
@@ -160,29 +160,29 @@ export class Timeline {
         });
     }
 
-    createHoverScrubber() {
-        this.hoverScrubber = document.querySelector('.timeline-hover-scrubber');
-        if (!this.hoverScrubber) {
-            this.hoverScrubber = document.createElement('div');
-            this.hoverScrubber.className = 'timeline-hover-scrubber';
+    createtimelineScrubber() {
+        this.timelineScrubber = document.querySelector('.timeline-hover-scrubber');
+        if (!this.timelineScrubber) {
+            this.timelineScrubber = document.createElement('div');
+            this.timelineScrubber.className = 'timeline-hover-scrubber';
             if (this.timelineTicksContent) {
-                this.timelineTicksContent.appendChild(this.hoverScrubber);
+                this.timelineTicksContent.appendChild(this.timelineScrubber);
             }
         }
     }
 
-    updateHoverScrubber(e) {
-        if (!this.hoverScrubber) return;
+    updatetimelineScrubber(e) {
+        if (!this.timelineScrubber) return;
 
         const rect = this.timelineTicksContent.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
 
-        this.hoverScrubber.style.left = `${percent}%`;
+        this.timelineScrubber.style.left = `${percent}%`;
     }
 
     // timeline listeners and attachement
-    updateDragPosition(e) {
+    updateTimelineDragPosition(e) {
         if (!this.isDragging) return;
 
         const rect = this.timelineTicks.getBoundingClientRect();
@@ -204,7 +204,7 @@ export class Timeline {
         e.preventDefault();
     }
 
-    startDrag(e) {
+    startTimelineDrag(e) {
         this.isDragging = true;
         this.timelineTicks.classList.add('dragging');
 
@@ -218,17 +218,17 @@ export class Timeline {
         }
 
         // Hide hover scrubber during drag
-        if (this.hoverScrubber) {
-            this.hoverScrubber.style.opacity = '0';
+        if (this.timelineScrubber) {
+            this.timelineScrubber.style.opacity = '0';
         }
 
         // Seek to initial position
-        this.updateDragPosition(e);
+        this.updateTimelineDragPosition(e);
 
         e.preventDefault();
     }
 
-    endDrag() {
+    endTimelineDrag() {
         this.isDragging = false;
         this.timelineTicks.classList.remove('dragging');
 
@@ -246,39 +246,39 @@ export class Timeline {
 
         this.timelineTicks.addEventListener('mousemove', (e) => {
             if (!this.isDragging) {
-                this.updateHoverScrubber(e);
+                this.updatetimelineScrubber(e);
                 // Ensure hover scrubber is visible on mousemove
-                if (this.hoverScrubber) {
-                    this.hoverScrubber.style.opacity = '1';
+                if (this.timelineScrubber) {
+                    this.timelineScrubber.style.opacity = '1';
                 }
             }
         });
 
         this.timelineTicks.addEventListener('mouseleave', () => {
-            if (this.hoverScrubber && !this.isDragging) {
-                this.hoverScrubber.style.opacity = '0';
+            if (this.timelineScrubber && !this.isDragging) {
+                this.timelineScrubber.style.opacity = '0';
             }
         });
 
         this.timelineTicks.addEventListener('mouseenter', () => {
-            if (this.hoverScrubber && !this.isDragging) {
-                this.hoverScrubber.style.opacity = '1';
+            if (this.timelineScrubber && !this.isDragging) {
+                this.timelineScrubber.style.opacity = '1';
             }
         });
 
         this.timelineTicks.addEventListener('mousedown', (e) => {
-            this.startDrag(e);
+            this.startTimelineDrag(e);
         });
 
         document.addEventListener('mousemove', (e) => {
             if (this.isDragging) {
-                this.updateDragPosition(e);
+                this.updateTimelineDragPosition(e);
             }
         });
 
         document.addEventListener('mouseup', () => {
             if (this.isDragging) {
-                this.endDrag();
+                this.endTimelineDrag();
             }
         });
     }
