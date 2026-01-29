@@ -28,8 +28,6 @@ export class Timeline {
     }
 
     init() {
-        const video = document.querySelector('.annotation-player-container video');
-        this.duration = video.duration;
         this.createHoverScrubber();
         this.attachVideoListeners();
         this.renderTickMarks();
@@ -380,8 +378,6 @@ export class LayerInteractionHandler {
     init() {
         const playerContainer = document.getElementById("annotation-player-container");
         this.contentId = playerContainer.dataset["contentid"];
-        const video = document.querySelector('.annotation-player-container video');
-        this.duration = video.duration;
         this.determineLayerItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.layerContainers.forEach(container => {
