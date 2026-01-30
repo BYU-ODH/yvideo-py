@@ -720,9 +720,8 @@ export class LayerInteractionHandler {
     addClickListenerToLayerItem(item) {
       const annotationType = item.dataset["itemType"];
       const annotationId = item.dataset["itemId"];
-      const contentId = document.getElementById("annotation-player-container").dataset["contentid"];
       item.addEventListener("click", async (e) => {
-        e.preventDefault(); this.getItemFormDetails(annotationType, annotationId, contentId)
+        e.preventDefault(); this.getItemFormDetails(annotationType, annotationId, this.contentId)
       });
     }
 
@@ -843,11 +842,10 @@ export class LayerInteractionHandler {
       const createItemButtons = document.getElementsByClassName("add-item-btn");
       for (let button of createItemButtons) {
         const annotationType = button.dataset["annotationType"];
-        const contentId = button.dataset["contentId"];
         button.addEventListener("click", async (e) => {
           e.preventDefault();
           const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-          const response = await fetch(`/annotations/${annotationType}/create/content/${contentId}/`,
+          const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}/`,
             {
               method: "POST",
               headers: {"X-CSRFToken": csrfToken}
@@ -895,14 +893,13 @@ async function handleAnnotationSetChange(event) {
     }
 
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    const content_id = document.getElementById("annotation-player-container")?.dataset?.contentid;
-    if (!content_id) {
+    if (!this.contentId) {
         console.error("could not retrieve content id while switching annotation sets!");
         return;
     }
     const htmlContentResponse = await fetch("/select-annotation-set", {
         method: "POST",
-        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": content_id}),
+        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
         headers: {"X-CSRFToken": csrfToken},
         mode: "same-origin"
     });
