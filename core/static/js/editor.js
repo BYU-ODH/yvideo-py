@@ -377,21 +377,35 @@ export class LayerInteractionHandler {
         }
     }
 
+    calculateItemLeftAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      return startTime / this.duration;
+
+    }
+
+    calculateItemWidthAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      const endTime = parseFloat(item.dataset["end"]);
+      return (endTime - startTime) / this.duration;
+    }
+
     startDrag(layerItem, e) {
         const layerContainer = layerItem.closest('.layer-items');
         const rect = layerContainer.getBoundingClientRect();
         const containerWidth = layerContainer.scrollWidth || rect.width;
+        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
 
         this.dragState = {
             type: 'drag',
             item: layerItem,
             container: layerContainer,
             startX: e.clientX,
-            startLeft: parseFloat(layerItem.style.left),
+            startLeft: itemLeft * 100,
             containerWidth,
             hasMoved: false,
-            originalLeft: parseFloat(layerItem.dataset.originalLeft),
-            originalWidth: parseFloat(layerItem.dataset.originalWidth)
+            originalLeft: itemLeft,
+            originalWidth: itemWidth
         };
 
         // Reset deltas
@@ -407,6 +421,8 @@ export class LayerInteractionHandler {
         const layerContainer = layerItem.closest('.layer-items');
         const rect = layerContainer.getBoundingClientRect();
         const containerWidth = layerContainer.scrollWidth || rect.width;
+        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
 
         this.dragState = {
             type: 'resize',
@@ -415,12 +431,12 @@ export class LayerInteractionHandler {
             handle,
             isLeft,
             startX: e.clientX,
-            startLeft: parseFloat(layerItem.style.left),
-            startWidth: parseFloat(layerItem.style.width),
+            startLeft: itemLeft * 100,
+            startWidth: itemWidth * 100,
             containerWidth,
             hasMoved: false,
-            originalLeft: parseFloat(layerItem.dataset.originalLeft),
-            originalWidth: parseFloat(layerItem.dataset.originalWidth)
+            originalLeft: itemLeft,
+            originalWidth: itemWidth
         };
 
         // Reset deltas
@@ -889,9 +905,11 @@ export class LayerInteractionHandler {
           if (response.ok) {
             const newItemHtml = await response.text();
             const layerContainer = document.getElementById(`${annotationType}-item-container`);
-            const newElement = document.createElement("div");
-            layerContainer.append(newElement);
-            newElement.outerHTML = newItemHtml;
+            const newElement = document.createElement("template");
+            newElement.innerHTML = newItemHtml;
+            const newNode = newElement.content.firstChild;
+            layerContainer.append(newNode);
+            this.addClickListenerToLayerItem(newNode);
 
             let startTime = 0;
             let endTime = 10;
@@ -901,8 +919,8 @@ export class LayerInteractionHandler {
                 const itemDuration = Math.min(this.duration * 0.2, 10);
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
-            newElement.dataset["start"] = startTime;
-            newElement.dataset["end"] = endTime;
+            newNode.dataset["start"] = startTime;
+            newNode.dataset["end"] = endTime;
           }
           else {
             console.error(response);
