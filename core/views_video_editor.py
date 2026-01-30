@@ -554,8 +554,8 @@ def generate_annotation_updated_html(
 
 
 def update_annotation_from_form(request, annotation_type, annotation_id):
-    content_id = request.POST.get("content_id")
-    print(request.POST)
+    parsed_body = json.loads(request.body)
+    content_id = parsed_body["content_id"]
     content = get_object_or_404(Content, id=content_id)
     validation_result = validate_annotation_update_request(
         request.user, content, annotation_type, annotation_id
@@ -565,15 +565,15 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
     annotation = validation_result["result"]
 
     update_fields = {}
-    update_fields["name"] = request.POST.get("name")
-    update_fields["start_time"] = request.POST.get("start_time")
-    update_fields["description"] = request.POST.get("description")
+    update_fields["name"] = parsed_body["name"]
+    update_fields["start_time"] = parsed_body["start_time"]
+    update_fields["description"] = parsed_body["description"]
 
     if annotation_type != "pause":
-        update_fields["end_time"] = request.POST.get("end_time")
+        update_fields["end_time"] = parsed_body["end_time"]
 
     if annotation_type == "censor":
-        positions_json = request.POST.get("positions")
+        positions_json = parsed_body["positions"]
         if positions_json:
             positions = json.loads(positions_json)
             is_valid, error = BlurAnnotation.validate_positions(positions)
@@ -581,17 +581,17 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
                 return HttpResponse(error, status=400)
             update_fields["positions"] = positions
     elif annotation_type == "comment":
-        update_fields["text"] = request.POST.get("text")
-        x = request.POST.get("x")
-        y = request.POST.get("y")
+        update_fields["text"] = parsed_body["text"]
+        x = parsed_body["x"]
+        y = parsed_body["y"]
         if x is not None:
             update_fields["x"] = float(x)
         if y is not None:
             update_fields["y"] = float(y)
     elif annotation_type == "pause":
-        update_fields["message"] = request.POST.get("message")
+        update_fields["message"] = parsed_body["message"]
     elif annotation_type == "blank":
-        update_fields["type"] = request.POST.get("blank_type")
+        update_fields["type"] = parsed_body["blank_type"]
 
     for field, value in update_fields.items():
         setattr(annotation, field, value)

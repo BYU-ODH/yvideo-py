@@ -588,7 +588,6 @@ export class LayerInteractionHandler {
       const annotationId = itemForm.dataset["itemId"];
       const annotationType = itemForm.dataset["itemType"];
       itemForm.addEventListener("submit", (e) => {
-        console.log('detected');
         e.preventDefault();
         this.updateAnnotation(annotationType, annotationId)
       })
@@ -624,8 +623,15 @@ export class LayerInteractionHandler {
         contentType = "application/json";
       } else {
         const annotationUpdateForm = document.getElementById("annotation-update-form");
-        requestBody = new FormData(annotationUpdateForm);
-        contentType = "application/x-www-form-urlencoded";
+        const formData = new FormData(annotationUpdateForm);
+        requestBody = {};
+        for (let pair of formData.entries()) {
+          const key = pair[0];
+          const value = pair[1];
+          requestBody[key] = value;
+        }
+        requestBody = JSON.stringify(requestBody);
+        contentType = "application/json";
       }
 
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/${isFromItemValue}/update/`, {
@@ -655,6 +661,7 @@ export class LayerInteractionHandler {
 
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
+      this.addClickListenerToLayerItem(newTargetItem);
     }
 
     triggerSave(state) {
