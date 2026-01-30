@@ -14,7 +14,6 @@ export class Timeline {
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
         this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
         this.timelineContainer = document.querySelector('.timeline-container');
-        this.layerContent = document.querySelectorAll('.layer-content');
         this.zoomSlider = document.getElementById('zoom-slider');
         this.scrubber = document.querySelector('.editor-scrubber');
         this.video = document.querySelector('.annotation-player-container video');
