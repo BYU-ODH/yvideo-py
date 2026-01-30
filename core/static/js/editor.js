@@ -896,11 +896,25 @@ export class LayerInteractionHandler {
         const annotationType = button.dataset["annotationType"];
         button.addEventListener("click", async (e) => {
           e.preventDefault();
+
+          let startTime = 0;
+          let endTime = 0;
+          if (this.video) {
+              startTime = this.video.currentTime;
+              // Make sure new item can fit on the page
+              const itemDuration = Math.min(this.duration * 0.2, 10);
+              endTime = Math.min(startTime + itemDuration, this.duration);
+          }
+
           const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
           const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}/`,
             {
               method: "POST",
-              headers: {"X-CSRFToken": csrfToken}
+              headers: {"X-CSRFToken": csrfToken},
+              body: JSON.stringify({
+                "start_time": startTime,
+                "end_time": endTime
+              })
             });
           if (response.ok) {
             const newItemHtml = await response.text();
@@ -908,20 +922,12 @@ export class LayerInteractionHandler {
             const newElement = document.createElement("template");
             newElement.innerHTML = newItemHtml;
             const newNode = newElement.content.firstChild;
-            layerContainer.append(newNode);
-            this.addClickListenerToLayerItem(newNode);
-
-            let startTime = 0;
-            let endTime = 10;
-            if (this.video) {
-                startTime = this.video.currentTime;
-                // Make sure new item can fit on the page
-                const itemDuration = Math.min(this.duration * 0.2, 10);
-                endTime = Math.min(startTime + itemDuration, this.duration);
-            }
             newNode.dataset["start"] = startTime;
             newNode.dataset["end"] = endTime;
-            await this.updateAnnotation(newNode.dataset["itemType"], newNode.dataset["itemId"], undefined, undefined, startTime, endTime, true);
+            layerContainer.append(newNode);
+            this.addClickListenerToLayerItem(newNode);
+            this.placeItem(newNode);
+            this.placeLayerItems();
           }
           else {
             console.error(response);

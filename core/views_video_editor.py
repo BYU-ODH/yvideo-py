@@ -433,11 +433,10 @@ def create_annotation(request, annotation_type, content_id):
     if not model_class:
         return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
 
-    start_time = float(request.POST.get("start_time", 0))
+    parsed_body = json.loads(request.body)
+    start_time = float(parsed_body["start_time"])
     end_time = (
-        float(request.POST.get("end_time", 0))
-        if annotation_type != "pause"
-        else start_time
+        float(parsed_body["end_time"]) if annotation_type != "pause" else start_time
     )
 
     data = {
