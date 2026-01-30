@@ -921,6 +921,7 @@ export class LayerInteractionHandler {
             }
             newNode.dataset["start"] = startTime;
             newNode.dataset["end"] = endTime;
+            await this.updateAnnotation(newNode.dataset["itemType"], newNode.dataset["itemId"], undefined, undefined, startTime, endTime, true);
           }
           else {
             console.error(response);
