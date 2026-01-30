@@ -631,6 +631,8 @@ export class LayerInteractionHandler {
         else {
           const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
           deletedItem.remove();
+          const detailForm = document.getElementById("detail-form");
+          detailForm.innerHTML = "";
           this.placeLayerItems();
         }
       });
