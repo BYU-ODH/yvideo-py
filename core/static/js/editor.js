@@ -593,10 +593,38 @@ export class LayerInteractionHandler {
       })
     }
 
+    async deleteItem(annotationType, annotationId) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      return await fetch(`/annotations/${annotationType}/${annotationId}/delete/`, {
+        method: "delete",
+        headers: {"X-CSRFToken": csrfToken}
+      });
+    }
+
+    setUpItemDeleteButton() {
+      const itemForm = document.getElementById("existing-item-form");
+      const annotationType = itemForm.dataset["itemtype"];
+      const annotationId = itemForm.dataset["annotationid"];
+      const deleteItemButton = itemForm.querySelector("#annotation-form-delete-button");
+      deleteItemButton.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const response = await this.deleteItem(annotationType, annotationId);
+        if (!response.ok) {
+          console.error("The item could not be deleted");
+        }
+        else {
+          const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
+          deletedItem.remove();
+          this.placeLayerItems();
+        }
+      });
+    }
+
     handleItemFormChanges(mutationList) {
       for (let mutation of mutationList) {
         if (mutation.type == "childList") {
           this.listenForItemUpdateFormSubmission();
+          this.setUpItemDeleteButton();
         }
       }
     }
@@ -728,7 +756,8 @@ export class LayerInteractionHandler {
       const annotationType = item.dataset["itemType"];
       const annotationId = item.dataset["itemId"];
       item.addEventListener("click", async (e) => {
-        e.preventDefault(); this.getItemFormDetails(annotationType, annotationId, this.contentId)
+        e.preventDefault();
+        this.getItemFormDetails(annotationType, annotationId, this.contentId);
       });
     }
 

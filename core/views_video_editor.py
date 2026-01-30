@@ -729,8 +729,6 @@ def load_annotation_form(request, annotation_type, annotation_id):
             "can_edit": can_edit,
             "item_type": annotation_type,
             "item_type_label": annotation_type.title(),
-            "update_url": "update_annotation",
-            "delete_url": "delete_annotation",
             "start_seconds": start_seconds,
             "end_seconds": end_seconds,
         },
