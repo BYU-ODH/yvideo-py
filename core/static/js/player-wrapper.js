@@ -77,5 +77,6 @@ function handleVideoSectionChanges(mutationList) {
     }
   }
 }
-const videoSectionObserver = new MutationObserver(handleVideoSectionChanges)
-videoSectionObserver.observe(document.getElementById("video-section") , {childList: true})
+
+const videoSectionObserver = new MutationObserver(handleVideoSectionChanges);
+videoSectionObserver.observe(document.getElementById("video-section"), { childList: true });
