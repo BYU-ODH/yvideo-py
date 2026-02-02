@@ -18,11 +18,11 @@
                 <span>{{ layer_data.display_name }}</span>
                 {% if layer_data.can_add %}
                 <button class="add-item-btn"
-                        hx-post="{% url layer_data.add_form_url content_id=content_id annotation_type=layer_type %}"
-                        hx-target="#annotation-timeline"
-                        hx-swap="none"
-                        hx-vals='js:...getNewItemStartEndTimes()'
-                        type="button">+</button>
+                    data-content-id="{{content_id}}"
+                    data-annotation-type="{{layer_type}}"
+                type="button">
+                    +
+                </button>
                 {% endif %}
             </div>
             {% endfor %}

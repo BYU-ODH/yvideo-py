@@ -7,134 +7,6 @@ function convertPercentStringToDecimal(percentString) {
   return;
 }
 
-export class EditorResizer {
-    constructor() {
-        this.isResizing = false;
-        this.currentResizer = null;
-        this.startX = 0;
-        this.startY = 0;
-        this.startWidth = 0;
-        this.startHeight = 0;
-        this.targetElement = null;
-
-        this.init();
-    }
-
-    init() {
-        const resizers = document.querySelectorAll('.resizer');
-
-        resizers.forEach(resizer => {
-            resizer.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        });
-
-        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.addEventListener('mouseup', this.handleMouseUp.bind(this));
-    }
-
-    handleMouseDown(e) {
-        this.isResizing = true;
-        this.currentResizer = e.target;
-        this.startX = e.clientX;
-        this.startY = e.clientY;
-
-        const direction = this.currentResizer.dataset.direction;
-
-        if (direction === 'horizontal') {
-            // Resizing between video and form (vertical resizer, horizontal movement)
-            this.targetElement = this.currentResizer.previousElementSibling;
-            this.startWidth = this.targetElement.offsetWidth;
-            document.body.classList.add('resizing', 'resizing-horizontal');
-        } else if (direction === 'vertical') {
-            // Resizing between top panel and timeline (horizontal resizer, vertical movement)
-            this.targetElement = this.currentResizer.previousElementSibling;
-            this.startHeight = this.targetElement.offsetHeight;
-            document.body.classList.add('resizing', 'resizing-vertical');
-        }
-
-        e.preventDefault();
-    }
-
-    handleMouseMove(e) {
-        if (!this.isResizing) return;
-
-        const direction = this.currentResizer.dataset.direction;
-
-        if (direction === 'horizontal') {
-            // Horizontal resizing (video/form split)
-            const deltaX = e.clientX - this.startX;
-            const newWidth = this.startWidth + deltaX;
-
-            // Set minimum and maximum widths
-            const minWidth = 300;
-            const container = this.currentResizer.parentElement;
-            const maxWidth = container.offsetWidth - 250; // Leave at least 250px for form
-
-            if (newWidth >= minWidth && newWidth <= maxWidth) {
-                this.targetElement.style.flex = `0 0 ${newWidth}px`;
-            }
-        } else if (direction === 'vertical') {
-            // Vertical resizing (top panel/timeline split)
-            const deltaY = e.clientY - this.startY;
-            const newHeight = this.startHeight + deltaY;
-
-            // Set minimum and maximum heights
-            const minHeight = 200;
-            const container = this.currentResizer.parentElement;
-            const maxHeight = container.offsetHeight - 150; // Leave at least 150px for timeline
-
-            if (newHeight >= minHeight && newHeight <= maxHeight) {
-                this.targetElement.style.flex = `0 0 ${newHeight}px`;
-            }
-        }
-
-        e.preventDefault();
-    }
-
-    handleMouseUp(e) {
-        if (!this.isResizing) return;
-
-        this.isResizing = false;
-        this.currentResizer = null;
-        this.targetElement = null;
-        document.body.classList.remove('resizing', 'resizing-horizontal', 'resizing-vertical');
-
-        // Trigger window resize event so video player can adjust
-        window.dispatchEvent(new Event('resize'));
-
-        e.preventDefault();
-    }
-}
-
-export class EditorScrubber {
-    constructor() {
-        this.scrubber = document.querySelector('.editor-scrubber');
-        this.layerContent = document.querySelector('.layer-content');
-        this.video = document.querySelector('.annotation-player-container video');
-        this.duration = this.video.duration;
-
-        this.init();
-    }
-
-    init() {
-      this.attachVideoListeners();
-    }
-
-    attachVideoListeners() {
-        this.video.addEventListener('timeupdate', () => {
-            this.updatePosition(this.video.currentTime);
-        });
-    }
-
-    updatePosition(currentTime) {
-        if (this.duration <= 0) return;
-
-        const percent = (currentTime / this.duration) * 100;
-        if (this.scrubber) {
-            this.scrubber.style.setProperty('--scrubber-position', `${percent}%`);
-        }
-    }
-}
-
 export class Timeline {
     constructor() {
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
@@ -142,12 +14,12 @@ export class Timeline {
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
         this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
         this.timelineContainer = document.querySelector('.timeline-container');
-        this.layerContent = document.querySelectorAll('.layer-content');
         this.zoomSlider = document.getElementById('zoom-slider');
+        this.scrubber = document.querySelector('.editor-scrubber');
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.zoomLevel = 1;
-        this.hoverScrubber = null;
+        this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
 
@@ -155,227 +27,51 @@ export class Timeline {
     }
 
     init() {
-        const video = document.querySelector('.annotation-player-container video');
-        this.duration = video.duration;
-        this.createHoverScrubber();
-        this.renderTickMarks();
-        this.attachTimelineListeners();
+        this.renderTickMarksAndLabels();
         this.attachZoomListener();
-        this.syncScroll();
+        this.createtimelineScrubber();
+        this.attachTimelineListeners();
+        this.attachVideoListeners();
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
     }
 
-    attachZoomListener() {
-        if (!this.zoomSlider) return;
+    // This is the tick line on the timeline
+    createTickMark(time, isMajor) {
+        const tick = document.createElement('div');
+        tick.className = `tick-mark ${isMajor ? 'major' : 'minor'}`;
 
-        this.zoomSlider.addEventListener('input', (e) => {
-            const newZoomLevel = parseFloat(e.target.value);
-            this.handleZoom(newZoomLevel);
-        });
+        const percent = (time / this.duration) * 100;
+        tick.style.left = `${percent}%`;
+
+        return tick;
     }
 
-    handleZoom(newZoomLevel) {
-        const video = document.querySelector('.annotation-player-container video');
-        const currentTime = video?.currentTime || 0;
-        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
+    formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
 
-        const viewportWidth = this.timelineContentWrapper.clientWidth;
-        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        const scrollLeft = this.timelineContentWrapper.scrollLeft;
-        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
-        let scrubberViewportRatio = viewportWidth
-            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
-            : 0;
-        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
-
-        this.zoomLevel = newZoomLevel;
-
-        if (this.timelineContainer) {
-            this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
-        }
-
-        this.renderTickMarks();
-
-        requestAnimationFrame(() => {
-            const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-            const newViewportWidth = this.timelineContentWrapper.clientWidth;
-            const scrubberPixelPosition = currentPercent * newContentWidth;
-            let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
-            const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
-            targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
-            this.timelineContentWrapper.scrollLeft = targetScrollLeft;
-        });
-    }
-
-    syncScroll() {
-        // No need to sync scroll anymore since we have a single scrollbar
-        // Keep this method in case we need it for future enhancements
-    }
-
-    createHoverScrubber() {
-        this.hoverScrubber = document.querySelector('.timeline-hover-scrubber');
-        if (!this.hoverScrubber) {
-            this.hoverScrubber = document.createElement('div');
-            this.hoverScrubber.className = 'timeline-hover-scrubber';
-            if (this.timelineTicksContent) {
-                this.timelineTicksContent.appendChild(this.hoverScrubber);
-            }
+        if (hours > 0) {
+            return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        } else if (minutes > 0) {
+            return `${minutes}:${String(secs).padStart(2, '0')}`;
+        } else {
+            return `0:${String(secs).padStart(2, '0')}`;
         }
     }
 
-    attachTimelineListeners() {
-        if (!this.timelineTicks) return;
+    // this is for the time stamp above each labeled tick line on the timeline
+    createTickLabel(time) {
+        const label = document.createElement('div');
+        label.className = 'tick-label';
+        label.textContent = this.formatTime(time);
 
-        this.timelineTicks.addEventListener('mousemove', (e) => {
-            if (!this.isDragging) {
-                this.updateHoverScrubber(e);
-                // Ensure hover scrubber is visible on mousemove
-                if (this.hoverScrubber) {
-                    this.hoverScrubber.style.opacity = '1';
-                }
-            }
-        });
+        const percent = (time / this.duration) * 100;
+        label.style.left = `${percent}%`;
 
-        this.timelineTicks.addEventListener('mouseleave', () => {
-            if (this.hoverScrubber && !this.isDragging) {
-                this.hoverScrubber.style.opacity = '0';
-            }
-        });
-
-        this.timelineTicks.addEventListener('mouseenter', () => {
-            if (this.hoverScrubber && !this.isDragging) {
-                this.hoverScrubber.style.opacity = '1';
-            }
-        });
-
-        this.timelineTicks.addEventListener('mousedown', (e) => {
-            this.startDrag(e);
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (this.isDragging) {
-                this.updateDragPosition(e);
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (this.isDragging) {
-                this.endDrag();
-            }
-        });
-    }
-
-    startDrag(e) {
-        this.isDragging = true;
-        this.timelineTicks.classList.add('dragging');
-
-        // Get video and check if it was playing
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            this.wasPlayingBeforeDrag = !video.paused;
-            if (this.wasPlayingBeforeDrag) {
-                video.pause();
-            }
-        }
-
-        // Hide hover scrubber during drag
-        if (this.hoverScrubber) {
-            this.hoverScrubber.style.opacity = '0';
-        }
-
-        // Seek to initial position
-        this.updateDragPosition(e);
-
-        e.preventDefault();
-    }
-
-    updateDragPosition(e) {
-        if (!this.isDragging) return;
-
-        const rect = this.timelineTicks.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        const targetTime = percent * this.duration;
-
-        // Seek the video
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            video.currentTime = targetTime;
-        }
-
-        // Also update via the player API if available
-        if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
-        }
-
-        e.preventDefault();
-    }
-
-    endDrag() {
-        this.isDragging = false;
-        this.timelineTicks.classList.remove('dragging');
-
-        // Resume playback if it was playing before
-        const video = document.querySelector('.annotation-player-container video');
-        if (video && this.wasPlayingBeforeDrag) {
-            video.play();
-        }
-
-        this.wasPlayingBeforeDrag = false;
-    }
-
-    updateHoverScrubber(e) {
-        if (!this.hoverScrubber) return;
-
-        const rect = this.timelineTicksContent.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
-
-        this.hoverScrubber.style.left = `${percent}%`;
-    }
-
-    seekToPosition(e) {
-        const rect = this.timelineTicks.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        const targetTime = percent * this.duration;
-
-        // Seek the video
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            video.currentTime = targetTime;
-        }
-
-        // Also update via the player API if available
-        if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
-        }
-    }
-
-    renderTickMarks() {
-        if (!this.tickMarksContainer) return;
-
-        // Clear existing tick marks
-        this.tickMarksContainer.innerHTML = '';
-
-        // Calculate appropriate interval based on zoom and duration
-        const interval = this.calculateTickInterval();
-        const minorInterval = interval / 5;
-
-        // Generate tick marks
-        for (let time = 0; time <= this.duration; time += minorInterval) {
-            const isMajor = Math.abs(time % interval) < 0.01;
-            const tick = this.createTickMark(time, isMajor);
-            this.tickMarksContainer.appendChild(tick);
-
-            // Add label for major ticks
-            if (isMajor) {
-                const label = this.createTickLabel(time);
-                this.tickMarksContainer.appendChild(label);
-            }
-        }
+        return label;
     }
 
     calculateTickInterval() {
@@ -399,39 +95,206 @@ export class Timeline {
         return Math.ceil(rawInterval / 3600) * 3600;
     }
 
-    createTickMark(time, isMajor) {
-        const tick = document.createElement('div');
-        tick.className = `tick-mark ${isMajor ? 'major' : 'minor'}`;
+    renderTickMarksAndLabels() {
+        if (!this.tickMarksContainer) return;
 
-        const percent = (time / this.duration) * 100;
-        tick.style.left = `${percent}%`;
+        // Clear existing tick marks
+        this.tickMarksContainer.innerHTML = '';
 
-        return tick;
-    }
+        // Calculate appropriate interval based on zoom and duration
+        const interval = this.calculateTickInterval();
+        const minorInterval = interval / 5;
 
-    createTickLabel(time) {
-        const label = document.createElement('div');
-        label.className = 'tick-label';
-        label.textContent = this.formatTime(time);
+        // Generate tick marks
+        for (let time = 0; time <= this.duration; time += minorInterval) {
+            const isMajor = Math.abs(time % interval) < 0.01;
+            const tick = this.createTickMark(time, isMajor);
+            this.tickMarksContainer.appendChild(tick);
 
-        const percent = (time / this.duration) * 100;
-        label.style.left = `${percent}%`;
-
-        return label;
-    }
-
-    formatTime(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-
-        if (hours > 0) {
-            return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        } else if (minutes > 0) {
-            return `${minutes}:${String(secs).padStart(2, '0')}`;
-        } else {
-            return `0:${String(secs).padStart(2, '0')}`;
+            // Add label for major ticks
+            if (isMajor) {
+                const label = this.createTickLabel(time);
+                this.tickMarksContainer.appendChild(label);
+            }
         }
+    }
+
+    handleZoom(newZoomLevel) {
+        const video = document.querySelector('.annotation-player-container video');
+        const currentTime = video?.currentTime || 0;
+        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
+
+        const viewportWidth = this.timelineContentWrapper.clientWidth;
+        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+        const scrollLeft = this.timelineContentWrapper.scrollLeft;
+        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
+        let scrubberViewportRatio = viewportWidth
+            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
+            : 0;
+        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
+
+        this.zoomLevel = newZoomLevel;
+
+        if (this.timelineContainer) {
+            this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
+        }
+
+        this.renderTickMarksAndLabels();
+
+        const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+        const newViewportWidth = this.timelineContentWrapper.clientWidth;
+        const scrubberPixelPosition = currentPercent * newContentWidth;
+        let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
+        const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
+        targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
+        this.timelineContentWrapper.scrollLeft = targetScrollLeft;
+    }
+
+    attachZoomListener() {
+        if (!this.zoomSlider) return;
+
+        this.zoomSlider.addEventListener('input', (e) => {
+            const newZoomLevel = parseFloat(e.target.value);
+            this.handleZoom(newZoomLevel);
+        });
+    }
+
+    createtimelineScrubber() {
+        this.timelineScrubber = document.querySelector('.timeline-hover-scrubber');
+        if (!this.timelineScrubber) {
+            this.timelineScrubber = document.createElement('div');
+            this.timelineScrubber.className = 'timeline-hover-scrubber';
+            if (this.timelineTicksContent) {
+                this.timelineTicksContent.appendChild(this.timelineScrubber);
+            }
+        }
+    }
+
+    updatetimelineScrubber(e) {
+        if (!this.timelineScrubber) return;
+
+        const rect = this.timelineTicksContent.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
+
+        this.timelineScrubber.style.left = `${percent}%`;
+    }
+
+    // timeline listeners and attachement
+    updateTimelineDragPosition(e) {
+        if (!this.isDragging) return;
+
+        const rect = this.timelineTicks.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(1, x / rect.width));
+        const targetTime = percent * this.duration;
+
+        // Seek the video
+        const video = document.querySelector('.annotation-player-container video');
+        if (video) {
+            video.currentTime = targetTime;
+        }
+
+        // Also update via the player API if available
+        if (window.videoPlayer && window.videoPlayer.skipTo) {
+            window.videoPlayer.skipTo(targetTime);
+        }
+
+        e.preventDefault();
+    }
+
+    startTimelineDrag(e) {
+        this.isDragging = true;
+        this.timelineTicks.classList.add('dragging');
+
+        // Get video and check if it was playing
+        const video = document.querySelector('.annotation-player-container video');
+        if (video) {
+            this.wasPlayingBeforeDrag = !video.paused;
+            if (this.wasPlayingBeforeDrag) {
+                video.pause();
+            }
+        }
+
+        // Hide hover scrubber during drag
+        if (this.timelineScrubber) {
+            this.timelineScrubber.style.opacity = '0';
+        }
+
+        // Seek to initial position
+        this.updateTimelineDragPosition(e);
+
+        e.preventDefault();
+    }
+
+    endTimelineDrag() {
+        this.isDragging = false;
+        this.timelineTicks.classList.remove('dragging');
+
+        // Resume playback if it was playing before
+        const video = document.querySelector('.annotation-player-container video');
+        if (video && this.wasPlayingBeforeDrag) {
+            video.play();
+        }
+
+        this.wasPlayingBeforeDrag = false;
+    }
+
+    attachTimelineListeners() {
+        if (!this.timelineTicks) return;
+
+        this.timelineTicks.addEventListener('mousemove', (e) => {
+            if (!this.isDragging) {
+                this.updatetimelineScrubber(e);
+                // Ensure hover scrubber is visible on mousemove
+                if (this.timelineScrubber) {
+                    this.timelineScrubber.style.opacity = '1';
+                }
+            }
+        });
+
+        this.timelineTicks.addEventListener('mouseleave', () => {
+            if (this.timelineScrubber && !this.isDragging) {
+                this.timelineScrubber.style.opacity = '0';
+            }
+        });
+
+        this.timelineTicks.addEventListener('mouseenter', () => {
+            if (this.timelineScrubber && !this.isDragging) {
+                this.timelineScrubber.style.opacity = '1';
+            }
+        });
+
+        this.timelineTicks.addEventListener('mousedown', (e) => {
+            this.startTimelineDrag(e);
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (this.isDragging) {
+                this.updateTimelineDragPosition(e);
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (this.isDragging) {
+                this.endTimelineDrag();
+            }
+        });
+    }
+
+    updateEditorScrubberPosition(currentTime) {
+        if (this.duration <= 0) return;
+
+        const percent = (currentTime / this.duration) * 100;
+        if (this.scrubber) {
+            this.scrubber.style.setProperty('--scrubber-position', `${percent}%`);
+        }
+    }
+
+    attachVideoListeners() {
+        this.video.addEventListener('timeupdate', () => {
+            this.updateEditorScrubberPosition(this.video.currentTime);
+        });
     }
 }
 
@@ -441,8 +304,8 @@ export class LayerInteractionHandler {
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.dragState = null;
-        this.zoomLevel = 1;
         this.contentId = null;
+        this.listenForNewItemCreation();
 
         this.init();
     }
@@ -450,8 +313,6 @@ export class LayerInteractionHandler {
     init() {
         const playerContainer = document.getElementById("annotation-player-container");
         this.contentId = playerContainer.dataset["contentid"];
-        const video = document.querySelector('.annotation-player-container video');
-        this.duration = video.duration;
         this.determineLayerItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.layerContainers.forEach(container => {
@@ -459,14 +320,6 @@ export class LayerInteractionHandler {
         });
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
         document.addEventListener('mouseup', this.handleMouseUp.bind(this));
-
-        // Listen for zoom changes
-        const zoomSlider = document.getElementById('zoom-slider');
-        if (zoomSlider) {
-            zoomSlider.addEventListener('input', (e) => {
-                this.zoomLevel = parseFloat(e.target.value);
-            });
-        }
 
         // Listen for "set time" button clicks
         document.addEventListener('click', (e) => {
@@ -476,6 +329,7 @@ export class LayerInteractionHandler {
         });
         this.placeLayerItems();
         document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
+        this.watchForItemFormChanges();
     }
 
     placeItem(item) {
@@ -523,21 +377,35 @@ export class LayerInteractionHandler {
         }
     }
 
+    calculateItemLeftAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      return startTime / this.duration;
+
+    }
+
+    calculateItemWidthAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      const endTime = parseFloat(item.dataset["end"]);
+      return (endTime - startTime) / this.duration;
+    }
+
     startDrag(layerItem, e) {
         const layerContainer = layerItem.closest('.layer-items');
         const rect = layerContainer.getBoundingClientRect();
         const containerWidth = layerContainer.scrollWidth || rect.width;
+        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
 
         this.dragState = {
             type: 'drag',
             item: layerItem,
             container: layerContainer,
             startX: e.clientX,
-            startLeft: parseFloat(layerItem.style.left),
+            startLeft: itemLeft * 100,
             containerWidth,
             hasMoved: false,
-            originalLeft: parseFloat(layerItem.dataset.originalLeft),
-            originalWidth: parseFloat(layerItem.dataset.originalWidth)
+            originalLeft: itemLeft,
+            originalWidth: itemWidth
         };
 
         // Reset deltas
@@ -553,6 +421,8 @@ export class LayerInteractionHandler {
         const layerContainer = layerItem.closest('.layer-items');
         const rect = layerContainer.getBoundingClientRect();
         const containerWidth = layerContainer.scrollWidth || rect.width;
+        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
 
         this.dragState = {
             type: 'resize',
@@ -561,12 +431,12 @@ export class LayerInteractionHandler {
             handle,
             isLeft,
             startX: e.clientX,
-            startLeft: parseFloat(layerItem.style.left),
-            startWidth: parseFloat(layerItem.style.width),
+            startLeft: itemLeft * 100,
+            startWidth: itemWidth * 100,
             containerWidth,
             hasMoved: false,
-            originalLeft: parseFloat(layerItem.dataset.originalLeft),
-            originalWidth: parseFloat(layerItem.dataset.originalWidth)
+            originalLeft: itemLeft,
+            originalWidth: itemWidth
         };
 
         // Reset deltas
@@ -726,20 +596,97 @@ export class LayerInteractionHandler {
         // If !hasMoved, don't prevent - let the click bubble to HTMX
     }
 
-    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, was_resized=false, was_dragged=false) {
+    listenForItemUpdateFormSubmission() {
+      const itemForm = document.getElementById("annotation-update-form");
+      if (!itemForm) {
+        return;
+      }
+      const annotationId = itemForm.dataset["itemId"];
+      const annotationType = itemForm.dataset["itemType"];
+      itemForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.updateAnnotation(annotationType, annotationId)
+      })
+    }
+
+    async deleteItem(annotationType, annotationId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
-        method: "POST",
-        headers: { "X-CSRFToken": csrfToken },
-        body: JSON.stringify({
+      return await fetch(`/annotations/${annotationType}/${annotationId}/delete/`, {
+        method: "delete",
+        headers: {"X-CSRFToken": csrfToken}
+      });
+    }
+
+    setUpItemDeleteButton() {
+      const itemForm = document.getElementById("existing-item-form");
+      const annotationType = itemForm.dataset["itemtype"];
+      const annotationId = itemForm.dataset["annotationid"];
+      const deleteItemButton = itemForm.querySelector("#annotation-form-delete-button");
+      deleteItemButton.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const response = await this.deleteItem(annotationType, annotationId);
+        if (!response.ok) {
+          console.error("The item could not be deleted");
+        }
+        else {
+          const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
+          deletedItem.remove();
+          const detailForm = document.getElementById("detail-form");
+          detailForm.innerHTML = "";
+          this.placeLayerItems();
+        }
+      });
+    }
+
+    handleItemFormChanges(mutationList) {
+      for (let mutation of mutationList) {
+        if (mutation.type == "childList") {
+          this.listenForItemUpdateFormSubmission();
+          this.setUpItemDeleteButton();
+        }
+      }
+    }
+
+    watchForItemFormChanges() {
+      const itemFormObserver = new MutationObserver(this.handleItemFormChanges.bind(this))
+      const itemForm = document.getElementById("detail-form");
+      itemFormObserver.observe(itemForm, { childList: true });
+    }
+
+    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const isFromItemValue = Number(isFromItem)
+
+      let requestBody, contentType;
+      if (isFromItem) {
+        requestBody = JSON.stringify({
           "content_id": this.contentId,
           "name": name,
           "description": description,
           "start_time": startTime,
           "end_time": endTime,
-          "was_resized": was_resized,
-          "was_dragged": was_dragged
-        })
+        });
+        contentType = "application/json";
+      } else {
+        const annotationUpdateForm = document.getElementById("annotation-update-form");
+        const formData = new FormData(annotationUpdateForm);
+        requestBody = {};
+        for (let pair of formData.entries()) {
+          const key = pair[0];
+          const value = pair[1];
+          requestBody[key] = value;
+        }
+        requestBody = JSON.stringify(requestBody);
+        contentType = "application/json";
+      }
+
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/${isFromItemValue}/update/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrfToken,
+          "Content-Type": contentType,
+        },
+        body: requestBody
       });
 
       if (response.status != 200) {
@@ -747,15 +694,20 @@ export class LayerInteractionHandler {
       }
 
       const responseData = await response.json();
+
+      const itemHtml = responseData["item_html"];
+      const formHtml = responseData["form_html"];
+
       const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      targetItem.outerHTML = responseData["item_html"];
+      targetItem.outerHTML = itemHtml;
       // if you pass the previous targetItem into this.placeItem, it will make changes to an
       // element that no longer exists. You must get the new element before making style changes.
       const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
       this.placeItem(newTargetItem);
 
       const targetForm = document.getElementById("detail-form");
-      targetForm.innerHTML = responseData["form_html"];
+      targetForm.innerHTML = formHtml;
+      this.addClickListenerToLayerItem(newTargetItem);
     }
 
     triggerSave(state) {
@@ -786,7 +738,7 @@ export class LayerInteractionHandler {
         const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
         const newStartTime = leftAsDecimal * this.duration;
         const newEndTime = (leftAsDecimal + convertPercentStringToDecimal(item.style.width)) * this.duration;
-        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, state.type === "resize", state.type === "drag");
+        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true);
     }
 
     setTimeFromVideo(fieldName) {
@@ -808,6 +760,30 @@ export class LayerInteractionHandler {
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    async getItemFormDetails(annotationType, annotationId, contentId) {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
+        method: "GET"
+      });
+      const detailForm = document.getElementById("detail-form");
+      detailForm.innerHTML = await response.text();
+    }
+
+    addClickListenerToLayerItem(item) {
+      const annotationType = item.dataset["itemType"];
+      const annotationId = item.dataset["itemId"];
+      item.addEventListener("click", async (e) => {
+        e.preventDefault();
+        this.getItemFormDetails(annotationType, annotationId, this.contentId);
+      });
+    }
+
+    setUpItemClickListeners() {
+      const layerItems = document.getElementsByClassName("layer-item")
+      for (let layerItem of layerItems) {
+        this.addClickListenerToLayerItem(layerItem);
+      }
     }
 
     placeLayerItems() {
@@ -905,6 +881,7 @@ export class LayerInteractionHandler {
                 layer.style.minHeight = `${minHeight}px`;
             }
         });
+      this.setUpItemClickListeners();
     }
 
     handleLayerItemPlacementAfterEvent(e) {
@@ -914,63 +891,51 @@ export class LayerInteractionHandler {
             this.placeLayerItems();
         }
     }
-}
 
-export class VideoPlayerSync {
-    constructor() {
-        this.video = null;
-        this.jsonContainer = document.getElementById('player-json');
+    listenForNewItemCreation() {
+      const createItemButtons = document.getElementsByClassName("add-item-btn");
+      for (let button of createItemButtons) {
+        const annotationType = button.dataset["annotationType"];
+        button.addEventListener("click", async (e) => {
+          e.preventDefault();
 
-        this.init();
-    }
+          let startTime = 0;
+          let endTime = 0;
+          if (this.video) {
+              startTime = this.video.currentTime;
+              // Make sure new item can fit on the page
+              const itemDuration = Math.min(this.duration * 0.2, 10);
+              endTime = Math.min(startTime + itemDuration, this.duration);
+          }
 
-    init() {
-        // Wait for video to be available
-        const checkVideo = setInterval(() => {
-            this.video = document.querySelector('.annotation-player-container video');
-            this.player = window.videoPlayer || window.annotationPlayer;
-            if (this.video && this.player) {
-                clearInterval(checkVideo);
-                this.setupJSONWatch();
-                this.updatePlayerFromJSON();
-            }
-        }, 100);
-    }
-
-    setupJSONWatch() {
-        // Watch for HTMX updates to JSON container
-        const observer = new MutationObserver(() => {
-            this.updatePlayerFromJSON();
-        });
-
-        if (this.jsonContainer) {
-            observer.observe(this.jsonContainer, {
-                childList: true,
-                characterData: true,
-                subtree: true
+          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+          const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}/`,
+            {
+              method: "POST",
+              headers: {"X-CSRFToken": csrfToken},
+              body: JSON.stringify({
+                "start_time": startTime,
+                "end_time": endTime
+              })
             });
-        }
-
-        // Also listen for HTMX afterSwap events
-        document.body.addEventListener('htmx:afterSwap', (e) => {
-            if (e.detail.target.id === 'player-json') {
-                this.updatePlayerFromJSON();
-            }
-        });
-
-        // Listen for OOB swaps as well
-        document.body.addEventListener('htmx:oobAfterSwap', (e) => {
-            if (e.detail.target && e.detail.target.id === 'player-json') {
-                this.updatePlayerFromJSON();
-            }
-        });
-    }
-
-    updatePlayerFromJSON() {
-        if (!this.jsonContainer || !this.player?.loadData) return;
-        const data = JSON.parse(this.jsonContainer.textContent);
-        this.player.loadData(data);
-        this.player.renderSkipsOnScrubber?.();
+          if (response.ok) {
+            const newItemHtml = await response.text();
+            const layerContainer = document.getElementById(`${annotationType}-item-container`);
+            const newElement = document.createElement("template");
+            newElement.innerHTML = newItemHtml;
+            const newNode = newElement.content.firstChild;
+            newNode.dataset["start"] = startTime;
+            newNode.dataset["end"] = endTime;
+            layerContainer.append(newNode);
+            this.addClickListenerToLayerItem(newNode);
+            this.placeItem(newNode);
+            this.placeLayerItems();
+          }
+          else {
+            console.error(response);
+          }
+        })
+      }
     }
 }
 
@@ -991,14 +956,13 @@ async function handleAnnotationSetChange(event) {
     }
 
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    const content_id = document.getElementById("annotation-player-container")?.dataset?.contentid;
-    if (!content_id) {
+    if (!this.contentId) {
         console.error("could not retrieve content id while switching annotation sets!");
         return;
     }
     const htmlContentResponse = await fetch("/select-annotation-set", {
         method: "POST",
-        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": content_id}),
+        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
         headers: {"X-CSRFToken": csrfToken},
         mode: "same-origin"
     });
@@ -1023,47 +987,15 @@ function setupAnnotationSelectorFunctions() {
 }
 
 function editorInit() {
-  // Helper function for new item creation
-  window.getNewItemStartEndTimes = function() {
-      const video = document.querySelector('.annotation-player-container video');
-      const duration = video.duration;
-
-      if (video) {
-          const startTime = video.currentTime;
-          // Add 20% of duration or 10 seconds, whichever is smaller
-          const itemDuration = Math.min(duration * 0.2, 10);
-          const endTime = Math.min(startTime + itemDuration, duration);
-          return {start_time: startTime, end_time: endTime};
-      }
-      return {start_time: 0, end_time: Math.min(10, duration)};
-  };
-
-  // Listen for successful item creation to reinitialize interactions
-  document.body.addEventListener('htmx:afterSwap', function(event) {
-      if (event.detail.target.classList?.contains('layer-items')) {
-          // Reinitialize layer interaction handler for new items
-          const newItems = event.detail.target.querySelectorAll('.layer-item:not([data-initialized])');
-          newItems.forEach(item => {
-              item.dataset.initialized = 'true';
-          });
-      }
-  });
-
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-          new EditorResizer();
-          new EditorScrubber();
           new Timeline();
           new LayerInteractionHandler();
-          new VideoPlayerSync();
       });
   } else {
-      new EditorResizer();
-      new EditorScrubber();
       new Timeline();
       new LayerInteractionHandler();
-      new VideoPlayerSync();
   }
   setupAnnotationSelectorFunctions();
 }

@@ -433,11 +433,10 @@ def create_annotation(request, annotation_type, content_id):
     if not model_class:
         return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
 
-    start_time = float(request.POST.get("start_time", 0))
+    parsed_body = json.loads(request.body)
+    start_time = float(parsed_body["start_time"])
     end_time = (
-        float(request.POST.get("end_time", 0))
-        if annotation_type != "pause"
-        else start_time
+        float(parsed_body["end_time"]) if annotation_type != "pause" else start_time
     )
 
     data = {
@@ -484,81 +483,114 @@ def create_annotation(request, annotation_type, content_id):
         request=request,
     )
 
-    return HttpResponse(
-        f'<div hx-swap-oob="beforeend:.layer-items.{annotation_type}">{item_html}</div>'
-    )
+    return HttpResponse(item_html)
 
 
-@require_POST
-@login_required
-@transaction.atomic
-def update_annotation(request, annotation_type, annotation_id):
-    """Update annotation by creating a new version in the linked list."""
-    parsed_post = json.loads(request.body)
-    content_id = parsed_post["content_id"]
-    content = get_object_or_404(Content, id=content_id)
-
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
+def validate_annotation_update_request(user, content, annotation_type, annotation_id):
+    if not user.can_view_content(content):
+        return {"success": False, "result": HttpResponse("Unauthorized", status=403)}
 
     # Use the annotation_type parameter to get the correct model
     model_class = ANNOTATION_MODELS.get(annotation_type.lower())
     if not model_class:
-        return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
+        return {
+            "success": False,
+            "result": HttpResponse(
+                f"Unknown annotation type: {annotation_type}", status=400
+            ),
+        }
 
     try:
         annotation = model_class.objects.get(id=annotation_id, active=True)
     except model_class.DoesNotExist:
-        return HttpResponse("Annotation not found or inactive", status=404)
+        return {
+            "success": False,
+            "result": HttpResponse("Annotation not found or inactive", status=404),
+        }
 
-    if not annotation.annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+    if not annotation.annotation_set.can_edit(user):
+        return {
+            "success": False,
+            "result": HttpResponse("Cannot edit this AnnotationSet", status=403),
+        }
 
-    # Check if this is a delta-based update (from drag/resize)
-    was_dragged = parsed_post["was_dragged"]
-    was_resized = parsed_post["was_resized"]
+    return {"success": True, "result": annotation}
+
+
+def generate_annotation_updated_html(
+    request, content, annotation, annotation_type, position
+):
+    item_html = render_to_string(
+        "partials/item.html",
+        {
+            "instance": annotation,
+            "content": content,
+            "item_type": annotation_type,
+            "update_url": "update_annotation",
+            "load_form_url": "load_annotation_form",
+            "position": position,
+        },
+        request=request,
+    )
+
+    form_html = render_to_string(
+        "core/partials/annotation_form.html",
+        {
+            "instance": annotation,
+            "content": content,
+            "can_edit": True,
+            "item_type": annotation_type,
+            "item_type_label": annotation_type.title(),
+            "update_url": "update_annotation",
+            "delete_url": "delete_annotation",
+            "start_seconds": position["start"],
+            "end_seconds": position["end"],
+        },
+        request=request,
+    )
+
+    return {"item_html": item_html, "form_html": form_html}
+
+
+def update_annotation_from_form(request, annotation_type, annotation_id):
+    parsed_body = json.loads(request.body)
+    content_id = parsed_body["content_id"]
+    content = get_object_or_404(Content, id=content_id)
+    validation_result = validate_annotation_update_request(
+        request.user, content, annotation_type, annotation_id
+    )
+    if not validation_result["success"]:
+        return validation_result["result"]
+    annotation = validation_result["result"]
+
     update_fields = {}
+    update_fields["name"] = parsed_body["name"]
+    update_fields["start_time"] = parsed_body["start_time"]
+    update_fields["description"] = parsed_body["description"]
 
-    if was_dragged or was_resized:
-        # Delta-based update from drag/resize
-        annotation.start_time = parsed_post["start_time"]
-        if annotation_type != "pause":
-            annotation.end_time = parsed_post["end_time"]
+    if annotation_type != "pause":
+        update_fields["end_time"] = parsed_body["end_time"]
 
-    else:
-        # Form-based update
-        update_fields = {}
-        if "name" in parsed_post:
-            update_fields["name"] = parsed_post["name"]
-        if "start_time" in parsed_post:
-            update_fields["start_time"] = parsed_post["start_time"]
-
-        if "description" in parsed_post:
-            update_fields["description"] = parsed_post["description"]
-
-        if annotation_type != "pause" and "end_time" in parsed_post:
-            update_fields["end_time"] = parsed_post["end_time"]
-
-        if annotation_type == "censor":
-            positions_json = parsed_post["positions"]
-            if positions_json:
-                positions = json.loads(positions_json)
-                is_valid, error = BlurAnnotation.validate_positions(positions)
-                if not is_valid:
-                    return HttpResponse(error, status=400)
-                update_fields["positions"] = positions
-        elif annotation_type == "comment":
-            update_fields["text"] = parsed_post["text"]
-            x = parsed_post["x"]
-            y = parsed_post["y"]
-            if x is not None:
-                update_fields["x"] = float(x)
-            if y is not None:
-                update_fields["y"] = float(y)
-        elif annotation_type == "pause" and "message" in parsed_post:
-            update_fields["message"] = parsed_post["message"]
-        elif annotation_type == "blank" and "blank_type" in parsed_post:
-            update_fields["type"] = parsed_post["blank_type"]
+    if annotation_type == "censor":
+        positions_json = parsed_body["positions"]
+        if positions_json:
+            positions = json.loads(positions_json)
+            is_valid, error = BlurAnnotation.validate_positions(positions)
+            if not is_valid:
+                return HttpResponse(error, status=400)
+            update_fields["positions"] = positions
+    elif annotation_type == "comment":
+        update_fields["text"] = parsed_body["text"]
+        x = parsed_body["x"]
+        y = parsed_body["y"]
+        if x is not None:
+            update_fields["x"] = float(x)
+        if y is not None:
+            update_fields["y"] = float(y)
+    elif annotation_type == "pause":
+        update_fields["message"] = parsed_body["message"]
+    elif annotation_type == "blank":
+        update_fields["type"] = parsed_body["blank_type"]
 
     for field, value in update_fields.items():
         setattr(annotation, field, value)
@@ -577,38 +609,64 @@ def update_annotation(request, annotation_type, annotation_id):
         "end": end_time,
     }
 
-    # Render updated item
-    item_html = render_to_string(
-        "partials/item.html",
-        {
-            "instance": annotation,
-            "content": content,
-            "item_type": annotation_type,
-            "update_url": "update_annotation",
-            "load_form_url": "load_annotation_form",
-            "position": position,
-        },
-        request=request,
+    new_html = generate_annotation_updated_html(
+        request, content, annotation, annotation_type, position
     )
-
-    # Render updated form with OOB swap
-    form_html = render_to_string(
-        "core/partials/annotation_form.html",
-        {
-            "instance": annotation,
-            "content": content,
-            "can_edit": True,
-            "item_type": annotation_type,
-            "item_type_label": annotation_type.title(),
-            "update_url": "update_annotation",
-            "delete_url": "delete_annotation",
-            "start_seconds": start_time,
-            "end_seconds": end_time,
-        },
-        request=request,
-    )
+    item_html = new_html["item_html"]
+    form_html = new_html["form_html"]
 
     return JsonResponse({"item_html": item_html, "form_html": form_html})
+
+
+def update_annotation_from_item(request, annotation_type, annotation_id):
+    """Update annotation by creating a new version in the linked list."""
+    parsed_post = json.loads(request.body)
+    content_id = parsed_post["content_id"]
+    content = get_object_or_404(Content, id=content_id)
+
+    validation_result = validate_annotation_update_request(
+        request.user, content, annotation_type, annotation_id
+    )
+    if not validation_result["success"]:
+        return validation_result["result"]
+    annotation = validation_result["result"]
+
+    annotation.start_time = parsed_post["start_time"]
+    if annotation_type != "pause":
+        annotation.end_time = parsed_post["end_time"]
+
+    annotation.save()
+
+    # Update the data-label attribute on the element
+    annotation.refresh_from_db()
+
+    position = {
+        "start": annotation.start_time,
+        "end": annotation.end_time,
+    }
+
+    # Render updated item
+    updated_html = generate_annotation_updated_html(
+        request, content, annotation, annotation_type, position
+    )
+    item_html = updated_html["item_html"]
+    form_html = updated_html["form_html"]
+
+    return JsonResponse({"item_html": item_html, "form_html": form_html})
+
+
+@require_POST
+@login_required
+@transaction.atomic
+def update_annotation(request, annotation_type, annotation_id, is_from_item):
+    try:
+        if is_from_item:
+            return update_annotation_from_item(request, annotation_type, annotation_id)
+        else:
+            return update_annotation_from_form(request, annotation_type, annotation_id)
+    except Exception as e:
+        logger.error(f"Failed to update annotation. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_http_methods(["DELETE"])
@@ -630,19 +688,14 @@ def delete_annotation(request, annotation_type, annotation_id):
     if not annotation.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
-    content_id = request.GET.get("content_id")
-    content = Content.objects.get(id=content_id)
-
     # Use delete_with_history() to preserve undo capability
-    annotation.delete_with_history()
+    try:
+        annotation.delete_with_history()
+    except Exception as e:
+        logger.error(f"Exception occurred while deleting annotation: {e}")
+        return HttpResponseServerError()
 
-    json_html = render_to_string(
-        "partials/player_json_oob.html",
-        {"player_json": json.dumps(content.get_player_json(), indent=2)},
-        request=request,
-    )
-
-    return HttpResponse(json_html)
+    return HttpResponse(status=200)
 
 
 @require_GET
@@ -675,8 +728,6 @@ def load_annotation_form(request, annotation_type, annotation_id):
             "can_edit": can_edit,
             "item_type": annotation_type,
             "item_type_label": annotation_type.title(),
-            "update_url": "update_annotation",
-            "delete_url": "delete_annotation",
             "start_seconds": start_seconds,
             "end_seconds": end_seconds,
         },
