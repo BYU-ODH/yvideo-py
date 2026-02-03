@@ -534,7 +534,7 @@ class Content(models.Model):
             - 'vtt' or 'url'
             - 'label'
         """
-        sub_objs = Subtitle.objects.filter(resource=self.file.resource)
+        sub_objs = Subtitle.objects.filter(resource=self.resource_file.resource)
         subtitles = [
             {
                 "srclang": sub.language.lang_tag,
