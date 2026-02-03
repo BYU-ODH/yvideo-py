@@ -68,6 +68,7 @@ export class AnnotationPlayer {
       mouseInactive: false,
       hovering: false,
       controlsHovering: false,
+      subtitlesAreAboveControls: false
     };
 
     if (this.controls.volumeBtn) {
@@ -85,8 +86,8 @@ export class AnnotationPlayer {
     this.wasPlayingBeforeDrag = false;
     this.draggingRAF = null; // Track requestAnimationFrame for dragging
 
-    if (options.subtitleTracks && Array.isArray(options.subtitleTracks)) {
-      this._loadSubtitleTracks(options.subtitleTracks);
+    if (options.tracks && Array.isArray(options.tracks)) {
+      this._loadSubtitleTracks(options.tracks);
     }
 
     this.subtitleSidebar = null;
@@ -399,8 +400,8 @@ export class AnnotationPlayer {
       this.annotations = data.annotations || [];
       this.clips = data.clips || this.clips;
 
-      if (data.subtitleTracks && Array.isArray(data.subtitleTracks)) {
-        this._loadSubtitleTracks(data.subtitleTracks);
+      if (data.tracks && Array.isArray(data.subtitles)) {
+        this._loadSubtitleTracks(data.subtitles);
       }
     }
 
@@ -1286,6 +1287,55 @@ export class AnnotationPlayer {
     }
   }
 
+  getCurrentVttTrack() {
+    const tracks = Array.from(this.videoElem.textTracks);
+    for (let track of tracks) {
+      if (track.mode == "showing") {
+        return track;
+      }
+    }
+    return;
+  }
+
+  positionSubtitlesAboveControls() {
+    if (this.state.subtitlesAreAboveControls) {
+      return;
+    }
+
+    const controls = this.container.querySelector(".video-controls");
+    if (!controls) {
+      return;
+    }
+    const currentTrack = this.getCurrentVttTrack();
+    if (!currentTrack || currentTrack.cues.length == 0) {
+      return;
+    }
+    const videoDim = this.videoElem.getBoundingClientRect();
+    const controlsDim = controls.getBoundingClientRect();
+    const controlHeightAsPercentOfVideoHeight = Math.round(controlsDim.height / videoDim.height * 100)
+    const subtitlePlacementHeight = 100 - controlHeightAsPercentOfVideoHeight - 2;
+
+    const cues = currentTrack.cues
+    for (let cue of cues) {
+      cue.snapToLines = false;
+      cue.line = subtitlePlacementHeight;
+    }
+    this.state.subtitlesAreAboveControls = true;
+  }
+
+  repositionSubtitles() {
+    if (!this.state.subtitlesAreAboveControls) {
+      return;
+    }
+
+    const currentTrack = this.getCurrentVttTrack();
+    for (let cue of currentTrack.cues) {
+      cue.snapToLines = false;
+      cue.line = "auto";
+    }
+    this.state.subtitlesAreAboveControls = false;
+  }
+
   destroy() {
     this.subtitleTrackBlobUrls.forEach(url => {
       URL.revokeObjectURL(url);
@@ -1352,15 +1402,17 @@ export class AnnotationPlayer {
     }
 
     switch (e.code) {
-      case 'Space':
-        e.preventDefault();
-        this.togglePlayPause();
-        if (this.videoElem.paused) {
-          this._showBezel(AnnotationPlayer.icons.playPauseBtn.pause);
-        } else {
-          this._showBezel(AnnotationPlayer.icons.playPauseBtn.play);
-        }
-        break;
+      // adding this event listener makes it impossible to use the space key when editing subtitles, or entering
+      // other text while the Annotation player is on the page. - BDR 12/16/2025
+      // case 'Space':
+      //   e.preventDefault();
+      //   this.togglePlayPause();
+      //   if (this.videoElem.paused) {
+      //     this._showBezel(AnnotationPlayer.icons.playPauseBtn.pause);
+      //   } else {
+      //     this._showBezel(AnnotationPlayer.icons.playPauseBtn.play);
+      //   }
+      //   break;
       case 'ArrowRight': {
         e.preventDefault();
         let newTimeRight = this.videoElem.paused ? playedTime + 0.1 : playedTime + 5;
@@ -1521,6 +1573,7 @@ export class AnnotationPlayer {
 
       this.controls.container.addEventListener('mouseenter', () => {
         this.state.hovering = true;
+        this.positionSubtitlesAboveControls();
         this.state.mouseInactive = false; // Reset inactive state on enter
         if (this.mouseTimer) clearTimeout(this.mouseTimer); // Clear any pending timer
         if (this.controls.container) {
@@ -1540,6 +1593,7 @@ export class AnnotationPlayer {
 
       this.controls.container.addEventListener('mouseleave', () => {
         this.state.hovering = false;
+        this.repositionSubtitles();
         if (this.mouseTimer) clearTimeout(this.mouseTimer); // Clear timer when leaving
         this.refreshControlsVisibility();
       });
