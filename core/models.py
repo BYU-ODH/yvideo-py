@@ -316,7 +316,6 @@ class ResourceFile(models.Model):
         max_length=16, blank=True, editable=False, unique=True, null=True
     )
     checksum_at = models.DateTimeField(null=True, blank=True, editable=False)
-    duration = models.FloatField(default=0.0)  # duration in seconds
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -506,16 +505,6 @@ class Content(models.Model):
     def __str__(self):
         return f"{self.title} | {self.collection.name} | {self.id}"
 
-    @property
-    def duration(self):
-        """Get video duration in seconds from the file."""
-        try:
-            return self.resource_file.duration
-        except AttributeError:
-            # TODO: Extract actual duration from video file metadata
-            # For now, return a placeholder
-            return 20.0  # 20 seconds default
-
     def get_available_annotation_sets(self):
         """Get all AnnotationSets available for this content's resource."""
         if not self.resource_file or not self.resource_file.resource:
@@ -545,7 +534,7 @@ class Content(models.Model):
             - 'vtt' or 'url'
             - 'label'
         """
-        sub_objs = Subtitle.objects.filter(resource=self.file.resource)
+        sub_objs = Subtitle.objects.filter(resource=self.resource_file.resource)
         subtitles = [
             {
                 "srclang": sub.language.lang_tag,
@@ -637,17 +626,11 @@ class BaseAnnotation(models.Model):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
         return self.__class__.__name__.replace("Annotation", "").lower()
 
-    def calculate_position(self, duration):
+    def calculate_position(self):
         """Calculate visual position on timeline."""
-        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
-        width_percent = (
-            ((self.end_time - self.start_time) / duration * 100)
-            if self.end_time and duration > 0
-            else 0
-        )
         return {
-            "left": f"{start_percent:.2f}%",
-            "width": f"{width_percent:.2f}%",
+            "left": "0%",
+            "width": "0%",
             "start": self.start_time,
             "end": self.end_time,
         }
@@ -655,7 +638,7 @@ class BaseAnnotation(models.Model):
     def to_player_json(self):
         """Convert annotation to JSON format for video player."""
         return {
-            "id": self.id,
+            "id": self.pk,
             "type": self.annotation_type,
             "start": self.start_time,
             "end": self.end_time,
@@ -753,10 +736,9 @@ class SkipAnnotation(BaseAnnotation):
 
     message = models.TextField(max_length=255, blank=True)
 
-    def calculate_position(self, duration):
-        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
+    def calculate_position(self):
         return {
-            "left": f"{start_percent:.2f}%",
+            "left": "0%",
             "width": "2px",
             "start": self.start_time,
             "end": self.end_time,
@@ -764,7 +746,7 @@ class SkipAnnotation(BaseAnnotation):
 
     def to_player_json(self):
         return {
-            "id": self.id,
+            "id": self.pk,
             "type": "skip",
             "start": self.start_time,
             "end": self.end_time,
@@ -798,22 +780,20 @@ class PauseAnnotation(BaseAnnotation):
 
     message = models.TextField(max_length=255, blank=True)
 
-    def calculate_position(self, duration):
+    def calculate_position(self):
         """Override: pause is a point marker, not a range."""
-        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
         return {
-            "left": f"{start_percent:.2f}%",
+            "left": "0%",
             "width": "2px",
             "start": self.start_time,
             "end": self.start_time,  # TODO: Would None be better?
         }
 
     def to_player_json(self):
-        """Override: pause uses 'time' instead of 'start/end'."""
         return {
-            "id": self.id,
+            "id": self.pk,
             "type": "pause",
-            "time": self.start_time,
+            "start": self.start_time,
             "label": self.name,
             "message": self.message,
         }
@@ -1056,7 +1036,7 @@ class Email(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.sender.netid} | {self.subject} | {self.id}"
+        return f"{self.sender.netid} | {self.subject} | {self.pk}"
 
 
 class AuthToken(models.Model):

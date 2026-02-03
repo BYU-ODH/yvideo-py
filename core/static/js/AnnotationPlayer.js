@@ -666,6 +666,24 @@ export class AnnotationPlayer {
             this.skipTo(aEnd);
           }
           break;
+        case "pause":
+          {
+            const pauseRange = 0.005;
+            let startRange = aStart - pauseRange;
+            if (startRange < 0) {
+              startRange = 0;
+            }
+            let endRange = aStart + pauseRange;
+            if (time >= startRange && time <= endRange) {
+              if (a["message"]) {
+                this.pause(a["message"]);
+              }
+              else {
+                this.pause();
+              }
+            }
+          }
+          break;
         case "mute":
         case "mutePlugin":
           if (this.currently.muting === -1 || this.currently.muting === i) {
