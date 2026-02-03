@@ -11,8 +11,6 @@ from django.db import transaction
 from django.utils import timezone
 import xxhash
 
-from .utils import TOY_VTT
-from .utils import TOY_VTT2
 from .utils import hms2seconds
 
 HMS_VALIDATOR = RegexValidator(
@@ -125,11 +123,12 @@ class User(AbstractUser):
         return self.privilege_level == PrivilegeLevel.ADMIN
 
     def can_view_content(self, content):
+        # owners and admins should have view permission even if the collection is not published
+        if content.collection.owner == self:
+            return True
+        if self.is_admin or self.is_superuser or self.is_staff:
+            return True
         if content.collection.published:
-            if content.collection.owner == self:
-                return True
-            if self.is_admin or self.is_superuser or self.is_staff:
-                return True
             if CollectionUserAccess.objects.filter(
                 user=self, collection=content.collection
             ).exists():
@@ -535,19 +534,15 @@ class Content(models.Model):
             - 'vtt' or 'url'
             - 'label'
         """
-        subtitles = []
-        # TODO: Get actual subtitles from database
-        # TODO : Remove toy subtitles
-        toy_data = [
-            {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-            {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+        sub_objs = Subtitle.objects.filter(resource=self.file.resource)
+        subtitles = [
             {
-                "srclang": "en",
-                "url": "http://example.com/subtitles.vtt",
-                "label": "Birds",
-            },
+                "srclang": sub.language.lang_tag,
+                "vtt": sub.subtitles_file.read().decode("utf-8"),
+                "label": sub.name,
+            }
+            for sub in sub_objs
         ]
-        subtitles.extend(toy_data)
         return subtitles
 
     def get_player_json(self):
@@ -957,6 +952,28 @@ class Language(models.Model):
         return f"{self.language} ({self.lang_tag})"
 
 
+def subtitle_file_upload_path(instance, filename):
+    """Generate upload path to media/<resource name>/subtitles/<filename>"""
+    if isinstance(instance, Subtitle):
+        return f"{instance.resource.name}/subtitles/{filename}"
+
+
+def subtitle_temp_file_upload_path(instance):
+    """Generate upload path to media/<resource name>/subtitles/<filename>"""
+    if isinstance(instance, Subtitle):
+        return f"{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
+
+
+def validate_subtitle_file(file):
+    """Ensure filetype is .vtt or .srt"""
+    file_name_split = os.path.splitext(file.name)
+    file_ext = file_name_split[1]
+    if file_ext != ".vtt" and file_ext != ".srt":
+        raise ValidationError(
+            f"Subtitles must be .vtt or .srt format. Format provided: {file_ext}"
+        )
+
+
 class Subtitle(models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="subtitles"
@@ -968,7 +985,17 @@ class Subtitle(models.Model):
         Language, on_delete=models.CASCADE, related_name="subtitles"
     )
     name = models.CharField(max_length=255)
-    subtitles = models.JSONField(blank=True)
+    subtitles_file = models.FileField(
+        upload_to=subtitle_file_upload_path,
+        validators=[validate_subtitle_file],
+    )
+    subtitles_temp_file = models.FileField(
+        upload_to=subtitle_temp_file_upload_path,
+        validators=[validate_subtitle_file],
+        null=True,
+        blank=True,
+    )
+    is_original = models.BooleanField(null=False, blank=False, default=False)
     words = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,12 +1,10 @@
+{% extends 'base.html' %}
 {% load static %}
-{% include 'base.html' %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Player</title>
+{% block title %}
+    Video Player
+{% endblock %}
+{% block extra_css %}
     <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
 </head>
 <body>

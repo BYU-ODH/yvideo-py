@@ -82,6 +82,21 @@ urlpatterns = [
     path("spoof-user-stop/", views.spoof_user_stop, name="stop_spoofing"),
     path("spoof-user-search/", views.spoof_user_search, name="spoof_user_search"),
     path(
+        "subtitle-editor/<int:content_id>/",
+        views.subtitle_editor,
+        name="subtitle_editor",
+    ),
+    path(
+        "subtitle-editor/get-editable-subtitles/<int:subtitle_id>/",
+        views.get_editable_subtitles,
+        name="get_editable_subtitles",
+    ),
+    path(
+        "subtitle-editor/update-subtitle-file",
+        views.update_subtitle_content,
+        name="update_subtitle_content",
+    ),
+    path(
         "clips/<str:item_type>/<int:clip_id>/edit/",
         views_clip_editor.load_clip_form,
         name="load_clip_form",
