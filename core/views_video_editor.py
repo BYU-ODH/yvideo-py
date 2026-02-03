@@ -229,6 +229,34 @@ def load_annotation_set_form(request, content_id):
 
 @require_POST
 @login_required
+def get_player_wrapper_html(request):
+    """Generate the HTML for the video player. This endpoint is intended to be used when
+    an annotation is successfully created, deleted, or updated"""
+    body = json.loads(request.body.decode("utf-8"))
+    content_id = body["content_id"]
+    content = get_object_or_404(Content, pk=content_id)
+
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    try:
+        video_html = render_to_string(
+            "partials/player-wrapper.html",
+            {
+                "content_id": content_id,
+                "resource_file_key_id": request.user.get_resource_filekey(content).pk,
+            },
+            request=request,
+        )
+
+        return HttpResponse(video_html, status=200)
+    except Exception as e:
+        logger.error(f"Could not render player-wrapper.html. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_POST
+@login_required
 def select_annotation_set(request):
     """Switch the active AnnotationSet for a content."""
     body = json.loads(request.body.decode("utf-8"))
