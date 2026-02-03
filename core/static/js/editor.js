@@ -7,7 +7,7 @@ function convertPercentStringToDecimal(percentString) {
   return;
 }
 
-export class LayerInteractionHandler {
+export class Editor {
     constructor() {
         this.layerContainers = document.querySelectorAll('.layer-items');
         this.video = document.querySelector('.annotation-player-container video');
@@ -1004,12 +1004,10 @@ function editorInit() {
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-          // new Timeline();
-          new LayerInteractionHandler();
+          new Editor();
       });
   } else {
-      // new Timeline();
-      new LayerInteractionHandler();
+      new Editor();
   }
   setupAnnotationSelectorFunctions();
 }
