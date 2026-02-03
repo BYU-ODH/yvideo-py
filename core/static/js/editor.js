@@ -7,298 +7,7 @@ function convertPercentStringToDecimal(percentString) {
   return;
 }
 
-export class Timeline {
-    constructor() {
-        this.tickMarksContainer = document.querySelector('.tick-marks-container');
-        this.timelineTicks = document.querySelector('.timeline-ticks');
-        this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
-        this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
-        this.timelineContainer = document.querySelector('.timeline-container');
-        this.zoomSlider = document.getElementById('zoom-slider');
-        this.scrubber = document.querySelector('.editor-scrubber');
-        this.video = document.querySelector('.annotation-player-container video');
-        this.duration = this.video.duration;
-        this.zoomLevel = 1;
-        this.timelineScrubber = null;
-        this.isDragging = false;
-        this.wasPlayingBeforeDrag = false;
-
-        this.init();
-    }
-
-    init() {
-        this.renderTickMarksAndLabels();
-        this.attachZoomListener();
-        this.createtimelineScrubber();
-        this.attachTimelineListeners();
-        this.attachVideoListeners();
-        if (this.timelineContainer) {
-            this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
-        }
-    }
-
-    // This is the tick line on the timeline
-    createTickMark(time, isMajor) {
-        const tick = document.createElement('div');
-        tick.className = `tick-mark ${isMajor ? 'major' : 'minor'}`;
-
-        const percent = (time / this.duration) * 100;
-        tick.style.left = `${percent}%`;
-
-        return tick;
-    }
-
-    formatTime(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-
-        if (hours > 0) {
-            return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        } else if (minutes > 0) {
-            return `${minutes}:${String(secs).padStart(2, '0')}`;
-        } else {
-            return `0:${String(secs).padStart(2, '0')}`;
-        }
-    }
-
-    // this is for the time stamp above each labeled tick line on the timeline
-    createTickLabel(time) {
-        const label = document.createElement('div');
-        label.className = 'tick-label';
-        label.textContent = this.formatTime(time);
-
-        const percent = (time / this.duration) * 100;
-        label.style.left = `${percent}%`;
-
-        return label;
-    }
-
-    calculateTickInterval() {
-        // Calculate how many seconds fit in viewport at current zoom
-        const viewportSeconds = this.duration / this.zoomLevel;
-
-        // Choose interval to show 4-6 labels
-        const targetLabels = 5;
-        const rawInterval = viewportSeconds / targetLabels;
-
-        // Snap to nice intervals: 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, etc.
-        const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600];
-
-        for (const interval of niceIntervals) {
-            if (interval >= rawInterval) {
-                return interval;
-            }
-        }
-
-        // For very long videos, use multiples of an hour
-        return Math.ceil(rawInterval / 3600) * 3600;
-    }
-
-    renderTickMarksAndLabels() {
-        if (!this.tickMarksContainer) return;
-
-        // Clear existing tick marks
-        this.tickMarksContainer.innerHTML = '';
-
-        // Calculate appropriate interval based on zoom and duration
-        const interval = this.calculateTickInterval();
-        const minorInterval = interval / 5;
-
-        // Generate tick marks
-        for (let time = 0; time <= this.duration; time += minorInterval) {
-            const isMajor = Math.abs(time % interval) < 0.01;
-            const tick = this.createTickMark(time, isMajor);
-            this.tickMarksContainer.appendChild(tick);
-
-            // Add label for major ticks
-            if (isMajor) {
-                const label = this.createTickLabel(time);
-                this.tickMarksContainer.appendChild(label);
-            }
-        }
-    }
-
-    handleZoom(newZoomLevel) {
-        const video = document.querySelector('.annotation-player-container video');
-        const currentTime = video?.currentTime || 0;
-        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
-
-        const viewportWidth = this.timelineContentWrapper.clientWidth;
-        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        const scrollLeft = this.timelineContentWrapper.scrollLeft;
-        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
-        let scrubberViewportRatio = viewportWidth
-            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
-            : 0;
-        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
-
-        this.zoomLevel = newZoomLevel;
-
-        if (this.timelineContainer) {
-            this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
-        }
-
-        this.renderTickMarksAndLabels();
-
-        const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        const newViewportWidth = this.timelineContentWrapper.clientWidth;
-        const scrubberPixelPosition = currentPercent * newContentWidth;
-        let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
-        const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
-        targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
-        this.timelineContentWrapper.scrollLeft = targetScrollLeft;
-    }
-
-    attachZoomListener() {
-        if (!this.zoomSlider) return;
-
-        this.zoomSlider.addEventListener('input', (e) => {
-            const newZoomLevel = parseFloat(e.target.value);
-            this.handleZoom(newZoomLevel);
-        });
-    }
-
-    createtimelineScrubber() {
-        this.timelineScrubber = document.querySelector('.timeline-hover-scrubber');
-        if (!this.timelineScrubber) {
-            this.timelineScrubber = document.createElement('div');
-            this.timelineScrubber.className = 'timeline-hover-scrubber';
-            if (this.timelineTicksContent) {
-                this.timelineTicksContent.appendChild(this.timelineScrubber);
-            }
-        }
-    }
-
-    updatetimelineScrubber(e) {
-        if (!this.timelineScrubber) return;
-
-        const rect = this.timelineTicksContent.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
-
-        this.timelineScrubber.style.left = `${percent}%`;
-    }
-
-    // timeline listeners and attachement
-    updateTimelineDragPosition(e) {
-        if (!this.isDragging) return;
-
-        const rect = this.timelineTicks.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        const targetTime = percent * this.duration;
-
-        // Seek the video
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            video.currentTime = targetTime;
-        }
-
-        // Also update via the player API if available
-        if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
-        }
-
-        e.preventDefault();
-    }
-
-    startTimelineDrag(e) {
-        this.isDragging = true;
-        this.timelineTicks.classList.add('dragging');
-
-        // Get video and check if it was playing
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            this.wasPlayingBeforeDrag = !video.paused;
-            if (this.wasPlayingBeforeDrag) {
-                video.pause();
-            }
-        }
-
-        // Hide hover scrubber during drag
-        if (this.timelineScrubber) {
-            this.timelineScrubber.style.opacity = '0';
-        }
-
-        // Seek to initial position
-        this.updateTimelineDragPosition(e);
-
-        e.preventDefault();
-    }
-
-    endTimelineDrag() {
-        this.isDragging = false;
-        this.timelineTicks.classList.remove('dragging');
-
-        // Resume playback if it was playing before
-        const video = document.querySelector('.annotation-player-container video');
-        if (video && this.wasPlayingBeforeDrag) {
-            video.play();
-        }
-
-        this.wasPlayingBeforeDrag = false;
-    }
-
-    attachTimelineListeners() {
-        if (!this.timelineTicks) return;
-
-        this.timelineTicks.addEventListener('mousemove', (e) => {
-            if (!this.isDragging) {
-                this.updatetimelineScrubber(e);
-                // Ensure hover scrubber is visible on mousemove
-                if (this.timelineScrubber) {
-                    this.timelineScrubber.style.opacity = '1';
-                }
-            }
-        });
-
-        this.timelineTicks.addEventListener('mouseleave', () => {
-            if (this.timelineScrubber && !this.isDragging) {
-                this.timelineScrubber.style.opacity = '0';
-            }
-        });
-
-        this.timelineTicks.addEventListener('mouseenter', () => {
-            if (this.timelineScrubber && !this.isDragging) {
-                this.timelineScrubber.style.opacity = '1';
-            }
-        });
-
-        this.timelineTicks.addEventListener('mousedown', (e) => {
-            this.startTimelineDrag(e);
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (this.isDragging) {
-                this.updateTimelineDragPosition(e);
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (this.isDragging) {
-                this.endTimelineDrag();
-            }
-        });
-    }
-
-    updateEditorScrubberPosition(currentTime) {
-        if (this.duration <= 0) return;
-
-        const percent = (currentTime / this.duration) * 100;
-        if (this.scrubber) {
-            this.scrubber.style.setProperty('--scrubber-position', `${percent}%`);
-        }
-    }
-
-    attachVideoListeners() {
-        this.video.addEventListener('timeupdate', () => {
-            this.updateEditorScrubberPosition(this.video.currentTime);
-        });
-    }
-}
-
-export class LayerInteractionHandler {
+export class Editor {
     constructor() {
         this.layerContainers = document.querySelectorAll('.layer-items');
         this.video = document.querySelector('.annotation-player-container video');
@@ -306,6 +15,18 @@ export class LayerInteractionHandler {
         this.dragState = null;
         this.contentId = null;
         this.listenForNewItemCreation();
+
+        this.tickMarksContainer = document.querySelector('.tick-marks-container');
+        this.timelineTicks = document.querySelector('.timeline-ticks');
+        this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
+        this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
+        this.timelineContainer = document.querySelector('.timeline-container');
+        this.zoomSlider = document.getElementById('zoom-slider');
+        this.scrubber = document.querySelector('.editor-scrubber');
+        this.zoomLevel = 1;
+        this.timelineScrubber = null;
+        this.isDragging = false;
+        this.wasPlayingBeforeDrag = false;
 
         this.init();
     }
@@ -330,6 +51,36 @@ export class LayerInteractionHandler {
         this.placeLayerItems();
         document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
         this.watchForItemFormChanges();
+
+        this.renderTickMarksAndLabels();
+        this.attachZoomListener();
+        this.createtimelineScrubber();
+        this.attachTimelineListeners();
+        this.attachVideoListeners();
+        if (this.timelineContainer) {
+            this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
+        }
+    }
+
+    async refreshVideoPlayer() {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const response = await fetch("/video-annotator/reload-player", {
+        method: "post",
+        headers: { "X-CSRFToken": csrfToken },
+        body: JSON.stringify({
+          "content_id": this.contentId
+        })
+      });
+
+      if (!response.ok) {
+        console.error("Unable to refresh video player");
+      }
+
+      const videoHtml = await response.text();
+      const videoSection = document.getElementById("video-section");
+      videoSection.innerHTML = videoHtml;
+      this.video = videoSection.querySelector("#video-player");
+      this.attachVideoListeners();
     }
 
     placeItem(item) {
@@ -617,7 +368,7 @@ export class LayerInteractionHandler {
       });
     }
 
-    setUpItemDeleteButton() {
+    async setUpItemDeleteButton() {
       const itemForm = document.getElementById("existing-item-form");
       const annotationType = itemForm.dataset["itemtype"];
       const annotationId = itemForm.dataset["annotationid"];
@@ -633,6 +384,7 @@ export class LayerInteractionHandler {
           deletedItem.remove();
           const detailForm = document.getElementById("detail-form");
           detailForm.innerHTML = "";
+          await this.refreshVideoPlayer();
           this.placeLayerItems();
         }
       });
@@ -692,6 +444,7 @@ export class LayerInteractionHandler {
       if (response.status != 200) {
         console.error("An error occurred while updating an annotation");
       }
+      await this.refreshVideoPlayer();
 
       const responseData = await response.json();
 
@@ -919,6 +672,7 @@ export class LayerInteractionHandler {
               })
             });
           if (response.ok) {
+            await this.refreshVideoPlayer()
             const newItemHtml = await response.text();
             const layerContainer = document.getElementById(`${annotationType}-item-container`);
             const newElement = document.createElement("template");
@@ -936,6 +690,266 @@ export class LayerInteractionHandler {
           }
         })
       }
+    }
+
+    // This is the tick line on the timeline
+    createTickMark(time, isMajor) {
+        const tick = document.createElement('div');
+        tick.className = `tick-mark ${isMajor ? 'major' : 'minor'}`;
+
+        const percent = (time / this.duration) * 100;
+        tick.style.left = `${percent}%`;
+
+        return tick;
+    }
+
+    formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+
+        if (hours > 0) {
+            return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        } else if (minutes > 0) {
+            return `${minutes}:${String(secs).padStart(2, '0')}`;
+        } else {
+            return `0:${String(secs).padStart(2, '0')}`;
+        }
+    }
+
+    // this is for the time stamp above each labeled tick line on the timeline
+    createTickLabel(time) {
+        const label = document.createElement('div');
+        label.className = 'tick-label';
+        label.textContent = this.formatTime(time);
+
+        const percent = (time / this.duration) * 100;
+        label.style.left = `${percent}%`;
+
+        return label;
+    }
+
+    calculateTickInterval() {
+        // Calculate how many seconds fit in viewport at current zoom
+        const viewportSeconds = this.duration / this.zoomLevel;
+
+        // Choose interval to show 4-6 labels
+        const targetLabels = 5;
+        const rawInterval = viewportSeconds / targetLabels;
+
+        // Snap to nice intervals: 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, etc.
+        const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600];
+
+        for (const interval of niceIntervals) {
+            if (interval >= rawInterval) {
+                return interval;
+            }
+        }
+
+        // For very long videos, use multiples of an hour
+        return Math.ceil(rawInterval / 3600) * 3600;
+    }
+
+    renderTickMarksAndLabels() {
+        if (!this.tickMarksContainer) return;
+
+        // Clear existing tick marks
+        this.tickMarksContainer.innerHTML = '';
+
+        // Calculate appropriate interval based on zoom and duration
+        const interval = this.calculateTickInterval();
+        const minorInterval = interval / 5;
+
+        // Generate tick marks
+        for (let time = 0; time <= this.duration; time += minorInterval) {
+            const isMajor = Math.abs(time % interval) < 0.01;
+            const tick = this.createTickMark(time, isMajor);
+            this.tickMarksContainer.appendChild(tick);
+
+            // Add label for major ticks
+            if (isMajor) {
+                const label = this.createTickLabel(time);
+                this.tickMarksContainer.appendChild(label);
+            }
+        }
+    }
+
+    handleZoom(newZoomLevel) {
+        const video = document.querySelector('.annotation-player-container video');
+        const currentTime = video?.currentTime || 0;
+        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
+
+        const viewportWidth = this.timelineContentWrapper.clientWidth;
+        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+        const scrollLeft = this.timelineContentWrapper.scrollLeft;
+        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
+        let scrubberViewportRatio = viewportWidth
+            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
+            : 0;
+        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
+
+        this.zoomLevel = newZoomLevel;
+
+        if (this.timelineContainer) {
+            this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
+        }
+
+        this.renderTickMarksAndLabels();
+
+        const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
+        const newViewportWidth = this.timelineContentWrapper.clientWidth;
+        const scrubberPixelPosition = currentPercent * newContentWidth;
+        let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
+        const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
+        targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
+        this.timelineContentWrapper.scrollLeft = targetScrollLeft;
+    }
+
+    attachZoomListener() {
+        if (!this.zoomSlider) return;
+
+        this.zoomSlider.addEventListener('input', (e) => {
+            const newZoomLevel = parseFloat(e.target.value);
+            this.handleZoom(newZoomLevel);
+        });
+    }
+
+    createtimelineScrubber() {
+        this.timelineScrubber = document.querySelector('.timeline-hover-scrubber');
+        if (!this.timelineScrubber) {
+            this.timelineScrubber = document.createElement('div');
+            this.timelineScrubber.className = 'timeline-hover-scrubber';
+            if (this.timelineTicksContent) {
+                this.timelineTicksContent.appendChild(this.timelineScrubber);
+            }
+        }
+    }
+
+    updatetimelineScrubber(e) {
+        if (!this.timelineScrubber) return;
+
+        const rect = this.timelineTicksContent.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(100, (x / rect.width) * 100));
+
+        this.timelineScrubber.style.left = `${percent}%`;
+    }
+
+    // timeline listeners and attachement
+    updateTimelineDragPosition(e) {
+        if (!this.isDragging) return;
+
+        const rect = this.timelineTicks.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(1, x / rect.width));
+        const targetTime = percent * this.duration;
+
+        // Seek the video
+        const video = document.querySelector('.annotation-player-container video');
+        if (video) {
+            video.currentTime = targetTime;
+        }
+
+        // Also update via the player API if available
+        if (window.videoPlayer && window.videoPlayer.skipTo) {
+            window.videoPlayer.skipTo(targetTime);
+        }
+
+        e.preventDefault();
+    }
+
+    startTimelineDrag(e) {
+        this.isDragging = true;
+        this.timelineTicks.classList.add('dragging');
+
+        // Get video and check if it was playing
+        const video = document.querySelector('.annotation-player-container video');
+        if (video) {
+            this.wasPlayingBeforeDrag = !video.paused;
+            if (this.wasPlayingBeforeDrag) {
+                video.pause();
+            }
+        }
+
+        // Hide hover scrubber during drag
+        if (this.timelineScrubber) {
+            this.timelineScrubber.style.opacity = '0';
+        }
+
+        // Seek to initial position
+        this.updateTimelineDragPosition(e);
+
+        e.preventDefault();
+    }
+
+    endTimelineDrag() {
+        this.isDragging = false;
+        this.timelineTicks.classList.remove('dragging');
+
+        // Resume playback if it was playing before
+        const video = document.querySelector('.annotation-player-container video');
+        if (video && this.wasPlayingBeforeDrag) {
+            video.play();
+        }
+
+        this.wasPlayingBeforeDrag = false;
+    }
+
+    attachTimelineListeners() {
+        if (!this.timelineTicks) return;
+
+        this.timelineTicks.addEventListener('mousemove', (e) => {
+            if (!this.isDragging) {
+                this.updatetimelineScrubber(e);
+                // Ensure hover scrubber is visible on mousemove
+                if (this.timelineScrubber) {
+                    this.timelineScrubber.style.opacity = '1';
+                }
+            }
+        });
+
+        this.timelineTicks.addEventListener('mouseleave', () => {
+            if (this.timelineScrubber && !this.isDragging) {
+                this.timelineScrubber.style.opacity = '0';
+            }
+        });
+
+        this.timelineTicks.addEventListener('mouseenter', () => {
+            if (this.timelineScrubber && !this.isDragging) {
+                this.timelineScrubber.style.opacity = '1';
+            }
+        });
+
+        this.timelineTicks.addEventListener('mousedown', (e) => {
+            this.startTimelineDrag(e);
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (this.isDragging) {
+                this.updateTimelineDragPosition(e);
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (this.isDragging) {
+                this.endTimelineDrag();
+            }
+        });
+    }
+
+    updateEditorScrubberPosition(currentTime) {
+        if (this.duration <= 0) return;
+
+        const percent = (currentTime / this.duration) * 100;
+        if (this.scrubber) {
+            this.scrubber.style.setProperty('--scrubber-position', `${percent}%`);
+        }
+    }
+
+    attachVideoListeners() {
+        this.video.addEventListener('timeupdate', () => {
+            this.updateEditorScrubberPosition(this.video.currentTime);
+        });
     }
 }
 
@@ -990,12 +1004,10 @@ function editorInit() {
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-          new Timeline();
-          new LayerInteractionHandler();
+          new Editor();
       });
   } else {
-      new Timeline();
-      new LayerInteractionHandler();
+      new Editor();
   }
   setupAnnotationSelectorFunctions();
 }

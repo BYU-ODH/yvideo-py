@@ -107,6 +107,11 @@ urlpatterns = [
         views_video_editor.video_editor,
         name="video_annotator",
     ),
+    path(
+        "video-annotator/reload-player",
+        views_video_editor.get_player_wrapper_html,
+        name="reload-video-player",
+    ),
     # AnnotationSet management
     path(
         "select-annotation-set",
