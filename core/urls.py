@@ -72,7 +72,6 @@ urlpatterns = [
     ),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),
     path("player/<int:content_id>", views.player, name="player"),
-    path("stream/<int:resource_file_key_id>", views.stream_file, name="stream_file"),
     path(
         "add_annotation/<str:annotation_type>/<int:file_id>/",
         views.add_annotation,
@@ -123,6 +122,11 @@ urlpatterns = [
         views_video_editor.video_editor,
         name="video_annotator",
     ),
+    path(
+        "video-annotator/reload-player",
+        views_video_editor.get_player_wrapper_html,
+        name="reload-video-player",
+    ),
     # AnnotationSet management
     path(
         "select-annotation-set",
@@ -167,7 +171,7 @@ urlpatterns = [
         name="create_annotation",
     ),
     path(
-        "annotations/<str:annotation_type>/<int:annotation_id>/update/",
+        "annotations/<str:annotation_type>/<int:annotation_id>/<int:is_from_item>/update/",
         views_video_editor.update_annotation,
         name="update_annotation",
     ),

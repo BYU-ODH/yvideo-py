@@ -16,7 +16,7 @@
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
                 <div id="video-section" class="video-section">
-                    {% include 'partials/player-wrapper.html' with content_id=content.pk %}
+                    {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key %}
                 </div>
 
                 <div class="detail-form-section">
@@ -27,9 +27,7 @@
 
                     <!-- Annotation Detail Form -->
                     <div id="detail-form"
-                        class="detail-form"
-                        hx-trigger="loadForm"
-                        hx-swap="innerHTML">
+                        class="detail-form">
                         {% include 'partials/item_form_placeholder.html' %}
                     </div>
                 </div>

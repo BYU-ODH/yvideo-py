@@ -36,6 +36,8 @@ from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Clip
 from .models import Collection
+from .models import CollectionRole
+from .models import CollectionUserAccess
 from .models import Content
 from .models import ImportantWord
 from .models import MuteAnnotation
@@ -133,11 +135,20 @@ def index(request):
             }
         )
 
+    manual_access_collections = Collection.objects.filter(
+        collectionuseraccess__user=request.user
+    )
+    manual_collections = []
+    for collection in manual_access_collections:
+        prepared_collection = prepare_collection_for_display(collection)
+        manual_collections.append(prepared_collection)
+
     context = {
         "user": request.user,
         "owned_collections": owned_collections,
         "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
         "public_collections": [],
+        "manual_collections": manual_collections,
     }
     return render(request, "index.html", context)
 
@@ -1361,3 +1372,33 @@ def request_content(request, resource_id):
             "resource": resource,
         },
     )
+
+
+def add_collection_member(request, collection_id):
+    allowed_privilege_levels = [0, 2]
+    if request.user.privilege_level not in allowed_privilege_levels:
+        return HttpResponse("Forbidden", status=403)
+
+    collection = get_object_or_404(Collection, pk=collection_id)
+
+    if request.method == "POST":
+        # Get form data
+        netid = request.POST.get("netid", "").strip()
+        role = request.POST.get("role", "").strip()
+
+        user = get_object_or_404(User, netid=netid)
+
+        if role == "TA":
+            collection_role = CollectionRole.TA
+        else:
+            collection_role = CollectionRole.AUDITOR
+
+        CollectionUserAccess.objects.create(
+            user=user,
+            collection=collection,
+            collection_role=collection_role,
+        )
+
+        return redirect("view_collection", pk=collection.id)
+
+    return HttpResponseBadRequest()
