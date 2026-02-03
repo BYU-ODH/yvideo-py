@@ -370,6 +370,9 @@ export class Editor {
 
     async setUpItemDeleteButton() {
       const itemForm = document.getElementById("existing-item-form");
+      if (!itemForm) {
+        return;
+      }
       const annotationType = itemForm.dataset["itemtype"];
       const annotationId = itemForm.dataset["annotationid"];
       const deleteItemButton = itemForm.querySelector("#annotation-form-delete-button");
