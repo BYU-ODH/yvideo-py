@@ -379,20 +379,34 @@ export class Editor {
       });
     }
 
-    // getAndSortCensorPositions() {
-    //   if (this.typeOfAnnotationInFocus != "censor") {
-    //     return;
-    //   }
-    //   const annotationUpdateForm = document.getElementById("annotation-update-form");
-    //   const positionsEl = annotationUpdateForm.querySelector("#positions");
-    //   const positionsRawVal = positionsEl.value;
-    //   const positions = JSON.parse(JSON.stringify(positionsRawVal));
-    //   console.log(positions);
-    // }
+    getCensorPositions() {
+      if (this.typeOfAnnotationInFocus != "censor") {
+        return;
+      }
+      const annotationUpdateForm = document.getElementById("annotation-update-form");
+      const positionsEl = annotationUpdateForm.querySelector("#positions");
+      const positionsRawVal = positionsEl.value;
+      const positions = JSON.parse(positionsRawVal);
+      console.log(positions);
+      return positions;
+    }
 
-    // createCensorPosition(x, y, width, height, time) {
+    compareCensorPositions(posA, posB) {
+      // for compare functions, a negative number means that the first element in
+      // the argument list should come first, 0 means they are the same, and
+      // a positive number means the second elemnet in the argument should come first
+      return posA.time - posB.time;
+    }
 
-    // }
+    createCensorPosition(x, y, width, height, time) {
+      const positions = this.getCensorPositions();
+      const newPosition = {x: x, y: y, width: width, height: height, time: parseFloat(time).toFixed(2)};
+      positions.push(newPosition);
+      const sortedPositions = positions.sort(this.compareCensorPositions);
+      const annotationUpdateForm = document.getElementById("annotation-update-form");
+      const positionsEl = annotationUpdateForm.querySelector("#positions");
+      positionsEl.innerText = JSON.stringify(sortedPositions);
+    }
 
     // updateCensorPosition(x, y, width, height, time) {
 
