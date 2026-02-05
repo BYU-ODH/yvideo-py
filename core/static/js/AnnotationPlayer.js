@@ -668,7 +668,7 @@ export class AnnotationPlayer {
           break;
         case "pause":
           {
-            const pauseRange = 0.005;
+            const pauseRange = 0.01;
             let startRange = aStart - pauseRange;
             if (startRange < 0) {
               startRange = 0;
@@ -1485,7 +1485,6 @@ export class AnnotationPlayer {
             newTimeRight = skipBoundaryRight;
           }
           this.skipTo(newTimeRight);
-          console.log("Time after microskip: ", this.videoElem.currentTime);
         }
         break;
       case 'Comma':
@@ -1503,7 +1502,6 @@ export class AnnotationPlayer {
             newTimeLeft = skipBoundaryLeft;
           }
           this.skipTo(newTimeLeft);
-          console.log("Time after microskip: ", this.videoElem.currentTime);
         }
         break;
       case 'KeyF':

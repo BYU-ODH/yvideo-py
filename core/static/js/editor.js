@@ -12,9 +12,11 @@ export class Editor {
         this.layerContainers = document.querySelectorAll('.layer-items');
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
+        this.annotationBox = window.videoPlayer.annotationBox;
         this.dragState = null;
         this.contentId = null;
         this.listenForNewItemCreation();
+        this.typeOfAnnotationInFocus = null;
 
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
@@ -27,6 +29,8 @@ export class Editor {
         this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
+
+        this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
 
         this.init();
     }
@@ -60,27 +64,6 @@ export class Editor {
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
-    }
-
-    async refreshVideoPlayer() {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const response = await fetch("/video-annotator/reload-player", {
-        method: "post",
-        headers: { "X-CSRFToken": csrfToken },
-        body: JSON.stringify({
-          "content_id": this.contentId
-        })
-      });
-
-      if (!response.ok) {
-        console.error("Unable to refresh video player");
-      }
-
-      const videoHtml = await response.text();
-      const videoSection = document.getElementById("video-section");
-      videoSection.innerHTML = videoHtml;
-      this.video = videoSection.querySelector("#video-player");
-      this.attachVideoListeners();
     }
 
     placeItem(item) {
@@ -383,14 +366,75 @@ export class Editor {
           console.error("The item could not be deleted");
         }
         else {
+          if(this.typeOfAnnotationInFocus == "censor") {
+            this.handleFocusChangeAwayFromCensorType();
+          }
+          window.dispatchEvent(this.annotationUpdatedEvent);
           const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
           deletedItem.remove();
           const detailForm = document.getElementById("detail-form");
           detailForm.innerHTML = "";
-          await this.refreshVideoPlayer();
           this.placeLayerItems();
         }
       });
+    }
+
+    // getAndSortCensorPositions() {
+    //   if (this.typeOfAnnotationInFocus != "censor") {
+    //     return;
+    //   }
+    //   const annotationUpdateForm = document.getElementById("annotation-update-form");
+    //   const positionsEl = annotationUpdateForm.querySelector("#positions");
+    //   const positionsRawVal = positionsEl.value;
+    //   const positions = JSON.parse(JSON.stringify(positionsRawVal));
+    //   console.log(positions);
+    // }
+
+    // createCensorPosition(x, y, width, height, time) {
+
+    // }
+
+    // updateCensorPosition(x, y, width, height, time) {
+
+    // }
+
+    handleCensorPositionClick(e) {
+      // const boxDim = e.target.getBoundingClientRect();
+      const x = e.layerX;
+      const y = e.layerY;
+      const width = 200;
+      const height = 150;
+      const time = Number.parseFloat(this.video.currentTime).toFixed(2);
+      this.createCensorPosition(x, y, width, height, time);
+    }
+
+    handleFocusChangeToCensorType() {
+      this.annotationBox.className = "annotation-box annotation-box-censor-editor";
+      this.annotationBoxCensorListener = this.handleCensorPositionClick.bind(this);
+      this.annotationBox.addEventListener("click", this.annotationBoxCensorListener);
+    }
+
+    handleFocusChangeAwayFromCensorType() {
+      this.annotationBox.removeEventListener("click", this.annotationBoxCensorListener);
+      this.annotationBox.className = "annotation-box";
+    }
+
+    changeTypeOfAnnotationInFocus() {
+      const previousTypeInFocus = this.typeOfAnnotationInFocus;
+      const itemForm = document.getElementById("existing-item-form");
+      if (itemForm == null) {
+        this.typeOfAnnotationInFocus = null;
+        return;
+      }
+
+      this.typeOfAnnotationInFocus = itemForm.dataset["itemtype"];
+
+      if (this.typeOfAnnotationInFocus == "censor" && previousTypeInFocus != "censor") {
+        this.handleFocusChangeToCensorType();
+      }
+      else if (this.typeOfAnnotationInFocus != "censor" && previousTypeInFocus == "censor"){
+        this.handleFocusChangeAwayFromCensorType();
+      }
     }
 
     handleItemFormChanges(mutationList) {
@@ -398,6 +442,7 @@ export class Editor {
         if (mutation.type == "childList") {
           this.listenForItemUpdateFormSubmission();
           this.setUpItemDeleteButton();
+          this.changeTypeOfAnnotationInFocus();
         }
       }
     }
@@ -447,7 +492,6 @@ export class Editor {
       if (response.status != 200) {
         console.error("An error occurred while updating an annotation");
       }
-      await this.refreshVideoPlayer();
 
       const responseData = await response.json();
 
@@ -464,6 +508,7 @@ export class Editor {
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
       this.addClickListenerToLayerItem(newTargetItem);
+      window.dispatchEvent(this.annotationUpdatedEvent);
     }
 
     triggerSave(state) {
@@ -675,7 +720,6 @@ export class Editor {
               })
             });
           if (response.ok) {
-            await this.refreshVideoPlayer()
             const newItemHtml = await response.text();
             const layerContainer = document.getElementById(`${annotationType}-item-container`);
             const newElement = document.createElement("template");
@@ -687,6 +731,7 @@ export class Editor {
             this.addClickListenerToLayerItem(newNode);
             this.placeItem(newNode);
             this.placeLayerItems();
+            window.dispatchEvent(this.annotationUpdatedEvent);
           }
           else {
             console.error(response);
@@ -695,6 +740,7 @@ export class Editor {
       }
     }
 
+    /* TIMELINE FUNCTIONS */
     // This is the tick line on the timeline
     createTickMark(time, isMajor) {
         const tick = document.createElement('div');

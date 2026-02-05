@@ -481,7 +481,7 @@ def create_annotation(request, annotation_type, content_id):
         data["end_time"] = end_time
 
     if annotation_type == "censor":
-        data["positions"] = {}
+        data["positions"] = []
     elif annotation_type == "comment":
         data.update({"text": "", "x": 50.0, "y": 50.0})
     elif annotation_type == "pause":

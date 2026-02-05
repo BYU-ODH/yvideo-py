@@ -142,6 +142,11 @@
   backdrop-filter: blur(10px);  /* eslint-disable-line css/use-baseline */
 }
 
+.annotation-box-censor-editor {
+    pointer-events: auto;
+    border: 1px solid red;
+}
+
 /* Video Controls */
 .video-controls {
   position: absolute;

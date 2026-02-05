@@ -856,10 +856,10 @@ class BlurAnnotation(BaseAnnotation):
         """Validate positions format."""
         try:
             for time, pos in positions_dict.items():
-                if not isinstance(pos, list) or len(pos) != 4:
+                if not isinstance(pos, list) or len(pos) != 5:
                     return (
                         False,
-                        "Invalid position format: must be [x, y, width, height]",
+                        "Invalid position format: must be [x, y, width, height, time]",
                     )
             return True, None
         except (TypeError, AttributeError):
