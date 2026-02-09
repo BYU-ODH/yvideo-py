@@ -1,9 +1,9 @@
 {% for layer in layers %}
 <div class="layer" data-layer-type="{{ layer.type }}">
     <div class="layer-content">
-        <div class="layer-items {{ layer.type }}" data-layer-type="{{ layer.type }}">
+        <div id="{{layer.type}}-item-container" class="layer-items {{ layer.type }}" data-layer-type="{{ layer.type }}">
             {% for item in layer.items %}
-                {% include item.template with instance=item.instance content=item.content position=item.position item_type=item.item_type update_url=item.update_url load_form_url=item.load_form_url %}
+                {% include "partials/item.html" with instance=item.instance content=item.content position=item.position item_type=item.item_type update_url=item.update_url load_form_url=item.load_form_url %}
             {% endfor %}
         </div>
     </div>

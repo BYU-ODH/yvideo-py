@@ -1,4 +1,5 @@
 from functools import wraps
+import json
 import logging
 import mimetypes
 import os
@@ -7,6 +8,7 @@ import re
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.core.files.base import ContentFile
 from django.db import connection
 from django.db.models import Q
 from django.http import Http404
@@ -23,22 +25,35 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
+from .forms import ClipForm
 from .forms import CollectionForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
+from .forms import SubtitleForm
 from .forms import ResourceContentIntakeRequestForm
 from .forms import UpdateContentForm
 from .models import BlankAnnotation
+from .models import Clip
 from .models import Collection
+from .models import CollectionRole
+from .models import CollectionUserAccess
 from .models import Content
 from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import Resource
 from .models import ResourceFileKey
 from .models import SkipAnnotation
+from .models import Subtitle
 from .models import User
 from .models import UserCourses
+from .utils import VTTCue
+from .utils import build_vtt_file_string_from_cues
+from .utils import convert_srt_content_to_vtt
+from .utils import generate_vtt_cues_from_file_path
+from .utils import hms2seconds
+from .utils import nudge_cue_times
+from .utils import seconds2hms
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +92,7 @@ def display_yearterm(yearterm):
 
 def index(request):
     # if admin, gather owned collections
+    request.user = User.objects.all().first()
     owned_collections = []
     allowed_privilege_levels = [2, 0]
     if (
@@ -119,13 +135,44 @@ def index(request):
             }
         )
 
+    manual_access_collections = Collection.objects.filter(
+        collectionuseraccess__user=request.user
+    )
+    manual_collections = []
+    for collection in manual_access_collections:
+        prepared_collection = prepare_collection_for_display(collection)
+        manual_collections.append(prepared_collection)
+
     context = {
         "user": request.user,
         "owned_collections": owned_collections,
         "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
         "public_collections": [],
+        "manual_collections": manual_collections,
     }
     return render(request, "index.html", context)
+
+
+@require_POST
+def get_player_data(request, content_id):
+    content = get_object_or_404(Content, id=content_id)
+    try:
+        player_json = content.get_player_json()
+        has_subtitles = bool(
+            any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
+        )
+
+        data = {
+            "annotations": player_json["annotations"],
+            "subtitleTracks": player_json["subtitleTracks"],
+            "has_subtitles": has_subtitles,
+            "clips": player_json["clips"],
+        }
+
+        return JsonResponse(data)
+    except Exception as e:
+        logger.error(f"An error occurred while getting player data: {e}")
+        return HttpResponseServerError()
 
 
 # @login_required  # TODO: Uncomment
@@ -138,19 +185,10 @@ def player(request, content_id):
             "User does not have permission to view this content", status=403
         )
 
-    player_json = content.get_player_json()
-    has_subtitles = bool(
-        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
-    )
-
     context = {
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "allow_events": True,
-        "events": player_json["annotations"],
-        "subtitles": player_json["subtitleTracks"],
-        "clips": player_json["clips"],
-        "has_subtitles": has_subtitles,
     }
 
     return render(request, "player.html", context)
@@ -318,7 +356,7 @@ def create_collection(request):
 
         except Exception as e:
             logger.error(
-                f"An error occured when the user: {collection.owner} attempted to create the collection: {collection.name} -> {e}"
+                f"An error occured when the user: {request.user} attempted to create a collection -> {e}"
             )
 
             response = HttpResponseServerError()
@@ -451,7 +489,6 @@ def delete_collection(request, collection_id):
             f"An error occured while deleting the collection with id: {collection_id}. Exception: {e}"
         )
         return HttpResponseServerError()
-    return HttpResponseBadRequest()
 
 
 @require_GET
@@ -692,7 +729,6 @@ def invalid_login(request):
 
 
 @admin_or_superuser_required
-@login_not_required
 def spoof_user_start(request):
     if request.method == "POST":
         spoof_user_id = request.POST.get("spoof_user_id")
@@ -705,7 +741,6 @@ def spoof_user_start(request):
 
 
 @admin_or_superuser_required
-@login_not_required
 def spoof_user_stop(request):
     request.session.pop("spoof_user_id", None)
     return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
@@ -730,6 +765,588 @@ def spoof_user_search(request):
     return HttpResponse(html)
 
 
+# TODO add permission check
+def clip_editor(request, content_id):
+    """Render the clip editor page."""
+    content = get_object_or_404(Content, id=content_id)
+    file_key = request.user.get_filekey(content)
+
+    # Calculate clip positions
+    duration = content.duration
+    clips_with_positions = []
+    clips_json = []
+
+    for clip in content.clips.all():
+        start_time = hms2seconds(clip.start_time)
+        end_time = hms2seconds(clip.end_time)
+        start_percent = (start_time / duration * 100) if duration > 0 else 0
+        width_percent = (
+            ((end_time - start_time) / duration * 100) if duration > 0 else 0
+        )
+
+        clips_with_positions.append(
+            {
+                "clip": clip,
+                "content": content,  # Add content to each item context
+                "left": f"{start_percent:.2f}%",
+                "width": f"{width_percent:.2f}%",
+                "start": start_time,
+                "end": end_time,
+            }
+        )
+        clips_json.append(
+            {
+                "start": start_time,
+                "end": end_time,
+                "label": clip.name,
+            }
+        )
+    clips_json = json.dumps(clips_json)
+    # Prepare subtitle data in the format expected by AnnotationPlayer
+    subtitles_data = []
+
+    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
+
+    context = {
+        "content": content,
+        "file_key": file_key.id if file_key else None,
+        "allow_events": True,
+        "events": json.dumps([]),
+        "subtitles": json.dumps(subtitles_data),
+        "clips_json": clips_json,
+        "has_subtitles": has_subtitles,
+        "duration": duration,
+        "clips_with_positions": clips_with_positions,
+    }
+
+    return render(request, "clip_editor.html", context)
+
+
+def generate_clips_json_data(content):
+    """Generate clips JSON data for AnnotationPlayer."""
+    clips = []
+    for clip in content.clips.all():
+        clips.append(
+            {
+                "start": hms2seconds(clip.start_time),
+                "end": hms2seconds(clip.end_time),
+                "label": clip.name,
+            }
+        )
+    return clips
+
+
+@require_GET
+def load_clip_form(request, clip_id):
+    """Load clip editing form via HTMX."""
+    clip = get_object_or_404(Clip, id=clip_id)
+
+    # Get content from query parameter (required for context)
+    content_id = request.GET.get("content_id")
+    if not content_id:
+        return HttpResponse("Missing content_id parameter", status=400)
+
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions on the content
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    # Check if user can edit this clip
+    can_edit = clip.can_edit(request.user)
+
+    form = ClipForm(instance=clip)
+
+    context = {
+        "clip": clip,
+        "content": content,
+        "can_edit": can_edit,
+        "form": form,
+        "start_seconds": hms2seconds(clip.start_time),
+        "end_seconds": hms2seconds(clip.end_time),
+    }
+
+    return render(request, "partials/clip_form.html", context)
+
+
+@require_POST
+def update_clip(request, clip_id):
+    """Update clip and return updated HTML with JSON OOB."""
+    clip = get_object_or_404(Clip, id=clip_id)
+
+    # Get content from POST data (required for context)
+    content_id = request.POST.get("content_id")
+    if not content_id:
+        return HttpResponse("Missing content_id", status=400)
+
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions on the content
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    # If user doesn't own this clip, clone it
+    if not clip.can_edit(request.user):
+        original_clip = clip
+        clip = clip.clone_for_user(request.user)
+
+        # Add the new clip to the content (replacing the original)
+        content.clips.remove(original_clip)
+        content.clips.add(clip)
+        content.save()
+
+    # Check if this is a delta-based update (from drag/resize)
+    delta_left = request.POST.get("delta_left")
+    delta_width = request.POST.get("delta_width")
+
+    if delta_left is not None or delta_width is not None:
+        # Delta-based update from drag/resize
+        duration = content.duration
+
+        # Get current position percentages
+        start_time = hms2seconds(clip.start_time)
+        end_time = hms2seconds(clip.end_time)
+        current_left = (start_time / duration * 100) if duration > 0 else 0
+        current_width = (
+            ((end_time - start_time) / duration * 100) if duration > 0 else 0
+        )
+
+        # Apply deltas
+        delta_left_float = float(delta_left) if delta_left else 0
+        delta_width_float = float(delta_width) if delta_width else 0
+
+        new_left = current_left + delta_left_float
+        new_width = current_width + delta_width_float
+
+        # Convert back to times
+        new_start = (new_left / 100) * duration
+        new_end = ((new_left + new_width) / 100) * duration
+
+        # Validate
+        if new_start < 0 or new_end > duration or new_start >= new_end:
+            # Return error - keep original position
+            position = {
+                "left": f"{current_left:.2f}%",
+                "width": f"{current_width:.2f}%",
+                "start": start_time,
+                "end": end_time,
+            }
+
+            context = {
+                "clip": clip,
+                "content": content,
+                "position": position,
+                "error": "Invalid clip position",
+            }
+            return render(request, "partials/clip_item.html", context)
+
+        # Update clip with new times
+        clip.start_time = seconds2hms(new_start)
+        clip.end_time = seconds2hms(new_end)
+
+        # Update name if provided
+        name = request.POST.get("name")
+        if name:
+            clip.name = name
+
+        clip.save()
+    else:
+        # Form-based update
+        form = ClipForm(request.POST, instance=clip)
+
+        if not form.is_valid():
+            # Return form with errors
+            context = {
+                "clip": clip,
+                "content": content,
+                "can_edit": True,
+                "form": form,
+                "start_seconds": hms2seconds(clip.start_time),
+                "end_seconds": hms2seconds(clip.end_time),
+            }
+            return render(request, "partials/clip_form.html", context)
+
+        clip = form.save()
+
+    # Calculate new position
+    duration = content.duration
+    start_time = hms2seconds(clip.start_time)
+    end_time = hms2seconds(clip.end_time)
+    start_percent = (start_time / duration * 100) if duration > 0 else 0
+    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
+
+    position = {
+        "left": f"{start_percent:.2f}%",
+        "width": f"{width_percent:.2f}%",
+        "start": start_time,
+        "end": end_time,
+    }
+
+    # Generate updated JSON for player - use the content being edited
+    clips_json_data = generate_clips_json_data(content)
+
+    # Render the layer item
+    item_html = render_to_string(
+        "partials/clip_item.html",
+        {
+            "clip": clip,
+            "content": content,  # Add content to context
+            "position": position,
+        },
+    )
+
+    # Always render the updated form with OOB swap
+    form_content = render_to_string(
+        "partials/clip_form.html",
+        {
+            "clip": clip,
+            "content": content,
+            "can_edit": True,
+            "form": ClipForm(instance=clip),
+            "start_seconds": start_time,
+            "end_seconds": end_time,
+        },
+    )
+    # Wrap with OOB swap directive
+    form_html = f'<div hx-swap-oob="innerHTML:#detail-form">{form_content}</div>'
+
+    # Render JSON OOB update
+    json_html = render_to_string(
+        "partials/clips_json_oob.html",
+        {
+            "clips_json": json.dumps(clips_json_data),
+        },
+    )
+
+    # Combine responses
+    response = HttpResponse(item_html + form_html + json_html)
+    return response
+
+
+@require_POST
+def create_clip(request, content_id):
+    """Create a new clip and return updated HTML with JSON OOB."""
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    # Get start and end times from POST
+    start_time = float(request.POST.get("start_time", 0))
+    end_time = float(request.POST.get("end_time", 10))
+
+    # Validate times
+    duration = content.duration
+    if start_time < 0 or end_time > duration or start_time >= end_time:
+        return HttpResponse("Invalid clip times", status=400)
+
+    # Get resource from content's file
+    if not content.file or not content.file.resource:
+        return HttpResponse("Content has no associated resource", status=400)
+
+    # Create new clip
+    clip = Clip.objects.create(
+        resource=content.file.resource,
+        owner=request.user,
+        name=f"Clip {content.clips.count() + 1}",
+        start_time=seconds2hms(start_time),
+        end_time=seconds2hms(end_time),
+    )
+
+    # Add to content
+    content.clips.add(clip)
+    content.save()
+
+    # Calculate position
+    start_percent = (start_time / duration * 100) if duration > 0 else 0
+    width_percent = ((end_time - start_time) / duration * 100) if duration > 0 else 0
+
+    position = {
+        "left": f"{start_percent:.2f}%",
+        "width": f"{width_percent:.2f}%",
+        "start": start_time,
+        "end": end_time,
+    }
+
+    # Generate updated JSON for player
+    clips_json_data = generate_clips_json_data(content)
+
+    # Render the new layer item
+    item_html = render_to_string(
+        "partials/clip_item.html",
+        {
+            "clip": clip,
+            "content": content,
+            "position": position,
+        },
+    )
+
+    # Render JSON OOB update
+    json_html = render_to_string(
+        "partials/clips_json_oob.html",
+        {
+            "clips_json": json.dumps(clips_json_data),
+        },
+    )
+
+    # Combine responses with OOB swap for layer-items
+    response = HttpResponse(
+        f'<div hx-swap-oob="beforeend:.layer-items">{item_html}</div>{json_html}'
+    )
+    return response
+
+
+@require_http_methods(["DELETE"])
+def delete_clip(request, clip_id):
+    """Delete or remove clip from content and return updated JSON OOB."""
+    clip = get_object_or_404(Clip, id=clip_id)
+
+    # Get content from query/body parameter
+    content_id = request.GET.get("content_id") or request.POST.get("content_id")
+    if not content_id:
+        return HttpResponse("Missing content_id parameter", status=400)
+
+    content = get_object_or_404(Content, id=content_id)
+
+    # Check permissions
+    if not request.user.can_view_content(content):
+        return HttpResponse("Unauthorized", status=403)
+
+    try:
+        if clip.can_edit(request.user):
+            # User owns the clip, can fully delete it
+            clip.delete()
+        else:
+            # User doesn't own it, just remove from their content
+            content.clips.remove(clip)
+            content.save()
+
+        # Generate updated JSON for player
+        clips_json_data = generate_clips_json_data(content)
+
+        # Render JSON OOB update
+        json_html = render_to_string(
+            "partials/clips_json_oob.html",
+            {
+                "clips_json": json.dumps(clips_json_data),
+            },
+        )
+
+        # Render placeholder for form with OOB swap
+        form_placeholder = render_to_string("partials/clip_form_placeholder.html")
+        form_html = (
+            f'<div hx-swap-oob="innerHTML:#detail-form">{form_placeholder}</div>'
+        )
+
+        response = HttpResponse(json_html + form_html)
+        return response
+    except Exception as e:
+        logger.error(f"Error deleting clip {clip_id}: {e}")
+        return HttpResponseServerError()
+
+
+@require_GET
+def subtitle_editor(request, content_id):
+    try:
+        content = get_object_or_404(Content, id=content_id)
+        subtitle_files = Subtitle.objects.filter(resource=content.file.resource)
+        subtitle_options = []
+        for sub_file in subtitle_files:
+            subtitle_options.append(
+                {
+                    "name": sub_file.name,
+                    "id": sub_file.pk,
+                }
+            )
+        file_key = request.user.get_filekey(content)
+    except Exception as e:
+        logger.error(
+            f"Error retrieving subtitles for content_id: {content_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+    player_info = get_data_for_player(content)
+
+    return render(
+        request,
+        "subtitle_editor.html",
+        {
+            "content": content,
+            "subtitle_tracks": subtitle_options,
+            "file_key": file_key,
+            "events": player_info["events"],
+            "subtitles": player_info["subtitles"],
+            "clips": player_info["clips"],
+            "has_subtitles": player_info["has_subtitles"],
+        },
+    )
+
+
+@require_GET
+def get_editable_subtitles(request, subtitle_id):
+    try:
+        subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
+        cues = generate_vtt_cues_from_file_path(subtitle_obj.subtitles_file.path)
+        return HttpResponse(render_to_string("partials/vtt_cues.html", {"cues": cues}))
+
+    except Exception as e:
+        logger.error(f"Error generating html cues from file path. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_POST
+def create_subtitle(request):
+    form = SubtitleForm(request.POST, request.FILES)
+    if form.is_valid():
+        data = form.cleaned_data
+        uploaded_file = request.FILES["subtitles_file"]
+        if uploaded_file is None:
+            logger.error("No subtitle file provided.")
+            return HttpResponseBadRequest()
+
+        # automatically convert .srt files to .vtt
+        uploaded_file_content = convert_srt_content_to_vtt(
+            uploaded_file.read().decode("utf-8")
+        )
+
+        # create new subtitle object
+        try:
+            new_subtitle = Subtitle.objects.create(
+                resource=data["resource"],
+                owner=data["owner"],
+                language=data["language"],
+                name=data["name"],
+                subtitles_file=ContentFile(
+                    content=uploaded_file_content, name=uploaded_file.name
+                ),
+                is_original=data["is_original"],
+            )
+        except Exception as e:
+            logger.error(
+                f"Error creating Subtitles object. data: {data}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+    return render(
+        request, "partials/subtitle_track.html", {"subtitle_track": new_subtitle}
+    )
+
+
+@require_POST
+def update_subtitle_metadata(request):
+    form = SubtitleForm(request.POST, request.FILES)
+    if form.is_valid():
+        data = form.cleaned_data
+
+        uploaded_file = request.FILES["subtitles_file"]
+
+        if uploaded_file is not None:
+            uploaded_file_content = convert_srt_content_to_vtt(
+                uploaded_file.read().decode("utf-8")
+            )
+            uploaded_file_name = uploaded_file.name
+
+        try:
+            if "subtitle_id" in request.POST:
+                subtitle_obj = get_object_or_404(
+                    Subtitle, id=request.POST.get("subtitle_id")
+                )
+            else:
+                return HttpResponseBadRequest()
+
+            if "language" in data:
+                subtitle_obj.language = data["language"]
+            if "name" in data:
+                subtitle_obj.name = data["name"]
+            if uploaded_file is not None:
+                subtitle_obj.subtitles_file = ContentFile(
+                    content=uploaded_file_content, name=uploaded_file_name
+                )
+            if "is_original" in data:
+                subtitle_obj.is_original = data["is_original"]
+            if "words" in request.POST:
+                subtitle_obj.words = data["words"]
+            subtitle_obj.save()
+
+            # remove temp file when main file is updated
+            # this is not included where subtitles_file is set because we want
+            # to ensure we don't over write the temp file unless the main file
+            # is successfully updated.
+            if new_file_exists:
+                subtitle_obj.subtitles_temp_file = None
+                subtitle_obj.save()
+
+            return render(
+                request,
+                "partials/subtitle_track.html",
+                {"subtitle_track": subtitle_obj},
+            )
+        except Exception as e:
+            logger.error(
+                f"Error while updating subtitle object with id: {request.POST.get('subtitle_id')}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+
+@require_POST
+def update_subtitle_content(request):
+    try:
+        # build VTTCue list
+        request_data = json.loads(request.body)
+        subtitle_id = request_data["subtitle_id"]
+        dict_cue_list = json.loads(request_data["cues"])
+        cues_list: list[VTTCue] = []
+        for dict_cue in dict_cue_list:
+            new_cue = VTTCue()
+            new_cue.from_json_dict(dict_cue)
+            cues_list.append(new_cue)
+
+        # change timing of cues if applicable
+        seconds_nudge = request_data["seconds_nudge"]
+        nudge_excluded_cues = request_data["nudge_excluded_cues"]
+        if seconds_nudge:
+            nudge_cue_times(cues_list, nudge_excluded_cues, seconds_nudge)
+
+        # build and save new vtt file
+        new_vtt_string = build_vtt_file_string_from_cues(cues_list)
+        subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
+        is_autosave = request_data["is_autosave"]
+
+        # something is giong on here where part of the path name is being duplicated
+        # files are saved as media/filename where in this case, filename is something like
+        # "resource name/subtitles/original filename"
+        # but the model is set to attach the current filename in place of "original filename"
+        # so we end up with "resource name/subtitles/resource name/subtitles/.../intended filename"
+        if is_autosave:
+            with subtitle_obj.subtitles_temp_file.open("w") as f:
+                f.write(new_vtt_string)
+        else:
+            with subtitle_obj.subtitles_file.open("w") as f:
+                f.write(new_vtt_string)
+        subtitle_obj.save()
+        return HttpResponse("", status=200)
+
+    except Exception as e:
+        logger.error(f"Error while updating subtitle content: {e}")
+        return HttpResponseServerError()
+
+
+@require_http_methods(["DELETE"])
+def delete_subtitle(request, subtitle_id):
+    subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
+    try:
+        subtitle_obj.delete()
+        return HttpResponse("", status=200)
+    except Exception as e:
+        logger.error(
+            f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
+        )
+        return HttpResponseServerError()
 def request_content(request, resource_id):
     resource = get_object_or_404(Resource, id=resource_id)
 
@@ -755,3 +1372,33 @@ def request_content(request, resource_id):
             "resource": resource,
         },
     )
+
+
+def add_collection_member(request, collection_id):
+    allowed_privilege_levels = [0, 2]
+    if request.user.privilege_level not in allowed_privilege_levels:
+        return HttpResponse("Forbidden", status=403)
+
+    collection = get_object_or_404(Collection, pk=collection_id)
+
+    if request.method == "POST":
+        # Get form data
+        netid = request.POST.get("netid", "").strip()
+        role = request.POST.get("role", "").strip()
+
+        user = get_object_or_404(User, netid=netid)
+
+        if role == "TA":
+            collection_role = CollectionRole.TA
+        else:
+            collection_role = CollectionRole.AUDITOR
+
+        CollectionUserAccess.objects.create(
+            user=user,
+            collection=collection,
+            collection_role=collection_role,
+        )
+
+        return redirect("view_collection", pk=collection.id)
+
+    return HttpResponseBadRequest()

@@ -1,0 +1,50 @@
+{% for cue in cues %}
+    <div class="editable-cue">
+        <div class="cue-display clickable">
+            {% if cue.type != "CUE" %}
+                <p class="cue-type">{{ cue.type }}</p>
+                <p class="cue-payload">{{ cue.payload}}</p>
+            {% else %}
+                {% if cue.identifier is not None %}
+                    <p class="cue-identifier">{{ cue.identifier }}</p>
+                {% endif %}
+                <p class="cue-timestamp">
+                    <span class="cue-start-time">{{ cue.display_start_time }} </span>
+                    -->
+                    <span class="cue-end-time"> {{ cue.display_end_time }}</span>
+                    {% if cue.cue_settings is not None %}
+                        <span class="cue-settings"> {{ cue.cue_settings }}</span>
+                    {% endif %}
+                </p>
+                <p class="cue-payload">{{ cue.payload }}</p>
+            {% endif %}
+        </div>
+        <div class="cue-edit hidden column-flex">
+            {% if cue.type != "CUE" %}
+                <p class="cue-type">{{ cue.type }}</p>
+                <input class="cue-payload" type="text" value="{{cue.payload}}" />
+            {% else %}
+                {% if cue.identifier is not None %}
+                    <input class="cue-identifier" type="text" name="identifier" value="{{cue.identifier}}" />
+                {% endif %}
+                <p class="cue-timestamp">
+                    <span class="cue-start-time"><input type="text" value="{{cue.display_start_time}}" /></span>
+                    -->
+                    <span class="cue-end-time"><input type="text" value="{{cue.display_end_time}}" /></span>
+                    {% if cue.cue_settings is not None %}
+                        <span class="cue-settings"><input value="{{cue.cue_settings}}" /></span>
+                    {% endif %}
+                </p>
+                <input type="text" class="cue-payload" value="{{cue.payload}}" />
+            {% endif %}
+            <div>
+                <button class="cancel-cue-edit-button cancel-button">Cancel</button>
+                <button class="save-cue-edit-button small-button">Save</button>
+            </div>
+        </div>
+    </div>
+{% empty %}
+    <p id="no-cues-found">
+        No cues were provided by the server for this subtitle track.
+    </p>
+{% endfor %}

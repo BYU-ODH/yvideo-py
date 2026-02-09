@@ -1,14 +1,22 @@
+from re import findall
+from re import sub
+
+
 def hms2seconds(hms):
     """Convert a time string in 'HH:MM:SS.SS' format to total seconds."""
     parts = hms.split(":")
-    if len(parts) != 3:
+    if len(parts) == 3:
+        hours, minutes, seconds = map(float, parts)
+        return (hours * 3600) + (minutes * 60) + seconds
+    elif len(parts) == 2:
+        minutes, seconds = map(float, parts)
+        return (minutes * 60) + seconds
+    else:
         raise ValueError("Time format must be 'HH:MM:SS.SS'")
-    hours, minutes, seconds = map(float, parts)
-    return (hours * 3600) + (minutes * 60) + seconds
 
 
 def seconds2hms(seconds):
-    """Convert total seconds to a time string in 'HH:MM:SS.SS' format."""
+    """Convert total seconds to a time string in 'HH:MM:SS.SSS' format."""
     if seconds < 0:
         raise ValueError("Seconds cannot be negative")
 

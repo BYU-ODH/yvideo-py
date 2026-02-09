@@ -61,6 +61,9 @@ urlpatterns = [
         views.delete_important_word,
         name="delete_important_word",
     ),
+    path(
+        "player-data/<int:content_id>/", views.get_player_data, name="get_player_data"
+    ),
     path("player/<int:content_id>/", views.player, name="player"),
     path(
         "clip-editor/<int:content_id>/",
@@ -69,7 +72,6 @@ urlpatterns = [
     ),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),
     path("player/<int:content_id>", views.player, name="player"),
-    path("stream/<int:resource_file_key_id>", views.stream_file, name="stream_file"),
     path(
         "add_annotation/<str:annotation_type>/<int:file_id>/",
         views.add_annotation,
@@ -79,6 +81,21 @@ urlpatterns = [
     path("spoof-user-start/", views.spoof_user_start, name="start_spoofing"),
     path("spoof-user-stop/", views.spoof_user_stop, name="stop_spoofing"),
     path("spoof-user-search/", views.spoof_user_search, name="spoof_user_search"),
+    path(
+        "subtitle-editor/<int:content_id>/",
+        views.subtitle_editor,
+        name="subtitle_editor",
+    ),
+    path(
+        "subtitle-editor/get-editable-subtitles/<int:subtitle_id>/",
+        views.get_editable_subtitles,
+        name="get_editable_subtitles",
+    ),
+    path(
+        "subtitle-editor/update-subtitle-file",
+        views.update_subtitle_content,
+        name="update_subtitle_content",
+    ),
     path(
         "clips/<str:item_type>/<int:clip_id>/edit/",
         views_clip_editor.load_clip_form,
@@ -101,13 +118,18 @@ urlpatterns = [
     ),
     # Video editor page
     path(
-        "content/<int:content_id>/video-editor/",
+        "video-annotator/<int:content_id>/",
         views_video_editor.video_editor,
-        name="video_editor",
+        name="video_annotator",
+    ),
+    path(
+        "video-annotator/reload-player",
+        views_video_editor.get_player_wrapper_html,
+        name="reload-video-player",
     ),
     # AnnotationSet management
     path(
-        "content/<int:content_id>/select-annotation-set/",
+        "select-annotation-set",
         views_video_editor.select_annotation_set,
         name="select_annotation_set",
     ),
@@ -149,7 +171,7 @@ urlpatterns = [
         name="create_annotation",
     ),
     path(
-        "annotations/<str:annotation_type>/<int:annotation_id>/update/",
+        "annotations/<str:annotation_type>/<int:annotation_id>/<int:is_from_item>/update/",
         views_video_editor.update_annotation,
         name="update_annotation",
     ),

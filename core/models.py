@@ -125,11 +125,12 @@ class User(AbstractUser):
         return self.privilege_level == PrivilegeLevel.ADMIN
 
     def can_view_content(self, content):
+        # owners and admins should have view permission even if the collection is not published
+        if content.collection.owner == self:
+            return True
+        if self.is_admin or self.is_superuser or self.is_staff:
+            return True
         if content.collection.published:
-            if content.collection.owner == self:
-                return True
-            if self.is_admin or self.is_superuser or self.is_staff:
-                return True
             if CollectionUserAccess.objects.filter(
                 user=self, collection=content.collection
             ).exists():
@@ -317,7 +318,6 @@ class ResourceFile(models.Model):
         max_length=16, blank=True, editable=False, unique=True, null=True
     )
     checksum_at = models.DateTimeField(null=True, blank=True, editable=False)
-    duration = models.FloatField(default=0.0)  # duration in seconds
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -360,7 +360,7 @@ class Clip(models.Model):
 
     def can_edit(self, user):
         """Check if user can edit this clip."""
-        return self.owner == user or user.is_staff or user.is_superuser
+        return self.owner == user or user.is_staff or user.is_superuser or user.is_admin
 
     def clone_for_user(self, user):
         """Create a copy of this clip owned by a different user."""
@@ -407,7 +407,7 @@ class AnnotationSet(models.Model):
 
     def can_edit(self, user):
         """Check if user can edit this annotation set."""
-        return user == self.owner or user in self.editors.all()
+        return user == self.owner or user in self.editors.all() or user.is_admin
 
     def can_be_viewed_by(self, user):
         """Check if user can view this annotation set (through any content using the resource)."""
@@ -512,16 +512,6 @@ class Content(models.Model):
     def __str__(self):
         return f"{self.title} | {self.collection.name} | {self.id}"
 
-    @property
-    def duration(self):
-        """Get video duration in seconds from the file."""
-        try:
-            return self.resource_file.duration
-        except AttributeError:
-            # TODO: Extract actual duration from video file metadata
-            # For now, return a placeholder
-            return 20.0  # 20 seconds default
-
     def get_available_annotation_sets(self):
         """Get all AnnotationSets available for this content's resource."""
         if not self.resource_file or not self.resource_file.resource:
@@ -555,19 +545,15 @@ class Content(models.Model):
             - 'vtt' or 'url'
             - 'label'
         """
-        subtitles = []
-        # TODO: Get actual subtitles from database
-        # TODO : Remove toy subtitles
-        toy_data = [
-            {"srclang": "en", "vtt": TOY_VTT, "label": "His Girl Friday"},
-            {"srclang": "en", "vtt": TOY_VTT2, "label": "Birds"},
+        sub_objs = Subtitle.objects.filter(resource=self.resource_file.resource)
+        subtitles = [
             {
-                "srclang": "en",
-                "url": "http://example.com/subtitles.vtt",
-                "label": "Birds",
-            },
+                "srclang": sub.language.lang_tag,
+                "vtt": sub.subtitles_file.read().decode("utf-8"),
+                "label": sub.name,
+            }
+            for sub in sub_objs
         ]
-        subtitles.extend(toy_data)
         return subtitles
 
     def get_player_json(self):
@@ -651,17 +637,11 @@ class BaseAnnotation(models.Model):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
         return self.__class__.__name__.replace("Annotation", "").lower()
 
-    def calculate_position(self, duration):
+    def calculate_position(self):
         """Calculate visual position on timeline."""
-        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
-        width_percent = (
-            ((self.end_time - self.start_time) / duration * 100)
-            if self.end_time and duration > 0
-            else 0
-        )
         return {
-            "left": f"{start_percent:.2f}%",
-            "width": f"{width_percent:.2f}%",
+            "left": "0%",
+            "width": "0%",
             "start": self.start_time,
             "end": self.end_time,
         }
@@ -671,7 +651,7 @@ class BaseAnnotation(models.Model):
         start = float(self.start_time or 0)
         end = float(self.end_time or 0)
         return {
-            "id": self.id,
+            "id": self.pk,
             "type": self.annotation_type,
             "start": start,
             "end": end,
@@ -776,10 +756,9 @@ class SkipAnnotation(BaseAnnotation):
 
     message = models.TextField(max_length=255, blank=True)
 
-    def calculate_position(self, duration):
-        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
+    def calculate_position(self):
         return {
-            "left": f"{start_percent:.2f}%",
+            "left": "0%",
             "width": "2px",
             "start": self.start_time,
             "end": self.end_time,
@@ -817,11 +796,10 @@ class PauseAnnotation(BaseAnnotation):
 
     message = models.TextField(max_length=255, blank=True)
 
-    def calculate_position(self, duration):
+    def calculate_position(self):
         """Override: pause is a point marker, not a range."""
-        start_percent = (self.start_time / duration * 100) if duration > 0 else 0
         return {
-            "left": f"{start_percent:.2f}%",
+            "left": "0%",
             "width": "2px",
             "start": self.start_time,
             "end": self.start_time,  # TODO: Would None be better?
@@ -831,7 +809,7 @@ class PauseAnnotation(BaseAnnotation):
         """Override: pause uses 'time' instead of 'start/end'."""
         t = float(self.start_time or 0)
         return {
-            "id": self.id,
+            "id": self.pk,
             "type": "pause",
             "time": t,
             "time_display": seconds2hms(t),
@@ -993,6 +971,28 @@ class Language(models.Model):
         return f"{self.language} ({self.lang_tag})"
 
 
+def subtitle_file_upload_path(instance, filename):
+    """Generate upload path to media/<resource name>/subtitles/<filename>"""
+    if isinstance(instance, Subtitle):
+        return f"{instance.resource.name}/subtitles/{filename}"
+
+
+def subtitle_temp_file_upload_path(instance):
+    """Generate upload path to media/<resource name>/subtitles/<filename>"""
+    if isinstance(instance, Subtitle):
+        return f"{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
+
+
+def validate_subtitle_file(file):
+    """Ensure filetype is .vtt or .srt"""
+    file_name_split = os.path.splitext(file.name)
+    file_ext = file_name_split[1]
+    if file_ext != ".vtt" and file_ext != ".srt":
+        raise ValidationError(
+            f"Subtitles must be .vtt or .srt format. Format provided: {file_ext}"
+        )
+
+
 class Subtitle(models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="subtitles"
@@ -1004,7 +1004,17 @@ class Subtitle(models.Model):
         Language, on_delete=models.CASCADE, related_name="subtitles"
     )
     name = models.CharField(max_length=255)
-    subtitles = models.JSONField(blank=True)
+    subtitles_file = models.FileField(
+        upload_to=subtitle_file_upload_path,
+        validators=[validate_subtitle_file],
+    )
+    subtitles_temp_file = models.FileField(
+        upload_to=subtitle_temp_file_upload_path,
+        validators=[validate_subtitle_file],
+        null=True,
+        blank=True,
+    )
+    is_original = models.BooleanField(null=False, blank=False, default=False)
     words = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1045,7 +1055,7 @@ class Email(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.sender.netid} | {self.subject} | {self.id}"
+        return f"{self.sender.netid} | {self.subject} | {self.pk}"
 
 
 class AuthToken(models.Model):

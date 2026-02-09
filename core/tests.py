@@ -1,6 +1,12 @@
 # Create your tests here.
+import copy
 
 from django.test import TestCase
+
+from core.utils import VTTCue
+from core.utils import build_cues_from_vtt_file_string
+from core.utils import build_vtt_file_string_from_cues
+from core.utils import nudge_cue_times
 
 from . import api
 from .utils import seconds2hms

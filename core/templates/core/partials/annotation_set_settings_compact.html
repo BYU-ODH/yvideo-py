@@ -1,6 +1,6 @@
 {% load static %}
 
-<div class="annotation-set-settings-compact">
+<div id="annotation-set-settings-compact">
     <form hx-post="{% url 'update_annotation_set_name' annotation_set.id %}"
           hx-target="#annotation-set-settings-panel"
           hx-swap="outerHTML"
@@ -8,11 +8,7 @@
         <label for="annotation-set-name">Name:</label>
         <input type="text" id="annotation-set-name" name="name" value="{{ annotation_set.name }}" required>
         <button type="submit" class="btn-primary" style="margin-left: 0.5em;">Save</button>
-        <button type="button"
-                hx-post="{% url 'load_annotation_set_form' content.id %}"
-                hx-target="#annotation-set-settings-panel"
-                hx-swap="outerHTML"
-                style="margin-left: 0.5em;">Cancel</button>
+        <button onclick="deleteParent(this, '#annotation-set-settings-compact')">Cancel</button>
     </form>
 
     <div>

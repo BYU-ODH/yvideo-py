@@ -5,6 +5,7 @@ from .models import Clip
 from .models import Collection
 from .models import Content
 from .models import ImportantWord
+from .models import Subtitle
 from .models import ResourceContentIntakeRequest
 from .utils import hms2seconds
 
@@ -38,6 +39,8 @@ class CollectionSettingsForm(forms.ModelForm):
 
 
 class ContentForm(forms.ModelForm):
+    confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
+
     class Meta:
         model = Content
         fields = [
@@ -51,6 +54,8 @@ class ContentForm(forms.ModelForm):
 
 
 class UpdateContentForm(forms.ModelForm):
+    confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
+
     class Meta:
         model = Content
         fields = [
@@ -95,6 +100,20 @@ class ClipForm(forms.ModelForm):
         return cleaned_data
 
 
+class SubtitleForm(forms.ModelForm):
+    class Meta:
+        model = Subtitle
+        fields = [
+            "resource",
+            "owner",
+            "language",
+            "name",
+            "subtitles_file",
+            "is_original",
+        ]
+
+    resource = forms.CharField(widget=forms.HiddenInput)
+    owner = forms.CharField(widget=forms.HiddenInput)
 class ResourceContentIntakeRequestForm(forms.ModelForm):
     class Meta:
         model = ResourceContentIntakeRequest
