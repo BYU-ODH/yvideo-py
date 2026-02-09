@@ -13,7 +13,7 @@ import xxhash
 
 from .utils import TOY_VTT
 from .utils import TOY_VTT2
-from .utils import hms2seconds
+from .utils import seconds2hms
 
 HMS_VALIDATOR = RegexValidator(
     regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",
@@ -349,12 +349,8 @@ class Clip(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="clips"
     )
     name = models.CharField(max_length=255)
-    start_time = models.CharField(
-        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
-    )
-    end_time = models.CharField(
-        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
-    )
+    start_time = models.FloatField(default=0.0)
+    end_time = models.FloatField(default=0.0)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -376,6 +372,11 @@ class Clip(models.Model):
             end_time=self.end_time,
             description=self.description,
         )
+
+    def save(self, *args, **kwargs):
+        self.start_time = round(float(self.start_time or 0), 2)
+        self.end_time = round(float(self.end_time or 0), 2)
+        super().save(*args, **kwargs)
 
 
 class AnnotationSet(models.Model):
@@ -533,10 +534,14 @@ class Content(models.Model):
         """
         clips_data = []
         for clip in self.clips.all():
+            start = float(clip.start_time or 0)
+            end = float(clip.end_time or 0)
             clips_data.append(
                 {
-                    "start": hms2seconds(clip.start_time),
-                    "end": hms2seconds(clip.end_time),
+                    "start": start,  # seconds for backend/player logic
+                    "end": end,
+                    "start_hms": seconds2hms(start),  # "0:00:12.34" for display
+                    "end_hms": seconds2hms(end),
                     "label": clip.name,
                 }
             )
@@ -611,12 +616,8 @@ class BaseAnnotation(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    start_time = models.CharField(
-        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
-    )
-    end_time = models.CharField(
-        max_length=13, validators=[HMS_VALIDATOR], default="0:00:00.00"
-    )
+    start_time = models.FloatField(default=0.0)
+    end_time = models.FloatField(default=0.0)
 
     # Linked list pointers for undo/redo
     prev = models.ForeignKey(
@@ -667,11 +668,15 @@ class BaseAnnotation(models.Model):
 
     def to_player_json(self):
         """Convert annotation to JSON format for video player."""
+        start = float(self.start_time or 0)
+        end = float(self.end_time or 0)
         return {
             "id": self.id,
             "type": self.annotation_type,
-            "start": self.start_time,
-            "end": self.end_time,
+            "start": start,
+            "end": end,
+            "start_display": seconds2hms(start),
+            "end_display": seconds2hms(end),
             "label": self.name,
         }
 
@@ -760,6 +765,11 @@ class BaseAnnotation(models.Model):
         self.next.save()
         return self.next
 
+    def save(self, *args, **kwargs):
+        self.start_time = round(float(self.start_time or 0), 2)
+        self.end_time = round(float(self.end_time or 0), 2)
+        super().save(*args, **kwargs)
+
 
 class SkipAnnotation(BaseAnnotation):
     """Skip annotation - standard time range. Allows optional message to be displayed at the beginning of a skip."""
@@ -776,14 +786,10 @@ class SkipAnnotation(BaseAnnotation):
         }
 
     def to_player_json(self):
-        return {
-            "id": self.id,
-            "type": "skip",
-            "start": self.start_time,
-            "end": self.end_time,
-            "label": self.name,
-            "message": self.message,
-        }
+        data = super().to_player_json()  # includes start/end + display strings
+        data["type"] = "skip"  # keep/ensure type
+        data["message"] = self.message
+        return data
 
 
 class MuteAnnotation(BaseAnnotation):
@@ -823,10 +829,12 @@ class PauseAnnotation(BaseAnnotation):
 
     def to_player_json(self):
         """Override: pause uses 'time' instead of 'start/end'."""
+        t = float(self.start_time or 0)
         return {
             "id": self.id,
             "type": "pause",
-            "time": self.start_time,
+            "time": t,
+            "time_display": seconds2hms(t),
             "label": self.name,
             "message": self.message,
         }
@@ -868,11 +876,11 @@ class BlurAnnotation(BaseAnnotation):
                 "Positions must be sorted by start time in ascending order."
             )
 
-        if self.start != position_keys[0]:
+        if self.start_time != position_keys[0]:
             # TODO Decide whether to autofix or raise a ValidationError
             raise ValidationError("Start time must match the first position start.")
 
-        if self.end < position_keys[-1]:
+        if self.end_time < position_keys[-1]:
             # TODO Decide whether to autofix or raise a ValidationError
             raise ValidationError("End time cannot be before the last position end.")
 

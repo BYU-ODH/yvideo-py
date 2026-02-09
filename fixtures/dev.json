@@ -387,8 +387,8 @@
     "resource": 1,
     "owner": 6,
     "name": "that one bird",
-    "start_time": "0:00:05",
-    "end_time": "0:00:08",
+    "start_time": 5.0,
+    "end_time": 8.0,
     "description": "This bird is a good one.",
     "created_at": "2025-10-15T02:40:13.496Z",
     "updated_at": "2025-10-15T02:40:13.496Z"
@@ -401,8 +401,8 @@
     "resource": 3,
     "owner": 7,
     "name": "not much happening",
-    "start_time": "0:00:03",
-    "end_time": "0:00:06",
+    "start_time": 3.0,
+    "end_time": 6.0,
     "description": "It's just a grid.",
     "created_at": "2025-10-15T02:42:19.958Z",
     "updated_at": "2025-10-15T02:42:19.958Z"
