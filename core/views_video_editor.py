@@ -18,6 +18,7 @@ from django.views.decorators.http import require_POST
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
 from .models import CommentAnnotation
 from .models import Content
 from .models import MuteAnnotation
@@ -580,6 +581,60 @@ def generate_annotation_updated_html(
     return {"item_html": item_html, "form_html": form_html}
 
 
+def update_or_create_censor_position(request):
+    try:
+        parsed_body = json.loads(request.body)
+        position_id = parsed_body["position_id"]
+        position_time = parsed_body["time"]
+        position_x = parsed_body["x"]
+        position_y = parsed_body["y"]
+        position_height = parsed_body["height"]
+        position_width = parsed_body["width"]
+    except Exception as e:
+        logger.error(
+            f"Unable to parse data for updating or creating censor positions: {e}"
+        )
+        return HttpResponseBadRequest()
+    # create a new BlurAnnotationPosition if one doesn't exist
+    if not position_id:
+        try:
+            new_blur_position = BlurAnnotationPosition.objects.create(
+                time=position_time,
+                x=position_x,
+                y=position_y,
+                height=position_height,
+                width=position_width,
+            )
+            return new_blur_position
+        except Exception as e:
+            logger.error(f"Unable to create new BlurAnnotationPosition object: {e}")
+            return HttpResponseServerError()
+    # update the existing BlurAnnotationPosition
+    else:
+        try:
+            this_blur_position = BlurAnnotationPosition.objects.get(pk=position_id)
+            this_blur_position.time = position_time
+            this_blur_position.x = position_x
+            this_blur_position.y = position_y
+            this_blur_position.height = position_height
+            this_blur_position.width = position_width
+            this_blur_position.save()
+            return this_blur_position
+        except Exception as e:
+            logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
+
+
+def delete_censor_position(request):
+    try:
+        parsed_body = json.loads(request.body)
+        position_id = parsed_body["id"]
+        position_obj = BlurAnnotationPosition.objects.get(pk=position_id)
+        position_obj.delete()
+    except Exception as e:
+        logger.error(f"Unable to parse request for delete censor position: {e}")
+        return HttpResponseBadRequest()
+
+
 def update_annotation_from_form(request, annotation_type, annotation_id):
     parsed_body = json.loads(request.body)
     content_id = parsed_body["content_id"]
@@ -598,15 +653,6 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
 
     if annotation_type != "pause":
         update_fields["end_time"] = parsed_body["end_time"]
-
-    if annotation_type == "censor":
-        positions_json = parsed_body["positions"]
-        if positions_json:
-            positions = json.loads(positions_json)
-            is_valid, error = BlurAnnotation.validate_positions(positions)
-            if not is_valid:
-                return HttpResponse(error, status=400)
-            update_fields["positions"] = positions
     elif annotation_type == "comment":
         update_fields["text"] = parsed_body["text"]
         x = parsed_body["x"]
@@ -623,7 +669,11 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
     for field, value in update_fields.items():
         setattr(annotation, field, value)
 
-    annotation.save()
+    try:
+        annotation.save()
+    except Exception as e:
+        logger.error(f"Unable to save annotation: {e}")
+        return HttpResponseServerError()
 
     # Update the data-label attribute on the element
     annotation.refresh_from_db()

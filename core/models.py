@@ -820,50 +820,42 @@ class CommentAnnotation(BaseAnnotation):
 
 
 class BlurAnnotation(BaseAnnotation):
-    positions = models.JSONField(default=list, blank=True)
-
-    def clean(self):
-        if not self.positions:
-            return
-
-        position_keys = [float(t) for t in self.positions.keys()]
-        sorted_keys = sorted(position_keys)
-
-        if position_keys != sorted_keys:
-            # TODO Decide whether to autofix or raise a ValidationError
-            raise ValidationError(
-                "Positions must be sorted by start time in ascending order."
-            )
-
-        if self.start != position_keys[0]:
-            # TODO Decide whether to autofix or raise a ValidationError
-            raise ValidationError("Start time must match the first position start.")
-
-        if self.end < position_keys[-1]:
-            # TODO Decide whether to autofix or raise a ValidationError
-            raise ValidationError("End time cannot be before the last position end.")
-
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        data["positions"] = self.positions
+        data["positions"] = BlurAnnotationPosition.objects.filter(
+            blur_annotation=self
+        ).order_by("time")
         return data
 
+
+class BlurAnnotationPosition(models.Model):
+    blur_annotation = models.ForeignKey(
+        BlurAnnotation, on_delete=models.CASCADE, null=False, blank=False
+    )
+    time = models.FloatField(null=False, blank=False)
+    x = models.IntegerField(null=False, blank=False)
+    y = models.IntegerField(null=False, blank=False)
+    width = models.IntegerField(null=False, blank=False)
+    height = models.IntegerField(null=False, blank=False)
+
     @classmethod
-    def validate_positions(
-        cls, positions_dict
-    ):  # TODO is this correct/needed? cf clean()
-        """Validate positions format."""
+    def validate(cls, data_dict):
         try:
-            for time, pos in positions_dict.items():
-                if not isinstance(pos, list) or len(pos) != 5:
-                    return (
-                        False,
-                        "Invalid position format: must be [x, y, width, height, time]",
-                    )
+            if data_dict["time"] < cls.blur_annotation.start_time:
+                return (False, "Position cannot be before the annotation starts.")
+            if data_dict["time"] > cls.blur_annotation.end_time:
+                return (False, "Position cannot be after the annotation ends.")
+            if (
+                data_dict["x"] < 0
+                or data_dict["y"] < 0
+                or data_dict["width"] < 0
+                or data_dict["height"] < 0
+            ):
+                return (False, "Position x, y, width, and height cannot be less than 0")
             return True, None
-        except (TypeError, AttributeError):
-            return False, "Invalid positions structure"
+        except Exception as e:
+            return False, f"Invalid position: {e}"
 
 
 class Course(models.Model):
