@@ -823,9 +823,21 @@ class BlurAnnotation(BaseAnnotation):
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        data["positions"] = BlurAnnotationPosition.objects.filter(
+        positions_query_set = BlurAnnotationPosition.objects.filter(
             blur_annotation=self
         ).order_by("time")
+        positions = []
+        for position in positions_query_set:
+            positions.append(
+                {
+                    "time": position.time,
+                    "x": position.x,
+                    "y": position.y,
+                    "width": position.width,
+                    "height": position.height,
+                }
+            )
+        data["positions"] = positions
         return data
 
 

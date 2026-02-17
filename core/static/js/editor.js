@@ -383,43 +383,72 @@ export class Editor {
       if (this.typeOfAnnotationInFocus != "censor") {
         return;
       }
-      const annotationUpdateForm = document.getElementById("annotation-update-form");
-      const positionsEl = annotationUpdateForm.querySelector("#positions");
-      const positionsRawVal = positionsEl.value;
-      const positions = JSON.parse(positionsRawVal);
-      console.log(positions);
+      const positionsWrapper = document.getElementById("censor-positions-wrapper");
+      const positionEls = positionsWrapper.querySelectorAll(".position-entry");
+      const positions = [];
+      for (let positionEl of positionEls) {
+        positions.push({
+          "id": positionEl.dataset["positionId"],
+          "time": parseFloat(positionEl.querySelector(".position-time-input").value).toFixed(2),
+        });
+      }
       return positions;
     }
 
-    compareCensorPositions(posA, posB) {
-      // for compare functions, a negative number means that the first element in
-      // the argument list should come first, 0 means they are the same, and
-      // a positive number means the second elemnet in the argument should come first
-      return posA.time - posB.time;
+    async createCensorPosition(time, x, y, width, height) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      return await fetch("/censor-position/create", {
+        method: "POST",
+        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        body: JSON.stringify({time, x, y, width, height})
+      });
     }
 
-    createCensorPosition(x, y, width, height, time) {
-      const positions = this.getCensorPositions();
-      const newPosition = {x: x, y: y, width: width, height: height, time: parseFloat(time).toFixed(2)};
-      positions.push(newPosition);
-      const sortedPositions = positions.sort(this.compareCensorPositions);
-      const annotationUpdateForm = document.getElementById("annotation-update-form");
-      const positionsEl = annotationUpdateForm.querySelector("#positions");
-      positionsEl.innerText = JSON.stringify(sortedPositions);
+    async updateCensorPosition(annotationId, time, x, y, width, height) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      return await fetch("/censor-position/update", {
+        method: "POST",
+        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        body: JSON.stringify({annotation_id: annotationId, time, x, y, width, height})
+      });
     }
 
-    // updateCensorPosition(x, y, width, height, time) {
+    async deleteCensorPosition(annotationId) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      return await fetch(`/censor-position/delete/${annotationId}`, {
+        method: "DELETE",
+        headers: {"X-CSRFToken": csrfToken}
+      });
+    }
 
-    // }
-
-    handleCensorPositionClick(e) {
+    async handleCensorPositionClick(e) {
       // const boxDim = e.target.getBoundingClientRect();
       const x = e.layerX;
       const y = e.layerY;
       const width = 200;
       const height = 150;
-      const time = Number.parseFloat(this.video.currentTime).toFixed(2);
-      this.createCensorPosition(x, y, width, height, time);
+      const time = parseFloat(this.video.currentTime).toFixed(2);
+
+      const itemForm = document.getElementById("existing-item-form");
+      const annotationId = itemForm.dataset["annotationid"];
+
+      const currentPositions = this.getCensorPositions();
+      const existingPosition = currentPositions.find(position => Math.abs(position.time - time) < 0.01);
+
+      let response;
+      if (existingPosition?.id) {
+        response = await this.updateCensorPosition(existingPosition.id, time, x, y, width, height)
+      }
+      else {
+        response = await this.createCensorPosition(time, x, y, width, height)
+      }
+
+      if (!response.ok) {
+        console.error("Failed to save censor position");
+        return;
+      }
+
+      await this.getItemFormDetails("censor", annotationId, this.contentId);
     }
 
     handleFocusChangeToCensorType() {
@@ -503,8 +532,9 @@ export class Editor {
         body: requestBody
       });
 
-      if (response.status != 200) {
+      if (!response.ok) {
         console.error("An error occurred while updating an annotation");
+        return false;
       }
 
       const responseData = await response.json();

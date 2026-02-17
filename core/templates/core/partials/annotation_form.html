@@ -52,12 +52,6 @@
                 <option value="w" {% if instance.type == 'w' %}selected{% endif %}>White</option>
             </select>
         </div>
-        {% elif item_type == 'censor' %}
-        <div class="form-group">
-            <label for="positions">Positions (JSON):</label>
-            <textarea id="positions" name="positions" {% if not can_edit %}readonly{% endif %}>{{ instance.positions|safe }}</textarea>
-            <p class="help-text">Position data managed via drag interface</p>
-        </div>
         {% endif %}
 
         <div class="form-group">
@@ -100,5 +94,38 @@
         </div>
         {% endif %}
     </form>
+    {% if item_type == 'censor' %}
+    <div id="censor-positions-wrapper">
+        <h4>Positions</h4>
+        {% for position in item_positions %}
+        <div id="positions-list">
+            <h5 for="position-{{counter0}}">Position {{counter1}}</h5>
+            <input class="position-id-input" hidden value="{{position.pk}}">
+            <div>
+                <div class="position-input-group">
+                    <label for="position-time">Time (s):</label>
+                    <input class="position-time-input" name="position-time" type="text">
+                </div>
+                <div class="position-input-group">
+                    <label for="position-x">X:</label>
+                    <input class="position-x-input" name="position-x" type="text">
+                </div>
+                <div class="position-input-group">
+                    <label for="position-y">Y:</label>
+                    <input class="position-y-input" name="position-y" type="text">
+                </div>
+                <div class="position-input-group">
+                    <label for="position-width">Width:</label>
+                    <input class="position-width-input" name="position-width" type="text">
+                </div>
+                <div class="position-input-group">
+                    <label for="position-height">Height:</label>
+                    <input class="position-height-input" name="position-height" type="text">
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 <script type="module" src="{% static 'js/annotationForm.js' %}"></script>
