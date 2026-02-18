@@ -176,9 +176,19 @@ urlpatterns = [
         name="update_annotation",
     ),
     path(
-        "annotations/<str:annotation_type>/<int:annotation_id>/delete/",
+        "annotations/<str:annotation_type>/<int:annotation_id>/delete",
         views_video_editor.delete_annotation,
         name="delete_annotation",
+    ),
+    path(
+        "annotations/censor-position/update",
+        views_video_editor.update_censor_position,
+        name="update_censor_annotation",
+    ),
+    path(
+        "annotations/censor-position/create",
+        views_video_editor.create_censor_position,
+        name="create_censor_annotation",
     ),
     path(
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",

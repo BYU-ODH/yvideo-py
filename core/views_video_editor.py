@@ -35,6 +35,7 @@ ANNOTATION_MODELS = {
     "blank": BlankAnnotation,
     "pause": PauseAnnotation,
     "censor": BlurAnnotation,
+    "censor_position": BlurAnnotationPosition,
     "comment": CommentAnnotation,
 }
 
@@ -43,6 +44,8 @@ def build_annotation_layers(content, annotation_set, can_edit):
     layers = []
     layer_buttons = {}
     for type_name, model_class in ANNOTATION_MODELS.items():
+        if type_name == "censor_position":
+            continue
         layer_items = []
         if annotation_set:
             annotations = model_class.objects.filter(
@@ -581,7 +584,62 @@ def generate_annotation_updated_html(
     return {"item_html": item_html, "form_html": form_html}
 
 
-def update_or_create_censor_position(request):
+@require_POST
+def create_censor_position(request):
+    try:
+        parsed_body = json.loads(request.body)
+        parent_annotation_id = parsed_body["parent_annotation_id"]
+        position_time = parsed_body["time"]
+        position_x = parsed_body["x"]
+        position_y = parsed_body["y"]
+        position_width = parsed_body["width"]
+        position_height = parsed_body["height"]
+    except Exception as e:
+        logger.error(
+            f"Unable to parse data for updating or creating censor positions: {e}"
+        )
+        return HttpResponseBadRequest()
+
+    if (
+        not parent_annotation_id
+        or not position_time
+        or not position_x
+        or not position_y
+        or not position_width
+        or not position_height
+    ):
+        return HttpResponseBadRequest()
+
+    # check if the position already
+    try:
+        num_of_pre_existing_objs = BlurAnnotationPosition.objects.filter(
+            blur_annotation__pk=parent_annotation_id, time=position_time
+        ).count()
+        if num_of_pre_existing_objs > 0:
+            return HttpResponse(status=200)
+    except Exception as e:
+        logger.error(f"Failed to query BlurAnnotationPositions. Exception: {e}")
+        return HttpResponseServerError()
+
+    try:
+        parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
+        BlurAnnotationPosition.objects.create(
+            blur_annotation=parent_annotation,
+            time=position_time,
+            x=position_x,
+            y=position_y,
+            width=position_width,
+            height=position_height,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
+        return HttpResponseServerError()
+
+    return HttpResponse(status=201)
+
+
+@require_POST
+def update_censor_position(request):
     try:
         parsed_body = json.loads(request.body)
         position_id = parsed_body["position_id"]
@@ -595,20 +653,7 @@ def update_or_create_censor_position(request):
             f"Unable to parse data for updating or creating censor positions: {e}"
         )
         return HttpResponseBadRequest()
-    # create a new BlurAnnotationPosition if one doesn't exist
-    if not position_id:
-        try:
-            new_blur_position = BlurAnnotationPosition.objects.create(
-                time=position_time,
-                x=position_x,
-                y=position_y,
-                height=position_height,
-                width=position_width,
-            )
-            return new_blur_position
-        except Exception as e:
-            logger.error(f"Unable to create new BlurAnnotationPosition object: {e}")
-            return HttpResponseServerError()
+
     # update the existing BlurAnnotationPosition
     else:
         try:
@@ -619,20 +664,10 @@ def update_or_create_censor_position(request):
             this_blur_position.height = position_height
             this_blur_position.width = position_width
             this_blur_position.save()
-            return this_blur_position
+            return HttpResponse(status=201)
         except Exception as e:
             logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
-
-
-def delete_censor_position(request):
-    try:
-        parsed_body = json.loads(request.body)
-        position_id = parsed_body["id"]
-        position_obj = BlurAnnotationPosition.objects.get(pk=position_id)
-        position_obj.delete()
-    except Exception as e:
-        logger.error(f"Unable to parse request for delete censor position: {e}")
-        return HttpResponseBadRequest()
+            return HttpResponseServerError()
 
 
 def update_annotation_from_form(request, annotation_type, annotation_id):

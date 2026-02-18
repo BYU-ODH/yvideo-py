@@ -395,27 +395,27 @@ export class Editor {
       return positions;
     }
 
-    async createCensorPosition(time, x, y, width, height) {
+    async createCensorPosition(parentCensorId, time, x, y, width, height) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch("/censor-position/create", {
+      return await fetch("/annotations/censor-position/create", {
         method: "POST",
         headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
-        body: JSON.stringify({time, x, y, width, height})
+        body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
     }
 
-    async updateCensorPosition(annotationId, time, x, y, width, height) {
+    async updateCensorPosition(positionId, time, x, y, width, height) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch("/censor-position/update", {
+      return await fetch("/annotations/censor-position/update", {
         method: "POST",
         headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
-        body: JSON.stringify({annotation_id: annotationId, time, x, y, width, height})
+        body: JSON.stringify({position_id: positionId, time, x, y, width, height})
       });
     }
 
     async deleteCensorPosition(annotationId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch(`/censor-position/delete/${annotationId}`, {
+      return await fetch(`/annotations/censor_position/${annotationId}/delete`, {
         method: "DELETE",
         headers: {"X-CSRFToken": csrfToken}
       });
@@ -440,7 +440,7 @@ export class Editor {
         response = await this.updateCensorPosition(existingPosition.id, time, x, y, width, height)
       }
       else {
-        response = await this.createCensorPosition(time, x, y, width, height)
+        response = await this.createCensorPosition(annotationId, time, x, y, width, height)
       }
 
       if (!response.ok) {
@@ -448,7 +448,9 @@ export class Editor {
         return;
       }
 
-      await this.getItemFormDetails("censor", annotationId, this.contentId);
+      if (response.status == 201) {
+        await this.getItemFormDetails("censor", annotationId, this.contentId);
+      }
     }
 
     handleFocusChangeToCensorType() {
