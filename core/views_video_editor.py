@@ -584,6 +584,31 @@ def generate_annotation_updated_html(
     return {"item_html": item_html, "form_html": form_html}
 
 
+def generate_censor_positions_html(parent_annotation_id):
+    try:
+        parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
+    except Exception as e:
+        logger.error(
+            f"Failed to get parent_annoation while updateing censor positions html. Exception: {e}"
+        )
+        return False
+
+    try:
+        censor_positions = list(
+            BlurAnnotationPosition.objects.filter(
+                blur_annotation=parent_annotation
+            ).order_by("time")
+        )
+        censor_positions_html = render_to_string(
+            "partials/censor_positions.html", {"item_positions": censor_positions}
+        )
+        return censor_positions_html
+
+    except Exception as e:
+        logger.error(f"Failed to generate censor_postion html. Exception: {e}")
+        return False
+
+
 @require_POST
 def create_censor_position(request):
     try:
@@ -610,7 +635,7 @@ def create_censor_position(request):
     ):
         return HttpResponseBadRequest()
 
-    # check if the position already
+    # check if the position already exists
     try:
         num_of_pre_existing_objs = BlurAnnotationPosition.objects.filter(
             blur_annotation__pk=parent_annotation_id, time=position_time
@@ -635,7 +660,10 @@ def create_censor_position(request):
         logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
         return HttpResponseServerError()
 
-    return HttpResponse(status=201)
+    censor_position_html = generate_censor_positions_html(parent_annotation_id)
+    if censor_position_html == False:
+        return HttpResponseServerError()
+    return HttpResponse(censor_position_html, status=201)
 
 
 @require_POST
@@ -664,7 +692,12 @@ def update_censor_position(request):
             this_blur_position.height = position_height
             this_blur_position.width = position_width
             this_blur_position.save()
-            return HttpResponse(status=201)
+            censor_position_html = generate_censor_positions_html(
+                this_blur_position.blur_annotation.pk
+            )
+            if censor_position_html == False:
+                return HttpResponseServerError()
+            return HttpResponse(censor_position_html, status=201)
         except Exception as e:
             logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
             return HttpResponseServerError()
@@ -801,12 +834,32 @@ def delete_annotation(request, annotation_type, annotation_id):
     if not annotation.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
+    # if we have a censor position annotation, we need the parent so we can update
+    # the front end form's position elements
+    try:
+        if annotation_type == "censor_position":
+            blur_annotation_parent = annotation.blur_annotation
+    except Exception as e:
+        logger.error(
+            f"Failed to get blur annotation parent while deleting annotation. Exception: {e}"
+        )
+        blur_annotation_parent = False
+
     # Use delete_with_history() to preserve undo capability
     try:
         annotation.delete_with_history()
     except Exception as e:
         logger.error(f"Exception occurred while deleting annotation: {e}")
         return HttpResponseServerError()
+
+    if annotation_type == "censor_position":
+        if not blur_annotation_parent:
+            return HttpResponse(status=205)
+        else:
+            censor_position_html = generate_censor_positions_html(
+                blur_annotation_parent.pk
+            )
+            return HttpReponse(censor_position_html, status=200)
 
     return HttpResponse(status=200)
 

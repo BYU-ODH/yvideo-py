@@ -395,30 +395,63 @@ export class Editor {
       return positions;
     }
 
+    placeNewCensorPositionHtml(censor_parent_id, html) {
+      const annotationUpdateForm = document.getElementById("existing-item-form");
+      const currentFormId = annotationUpdateForm.dataset["annotationid"];
+      const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
+      // don't do anything if the user has moved onto a different item
+      if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
+        return;
+      }
+      censorPositionWrapperEl.outerHTML = html;
+      return;
+    }
+
     async createCensorPosition(parentCensorId, time, x, y, width, height) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch("/annotations/censor-position/create", {
+      const response = await fetch("/annotations/censor-position/create", {
         method: "POST",
         headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
         body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
+      if (response.status == 201) {
+        const responseHtml = await response.text();
+        this.placeNewCensorPositionHtml(parentCensorId, responseHtml)
+      }
+      else if (!response.ok) {
+        console.error("Failed to create censor position");
+      }
     }
 
-    async updateCensorPosition(positionId, time, x, y, width, height) {
+    async updateCensorPosition(positionId, time, x, y, width, height, parentAnnotationId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch("/annotations/censor-position/update", {
+      const response = await fetch("/annotations/censor-position/update", {
         method: "POST",
         headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
         body: JSON.stringify({position_id: positionId, time, x, y, width, height})
       });
+      if (response.status == 201) {
+        const responseHtml = await response.text();
+        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml)
+      }
+      else {
+        console.error("Failed to update censor position");
+      }
     }
 
-    async deleteCensorPosition(annotationId) {
+    async deleteCensorPosition(annotationId, parentAnnotationId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch(`/annotations/censor_position/${annotationId}/delete`, {
+      const response = await fetch(`/annotations/censor_position/${annotationId}/delete`, {
         method: "DELETE",
         headers: {"X-CSRFToken": csrfToken}
       });
+      if (response.status == 200) {
+        const responseHtml = await response.text();
+        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml);
+      }
+      else if (!response.ok) {
+        console.error("Failed to delete censor position");
+      }
     }
 
     async handleCensorPositionClick(e) {
@@ -435,21 +468,11 @@ export class Editor {
       const currentPositions = this.getCensorPositions();
       const existingPosition = currentPositions.find(position => Math.abs(position.time - time) < 0.01);
 
-      let response;
       if (existingPosition?.id) {
-        response = await this.updateCensorPosition(existingPosition.id, time, x, y, width, height)
+        await this.updateCensorPosition(existingPosition.id, time, x, y, width, height, annotationId)
       }
       else {
-        response = await this.createCensorPosition(annotationId, time, x, y, width, height)
-      }
-
-      if (!response.ok) {
-        console.error("Failed to save censor position");
-        return;
-      }
-
-      if (response.status == 201) {
-        await this.getItemFormDetails("censor", annotationId, this.contentId);
+        await this.createCensorPosition(annotationId, time, x, y, width, height)
       }
     }
 
