@@ -583,8 +583,17 @@ export class Editor {
         }
 
         const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
+        if (isNaN(leftAsDecimal)) {
+          console.error(`Unable to parse item's left position: ${item.style.left}`);
+          return;
+        }
         const newStartTime = leftAsDecimal * this.duration;
-        const newEndTime = (leftAsDecimal + convertPercentStringToDecimal(item.style.width)) * this.duration;
+        const widthAsDecimal = convertPercentStringToDecimal(item.style.width)
+        if (isNaN(widthAsDecimal)) {
+          console.error(`Unable to parse item's width: ${item.style.width}`);
+          return;
+        }
+        const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
         this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true);
     }
 
