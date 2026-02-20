@@ -1,7 +1,7 @@
 <div id="censor-positions-wrapper">
     <h4>Positions</h4>
-    {% for position in item_positions %}
     <div id="positions-list">
+    {% for position in item_positions %}
         <h5>Position {{forloop.counter}}</h5>
         <div class="position-entry" data-position-id="{{position.pk}}">
             <div class="position-input-group">
@@ -25,6 +25,6 @@
                 <input class="position-height-input" name="position-height" type="text" value="{{position.height}}">
             </div>
         </div>
-    </div>
     {% endfor %}
+    </div>
 </div>
