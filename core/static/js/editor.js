@@ -407,7 +407,10 @@ export class Editor {
       return;
     }
 
-    async createCensorPosition(parentCensorId, time, x, y, width, height) {
+    async createCensorPosition(parentCensorId, time, x, y, width, height, parentStartTime, parentEndTime) {
+      if (parseFloat(parentStartTime) > parseFloat(time) || parseFloat(parentEndTime) < parseFloat(time)) {
+        return;
+      }
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch("/annotations/censor-position/create", {
         method: "POST",
@@ -472,7 +475,11 @@ export class Editor {
         await this.updateCensorPosition(existingPosition.id, time, x, y, width, height, annotationId)
       }
       else {
-        await this.createCensorPosition(annotationId, time, x, y, width, height)
+        const startTimeEl = document.getElementById("start_time");
+        const parentStartTime = parseFloat(startTimeEl.value).toFixed(2);
+        const endTimeEl = document.getElementById("end_time");
+        const parentEndTime = parseFloat(endTimeEl.value).toFixed(2);
+        await this.createCensorPosition(annotationId, time, x, y, width, height, parentStartTime, parentEndTime)
       }
     }
 

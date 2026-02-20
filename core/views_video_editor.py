@@ -622,6 +622,14 @@ def create_censor_position(request):
 
     try:
         parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
+        if parent_annotation.end_time < round(float(position_time), 2):
+            return HttpResponseBadRequest(
+                "New censor position cannot occur at a time greater than the blur annotation's end time"
+            )
+        elif parent_annotation.start_time > round(float(position_time), 2):
+            return HttpResponseBadRequest(
+                "New censor position cannot occur before the start time of the parent censor annotation"
+            )
         BlurAnnotationPosition.objects.create(
             blur_annotation=parent_annotation,
             time=position_time,
