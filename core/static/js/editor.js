@@ -404,6 +404,7 @@ export class Editor {
         return;
       }
       censorPositionWrapperEl.outerHTML = html;
+      this.setUpCensorPositionDeleteListeners(censor_parent_id)
       return;
     }
 
@@ -442,9 +443,9 @@ export class Editor {
       }
     }
 
-    async deleteCensorPosition(annotationId, parentAnnotationId) {
+    async deleteCensorPosition(parentAnnotationId, positionId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const response = await fetch(`/annotations/censor_position/${annotationId}/delete`, {
+      const response = await fetch(`/annotations/censor-position/delete/${positionId}`, {
         method: "DELETE",
         headers: {"X-CSRFToken": csrfToken}
       });
@@ -648,12 +649,25 @@ export class Editor {
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
+    setUpCensorPositionDeleteListeners(parentAnnotationId) {
+      const buttons = document.getElementsByClassName("censor-position-delete-button");
+      for (let button of buttons) {
+        const buttonParent = button.parentElement;
+        const positionId = buttonParent.dataset["positionId"];
+        async function deleteCensor() {
+          await this.deleteCensorPosition(parentAnnotationId, positionId)
+        }
+        button.addEventListener("click", deleteCensor.bind(this))
+      }
+    }
+
     async getItemFormDetails(annotationType, annotationId, contentId) {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
         method: "GET"
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
+      this.setUpCensorPositionDeleteListeners(annotationId);
     }
 
     addClickListenerToLayerItem(item) {

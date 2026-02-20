@@ -35,7 +35,6 @@ ANNOTATION_MODELS = {
     "blank": BlankAnnotation,
     "pause": PauseAnnotation,
     "censor": BlurAnnotation,
-    "censor_position": BlurAnnotationPosition,
     "comment": CommentAnnotation,
 }
 
@@ -44,8 +43,6 @@ def build_annotation_layers(content, annotation_set, can_edit):
     layers = []
     layer_buttons = {}
     for type_name, model_class in ANNOTATION_MODELS.items():
-        if type_name == "censor_position":
-            continue
         layer_items = []
         if annotation_set:
             annotations = model_class.objects.filter(
@@ -685,6 +682,33 @@ def update_censor_position(request):
             return HttpResponseServerError()
 
 
+def delete_censor_position(request, position_id):
+    try:
+        position = BlurAnnotationPosition.objects.get(pk=position_id)
+        # I know this looks dumb, but if i used position.blur_annotation to get the parent,
+        # the reference to that parent is deleted once position is deleted. I do this to
+        # allow for access to the parent after the position is deleted
+        blur_annotation_parent = BlurAnnotation.objects.get(
+            pk=position.blur_annotation.pk
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to get blur annotation parent while deleting annotation. Exception: {e}"
+        )
+
+    try:
+        position.delete()
+    except Exception as e:
+        logger.error(f"Failed to delete blur position. Exception: {e}")
+        return HttpResponseServerError()
+
+    if not blur_annotation_parent:
+        return HttpResponse(status=205)
+    else:
+        censor_position_html = generate_censor_positions_html(blur_annotation_parent.pk)
+        return HttpResponse(censor_position_html, status=200)
+
+
 def generate_annotation_updated_html(
     request, content, annotation, annotation_type, position
 ):
@@ -857,32 +881,12 @@ def delete_annotation(request, annotation_type, annotation_id):
     if not annotation.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
-    # if we have a censor position annotation, we need the parent so we can update
-    # the front end form's position elements
-    try:
-        if annotation_type == "censor_position":
-            blur_annotation_parent = annotation.blur_annotation
-    except Exception as e:
-        logger.error(
-            f"Failed to get blur annotation parent while deleting annotation. Exception: {e}"
-        )
-        blur_annotation_parent = False
-
     # Use delete_with_history() to preserve undo capability
     try:
         annotation.delete_with_history()
     except Exception as e:
         logger.error(f"Exception occurred while deleting annotation: {e}")
         return HttpResponseServerError()
-
-    if annotation_type == "censor_position":
-        if not blur_annotation_parent:
-            return HttpResponse(status=205)
-        else:
-            censor_position_html = generate_censor_positions_html(
-                blur_annotation_parent.pk
-            )
-            return HttpReponse(censor_position_html, status=200)
 
     return HttpResponse(status=200)
 
