@@ -459,11 +459,11 @@ export class Editor {
     }
 
     async handleCensorPositionClick(e) {
-      // const boxDim = e.target.getBoundingClientRect();
-      const x = e.layerX;
-      const y = e.layerY;
-      const width = 200;
-      const height = 150;
+      const annotationBoxDim = e.target.getBoundingClientRect();
+      const x = e.layerX / annotationBoxDim.width * 100;
+      const y = e.layerY / annotationBoxDim.height * 100;
+      const width = Math.min(100 - x, 4);
+      const height = Math.min(100 - y, 3);
       const time = parseFloat(this.video.currentTime).toFixed(2);
 
       const itemForm = document.getElementById("existing-item-form");
