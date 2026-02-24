@@ -823,9 +823,9 @@ class BlurAnnotation(BaseAnnotation):
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        positions_query_set = BlurAnnotationPosition.objects.filter(
-            blur_annotation=self
-        ).order_by("time")
+        positions_query_set = list(
+            BlurAnnotationPosition.objects.filter(blur_annotation=self).order_by("time")
+        )
         positions = []
         for position in positions_query_set:
             positions.append(
@@ -835,9 +835,12 @@ class BlurAnnotation(BaseAnnotation):
                     "y": position.y,
                     "width": position.width,
                     "height": position.height,
+                    "blur_amount": position.blur_amount,
+                    "type": position.type,
                 }
             )
         data["positions"] = positions
+        data["type"] = "censor"
         return data
 
 
@@ -846,10 +849,12 @@ class BlurAnnotationPosition(models.Model):
         BlurAnnotation, on_delete=models.CASCADE, null=False, blank=False
     )
     time = models.FloatField(null=False, blank=False)
-    x = models.IntegerField(null=False, blank=False)
-    y = models.IntegerField(null=False, blank=False)
-    width = models.IntegerField(null=False, blank=False)
-    height = models.IntegerField(null=False, blank=False)
+    x = models.FloatField(null=False, blank=False)
+    y = models.FloatField(null=False, blank=False)
+    width = models.FloatField(null=False, blank=False)
+    height = models.FloatField(null=False, blank=False)
+    blur_amount = models.IntegerField(null=False, blank=False, default=60)
+    type = models.TextField(null=False, blank=False, default="blur")
 
     @classmethod
     def validate(cls, data_dict):
