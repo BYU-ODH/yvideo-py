@@ -746,11 +746,28 @@ export class AnnotationPlayer {
               }
               return desiredPosition;
             }
+
+            function buildSizeEditPoints(censorPositionElement) {
+              const points = [];
+              for (let i = 0; i < 4; i++) {
+                const newPoint = document.createElement("div");
+                newPoint.className = "censor-position-adjustment-point";
+                points.push(newPoint);
+              }
+              points[0].className = points[0].className += " top-left-point";
+              points[1].className = points[1].className += " top-right-point";
+              points[2].className = points[2].className += " bottom-left-point";
+              points[3].className = points[3].className += " bottom-right-point";
+              for (let point of points) {
+                censorPositionElement.appendChild(point);
+              }
+            }
+
             if (!this.annotationBox.querySelector("#censor" + i)) {
               const firstPosition = aPositions[0];
               const censor = document.createElement("div");
               censor.id = "censor" + i;
-              censor.className = "censor " + firstPosition["type"];
+              censor.className = "censor-position " + firstPosition["type"];
               censor.style.position = "absolute";
               censor.style.width =  firstPosition["width"] + "%";
               censor.style.height = firstPosition["height"] + "%";
@@ -763,6 +780,7 @@ export class AnnotationPlayer {
                 censor.style.backdropFilter =
                   "blur(" + firstPosition["blur_amount"] + ")";
               }
+              buildSizeEditPoints(censor);
               this.annotationBox.appendChild(censor);
             } else {
               const censor = this.annotationBox.querySelector(
