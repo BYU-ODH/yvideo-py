@@ -151,11 +151,19 @@
     pointer-events: auto;
 }
 
+.censor-position:hover {
+    cursor: move;
+}
+
+.censor-position .dragging {
+    cursor: grabbing;
+}
+
 .censor-position-adjustment-point {
     border-radius: 50%;
     height: var(--position-point-size);
     width: var(--position-point-size);
-    visibility: hidden;
+    display: none;
     background-color: rgba(255, 255, 255, 0);
     position: absolute;
     box-sizing: border-box;
@@ -182,6 +190,14 @@
     left: calc(100% - var(--position-point-offset));
 }
 
+.censor-position-adjustment-point:hover {
+    background-color: rgba(255, 255, 255, 0.33);
+}
+
+.censor-position-adjustment-point .dragging {
+    background-color: rgba(255, 255, 255, 0.66);
+}
+
 .top-left-point:hover, .bottom-right-point:hover {
     cursor: nwse-resize;
 }
@@ -191,7 +207,7 @@
 }
 
 .annotation-box-censor-editor .censor-position-adjustment-point {
-    visibility: visible;
+    display: block;
 }
 
 /* Video Controls */

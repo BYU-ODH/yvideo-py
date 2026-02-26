@@ -17,6 +17,8 @@ export class Editor {
         this.contentId = null;
         this.listenForNewItemCreation();
         this.typeOfAnnotationInFocus = null;
+        this.annotationIdInFocus = null;
+        this.activeCensorPosition = null;
 
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
@@ -486,18 +488,88 @@ export class Editor {
       }
     }
 
+    handleCensorPointerDown(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const censorEl = e.currentTarget;
+      const censorLeftStart = censorEl.style.left;
+      const censorTopStart = censorEl.style.top;
+      const censorPointerId = e.pointerId;
+      censorEl.setPointerCapture(censorPointerId);
+      const annotationBox = document.getElementById("annotation-box");
+      const boxRect = annotationBox.getBoundingClientRect();
+      const widthPercent = parseFloat(censorEl.style.width);
+      const heightPercent = parseFloat(censorEl.style.height);
+
+      function handleCensorMove(event) {
+        const xPercent = (event.clientX - boxRect.left) / boxRect.width * 100;
+        const yPercent = (event.clientY - boxRect.top) / boxRect.height * 100;
+        censorEl.style.left = `${Math.max(0, Math.min(100 - widthPercent, xPercent - widthPercent / 2))}%`;
+        censorEl.style.top = `${Math.max(0, Math.min(100 - heightPercent, yPercent - heightPercent / 2))}%`;
+      }
+
+      function onPointerUp(upEvent) {
+        handleCleanup();
+        handleCensorMove(upEvent);
+      }
+
+      function handleMoveCancel() {
+        handleCleanup();
+        censorEl.style.left = censorLeftStart;
+        censorEl.style.top = censorTopStart;
+      }
+
+      function handleEscKeyPress(keyupEvent) {
+        if (keyupEvent.defaultPrevented) {
+          return;
+        }
+
+        if (keyupEvent.key == "Escape") {
+          handleMoveCancel();
+        }
+      }
+
+      function handleCleanup() {
+        censorEl.releasePointerCapture(censorPointerId);
+        censorEl.removeEventListener('pointermove', handleCensorMove);
+        censorEl.removeEventListener('pointerup', onPointerUp);
+        censorEl.removeEventListener('pointercancel', handleMoveCancel);
+        document.removeEventListener("keyup", handleEscKeyPress);
+      }
+
+      censorEl.addEventListener('pointermove', handleCensorMove);
+      censorEl.addEventListener('pointerup', onPointerUp);
+      censorEl.addEventListener('pointercancel', handleMoveCancel);
+      document.addEventListener("keyup", handleEscKeyPress);
+    }
+
+
     handleFocusChangeToCensorType() {
       this.annotationBox.className = "annotation-box annotation-box-censor-editor";
       this.annotationBoxCensorListener = this.handleCensorPositionClick.bind(this);
       this.annotationBox.addEventListener("click", this.annotationBoxCensorListener);
+      const censorPositions = document.getElementsByClassName("censor-position");
+      for (let position of censorPositions) {
+        if (position.dataset["censorPositionParentId"] == this.annotationIdInFocus) {
+          this.activeCensorPosition = position;
+          break;
+        }
+      }
+      if (this.activeCensorPosition) {
+        this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown);
+      }
     }
 
     handleFocusChangeAwayFromCensorType() {
       this.annotationBox.removeEventListener("click", this.annotationBoxCensorListener);
       this.annotationBox.className = "annotation-box";
+      if (this.activeCensorPosition) {
+        this.activeCensorPosition.removeEventListener("pointerdown", this.handleCensorPointerDown);
+      }
+      this.activeCensorPosition = null;
     }
 
-    changeTypeOfAnnotationInFocus() {
+    changeAnnotationInFocus() {
       const previousTypeInFocus = this.typeOfAnnotationInFocus;
       const itemForm = document.getElementById("existing-item-form");
       if (itemForm == null) {
@@ -506,6 +578,7 @@ export class Editor {
       }
 
       this.typeOfAnnotationInFocus = itemForm.dataset["itemtype"];
+      this.annotationIdInFocus = itemForm.dataset["annotationid"];
 
       if (this.typeOfAnnotationInFocus == "censor" && previousTypeInFocus != "censor") {
         this.handleFocusChangeToCensorType();
@@ -520,7 +593,7 @@ export class Editor {
         if (mutation.type == "childList") {
           this.listenForItemUpdateFormSubmission();
           this.setUpItemDeleteButton();
-          this.changeTypeOfAnnotationInFocus();
+          this.changeAnnotationInFocus();
         }
       }
     }

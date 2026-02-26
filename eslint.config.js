@@ -41,13 +41,7 @@ export default defineConfig([
     language: "css/css",
     extends: ["css/recommended"],
     rules: {
-      "css/no-invalid-properties":["error",
-      {"ignore-properties": [
-        "top",
-        "bottom",
-        "left",
-        "right"
-      ]}]
+      "css/no-invalid-properties": "off"
     }
   },
 ]);

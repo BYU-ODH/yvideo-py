@@ -839,8 +839,7 @@ class BlurAnnotation(BaseAnnotation):
                     "type": position.type,
                 }
             )
-        data["positions"] = positions
-        data["type"] = "censor"
+        data.update({"positions": positions, "type": "censor"})
         return data
 
 

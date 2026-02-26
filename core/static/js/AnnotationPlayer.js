@@ -37,6 +37,7 @@ export class AnnotationPlayer {
     if (!this.annotationBox) {
       this.annotationBox = document.createElement('div');
       this.annotationBox.className = 'annotation-box';
+      this.annotationBox.id = "annotation-box";
       this.videoWrapper.appendChild(this.annotationBox);
     }
     this.messageIsShowing = false;
@@ -388,7 +389,8 @@ export class AnnotationPlayer {
         type: anno.type,
         message: anno.message || "",
         details: anno.details || {},
-        positions: anno.positions || []
+        positions: anno.positions || [],
+        id: anno.id
       });
     }
     return annotations;
@@ -655,9 +657,7 @@ export class AnnotationPlayer {
       let aStart = a["start"];
       let aEnd = a["end"];
       let aType = a["type"];
-      console.log(a);
       let aPositions = a["positions"];
-      console.log(aType);
       switch (aType) {
         case "skip":
           if (time >= aStart && time < aEnd) {
@@ -752,6 +752,7 @@ export class AnnotationPlayer {
               for (let i = 0; i < 4; i++) {
                 const newPoint = document.createElement("div");
                 newPoint.className = "censor-position-adjustment-point";
+                newPoint.draggable = "true";
                 points.push(newPoint);
               }
               points[0].className = points[0].className += " top-left-point";
@@ -766,6 +767,7 @@ export class AnnotationPlayer {
             if (!this.annotationBox.querySelector("#censor" + i)) {
               const firstPosition = aPositions[0];
               const censor = document.createElement("div");
+              censor.dataset["censorPositionParentId"] = a.id;
               censor.id = "censor" + i;
               censor.className = "censor-position " + firstPosition["type"];
               censor.style.position = "absolute";
