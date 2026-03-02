@@ -423,6 +423,7 @@ export class AnnotationPlayer {
     }
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
+    this.applyAnnotations();
 
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
