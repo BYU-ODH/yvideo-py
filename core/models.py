@@ -830,6 +830,7 @@ class BlurAnnotation(BaseAnnotation):
         for position in positions_query_set:
             positions.append(
                 {
+                    "id": position.pk,
                     "time": position.time,
                     "x": position.x,
                     "y": position.y,

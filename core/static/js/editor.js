@@ -407,6 +407,7 @@ export class Editor {
       }
       censorPositionWrapperEl.outerHTML = html;
       this.setUpCensorPositionDeleteListeners(censor_parent_id)
+      this.setupCensorPositionSeekListeners();
       return;
     }
 
@@ -460,7 +461,10 @@ export class Editor {
       }
     }
 
-    async handleCensorPositionClick(e) {
+    async handleCensorAnnotationBoxClick(e) {
+      if (e.target.className.includes("censor-position")) {
+        return;
+      }
       const annotationBoxDim = e.target.getBoundingClientRect();
       let x = e.layerX / annotationBoxDim.width * 100;
       let y = e.layerY / annotationBoxDim.height * 100;
@@ -508,9 +512,15 @@ export class Editor {
         censorEl.style.top = `${Math.max(0, Math.min(100 - heightPercent, yPercent - heightPercent / 2))}%`;
       }
 
-      function onPointerUp(upEvent) {
-        handleCleanup();
+      async function onPointerUp(upEvent) {
         handleCensorMove(upEvent);
+        const positionEl = upEvent.target;
+        const censorPositionId = positionEl.dataset["censorPositionId"];
+        const parentCensorId = positionEl.dataset["censorPositionParentId"];
+        const newX = (upEvent.clientX - boxRect.left) / boxRect.width * 100;
+        const newY = (upEvent.clientY - boxRect.top) / boxRect.height * 100;
+        await this.updateCensorPosition(censorPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentCensorId);
+        handleCleanup();
       }
 
       function handleMoveCancel() {
@@ -529,16 +539,18 @@ export class Editor {
         }
       }
 
+      const pointerUpCallback = onPointerUp.bind(this);
+
       function handleCleanup() {
         censorEl.releasePointerCapture(censorPointerId);
         censorEl.removeEventListener('pointermove', handleCensorMove);
-        censorEl.removeEventListener('pointerup', onPointerUp);
+        censorEl.removeEventListener('pointerup', pointerUpCallback);
         censorEl.removeEventListener('pointercancel', handleMoveCancel);
         document.removeEventListener("keyup", handleEscKeyPress);
       }
 
       censorEl.addEventListener('pointermove', handleCensorMove);
-      censorEl.addEventListener('pointerup', onPointerUp);
+      censorEl.addEventListener('pointerup', pointerUpCallback);
       censorEl.addEventListener('pointercancel', handleMoveCancel);
       document.addEventListener("keyup", handleEscKeyPress);
     }
@@ -546,7 +558,7 @@ export class Editor {
 
     handleFocusChangeToCensorType() {
       this.annotationBox.className = "annotation-box annotation-box-censor-editor";
-      this.annotationBoxCensorListener = this.handleCensorPositionClick.bind(this);
+      this.annotationBoxCensorListener = this.handleCensorAnnotationBoxClick.bind(this);
       this.annotationBox.addEventListener("click", this.annotationBoxCensorListener);
       const censorPositions = document.getElementsByClassName("censor-position");
       for (let position of censorPositions) {
@@ -556,7 +568,7 @@ export class Editor {
         }
       }
       if (this.activeCensorPosition) {
-        this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown);
+        this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown.bind(this));
       }
     }
 
@@ -724,6 +736,16 @@ export class Editor {
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
+    setupCensorPositionSeekListeners() {
+      const handler = (clickEvent) => {
+        this.video.currentTime = clickEvent.target.parentElement.querySelector(".position-time-input").value;
+      }
+      const buttons = document.getElementsByClassName("censor-position-seek-button");
+      for (let button of buttons) {
+        button.addEventListener("click", handler);
+      }
+    }
+
     setUpCensorPositionDeleteListeners(parentAnnotationId) {
       const buttons = document.getElementsByClassName("censor-position-delete-button");
       for (let button of buttons) {
@@ -743,6 +765,7 @@ export class Editor {
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
       this.setUpCensorPositionDeleteListeners(annotationId);
+      this.setupCensorPositionSeekListeners();
     }
 
     addClickListenerToLayerItem(item) {
