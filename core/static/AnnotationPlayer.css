@@ -144,7 +144,7 @@
 }
 
 .annotation-box .censor-position.blur {
-  backdrop-filter: blur(10px);  /* eslint-disable-line css/use-baseline */
+  backdrop-filter: blur(80px);  /* eslint-disable-line css/use-baseline */
 }
 
 .annotation-box-censor-editor {

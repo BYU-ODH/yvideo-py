@@ -568,24 +568,114 @@ export class Editor {
         }
       }
       if (this.activeCensorPosition) {
-        function buildSizeEditPoints(censorPositionElement) {
-          const points = [];
-          for (let i = 0; i < 4; i++) {
-            const newPoint = document.createElement("div");
-            newPoint.className = "censor-position-adjustment-point";
-            newPoint.draggable = "true";
-            points.push(newPoint);
-          }
-          points[0].className = points[0].className += " top-left-point";
-          points[1].className = points[1].className += " top-right-point";
-          points[2].className = points[2].className += " bottom-left-point";
-          points[3].className = points[3].className += " bottom-right-point";
-          for (let point of points) {
+        function buildSizeEditPoints(censorPositionElement, editor) {
+          const MIN_SIZE = 3; // minimum percent size
+          const annotationBox = document.getElementById("annotation-box");
+          const cornerData = [
+            { cls: "top-left-point",     movesLeft: true,  movesTop: true  },
+            { cls: "top-right-point",    movesLeft: false, movesTop: true  },
+            { cls: "bottom-left-point",  movesLeft: true,  movesTop: false },
+            { cls: "bottom-right-point", movesLeft: false, movesTop: false },
+          ];
+
+          for (const { cls, movesLeft, movesTop } of cornerData) {
+            const point = document.createElement("div");
+            point.className = `censor-position-adjustment-point ${cls}`;
+
+            point.addEventListener("pointerdown", function(ptrDownEvent) {
+              ptrDownEvent.stopPropagation();
+              ptrDownEvent.preventDefault();
+              point.setPointerCapture(ptrDownEvent.pointerId);
+
+              const boxRect = annotationBox.getBoundingClientRect();
+              const startLeft = censorPositionElement.style.left;
+              const startTop = censorPositionElement.style.top;
+              const startWidth = censorPositionElement.style.width;
+              const startHeight = censorPositionElement.style.height;
+              let resizeCancelled = false;
+
+              function onMove(ptrMoveEvent) {
+                const newX = (ptrMoveEvent.clientX - boxRect.left) / boxRect.width * 100;
+                const newY = (ptrMoveEvent.clientY - boxRect.top) / boxRect.height * 100;
+                const curLeft = parseFloat(censorPositionElement.style.left);
+                const curTop = parseFloat(censorPositionElement.style.top);
+                const curWidth = parseFloat(censorPositionElement.style.width);
+                const curHeight = parseFloat(censorPositionElement.style.height);
+                const fixedRight = curLeft + curWidth;
+                const fixedBottom = curTop + curHeight;
+
+                if (movesLeft) {
+                  const newLeft = Math.max(0, Math.min(newX, fixedRight - MIN_SIZE));
+                  censorPositionElement.style.left = `${newLeft}%`;
+                  censorPositionElement.style.width = `${fixedRight - newLeft}%`;
+                } else {
+                  censorPositionElement.style.width = `${Math.max(MIN_SIZE, Math.min(newX - curLeft, 100 - curLeft))}%`;
+                }
+
+                if (movesTop) {
+                  const newTop = Math.max(0, Math.min(newY, fixedBottom - MIN_SIZE));
+                  censorPositionElement.style.top = `${newTop}%`;
+                  censorPositionElement.style.height = `${fixedBottom - newTop}%`;
+                } else {
+                  censorPositionElement.style.height = `${Math.max(MIN_SIZE, Math.min(newY - curTop, 100 - curTop))}%`;
+                }
+              }
+
+              function handleCleanup() {
+                point.releasePointerCapture(ptrDownEvent.pointerId);
+                point.removeEventListener("pointermove", onMove);
+                point.removeEventListener("pointerup", onPointerUp);
+                point.removeEventListener("pointercancel", onCancel);
+                document.removeEventListener("keyup", handleEscKeyPress);
+              }
+
+              async function onPointerUp() {
+                handleCleanup();
+                if (resizeCancelled) return;
+
+                const newLeft = parseFloat(censorPositionElement.style.left);
+                const newTop = parseFloat(censorPositionElement.style.top);
+                const newWidth = parseFloat(censorPositionElement.style.width);
+                const newHeight = parseFloat(censorPositionElement.style.height);
+                const positionId = censorPositionElement.dataset["censorPositionId"];
+                const parentId = censorPositionElement.dataset["censorPositionParentId"];
+                await editor.updateCensorPosition(positionId, editor.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
+              }
+
+              function onCancel() {
+                censorPositionElement.style.left = startLeft;
+                censorPositionElement.style.top = startTop;
+                censorPositionElement.style.width = startWidth;
+                censorPositionElement.style.height = startHeight;
+                handleCleanup();
+              }
+
+              function handleEscKeyPress(keyupEvent) {
+                if (keyupEvent.defaultPrevented) {
+                  return;
+                }
+                if (keyupEvent.key === "Escape") {
+                  resizeCancelled = true;
+                  censorPositionElement.style.left = startLeft;
+                  censorPositionElement.style.top = startTop;
+                  censorPositionElement.style.width = startWidth;
+                  censorPositionElement.style.height = startHeight;
+                  point.removeEventListener("pointermove", onMove);
+                  document.removeEventListener("keyup", handleEscKeyPress);
+                }
+              }
+
+              point.addEventListener("pointermove", onMove);
+              point.addEventListener("pointerup", onPointerUp);
+              point.addEventListener("pointercancel", onCancel);
+              document.addEventListener("keyup", handleEscKeyPress);
+            });
+
             censorPositionElement.appendChild(point);
           }
         }
 
-        buildSizeEditPoints(this.activeCensorPosition);
+        buildSizeEditPoints(this.activeCensorPosition, this);
         this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown.bind(this));
       }
     }
