@@ -481,9 +481,7 @@ def create_annotation(request, annotation_type, content_id):
     if annotation_type != "pause":
         data["end_time"] = end_time
 
-    if annotation_type == "censor":
-        data["positions"] = []
-    elif annotation_type == "comment":
+    if annotation_type == "comment":
         data.update({"text": "", "x": 50.0, "y": 50.0})
     elif annotation_type == "pause":
         data["message"] = ""
@@ -491,6 +489,10 @@ def create_annotation(request, annotation_type, content_id):
         data["type"] = "k"
 
     annotation = model_class.objects.create(**data)
+    if annotation_type == "censor":
+        BlurAnnotationPosition.objects.create(
+            blur_annotation=annotation, time=0, x=50, y=50, width=4, height=3
+        )
 
     # Calculate position
     position = {
