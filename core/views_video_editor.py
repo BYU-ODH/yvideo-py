@@ -699,7 +699,10 @@ def delete_censor_position(request, position_id):
         )
 
     try:
-        position.delete()
+        if position.time > 0:
+            position.delete()
+        else:
+            return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to delete blur position. Exception: {e}")
         return HttpResponseServerError()

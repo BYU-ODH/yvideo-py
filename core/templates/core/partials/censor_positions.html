@@ -16,7 +16,9 @@
                 <label for="position-height">Height (%):</label>
                 <input class="position-height-input" name="position-height" type="text" value="{{position.height}}">
             </div>
+            {% if position.time > 0 %}
             <button class="censor-position-delete-button red-button">Delete</button>
+            {% endif %}
             <button class="censor-position-seek-button small-button">Seek to Time</button>
         </div>
     {% endfor %}
