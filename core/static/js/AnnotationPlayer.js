@@ -752,6 +752,7 @@ export class AnnotationPlayer {
               const firstPosition = aPositions[0];
               const censor = document.createElement("div");
               censor.dataset["censorPositionParentId"] = a.id;
+              censor.dataset["censorPositionId"] = firstPosition.id;
               censor.id = "censor" + i;
               censor.className = "censor-position " + firstPosition["type"];
               censor.style.position = "absolute";
@@ -772,6 +773,8 @@ export class AnnotationPlayer {
                 "#censor" + i,
               );
               const positionToShow = determineWhichBlurPositionToShow(aPositions);
+              console.log(positionToShow);
+              censor.dataset["censorPositionParentId"] = a.id;
               censor.dataset["censorPositionId"] = positionToShow.id;
               censor.style.width =  positionToShow["width"] + "%";
               censor.style.height = positionToShow["height"] + "%";
