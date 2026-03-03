@@ -568,6 +568,24 @@ export class Editor {
         }
       }
       if (this.activeCensorPosition) {
+        function buildSizeEditPoints(censorPositionElement) {
+          const points = [];
+          for (let i = 0; i < 4; i++) {
+            const newPoint = document.createElement("div");
+            newPoint.className = "censor-position-adjustment-point";
+            newPoint.draggable = "true";
+            points.push(newPoint);
+          }
+          points[0].className = points[0].className += " top-left-point";
+          points[1].className = points[1].className += " top-right-point";
+          points[2].className = points[2].className += " bottom-left-point";
+          points[3].className = points[3].className += " bottom-right-point";
+          for (let point of points) {
+            censorPositionElement.appendChild(point);
+          }
+        }
+
+        buildSizeEditPoints(this.activeCensorPosition);
         this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown.bind(this));
       }
     }
@@ -577,6 +595,13 @@ export class Editor {
       this.annotationBox.className = "annotation-box";
       if (this.activeCensorPosition) {
         this.activeCensorPosition.removeEventListener("pointerdown", this.handleCensorPointerDown);
+      }
+      const censorPositionAdjustmentPoints = document.getElementsByClassName("censor-position-adjustment-point");
+      // iteration by index prevents unexpected behavior from deleting earlier elements
+      // in the array.
+      for (let pointI = censorPositionAdjustmentPoints.length - 1; pointI >= 0; pointI--) {
+        const pointToRemove = censorPositionAdjustmentPoints[pointI];
+        pointToRemove.remove();
       }
       this.activeCensorPosition = null;
     }
