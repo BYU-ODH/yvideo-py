@@ -520,8 +520,8 @@ export class Editor {
         const positionEl = upEvent.target;
         const censorPositionId = positionEl.dataset["censorPositionId"];
         const parentCensorId = positionEl.dataset["censorPositionParentId"];
-        const newX = (upEvent.clientX - boxRect.left) / boxRect.width * 100;
-        const newY = (upEvent.clientY - boxRect.top) / boxRect.height * 100;
+        const newX = ((upEvent.clientX - boxRect.left) / boxRect.width * 100) - widthPercent / 2;
+        const newY = ((upEvent.clientY - boxRect.top) / boxRect.height * 100) - heightPercent / 2;
         await this.updateCensorPosition(censorPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentCensorId);
         handleCleanup();
       }
