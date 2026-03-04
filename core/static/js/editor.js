@@ -424,6 +424,7 @@ export class Editor {
       if (response.status == 201) {
         const responseHtml = await response.text();
         this.placeNewCensorPositionHtml(parentCensorId, responseHtml)
+        window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else if (!response.ok) {
         console.error("Failed to create censor position");
@@ -440,6 +441,7 @@ export class Editor {
       if (response.status == 201) {
         const responseHtml = await response.text();
         this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml)
+        window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else {
         console.error("Failed to update censor position");
@@ -455,6 +457,7 @@ export class Editor {
       if (response.status == 200) {
         const responseHtml = await response.text();
         this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml);
+        window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else if (!response.ok) {
         console.error("Failed to delete censor position");
@@ -707,11 +710,12 @@ export class Editor {
       this.typeOfAnnotationInFocus = itemForm.dataset["itemtype"];
       this.annotationIdInFocus = itemForm.dataset["annotationid"];
 
-      if (this.typeOfAnnotationInFocus == "censor" && previousTypeInFocus != "censor") {
-        this.handleFocusChangeToCensorType();
-      }
-      else if (this.typeOfAnnotationInFocus != "censor" && previousTypeInFocus == "censor"){
+      if (previousTypeInFocus == "censor") {
         this.handleFocusChangeAwayFromCensorType();
+      }
+
+      if (this.typeOfAnnotationInFocus == "censor" ) {
+        this.handleFocusChangeToCensorType();
       }
     }
 
