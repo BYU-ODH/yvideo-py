@@ -347,7 +347,7 @@ export class Editor {
 
     async deleteItem(annotationType, annotationId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch(`/annotations/${annotationType}/${annotationId}/delete/`, {
+      return await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": csrfToken}
       });
