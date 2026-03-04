@@ -159,6 +159,10 @@
     cursor: grabbing;
 }
 
+.active-censor-position {
+    z-index: 1;
+}
+
 .censor-position-adjustment-point {
     border-radius: 50%;
     height: var(--position-point-size);

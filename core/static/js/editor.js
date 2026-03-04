@@ -567,6 +567,7 @@ export class Editor {
       for (let position of censorPositions) {
         if (position.dataset["censorPositionParentId"] == this.annotationIdInFocus) {
           this.activeCensorPosition = position;
+          this.activeCensorPosition.classList.toggle("active-censor-position");
           break;
         }
       }
@@ -688,6 +689,7 @@ export class Editor {
       this.annotationBox.className = "annotation-box";
       if (this.activeCensorPosition) {
         this.activeCensorPosition.removeEventListener("pointerdown", this.handleCensorPointerDown);
+        this.activeCensorPosition.classList.toggle("active-censor-position");
       }
       const censorPositionAdjustmentPoints = document.getElementsByClassName("censor-position-adjustment-point");
       // iteration by index prevents unexpected behavior from deleting earlier elements
