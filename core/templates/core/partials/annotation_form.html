@@ -52,12 +52,6 @@
                 <option value="w" {% if instance.type == 'w' %}selected{% endif %}>White</option>
             </select>
         </div>
-        {% elif item_type == 'censor' %}
-        <div class="form-group">
-            <label for="positions">Positions (JSON):</label>
-            <textarea id="positions" name="positions" {% if not can_edit %}readonly{% endif %}>{{ instance.positions|safe }}</textarea>
-            <p class="help-text">Position data managed via drag interface</p>
-        </div>
         {% endif %}
 
         <div class="form-group">
@@ -100,5 +94,8 @@
         </div>
         {% endif %}
     </form>
+    {% if item_type == 'censor' %}
+        {% include "partials/censor_positions.html" with item_positions=item_positions %}
+    {% endif %}
 </div>
 <script type="module" src="{% static 'js/annotationForm.js' %}"></script>

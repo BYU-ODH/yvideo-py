@@ -12,9 +12,13 @@ export class Editor {
         this.layerContainers = document.querySelectorAll('.layer-items');
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
+        this.annotationBox = window.videoPlayer.annotationBox;
         this.dragState = null;
         this.contentId = null;
         this.listenForNewItemCreation();
+        this.typeOfAnnotationInFocus = null;
+        this.annotationIdInFocus = null;
+        this.activeCensorPosition = null;
 
         this.tickMarksContainer = document.querySelector('.tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
@@ -27,6 +31,8 @@ export class Editor {
         this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
+
+        this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
 
         this.init();
     }
@@ -60,27 +66,6 @@ export class Editor {
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
-    }
-
-    async refreshVideoPlayer() {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const response = await fetch("/video-annotator/reload-player", {
-        method: "post",
-        headers: { "X-CSRFToken": csrfToken },
-        body: JSON.stringify({
-          "content_id": this.contentId
-        })
-      });
-
-      if (!response.ok) {
-        console.error("Unable to refresh video player");
-      }
-
-      const videoHtml = await response.text();
-      const videoSection = document.getElementById("video-section");
-      videoSection.innerHTML = videoHtml;
-      this.video = videoSection.querySelector("#video-player");
-      this.attachVideoListeners();
     }
 
     placeItem(item) {
@@ -362,7 +347,7 @@ export class Editor {
 
     async deleteItem(annotationType, annotationId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch(`/annotations/${annotationType}/${annotationId}/delete/`, {
+      return await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": csrfToken}
       });
@@ -370,6 +355,9 @@ export class Editor {
 
     async setUpItemDeleteButton() {
       const itemForm = document.getElementById("existing-item-form");
+      if (!itemForm) {
+        return;
+      }
       const annotationType = itemForm.dataset["itemtype"];
       const annotationId = itemForm.dataset["annotationid"];
       const deleteItemButton = itemForm.querySelector("#annotation-form-delete-button");
@@ -380,14 +368,357 @@ export class Editor {
           console.error("The item could not be deleted");
         }
         else {
+          if(this.typeOfAnnotationInFocus == "censor") {
+            this.handleFocusChangeAwayFromCensorType();
+          }
+          window.dispatchEvent(this.annotationUpdatedEvent);
           const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
           deletedItem.remove();
           const detailForm = document.getElementById("detail-form");
           detailForm.innerHTML = "";
-          await this.refreshVideoPlayer();
           this.placeLayerItems();
         }
       });
+    }
+
+    getCensorPositions() {
+      if (this.typeOfAnnotationInFocus != "censor") {
+        return;
+      }
+      const positionsWrapper = document.getElementById("censor-positions-wrapper");
+      const positionEls = positionsWrapper.querySelectorAll(".position-entry");
+      const positions = [];
+      for (let positionEl of positionEls) {
+        positions.push({
+          "id": positionEl.dataset["positionId"],
+          "time": parseFloat(positionEl.querySelector(".position-time-input").value).toFixed(2),
+        });
+      }
+      return positions;
+    }
+
+    placeNewCensorPositionHtml(censor_parent_id, html) {
+      const annotationUpdateForm = document.getElementById("existing-item-form");
+      const currentFormId = annotationUpdateForm.dataset["annotationid"];
+      const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
+      // don't do anything if the user has moved onto a different item
+      if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
+        return;
+      }
+      censorPositionWrapperEl.outerHTML = html;
+      this.setUpCensorPositionDeleteListeners(censor_parent_id)
+      this.setupCensorPositionSeekListeners();
+      return;
+    }
+
+    async createCensorPosition(parentCensorId, time, x, y, width, height, parentStartTime, parentEndTime) {
+      if (parseFloat(parentStartTime) > parseFloat(time) || parseFloat(parentEndTime) < parseFloat(time)) {
+        return;
+      }
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const response = await fetch("/annotations/censor-position/create", {
+        method: "POST",
+        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
+      });
+      if (response.status == 201) {
+        const responseHtml = await response.text();
+        this.placeNewCensorPositionHtml(parentCensorId, responseHtml)
+        window.dispatchEvent(this.annotationUpdatedEvent);
+      }
+      else if (!response.ok) {
+        console.error("Failed to create censor position");
+      }
+    }
+
+    async updateCensorPosition(positionId, time, x, y, width, height, parentAnnotationId) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const response = await fetch("/annotations/censor-position/update", {
+        method: "POST",
+        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        body: JSON.stringify({position_id: positionId, time, x, y, width, height})
+      });
+      if (response.status == 201) {
+        const responseHtml = await response.text();
+        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml)
+        window.dispatchEvent(this.annotationUpdatedEvent);
+      }
+      else {
+        console.error("Failed to update censor position");
+      }
+    }
+
+    async deleteCensorPosition(parentAnnotationId, positionId) {
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const response = await fetch(`/annotations/censor-position/delete/${positionId}`, {
+        method: "DELETE",
+        headers: {"X-CSRFToken": csrfToken}
+      });
+      if (response.status == 200) {
+        const responseHtml = await response.text();
+        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml);
+        window.dispatchEvent(this.annotationUpdatedEvent);
+      }
+      else if (!response.ok) {
+        console.error("Failed to delete censor position");
+      }
+    }
+
+    async handleCensorAnnotationBoxClick(e) {
+      if (e.target.className.includes("censor-position")) {
+        return;
+      }
+      const annotationBoxDim = e.target.getBoundingClientRect();
+      let x = e.layerX / annotationBoxDim.width * 100;
+      let y = e.layerY / annotationBoxDim.height * 100;
+      const width = Math.min(100 - x, 12);
+      x = x - width / 2;
+      const height = Math.min(100 - y, 9);
+      y = y - height / 2;
+      const time = parseFloat(this.video.currentTime).toFixed(2);
+
+      const itemForm = document.getElementById("existing-item-form");
+      const annotationId = itemForm.dataset["annotationid"];
+
+      const currentPositions = this.getCensorPositions();
+      const existingPosition = currentPositions.find(position => Math.abs(position.time - time) < 0.01);
+
+      if (existingPosition?.id) {
+        await this.updateCensorPosition(existingPosition.id, time, x, y, width, height, annotationId)
+      }
+      else {
+        const startTimeEl = document.getElementById("start_time");
+        const parentStartTime = parseFloat(startTimeEl.value).toFixed(2);
+        const endTimeEl = document.getElementById("end_time");
+        const parentEndTime = parseFloat(endTimeEl.value).toFixed(2);
+        await this.createCensorPosition(annotationId, time, x, y, width, height, parentStartTime, parentEndTime)
+      }
+    }
+
+    handleCensorPointerDown(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const censorEl = e.currentTarget;
+      const censorLeftStart = censorEl.style.left;
+      const censorTopStart = censorEl.style.top;
+      const censorPointerId = e.pointerId;
+      censorEl.setPointerCapture(censorPointerId);
+      const annotationBox = document.getElementById("annotation-box");
+      const boxRect = annotationBox.getBoundingClientRect();
+      const widthPercent = parseFloat(censorEl.style.width);
+      const heightPercent = parseFloat(censorEl.style.height);
+
+      function handleCensorMove(event) {
+        const xPercent = (event.clientX - boxRect.left) / boxRect.width * 100;
+        const yPercent = (event.clientY - boxRect.top) / boxRect.height * 100;
+        censorEl.style.left = `${Math.max(0, Math.min(100 - widthPercent, xPercent - widthPercent / 2))}%`;
+        censorEl.style.top = `${Math.max(0, Math.min(100 - heightPercent, yPercent - heightPercent / 2))}%`;
+      }
+
+      async function onPointerUp(upEvent) {
+        handleCensorMove(upEvent);
+        const positionEl = upEvent.target;
+        const censorPositionId = positionEl.dataset["censorPositionId"];
+        const parentCensorId = positionEl.dataset["censorPositionParentId"];
+        const newX = ((upEvent.clientX - boxRect.left) / boxRect.width * 100) - widthPercent / 2;
+        const newY = ((upEvent.clientY - boxRect.top) / boxRect.height * 100) - heightPercent / 2;
+        await this.updateCensorPosition(censorPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentCensorId);
+        handleCleanup();
+      }
+
+      function handleMoveCancel() {
+        handleCleanup();
+        censorEl.style.left = censorLeftStart;
+        censorEl.style.top = censorTopStart;
+      }
+
+      function handleEscKeyPress(keyupEvent) {
+        if (keyupEvent.defaultPrevented) {
+          return;
+        }
+
+        if (keyupEvent.key == "Escape") {
+          handleMoveCancel();
+        }
+      }
+
+      const pointerUpCallback = onPointerUp.bind(this);
+
+      function handleCleanup() {
+        censorEl.releasePointerCapture(censorPointerId);
+        censorEl.removeEventListener('pointermove', handleCensorMove);
+        censorEl.removeEventListener('pointerup', pointerUpCallback);
+        censorEl.removeEventListener('pointercancel', handleMoveCancel);
+        document.removeEventListener("keyup", handleEscKeyPress);
+      }
+
+      censorEl.addEventListener('pointermove', handleCensorMove);
+      censorEl.addEventListener('pointerup', pointerUpCallback);
+      censorEl.addEventListener('pointercancel', handleMoveCancel);
+      document.addEventListener("keyup", handleEscKeyPress);
+    }
+
+
+    handleFocusChangeToCensorType() {
+      this.annotationBox.className = "annotation-box annotation-box-censor-editor";
+      this.annotationBoxCensorListener = this.handleCensorAnnotationBoxClick.bind(this);
+      this.annotationBox.addEventListener("click", this.annotationBoxCensorListener);
+      const censorPositions = document.getElementsByClassName("censor-position");
+      for (let position of censorPositions) {
+        if (position.dataset["censorPositionParentId"] == this.annotationIdInFocus) {
+          this.activeCensorPosition = position;
+          this.activeCensorPosition.classList.toggle("active-censor-position");
+          break;
+        }
+      }
+      if (this.activeCensorPosition) {
+        function buildSizeEditPoints(censorPositionElement, editor) {
+          const MIN_SIZE = 3; // minimum percent size
+          const annotationBox = document.getElementById("annotation-box");
+          const cornerData = [
+            { cls: "top-left-point",     movesLeft: true,  movesTop: true  },
+            { cls: "top-right-point",    movesLeft: false, movesTop: true  },
+            { cls: "bottom-left-point",  movesLeft: true,  movesTop: false },
+            { cls: "bottom-right-point", movesLeft: false, movesTop: false },
+          ];
+
+          for (const { cls, movesLeft, movesTop } of cornerData) {
+            const point = document.createElement("div");
+            point.className = `censor-position-adjustment-point ${cls}`;
+
+            point.addEventListener("pointerdown", function(ptrDownEvent) {
+              ptrDownEvent.stopPropagation();
+              ptrDownEvent.preventDefault();
+              point.setPointerCapture(ptrDownEvent.pointerId);
+
+              const boxRect = annotationBox.getBoundingClientRect();
+              const startLeft = censorPositionElement.style.left;
+              const startTop = censorPositionElement.style.top;
+              const startWidth = censorPositionElement.style.width;
+              const startHeight = censorPositionElement.style.height;
+              let resizeCancelled = false;
+
+              function onMove(ptrMoveEvent) {
+                const newX = (ptrMoveEvent.clientX - boxRect.left) / boxRect.width * 100;
+                const newY = (ptrMoveEvent.clientY - boxRect.top) / boxRect.height * 100;
+                const curLeft = parseFloat(censorPositionElement.style.left);
+                const curTop = parseFloat(censorPositionElement.style.top);
+                const curWidth = parseFloat(censorPositionElement.style.width);
+                const curHeight = parseFloat(censorPositionElement.style.height);
+                const fixedRight = curLeft + curWidth;
+                const fixedBottom = curTop + curHeight;
+
+                if (movesLeft) {
+                  const newLeft = Math.max(0, Math.min(newX, fixedRight - MIN_SIZE));
+                  censorPositionElement.style.left = `${newLeft}%`;
+                  censorPositionElement.style.width = `${fixedRight - newLeft}%`;
+                } else {
+                  censorPositionElement.style.width = `${Math.max(MIN_SIZE, Math.min(newX - curLeft, 100 - curLeft))}%`;
+                }
+
+                if (movesTop) {
+                  const newTop = Math.max(0, Math.min(newY, fixedBottom - MIN_SIZE));
+                  censorPositionElement.style.top = `${newTop}%`;
+                  censorPositionElement.style.height = `${fixedBottom - newTop}%`;
+                } else {
+                  censorPositionElement.style.height = `${Math.max(MIN_SIZE, Math.min(newY - curTop, 100 - curTop))}%`;
+                }
+              }
+
+              function handleCleanup() {
+                point.releasePointerCapture(ptrDownEvent.pointerId);
+                point.removeEventListener("pointermove", onMove);
+                point.removeEventListener("pointerup", onPointerUp);
+                point.removeEventListener("pointercancel", onCancel);
+                document.removeEventListener("keyup", handleEscKeyPress);
+              }
+
+              async function onPointerUp() {
+                handleCleanup();
+                if (resizeCancelled) return;
+
+                const newLeft = parseFloat(censorPositionElement.style.left);
+                const newTop = parseFloat(censorPositionElement.style.top);
+                const newWidth = parseFloat(censorPositionElement.style.width);
+                const newHeight = parseFloat(censorPositionElement.style.height);
+                const positionId = censorPositionElement.dataset["censorPositionId"];
+                const parentId = censorPositionElement.dataset["censorPositionParentId"];
+                await editor.updateCensorPosition(positionId, editor.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
+              }
+
+              function onCancel() {
+                censorPositionElement.style.left = startLeft;
+                censorPositionElement.style.top = startTop;
+                censorPositionElement.style.width = startWidth;
+                censorPositionElement.style.height = startHeight;
+                handleCleanup();
+              }
+
+              function handleEscKeyPress(keyupEvent) {
+                if (keyupEvent.defaultPrevented) {
+                  return;
+                }
+                if (keyupEvent.key === "Escape") {
+                  resizeCancelled = true;
+                  censorPositionElement.style.left = startLeft;
+                  censorPositionElement.style.top = startTop;
+                  censorPositionElement.style.width = startWidth;
+                  censorPositionElement.style.height = startHeight;
+                  point.removeEventListener("pointermove", onMove);
+                  document.removeEventListener("keyup", handleEscKeyPress);
+                }
+              }
+
+              point.addEventListener("pointermove", onMove);
+              point.addEventListener("pointerup", onPointerUp);
+              point.addEventListener("pointercancel", onCancel);
+              document.addEventListener("keyup", handleEscKeyPress);
+            });
+
+            censorPositionElement.appendChild(point);
+          }
+        }
+
+        buildSizeEditPoints(this.activeCensorPosition, this);
+        this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown.bind(this));
+      }
+    }
+
+    handleFocusChangeAwayFromCensorType() {
+      this.annotationBox.removeEventListener("click", this.annotationBoxCensorListener);
+      this.annotationBox.className = "annotation-box";
+      if (this.activeCensorPosition) {
+        this.activeCensorPosition.removeEventListener("pointerdown", this.handleCensorPointerDown);
+        this.activeCensorPosition.classList.toggle("active-censor-position");
+      }
+      const censorPositionAdjustmentPoints = document.getElementsByClassName("censor-position-adjustment-point");
+      // iteration by index prevents unexpected behavior from deleting earlier elements
+      // in the array.
+      for (let pointI = censorPositionAdjustmentPoints.length - 1; pointI >= 0; pointI--) {
+        const pointToRemove = censorPositionAdjustmentPoints[pointI];
+        pointToRemove.remove();
+      }
+      this.activeCensorPosition = null;
+    }
+
+    changeAnnotationInFocus() {
+      const previousTypeInFocus = this.typeOfAnnotationInFocus;
+      const itemForm = document.getElementById("existing-item-form");
+      if (itemForm == null) {
+        this.typeOfAnnotationInFocus = null;
+        return;
+      }
+
+      this.typeOfAnnotationInFocus = itemForm.dataset["itemtype"];
+      this.annotationIdInFocus = itemForm.dataset["annotationid"];
+
+      if (previousTypeInFocus == "censor") {
+        this.handleFocusChangeAwayFromCensorType();
+      }
+
+      if (this.typeOfAnnotationInFocus == "censor" ) {
+        this.handleFocusChangeToCensorType();
+      }
     }
 
     handleItemFormChanges(mutationList) {
@@ -395,6 +726,7 @@ export class Editor {
         if (mutation.type == "childList") {
           this.listenForItemUpdateFormSubmission();
           this.setUpItemDeleteButton();
+          this.changeAnnotationInFocus();
         }
       }
     }
@@ -441,10 +773,10 @@ export class Editor {
         body: requestBody
       });
 
-      if (response.status != 200) {
+      if (!response.ok) {
         console.error("An error occurred while updating an annotation");
+        return false;
       }
-      await this.refreshVideoPlayer();
 
       const responseData = await response.json();
 
@@ -461,6 +793,7 @@ export class Editor {
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
       this.addClickListenerToLayerItem(newTargetItem);
+      window.dispatchEvent(this.annotationUpdatedEvent);
     }
 
     triggerSave(state) {
@@ -489,8 +822,17 @@ export class Editor {
         }
 
         const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
+        if (isNaN(leftAsDecimal)) {
+          console.error(`Unable to parse item's left position: ${item.style.left}`);
+          return;
+        }
         const newStartTime = leftAsDecimal * this.duration;
-        const newEndTime = (leftAsDecimal + convertPercentStringToDecimal(item.style.width)) * this.duration;
+        const widthAsDecimal = convertPercentStringToDecimal(item.style.width)
+        if (isNaN(widthAsDecimal)) {
+          console.error(`Unable to parse item's width: ${item.style.width}`);
+          return;
+        }
+        const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
         this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true);
     }
 
@@ -515,12 +857,36 @@ export class Editor {
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
+    setupCensorPositionSeekListeners() {
+      const handler = (clickEvent) => {
+        this.video.currentTime = clickEvent.target.parentElement.querySelector(".position-time-input").value;
+      }
+      const buttons = document.getElementsByClassName("censor-position-seek-button");
+      for (let button of buttons) {
+        button.addEventListener("click", handler);
+      }
+    }
+
+    setUpCensorPositionDeleteListeners(parentAnnotationId) {
+      const buttons = document.getElementsByClassName("censor-position-delete-button");
+      for (let button of buttons) {
+        const buttonParent = button.parentElement;
+        const positionId = buttonParent.dataset["positionId"];
+        async function deleteCensor() {
+          await this.deleteCensorPosition(parentAnnotationId, positionId)
+        }
+        button.addEventListener("click", deleteCensor.bind(this))
+      }
+    }
+
     async getItemFormDetails(annotationType, annotationId, contentId) {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
         method: "GET"
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
+      this.setUpCensorPositionDeleteListeners(annotationId);
+      this.setupCensorPositionSeekListeners();
     }
 
     addClickListenerToLayerItem(item) {
@@ -672,7 +1038,6 @@ export class Editor {
               })
             });
           if (response.ok) {
-            await this.refreshVideoPlayer()
             const newItemHtml = await response.text();
             const layerContainer = document.getElementById(`${annotationType}-item-container`);
             const newElement = document.createElement("template");
@@ -684,6 +1049,7 @@ export class Editor {
             this.addClickListenerToLayerItem(newNode);
             this.placeItem(newNode);
             this.placeLayerItems();
+            window.dispatchEvent(this.annotationUpdatedEvent);
           }
           else {
             console.error(response);
@@ -692,6 +1058,7 @@ export class Editor {
       }
     }
 
+    /* TIMELINE FUNCTIONS */
     // This is the tick line on the timeline
     createTickMark(time, isMajor) {
         const tick = document.createElement('div');

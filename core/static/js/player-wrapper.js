@@ -6,6 +6,19 @@
 
 import { AnnotationPlayer } from './AnnotationPlayer.js';
 
+async function getPlayerData(contentId) {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const playerDataResponse = await fetch("/player-data/" + contentId + '/', {
+      method: "POST",
+      headers: {"X-CSRFToken": csrfToken},
+      mode: "same-origin"
+  });
+  if (!playerDataResponse.ok) {
+    return false;
+  }
+  return await playerDataResponse.json();
+}
+
 function attachAnnotationPlayer() {
     'use strict';
 
@@ -20,13 +33,10 @@ function attachAnnotationPlayer() {
 
         // fetch player subtitles, annotations, and clips
         const contentId = container.dataset.contentid;
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const playerDataResponse = await fetch("/player-data/" + contentId + '/', {
-            method: "POST",
-            headers: {"X-CSRFToken": csrfToken},
-            mode: "same-origin"
-        });
-        const playerData = await playerDataResponse.json();
+        const playerData = await getPlayerData(contentId);
+        if (playerData === false) {
+          return;
+        }
 
         let tracks = [];
         if (playerData && playerData.subtitleTracks) {
@@ -70,13 +80,22 @@ function attachAnnotationPlayer() {
 attachAnnotationPlayer();
 
 // watch for changes in video section. reload annotation player if changes occur
-function handleVideoSectionChanges(mutationList) {
-  for (let mutation of mutationList) {
-    if (mutation.type == "childList") {
-      attachAnnotationPlayer();
-    }
+
+async function handleVideoSectionChanges() {
+  const player = window.videoPlayer;
+  const contentId = player.container.dataset["contentid"];
+  const playerData = await getPlayerData(contentId);
+  if (playerData !== false) {
+    player.loadData({
+      annotations: playerData.annotations || []
+    });
   }
 }
 
-const videoSectionObserver = new MutationObserver(handleVideoSectionChanges);
-videoSectionObserver.observe(document.getElementById("video-section"), { childList: true });
+function listenForChangesToAnnotations() {
+  window.addEventListener("annotationUpdated", async () => {
+    await handleVideoSectionChanges()
+  });
+}
+
+listenForChangesToAnnotations();
