@@ -37,6 +37,7 @@ export class AnnotationPlayer {
     if (!this.annotationBox) {
       this.annotationBox = document.createElement('div');
       this.annotationBox.className = 'annotation-box';
+      this.annotationBox.id = "annotation-box";
       this.videoWrapper.appendChild(this.annotationBox);
     }
     this.messageIsShowing = false;
@@ -388,6 +389,8 @@ export class AnnotationPlayer {
         type: anno.type,
         message: anno.message || "",
         details: anno.details || {},
+        positions: anno.positions || [],
+        id: anno.id
       });
     }
     return annotations;
@@ -420,6 +423,7 @@ export class AnnotationPlayer {
     }
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
+    this.applyAnnotations();
 
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
@@ -654,7 +658,7 @@ export class AnnotationPlayer {
       let aStart = a["start"];
       let aEnd = a["end"];
       let aType = a["type"];
-      let aDetails = a["details"];
+      let aPositions = a["positions"];
       switch (aType) {
         case "skip":
           if (time >= aStart && time < aEnd) {
@@ -668,7 +672,7 @@ export class AnnotationPlayer {
           break;
         case "pause":
           {
-            const pauseRange = 0.005;
+            const pauseRange = 0.01;
             let startRange = aStart - pauseRange;
             if (startRange < 0) {
               startRange = 0;
@@ -733,58 +737,49 @@ export class AnnotationPlayer {
           break;
         case "censor":
           if (time >= aStart && time < aEnd) {
+            function determineWhichBlurPositionToShow(positions) {
+              let desiredPosition = positions[0];
+              for (let i = 1; i < positions.length; i++) {
+                const positionToEvaluate = positions[i];
+                if (positionToEvaluate["time"] <= time) {
+                  desiredPosition = positionToEvaluate;
+                }
+              }
+              return desiredPosition;
+            }
+
             if (!this.annotationBox.querySelector("#censor" + i)) {
+              const firstPosition = aPositions[0];
               const censor = document.createElement("div");
+              censor.dataset["censorPositionParentId"] = a.id;
+              censor.dataset["censorPositionId"] = firstPosition.id;
               censor.id = "censor" + i;
-              censor.className = "censor " + aDetails["type"];
+              censor.className = "censor-position " + firstPosition["type"];
               censor.style.position = "absolute";
-              censor.style.width = aDetails["position"][aStart][2] + "%";
-              censor.style.height = aDetails["position"][aStart][3] + "%";
-              censor.style.left = aDetails["position"][aStart][0] + "%";
-              censor.style.top = aDetails["position"][aStart][1] + "%";
-              if (aDetails["type"] === "black" || aDetails["type"] === "red") {
-                censor.style.backgroundColor = aDetails["type"];
-              } else if (aDetails["type"] === "blur") {
+              censor.style.width =  firstPosition["width"] + "%";
+              censor.style.height = firstPosition["height"] + "%";
+              censor.style.left = firstPosition["x"] + "%";
+              censor.style.top = firstPosition["y"] + "%";
+              const type = firstPosition["type"];
+              if (type === "black" || type === "red") {
+                censor.style.backgroundColor = type;
+              } else if (type === "blur") {
                 censor.style.backdropFilter =
-                  "blur(" + aDetails["amount"] + ")";
+                  "blur(" + firstPosition["blur_amount"] + ")";
               }
               this.annotationBox.appendChild(censor);
             } else {
               const censor = this.annotationBox.querySelector(
                 "#censor" + i,
               );
-              let annoTime;
-              if (a.details.interpolate) {
-                annoTime = Object.keys(a.details.intPositions).reduce(
-                  (prev, curr) =>
-                    Math.abs(curr - time) < Math.abs(prev - time) ? curr : prev,
-                );
-                censor.style.left = aDetails["intPositions"][annoTime][0] + "%";
-                censor.style.top = aDetails["intPositions"][annoTime][1] + "%";
-                if (
-                  aDetails["intPositions"][annoTime][2] &&
-                  aDetails["intPositions"][annoTime][3]
-                ) {
-                  censor.style.width =
-                    aDetails["intPositions"][annoTime][2] + "%";
-                  censor.style.height =
-                    aDetails["intPositions"][annoTime][3] + "%";
-                }
-              } else {
-                annoTime = Object.keys(a.details.position).reduce(
-                  (prev, curr) =>
-                    Math.abs(curr - time) < Math.abs(prev - time) ? curr : prev,
-                );
-                censor.style.left = aDetails["position"][annoTime][0] + "%";
-                censor.style.top = aDetails["position"][annoTime][1] + "%";
-                if (
-                  aDetails["position"][annoTime][2] &&
-                  aDetails["position"][annoTime][3]
-                ) {
-                  censor.style.width = aDetails["position"][annoTime][2] + "%";
-                  censor.style.height = aDetails["position"][annoTime][3] + "%";
-                }
-              }
+              const positionToShow = determineWhichBlurPositionToShow(aPositions);
+              console.log(positionToShow);
+              censor.dataset["censorPositionParentId"] = a.id;
+              censor.dataset["censorPositionId"] = positionToShow.id;
+              censor.style.width =  positionToShow["width"] + "%";
+              censor.style.height = positionToShow["height"] + "%";
+              censor.style.left = positionToShow["x"] + "%";
+              censor.style.top = positionToShow["y"] + "%";
             }
           } else {
             const existingCensor = this.annotationBox.querySelector(
@@ -1485,7 +1480,6 @@ export class AnnotationPlayer {
             newTimeRight = skipBoundaryRight;
           }
           this.skipTo(newTimeRight);
-          console.log("Time after microskip: ", this.videoElem.currentTime);
         }
         break;
       case 'Comma':
@@ -1503,7 +1497,6 @@ export class AnnotationPlayer {
             newTimeLeft = skipBoundaryLeft;
           }
           this.skipTo(newTimeLeft);
-          console.log("Time after microskip: ", this.videoElem.currentTime);
         }
         break;
       case 'KeyF':

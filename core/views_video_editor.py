@@ -18,6 +18,7 @@ from django.views.decorators.http import require_POST
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
 from .models import CommentAnnotation
 from .models import Content
 from .models import MuteAnnotation
@@ -480,9 +481,7 @@ def create_annotation(request, annotation_type, content_id):
     if annotation_type != "pause":
         data["end_time"] = end_time
 
-    if annotation_type == "censor":
-        data["positions"] = {}
-    elif annotation_type == "comment":
+    if annotation_type == "comment":
         data.update({"text": "", "x": 50.0, "y": 50.0})
     elif annotation_type == "pause":
         data["message"] = ""
@@ -490,6 +489,10 @@ def create_annotation(request, annotation_type, content_id):
         data["type"] = "k"
 
     annotation = model_class.objects.create(**data)
+    if annotation_type == "censor":
+        BlurAnnotationPosition.objects.create(
+            blur_annotation=annotation, time=0, x=50, y=50, width=4, height=3
+        )
 
     # Calculate position
     position = {
@@ -545,6 +548,172 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
     return {"success": True, "result": annotation}
 
 
+def get_list_of_blur_annotation_positions(blur_annotation_parent):
+    try:
+        censor_positions = list(
+            BlurAnnotationPosition.objects.filter(
+                blur_annotation=blur_annotation_parent
+            ).order_by("time")
+        )
+    except Exception as e:
+        logger.error(f"Failed to get censor positions. Exception: {e}")
+        return []
+    return censor_positions
+
+
+def generate_censor_positions_html(parent_annotation_id):
+    try:
+        parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
+    except Exception as e:
+        logger.error(
+            f"Failed to get parent_annoation while updateing censor positions html. Exception: {e}"
+        )
+        return False
+
+    try:
+        censor_positions = get_list_of_blur_annotation_positions(parent_annotation)
+        censor_positions_html = render_to_string(
+            "partials/censor_positions.html", {"item_positions": censor_positions}
+        )
+        return censor_positions_html
+
+    except Exception as e:
+        logger.error(f"Failed to generate censor_postion html. Exception: {e}")
+        return False
+
+
+@require_POST
+def create_censor_position(request):
+    try:
+        parsed_body = json.loads(request.body)
+        parent_annotation_id = parsed_body["parent_annotation_id"]
+        position_time = parsed_body["time"]
+        position_x = parsed_body["x"]
+        position_y = parsed_body["y"]
+        position_width = parsed_body["width"]
+        position_height = parsed_body["height"]
+    except Exception as e:
+        logger.error(
+            f"Unable to parse data for updating or creating censor positions: {e}"
+        )
+        return HttpResponseBadRequest()
+
+    if (
+        not parent_annotation_id
+        or not position_time
+        or not position_x
+        or not position_y
+        or not position_width
+        or not position_height
+    ):
+        return HttpResponseBadRequest()
+
+    # check if the position already exists
+    try:
+        num_of_pre_existing_objs = BlurAnnotationPosition.objects.filter(
+            blur_annotation__pk=parent_annotation_id, time=position_time
+        ).count()
+        if num_of_pre_existing_objs > 0:
+            return HttpResponse(status=200)
+    except Exception as e:
+        logger.error(f"Failed to query BlurAnnotationPositions. Exception: {e}")
+        return HttpResponseServerError()
+
+    try:
+        parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
+        if parent_annotation.end_time < round(float(position_time), 2):
+            return HttpResponseBadRequest(
+                "New censor position cannot occur at a time greater than the blur annotation's end time"
+            )
+        elif parent_annotation.start_time > round(float(position_time), 2):
+            return HttpResponseBadRequest(
+                "New censor position cannot occur before the start time of the parent censor annotation"
+            )
+        BlurAnnotationPosition.objects.create(
+            blur_annotation=parent_annotation,
+            time=position_time,
+            x=position_x,
+            y=position_y,
+            width=position_width,
+            height=position_height,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
+        return HttpResponseServerError()
+
+    censor_position_html = generate_censor_positions_html(parent_annotation_id)
+    if censor_position_html == False:
+        return HttpResponseServerError()
+    return HttpResponse(censor_position_html, status=201)
+
+
+@require_POST
+def update_censor_position(request):
+    try:
+        parsed_body = json.loads(request.body)
+        position_id = parsed_body["position_id"]
+        position_time = parsed_body["time"]
+        position_x = parsed_body["x"]
+        position_y = parsed_body["y"]
+        position_height = parsed_body["height"]
+        position_width = parsed_body["width"]
+    except Exception as e:
+        logger.error(
+            f"Unable to parse data for updating or creating censor positions: {e}"
+        )
+        return HttpResponseBadRequest()
+
+    # update the existing BlurAnnotationPosition
+    else:
+        try:
+            this_blur_position = BlurAnnotationPosition.objects.get(pk=position_id)
+            this_blur_position.time = position_time
+            this_blur_position.x = position_x
+            this_blur_position.y = position_y
+            this_blur_position.height = position_height
+            this_blur_position.width = position_width
+            this_blur_position.save()
+            censor_position_html = generate_censor_positions_html(
+                this_blur_position.blur_annotation.pk
+            )
+            if censor_position_html == False:
+                return HttpResponseServerError()
+            return HttpResponse(censor_position_html, status=201)
+        except Exception as e:
+            logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
+            return HttpResponseServerError()
+
+
+def delete_censor_position(request, position_id):
+    try:
+        position = BlurAnnotationPosition.objects.get(pk=position_id)
+        # I know this looks dumb, but if i used position.blur_annotation to get the parent,
+        # the reference to that parent is deleted once position is deleted. I do this to
+        # allow for access to the parent after the position is deleted
+        blur_annotation_parent = BlurAnnotation.objects.get(
+            pk=position.blur_annotation.pk
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to get blur annotation parent while deleting annotation. Exception: {e}"
+        )
+
+    try:
+        if position.time > 0:
+            position.delete()
+        else:
+            return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to delete blur position. Exception: {e}")
+        return HttpResponseServerError()
+
+    if not blur_annotation_parent:
+        return HttpResponse(status=205)
+    else:
+        censor_position_html = generate_censor_positions_html(blur_annotation_parent.pk)
+        return HttpResponse(censor_position_html, status=200)
+
+
 def generate_annotation_updated_html(
     request, content, annotation, annotation_type, position
 ):
@@ -561,18 +730,24 @@ def generate_annotation_updated_html(
         request=request,
     )
 
+    item_positions = []
+    if annotation_type == "censor":
+        try:
+            item_positions = get_list_of_blur_annotation_positions(annotation)
+        except Exception as e:
+            logger.error(f"Failed to get blur annotation positions. Exception: {e}")
+
     form_html = render_to_string(
         "core/partials/annotation_form.html",
         {
+            "item_type": annotation_type,
             "instance": annotation,
+            "item_type_label": annotation_type.title(),
             "content": content,
             "can_edit": True,
-            "item_type": annotation_type,
-            "item_type_label": annotation_type.title(),
-            "update_url": "update_annotation",
-            "delete_url": "delete_annotation",
             "start_seconds": position["start"],
             "end_seconds": position["end"],
+            "item_positions": item_positions,
         },
         request=request,
     )
@@ -598,15 +773,6 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
 
     if annotation_type != "pause":
         update_fields["end_time"] = parsed_body["end_time"]
-
-    if annotation_type == "censor":
-        positions_json = parsed_body["positions"]
-        if positions_json:
-            positions = json.loads(positions_json)
-            is_valid, error = BlurAnnotation.validate_positions(positions)
-            if not is_valid:
-                return HttpResponse(error, status=400)
-            update_fields["positions"] = positions
     elif annotation_type == "comment":
         update_fields["text"] = parsed_body["text"]
         x = parsed_body["x"]
@@ -623,7 +789,11 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
     for field, value in update_fields.items():
         setattr(annotation, field, value)
 
-    annotation.save()
+    try:
+        annotation.save()
+    except Exception as e:
+        logger.error(f"Unable to save annotation: {e}")
+        return HttpResponseServerError()
 
     # Update the data-label attribute on the element
     annotation.refresh_from_db()
@@ -748,19 +918,15 @@ def load_annotation_form(request, annotation_type, annotation_id):
     start_seconds = annotation.start_time
     end_seconds = getattr(annotation, "end_time", start_seconds)
 
-    form_html = render_to_string(
-        "partials/annotation_form.html",
-        {
-            "instance": annotation,
-            "content": content,
-            "can_edit": can_edit,
-            "item_type": annotation_type,
-            "item_type_label": annotation_type.title(),
-            "start_seconds": start_seconds,
-            "end_seconds": end_seconds,
-        },
-        request=request,
+    html_result = generate_annotation_updated_html(
+        request,
+        content,
+        annotation,
+        annotation_type.lower(),
+        {"start": start_seconds, "end": end_seconds},
     )
+
+    form_html = html_result["form_html"]
 
     return HttpResponse(form_html)
 

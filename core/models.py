@@ -11,8 +11,6 @@ from django.db import transaction
 from django.utils import timezone
 import xxhash
 
-from .utils import TOY_VTT
-from .utils import TOY_VTT2
 from .utils import seconds2hms
 
 HMS_VALIDATOR = RegexValidator(
@@ -839,50 +837,59 @@ class CommentAnnotation(BaseAnnotation):
 
 
 class BlurAnnotation(BaseAnnotation):
-    positions = models.JSONField(default=list, blank=True)
-
-    def clean(self):
-        if not self.positions:
-            return
-
-        position_keys = [float(t) for t in self.positions.keys()]
-        sorted_keys = sorted(position_keys)
-
-        if position_keys != sorted_keys:
-            # TODO Decide whether to autofix or raise a ValidationError
-            raise ValidationError(
-                "Positions must be sorted by start time in ascending order."
-            )
-
-        if self.start_time != position_keys[0]:
-            # TODO Decide whether to autofix or raise a ValidationError
-            raise ValidationError("Start time must match the first position start.")
-
-        if self.end_time < position_keys[-1]:
-            # TODO Decide whether to autofix or raise a ValidationError
-            raise ValidationError("End time cannot be before the last position end.")
-
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        data["positions"] = self.positions
+        positions_query_set = list(
+            BlurAnnotationPosition.objects.filter(blur_annotation=self).order_by("time")
+        )
+        positions = []
+        for position in positions_query_set:
+            positions.append(
+                {
+                    "id": position.pk,
+                    "time": position.time,
+                    "x": position.x,
+                    "y": position.y,
+                    "width": position.width,
+                    "height": position.height,
+                    "blur_amount": position.blur_amount,
+                    "type": position.type,
+                }
+            )
+        data.update({"positions": positions, "type": "censor"})
         return data
 
+
+class BlurAnnotationPosition(models.Model):
+    blur_annotation = models.ForeignKey(
+        BlurAnnotation, on_delete=models.CASCADE, null=False, blank=False
+    )
+    time = models.FloatField(null=False, blank=False)
+    x = models.FloatField(null=False, blank=False)
+    y = models.FloatField(null=False, blank=False)
+    width = models.FloatField(null=False, blank=False)
+    height = models.FloatField(null=False, blank=False)
+    blur_amount = models.IntegerField(null=False, blank=False, default=60)
+    type = models.TextField(null=False, blank=False, default="blur")
+
     @classmethod
-    def validate_positions(
-        cls, positions_dict
-    ):  # TODO is this correct/needed? cf clean()
-        """Validate positions format."""
+    def validate(cls, data_dict):
         try:
-            for time, pos in positions_dict.items():
-                if not isinstance(pos, list) or len(pos) != 4:
-                    return (
-                        False,
-                        "Invalid position format: must be [x, y, width, height]",
-                    )
+            if data_dict["time"] < cls.blur_annotation.start_time:
+                return (False, "Position cannot be before the annotation starts.")
+            if data_dict["time"] > cls.blur_annotation.end_time:
+                return (False, "Position cannot be after the annotation ends.")
+            if (
+                data_dict["x"] < 0
+                or data_dict["y"] < 0
+                or data_dict["width"] < 0
+                or data_dict["height"] < 0
+            ):
+                return (False, "Position x, y, width, and height cannot be less than 0")
             return True, None
-        except (TypeError, AttributeError):
-            return False, "Invalid positions structure"
+        except Exception as e:
+            return False, f"Invalid position: {e}"
 
 
 class Course(models.Model):
