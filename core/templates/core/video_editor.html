@@ -15,11 +15,14 @@
         <div class="editor-container">
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
+                <div id="editor-element-panel" class="editor-container-component-dark">
+                </div>
+
                 <div id="video-section" class="video-section">
                     {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key %}
                 </div>
 
-                <div class="detail-form-section">
+                <div class="detail-form-section editor-container-component-dark">
                     <!-- Annotation Set Selector -->
                     <div id="annotation-set-form-wrapper">
                         {% include 'partials/annotation_set_form.html' %}
@@ -34,7 +37,7 @@
             </div>
 
             <!-- Bottom Panel: Timeline -->
-            <div id="timeline-section">
+            <div id="timeline-section" class="editor-container-component-dark">
                 {% include 'partials/timeline_base.html' with layers=layers %}
             </div>
         </div>
