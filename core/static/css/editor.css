@@ -4,6 +4,14 @@
     --dark-mode-gray: #747474;
     --dark-mode-dark-gray: #535353;
     --dark-mode-very-dark-gray: #414141;
+    --skip-type-color: #D05E38;
+    --blank-type-color: #88784D;
+    --pause-type-color: #4E5D9B;
+    --clip-type-color: #758796;
+    --mute-type-color: #EBBF81;
+    --censor-type-color: #826AB4;
+    --comment-type-color: #449964;
+    --subtitle-type-color: #983769;
 }
 
 /* Editor Container */
@@ -13,6 +21,7 @@
     flex-direction: column;
     width: 100%;
     overflow: hidden;
+    font-weight: 500;
 }
 
 .editor-container-dark {
@@ -31,8 +40,73 @@
     overflow: hidden;
 }
 
-#editor-element-panel {
+#editor-annotation-panel {
     width: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+#annotation-panel-header {
+    padding: 8px;
+}
+
+#annotation-groups-wrapper {
+    display: flex;
+    flex-direction: column;
+    row-gap: 2px;
+}
+
+.annotation-type-header {
+    background-color: var(--dark-mode-light-gray);
+    height: 40px;
+    padding: 8px;
+}
+
+.annotation-type-header-arrow {
+    width: 12px;
+    rotate: -90deg;
+}
+
+.annotation-type-header-right {
+    width: 40px;
+    padding: 8px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+
+#skip-type-header-right {
+    background-color: var(--skip-type-color);
+}
+
+#blank-type-header-right {
+    background-color: var(--blank-type-color);
+}
+
+#pause-type-header-right {
+    background-color: var(--pause-type-color);
+}
+
+#clip-type-header-right {
+    background-color: var(--clip-type-color);
+}
+
+#mute-type-header-right {
+    background-color: var(--mute-type-color);
+}
+
+#censor-type-header-right {
+    background-color: var(--censor-type-color);
+}
+
+#comment-type-header-right {
+    background-color: var(--comment-type-color);
+}
+
+.annotation-type-list-collapsed {
+    display: none;
 }
 
 /* Video Section */
