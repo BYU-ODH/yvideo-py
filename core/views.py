@@ -30,8 +30,8 @@ from .forms import CollectionForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
-from .forms import SubtitleForm
 from .forms import ResourceContentIntakeRequestForm
+from .forms import SubtitleForm
 from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Clip
@@ -47,12 +47,7 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
-from .utils import VTTCue
-from .utils import build_vtt_file_string_from_cues
-from .utils import convert_srt_content_to_vtt
-from .utils import generate_vtt_cues_from_file_path
 from .utils import hms2seconds
-from .utils import nudge_cue_times
 from .utils import seconds2hms
 
 logger = logging.getLogger(__name__)
@@ -1347,6 +1342,8 @@ def delete_subtitle(request, subtitle_id):
             f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
         )
         return HttpResponseServerError()
+
+
 def request_content(request, resource_id):
     resource = get_object_or_404(Resource, id=resource_id)
 

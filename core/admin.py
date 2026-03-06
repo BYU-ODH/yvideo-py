@@ -25,7 +25,6 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
-from .utils import convert_srt_content_to_vtt
 
 
 @admin.register(User)
