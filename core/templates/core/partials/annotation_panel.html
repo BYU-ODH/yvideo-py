@@ -6,16 +6,16 @@
     <div class="annotation-type-wrapper">
         <div class="annotation-type-header row-flex flex-apart-aligned">
             <div class="annotation-type-header-left row-flex">
-                <img class="annotation-type-header-arrow" src="/static/img/arrow.svg" />
+                <img class="annotation-type-header-arrow" src="/static/img/arrow.svg" alt="" />
                 <div class="annotation-type-header-text">
                     {{ group.type_display }}
                 </div>
             </div>
             <div id="{{group.type}}-type-header-right" class="annotation-type-header-right">
-                <img class="annotation-icon" src="{{ group.icon }}">
+                <img class="annotation-icon" src="{{ group.icon }}" alt="{{group.type}} icon">
             </div>
         </div>
-        <div class="annotation-type-list annotation-type-list-collapsed">
+        <div class="annotation-type-list">
             <button class="annotation-type-add-button">
                 + Add New
             </button>

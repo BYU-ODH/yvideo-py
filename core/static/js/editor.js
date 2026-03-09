@@ -899,9 +899,37 @@ export class Editor {
     }
 
     setUpItemClickListeners() {
-      const layerItems = document.getElementsByClassName("layer-item")
+      const layerItems = document.getElementsByClassName("layer-item");
       for (let layerItem of layerItems) {
         this.addClickListenerToLayerItem(layerItem);
+      }
+    }
+
+    setUpAnnotationPanelClickListeners() {
+      const annotationPanelGroupHeaders = document.getElementsByClassName("annotation-type-header");
+      const panelLists = document.getElementsByClassName("annotation-type-list");
+      const panelArrows = document.getElementsByClassName("annotation-type-header-arrow");
+      for (let panel of annotationPanelGroupHeaders) {
+        const thisPanelList = panel.parentElement.querySelector(".annotation-type-list");
+        const listClassName = "annotation-type-list-expanded";
+        const thisPanelArrow = panel.querySelector(".annotation-type-header-arrow");
+        const arrowClassName = "annotation-header-arrow-rotated";
+        panel.addEventListener("click", () => {
+          if (thisPanelList.className.includes(listClassName)) {
+            thisPanelList.classList.remove(listClassName)
+            thisPanelArrow.classList.remove(arrowClassName)
+          }
+          else {
+            for (const arrow of panelArrows) {
+              arrow.classList.remove(arrowClassName);
+            }
+            for (const panelList of panelLists) {
+              panelList.classList.remove(listClassName);
+            }
+            thisPanelArrow.classList.add(arrowClassName);
+            thisPanelList.classList.add(listClassName);
+          }
+        });
       }
     }
 
@@ -1369,13 +1397,15 @@ function setupAnnotationSelectorFunctions() {
 
 function editorInit() {
   // Initialize when DOM is ready
+  let editor;
   if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-          new Editor();
+          editor = new Editor();
       });
   } else {
-      new Editor();
+      editor = new Editor();
   }
+  editor.setUpAnnotationPanelClickListeners();
   setupAnnotationSelectorFunctions();
 }
 

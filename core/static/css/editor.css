@@ -1,5 +1,6 @@
 :root {
     --handle-border-white: #ffffff90;
+    --dark-mode-very-light-gray: #C7C7C7;
     --dark-mode-light-gray: #989898;
     --dark-mode-gray: #747474;
     --dark-mode-dark-gray: #535353;
@@ -62,9 +63,18 @@
     padding: 8px;
 }
 
+.annotation-type-header:hover {
+    cursor: pointer;
+    background-color: var(--dark-mode-very-light-gray);
+}
+
 .annotation-type-header-arrow {
     width: 12px;
     rotate: -90deg;
+}
+
+.annotation-header-arrow-rotated {
+    rotate: 0deg;
 }
 
 .annotation-type-header-right {
@@ -106,8 +116,16 @@
     background-color: var(--comment-type-color);
 }
 
-.annotation-type-list-collapsed {
-    display: none;
+.annotation-type-list {
+    padding: 0;
+    max-height: 0px;
+    overflow: hidden;
+}
+
+.annotation-type-list-expanded {
+    padding: 10px 12px;
+    max-height: 10vh;
+    overflow: auto;
 }
 
 /* Video Section */
