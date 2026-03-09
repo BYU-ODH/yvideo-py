@@ -15,13 +15,13 @@
                 <img class="annotation-icon" src="{{ group.icon }}" alt="{{group.type}} icon">
             </div>
         </div>
-        <div class="annotation-type-list">
+        <div class="annotation-type-list column-flex">
             <button class="annotation-type-add-button">
                 + Add New
             </button>
-            <div class="annotation-list-items">
+            <div class="annotation-list-items column-flex">
                 {% for instance in group.instances %}
-                <div class="annotation-list-item-wrapper {{group.type}}-list-item-wrapper" data-annotation-type="{{group.type}}" data-annotation-id="{{instance.id}}">
+                <div class="annotation-list-item-wrapper {{group.type}}-list-item-wrapper row-flex flex-apart-aligned" data-annotation-type="{{group.type}}" data-annotation-id="{{instance.id}}">
                     <div>
                         {{ instance.name }}
                     </div>

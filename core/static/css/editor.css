@@ -6,13 +6,30 @@
     --dark-mode-dark-gray: #535353;
     --dark-mode-very-dark-gray: #414141;
     --skip-type-color: #D05E38;
+    --skip-type-color-transparent: #D05E3850;
+    --skip-type-color-very-transparent: #D05E3875;
     --blank-type-color: #88784D;
+    --blank-type-color-transparent: #88784D50;
+    --blank-type-color-very-transparent: #88784D75;
     --pause-type-color: #4E5D9B;
+    --pause-type-color-transparent: #4E5D9B50;
+    --pause-type-color-very-transparent: #4E5D9B75;
     --clip-type-color: #758796;
+    --clip-type-color-transparent: #75879650;
+    --clip-type-color-very-transparent: #75879675;
     --mute-type-color: #EBBF81;
+    --mute-type-color-transparent: #EBBF8150;
+    --mute-type-color-very-transparent: #EBBF8175;
     --censor-type-color: #826AB4;
+    --censor-type-color-transparent: #826AB450;
+    --censor-type-color-very-transparent: #826AB475;
     --comment-type-color: #449964;
+    --comment-type-color-transparent: #44996450;
+    --comment-type-color-very-transparent: #44996475;
     --subtitle-type-color: #983769;
+    --subtitle-type-color-transparent: #98376950;
+    --subtitle-type-color-very-transparent: #98376975;
+
 }
 
 /* Editor Container */
@@ -114,6 +131,81 @@
 
 #comment-type-header-right {
     background-color: var(--comment-type-color);
+}
+
+.annotation-list-item-wrapper {
+    border-radius: 8px;
+    padding: 4px;
+}
+
+.skip-list-item-wrapper:hover {
+    background-color: var(--skip-type-color-very-transparent);
+    cursor: pointer;
+}
+.blank-list-item-wrapper:hover {
+    background-color: var(--blank-type-color-very-transparent);
+    cursor: pointer;
+}
+.pause-list-item-wrapper:hover {
+    background-color: var(--pause-type-color-very-transparent);
+    cursor: pointer;
+}
+.clip-list-item-wrapper:hover {
+    background-color: var(--clip-type-color-very-transparent);
+    cursor: pointer;
+}
+.mute-list-item-wrapper:hover {
+    background-color: var(--mute-type-color-very-transparent);
+    cursor: pointer;
+}
+.censor-list-item-wrapper:hover {
+    background-color: var(--censor-type-color-very-transparent);
+    cursor: pointer;
+}
+.comment-list-item-wrapper:hover {
+    background-color: var(--comment-type-color-very-transparent);
+    cursor: pointer;
+}
+
+.skip-list-item-wrapper-selected {
+    background-color: var(--skip-type-color-transparent);
+}
+
+.blank-list-item-wrapper-selected {
+    background-color: var(--blank-type-color-transparent);
+}
+
+.pause-list-item-wrapper-selected {
+    background-color: var(--pause-type-color-transparent);
+}
+
+.clip-list-item-wrapper-selected {
+    background-color: var(--clip-type-color-transparent);
+}
+
+.mute-list-item-wrapper-selected {
+    background-color: var(--mute-type-color-transparent);
+}
+
+.censor-list-item-wrapper-selected {
+    background-color: var(--censor-type-color-transparent);
+}
+
+.comment-list-item-wrapper-selected {
+    background-color: var(--comment-type-color-transparent);
+}
+
+.annotation-instance-delete-icon {
+    width: 24px;
+    height: 24px;
+    z-index: 1;
+    padding: 4px;
+}
+
+.annotation-instance-delete-icon:hover {
+    background-color: white;
+    box-shadow: 0px 3px 6px #00000075;
+    border-radius: 50%;
 }
 
 .annotation-type-list {
