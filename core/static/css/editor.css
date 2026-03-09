@@ -6,29 +6,29 @@
     --dark-mode-dark-gray: #535353;
     --dark-mode-very-dark-gray: #414141;
     --skip-type-color: #D05E38;
-    --skip-type-color-transparent: #D05E3850;
-    --skip-type-color-very-transparent: #D05E3875;
+    --skip-type-color-transparent: #D05E3875;
+    --skip-type-color-very-transparent: #D05E3850;
     --blank-type-color: #88784D;
-    --blank-type-color-transparent: #88784D50;
-    --blank-type-color-very-transparent: #88784D75;
+    --blank-type-color-transparent: #88784D75;
+    --blank-type-color-very-transparent: #88784D50;
     --pause-type-color: #4E5D9B;
-    --pause-type-color-transparent: #4E5D9B50;
-    --pause-type-color-very-transparent: #4E5D9B75;
+    --pause-type-color-transparent: #4E5D9B75;
+    --pause-type-color-very-transparent: #4E5D9B50;
     --clip-type-color: #758796;
-    --clip-type-color-transparent: #75879650;
-    --clip-type-color-very-transparent: #75879675;
+    --clip-type-color-transparent: #75879675;
+    --clip-type-color-very-transparent: #75879650;
     --mute-type-color: #EBBF81;
-    --mute-type-color-transparent: #EBBF8150;
-    --mute-type-color-very-transparent: #EBBF8175;
+    --mute-type-color-transparent: #EBBF8175;
+    --mute-type-color-very-transparent: #EBBF8150;
     --censor-type-color: #826AB4;
-    --censor-type-color-transparent: #826AB450;
-    --censor-type-color-very-transparent: #826AB475;
+    --censor-type-color-transparent: #826AB475;
+    --censor-type-color-very-transparent: #826AB450;
     --comment-type-color: #449964;
-    --comment-type-color-transparent: #44996450;
-    --comment-type-color-very-transparent: #44996475;
+    --comment-type-color-transparent: #44996475;
+    --comment-type-color-very-transparent: #44996450;
     --subtitle-type-color: #983769;
-    --subtitle-type-color-transparent: #98376950;
-    --subtitle-type-color-very-transparent: #98376975;
+    --subtitle-type-color-transparent: #98376975;
+    --subtitle-type-color-very-transparent: #98376950;
 
 }
 
@@ -135,7 +135,13 @@
 
 .annotation-list-item-wrapper {
     border-radius: 8px;
-    padding: 4px;
+    height: 32px;
+    padding: 4px 8px;
+    color: white;
+}
+
+.annotation-list-item-wrapper:hover > .annotation-instance-delete-icon {
+    display: block;
 }
 
 .skip-list-item-wrapper:hover {
@@ -196,6 +202,7 @@
 }
 
 .annotation-instance-delete-icon {
+    display: none;
     width: 24px;
     height: 24px;
     z-index: 1;

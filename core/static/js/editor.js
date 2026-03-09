@@ -337,8 +337,8 @@ export class Editor {
       if (!itemForm) {
         return;
       }
-      const annotationId = itemForm.dataset["itemId"];
-      const annotationType = itemForm.dataset["itemType"];
+      const annotationId = itemForm.dataset["annotationId"];
+      const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
         this.updateAnnotation(annotationType, annotationId)
@@ -798,8 +798,8 @@ export class Editor {
 
     triggerSave(state) {
         const item = state.item;
-        const annotationType = item.dataset["itemType"];
-        const annotationId = item.dataset["itemId"];
+        const annotationType = item.dataset["annotationType"];
+        const annotationId = item.dataset["annotationId"];
 
         const stateTypeIsUnknown = state.type !== "resize" && state.type !== "drag";
         const startAndEndTimesAreUnknown = !item.style.left || item.style.left == '' || !item.style.width || item.style.width == '';
@@ -889,10 +889,10 @@ export class Editor {
       this.setupCensorPositionSeekListeners();
     }
 
-    addClickListenerToLayerItem(item) {
-      const annotationType = item.dataset["itemType"];
-      const annotationId = item.dataset["itemId"];
-      item.addEventListener("click", async (e) => {
+    fetchEditFormOnClick(element) {
+      const annotationType = element.dataset["annotationType"];
+      const annotationId = element.dataset["annotationId"];
+      element.addEventListener("click", async (e) => {
         e.preventDefault();
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
       });
@@ -901,7 +901,12 @@ export class Editor {
     setUpItemClickListeners() {
       const layerItems = document.getElementsByClassName("layer-item");
       for (let layerItem of layerItems) {
-        this.addClickListenerToLayerItem(layerItem);
+        this.fetchEditFormOnClick(layerItem);
+      }
+
+      const annotationPanelItems = document.getElementsByClassName("annotation-list-item-wrapper");
+      for (let panelItem of annotationPanelItems) {
+        this.fetchEditFormOnClick(panelItem);
       }
     }
 
