@@ -1087,50 +1087,55 @@ export class Editor {
     }
 
     listenForNewItemCreation() {
+      const assignListeners = (elements) => {
+        for (let button of elements) {
+          const annotationType = button.dataset["annotationType"];
+          button.addEventListener("click", async (e) => {
+            e.preventDefault();
+
+            let startTime = 0;
+            let endTime = 0;
+            if (this.video) {
+                startTime = this.video.currentTime;
+                // Make sure new item can fit on the page
+                const itemDuration = Math.min(this.duration * 0.2, 10);
+                endTime = Math.min(startTime + itemDuration, this.duration);
+            }
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}/`,
+              {
+                method: "POST",
+                headers: {"X-CSRFToken": csrfToken},
+                body: JSON.stringify({
+                  "start_time": startTime,
+                  "end_time": endTime
+                })
+              });
+            if (response.ok) {
+              const newItemHtml = await response.text();
+              const layerContainer = document.getElementById(`${annotationType}-item-container`);
+              const newElement = document.createElement("template");
+              newElement.innerHTML = newItemHtml;
+              const newNode = newElement.content.firstChild;
+              newNode.dataset["start"] = startTime;
+              newNode.dataset["end"] = endTime;
+              layerContainer.append(newNode);
+              this.fetchEditFormOnClick(newNode);
+              this.placeItem(newNode);
+              this.placeLayerItems();
+              window.dispatchEvent(this.annotationUpdatedEvent);
+            }
+            else {
+              console.error(response);
+            }
+          })
+        }
+      };
       const createItemButtons = document.getElementsByClassName("add-item-btn");
-      for (let button of createItemButtons) {
-        const annotationType = button.dataset["annotationType"];
-        button.addEventListener("click", async (e) => {
-          e.preventDefault();
-
-          let startTime = 0;
-          let endTime = 0;
-          if (this.video) {
-              startTime = this.video.currentTime;
-              // Make sure new item can fit on the page
-              const itemDuration = Math.min(this.duration * 0.2, 10);
-              endTime = Math.min(startTime + itemDuration, this.duration);
-          }
-
-          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-          const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}/`,
-            {
-              method: "POST",
-              headers: {"X-CSRFToken": csrfToken},
-              body: JSON.stringify({
-                "start_time": startTime,
-                "end_time": endTime
-              })
-            });
-          if (response.ok) {
-            const newItemHtml = await response.text();
-            const layerContainer = document.getElementById(`${annotationType}-item-container`);
-            const newElement = document.createElement("template");
-            newElement.innerHTML = newItemHtml;
-            const newNode = newElement.content.firstChild;
-            newNode.dataset["start"] = startTime;
-            newNode.dataset["end"] = endTime;
-            layerContainer.append(newNode);
-            this.fetchEditFormOnClick(newNode);
-            this.placeItem(newNode);
-            this.placeLayerItems();
-            window.dispatchEvent(this.annotationUpdatedEvent);
-          }
-          else {
-            console.error(response);
-          }
-        })
-      }
+      const panelCreateItemButtons = document.getElementsByClassName("annotation-type-add-button");
+      assignListeners(createItemButtons);
+      assignListeners(panelCreateItemButtons);
     }
 
     /* TIMELINE FUNCTIONS */
