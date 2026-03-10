@@ -372,6 +372,11 @@ export class Editor {
             this.handleFocusChangeAwayFromCensorType();
           }
           window.dispatchEvent(this.annotationUpdatedEvent);
+          const panelItemToRemove = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
+          if (panelItemToRemove) {
+            panelItemToRemove.remove();
+          }
+
           const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
           deletedItem.remove();
           const detailForm = document.getElementById("detail-form");
