@@ -312,6 +312,11 @@
     box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
+.annotation-input-dark {
+    background: var(--dark-mode-very-light-gray);
+    border-radius: 0px;
+}
+
 .time-input-group {
     display: flex;
     gap: 0.5rem;
@@ -320,6 +325,10 @@
 
 .time-input-group input {
     flex: 1;
+}
+
+.annotation-time-input {
+    text-align: center;
 }
 
 .btn-set-time {
