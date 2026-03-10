@@ -792,7 +792,7 @@ export class Editor {
 
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
-      this.addClickListenerToLayerItem(newTargetItem);
+      this.fetchEditFormOnClick(newTargetItem);
       window.dispatchEvent(this.annotationUpdatedEvent);
     }
 
@@ -889,12 +889,54 @@ export class Editor {
       this.setupCensorPositionSeekListeners();
     }
 
+    markPanelItemAsActive(annotationType, annotationId) {
+      if (!annotationType || !annotationId) {
+        console.error("Invalid annotation type of annotation id");
+        return;
+      }
+      const activePanelItemClass = "active-panel-item";
+      const itemListExpansionClass = "annotation-type-list-expanded";
+      const arrowRotationClass = "annotation-header-arrow-rotated";
+      const thisPanelItem = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
+
+      if (!thisPanelItem) {
+        console.error("Failed to identify the focused panel item");
+        return;
+      }
+
+      const activePanelItems = document.getElementsByClassName(activePanelItemClass);
+      for (let activePanelItem of activePanelItems) {
+        const activePanelItemType = activePanelItem.dataset["annotationType"];
+        const panelTypeClassToDisable = `${activePanelItemType}-list-item-wrapper-selected`;
+        activePanelItem.classList.remove(panelTypeClassToDisable, activePanelItemClass);
+        // we want to collapse the item panel if the new active item is not the same type as the old one.
+        if (activePanelItemType != annotationType) {
+          const parentItemList = activePanelItem.closest(".annotation-type-list");
+          if(parentItemList) {
+            parentItemList.classList.remove(itemListExpansionClass);
+          }
+          const annotationGroupWrapper = activePanelItem.closest(".annotation-type-wrapper");
+          const groupWrapperArrow = annotationGroupWrapper.querySelector(".annotation-type-header-arrow");
+          groupWrapperArrow.classList.remove(arrowRotationClass);
+        }
+      }
+
+      // we are ready to add the active item's style
+      thisPanelItem.classList.add(`${annotationType}-list-item-wrapper-selected`, activePanelItemClass);
+      const thisItemList = thisPanelItem.closest(".annotation-type-list");
+      thisItemList.classList.add(itemListExpansionClass);
+      const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
+      const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
+      thisGroupArrow.classList.add(arrowRotationClass);
+    }
+
     fetchEditFormOnClick(element) {
       const annotationType = element.dataset["annotationType"];
       const annotationId = element.dataset["annotationId"];
       element.addEventListener("click", async (e) => {
         e.preventDefault();
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
+        this.markPanelItemAsActive(annotationType, annotationId);
       });
     }
 
@@ -1079,7 +1121,7 @@ export class Editor {
             newNode.dataset["start"] = startTime;
             newNode.dataset["end"] = endTime;
             layerContainer.append(newNode);
-            this.addClickListenerToLayerItem(newNode);
+            this.fetchEditFormOnClick(newNode);
             this.placeItem(newNode);
             this.placeLayerItems();
             window.dispatchEvent(this.annotationUpdatedEvent);

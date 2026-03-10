@@ -3,10 +3,10 @@
 </div>
 <div id="annotation-groups-wrapper">
     {% for group in annotation_groups %}
-    <div class="annotation-type-wrapper">
-        <div class="annotation-type-header row-flex flex-apart-aligned">
+    <div id="{{group.type}}-annotation-type-wrapper" class="annotation-type-wrapper">
+        <div id="{{group.type}}-annotation-type-header" class="annotation-type-header row-flex flex-apart-aligned">
             <div class="annotation-type-header-left row-flex">
-                <img class="annotation-type-header-arrow" src="/static/img/arrow.svg" alt="" />
+                <img id="{{group.type}}-annotation-type-header-arrow" class="annotation-type-header-arrow" src="/static/img/arrow.svg" alt="" />
                 <div class="annotation-type-header-text">
                     {{ group.type_display }}
                 </div>
@@ -15,13 +15,13 @@
                 <img class="annotation-icon" src="{{ group.icon }}" alt="{{group.type}} icon">
             </div>
         </div>
-        <div class="annotation-type-list column-flex">
+        <div id="{{group.type}}-annotation-type-list" class="annotation-type-list column-flex">
             <button class="annotation-type-add-button">
                 + Add New
             </button>
             <div class="annotation-list-items column-flex">
                 {% for instance in group.instances %}
-                <div class="annotation-list-item-wrapper {{group.type}}-list-item-wrapper row-flex flex-apart-aligned" data-annotation-type="{{group.type}}" data-annotation-id="{{instance.id}}">
+                <div id="{{group.type}}-panel-item-{{instance.id}}" class="annotation-list-item-wrapper {{group.type}}-list-item-wrapper row-flex flex-apart-aligned" data-annotation-type="{{group.type}}" data-annotation-id="{{instance.id}}">
                     <div>
                         {{ instance.name }}
                     </div>
