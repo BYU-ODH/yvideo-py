@@ -19,14 +19,9 @@
             <button class="annotation-type-add-button" data-annotation-type="{{group.type}}">
                 + Add New
             </button>
-            <div class="annotation-list-items column-flex">
+            <div id="{{group.type}}-annotation-items-list" class="annotation-items-list column-flex">
                 {% for instance in group.instances %}
-                <div id="{{group.type}}-panel-item-{{instance.id}}" class="annotation-list-item-wrapper {{group.type}}-list-item-wrapper row-flex flex-apart-aligned" data-annotation-type="{{group.type}}" data-annotation-id="{{instance.id}}">
-                    <div>
-                        {{ instance.name }}
-                    </div>
-                    <img class="annotation-instance-delete-icon" src="/static/img/trash.svg" alt="delete">
-                </div>
+                    {% include "partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}
                 {% endfor %}
             </div>
         </div>

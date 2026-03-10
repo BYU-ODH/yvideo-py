@@ -171,7 +171,7 @@ urlpatterns = [
     ),
     # Annotation CRUD
     path(
-        "annotations/<str:annotation_type>/create/content/<int:content_id>/",
+        "annotations/<str:annotation_type>/create/content/<int:content_id>",
         views_video_editor.create_annotation,
         name="create_annotation",
     ),

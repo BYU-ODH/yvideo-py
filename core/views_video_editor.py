@@ -568,7 +568,7 @@ def create_annotation(request, annotation_type, content_id):
     }
 
     # Render item using shared partial
-    item_html = render_to_string(
+    layer_item_html = render_to_string(
         "partials/item.html",
         {
             "instance": annotation,
@@ -581,7 +581,14 @@ def create_annotation(request, annotation_type, content_id):
         request=request,
     )
 
-    return HttpResponse(item_html)
+    panel_item_html = render_to_string(
+        "partials/annotation_list_item.html",
+        {"id": annotation.pk, "type": annotation_type, "name": annotation.name},
+    )
+
+    return JsonResponse(
+        {"layer_item_html": layer_item_html, "panel_item_html": panel_item_html}
+    )
 
 
 def validate_annotation_update_request(user, content, annotation_type, annotation_id):

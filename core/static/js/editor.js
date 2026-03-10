@@ -1103,7 +1103,7 @@ export class Editor {
             }
 
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}/`,
+            const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}`,
               {
                 method: "POST",
                 headers: {"X-CSRFToken": csrfToken},
@@ -1113,10 +1113,15 @@ export class Editor {
                 })
               });
             if (response.ok) {
-              const newItemHtml = await response.text();
+              const parsedResponse = await response.json();
+              const newPanelItemHtml = parsedResponse["panel_item_html"];
+              const panel = document.getElementById(`${annotationType}-annotation-items-list`);
+              panel.innerHTML = panel.innerHTML + newPanelItemHtml;
+
+              const newLayerItemHtml = parsedResponse["layer_item_html"];
               const layerContainer = document.getElementById(`${annotationType}-item-container`);
               const newElement = document.createElement("template");
-              newElement.innerHTML = newItemHtml;
+              newElement.innerHTML = newLayerItemHtml;
               const newNode = newElement.content.firstChild;
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
