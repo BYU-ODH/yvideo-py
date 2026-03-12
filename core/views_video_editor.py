@@ -841,9 +841,12 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
     annotation = validation_result["result"]
 
     update_fields = {}
-    update_fields["name"] = parsed_body["name"]
+    update_fields["name"] = parsed_body["annotation_name"]
     update_fields["start_time"] = parsed_body["start_time"]
     update_fields["description"] = parsed_body["description"]
+
+    if annotation_type == "pause" or annotation_type == "skip":
+        update_fields["message"] = parsed_body["message"]
 
     if annotation_type != "pause":
         update_fields["end_time"] = parsed_body["end_time"]
@@ -855,8 +858,6 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
             update_fields["x"] = float(x)
         if y is not None:
             update_fields["y"] = float(y)
-    elif annotation_type == "pause":
-        update_fields["message"] = parsed_body["message"]
     elif annotation_type == "blank":
         update_fields["type"] = parsed_body["blank_type"]
 
