@@ -288,13 +288,12 @@
 
 .form-group {
     margin-bottom: 1rem;
+    row-gap: 0.5rem;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #333;
+    font-weight: 500;
 }
 
 .form-group input[type="text"],
@@ -302,7 +301,6 @@
     width: 100%;
     padding: 0.5rem;
     border: 1px solid #ccc;
-    border-radius: 4px;
     font-size: 0.9rem;
 }
 
@@ -310,6 +308,11 @@
     outline: none;  /* eslint-disable-line css/use-baseline */
     border-color: #4a90e2;
     box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.annotation-input-dark {
+    background: var(--dark-mode-very-light-gray);
+    border-radius: 0px;
 }
 
 .time-input-group {
@@ -320,6 +323,10 @@
 
 .time-input-group input {
     flex: 1;
+}
+
+.annotation-time-input {
+    text-align: center;
 }
 
 .btn-set-time {
