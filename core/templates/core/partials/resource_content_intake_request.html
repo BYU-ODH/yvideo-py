@@ -1,67 +1,138 @@
-<form method="post">
-    {% csrf_token %}
+<div id="content-intake-form-wrapper">
+    <h1>
+        Content Intake Form
+    </h1>
+    <div id="content-intake-form-main-content">
+        <form method="post">
+            {% csrf_token %}
+            <div>
+                <p>
+                    The Office of Digital Humanities and its Humanities Learning Commons conform to all applicable copyright laws. We will NOT process copyrighted material unless:
+                </p>
+                <ol>
+                    <li>YOU are the copyright holder;</li>
+                    <li>You show us WRITTEN PERMISSION;</li>
+                    <li>The HLC Supervisor has determined that your request is within the legally defined bounds of <a href="https://www.copyright.gov/help/faq/faq-fairuse.html" alt="USA fair use copyright frequently asked questions">FAIR USE</a>.</li>
+                </ol>
+            </div>
 
-    <fieldset>
-        <legend>Checkout Information</legend>
+            <div>
+                <h2>
+                    Patron Information
+                </h2>
+                <div class="flex-column">
+                    <div class="content-intake-form-group">
+                        <label>Name</label>
+                        {{ form.patron_name }}
+                    </div>
+                    <div class="content-intake-form-group">
+                        <label>Net ID</label>
+                        {{ form.patron_netid }}
+                    </div>
+                    <div class="content-intake-form-group">
+                        <label>Email</label>
+                        {{ form.patron_email }}
+                    </div>
+                    <div class="content-intake-form-group">
+                        <label>Date Needed (min. 5 days required)</label>
+                        {{ form.date_needed }}
+                    </div>
+                </div>
+                <div class="flex-column">
+                    <div class="content-intake-form-group">
+                        <label>Status:</label>
+                        {{ form.user_type }}
+                    </div>
+                    <div class="content-intake-form-group">
+                        <label>Phone Number</label>
+                        {{ form.patron_phone_number }}
+                    </div>
+                </div>
+            </div>
 
-        {{ form.checked_out_from_hbll }}
-        <label for="{{ form.checked_out_from_hbll.id_for_label }}">
-            Checked out from HBLL
-        </label><br>
+            <div>
+                <h2>Video Information</h2>
+                <div class="content-intake-form-group">
+                    <label>Resource Title</label>
+                    {{ form.resource_title }}
+                </div>
+                <div class="content-intake-form-group">
+                    <label>Y-Video Collection</label>
+                    {{ form.resource_collection }}
+                </div>
+                <div class="content-intake-form-group">
+                    <label>Audio Language</label>
+                    {{ form.audio_language }}
+                </div>
+                <div class="content-intake-form-group">
+                    <label>Subtitle Language (optional)</label>
+                    {{ form.subtitle_language }}
+                </div>
+            </div>
 
-        {{ form.checked_out_from_other_byu_library }}
-        <label for="{{ form.checked_out_from_other_byu_library.id_for_label }}">
-            Checked out from another BYU library
-        </label><br>
+            <fieldset class="column-flex">
+                <legend>Check all that apply:</legend>
 
-        {{ form.checked_out_from_non_byu_library }}
-        <label for="{{ form.checked_out_from_non_byu_library.id_for_label }}">
-            Checked out from a non-BYU library
-        </label>
-    </fieldset>
+                {{ form.checked_out_from_hbll }}
+                <label for="{{ form.checked_out_from_hbll.id_for_label }}">
+                    Checked out from HBLL
+                </label><br>
 
-    <fieldset>
-        <legend>Purpose of Use</legend>
+                {{ form.checked_out_from_other_byu_library }}
+                <label for="{{ form.checked_out_from_other_byu_library.id_for_label }}">
+                    Checked out from another BYU library
+                </label><br>
 
-        {{ form.is_for_course_use }}
-        <label for="{{ form.is_for_course_use.id_for_label }}">
-            For course use
-        </label><br>
+                {{ form.checked_out_from_non_byu_library }}
+                <label for="{{ form.checked_out_from_non_byu_library.id_for_label }}">
+                    Checked out from a non-BYU library
+                </label>
+            </fieldset>
 
-        {{ form.is_for_ic_use }}
-        <label for="{{ form.is_for_ic_use.id_for_label }}">
-            For IC use
-        </label>
-    </fieldset>
+            <fieldset class="column-flex">
+                <legend>Purpose of Use:</legend>
 
-    <fieldset>
-        <legend>Content Advisories</legend>
+                {{ form.is_for_course_use }}
+                <label for="{{ form.is_for_course_use.id_for_label }}">
+                    For course use
+                </label><br>
 
-        {{ form.violence_or_blood_and_gore }}
-        <label for="{{ form.violence_or_blood_and_gore.id_for_label }}">
-            Violence or blood and gore
-        </label><br>
+                {{ form.is_for_ic_use }}
+                <label for="{{ form.is_for_ic_use.id_for_label }}">
+                    For International Cinema use
+                </label>
+            </fieldset>
 
-        {{ form.nudity_or_sexual_content }}
-        <label for="{{ form.nudity_or_sexual_content.id_for_label }}">
-            Nudity or sexual content
-        </label><br>
+            <fieldset class="column-flex">
+                <legend>Content Advisories:</legend>
 
-        {{ form.profanity_or_vulgarity }}
-        <label for="{{ form.profanity_or_vulgarity.id_for_label }}">
-            Profanity or vulgarity
-        </label><br>
+                {{ form.violence_or_blood_and_gore }}
+                <label for="{{ form.violence_or_blood_and_gore.id_for_label }}">
+                    Violence or blood and gore
+                </label><br>
 
-        {{ form.self_harm_or_suicide }}
-        <label for="{{ form.self_harm_or_suicide.id_for_label }}">
-            Self-harm or suicide
-        </label><br>
+                {{ form.nudity_or_sexual_content }}
+                <label for="{{ form.nudity_or_sexual_content.id_for_label }}">
+                    Nudity or sexual content
+                </label><br>
 
-        {{ form.drug_use }}
-        <label for="{{ form.drug_use.id_for_label }}">
-            Drug use
-        </label>
-    </fieldset>
+                {{ form.profanity_or_vulgarity }}
+                <label for="{{ form.profanity_or_vulgarity.id_for_label }}">
+                    Profanity or vulgarity
+                </label><br>
 
-    <button type="submit">Submit</button>
-</form>
+                {{ form.self_harm_or_suicide }}
+                <label for="{{ form.self_harm_or_suicide.id_for_label }}">
+                    Self-harm or suicide
+                </label><br>
+
+                {{ form.drug_use }}
+                <label for="{{ form.drug_use.id_for_label }}">
+                    Drug use
+                </label>
+            </fieldset>
+
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+</div>
