@@ -337,8 +337,8 @@ export class Editor {
       if (!itemForm) {
         return;
       }
-      const annotationId = itemForm.dataset["itemId"];
-      const annotationType = itemForm.dataset["itemType"];
+      const annotationId = itemForm.dataset["annotationId"];
+      const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
         this.updateAnnotation(annotationType, annotationId)
@@ -372,6 +372,11 @@ export class Editor {
             this.handleFocusChangeAwayFromCensorType();
           }
           window.dispatchEvent(this.annotationUpdatedEvent);
+          const panelItemToRemove = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
+          if (panelItemToRemove) {
+            panelItemToRemove.remove();
+          }
+
           const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
           deletedItem.remove();
           const detailForm = document.getElementById("detail-form");
@@ -792,14 +797,14 @@ export class Editor {
 
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
-      this.addClickListenerToLayerItem(newTargetItem);
+      this.fetchEditFormOnClick(newTargetItem);
       window.dispatchEvent(this.annotationUpdatedEvent);
     }
 
     triggerSave(state) {
         const item = state.item;
-        const annotationType = item.dataset["itemType"];
-        const annotationId = item.dataset["itemId"];
+        const annotationType = item.dataset["annotationType"];
+        const annotationId = item.dataset["annotationId"];
 
         const stateTypeIsUnknown = state.type !== "resize" && state.type !== "drag";
         const startAndEndTimesAreUnknown = !item.style.left || item.style.left == '' || !item.style.width || item.style.width == '';
@@ -889,19 +894,94 @@ export class Editor {
       this.setupCensorPositionSeekListeners();
     }
 
-    addClickListenerToLayerItem(item) {
-      const annotationType = item.dataset["itemType"];
-      const annotationId = item.dataset["itemId"];
-      item.addEventListener("click", async (e) => {
+    markPanelItemAsActive(annotationType, annotationId) {
+      if (!annotationType || !annotationId) {
+        console.error("Invalid annotation type of annotation id");
+        return;
+      }
+      const activePanelItemClass = "active-panel-item";
+      const itemListExpansionClass = "annotation-type-list-expanded";
+      const arrowRotationClass = "annotation-header-arrow-rotated";
+      const thisPanelItem = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
+
+      if (!thisPanelItem) {
+        console.error("Failed to identify the focused panel item");
+        return;
+      }
+
+      const activePanelItems = document.getElementsByClassName(activePanelItemClass);
+      for (let activePanelItem of activePanelItems) {
+        const activePanelItemType = activePanelItem.dataset["annotationType"];
+        const panelTypeClassToDisable = `${activePanelItemType}-list-item-wrapper-selected`;
+        activePanelItem.classList.remove(panelTypeClassToDisable, activePanelItemClass);
+        // we want to collapse the item panel if the new active item is not the same type as the old one.
+        if (activePanelItemType != annotationType) {
+          const parentItemList = activePanelItem.closest(".annotation-type-list");
+          if(parentItemList) {
+            parentItemList.classList.remove(itemListExpansionClass);
+          }
+          const annotationGroupWrapper = activePanelItem.closest(".annotation-type-wrapper");
+          const groupWrapperArrow = annotationGroupWrapper.querySelector(".annotation-type-header-arrow");
+          groupWrapperArrow.classList.remove(arrowRotationClass);
+        }
+      }
+
+      // we are ready to add the active item's style
+      thisPanelItem.classList.add(`${annotationType}-list-item-wrapper-selected`, activePanelItemClass);
+      const thisItemList = thisPanelItem.closest(".annotation-type-list");
+      thisItemList.classList.add(itemListExpansionClass);
+      const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
+      const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
+      thisGroupArrow.classList.add(arrowRotationClass);
+    }
+
+    fetchEditFormOnClick(element) {
+      const annotationType = element.dataset["annotationType"];
+      const annotationId = element.dataset["annotationId"];
+      element.addEventListener("click", async (e) => {
         e.preventDefault();
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
+        this.markPanelItemAsActive(annotationType, annotationId);
       });
     }
 
     setUpItemClickListeners() {
-      const layerItems = document.getElementsByClassName("layer-item")
+      const layerItems = document.getElementsByClassName("layer-item");
       for (let layerItem of layerItems) {
-        this.addClickListenerToLayerItem(layerItem);
+        this.fetchEditFormOnClick(layerItem);
+      }
+
+      const annotationPanelItems = document.getElementsByClassName("annotation-list-item-wrapper");
+      for (let panelItem of annotationPanelItems) {
+        this.fetchEditFormOnClick(panelItem);
+      }
+    }
+
+    setUpAnnotationPanelClickListeners() {
+      const annotationPanelGroupHeaders = document.getElementsByClassName("annotation-type-header");
+      const panelLists = document.getElementsByClassName("annotation-type-list");
+      const panelArrows = document.getElementsByClassName("annotation-type-header-arrow");
+      for (let panel of annotationPanelGroupHeaders) {
+        const thisPanelList = panel.parentElement.querySelector(".annotation-type-list");
+        const listClassName = "annotation-type-list-expanded";
+        const thisPanelArrow = panel.querySelector(".annotation-type-header-arrow");
+        const arrowClassName = "annotation-header-arrow-rotated";
+        panel.addEventListener("click", () => {
+          if (thisPanelList.className.includes(listClassName)) {
+            thisPanelList.classList.remove(listClassName)
+            thisPanelArrow.classList.remove(arrowClassName)
+          }
+          else {
+            for (const arrow of panelArrows) {
+              arrow.classList.remove(arrowClassName);
+            }
+            for (const panelList of panelLists) {
+              panelList.classList.remove(listClassName);
+            }
+            thisPanelArrow.classList.add(arrowClassName);
+            thisPanelList.classList.add(listClassName);
+          }
+        });
       }
     }
 
@@ -1012,50 +1092,60 @@ export class Editor {
     }
 
     listenForNewItemCreation() {
+      const assignListeners = (elements) => {
+        for (let button of elements) {
+          const annotationType = button.dataset["annotationType"];
+          button.addEventListener("click", async (e) => {
+            e.preventDefault();
+
+            let startTime = 0;
+            let endTime = 0;
+            if (this.video) {
+                startTime = this.video.currentTime;
+                // Make sure new item can fit on the page
+                const itemDuration = Math.min(this.duration * 0.2, 10);
+                endTime = Math.min(startTime + itemDuration, this.duration);
+            }
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}`,
+              {
+                method: "POST",
+                headers: {"X-CSRFToken": csrfToken},
+                body: JSON.stringify({
+                  "start_time": startTime,
+                  "end_time": endTime
+                })
+              });
+            if (response.ok) {
+              const parsedResponse = await response.json();
+              const newPanelItemHtml = parsedResponse["panel_item_html"];
+              const panel = document.getElementById(`${annotationType}-annotation-items-list`);
+              panel.innerHTML = panel.innerHTML + newPanelItemHtml;
+
+              const newLayerItemHtml = parsedResponse["layer_item_html"];
+              const layerContainer = document.getElementById(`${annotationType}-item-container`);
+              const newElement = document.createElement("template");
+              newElement.innerHTML = newLayerItemHtml;
+              const newNode = newElement.content.firstChild;
+              newNode.dataset["start"] = startTime;
+              newNode.dataset["end"] = endTime;
+              layerContainer.append(newNode);
+              this.fetchEditFormOnClick(newNode);
+              this.placeItem(newNode);
+              this.placeLayerItems();
+              window.dispatchEvent(this.annotationUpdatedEvent);
+            }
+            else {
+              console.error(response);
+            }
+          })
+        }
+      };
       const createItemButtons = document.getElementsByClassName("add-item-btn");
-      for (let button of createItemButtons) {
-        const annotationType = button.dataset["annotationType"];
-        button.addEventListener("click", async (e) => {
-          e.preventDefault();
-
-          let startTime = 0;
-          let endTime = 0;
-          if (this.video) {
-              startTime = this.video.currentTime;
-              // Make sure new item can fit on the page
-              const itemDuration = Math.min(this.duration * 0.2, 10);
-              endTime = Math.min(startTime + itemDuration, this.duration);
-          }
-
-          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-          const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}/`,
-            {
-              method: "POST",
-              headers: {"X-CSRFToken": csrfToken},
-              body: JSON.stringify({
-                "start_time": startTime,
-                "end_time": endTime
-              })
-            });
-          if (response.ok) {
-            const newItemHtml = await response.text();
-            const layerContainer = document.getElementById(`${annotationType}-item-container`);
-            const newElement = document.createElement("template");
-            newElement.innerHTML = newItemHtml;
-            const newNode = newElement.content.firstChild;
-            newNode.dataset["start"] = startTime;
-            newNode.dataset["end"] = endTime;
-            layerContainer.append(newNode);
-            this.addClickListenerToLayerItem(newNode);
-            this.placeItem(newNode);
-            this.placeLayerItems();
-            window.dispatchEvent(this.annotationUpdatedEvent);
-          }
-          else {
-            console.error(response);
-          }
-        })
-      }
+      const panelCreateItemButtons = document.getElementsByClassName("annotation-type-add-button");
+      assignListeners(createItemButtons);
+      assignListeners(panelCreateItemButtons);
     }
 
     /* TIMELINE FUNCTIONS */
@@ -1369,13 +1459,15 @@ function setupAnnotationSelectorFunctions() {
 
 function editorInit() {
   // Initialize when DOM is ready
+  let editor;
   if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-          new Editor();
+          editor = new Editor();
       });
   } else {
-      new Editor();
+      editor = new Editor();
   }
+  editor.setUpAnnotationPanelClickListeners();
   setupAnnotationSelectorFunctions();
 }
 

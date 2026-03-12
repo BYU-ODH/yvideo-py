@@ -15,7 +15,8 @@
         <div class="editor-container">
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
-                <div id="editor-element-panel" class="editor-container-component-dark">
+                <div id="editor-annotation-panel" class="editor-container-component-dark">
+                    {% include 'partials/annotation_panel.html' with annotation_groups=annotation_groups %}
                 </div>
 
                 <div id="video-section" class="video-section">

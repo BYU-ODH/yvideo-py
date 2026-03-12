@@ -598,6 +598,7 @@ class BaseAnnotation(models.Model):
         null=True,
         blank=True,
     )
+    track_name = models.CharField(default="Track 1", blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     start_time = models.FloatField(default=0.0)
