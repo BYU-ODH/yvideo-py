@@ -1112,5 +1112,8 @@ class ResourceContentIntakeRequest(models.Model):
     self_harm_or_suicide = models.BooleanField(default=False)
     drug_use = models.BooleanField(default=False)
 
+    # Compliance
+    acknowledged_compliance = models.BooleanField(default=False)
+
     def __str__(self):
         return f"Content request for {self.resource_title} by {self.patron_name} ({self.patron_netid}) due by {self.date_needed}"
