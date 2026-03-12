@@ -1,3 +1,4 @@
+from datetime import timedelta
 import logging
 import os
 
@@ -1070,22 +1071,40 @@ class AuthToken(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+def get_date_5_days_from_now():
+    return timezone.now() + timedelta(days=5)
+
+
 class ResourceContentIntakeRequest(models.Model):
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    USER_TYPE_CHOICES = {
+        "faculty": "Faculty",
+        "student": "Student",
+        "not_affiliated": "Non-BYU",
+    }
     created_at = models.DateTimeField(auto_now_add=True)
+    # Patron information
+    patron_name = models.CharField(default="")
+    patron_netid = models.CharField(default="")
+    patron_email = models.CharField(default="")
+    date_needed = models.DateTimeField(default=get_date_5_days_from_now)
+    patron_phone_number = models.CharField(default="")
+    user_type = models.CharField(choices=USER_TYPE_CHOICES, default="not_affiliated")
+
     # Resource-specific fields
-    resource = models.ForeignKey(
-        "Resource", on_delete=models.CASCADE, related_name="content_requests"
-    )
+    resource_title = models.CharField(default="")
+    resource_collection = models.CharField(default="")
+    audio_language = models.CharField(default="")
+    subtitle_language = models.CharField(default="")
+
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)
     checked_out_from_other_byu_library = models.BooleanField(default=False)
     checked_out_from_non_byu_library = models.BooleanField(default=False)
+
     # Purpose of use fields
     is_for_course_use = models.BooleanField(default=False)
     is_for_ic_use = models.BooleanField(default=False)
+
     # Content advisory fields
     violence_or_blood_and_gore = models.BooleanField(default=False)
     nudity_or_sexual_content = models.BooleanField(default=False)
@@ -1094,4 +1113,4 @@ class ResourceContentIntakeRequest(models.Model):
     drug_use = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Content request for {self.resource.title}"
+        return f"Content request for {self.resource_title} by {self.patron_name} ({self.patron_netid}) due by {self.date_needed}"

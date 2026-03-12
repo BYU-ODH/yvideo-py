@@ -5,8 +5,8 @@ from .models import Clip
 from .models import Collection
 from .models import Content
 from .models import ImportantWord
-from .models import Subtitle
 from .models import ResourceContentIntakeRequest
+from .models import Subtitle
 from .utils import hms2seconds
 
 
@@ -114,21 +114,9 @@ class SubtitleForm(forms.ModelForm):
 
     resource = forms.CharField(widget=forms.HiddenInput)
     owner = forms.CharField(widget=forms.HiddenInput)
+
+
 class ResourceContentIntakeRequestForm(forms.ModelForm):
     class Meta:
         model = ResourceContentIntakeRequest
-        fields = [
-            # Checkout information
-            "checked_out_from_hbll",
-            "checked_out_from_other_byu_library",
-            "checked_out_from_non_byu_library",
-            # Purpose of use
-            "is_for_course_use",
-            "is_for_ic_use",
-            # Content advisory fields
-            "violence_or_blood_and_gore",
-            "nudity_or_sexual_content",
-            "profanity_or_vulgarity",
-            "self_harm_or_suicide",
-            "drug_use",
-        ]
+        exclude = []
