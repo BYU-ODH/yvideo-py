@@ -156,6 +156,11 @@ urlpatterns = [
         views_video_editor.update_annotation_set_name,
         name="update_annotation_set_name",
     ),
+    path(
+        "annotation-panel/<int:annotation_set_id>",
+        views_video_editor.build_annotation_panel,
+        name="get_annotation_panel",
+    ),
     # Undo/Redo (per-annotation)
     path(
         "content/<int:content_id>/undo/",
@@ -169,7 +174,7 @@ urlpatterns = [
     ),
     # Annotation CRUD
     path(
-        "annotations/<str:annotation_type>/create/content/<int:content_id>/",
+        "annotations/<str:annotation_type>/create/content/<int:content_id>",
         views_video_editor.create_annotation,
         name="create_annotation",
     ),

@@ -38,7 +38,71 @@ ANNOTATION_MODELS = {
     "comment": CommentAnnotation,
 }
 
+ANNOTATION_ICONS = {
+    "skip": "/static/img/skip-icon.svg",
+    "mute": "/static/img/mute-icon.svg",
+    "blank": "/static/img/blank-icon.svg",
+    "pause": "/static/img/pause-icon.svg",
+    "censor": "/static/img/blur-icon.svg",
+    "comment": "/static/img/comment-icon.svg",
+}
 
+
+def get_annotation_groups(annotation_set):
+    if not annotation_set:
+        return []
+    # [{type:"", instances: []}]
+    groups = []
+    for type_name, model_class in ANNOTATION_MODELS.items():
+        type_icon = ANNOTATION_ICONS[type_name]
+        new_group = {
+            "type": type_name,
+            "type_display": type_name.capitalize(),
+            "icon": type_icon,
+            "instances": [],
+        }
+        annotations = model_class.objects.filter(
+            annotation_set=annotation_set, active=True
+        ).order_by("start_time")
+        for annotation in annotations:
+            start_time = annotation.start_time
+            end_time = getattr(annotation, "end_time", start_time)
+            new_group["instances"].append(
+                {
+                    "instance": annotation,
+                    "id": annotation.pk,
+                    "name": annotation.name,
+                    "item_type": type_name,
+                    "track": annotation.track_name,
+                    "position": {
+                        "start": start_time,
+                        "end": end_time,
+                    },
+                }
+            )
+        groups.append(new_group)
+
+    return groups
+
+
+def build_annotation_panel(request, annotation_set_id):
+    try:
+        annotation_set = get_object_or_404(AnnotationSet, pk=annotation_set_id)
+        annotation_groups = get_annotation_groups(annotation_set)
+        annotation_panel_html = render_to_string(
+            "core/partials/annotation_panel.html",
+            {"annotation_groups": annotation_groups},
+            request,
+        )
+    except Exception as e:
+        logger.error(f"Failed to build annotation panel. Exception: {e}")
+        return HttpResponseServerError()
+
+    return HttpResponse(annotation_panel_html)
+
+
+# build_annotation_layers will be replaced by using get_annotation_groups
+# in another issue.
 def build_annotation_layers(content, annotation_set, can_edit):
     layers = []
     layer_buttons = {}
@@ -178,6 +242,8 @@ def video_editor(request, content_id):
     # Prepare layer data for timeline
     layer_results = build_annotation_layers(content, annotation_set, can_edit)
 
+    annotation_groups = get_annotation_groups(annotation_set)
+
     context = {
         "content": content,
         "content_id": content_id,
@@ -187,6 +253,7 @@ def video_editor(request, content_id):
         "annotation_set": annotation_set,
         "can_edit": can_edit,
         "can_edit_annotation_set": can_edit_annotation_set,
+        "annotation_groups": annotation_groups,
         "layers": layer_results["layers"],  # For timeline_layers.html content
         "layer_buttons": layer_results[
             "layer_buttons"
@@ -501,7 +568,7 @@ def create_annotation(request, annotation_type, content_id):
     }
 
     # Render item using shared partial
-    item_html = render_to_string(
+    layer_item_html = render_to_string(
         "partials/item.html",
         {
             "instance": annotation,
@@ -514,7 +581,14 @@ def create_annotation(request, annotation_type, content_id):
         request=request,
     )
 
-    return HttpResponse(item_html)
+    panel_item_html = render_to_string(
+        "partials/annotation_list_item.html",
+        {"id": annotation.pk, "type": annotation_type, "name": annotation.name},
+    )
+
+    return JsonResponse(
+        {"layer_item_html": layer_item_html, "panel_item_html": panel_item_html}
+    )
 
 
 def validate_annotation_update_request(user, content, annotation_type, annotation_id):
@@ -767,9 +841,12 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
     annotation = validation_result["result"]
 
     update_fields = {}
-    update_fields["name"] = parsed_body["name"]
+    update_fields["name"] = parsed_body["annotation_name"]
     update_fields["start_time"] = parsed_body["start_time"]
     update_fields["description"] = parsed_body["description"]
+
+    if annotation_type == "pause" or annotation_type == "skip":
+        update_fields["message"] = parsed_body["message"]
 
     if annotation_type != "pause":
         update_fields["end_time"] = parsed_body["end_time"]
@@ -781,8 +858,6 @@ def update_annotation_from_form(request, annotation_type, annotation_id):
             update_fields["x"] = float(x)
         if y is not None:
             update_fields["y"] = float(y)
-    elif annotation_type == "pause":
-        update_fields["message"] = parsed_body["message"]
     elif annotation_type == "blank":
         update_fields["type"] = parsed_body["blank_type"]
 
