@@ -382,18 +382,68 @@
     margin-top: 0.25rem;
 }
 
-/* Timeline Section */
-.timeline-section {
-    border-top: 1px solid #ccc;
-    overflow: hidden;
+.timeline-wrapper {
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    row-gap: 2px;
 }
 
-.timeline-wrapper {
-    flex: 1;
+.timeline-row {
     display: flex;
-    overflow: hidden;
+    flex-direction: row;
+    column-gap: 2px;
+}
+
+.timeline-row-left-dark, .timeline-row-right-dark {
+    background-color: var(--dark-mode-light-gray);
+}
+
+.timeline-row-left {
+    width: 200px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+}
+
+.timeline-row-right {
+    flex: 1;
+}
+
+.timeline-track-row-right {
+    position: relative;
+    min-height: 40px;
+}
+
+/* timeline items */
+.track-item[data-annotation-type="skip"] {
+    background-color: var(--skip-type-color);
+}
+
+.track-item[data-annotation-type="mute"] {
+    background-color: var(--mute-type-color);
+}
+
+.track-item[data-annotation-type="blank"] {
+    background-color: var(--blank-type-color);
+}
+
+.track-item[data-annotation-type="pause"] {
+    background-color: var(--pause-type-color);
+}
+
+.track-item[data-annotation-type="censor"] {
+    background-color: var(--censor-type-color);
+}
+
+.track-item[data-annotation-type="comment"] {
+    background-color: var(--comment-type-color);
+}
+
+.track-item[data-annotation-type="clip"] {
+    background-color: var(--clip-type-color);
 }
 
 /* Fixed left column for labels and zoom */
@@ -565,27 +615,10 @@
     opacity: 0;
 }
 
-/* Layer - Simplified Layout */
-.layer {
-    min-height: 40px;
-    border-bottom: 1px solid #e0e0e0;
-    display: flex;
-}
-
-.layer-content {
-    position: relative;
-    background-color: #fafafa;
-    min-height: 40px;
-    overflow: visible;
-    flex: 1;
-    width: 100%;
-}
-
-/* Layer Items */
-.layer-item {
+/* Track Items */
+.track-item {
     position: absolute;
     height: 30px;
-    background: #4a90e2;
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.2s, box-shadow 0.2s;
@@ -597,26 +630,20 @@
     user-select: none; /* eslint-disable-line css/use-baseline */
 }
 
-.layer-item:hover {
-    background: #357abd;
+.track-item:hover {
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
-.layer-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
-#detail-form:has([data-clip-id]) ~ .layer-items .layer-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
+.track-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
+#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
     background: #2a5f8f;
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2a5f8f;
 }
 
-.layer-item.dragging {
+.track-item.dragging {
     opacity: 0.8;
     z-index: 50;
-}
-
-.layer-item:focus {
-    outline: 2px solid #357abd;  /* eslint-disable-line css/use-baseline */
-    outline-offset: 2px;
 }
 
 /* Resize Handles */
@@ -656,14 +683,14 @@
     border-radius: 8px;
 }
 
-.layer-item-content {
+.track-item-content {
     flex: 1;
     overflow: hidden;
     pointer-events: none;
     min-width: 0;
 }
 
-.layer-item-label {
+.track-item-label {
     color: white;
     font-size: 0.85rem;
     font-weight: 500;

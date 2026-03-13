@@ -9,7 +9,7 @@ function convertPercentStringToDecimal(percentString) {
 
 export class Editor {
     constructor() {
-        this.layerContainers = document.querySelectorAll('.layer-items');
+        this.tracks = document.querySelectorAll('.timeline-track-row-right');
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.annotationBox = window.videoPlayer.annotationBox;
@@ -42,7 +42,7 @@ export class Editor {
         this.contentId = playerContainer.dataset["contentid"];
         this.determineLayerItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
-        this.layerContainers.forEach(container => {
+        this.tracks.forEach(container => {
             container.addEventListener('mousedown', this.handleMouseDown.bind(this));
         });
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -54,7 +54,7 @@ export class Editor {
                 this.setTimeFromVideo(e.target.dataset.setTime);
             }
         });
-        this.placeLayerItems();
+        this.placeTrackItems();
         document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
         this.watchForItemFormChanges();
 
@@ -75,7 +75,7 @@ export class Editor {
     }
 
     determineLayerItemPositions() {
-      this.layerContainers.forEach(layerContainer => {
+      this.tracks.forEach(layerContainer => {
         const layerItems = Array.from(layerContainer.children);
 
         for (let item of layerItems) {
@@ -85,18 +85,18 @@ export class Editor {
     }
 
     handleMouseDown(e) {
-        const layerItem = e.target.closest('.layer-item');
+        const layerItem = e.target.closest('.track-item');
         if (!layerItem) return;
 
         // Always trigger the form load first, regardless of where clicked
-        const contentArea = layerItem.querySelector('.layer-item-content');
+        const contentArea = layerItem.querySelector('.track-item-content');
         if (contentArea) {
             // Use htmx to trigger the GET request to load the form if available,
             // otherwise dispatch a DOM event so other code can listen for it.
             if (window.htmx && typeof window.htmx.trigger === 'function') {
-                window.htmx.trigger(contentArea, 'layer-item-click');
+                window.htmx.trigger(contentArea, 'track-item-click');
             } else {
-                const evt = new CustomEvent('layer-item-click', { bubbles: true, cancelable: true });
+                const evt = new CustomEvent('track-item-click', { bubbles: true, cancelable: true });
                 contentArea.dispatchEvent(evt);
             }
         }
@@ -126,7 +126,7 @@ export class Editor {
     }
 
     startDrag(layerItem, e) {
-        const layerContainer = layerItem.closest('.layer-items');
+        const layerContainer = layerItem.closest('.track-items');
         const rect = layerContainer.getBoundingClientRect();
         const containerWidth = layerContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
@@ -154,7 +154,7 @@ export class Editor {
 
     startResize(layerItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
-        const layerContainer = layerItem.closest('.layer-items');
+        const layerContainer = layerItem.closest('.track-items');
         const rect = layerContainer.getBoundingClientRect();
         const containerWidth = layerContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
@@ -381,7 +381,7 @@ export class Editor {
           deletedItem.remove();
           const detailForm = document.getElementById("detail-form");
           detailForm.innerHTML = "";
-          this.placeLayerItems();
+          this.placeTrackItems();
         }
       });
     }
@@ -946,7 +946,7 @@ export class Editor {
     }
 
     setUpItemClickListeners() {
-      const layerItems = document.getElementsByClassName("layer-item");
+      const layerItems = document.getElementsByClassName("track-item");
       for (let layerItem of layerItems) {
         this.fetchEditFormOnClick(layerItem);
       }
@@ -985,11 +985,11 @@ export class Editor {
       }
     }
 
-    placeLayerItems() {
+    placeTrackItems() {
         // Process each layer container separately
-        this.layerContainers.forEach(layerContainer => {
-            const layerItems = Array.from(layerContainer.children);
-            const layerContainerDim = layerContainer.getBoundingClientRect();
+        this.tracks.forEach(track => {
+            const layerItems = Array.from(track.children);
+            const trackDim = track.getBoundingClientRect();
             const itemCount = layerItems.length;
 
             // Track the bottom of each row (stack)
@@ -1042,7 +1042,7 @@ export class Editor {
                     let isSiblingOccupyingTopSpot = false;
                     for (let sibling of allOverlappingSiblings) {
                         const overLapSibDim = sibling.getBoundingClientRect();
-                        if (overLapSibDim.bottom - layerContainerDim.top <= 35) {
+                        if (overLapSibDim.bottom - trackDim.top <= 35) {
                             isSiblingOccupyingTopSpot = true;
                             break;
                         }
@@ -1050,7 +1050,7 @@ export class Editor {
                     if (isSiblingOccupyingTopSpot) {
                         // take the bottom of sibling, subtract the top of the container, add 5 pixels
                         const siblingDim = lowestPositionedOverlappingSibling.getBoundingClientRect();
-                        currentLayerItem.style.top = siblingDim.bottom - layerContainerDim.top + 5 + "px";
+                        currentLayerItem.style.top = siblingDim.bottom - trackDim.top + 5 + "px";
                     }
                     // else place at the top (default)
                 } else {
@@ -1073,7 +1073,7 @@ export class Editor {
             }
 
             // Set min-height on the parent .layer
-            const layer = layerContainer.closest('.layer');
+            const layer = track.closest('.timeline-row');
             if (layer) {
                 // 1 item = 40px; 2 = 75px; 3 = 110px; 4 = 145px; etc. (diff = 35px)
                 const minHeight = (maxStack * 35) + 5;
@@ -1086,8 +1086,8 @@ export class Editor {
     handleLayerItemPlacementAfterEvent(e) {
         const classList = e.detail.target.classList;
         const id = e.detail.target.id;
-        if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.includes("item-")) {
-            this.placeLayerItems();
+        if (classList.contains('track-items') || classList.contains("track-item") || classList.contains("detail-form") || id.includes("item-")) {
+            this.placeTrackItems();
         }
     }
 
@@ -1133,7 +1133,7 @@ export class Editor {
               layerContainer.append(newNode);
               this.fetchEditFormOnClick(newNode);
               this.placeItem(newNode);
-              this.placeLayerItems();
+              this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
             else {

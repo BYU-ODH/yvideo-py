@@ -38,9 +38,7 @@
             </div>
 
             <!-- Bottom Panel: Timeline -->
-            <div id="timeline-section" class="editor-container-component-dark">
-                {% include 'partials/timeline_base.html' with layers=layers %}
-            </div>
+            {% include 'partials/timeline_base.html' with tracks=tracks %}
         </div>
 
         <script type="module" src="{% static 'js/editor.js' %}"></script>

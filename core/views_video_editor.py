@@ -10,7 +10,6 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.template.loader import render_to_string
-from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
@@ -101,73 +100,21 @@ def build_annotation_panel(request, annotation_set_id):
     return HttpResponse(annotation_panel_html)
 
 
-# build_annotation_layers will be replaced by using get_annotation_groups
-# in another issue.
-def build_annotation_layers(content, annotation_set, can_edit):
-    layers = []
-    layer_buttons = {}
-    for type_name, model_class in ANNOTATION_MODELS.items():
-        layer_items = []
-        if annotation_set:
-            annotations = model_class.objects.filter(
-                annotation_set=annotation_set, active=True
-            ).order_by("start_time")
-            for annotation in annotations:
-                start_time = annotation.start_time
-                end_time = getattr(annotation, "end_time", start_time)
-                layer_items.append(
-                    {
-                        "instance": annotation,
-                        "content": content,
-                        "item_type": type_name,
-                        "update_url": "update_annotation",
-                        "load_form_url": "load_annotation_form",
-                        "position": {
-                            "start": start_time,
-                            "end": end_time,
-                        },
-                    }
-                )
-
-        # Add to list (for timeline_layers.html)
-        layers.append(
-            {
-                "type": type_name,
-                "label": type_name.title(),
-                "can_edit": can_edit,
-                "items": layer_items,
-                "add_button": {
-                    "post_url": reverse(
-                        "create_annotation", args=[type_name, content.pk]
-                    ),
-                    "vals": "js:...getNewItemStartEndTimes()",
-                    "swap": "none",
-                    "title": f"Add new {type_name} annotation",
-                }
-                if can_edit
-                else None,
-            }
-        )
-
-        layer_buttons[type_name] = {
-            "display_name": type_name.title(),
-            "can_add": can_edit,
-            "add_form_url": "create_annotation",
-        }
-    return {"layers": layers, "layer_buttons": layer_buttons}
-
-
-def build_timeline_layers_html(request, content, annotation_set, can_edit):
-    layers_build_result = build_annotation_layers(content, annotation_set, can_edit)
-    layers = layers_build_result["layers"]
-    timeline_layers_html = render_to_string(
-        "core/partials/timeline_layers.html",
-        {
-            "layers": layers,
-        },
-        request=request,
-    )
-    return timeline_layers_html
+def build_editor_tracks(annotation_set_id):
+    try:
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        annotation_groups = get_annotation_groups(annotation_set)
+        tracks = {}
+        for group in annotation_groups:
+            for instance in group["instances"]:
+                track_name = instance["track"]
+                if track_name not in tracks:
+                    tracks[track_name] = {"display_name": track_name, "items": []}
+                tracks[track_name]["items"].append(instance)
+        return tracks
+    except Exception as e:
+        logger.error(f"Failed to build editor tracks. Exception: {e}")
+        return False
 
 
 def return_annotation_if_authorized_and_exists(
@@ -240,7 +187,9 @@ def video_editor(request, content_id):
     file_key = request.user.get_resource_filekey(content)
 
     # Prepare layer data for timeline
-    layer_results = build_annotation_layers(content, annotation_set, can_edit)
+    tracks = build_editor_tracks(annotation_set.id)
+    if tracks == False:
+        return HttpResponseServerError()
 
     annotation_groups = get_annotation_groups(annotation_set)
 
@@ -254,10 +203,7 @@ def video_editor(request, content_id):
         "can_edit": can_edit,
         "can_edit_annotation_set": can_edit_annotation_set,
         "annotation_groups": annotation_groups,
-        "layers": layer_results["layers"],  # For timeline_layers.html content
-        "layer_buttons": layer_results[
-            "layer_buttons"
-        ],  # For timeline_base.html label column
+        "tracks": tracks,
     }
 
     return render(request, "core/video_editor.html", context)
@@ -353,15 +299,15 @@ def select_annotation_set(request):
     can_edit = annotation_set.can_edit(request.user) if annotation_set else True
 
     # Prepare layers for timeline rendering (matching clip editor structure)
-    layer_results = build_annotation_layers(content, annotation_set, can_edit)
-    layers = layer_results["layers"]
+    # layer_results = build_annotation_layers(content, annotation_set, can_edit)
+    # layers = layer_results["layers"]
 
-    # Render timeline using shared partial
-    timeline_layers_html = render_to_string(
-        "core/partials/timeline_layers.html",
-        {"layers": layers, "content_id": content_id},
-        request=request,
-    )
+    # # Render timeline using shared partial
+    # timeline_layers_html = render_to_string(
+    #     "core/partials/timeline_layers.html",
+    #     {"layers": layers, "content_id": content_id},
+    #     request=request,
+    # )
 
     # Get JSON from model method
     video_html = render_to_string(
@@ -374,7 +320,8 @@ def select_annotation_set(request):
     )
 
     return JsonResponse(
-        {"video_section": video_html, "timeline_layers": timeline_layers_html}
+        # {"video_section": video_html, "timeline_layers": timeline_layers_html}
+        {"video_section": video_html}
     )
 
 
