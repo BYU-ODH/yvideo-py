@@ -805,12 +805,13 @@ class PauseAnnotation(BaseAnnotation):
         }
 
     def to_player_json(self):
-        """Override: pause uses 'time' instead of 'start/end'."""
+        """pause needs a start time even though it doesnt have an end time. This is because
+        of how the AnnotationPlayer parses annotations for Y-video"""
         t = float(self.start_time or 0)
         return {
             "id": self.pk,
             "type": "pause",
-            "time": t,
+            "start": t,
             "time_display": seconds2hms(t),
             "label": self.name,
             "message": self.message,

@@ -630,6 +630,10 @@
     user-select: none; /* eslint-disable-line css/use-baseline */
 }
 
+.pause-type-track-item {
+    padding: 0px 10px;
+}
+
 .track-item:hover {
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
 }

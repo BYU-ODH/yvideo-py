@@ -1,4 +1,4 @@
-<div class="track-item elevated"
+<div class="track-item elevated {{ item_type }}-type-track-item"
      id="{{ item_type }}-{{ instance.id }}"
      data-annotation-id="{{ instance.id }}"
      data-annotation-type="{{ item_type }}"
@@ -10,6 +10,7 @@
      tabindex="0"
      onmousedown="elevateFromSiblings(this)">
 
+    {% if item_type != "pause" %}
     <div class="resize-handle resize-handle-left"
         hx-post="{% url 'update_annotation' item_type instance.id 1 %}"
         hx-trigger="click"
@@ -20,14 +21,15 @@
         }'
         hx-target="#{{ item_type }}-{{ instance.id }}"
         hx-swap="outerHTML">
-         <div class="resize-handle-indicator indicator-left"></div>
-     </div>
+        <div class="resize-handle-indicator indicator-left"></div>
+    </div>
+    {% endif %}
 
     <div class="track-item-content">
         <span class="track-item-label">{{ instance.name }}</span>
     </div>
 
-    {% if item_type != "pause"%}
+    {% if item_type != "pause" %}
     <div class="resize-handle resize-handle-right"
         hx-post="{% url 'update_annotation' item_type instance.id 1 %}"
         hx-trigger="click"
@@ -38,15 +40,15 @@
         }'
         hx-target="#{{ item_type }}-{{ instance.id }}"
         hx-swap="outerHTML">
-          <div class="resize-handle-indicator indicator-right"></div>
-     </div>
+        <div class="resize-handle-indicator indicator-right"></div>
+    </div>
      {% endif %}
 
-     <form id="item-form-{{ instance.id }}" style="display: none;">
-          {% csrf_token %}
-          <input type="hidden" name="name" value="{{ instance.name }}">
-          <input type="hidden" name="start_time" value="{{ instance.start_time }}">
-          <input type="hidden" name="end_time" value="{{ instance.end_time }}">
-          <input type="hidden" name="description" value="{{ instance.description }}">
-     </form>
+    <form id="item-form-{{ instance.id }}" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="name" value="{{ instance.name }}">
+        <input type="hidden" name="start_time" value="{{ instance.start_time }}">
+        <input type="hidden" name="end_time" value="{{ instance.end_time }}">
+        <input type="hidden" name="description" value="{{ instance.description }}">
+    </form>
 </div>

@@ -70,7 +70,9 @@ export class Editor {
 
     placeItem(item) {
       const itemDuration = parseFloat(item.dataset["end"]) - parseFloat(item.dataset["start"]);
-      item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
+      if (item.dataset.annotationType != "pause") {
+        item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
+      }
       item.style.setProperty("left", `${parseFloat(item.dataset["start"]) / this.duration * 100}%`);
     }
 
