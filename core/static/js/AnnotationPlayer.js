@@ -773,7 +773,6 @@ export class AnnotationPlayer {
                 "#censor" + i,
               );
               const positionToShow = determineWhichBlurPositionToShow(aPositions);
-              console.log(positionToShow);
               censor.dataset["censorPositionParentId"] = a.id;
               censor.dataset["censorPositionId"] = positionToShow.id;
               censor.style.width =  positionToShow["width"] + "%";

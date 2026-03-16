@@ -126,16 +126,16 @@ export class Editor {
     }
 
     startDrag(layerItem, e) {
-        const layerContainer = layerItem.closest('.track-items');
-        const rect = layerContainer.getBoundingClientRect();
-        const containerWidth = layerContainer.scrollWidth || rect.width;
+        const itemContainer = layerItem.closest('.timeline-row-right');
+        const rect = itemContainer.getBoundingClientRect();
+        const containerWidth = itemContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
         const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
 
         this.dragState = {
             type: 'drag',
             item: layerItem,
-            container: layerContainer,
+            container: itemContainer,
             startX: e.clientX,
             startLeft: itemLeft * 100,
             containerWidth,
@@ -154,16 +154,16 @@ export class Editor {
 
     startResize(layerItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
-        const layerContainer = layerItem.closest('.track-items');
-        const rect = layerContainer.getBoundingClientRect();
-        const containerWidth = layerContainer.scrollWidth || rect.width;
+        const itemContainer = layerItem.closest('.timeline-row-right');
+        const rect = itemContainer.getBoundingClientRect();
+        const containerWidth = itemContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
         const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
 
         this.dragState = {
             type: 'resize',
             item: layerItem,
-            container: layerContainer,
+            container: itemContainer,
             handle,
             isLeft,
             startX: e.clientX,
