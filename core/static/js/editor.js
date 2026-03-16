@@ -228,7 +228,12 @@ export class Editor {
 
             this.seekToHandlePosition(true, newLeft, minWidthPercent);
         } else {
-            const width = parseFloat(this.dragState.item.style.width);
+            let width = parseFloat(this.dragState.item.style.width);
+            if (width === '' || width === undefined || isNaN(width)) {
+              const itemRect = this.dragState.item.getBoundingClientRect();
+              width = itemRect.width / this.dragState.containerWidth * 100;
+              this.dragState.item.style.width = `${width}%`;
+            }
             newLeft = Math.max(0, Math.min(newLeft, 100 - width));
 
             this.dragState.item.style.left = `${newLeft}%`;
@@ -1054,7 +1059,7 @@ export class Editor {
                     }
                     // else place at the top (default)
                 } else {
-                    currentLayerItem.style.top = "5px";
+                    currentLayerItem.style.top = "0px";
                 }
 
                 // Track the bottom of this item for stacking calculation
