@@ -77,10 +77,10 @@ export class Editor {
     }
 
     determineLayerItemPositions() {
-      this.tracks.forEach(layerContainer => {
-        const layerItems = Array.from(layerContainer.children);
+      this.tracks.forEach(track => {
+        const trackItems = Array.from(track.children);
 
-        for (let item of layerItems) {
+        for (let item of trackItems) {
           this.placeItem(item);
         }
       });
@@ -801,6 +801,7 @@ export class Editor {
       // element that no longer exists. You must get the new element before making style changes.
       const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
       this.placeItem(newTargetItem);
+      this.placeTrackItems();
 
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
