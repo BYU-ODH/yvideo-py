@@ -1054,7 +1054,7 @@ export class Editor {
                     }
                     // else place at the top (default)
                 } else {
-                    currentLayerItem.style.top = "0px";
+                    currentLayerItem.style.top = "5px";
                 }
 
                 // Track the bottom of this item for stacking calculation
