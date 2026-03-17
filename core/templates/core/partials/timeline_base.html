@@ -5,15 +5,15 @@
         <div id="timeline-row-ticks-and-scrubbers" class="timeline-row-right">
             <div id="timeline-scrubber">
             </div>
-            <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
-            <div class="timeline-hover-scrubber"></div>
+            <div id="editor-scrubber" class="vertical-scrubber" style="--scrubber-position: 0%;"></div>
+            <div id="timeline-hover-scrubber " class="vertical-scrubber"></div>
             <div id="timeline-ticks-content">
                 <div class="tick-marks-container"></div>
             </div>
         </div>
     </div>
     {% for track_name, track_data in tracks.items %}
-    <div class="timeline-row">
+    <div class="timeline-row track-row">
         <div class="timeline-row-left timeline-row-left-dark">
             <div class="timeline-track-name">
                 {{ track_data.display_name }}

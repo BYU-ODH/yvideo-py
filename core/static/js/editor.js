@@ -26,7 +26,7 @@ export class Editor {
         this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
         this.timelineContainer = document.querySelector('.timeline-container');
         this.zoomSlider = document.getElementById('zoom-slider');
-        this.scrubber = document.querySelector('.editor-scrubber');
+        this.scrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrubber = null;
         this.isDragging = false;
@@ -993,6 +993,25 @@ export class Editor {
       }
     }
 
+    adjustScrubberHeight() {
+      const scrubberContainer = document.getElementById("timeline-row-ticks-and-scrubbers");
+      const trackRows = document.getElementsByClassName("track-row")
+      const scrubberContainerDim = scrubberContainer.getBoundingClientRect();
+      const topOfScrubber = scrubberContainerDim.top;
+      let bottomOfBottomTrack = scrubberContainerDim.bottom;
+      for (let trackRow of trackRows) {
+        const trackRowDim = trackRow.getBoundingClientRect();
+        if (bottomOfBottomTrack < trackRowDim.bottom) {
+          bottomOfBottomTrack = trackRowDim.bottom;
+        }
+      }
+      const scrubbers = document.getElementsByClassName("vertical-scrubber");
+      const newScrubberHeight = (bottomOfBottomTrack - topOfScrubber) + "px";
+      for (let scrubber of scrubbers) {
+        scrubber.style.height = newScrubberHeight;
+      }
+    }
+
     placeTrackItems() {
         // Process each track container separately
         this.tracks.forEach(track => {
@@ -1089,6 +1108,7 @@ export class Editor {
                 trackContainer.style.minHeight = `${minHeight}px`;
             }
         });
+      this.adjustScrubberHeight();
       this.setUpItemClickListeners();
     }
 
@@ -1286,10 +1306,10 @@ export class Editor {
     }
 
     createtimelineScrubber() {
-        this.timelineScrubber = document.querySelector('.timeline-hover-scrubber');
+        this.timelineScrubber = document.querySelector('#timeline-hover-scrubber');
         if (!this.timelineScrubber) {
             this.timelineScrubber = document.createElement('div');
-            this.timelineScrubber.className = 'timeline-hover-scrubber';
+            this.timelineScrubber.id = 'timeline-hover-scrubber';
             if (this.timelineTicksContent) {
                 this.timelineTicksContent.appendChild(this.timelineScrubber);
             }
