@@ -954,9 +954,9 @@ export class Editor {
     }
 
     setUpItemClickListeners() {
-      const layerItems = document.getElementsByClassName("track-item");
-      for (let layerItem of layerItems) {
-        this.fetchEditFormOnClick(layerItem);
+      const trackItems = document.getElementsByClassName("track-item");
+      for (let trackItem of trackItems) {
+        this.fetchEditFormOnClick(trackItem);
       }
 
       const annotationPanelItems = document.getElementsByClassName("annotation-list-item-wrapper");
@@ -996,16 +996,16 @@ export class Editor {
     placeTrackItems() {
         // Process each layer container separately
         this.tracks.forEach(track => {
-            const layerItems = Array.from(track.children);
+            const trackItems = Array.from(track.children);
             const trackDim = track.getBoundingClientRect();
-            const itemCount = layerItems.length;
+            const itemCount = trackItems.length;
 
             // Track the bottom of each row (stack)
             let rowBottoms = [];
 
             // place each layer item
             for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
-                const currentTrackItem = layerItems[itemIndex];
+                const currentTrackItem = trackItems[itemIndex];
                 const currentItemStart = Number(currentTrackItem.dataset.start);
                 const currentItemEnd = Number(currentTrackItem.dataset.end);
                 const currentTrackItemDim = currentTrackItem.getBoundingClientRect();
@@ -1014,7 +1014,7 @@ export class Editor {
                 let allOverlappingSiblings = [];
                 let lowestPositionedOverlappingSibling;
                 for (let siblingItemIndex = 0; siblingItemIndex < itemIndex; siblingItemIndex++) {
-                    const siblingItem = layerItems[siblingItemIndex];
+                    const siblingItem = trackItems[siblingItemIndex];
                     if (siblingItem == currentTrackItem) { // this should never happen
                         break;
                     }
@@ -1074,9 +1074,9 @@ export class Editor {
 
             // Calculate the number of stacked rows (find max top value / 35 + 1)
             let maxStack = 1;
-            if (layerItems.length > 0) {
+            if (trackItems.length > 0) {
                 // Find all unique top positions (rounded to nearest 5px)
-                const tops = layerItems.map(item => Math.round((parseFloat(item.style.top) || 0) / 5) * 5);
+                const tops = trackItems.map(item => Math.round((parseFloat(item.style.top) || 0) / 5) * 5);
                 const uniqueRows = Array.from(new Set(tops));
                 maxStack = uniqueRows.length;
             }
