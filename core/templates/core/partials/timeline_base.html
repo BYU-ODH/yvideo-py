@@ -31,11 +31,14 @@
     {% endfor %}
     <div id="timeline-new-track-and-zoom-row" class="timeline-row">
         <div id="timeline-new-track-wrapper" class="timeline-row-left timeline-row-left-dark">
+            <button id="timeline-new-track-button" class="plain-text-button">
+                + New Track
+            </button>
         </div>
         <div id="timeline-zoom-controls" class="timeline-row-right">
-            <img class="timeline-zoom-icon" />
+            <img class="timeline-zoom-icon" src="/static/img/minus-circle.svg" />
             <div id="timeline-zoom-slider">
-                <input id="timeline-zoom-indicator"
+                <input id="timeline-zoom-input"
                     type="range"
                     min="1"
                     max="10"
@@ -43,7 +46,7 @@
                     step="any"
                 />
             </div>
-            <img class="timeline-zoom-icon" />
+            <img class="timeline-zoom-icon" src="/static/img/plus-circle.svg" />
         </div>
     </div>
 </div>

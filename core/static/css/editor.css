@@ -105,7 +105,7 @@
     align-items: center;
 }
 
-.annotation-type-add-button {
+.plain-text-button {
     border-radius: 8px;
     padding: 8px;
     background-color: inherit;
@@ -113,14 +113,20 @@
     font-weight: 500;
     text-align: left;
     font-size: 14px;
+}
+
+.plain-text-button:hover {
+    cursor: pointer;
+    box-shadow: 0px 3px 6px #00000075;
+}
+
+.annotation-type-add-button {
     color: white;
 }
 
 .annotation-type-add-button:hover {
     color: black;
     background-color: white;
-    cursor: pointer;
-    box-shadow: 0px 3px 6px #00000075;
 }
 
 #skip-type-header-right {
@@ -457,18 +463,6 @@
     overflow: hidden;
 }
 
-.timeline-zoom-controls {
-    height: 30px;
-    padding: 5px 10px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: stretch;
-    border-bottom: 1px solid #ccc;
-    background-color: #f8f9fa;
-    flex-shrink: 0;
-}
-
 #timeline-layer-labels {
     flex: 1;
     display: flex;
@@ -729,6 +723,101 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* Styles for zoom slider. */
+/* The default styling for each browser needs to be removed first */
+/* see https://css-tricks.com/styling-cross-browser-compatible-range-inputs-css/
+   for reference. the ms style rules are removed since those are for IE which
+   no one should use anymore. */
+#timeline-zoom-input {
+  -webkit-appearance: none; /* Hides the slider so that custom slider can be made */
+  width: 100%; /* Specific width is required for Firefox. */
+  background: transparent; /* Otherwise white in Chrome */
+}
+
+#timeline-zoom-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+}
+
+/* Now we can apply our custom styles for the slider */
+/* "thumb" styles. This is the part the user interacts with */
+#timeline-zoom-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 12px;
+  width: 90px;
+  border-radius: 12px;
+  background: var(--dark-mode-dark-gray);
+  cursor: pointer;
+  margin-top: 4px; /* Chrome requires margin to be defined. This is automatic in Firefox */
+}
+
+#timeline-zoom-input::-moz-range-thumb {
+    -webkit-appearance: none;
+    height: 12px;
+    width: 90px;
+    border-radius: 12px;
+    background: var(--dark-mode-dark-gray);
+    cursor: pointer;
+}
+
+/* "track" styles. This is the container the thumb resides within */
+#timeline-zoom-input::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 20px;
+  cursor: pointer;
+  background: var(--dark-mode-light-gray);
+  padding: 0px 4px;
+}
+
+#timeline-zoom-input::-moz-range-track {
+  width: 100%;
+  height: 20px;
+  cursor: pointer;
+  background: var(--dark-mode-light-gray);
+  padding: 0px 4px;
+}
+/* end of zoom slider styles */
+
+#timeline-new-track-and-zoom-row {
+    height: 32px;
+}
+
+#timeline-zoom-controls {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: 8px;
+}
+
+.timeline-zoom-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    padding: 2px;
+    filter: invert(1);
+}
+
+.timeline-zoom-icon:hover {
+    cursor: pointer;
+    background-color: #ffffff50;
+}
+
+#timeline-zoom-slider {
+    flex: 1;
+}
+
+#timeline-zoom-input {
+    width: 100%;
+}
+
+#timeline-new-track-button {
+    flex: 1;
+}
+
+#timeline-new-track-button:hover {
+    background-color: white;
+}
+
 /* Resizers */
 .resizer {
     background-color: #e0e0e0;
@@ -804,40 +893,6 @@ body.resizing-item {
 
 .info-message strong {
     font-weight: 600;
-}
-
-.zoom-label {
-    font-size: 11px;
-    color: #666;
-    margin-bottom: 2px;
-    text-align: center;
-}
-
-.zoom-slider {
-    width: 100%;
-    height: 4px;
-    background: #ddd;
-    outline: none;  /* eslint-disable-line css/use-baseline */
-    border-radius: 2px;
-    cursor: pointer;
-}
-
-.zoom-slider::-webkit-slider-thumb {
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    background: #0582ca;
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-.zoom-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    background: #0582ca;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
 }
 
 /* Remove individual scrollbars */
