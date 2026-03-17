@@ -1005,16 +1005,17 @@ export class Editor {
 
             // place each layer item
             for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
-                const currentLayerItem = layerItems[itemIndex];
-                const currentItemStart = Number(currentLayerItem.dataset.start);
-                const currentItemEnd = Number(currentLayerItem.dataset.end);
+                const currentTrackItem = layerItems[itemIndex];
+                const currentItemStart = Number(currentTrackItem.dataset.start);
+                const currentItemEnd = Number(currentTrackItem.dataset.end);
+                const currentTrackItemDim = currentTrackItem.getBoundingClientRect();
 
-                // find the lowest positioned overlapping sibling so we know where to place currentLayerItem
+                // find the lowest positioned overlapping sibling so we know where to place currentTrackItem
                 let allOverlappingSiblings = [];
                 let lowestPositionedOverlappingSibling;
                 for (let siblingItemIndex = 0; siblingItemIndex < itemIndex; siblingItemIndex++) {
                     const siblingItem = layerItems[siblingItemIndex];
-                    if (siblingItem == currentLayerItem) { // this should never happen
+                    if (siblingItem == currentTrackItem) { // this should never happen
                         break;
                     }
                     const siblingItemStart = Number(siblingItem.dataset.start);
@@ -1044,7 +1045,7 @@ export class Editor {
                     }
                 }
 
-                // place currentLayerItem if there is an overlapping sibling
+                // place currentTrackItem if there is an overlapping sibling
                 if (lowestPositionedOverlappingSibling) {
                     // check if there is room at the top
                     let isSiblingOccupyingTopSpot = false;
@@ -1058,16 +1059,16 @@ export class Editor {
                     if (isSiblingOccupyingTopSpot) {
                         // take the bottom of sibling, subtract the top of the container, add 5 pixels
                         const siblingDim = lowestPositionedOverlappingSibling.getBoundingClientRect();
-                        currentLayerItem.style.top = siblingDim.bottom - trackDim.top + 5 + "px";
+                        currentTrackItem.style.top = siblingDim.bottom - trackDim.top + 5 + "px";
                     }
-                    // else place at the top (default)
                 } else {
-                    currentLayerItem.style.top = "0px";
+                    // else place at the top (default)
+                    currentTrackItem.style.top = "5px";
                 }
 
                 // Track the bottom of this item for stacking calculation
-                const itemTop = parseFloat(currentLayerItem.style.top) || 0;
-                const itemBottom = itemTop + 30; // item height is 30px
+                const itemTop = parseFloat(currentTrackItem.style.top) || 0;
+                const itemBottom = itemTop + currentTrackItemDim.height; // item height is 30px
                 rowBottoms.push(itemBottom);
             }
 
