@@ -787,6 +787,7 @@
     flex-direction: row;
     align-items: center;
     column-gap: 8px;
+    padding: 0px 4px;
 }
 
 .timeline-zoom-icon {
