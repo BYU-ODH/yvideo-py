@@ -1190,7 +1190,12 @@ export class Editor {
         label.textContent = this.formatTime(time);
 
         const percent = (time / this.duration) * 100;
-        label.style.left = `${percent}%`;
+        if (percent == 0) {
+          label.className += " first-tick";
+        }
+        else {
+          label.style.left = `${percent}%`;
+        }
 
         return label;
     }

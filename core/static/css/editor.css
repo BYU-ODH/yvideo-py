@@ -423,66 +423,6 @@
     min-height: 40px;
 }
 
-/* timeline items */
-.track-item[data-annotation-type="skip"] {
-    background-color: var(--skip-type-color);
-}
-
-.track-item[data-annotation-type="mute"] {
-    background-color: var(--mute-type-color);
-}
-
-.track-item[data-annotation-type="blank"] {
-    background-color: var(--blank-type-color);
-}
-
-.track-item[data-annotation-type="pause"] {
-    background-color: var(--pause-type-color);
-}
-
-.track-item[data-annotation-type="censor"] {
-    background-color: var(--censor-type-color);
-}
-
-.track-item[data-annotation-type="comment"] {
-    background-color: var(--comment-type-color);
-}
-
-.track-item[data-annotation-type="clip"] {
-    background-color: var(--clip-type-color);
-}
-
-/* Fixed left column for labels and zoom */
-.timeline-labels-column {
-    width: 100px;
-    flex-shrink: 0;
-    background-color: #f8f9fa;
-    border-right: 1px solid #ccc;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-#timeline-layer-labels {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-}
-
-.layer-label-fixed {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #333;
-    padding: 0.5rem;
-    min-height: 40px;
-    border-bottom: 1px solid #e0e0e0;
-}
-
 /* Scrollable content area */
 .timeline-content-wrapper {
     flex: 1;
@@ -514,6 +454,11 @@
 }
 
 /* Timeline Ticks Row */
+#timeline-row-ticks-and-scrubbers {
+    display: flex;
+    flex-direction: column;
+}
+
 .timeline-ticks-row {
     height: 30px;
     border-bottom: 1px solid #ccc;
@@ -529,11 +474,13 @@
     height: 100%;
 }
 
-.timeline-ticks-content {
+#timeline-ticks-content {
     position: relative;
-    height: 100%;
+    height: 32px;
     width: 100%;
     min-width: 100%;
+    margin-top: auto;
+    background-color: var(--dark-mode-light-gray);
 }
 
 .tick-marks-container {
@@ -550,27 +497,28 @@
     position: absolute;
     bottom: 0;
     width: 1px;
-    background-color: #999;
+    background-color: black;
 }
 
 .tick-mark.major {
     height: 15px;
-    background-color: #666;
 }
 
 .tick-mark.minor {
     height: 8px;
-    background-color: #bbb;
 }
 
 .tick-label {
     position: absolute;
     bottom: 16px;
     font-size: 11px;
-    color: #333;
     white-space: nowrap;
     transform: translateX(-50%);
     user-select: none;  /* eslint-disable-line css/use-baseline */
+}
+
+.tick-label.first-tick {
+    left: 10px;
 }
 
 /* Hover Scrubber */
@@ -609,7 +557,66 @@
     opacity: 0;
 }
 
+/* Editor Scrubber */
+.editor-scrubber {
+    position: absolute;
+    left: var(--scrubber-position, 0%);
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #0582ca;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.editor-scrubber::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    background: #0582ca;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Bottom video controls and timeline */
+#timeline-scrubber-row {
+    height: 40px;
+}
+
 /* Track Items */
+.track-item[data-annotation-type="skip"] {
+    background-color: var(--skip-type-color);
+}
+
+.track-item[data-annotation-type="mute"] {
+    background-color: var(--mute-type-color);
+}
+
+.track-item[data-annotation-type="blank"] {
+    background-color: var(--blank-type-color);
+}
+
+.track-item[data-annotation-type="pause"] {
+    background-color: var(--pause-type-color);
+}
+
+.track-item[data-annotation-type="censor"] {
+    background-color: var(--censor-type-color);
+}
+
+.track-item[data-annotation-type="comment"] {
+    background-color: var(--comment-type-color);
+}
+
+.track-item[data-annotation-type="clip"] {
+    background-color: var(--clip-type-color);
+}
+
 .track-item {
     position: absolute;
     height: 30px;
@@ -695,32 +702,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-/* Editor Scrubber */
-.editor-scrubber {
-    position: absolute;
-    left: var(--scrubber-position, 0%);
-    top: 0;
-    width: 2px;
-    height: 100%;
-    background: #0582ca;
-    pointer-events: none;
-    z-index: 100;
-}
-
-.editor-scrubber::before {
-    content: '';
-    position: absolute;
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 12px;
-    height: 12px;
-    background: #0582ca;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Styles for zoom slider. */
