@@ -1482,7 +1482,7 @@ function editorInit() {
 
 const checkVideo = setInterval(() => {
     const video = document.querySelector('.annotation-player-container video');
-    if (video && !isNaN(video.duration)) {
+    if (video && !isNaN(video.duration) && window?.videoPlayer) {
       clearInterval(checkVideo);
       editorInit();
     }
