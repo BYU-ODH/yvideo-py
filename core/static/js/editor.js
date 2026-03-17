@@ -40,7 +40,7 @@ export class Editor {
     init() {
         const playerContainer = document.getElementById("annotation-player-container");
         this.contentId = playerContainer.dataset["contentid"];
-        this.determineLayerItemPositions();
+        this.determineTrackItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.tracks.forEach(container => {
             container.addEventListener('mousedown', this.handleMouseDown.bind(this));
@@ -55,7 +55,7 @@ export class Editor {
             }
         });
         this.placeTrackItems();
-        document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
+        document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
         this.watchForItemFormChanges();
 
         this.renderTickMarksAndLabels();
@@ -76,7 +76,7 @@ export class Editor {
       item.style.setProperty("left", `${parseFloat(item.dataset["start"]) / this.duration * 100}%`);
     }
 
-    determineLayerItemPositions() {
+    determineTrackItemPositions() {
       this.tracks.forEach(track => {
         const trackItems = Array.from(track.children);
 
@@ -87,11 +87,11 @@ export class Editor {
     }
 
     handleMouseDown(e) {
-        const layerItem = e.target.closest('.track-item');
-        if (!layerItem) return;
+        const trackItem = e.target.closest('.track-item');
+        if (!trackItem) return;
 
         // Always trigger the form load first, regardless of where clicked
-        const contentArea = layerItem.querySelector('.track-item-content');
+        const contentArea = trackItem.querySelector('.track-item-content');
         if (contentArea) {
             // Use htmx to trigger the GET request to load the form if available,
             // otherwise dispatch a DOM event so other code can listen for it.
@@ -106,11 +106,11 @@ export class Editor {
         const resizeHandle = e.target.closest('.resize-handle');
 
         if (resizeHandle) {
-            this.startResize(layerItem, resizeHandle, e);
+            this.startResize(trackItem, resizeHandle, e);
             e.preventDefault();
             e.stopPropagation();
         } else if (!e.target.closest('.resize-handle')) {
-            this.startDrag(layerItem, e);
+            this.startDrag(trackItem, e);
             e.preventDefault();
         }
     }
@@ -127,16 +127,16 @@ export class Editor {
       return (endTime - startTime) / this.duration;
     }
 
-    startDrag(layerItem, e) {
-        const itemContainer = layerItem.closest('.timeline-row-right');
+    startDrag(trackItem, e) {
+        const itemContainer = trackItem.closest('.timeline-row-right');
         const rect = itemContainer.getBoundingClientRect();
         const containerWidth = itemContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
+        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
 
         this.dragState = {
             type: 'drag',
-            item: layerItem,
+            item: trackItem,
             container: itemContainer,
             startX: e.clientX,
             startLeft: itemLeft * 100,
@@ -147,24 +147,24 @@ export class Editor {
         };
 
         // Reset deltas
-        layerItem.dataset.deltaLeft = '0';
-        layerItem.dataset.deltaWidth = '0';
+        trackItem.dataset.deltaLeft = '0';
+        trackItem.dataset.deltaWidth = '0';
 
-        layerItem.classList.add('dragging');
+        trackItem.classList.add('dragging');
         document.body.classList.add('dragging', 'dragging-item');
     }
 
-    startResize(layerItem, handle, e) {
+    startResize(trackItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
-        const itemContainer = layerItem.closest('.timeline-row-right');
+        const itemContainer = trackItem.closest('.timeline-row-right');
         const rect = itemContainer.getBoundingClientRect();
         const containerWidth = itemContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
+        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
 
         this.dragState = {
             type: 'resize',
-            item: layerItem,
+            item: trackItem,
             container: itemContainer,
             handle,
             isLeft,
@@ -178,13 +178,13 @@ export class Editor {
         };
 
         // Reset deltas
-        layerItem.dataset.deltaLeft = '0';
-        layerItem.dataset.deltaWidth = '0';
+        trackItem.dataset.deltaLeft = '0';
+        trackItem.dataset.deltaWidth = '0';
 
         document.body.classList.add('resizing', 'resizing-item');
 
         // Seek video to the handle position being dragged
-        this.seekToHandlePosition(isLeft, parseFloat(layerItem.style.left), parseFloat(layerItem.style.width));
+        this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
     }
 
     handleMouseMove(e) {
@@ -994,7 +994,7 @@ export class Editor {
     }
 
     placeTrackItems() {
-        // Process each layer container separately
+        // Process each track container separately
         this.tracks.forEach(track => {
             const trackItems = Array.from(track.children);
             const trackDim = track.getBoundingClientRect();
@@ -1003,7 +1003,7 @@ export class Editor {
             // Track the bottom of each row (stack)
             let rowBottoms = [];
 
-            // place each layer item
+            // place each track item
             for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
                 const currentTrackItem = trackItems[itemIndex];
                 const currentItemStart = Number(currentTrackItem.dataset.start);
@@ -1081,18 +1081,18 @@ export class Editor {
                 maxStack = uniqueRows.length;
             }
 
-            // Set min-height on the parent .layer
-            const layer = track.closest('.timeline-row');
-            if (layer) {
+            // Set min-height on the parent track (timeline-row)
+            const trackContainer = track.closest('.timeline-row');
+            if (trackContainer) {
                 // 1 item = 40px; 2 = 75px; 3 = 110px; 4 = 145px; etc. (diff = 35px)
                 const minHeight = (maxStack * 35) + 5;
-                layer.style.minHeight = `${minHeight}px`;
+                trackContainer.style.minHeight = `${minHeight}px`;
             }
         });
       this.setUpItemClickListeners();
     }
 
-    handleLayerItemPlacementAfterEvent(e) {
+    handleTrackItemPlacementAfterEvent(e) {
         const classList = e.detail.target.classList;
         const id = e.detail.target.id;
         if (classList.contains('track-items') || classList.contains("track-item") || classList.contains("detail-form") || id.includes("item-")) {
@@ -1132,14 +1132,14 @@ export class Editor {
               const panel = document.getElementById(`${annotationType}-annotation-items-list`);
               panel.innerHTML = panel.innerHTML + newPanelItemHtml;
 
-              const newLayerItemHtml = parsedResponse["layer_item_html"];
-              const layerContainer = document.getElementById(`${annotationType}-item-container`);
+              const newTrackItemHtml = parsedResponse["track_item_html"];
+              const trackContainer = document.getElementById(`${annotationType}-item-container`);
               const newElement = document.createElement("template");
-              newElement.innerHTML = newLayerItemHtml;
+              newElement.innerHTML = newTrackItemHtml;
               const newNode = newElement.content.firstChild;
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
-              layerContainer.append(newNode);
+              trackContainer.append(newNode);
               this.fetchEditFormOnClick(newNode);
               this.placeItem(newNode);
               this.placeTrackItems();

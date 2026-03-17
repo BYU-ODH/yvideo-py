@@ -186,7 +186,7 @@ def video_editor(request, content_id):
     # Get file key for video streaming
     file_key = request.user.get_resource_filekey(content)
 
-    # Prepare layer data for timeline
+    # Prepare track data for timeline
     tracks = build_editor_tracks(annotation_set.id)
     if tracks == False:
         return HttpResponseServerError()
@@ -515,7 +515,7 @@ def create_annotation(request, annotation_type, content_id):
     }
 
     # Render item using shared partial
-    layer_item_html = render_to_string(
+    track_item_html = render_to_string(
         "partials/item.html",
         {
             "instance": annotation,
@@ -534,7 +534,7 @@ def create_annotation(request, annotation_type, content_id):
     )
 
     return JsonResponse(
-        {"layer_item_html": layer_item_html, "panel_item_html": panel_item_html}
+        {"track_item_html": track_item_html, "panel_item_html": panel_item_html}
     )
 
 
