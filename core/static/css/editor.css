@@ -457,6 +457,7 @@
 #timeline-row-ticks-and-scrubbers {
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 .timeline-ticks-row {
@@ -564,7 +565,7 @@
     top: 0;
     width: 2px;
     height: 100%;
-    background: #0582ca;
+    background-color: black;
     pointer-events: none;
     z-index: 100;
 }
@@ -572,15 +573,21 @@
 .editor-scrubber::before {
     content: '';
     position: absolute;
-    top: -6px;
     left: 50%;
-    transform: translateX(-50%);
-    width: 12px;
-    height: 12px;
-    background: #0582ca;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transform: translateX(-3px) translateY(2px) rotate(45deg);
+    width: 6px;
+    height: 6px;
+    background-color: black;
+}
+
+.editor-scrubber::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    transform: translateX(-4px) translateY(-3px);
+    background-color: black;
 }
 
 /* Bottom video controls and timeline */
