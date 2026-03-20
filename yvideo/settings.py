@@ -14,6 +14,12 @@ from pathlib import Path
 try:
     from . import secret_settings
 except ImportError:
+    import warnings
+
+    warnings.warn(
+        "secret_settings.py not found; falling back to secret_settings_template.py",
+        stacklevel=1,
+    )
     from . import secret_settings_template as secret_settings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.

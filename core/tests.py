@@ -17,6 +17,12 @@ try:
 
     HAS_SECRET_SETTINGS = hasattr(secret_settings, "API_AUTH_TOKEN_URL")
 except ImportError:
+    import warnings
+
+    warnings.warn(
+        "secret_settings.py not found; falling back to secret_settings_template.py",
+        stacklevel=1,
+    )
     HAS_SECRET_SETTINGS = False
 
 EXPECTED_FAILURE_MSG = "expected failure when there is no secret_settings.py file"
