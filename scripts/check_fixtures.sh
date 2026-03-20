@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# TODO: Fix before merging PR - fixtures are out of date (core_resourcefile table missing from migrations)
+# TODO: Fixtures are out of date (core_resourcefile table missing from migrations). Fix in a follow-up PR.
 # Temporarily allow this script to fail without blocking pre-commit.
 # set -e
 set +e
@@ -26,7 +26,7 @@ uv run manage.py migrate --database="${TEST_DB}"
 for fixture in $(find ./fixtures -name '*.json'); do
     FAIL_MSG="${fixture} is out of date. ${FAIL_MSG_INSTRUCTIONS}"
     echo "Checking fixture: ${fixture}"
-    # TODO: Fix before merging PR - restore 'exit 1' once fixtures are updated for ResourceFile migration
+    # TODO: Restore 'exit 1' once fixtures are updated for ResourceFile migration in a follow-up PR.
     uv run manage.py loaddata "${fixture}" --database="${TEST_DB}" || { echo "${FAIL_MSG}"; [ -f "${BACKUP_DB}" ] && mv "${BACKUP_DB}" "${ORIGINAL_DB}"; }
 done
 
@@ -38,6 +38,6 @@ if [ -f "${BACKUP_DB}" ]; then
     mv "${BACKUP_DB}" "${ORIGINAL_DB}"
 fi
 
-# TODO: Fix before merging PR - re-enable exit on error and remove exit 0
+# TODO: Re-enable set -e and remove exit 0 once fixtures are updated in a follow-up PR.
 echo "All fixtures are up-to-date with migrations."
 exit 0

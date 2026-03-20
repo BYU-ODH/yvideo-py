@@ -7,7 +7,6 @@ from django.test import TestCase
 from core.utils import VTTCue
 from core.utils import build_cues_from_vtt_file_string
 from core.utils import build_vtt_file_string_from_cues
-from core.utils import hms2seconds
 from core.utils import nudge_cue_times
 from core.utils import seconds2hms
 
@@ -82,16 +81,16 @@ class SubtitlesTests(TestCase):
                 "type": "CUE",
                 "identifier": None,
                 "payload": "Hildy!",
-                "start_time": "00:00:00.000",
-                "end_time": "00:00:00.900",
+                "start_time": "0:00:00.00",
+                "end_time": "0:00:00.90",
                 "cue_settings": None,
             },
             {
                 "type": "CUE",
                 "identifier": None,
                 "payload": "How are you?",
-                "start_time": "00:00:01.000",
-                "end_time": "00:00:01.400",
+                "start_time": "0:00:01.00",
+                "end_time": "0:00:01.40",
                 "cue_settings": None,
             },
             {
@@ -106,24 +105,24 @@ class SubtitlesTests(TestCase):
                 "type": "CUE",
                 "identifier": None,
                 "payload": "Tell me, is the lord of the universe in?",
-                "start_time": "00:00:01.500",
-                "end_time": "00:00:02.900",
+                "start_time": "0:00:01.50",
+                "end_time": "0:00:02.90",
                 "cue_settings": None,
             },
             {
                 "type": "CUE",
                 "identifier": None,
                 "payload": "Yes, he's in - in a bad humor",
-                "start_time": "00:00:03.000",
-                "end_time": "00:00:04.200",
+                "start_time": "0:00:03.00",
+                "end_time": "0:00:04.20",
                 "cue_settings": None,
             },
             {
                 "type": "CUE",
                 "identifier": None,
                 "payload": "Somebody must've stolen the crown jewels",
-                "start_time": "00:00:04.300",
-                "end_time": "00:00:06.000",
+                "start_time": "0:00:04.30",
+                "end_time": "0:00:06.00",
                 "cue_settings": None,
             },
         ]
@@ -138,9 +137,7 @@ class SubtitlesTests(TestCase):
             elif vtt_type == "CUE":
                 if vtt_data["identifier"] is not None:
                     self.TEST_VTT += f"{vtt_data['identifier']}\n"
-                start = seconds2hms(hms2seconds(vtt_data["start_time"]))
-                end = seconds2hms(hms2seconds(vtt_data["end_time"]))
-                self.TEST_VTT += f"{start} --> {end}"
+                self.TEST_VTT += f"{vtt_data['start_time']} --> {vtt_data['end_time']}"
                 if vtt_data["cue_settings"] is not None:
                     self.TEST_VTT += f" {vtt_data['cue_settings']}"
             self.TEST_VTT += f"\n{vtt_data['payload']}"
