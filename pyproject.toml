@@ -26,3 +26,4 @@ dev = [
 [tool.ruff.lint.isort]
 force-single-line = true
 force-sort-within-sections = true
+known-first-party = ["yvideo", "core"]
