@@ -72,11 +72,6 @@ def clip_editor(request, content_id):
         }
     }
 
-    # Prepare subtitle data in the format expected by AnnotationPlayer
-    subtitles_data = []
-
-    has_subtitles = bool(any(x.get("vtt") or x.get("url") for x in subtitles_data))
-
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
