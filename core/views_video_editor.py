@@ -716,7 +716,7 @@ def create_censor_position(request):
         return HttpResponseServerError()
 
     censor_position_html = generate_censor_positions_html(parent_annotation_id)
-    if censor_position_html == False:
+    if censor_position_html is False:
         return HttpResponseServerError()
     return HttpResponse(censor_position_html, status=201)
 
@@ -750,7 +750,7 @@ def update_censor_position(request):
             censor_position_html = generate_censor_positions_html(
                 this_blur_position.blur_annotation.pk
             )
-            if censor_position_html == False:
+            if censor_position_html is False:
                 return HttpResponseServerError()
             return HttpResponse(censor_position_html, status=201)
         except Exception as e:
@@ -988,7 +988,10 @@ def load_annotation_form(request, annotation_type, annotation_id):
     content_id = request.GET.get("content_id")
     content = get_object_or_404(Content, id=content_id)
 
-    can_edit = annotation.annotation_set.can_edit(request.user)
+    if not annotation.annotation_set.can_edit(request.user):
+        return HttpResponse(
+            "You don't have permission to edit this annotation", status=403
+        )
 
     start_seconds = annotation.start_time
     end_seconds = getattr(annotation, "end_time", start_seconds)
