@@ -12,10 +12,21 @@ from core.utils import seconds2hms
 
 from . import api
 
+try:
+    import yvideo.secret_settings as secret_settings
+
+    HAS_SECRET_SETTINGS = hasattr(secret_settings, "API_AUTH_TOKEN_URL")
+except ImportError:
+    HAS_SECRET_SETTINGS = False
+
+EXPECTED_FAILURE_MSG = "expected failure when there is no secret_settings.py file"
+
 
 class ApiTests(TestCase):
     @unittest.expectedFailure
     def test_build_auth_header(self):
+        if not HAS_SECRET_SETTINGS:
+            raise ImportError(EXPECTED_FAILURE_MSG)
         new_api = api.Api()
         re = r"Bearer[ ]\S*"
         result = new_api.build_auth_header()
@@ -23,6 +34,8 @@ class ApiTests(TestCase):
 
     @unittest.expectedFailure
     def test_get_current_year_term(self):
+        if not HAS_SECRET_SETTINGS:
+            raise ImportError(EXPECTED_FAILURE_MSG)
         re = r"[0-9]{4}[1-6]"
         new_api = api.Api()
         result = new_api.get_current_year_term()
@@ -30,6 +43,8 @@ class ApiTests(TestCase):
 
     @unittest.expectedFailure
     def test_calculate_next_year_term(self):
+        if not HAS_SECRET_SETTINGS:
+            raise ImportError(EXPECTED_FAILURE_MSG)
         new_api = api.Api()
         fall_to_winter = new_api.calculate_next_year_term("20255")
         self.assertEqual(fall_to_winter, "20261")
