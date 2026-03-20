@@ -988,7 +988,10 @@ def load_annotation_form(request, annotation_type, annotation_id):
     content_id = request.GET.get("content_id")
     content = get_object_or_404(Content, id=content_id)
 
-    can_edit = annotation.annotation_set.can_edit(request.user)  # noqa: F841  # TODO: Fix before merging PR - result unused, likely should gate access
+    if not annotation.annotation_set.can_edit(request.user):
+        return HttpResponse(
+            "You don't have permission to edit this annotation", status=403
+        )
 
     start_seconds = annotation.start_time
     end_seconds = getattr(annotation, "end_time", start_seconds)
