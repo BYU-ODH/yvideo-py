@@ -10,6 +10,7 @@ from .models import BlurAnnotation
 from .models import Clip
 from .models import Collection
 from .models import CollectionUserAccess
+from .models import CommentAnnotation
 from .models import Content
 from .models import Course
 from .models import Email
@@ -163,6 +164,11 @@ class AnnotationAdmin(VersionAdmin):
     list_display = ("name", "owner", "annotation_set", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__name", "owner__netid", "resource__name")
+
+
+@admin.register(CommentAnnotation)
+class CommentAnnotationAdmin(AnnotationAdmin):
+    pass
 
 
 @admin.register(SkipAnnotation)
