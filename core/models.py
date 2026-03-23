@@ -634,7 +634,10 @@ class BaseAnnotation(models.Model):
     @property
     def annotation_type(self):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
-        return self.__class__.__name__.replace("Annotation", "").lower()
+        type_string = self.__class__.__name__.replace("Annotation", "").lower()
+        if type_string == "blur":
+            type_string = "censor"
+        return type_string
 
     def calculate_position(self):
         """Calculate visual position on timeline."""

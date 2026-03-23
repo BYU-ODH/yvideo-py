@@ -12,22 +12,8 @@
             </div>
         </div>
     </div>
-    {% for track_name, track_data in tracks.items %}
-    <div class="timeline-row track-row">
-        <div class="timeline-row-left timeline-row-left-dark">
-            <div class="timeline-track-name">
-                {{ track_data.display_name }}
-            </div>
-            <div class="timeline-track-edit-wrapper">
-                <img class="timeline-track-edit-icon" />
-            </div>
-        </div>
-        <div class="timeline-row-right timeline-row-right-dark timeline-track-row-right">
-            {% for item in track_data.items %}
-                {% include "partials/item.html" with instance=item.instance position=item.position item_type=item.item_type %}
-            {% endfor %}
-        </div>
-    </div>
+    {% for track in tracks %}
+        {% include "partials/timeline-track-row.html" %}
     {% endfor %}
     <div id="timeline-new-track-and-zoom-row" class="timeline-row">
         <div id="timeline-new-track-wrapper" class="timeline-row-left timeline-row-left-dark">

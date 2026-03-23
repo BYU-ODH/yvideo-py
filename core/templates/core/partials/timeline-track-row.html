@@ -1,0 +1,15 @@
+<div class="timeline-row track-row" data-track-name="{{track.name}}" data-annotation-set-id="{{ track.annotation_set_id }}">
+    <div class="timeline-row-left timeline-row-left-dark">
+        <div class="timeline-track-name">
+            {{ track.name }}
+        </div>
+        <div class="timeline-track-edit-wrapper">
+            <img class="timeline-track-edit-icon" src="/static/img/edit.svg" />
+        </div>
+    </div>
+    <div class="timeline-row-right timeline-row-right-dark timeline-track-row-right">
+        {% for item in track.items %}
+            {% include "partials/item.html" %}
+        {% endfor %}
+    </div>
+</div>

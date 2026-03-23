@@ -9,7 +9,6 @@ function convertPercentStringToDecimal(percentString) {
 
 export class Editor {
     constructor() {
-        this.tracks = document.querySelectorAll('.timeline-track-row-right');
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.annotationBox = window.videoPlayer.annotationBox;
@@ -40,11 +39,8 @@ export class Editor {
     init() {
         const playerContainer = document.getElementById("annotation-player-container");
         this.contentId = playerContainer.dataset["contentid"];
-        this.determineTrackItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
-        this.tracks.forEach(container => {
-            container.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        });
+        this.updateTracks();
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
         document.addEventListener('mouseup', this.handleMouseUp.bind(this));
 
@@ -66,6 +62,15 @@ export class Editor {
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
+        this.watchForTrackNameEditClick();
+    }
+
+    updateTracks() {
+      const tracks = document.querySelectorAll('.timeline-track-row-right');
+      tracks.forEach(container => {
+          container.addEventListener('mousedown', this.handleMouseDown.bind(this));
+      });
+      this.tracks = tracks;
     }
 
     placeItem(item) {
@@ -74,16 +79,6 @@ export class Editor {
         item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
       }
       item.style.setProperty("left", `${parseFloat(item.dataset["start"]) / this.duration * 100}%`);
-    }
-
-    determineTrackItemPositions() {
-      this.tracks.forEach(track => {
-        const trackItems = Array.from(track.children);
-
-        for (let item of trackItems) {
-          this.placeItem(item);
-        }
-      });
     }
 
     handleMouseDown(e) {
@@ -800,7 +795,6 @@ export class Editor {
       // if you pass the previous targetItem into this.placeItem, it will make changes to an
       // element that no longer exists. You must get the new element before making style changes.
       const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      this.placeItem(newTargetItem);
       this.placeTrackItems();
 
       const targetForm = document.getElementById("detail-form");
@@ -1012,10 +1006,89 @@ export class Editor {
       }
     }
 
+    async handleTrackNameChange(e) {
+      e.stopPropagation();
+      let parentTrackRow = e.target.closest(".track-row");
+
+      if (!parentTrackRow) {
+        console.error("Failed to change track name due to undefined track row element");
+        return;
+      }
+
+      const annotationSetId = parentTrackRow.dataset["annotationSetId"];
+      const originalTrackName = e.target.dataset["originalTrackName"];
+
+      function resetTrackName() {
+        const trackNameEl = parentTrackRow.querySelector(".timeline-track-name");
+        trackNameEl.innerHTML = "";
+        trackNameEl.innerText = originalTrackName;
+      }
+
+      if (e.key == "Enter") {
+        const newTrackName = e.target.value.trim();
+        const response = await fetch("/track/change-track-name", {
+          method: "post",
+          headers: {"X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value},
+          body: JSON.stringify({"original_track_name": originalTrackName, "new_track_name": newTrackName, "annotation_set_id": annotationSetId})
+        });
+        if (!response.ok) {
+          resetTrackName();
+          return;
+        }
+
+        parentTrackRow.outerHTML = await response.text();
+        parentTrackRow = document.querySelector(`.track-row[data-track-name="${newTrackName}"]`);
+        this.updateTracks();
+        this.placeTrackItems();
+        const newTrackNameEditButton = parentTrackRow.querySelector(".timeline-track-edit-icon");
+        newTrackNameEditButton.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
+      }
+      if (e.key == "Escape") {
+        resetTrackName();
+        return;
+      }
+    }
+
+    // Handles renaming of track name, canceling attempted rename,
+    // replacement of track with new track, and appending this same
+    // event listener to the new track name edit button.
+    sendTrackNameChangeRequest(e) {
+      e.stopPropagation();
+      // ensure that the track we are trying to edit exists before continuing
+      const parentLeftRow = e.target.closest(".timeline-row-left");
+      const trackNameEl = parentLeftRow?.querySelector(".timeline-track-name");
+
+      if (!parentLeftRow || !trackNameEl) {
+        console.error("Failed to update track name due to undefined elements");
+        return;
+      }
+
+      const originalTrackName = trackNameEl.innerText;
+
+      const newInputEl = document.createElement("input");
+      newInputEl.type = "text";
+      newInputEl.className = "editable-track-name";
+      newInputEl.value = originalTrackName;
+      newInputEl.dataset["originalTrackName"] = originalTrackName;
+      newInputEl.addEventListener("keydown", this.handleTrackNameChange.bind(this));
+      trackNameEl.innerText = "";
+      trackNameEl.appendChild(newInputEl);
+    }
+
+    watchForTrackNameEditClick() {
+      const editButtons = document.getElementsByClassName("timeline-track-edit-icon");
+      for (let button of editButtons) {
+        button.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
+      }
+    }
+
     placeTrackItems() {
         // Process each track container separately
         this.tracks.forEach(track => {
             const trackItems = Array.from(track.children);
+            for (let item of trackItems) {
+              this.placeItem(item);
+            }
             const trackDim = track.getBoundingClientRect();
             const itemCount = trackItems.length;
 
@@ -1161,7 +1234,6 @@ export class Editor {
               newNode.dataset["end"] = endTime;
               trackContainer.append(newNode);
               this.fetchEditFormOnClick(newNode);
-              this.placeItem(newNode);
               this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);
             }

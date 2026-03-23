@@ -47,6 +47,30 @@ ANNOTATION_ICONS = {
 }
 
 
+def get_annotations_in_set(annotation_set_id):
+    """Retrieves all annotations associated with the given annotation set.
+    Annotations are ordered by increasing start time."""
+    if annotation_set_id == False or annotation_set_id is None:
+        logger.error(
+            "get_annotations_in_set called incorrectly. annotation_set_id must be provided"
+        )
+        return False
+
+    annotations = []
+    for type_name, model_class in ANNOTATION_MODELS.items():
+        annotations.extend(
+            list(
+                model_class.objects.filter(
+                    annotation_set__id=annotation_set_id, active=True
+                )
+            )
+        )
+
+    annotations.sort(key=(lambda annotation: annotation.start_time))
+
+    return annotations
+
+
 def get_annotation_groups(annotation_set):
     if not annotation_set:
         return []
@@ -100,17 +124,21 @@ def build_annotation_panel(request, annotation_set_id):
     return HttpResponse(annotation_panel_html)
 
 
-def build_editor_tracks(annotation_set_id):
+def build_editor_track_data(annotation_set_id):
     try:
-        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
-        annotation_groups = get_annotation_groups(annotation_set)
-        tracks = {}
-        for group in annotation_groups:
-            for instance in group["instances"]:
-                track_name = instance["track"]
-                if track_name not in tracks:
-                    tracks[track_name] = {"display_name": track_name, "items": []}
-                tracks[track_name]["items"].append(instance)
+        annotations = get_annotations_in_set(annotation_set_id)
+        track_groups = {}
+        for annotation in annotations:
+            if annotation.track_name not in track_groups:
+                track_groups[annotation.track_name] = {
+                    "name": annotation.track_name,
+                    "annotation_set_id": annotation_set_id,
+                    "items": [],
+                }
+            track_groups[annotation.track_name]["items"].append(annotation)
+        tracks = list(track_groups.values())
+        # sort alphabetically
+        tracks.sort(key=(lambda track: track["name"]))
         return tracks
     except Exception as e:
         logger.error(f"Failed to build editor tracks. Exception: {e}")
@@ -187,7 +215,7 @@ def video_editor(request, content_id):
     file_key = request.user.get_resource_filekey(content)
 
     # Prepare track data for timeline
-    tracks = build_editor_tracks(annotation_set.id)
+    tracks = build_editor_track_data(annotation_set.id)
     if tracks == False:
         return HttpResponseServerError()
 
@@ -587,7 +615,7 @@ def generate_censor_positions_html(parent_annotation_id):
         parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
     except Exception as e:
         logger.error(
-            f"Failed to get parent_annoation while updateing censor positions html. Exception: {e}"
+            f"Failed to get parent_annotation while updateing censor positions html. Exception: {e}"
         )
         return False
 
@@ -740,14 +768,7 @@ def generate_annotation_updated_html(
 ):
     item_html = render_to_string(
         "partials/item.html",
-        {
-            "instance": annotation,
-            "content": content,
-            "item_type": annotation_type,
-            "update_url": "update_annotation",
-            "load_form_url": "load_annotation_form",
-            "position": position,
-        },
+        {"item": annotation},
         request=request,
     )
 
@@ -1010,3 +1031,51 @@ def update_annotation_set_name(request, annotation_set_id):
             "content": content,
         },
     )
+
+
+@login_required
+@require_POST
+def change_track_name(request):
+    """Edit track name by changing the track_name attribute of all associated annotations"""
+    try:
+        parsed_data = json.loads(request.body)
+        original_track_name = parsed_data["original_track_name"]
+        new_track_name = parsed_data["new_track_name"]
+        annotation_set_id = parsed_data["annotation_set_id"]
+    except Exception as e:
+        logger.error(
+            f"Failed to parse request data for change_track_name. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+    annotations_in_set = get_annotations_in_set(annotation_set_id)
+    if annotations_in_set == False:
+        return HttpResponseServerError()
+
+    # perform updates atomically so they can be rolled back by django if there is a failure
+    try:
+        with transaction.atomic():
+            for annotation in annotations_in_set:
+                if annotation.track_name != original_track_name:
+                    continue
+                annotation.track_name = new_track_name
+                annotation.save()
+    except IntegrityError as ie:
+        logger.error(
+            f"Integrity error occurred while attepting to update track name. Exception: {ie}"
+        )
+        return HttpResponseServerError()
+    except Exception as e:
+        logger.error(f"Failed to save change track name. Exception: {e}")
+        return HttpReponseServerError()
+
+    track = {
+        "name": new_track_name,
+        "annotation_set_id": annotation_set_id,
+        "items": annotations_in_set,
+    }
+    track_html = render_to_string(
+        "core/partials/timeline-track-row.html", {"track": track}, request
+    )
+
+    return HttpResponse(track_html)

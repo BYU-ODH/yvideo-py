@@ -414,6 +414,18 @@
     padding: 8px 12px;
 }
 
+.timeline-track-edit-icon {
+    width: 22px;
+    height: 22px;
+    padding: 2px;
+    border-radius: 25%;
+}
+
+.timeline-track-edit-icon:hover {
+    background-color: var(--dark-mode-very-light-gray);
+    cursor: pointer;
+}
+
 .timeline-row-right {
     flex: 1;
 }

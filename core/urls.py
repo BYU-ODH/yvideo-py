@@ -169,6 +169,12 @@ urlpatterns = [
         views_video_editor.redo_annotation,
         name="redo_annotation",
     ),
+    # Track CRUD
+    path(
+        "track/change-track-name",
+        views_video_editor.change_track_name,
+        name="change_track_name",
+    ),
     # Annotation CRUD
     path(
         "annotations/<str:annotation_type>/create/content/<int:content_id>",
