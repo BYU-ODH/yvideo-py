@@ -1124,7 +1124,10 @@ export class Editor {
         const newTrackDOMNode = document.createElement("template");
         newTrackDOMNode.innerHTML = newTrackHtml;
         const nodes = newTrackDOMNode.content.childNodes;
+        const trackNameEditButton = nodes[0].querySelector(".timeline-track-edit-icon");
+        trackNameEditButton.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
         timelineWrapper.insertBefore(nodes[0], addNewAndZoomRow);
+        this.adjustScrubberHeight();
       }
       addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
       addNewTrackInput.addEventListener("keydown", (e) => {

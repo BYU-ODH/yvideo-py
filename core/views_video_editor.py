@@ -979,21 +979,17 @@ def update_track(request):
     """Edit track name by changing the track_name attribute of all associated annotations"""
     try:
         parsed_data = json.loads(request.body)
-        update_data = {}
-        if "new_track_name" in parsed_data:
-            update_data["name"] = parsed_data["new_track_name"]
-        if "new_stack_position" in parsed_data:
-            update_data["stack_position"] = parsed_data["new_stack_position"]
         track_id = parsed_data["track_id"]
         track = get_object_or_404(Track, pk=track_id)
     except Exception as e:
-        logger.error(
-            f"Failed to parse request data for change_track_name. Exception: {e}"
-        )
+        logger.error(f"Failed to get track object. Exception: {e}")
         return HttpResponseServerError()
 
     try:
-        track.update(**update_data)
+        if "new_track_name" in parsed_data:
+            track.name = parsed_data["new_track_name"]
+        if "new_stack_position" in parsed_data:
+            track.stack_position = parsed_data["new_stack_position"]
         track.save()
     except Exception as e:
         logger.error(f"Failed to update track name. Exception: {e}")
@@ -1033,7 +1029,7 @@ def create_track(request):
 
         track = {
             "name": new_track.name,
-            "annotation_set_id": new_track.annotation_set.pk,
+            "id": new_track.id,
             "items": [],
         }
 
