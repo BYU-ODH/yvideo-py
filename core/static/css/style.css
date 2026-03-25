@@ -177,6 +177,25 @@ body {
     height: 100%;
 }
 
+dialog {
+    position: relative;
+    border-radius: 20px;
+}
+
+.dialog-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+}
+
+.close-dialog-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 1rem;
+}
+
 /* Video Overlay and Blank Screen */
 .video-overlay {
     position: absolute;

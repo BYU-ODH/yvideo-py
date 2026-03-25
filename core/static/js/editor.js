@@ -1015,8 +1015,8 @@ export class Editor {
         return;
       }
 
-      const annotationSetId = parentTrackRow.dataset["annotationSetId"];
-      const originalTrackName = e.target.dataset["originalTrackName"];
+      const trackId = parentTrackRow.dataset["trackId"];
+      const originalTrackName = e.target.dataset["trackName"];
 
       function resetTrackName() {
         const trackNameEl = parentTrackRow.querySelector(".timeline-track-name");
@@ -1026,10 +1026,10 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await fetch("/track/change-track-name", {
+        const response = await fetch("/track/update", {
           method: "post",
           headers: {"X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value},
-          body: JSON.stringify({"original_track_name": originalTrackName, "new_track_name": newTrackName, "annotation_set_id": annotationSetId})
+          body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
         });
         if (!response.ok) {
           resetTrackName();
@@ -1081,6 +1081,13 @@ export class Editor {
         button.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
       }
     }
+
+    // watchForAddNewTrackClick() {
+    //   const addNewTrackButton = document.getElementById("timeline-new-track-button");
+    //   addNewTrackButton.addEventListener("click", (e) => {
+
+    //   })
+    // }
 
     placeTrackItems() {
         // Process each track container separately
@@ -1195,6 +1202,12 @@ export class Editor {
 
     listenForNewItemCreation() {
       const assignListeners = (elements) => {
+        const trackRows = document.getElementsByClassName("track-row");
+        if (trackRows.length <= 0) {
+          console.error("Unable to assign listeners to new item creation buttons. Invalid track row.");
+          return;
+        }
+        const trackId = trackRows[0].dataset["trackId"];
         for (let button of elements) {
           const annotationType = button.dataset["annotationType"];
           button.addEventListener("click", async (e) => {
@@ -1210,7 +1223,7 @@ export class Editor {
             }
 
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}`,
+            const response = await fetch(`/annotations/${annotationType}/create/track/${trackId}`,
               {
                 method: "POST",
                 headers: {"X-CSRFToken": csrfToken},
@@ -1226,13 +1239,13 @@ export class Editor {
               panel.innerHTML = panel.innerHTML + newPanelItemHtml;
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
-              const trackContainer = document.getElementById(`${annotationType}-item-container`);
+              const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .timeline-track-row-right`);
               const newElement = document.createElement("template");
               newElement.innerHTML = newTrackItemHtml;
               const newNode = newElement.content.firstChild;
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
-              trackContainer.append(newNode);
+              trackContainer.appendChild(newNode);
               this.fetchEditFormOnClick(newNode);
               this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);

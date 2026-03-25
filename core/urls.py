@@ -171,13 +171,18 @@ urlpatterns = [
     ),
     # Track CRUD
     path(
-        "track/change-track-name",
-        views_video_editor.change_track_name,
-        name="change_track_name",
+        "track/update",
+        views_video_editor.update_track,
+        name="update_track",
+    ),
+    path(
+        "track/create",
+        views_video_editor.create_track,
+        name="create_track",
     ),
     # Annotation CRUD
     path(
-        "annotations/<str:annotation_type>/create/content/<int:content_id>",
+        "annotations/<str:annotation_type>/create/track/<int:track_id>",
         views_video_editor.create_annotation,
         name="create_annotation",
     ),

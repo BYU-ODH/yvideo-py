@@ -438,6 +438,43 @@ class AnnotationSet(models.Model):
 
         return annotation_set
 
+    def get_tracks(self):
+        """
+        Get all tracks as they are
+        """
+        return sorted(self.tracks.all(), key=lambda track: track.stack_position)
+
+    def get_active_annotations_from_tracks(self):
+        """
+        Get all currently active annotations across all tracks.
+        """
+        annotations = []
+        for track in list(self.tracks.all()):
+            annotations.extend(track.get_active_annotations())
+        return sorted(annotations, key=lambda a: a.start_time)
+
+    def to_player_json(self):
+        """Export all active annotations in this set for the AnnotationPlayer."""
+        return [
+            annotation.to_player_json()
+            for annotation in self.get_active_annotations_from_tracks()
+        ]
+
+
+class Track(models.Model):
+    annotation_set = models.ForeignKey(
+        AnnotationSet,
+        on_delete=models.CASCADE,
+        related_name="tracks",
+        null=False,
+        blank=False,
+    )
+    name = models.CharField(max_length=50, default="Track 1")
+    stack_position = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ("annotation_set", "stack_position")
+
     def get_active_annotations(self):
         """
         Get all currently active annotations across all types.
@@ -452,9 +489,7 @@ class AnnotationSet(models.Model):
             BlurAnnotation,
             CommentAnnotation,
         ]:
-            annotations.extend(
-                model_class.objects.filter(annotation_set=self, active=True)
-            )
+            annotations.extend(model_class.objects.filter(track=self, active=True))
         return sorted(annotations, key=lambda a: a.start_time)
 
     def to_player_json(self):
@@ -591,14 +626,11 @@ class BaseAnnotation(models.Model):
         blank=True,
     )
     name = models.CharField(max_length=255, blank=True)
-    annotation_set = models.ForeignKey(
-        AnnotationSet,
+    track = models.ForeignKey(
+        Track,
         on_delete=models.CASCADE,
         related_name="%(app_label)s_%(class)s_annotations",
-        null=True,
-        blank=True,
     )
-    track_name = models.CharField(default="Track 1", blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     start_time = models.FloatField(default=0.0)

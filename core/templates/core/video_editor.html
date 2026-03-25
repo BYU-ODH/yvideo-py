@@ -16,7 +16,7 @@
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
                 <div id="editor-annotation-panel" class="editor-container-component-dark">
-                    {% include 'partials/annotation_panel.html' with annotation_groups=annotation_groups %}
+                    {% include 'partials/annotation_panel.html' %}
                 </div>
 
                 <div id="video-section" class="video-section">
@@ -38,7 +38,7 @@
             </div>
 
             <!-- Bottom Panel: Timeline -->
-            {% include 'partials/timeline_base.html' with tracks=tracks %}
+            {% include 'partials/timeline_base.html' %}
         </div>
 
         <script type="module" src="{% static 'js/editor.js' %}"></script>

@@ -17,7 +17,7 @@
     {% endfor %}
     <div id="timeline-new-track-and-zoom-row" class="timeline-row">
         <div id="timeline-new-track-wrapper" class="timeline-row-left timeline-row-left-dark">
-            <button id="timeline-new-track-button" class="plain-text-button">
+            <button id="timeline-new-track-button" class="plain-text-button" commandfor="new-track-dialog" command="show-modal">
                 + New Track
             </button>
         </div>
@@ -35,4 +35,17 @@
             <img class="timeline-zoom-icon" src="/static/img/plus-circle.svg" />
         </div>
     </div>
+    <dialog id="new-track-dialog">
+        <h2>New Track</h2>
+        <div class="dialog-content">
+            <div>
+                <label>New Track Name</label>
+                <input id="new-track-name" type="text" />
+            </div>
+            <button id="new-track-save-button" commandfor="new-track-dialog" command="close" class="small-button">
+                Save
+            </button>
+        </div>
+        <button class="close-dialog-button red-button" command="close" commandfor="new-track-dialog">x</button>
+    </dialog>
 </div>

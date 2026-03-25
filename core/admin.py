@@ -24,6 +24,7 @@ from .models import ResourceFile
 from .models import ResourceFileKey
 from .models import SkipAnnotation
 from .models import Subtitle
+from .models import Track
 from .models import User
 from .models import UserCourses
 from .utils import convert_srt_content_to_vtt
@@ -161,7 +162,7 @@ class LanguageAdmin(VersionAdmin):
 
 
 class AnnotationAdmin(VersionAdmin):
-    list_display = ("name", "owner", "annotation_set", "created_at")
+    list_display = ("name", "owner", "track__annotation_set", "track", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__name", "owner__netid", "resource__name")
 
@@ -275,7 +276,22 @@ class ImportantWordAdmin(VersionAdmin):
 class AnnotationSetAdmin(VersionAdmin):
     list_display = ("name", "owner", "resource", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "owner__name", "resource__name")
+    search_fields = ("name", "owner__netid", "resource__name")
+
+
+@admin.register(Track)
+class TrackAdmin(VersionAdmin):
+    list_display = (
+        "annotation_set__resource__name",
+        "annotation_set__name",
+        "name",
+        "annotation_set__owner__netid",
+    )
+    search_fields = (
+        "annotation_set__name",
+        "annotation_set__owner__netid",
+        "annotation_set__resource__name",
+    )
 
 
 @admin.register(UserCourses)
