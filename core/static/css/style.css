@@ -150,7 +150,7 @@ body {
 }
 
 .elevated {
-    z-index: 10;
+    z-index: 2;
 }
 
 .settings-button {

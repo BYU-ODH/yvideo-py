@@ -66,6 +66,7 @@ export class Editor {
         this.setupDeleteTrackWatchers();
         this.watchForTrackNameEditClick();
         this.watchForTrackCreation();
+        this.watchForClickOutsideOfTrackMenu();
     }
 
     updateTracks() {
@@ -1035,6 +1036,19 @@ export class Editor {
       for (let menu of trackMenus) {
         this.setupWatcherForTrackMenu(menu);
       }
+    }
+
+    watchForClickOutsideOfTrackMenu() {
+      const editorContainer = document.getElementById("editor-container");
+      editorContainer.addEventListener("click", (e) => {
+        const visibleTrackMenus = document.getElementsByClassName("visible-timeline-track-menu");
+        for (let menu of visibleTrackMenus) {
+          const menuDim = menu.getBoundingClientRect();
+          if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
+            menu.classList.remove("visible-timeline-track-menu");
+          }
+        }
+      });
     }
 
     /* track delete */
