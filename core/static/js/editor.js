@@ -62,6 +62,8 @@ export class Editor {
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
+        this.setupWatchersForTrackMenus();
+        this.setupDeleteTrackWatchers();
         this.watchForTrackNameEditClick();
         this.watchForTrackCreation();
     }
@@ -1007,6 +1009,66 @@ export class Editor {
       }
     }
 
+    /* TRACK EVENT WATCHERS AND HANDLERS */
+    /* track options menu */
+    watchForTrackOpenMenuClick(e) {
+      e.stopPropagation();
+      // we don't want more than one track menu visible at one time
+      const visibleMenuCSSClass = "visible-timeline-track-menu";
+      const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
+      for (let menu of allVisibleTrackMenus) {
+        menu.classList.remove(visibleMenuCSSClass);
+      }
+
+      // now we are safe to make the track menu visible
+      const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
+      const trackOptionsMenu = trackMenuWrapper.querySelector(".timeline-track-menu");
+      trackOptionsMenu.classList.add(visibleMenuCSSClass);
+    }
+
+    setupWatcherForTrackMenu(trackMenuElement) {
+      trackMenuElement.addEventListener("click", this.watchForTrackOpenMenuClick);
+    }
+
+    setupWatchersForTrackMenus() {
+      const trackMenus = document.getElementsByClassName("timeline-track-open-menu-button");
+      for (let menu of trackMenus) {
+        this.setupWatcherForTrackMenu(menu);
+      }
+    }
+
+    /* track delete */
+    async deleteTrack(e) {
+      const trackRow = e.target.closest(".track-row");
+      const trackId = trackRow.dataset["trackId"];
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const trackDeleteResponse = await fetch(`/track/delete/${trackId}`, {
+        method: "delete",
+        headers: {
+          "X-CSRFToken": csrfToken
+        }
+      });
+
+      if (!trackDeleteResponse.ok) {
+        console.error("Failed to delete track");
+        return;
+      }
+
+      trackRow.remove();
+    }
+
+    setupDeleteTrackWatcher(element) {
+      element.addEventListener("click", this.deleteTrack)
+    }
+
+    setupDeleteTrackWatchers() {
+      const deleteButtons = document.getElementsByClassName("track-menu-delete");
+      for (let deleteButton of deleteButtons) {
+        this.setupDeleteTrackWatcher(deleteButton);
+      }
+    }
+
+    /* track name change */
     async handleTrackNameChange(e) {
       e.stopPropagation();
       let parentTrackRow = e.target.closest(".track-row");
@@ -1083,6 +1145,7 @@ export class Editor {
       }
     }
 
+    /* track creation */
     watchForTrackCreation() {
       const addNewTrackButton = document.getElementById("new-track-save-button");
       const addNewTrackInput = document.getElementById("new-track-name");
@@ -1124,9 +1187,21 @@ export class Editor {
         const newTrackDOMNode = document.createElement("template");
         newTrackDOMNode.innerHTML = newTrackHtml;
         const nodes = newTrackDOMNode.content.childNodes;
-        const trackNameEditButton = nodes[0].querySelector(".timeline-track-edit-icon");
+        const newTrackParentNode = nodes[0];
+
+        // configure edit button on new track
+        const trackNameEditButton = newTrackParentNode.querySelector(".timeline-track-edit-icon");
         trackNameEditButton.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
-        timelineWrapper.insertBefore(nodes[0], addNewAndZoomRow);
+
+        // configure open menu button on new track
+        const trackMenuOpenButton = newTrackParentNode.querySelector(".timeline-track-open-menu-button");
+        this.setupWatcherForTrackMenu(trackMenuOpenButton);
+
+        // configure menu option buttons on new track
+        const trackDeleteButton = newTrackParentNode.querySelector(".track-menu-delete");
+        this.setupDeleteTrackWatcher(trackDeleteButton);
+
+        timelineWrapper.insertBefore(newTrackParentNode, addNewAndZoomRow);
         this.adjustScrubberHeight();
       }
       addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));

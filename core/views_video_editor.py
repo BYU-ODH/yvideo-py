@@ -166,6 +166,7 @@ def video_editor(request, content_id):
             {
                 "id": raw_track.id,
                 "name": raw_track.name,
+                "stack_position": raw_track.stack_position,
                 "items": raw_track.get_active_annotations(),
             }
         )
@@ -998,6 +999,7 @@ def update_track(request):
     track_data = {
         "name": track.name,
         "id": track.id,
+        "stack_position": new_track.stack_position,
         "items": track.get_active_annotations(),
     }
     track_html = render_to_string(
@@ -1030,6 +1032,7 @@ def create_track(request):
         track = {
             "name": new_track.name,
             "id": new_track.id,
+            "stack_position": new_track.stack_position,
             "items": [],
         }
 
@@ -1049,6 +1052,11 @@ def delete_track(request, track_id):
         return HttpResponseBadRequest()
     try:
         track = Track.objects.get(pk=track_id)
+        if track.stack_position == 0:
+            logger.error(
+                f"Request to delete primary track ignored. Track id: {track_id}"
+            )
+            return HttpResponseBadRequest()
         track.delete()
         return HttpResponse()
     except Exception as e:

@@ -414,14 +414,29 @@
     padding: 8px 12px;
 }
 
-.timeline-track-edit-icon {
+.timeline-track-edit-wrapper {
+    position: relative;
+}
+
+.timeline-track-menu {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    z-index: 4;
+}
+
+.visible-timeline-track-menu {
+    display: flex;
+}
+
+.timeline-track-open-menu-button {
     width: 22px;
     height: 22px;
     padding: 2px;
     border-radius: 25%;
 }
 
-.timeline-track-edit-icon:hover {
+.timeline-track-open-menu-button:hover {
     background-color: var(--dark-mode-very-light-gray);
     cursor: pointer;
 }
@@ -543,7 +558,7 @@
     height: 100%;
     background: rgba(5, 130, 202, 0.3);
     pointer-events: none;
-    z-index: 50;
+    z-index: 2;
     opacity: 0;
     transition: opacity 0.1s ease;
 }
@@ -579,7 +594,7 @@
     height: 100%;
     background-color: black;
     pointer-events: none;
-    z-index: 100;
+    z-index: 3;
 }
 
 #editor-scrubber::before {
@@ -667,7 +682,7 @@
 
 .track-item.dragging {
     opacity: 0.8;
-    z-index: 50;
+    z-index: 2;
 }
 
 /* Resize Handles */
@@ -823,7 +838,7 @@
 .resizer {
     background-color: #e0e0e0;
     position: relative;
-    z-index: 10;
+    z-index: 1;
 }
 
 .resizer:hover {

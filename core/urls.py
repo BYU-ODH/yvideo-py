@@ -180,6 +180,11 @@ urlpatterns = [
         views_video_editor.create_track,
         name="create_track",
     ),
+    path(
+        "track/delete/<int:track_id>",
+        views_video_editor.delete_track,
+        name="delete_track",
+    ),
     # Annotation CRUD
     path(
         "annotations/<str:annotation_type>/create/track/<int:track_id>",
