@@ -1015,14 +1015,16 @@ def update_track(request):
 @require_POST
 def create_track(request):
     try:
+        parsed_body = json.loads(request.body)
         if "annotation_set_id" not in parsed_body:
             logger.error("Failed to create new track due to missing annotation_set_id")
             return HttpResponseBadRequest()
 
+        annotation_set = AnnotationSet.objects.get(pk=parsed_body["annotation_set_id"])
+
         track = {
-            "annotation_set": AnnotationSet.objects.get(
-                pk=parsed_body["annotation_set_id"]
-            )
+            "annotation_set": annotation_set,
+            "stack_position": annotation_set.get_highest_stack_position() + 1,
         }
         if "track_name" in parsed_body:
             track["name"] = parsed_body["track_name"]

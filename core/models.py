@@ -444,6 +444,12 @@ class AnnotationSet(models.Model):
         """
         return sorted(self.tracks.all(), key=lambda track: track.stack_position)
 
+    def get_highest_stack_position(self):
+        track_with_highest_position_value = (
+            self.tracks.all().order_by("stack_position").last()
+        )
+        return track_with_highest_position_value.stack_position
+
     def get_active_annotations_from_tracks(self):
         """
         Get all currently active annotations across all tracks.

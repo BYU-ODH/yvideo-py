@@ -388,7 +388,7 @@
     margin-top: 0.25rem;
 }
 
-.timeline-wrapper {
+#timeline-wrapper {
     display: flex;
     flex-direction: column;
     overflow: hidden;

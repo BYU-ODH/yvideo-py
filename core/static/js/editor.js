@@ -63,6 +63,7 @@ export class Editor {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
         this.watchForTrackNameEditClick();
+        this.watchForTrackCreation();
     }
 
     updateTracks() {
@@ -1082,12 +1083,56 @@ export class Editor {
       }
     }
 
-    // watchForAddNewTrackClick() {
-    //   const addNewTrackButton = document.getElementById("timeline-new-track-button");
-    //   addNewTrackButton.addEventListener("click", (e) => {
+    watchForTrackCreation() {
+      const addNewTrackButton = document.getElementById("new-track-save-button");
+      const addNewTrackInput = document.getElementById("new-track-name");
+      const dialogCloseButton = document.getElementById("new-track-dialog-close-button");
+      const timelineWrapper = document.getElementById("timeline-wrapper");
+      const annotationSetId = timelineWrapper.dataset["annotationSetId"];
 
-    //   })
-    // }
+      async function handleTrackCreation(e) {
+        e.stopPropagation();
+        // allow any event unless it is keydown triggered from a key other than the Enter key
+        if (e.type == "keydown" && e.key != "Enter") {
+          return;
+        }
+        const newTrackName = addNewTrackInput.value;
+        if (!newTrackName) {
+          return;
+        }
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const newTrackResponse = await fetch("/track/create", {
+          method: "post",
+          headers: {
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify({
+            "annotation_set_id": annotationSetId,
+            "track_name": newTrackName
+          })
+        });
+
+        if (!newTrackResponse.ok) {
+          console.error("Failed to create new track!");
+          return;
+        }
+
+        const newTrackHtml = await newTrackResponse.text();
+        dialogCloseButton.click();
+        const addNewAndZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
+        const newTrackDOMNode = document.createElement("template");
+        newTrackDOMNode.innerHTML = newTrackHtml;
+        const nodes = newTrackDOMNode.content.childNodes;
+        timelineWrapper.insertBefore(nodes[0], addNewAndZoomRow);
+      }
+      addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
+      addNewTrackInput.addEventListener("keydown", (e) => {
+        if (e.key == "Enter") {
+          addNewTrackButton.click();
+        }
+      });
+    }
 
     placeTrackItems() {
         // Process each track container separately

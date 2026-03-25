@@ -1,4 +1,4 @@
-<div class="timeline-wrapper editor-container-component-dark">
+<div id="timeline-wrapper" class="editor-container-component-dark" data-annotation-set-id="{{ annotation_set.id }}">
     <div id="timeline-scrubber-row" class="timeline-row">
         <div class="timeline-row-left">
         </div>
@@ -42,10 +42,10 @@
                 <label>New Track Name</label>
                 <input id="new-track-name" type="text" />
             </div>
-            <button id="new-track-save-button" commandfor="new-track-dialog" command="close" class="small-button">
+            <button id="new-track-save-button" class="small-button">
                 Save
             </button>
         </div>
-        <button class="close-dialog-button red-button" command="close" commandfor="new-track-dialog">x</button>
+        <button id="new-track-dialog-close-button" class="close-dialog-button red-button" command="close" commandfor="new-track-dialog">x</button>
     </dialog>
 </div>
