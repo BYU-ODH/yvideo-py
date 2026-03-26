@@ -2,6 +2,7 @@
 # NEVER COMMIT secret_settings.py to the repository!
 ALLOWED_HOSTS = []
 DEBUG = True
+DEV_QUICK_LOGIN_ENABLED = False
 SECRET_KEY = ""
 TIME_ZONE = "America/Denver"
 API_CLIENT_ID = ""

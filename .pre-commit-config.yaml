@@ -51,11 +51,6 @@ repos:
       hooks:
       -   id: django-tests
           name: Run Django tests
-          entry: uv run python manage.py test core
+          entry: uv run python manage.py test core --settings=yvideo.test_settings
           language: system
-          pass_filenames: false
-      -   id: check-fixtures
-          name: Check Django fixtures up-to-date
-          entry: /bin/bash scripts/check_fixtures.sh
-          language: script
           pass_filenames: false

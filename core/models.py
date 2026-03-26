@@ -188,7 +188,7 @@ class Collection(models.Model):
         """Get all users with instructor or TA access to this collection."""
         instructor_tas = CollectionUserAccess.objects.filter(
             collection=self,
-            account_role__in=[0, 1],  # 0=instructor, 1=TA
+            collection_role__in=[CollectionRole.INSTRUCTOR, CollectionRole.TA],
         ).select_related("user")
         return [access.user for access in instructor_tas]
 

@@ -92,7 +92,6 @@ def display_yearterm(yearterm):
 
 def index(request):
     # if admin, gather owned collections
-    request.user = User.objects.all().first()
     owned_collections = []
     allowed_privilege_levels = [2, 0]
     if (

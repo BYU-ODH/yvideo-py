@@ -34,6 +34,7 @@ SECRET_KEY = secret_settings.SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = secret_settings.DEBUG
+DEV_QUICK_LOGIN_ENABLED = getattr(secret_settings, "DEV_QUICK_LOGIN_ENABLED", False)
 
 ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
 

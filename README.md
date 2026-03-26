@@ -33,13 +33,27 @@ uv run manage.py makemigrations core  # Needed to init new database
 uv run manage.py migrate
 ```
 
-6. Load development data and install sample media files:
+6. Seed deterministic development data and copy checked-in sample media files:
 ```bash
-uv run manage.py loaddata fixtures/dev.json
-bash fixtures/install_mp4s.sh
+uv run manage.py seed_demo_data
 ```
 
-In the dev data, the admin user is `admin` with password `admin`.
+The deterministic demo dataset includes a local admin with netid `devadmin` and password `devadmin`.
+The seed command copies the checked-in sample mp4 files from `demo_media/` into `MEDIA_ROOT`.
+
+If you want to wipe local state and rebuild from the current models, use:
+```bash
+bash scripts/dangerously_reset_local_state.sh --bootstrap
+```
+
+That removes the local SQLite database, generated media under `media/`, and any local
+`core` migration files created during pre-pilot development. It does not touch
+`demo_media/` or `yvideo/secret_settings.py`.
+
+If you want a one-click local app login for that admin, enable `DEV_QUICK_LOGIN_ENABLED = True`
+in `yvideo/secret_settings.py` and visit `/login/dev/quick/` on localhost. The route
+returns 404 unless both `DEBUG` and `DEV_QUICK_LOGIN_ENABLED` are true, and it is only
+usable from `localhost` or `127.0.0.1`.
 
 ### Running the Development Server
 
@@ -61,6 +75,16 @@ Github Actions):
 ```bash
 uv run pre-commit run --all-files
 ```
+
+For local database-backed Django tests, use the dedicated test settings module as
+the standard pre-pilot workflow:
+```bash
+uv run manage.py test --settings=yvideo.test_settings
+```
+
+Those settings deliberately bypass `core` migrations during test database creation.
+That is temporary and intentional while the schema is still changing and migrations
+are not yet part of the committed source of truth.
 
 To upgrade dependency versions, use the following commands:
 
