@@ -167,6 +167,7 @@ def video_editor(request, content_id):
                 "id": raw_track.id,
                 "name": raw_track.name,
                 "stack_position": raw_track.stack_position,
+                "is_final_stack_position": raw_track.is_final_stack_position(),
                 "items": raw_track.get_active_annotations(),
             }
         )

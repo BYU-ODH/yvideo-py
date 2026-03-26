@@ -498,6 +498,9 @@ class Track(models.Model):
             annotations.extend(model_class.objects.filter(track=self, active=True))
         return sorted(annotations, key=lambda a: a.start_time)
 
+    def is_final_stack_position(self):
+        return self.annotation_set.get_highest_stack_position() == self.stack_position
+
     def to_player_json(self):
         """Export all active annotations in this set for the AnnotationPlayer."""
         return [
