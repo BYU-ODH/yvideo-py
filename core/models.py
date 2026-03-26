@@ -478,9 +478,6 @@ class Track(models.Model):
     name = models.CharField(max_length=50, default="Track 1")
     stack_position = models.IntegerField(default=0)
 
-    class Meta:
-        unique_together = ("annotation_set", "stack_position")
-
     def get_active_annotations(self):
         """
         Get all currently active annotations across all types.

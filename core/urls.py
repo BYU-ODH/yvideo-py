@@ -176,6 +176,11 @@ urlpatterns = [
         name="update_track",
     ),
     path(
+        "tracks/update_stack_positions",
+        views_video_editor.update_track_positions_in_set,
+        name="update_tracks_stack_positions",
+    ),
+    path(
         "track/create",
         views_video_editor.create_track,
         name="create_track",

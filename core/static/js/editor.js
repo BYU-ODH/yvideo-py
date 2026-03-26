@@ -62,9 +62,7 @@ export class Editor {
         if (this.timelineContainer) {
             this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
         }
-        this.setupWatchersForTrackMenus();
-        this.setupDeleteTrackWatchers();
-        this.watchForTrackNameEditClick();
+        this.setupTrackWatchersForAllTracks();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
     }
@@ -1011,8 +1009,25 @@ export class Editor {
     }
 
     /* TRACK EVENT WATCHERS AND HANDLERS */
+    setupTrackWatchersForAllTracks() {
+      const trackRows = document.getElementsByClassName("track-row");
+      for (let trackRow of trackRows) {
+        this.setupTrackWatchers(trackRow);
+      }
+    }
+
+    // use this method to apply all relevant watchers (event listeners) to
+    // tracks that are new to the DOM.
+    setupTrackWatchers(trackRootElement) {
+      this.watchForTrackMenuOpen(trackRootElement);
+      this.watchForDisplayTrackRename(trackRootElement);
+      this.watchForTrackRename(trackRootElement);
+      this.watchForTrackMovement(trackRootElement);
+      this.watchForTrackDelete(trackRootElement);
+    }
+
     /* track options menu */
-    watchForTrackOpenMenuClick(e) {
+    handleTrackOpenMenuClick(e) {
       e.stopPropagation();
       // we don't want more than one track menu visible at one time
       const visibleMenuCSSClass = "visible-timeline-track-menu";
@@ -1027,14 +1042,13 @@ export class Editor {
       trackOptionsMenu.classList.add(visibleMenuCSSClass);
     }
 
-    setupWatcherForTrackMenu(trackMenuElement) {
-      trackMenuElement.addEventListener("click", this.watchForTrackOpenMenuClick);
-    }
-
-    setupWatchersForTrackMenus() {
-      const trackMenus = document.getElementsByClassName("timeline-track-open-menu-button");
-      for (let menu of trackMenus) {
-        this.setupWatcherForTrackMenu(menu);
+    watchForTrackMenuOpen(trackRootElement) {
+      const menuButton = trackRootElement.querySelector(".timeline-track-open-menu-button");
+      if (menuButton) {
+        menuButton.addEventListener("click", this.handleTrackOpenMenuClick)
+      }
+      else {
+        console.error("No menu button found for track");
       }
     }
 
@@ -1049,6 +1063,88 @@ export class Editor {
           }
         }
       });
+    }
+
+    /* track name change */
+    async handleTrackNameChange(e) {
+      e.stopPropagation();
+      let parentTrackRow = e.target.closest(".track-row");
+
+      if (!parentTrackRow) {
+        console.error("Failed to change track name due to undefined track row element");
+        return;
+      }
+
+      const trackNameEl = parentTrackRow.querySelector(".track-name");
+      const trackId = parentTrackRow.dataset["trackId"];
+
+      function resetTrackName() {
+        const renameWrapper = parentTrackRow.querySelector(".track-rename-wrapper");
+        renameWrapper.classList.remove("track-rename-wrapper-visible");
+        e.target.value = trackNameEl.innerText;
+      }
+
+      if (e.key == "Enter") {
+        const newTrackName = e.target.value.trim();
+        const response = await fetch("/track/update", {
+          method: "post",
+          headers: {"X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value},
+          body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
+        });
+        if (!response.ok) {
+          resetTrackName();
+          return;
+        }
+
+        trackNameEl.innerText = newTrackName;
+        e.target.value = trackNameEl.innerText;
+      }
+      if (e.key == "Escape") {
+        resetTrackName();
+        return;
+      }
+    }
+
+    watchForTrackRename(trackRootElement) {
+      const trackRenameInput = trackRootElement.querySelector(".track-rename-input");
+      if (trackRenameInput) {
+        trackRenameInput.addEventListener("keydown", this.handleTrackNameChange.bind(this));
+      }
+      else {
+        console.error("No rename input found for track");
+      }
+    }
+
+    // Handles renaming of track name, canceling attempted rename,
+    // replacement of track with new track, and appending this same
+    // event listener to the new track name edit button.
+    displayTrackRenameField(e) {
+      e.stopPropagation();
+      const visibleRenameCSSClass = "track-rename-wrapper-visible";
+
+      // close any other open rename fields
+      const visibleRenameWrappers = document.getElementsByClassName(visibleRenameCSSClass);
+      for (let wrapper of visibleRenameWrappers) {
+        wrapper.classList.remove(visibleRenameCSSClass);
+      }
+
+      // open the rename wrapper we are interested in
+      const parentRow = e.target.closest(".track-row");
+      const renameWrapper = parentRow.querySelector(".track-rename-wrapper");
+      const renameInput = renameWrapper.querySelector(".track-rename-input");
+      renameWrapper.classList.add(visibleRenameCSSClass);
+      renameInput.focus();
+      renameInput.setSelectionRange(0, 50);
+    }
+
+    watchForDisplayTrackRename(trackRootElement) {
+      const renameButton = trackRootElement.querySelector(".track-menu-rename");
+      if (renameButton) {
+        renameButton.addEventListener("click", this.displayTrackRenameField.bind(this))
+      }
+      else {
+        console.error("No rename button found for track");
+      }
     }
 
     /* track delete */
@@ -1071,91 +1167,97 @@ export class Editor {
       trackRow.remove();
     }
 
-    setupDeleteTrackWatcher(element) {
-      element.addEventListener("click", this.deleteTrack)
-    }
-
-    setupDeleteTrackWatchers() {
-      const deleteButtons = document.getElementsByClassName("track-menu-delete");
-      for (let deleteButton of deleteButtons) {
-        this.setupDeleteTrackWatcher(deleteButton);
+    watchForTrackDelete(trackRootElement) {
+      const deleteButton = trackRootElement.querySelector(".track-menu-delete");
+      if (deleteButton) {
+        deleteButton.addEventListener("click", this.deleteTrack)
       }
     }
 
-    /* track name change */
-    async handleTrackNameChange(e) {
-      e.stopPropagation();
-      let parentTrackRow = e.target.closest(".track-row");
+    /* Track order reassignment */
+    async handleTrackOrderReassignment(trackIdToMove, isMoveUp) {
+      if (typeof(isMoveUp) != "boolean") {
+        console.error("isMoveUp must be boolean type");
+        return;
+      }
+      const trackRows = document.getElementsByClassName("track-row");
+      const trackIdOrder = [];
+      for (let trackRow of trackRows) {
+        trackIdOrder.push(trackRow.dataset["trackId"]);
+      }
 
-      if (!parentTrackRow) {
-        console.error("Failed to change track name due to undefined track row element");
+      // we don't want to attempt to move the first track up, or the last track down
+      if ((isMoveUp && trackIdOrder[0] == trackIdToMove) || (!isMoveUp && trackIdOrder[trackIdOrder.length - 1] == trackIdToMove)) {
         return;
       }
 
-      const trackId = parentTrackRow.dataset["trackId"];
-      const originalTrackName = e.target.dataset["trackName"];
-
-      function resetTrackName() {
-        const trackNameEl = parentTrackRow.querySelector(".timeline-track-name");
-        trackNameEl.innerHTML = "";
-        trackNameEl.innerText = originalTrackName;
-      }
-
-      if (e.key == "Enter") {
-        const newTrackName = e.target.value.trim();
-        const response = await fetch("/track/update", {
-          method: "post",
-          headers: {"X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value},
-          body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
-        });
-        if (!response.ok) {
-          resetTrackName();
-          return;
+      // use isMoveUp to iterate over only the parts of the array that we care about.
+      // Remember - we don't care to move the top row up, or the bottom row down
+      for (let i = Number(isMoveUp); i < trackIdOrder.length - Number(!isMoveUp); i++) {
+        const currentTrackId = trackIdOrder[i];
+        if (currentTrackId == trackIdToMove) {
+          if (isMoveUp) {
+            const swappingTrackId = trackIdOrder[i - 1];
+            trackIdOrder[i - 1] = currentTrackId;
+            trackIdOrder[i] = swappingTrackId;
+          }
+          else {
+            const swappingTrackId = trackIdOrder[i + 1];
+            trackIdOrder[i + 1] = currentTrackId;
+            trackIdOrder[i] = swappingTrackId
+          }
         }
-
-        parentTrackRow.outerHTML = await response.text();
-        parentTrackRow = document.querySelector(`.track-row[data-track-name="${newTrackName}"]`);
-        this.updateTracks();
-        this.placeTrackItems();
-        const newTrackNameEditButton = parentTrackRow.querySelector(".track-menu-rename");
-        newTrackNameEditButton.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
       }
-      if (e.key == "Escape") {
-        resetTrackName();
-        return;
-      }
-    }
 
-    // Handles renaming of track name, canceling attempted rename,
-    // replacement of track with new track, and appending this same
-    // event listener to the new track name edit button.
-    sendTrackNameChangeRequest(e) {
-      e.stopPropagation();
-      // ensure that the track we are trying to edit exists before continuing
-      const parentLeftRow = e.target.closest(".timeline-row-left");
-      const trackNameEl = parentLeftRow?.querySelector(".timeline-track-name");
+      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+      const orderUpdateResponse = await fetch("/tracks/update_stack_positions",
+        {
+          method: "post",
+          headers: {
+            "X-CSRFToken": csrfToken
+          },
+          body: JSON.stringify({
+            track_ids: trackIdOrder
+          })
+        }
+      );
 
-      if (!parentLeftRow || !trackNameEl) {
-        console.error("Failed to update track name due to undefined elements");
+      if (!orderUpdateResponse.ok) {
+        console.error("Failed to update stack positions across all tracks");
         return;
       }
 
-      const originalTrackName = trackNameEl.innerText;
+      // remove all current tracks
+      for (let trackRow in trackRows) {
+        trackRow.remove();
+      }
 
-      const newInputEl = document.createElement("input");
-      newInputEl.type = "text";
-      newInputEl.className = "editable-track-name";
-      newInputEl.value = originalTrackName;
-      newInputEl.dataset["originalTrackName"] = originalTrackName;
-      newInputEl.addEventListener("keydown", this.handleTrackNameChange.bind(this));
-      trackNameEl.innerText = "";
-      trackNameEl.appendChild(newInputEl);
+      // place new tracks in appropriate positions
+      const timelineWrapper = document.getElementById("timeline-wrapper");
+      const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
+      const newTracks = await orderUpdateResponse.json();
+      for (let newTrackHTML of newTracks) {
+        const trackTemplate = document.createElement("template");
+        trackTemplate.innerHTML = newTrackHTML;
+        const trackParentNode = trackTemplate.content.childNodes[0];
+        this.setupTrackWatchers(trackParentNode);
+        timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
+      }
     }
 
-    watchForTrackNameEditClick() {
-      const editButtons = document.getElementsByClassName("track-menu-rename");
-      for (let button of editButtons) {
-        button.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
+    watchForTrackMovement(trackRootElement) {
+      const trackId = trackRootElement.dataset["trackId"];
+      const moveUpButton = trackRootElement.querySelector(".track-menu-move-up");
+
+      if (moveUpButton) {
+        const handleMoveUp = () => {this.handleTrackOrderReassignment(trackId, true)};
+        moveUpButton.addEventListener("click", handleMoveUp.bind(this));
+      }
+
+      const moveDownButton = trackRootElement.querySelector(".track-menu-move-down");
+      if (moveDownButton) {
+        const handleMoveDown = () => {this.handleTrackOrderReassignment(trackId, false)};
+        moveDownButton.addEventListener("click", handleMoveDown.bind(this));
       }
     }
 
@@ -1203,17 +1305,7 @@ export class Editor {
         const nodes = newTrackDOMNode.content.childNodes;
         const newTrackParentNode = nodes[0];
 
-        // configure edit button on new track
-        const trackNameEditButton = newTrackParentNode.querySelector(".track-menu-rename");
-        trackNameEditButton.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
-
-        // configure open menu button on new track
-        const trackMenuOpenButton = newTrackParentNode.querySelector(".timeline-track-open-menu-button");
-        this.setupWatcherForTrackMenu(trackMenuOpenButton);
-
-        // configure menu option buttons on new track
-        const trackDeleteButton = newTrackParentNode.querySelector(".track-menu-delete");
-        this.setupDeleteTrackWatcher(trackDeleteButton);
+        this.setupTrackWatchers(newTrackParentNode);
 
         timelineWrapper.insertBefore(newTrackParentNode, addNewAndZoomRow);
         this.adjustScrubberHeight();

@@ -155,22 +155,10 @@ def video_editor(request, content_id):
     file_key = request.user.get_resource_filekey(content)
 
     # Prepare track data for timeline
-    raw_tracks = annotation_set.get_tracks()
-    if not raw_tracks:
+    tracks = annotation_set.get_tracks()
+    if not tracks:
         Track.objects.create(annotation_set=annotation_set)
-        raw_tracks = annotation_set.get_tracks()
-
-    tracks = []
-    for raw_track in raw_tracks:
-        tracks.append(
-            {
-                "id": raw_track.id,
-                "name": raw_track.name,
-                "stack_position": raw_track.stack_position,
-                "is_final_stack_position": raw_track.is_final_stack_position(),
-                "items": raw_track.get_active_annotations(),
-            }
-        )
+        tracks = annotation_set.get_tracks()
 
     annotations = annotation_set.get_active_annotations_from_tracks()
 
@@ -997,17 +985,53 @@ def update_track(request):
         logger.error(f"Failed to update track name. Exception: {e}")
         return HttpResponseServerError()
 
-    track_data = {
-        "name": track.name,
-        "id": track.id,
-        "stack_position": new_track.stack_position,
-        "items": track.get_active_annotations(),
-    }
     track_html = render_to_string(
-        "core/partials/timeline-track-row.html", {"track": track_data}, request
+        "core/partials/timeline-track-row.html", {"track": track}, request
     )
 
     return HttpResponse(track_html)
+
+
+@login_required
+@require_POST
+def update_track_positions_in_set(request):
+    """Update all track stack positions in an annotation set"""
+    parsed_data = json.loads(request.body)
+    if "track_ids" not in parsed_data:
+        logger.error("Failed to update track positions due to invalid input")
+        return HttpResponseBadRequest()
+
+    try:
+        annotation_set = Track.objects.get(
+            pk=parsed_data["track_ids"][0]
+        ).annotation_set
+    except Exception as e:
+        logger.error(
+            f"Failed to get annotation set from track while updating track positions. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+    try:
+        index = 0
+        for track_id in parsed_data["track_ids"]:
+            track = Track.objects.get(pk=track_id)
+            track.stack_position = index
+            track.save()
+            index += 1
+    except Exception as e:
+        logger.error(f"Failed to update track positions. Exception: {e}")
+        return HttpResponseServerError()
+
+    tracks = annotation_set.get_tracks()
+    tracks_html = []
+    for track in tracks:
+        tracks_html.append(
+            render_to_string(
+                "core/partials/timeline-track-row.html", {"track": track}, request
+            )
+        )
+
+    return JsonResponse(tracks_html)
 
 
 @login_required
@@ -1030,15 +1054,8 @@ def create_track(request):
 
         new_track = Track.objects.create(**track)
 
-        track = {
-            "name": new_track.name,
-            "id": new_track.id,
-            "stack_position": new_track.stack_position,
-            "items": [],
-        }
-
         new_track_html = render_to_string(
-            "core/partials/timeline-track-row.html", {"track": track}, request
+            "core/partials/timeline-track-row.html", {"track": new_track}, request
         )
 
         return HttpResponse(new_track_html)

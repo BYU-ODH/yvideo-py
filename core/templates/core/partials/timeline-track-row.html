@@ -1,7 +1,15 @@
 <div class="timeline-row track-row" data-track-name="{{track.name}}" data-track-id="{{ track.id }}">
     <div class="timeline-row-left timeline-row-left-dark">
-        <div class="timeline-track-name">
-            {{ track.name }}
+        <div class="timeline-track-name-wrapper">
+            <div class="track-name">
+                {{ track.name }}
+            </div>
+            <div class="track-rename-wrapper">
+                <label for="track-{{track.id}}-rename-input">
+                    Rename Track
+                </label>
+                <input id="track-{{track.id}}-rename-input" class="track-rename-input" type="text" placeholder="{{track.name}}" value="{{track.name}}" maxlength=50 />
+            </div>
         </div>
         <div class="timeline-track-edit-wrapper">
             <div class="timeline-track-menu">
@@ -30,7 +38,7 @@
         </div>
     </div>
     <div class="timeline-row-right timeline-row-right-dark timeline-track-row-right">
-        {% for item in track.items %}
+        {% for item in track.get_active_annotations %}
             {% include "partials/item.html" %}
         {% endfor %}
     </div>

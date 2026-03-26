@@ -450,6 +450,15 @@
     min-height: 40px;
 }
 
+.track-rename-wrapper {
+    display: none;
+    flex-direction: column
+}
+
+.track-rename-wrapper-visible {
+    display: flex;
+}
+
 /* Scrollable content area */
 .timeline-content-wrapper {
     flex: 1;
