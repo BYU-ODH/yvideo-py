@@ -1117,7 +1117,7 @@ export class Editor {
         parentTrackRow = document.querySelector(`.track-row[data-track-name="${newTrackName}"]`);
         this.updateTracks();
         this.placeTrackItems();
-        const newTrackNameEditButton = parentTrackRow.querySelector(".timeline-track-edit-icon");
+        const newTrackNameEditButton = parentTrackRow.querySelector(".track-menu-rename");
         newTrackNameEditButton.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
       }
       if (e.key == "Escape") {
@@ -1153,7 +1153,7 @@ export class Editor {
     }
 
     watchForTrackNameEditClick() {
-      const editButtons = document.getElementsByClassName("timeline-track-edit-icon");
+      const editButtons = document.getElementsByClassName("track-menu-rename");
       for (let button of editButtons) {
         button.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
       }
@@ -1204,7 +1204,7 @@ export class Editor {
         const newTrackParentNode = nodes[0];
 
         // configure edit button on new track
-        const trackNameEditButton = newTrackParentNode.querySelector(".timeline-track-edit-icon");
+        const trackNameEditButton = newTrackParentNode.querySelector(".track-menu-rename");
         trackNameEditButton.addEventListener("click", this.sendTrackNameChangeRequest.bind(this));
 
         // configure open menu button on new track
