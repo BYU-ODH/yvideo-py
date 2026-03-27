@@ -29,7 +29,6 @@ uv run pre-commit install
 
 5. Run database migrations:
 ```bash
-uv run manage.py makemigrations core  # Needed to init new database
 uv run manage.py migrate
 ```
 
@@ -47,8 +46,8 @@ bash scripts/dangerously_reset_local_state.sh --bootstrap
 ```
 
 That removes the local SQLite database, generated media under `media/`, and any local
-`core` migration files created during pre-pilot development. It does not touch
-`demo_media/` or `yvideo/secret_settings.py`.
+derived files in `media/`. It does not touch `demo_media/`, committed migrations,
+or `yvideo/secret_settings.py`.
 
 If you want a one-click local app login for that admin, enable `DEV_QUICK_LOGIN_ENABLED = True`
 in `yvideo/secret_settings.py` and visit `/login/dev/quick/` on localhost. The route
@@ -76,15 +75,12 @@ Github Actions):
 uv run pre-commit run --all-files
 ```
 
-For local database-backed Django tests, use the dedicated test settings module as
-the standard pre-pilot workflow:
+For local database-backed Django tests, run:
 ```bash
-uv run manage.py test --settings=yvideo.test_settings
+uv run manage.py test
 ```
 
-Those settings deliberately bypass `core` migrations during test database creation.
-That is temporary and intentional while the schema is still changing and migrations
-are not yet part of the committed source of truth.
+That uses the normal project settings and migration graph.
 
 To upgrade dependency versions, use the following commands:
 

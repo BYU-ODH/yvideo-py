@@ -6,10 +6,9 @@ usage() {
     cat <<'EOF'
 Usage: bash scripts/dangerously_reset_local_state.sh [--force] [--bootstrap]
 
-Deletes local development state for the pre-pilot workflow:
+Deletes local development state:
 - SQLite database files
 - generated media under media/
-- local core migration files created with makemigrations
 
 Options:
   --force      Skip the confirmation prompt.
@@ -48,7 +47,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$force" != true ]]; then
-    read -r -p "Delete local db, generated media, and local core migrations? [y/N] " confirm
+    read -r -p "Delete local db and generated media? [y/N] " confirm
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
         echo "Aborted."
         exit 0
@@ -58,15 +57,10 @@ fi
 rm -f db.sqlite3 db.sqlite3-journal db.sqlite3-shm db.sqlite3-wal default
 rm -rf media/*
 
-if [[ -d "core/migrations" ]]; then
-    find core/migrations -maxdepth 1 -type f -name '[0-9]*_*.py' -delete
-    rm -rf core/migrations/__pycache__
-fi
-
 echo "Local state cleared."
 
 if [[ "$bootstrap" == true ]]; then
-    echo "Rebuilding local database from current models..."
+    echo "Rebuilding local database from migrations..."
     uv run manage.py migrate
     uv run manage.py seed_demo_data
 fi

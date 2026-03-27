@@ -3,6 +3,7 @@
 from datetime import datetime
 from datetime import timedelta
 
+from django.utils import timezone
 import requests
 
 try:
@@ -25,7 +26,7 @@ class Api:
         auth_tokens_count = len(list(auth_tokens))
 
         # don't allow auth token to be older than 1 hour
-        oldest_valid_time = datetime.now() - timedelta(hours=1)
+        oldest_valid_time = timezone.now() - timedelta(hours=1)
 
         # filter for tokens that have a creation date greater than (__gt) the oldest valid time
         valid_auth_tokens = AuthToken.objects.filter(created_at__gt=oldest_valid_time)
@@ -55,6 +56,15 @@ class Api:
         auth_header = f"Bearer {self.auth_token}"
         return auth_header
 
+    @staticmethod
+    def parse_api_datetime(value):
+        # TODO: Confirm whether BYU API timestamps are local time or UTC.
+        # Until then, assume the current Django timezone so all comparisons stay aware.
+        return timezone.make_aware(
+            datetime.strptime(value, "%Y-%m-%dT%H:%M:%S"),
+            timezone.get_current_timezone(),
+        )
+
     def calculate_next_year_term(self, yearterm_string):
         year_string = yearterm_string[:4]
         term_string = yearterm_string[4:]
@@ -80,8 +90,7 @@ class Api:
         return new_year_string + new_term_string
 
     def get_current_year_term(self):
-        # to determine current year term, we have to compare to today's date
-        today_datetime = datetime.today().strftime("%Y-%m-%dT%H:%M:%S")
+        now = timezone.now()
 
         # get yearterm information
         url = secret_settings.API_YEARTERM_URL
@@ -94,17 +103,13 @@ class Api:
         yearterm = None
         is_two_weeks_from_end = False
         for entry in response_data:
-            if (
-                entry["start_date_time"] <= today_datetime
-                and entry["end_date_time"] > today_datetime
-            ):
+            yearterm_start_datetime = self.parse_api_datetime(entry["start_date_time"])
+            yearterm_end_datetime = self.parse_api_datetime(entry["end_date_time"])
+            if yearterm_start_datetime <= now < yearterm_end_datetime:
                 yearterm = entry["year_term"]
-                yearterm_end_datetime = datetime.strptime(
-                    entry["end_date_time"], "%Y-%m-%dT%H:%M:%S"
-                )
                 # determine if the end of the current year term is 2 weeks or less away
                 two_weeks_from_end = yearterm_end_datetime - timedelta(days=14)
-                is_two_weeks_from_end = datetime.now() >= two_weeks_from_end
+                is_two_weeks_from_end = now >= two_weeks_from_end
 
                 break
 

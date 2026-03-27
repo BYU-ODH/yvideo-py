@@ -545,12 +545,12 @@ body {
     position: relative;
     z-index: 1;
     color: black;
-    padding: 1rem;
-    padding-right: 5rem;
+    padding: 1rem 1.25rem 1rem 1rem;
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 1rem;
 }
 
 .navbar a {
@@ -566,7 +566,7 @@ body {
     font-weight: normal;
     font-size: 1.1rem;
     line-height: 2.1rem;
-    margin: 0 3rem 0 0.5rem;
+    margin: 0 0 0 0.5rem;
     align-items: center;
     z-index: 2;
     background: linear-gradient(
@@ -590,6 +590,10 @@ body {
     font-size: 1rem;
     color: black;
     margin-top: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .sidebar-toggle {
@@ -600,9 +604,9 @@ body {
     flex-direction: column;
     justify-content: center;
     gap: 4px;
-    padding: 10px;
-    padding-right: 40px;
+    padding: 0.5rem 0.15rem 0.5rem 0.65rem;
     right: 0;
+    flex-shrink: 0;
     z-index: 1001;
     transition: right 0.3s ease;
 }
@@ -649,7 +653,9 @@ body {
 }
 
 .main-content {
-    width: 100rem;
+    width: 100%;
+    max-width: 100rem;
+    min-width: 0;
     padding: 1rem;
     margin: 0px auto;
 }
@@ -1141,34 +1147,73 @@ body {
 
 /* Spoofing input/select styles */
 #spoof-header {
-    height: var(--header-height);
+    min-height: var(--header-height);
+}
+
+.navbar-start {
+    display: flex;
+    align-items: center;
+    column-gap: 1rem;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.navbar-center {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.navbar-actions {
+    display: flex;
+    align-items: center;
+    column-gap: 0.6rem;
+    margin-left: auto;
+    flex: 0 0 auto;
+    z-index: 2;
+}
+
+.navbar-spoofing .navbar-actions {
+    margin-left: 0;
 }
 
 .spoof-form {
     display: flex;
     flex-direction: row;
     align-items: center;
+    flex-wrap: nowrap;
     gap: 0.5rem;
-    margin-bottom: 1rem;
     position: relative;
+    margin: 0;
+    flex: 0 1 auto;
 }
 
 .spoof-label {
-    margin-right: 0.5rem;
+    margin-right: 0.2rem;
     font-size: 1rem;
     font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .spoof-input-group {
     position: relative;
-    width: 220px;
+    width: clamp(9rem, 18vw, 13.75rem);
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    flex: 0 1 auto;
 }
 
 #spoof-user-input {
-    padding: 0.7rem 1rem;
+    padding: 0.5rem;
     border: 1px solid #ccc;
     border-radius: 6px 6px 0 0;
     font-size: 1rem;
@@ -1207,7 +1252,6 @@ body {
 }
 
 .spoof-go-btn {
-    margin-left: 0.5rem;
     padding: 0.6rem 1.2rem;
     border: none;
     border-radius: 6px;
@@ -1219,6 +1263,7 @@ body {
     transition:
         opacity 0.2s,
         background 0.2s;
+    flex-shrink: 0;
 }
 
 .spoof-go-btn:enabled {
@@ -1232,21 +1277,58 @@ body {
     cursor: not-allowed;
 }
 
-#spoofing-warning {
+#spoof-warning {
     background: var(--light-yellow);
-    position: absolute;
-    width: 100%;
+    position: static;
     color: var(--red);
-    padding: 1em;
-    text-align: center;
-    border-bottom: 2px solid var(--red);
+    padding: 0.55rem 0.9rem;
+    border: 1px solid #d89b00;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    min-width: 0;
+    z-index: 1;
 }
 
-#spoofing-warning p {
-    position: relative;
-    margin: 0;
-    padding: 0;
-    z-index: 2;
+.spoof-warning-message {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: left;
+}
+
+.spoof-warning-message-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    direction: ltr;
+}
+
+.spoof-warning-target {
+    font-weight: 600;
+}
+
+.spoof-warning-as {
+    color: var(--grey);
+    font-size: 0.95rem;
+}
+
+.spoof-warning-stop {
+    color: var(--red);
+    font-weight: 600;
+    text-decoration: none;
+    margin-left: 0.15rem;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.spoof-warning-stop:hover {
+    text-decoration: underline;
 }
 
 /* Player Container Styles */

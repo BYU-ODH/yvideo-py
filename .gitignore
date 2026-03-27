@@ -1,3 +1,4 @@
+media/
 secret_settings.py
 *settings.json
 *advanced_settings.json
@@ -71,11 +72,6 @@ db.sqlite3
 db.sqlite3-journal
 db.sqlite3-shm
 db.sqlite3-wal
-
-# Pre-pilot local schema scratch files.
-# Remove these ignores once migrations become part of the committed pilot schema.
-core/migrations/[0-9]*_*.py
-core/migrations/__pycache__/
 
 # Flask stuff:
 instance/

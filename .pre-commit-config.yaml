@@ -51,6 +51,6 @@ repos:
       hooks:
       -   id: django-tests
           name: Run Django tests
-          entry: uv run python manage.py test core --settings=yvideo.test_settings
+          entry: uv run python manage.py test core
           language: system
           pass_filenames: false
