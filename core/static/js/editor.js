@@ -1185,12 +1185,13 @@ export class Editor {
       }
 
       trackRow.remove();
+      this.updateTracks();
     }
 
     watchForTrackDelete(trackRootElement) {
       const deleteButton = trackRootElement.querySelector(".track-menu-delete");
       if (deleteButton) {
-        deleteButton.addEventListener("click", this.deleteTrack)
+        deleteButton.addEventListener("click", this.deleteTrack.bind(this))
       }
     }
 
@@ -1251,6 +1252,8 @@ export class Editor {
       const newTracksHTML = jsonData["tracks_html"];
 
       this.replaceTracksWithNewHTML(newTracksHTML);
+      this.updateTracks();
+      this.placeTrackItems();
     }
 
     watchForTrackMovement(trackRootElement) {
@@ -1313,6 +1316,7 @@ export class Editor {
         const newTracksHTML = responseData["tracks_html"];
 
         this.replaceTracksWithNewHTML(newTracksHTML);
+        this.updateTracks();
         this.adjustScrubberHeight();
       }
       addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
