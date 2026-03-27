@@ -21,7 +21,9 @@ from .factories import ResourceFactory
 from .factories import SubtitleFactory
 from .factories import UserCourseFactory
 from .factories import UserFactory
+from .models import Collection
 from .models import CollectionRole
+from .models import Content
 from .models import Course
 from .models import Resource
 from .models import ResourceFile
@@ -209,6 +211,16 @@ def create_demo_data():
         name="Professor Ada / Draft Lesson Shelf",
         published=False,
     )
+    admin_collection = CollectionFactory(
+        owner=admin,
+        name="Local Admin / Demo Review Shelf",
+        published=True,
+    )
+    admin_drafts = CollectionFactory(
+        owner=admin,
+        name="Local Admin / Draft Sandbox",
+        published=False,
+    )
     ben_collection = CollectionFactory(
         owner=professor_ben,
         name="Professor Ben / Visual Pattern Lab",
@@ -222,6 +234,8 @@ def create_demo_data():
         (ada_collection, student_alice, CollectionRole.STUDENT),
         (ada_collection, student_bob, CollectionRole.STUDENT),
         (ada_drafts, professor_ada, CollectionRole.INSTRUCTOR),
+        (admin_collection, admin, CollectionRole.INSTRUCTOR),
+        (admin_drafts, admin, CollectionRole.INSTRUCTOR),
         (ben_collection, professor_ben, CollectionRole.INSTRUCTOR),
         (ben_collection, teaching_assistant, CollectionRole.TA),
         (ben_collection, student_bob, CollectionRole.STUDENT),
@@ -291,6 +305,20 @@ def create_demo_data():
         published=False,
     )
     ContentFactory(
+        collection=admin_collection,
+        resource_file=grid_file,
+        title="Admin Review Warmup",
+        description="Published demo content for local admin review.",
+        published=True,
+    )
+    ContentFactory(
+        collection=admin_drafts,
+        resource_file=overlay_file,
+        title="Admin Draft Overlay Notes",
+        description="Unpublished demo content for local admin testing.",
+        published=False,
+    )
+    ContentFactory(
         collection=ben_collection,
         resource_file=grid_file,
         title="Pattern Analysis Warmup",
@@ -320,8 +348,12 @@ def create_demo_data():
     return {
         "users": User.objects.filter(netid__in=DEMO_USER_NETIDS).count(),
         "resources": Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).count(),
-        "collections": 3,
-        "contents": 4,
+        "collections": Collection.objects.filter(
+            owner__netid__in=DEMO_USER_NETIDS
+        ).count(),
+        "contents": Content.objects.filter(
+            collection__owner__netid__in=DEMO_USER_NETIDS
+        ).count(),
         "seeded_admin_netid": DEMO_ADMIN_NETID,
         "seeded_admin_password": DEMO_ADMIN_PASSWORD,
         "sample_content_title": birds_content.title,

@@ -8,6 +8,8 @@ from django.urls import reverse
 
 from core.dev_features import DEMO_ADMIN_NETID
 from core.dev_seed import seed_demo_data
+from core.models import Collection
+from core.models import CollectionRole
 from core.models import CollectionUserAccess
 from core.models import Content
 from core.models import ResourceAccess
@@ -42,9 +44,27 @@ class DemoSeedDataTests(TestCase):
         admin_user = User.objects.get(netid=DEMO_ADMIN_NETID)
         birds_content = Content.objects.get(title="Birds Overview")
         alice = User.objects.get(netid="studali")
+        admin_owned_collections = Collection.objects.filter(owner=admin_user)
 
         self.assertTrue(admin_user.is_superuser)
         self.assertTrue(admin_user.is_staff)
+        self.assertEqual(admin_owned_collections.count(), 2)
+        self.assertTrue(
+            admin_owned_collections.filter(
+                name="Local Admin / Demo Review Shelf"
+            ).exists()
+        )
+        self.assertTrue(
+            admin_owned_collections.filter(name="Local Admin / Draft Sandbox").exists()
+        )
+        self.assertEqual(
+            CollectionUserAccess.objects.filter(
+                user=admin_user,
+                collection__owner=admin_user,
+                collection_role=CollectionRole.INSTRUCTOR,
+            ).count(),
+            2,
+        )
         self.assertTrue(
             ResourceAccess.objects.filter(
                 user=birds_content.collection.owner,

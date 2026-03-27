@@ -1145,8 +1145,8 @@ body {
     background-color: #ffffff50;
 }
 
-/* Spoofing input/select styles */
-#spoof-header {
+/* Header and spoofing controls */
+.site-header {
     min-height: var(--header-height);
 }
 
