@@ -11,7 +11,16 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 
-from . import secret_settings
+try:
+    from . import secret_settings
+except ImportError:
+    import warnings
+
+    warnings.warn(
+        "secret_settings.py not found; falling back to secret_settings_template.py",
+        stacklevel=1,
+    )
+    from . import secret_settings_template as secret_settings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

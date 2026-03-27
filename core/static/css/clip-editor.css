@@ -188,7 +188,7 @@
     position: relative;
     width: 100%;
     height: 100%;
-    transform: scaleX(var(--timeline-scale, 1));  /* eslint-disable-line css/no-invalid-properties */
+    transform: scaleX(var(--timeline-scale, 1));
     transform-origin: 0 0;
     transition: transform 0.2s ease-out;
 }

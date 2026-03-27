@@ -30,8 +30,8 @@ from .forms import CollectionForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
-from .forms import SubtitleForm
 from .forms import ResourceContentIntakeRequestForm
+from .forms import SubtitleForm
 from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Clip
@@ -699,7 +699,6 @@ def add_annotation(request, content_id, annotation_type):
         annotation.save()
     else:
         # Create new annotation
-        annotation_set = content_obj.annotation_set
         annotation = annotation_class.objects.create(
             content=content_obj,
             owner=owner,
@@ -1166,7 +1165,10 @@ def subtitle_editor(request, content_id):
         )
         return HttpResponseServerError()
 
-    player_info = get_data_for_player(content)
+    player_json = content.get_player_json()
+    has_subtitles = bool(
+        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
+    )
 
     return render(
         request,
@@ -1175,10 +1177,10 @@ def subtitle_editor(request, content_id):
             "content": content,
             "subtitle_tracks": subtitle_options,
             "file_key": file_key,
-            "events": player_info["events"],
-            "subtitles": player_info["subtitles"],
-            "clips": player_info["clips"],
-            "has_subtitles": player_info["has_subtitles"],
+            "events": player_json["annotations"],
+            "subtitles": player_json["subtitleTracks"],
+            "clips": player_json["clips"],
+            "has_subtitles": has_subtitles,
         },
     )
 
@@ -1275,7 +1277,7 @@ def update_subtitle_metadata(request):
             # this is not included where subtitles_file is set because we want
             # to ensure we don't over write the temp file unless the main file
             # is successfully updated.
-            if new_file_exists:
+            if uploaded_file is not None:
                 subtitle_obj.subtitles_temp_file = None
                 subtitle_obj.save()
 
@@ -1347,6 +1349,8 @@ def delete_subtitle(request, subtitle_id):
             f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
         )
         return HttpResponseServerError()
+
+
 def request_content(request, resource_id):
     resource = get_object_or_404(Resource, id=resource_id)
 
