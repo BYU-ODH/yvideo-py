@@ -438,6 +438,46 @@ class AnnotationSet(models.Model):
 
         return annotation_set
 
+    def get_tracks(self):
+        """
+        Get all tracks as they are
+        """
+        return sorted(self.tracks.all(), key=lambda track: track.stack_position)
+
+    def get_highest_stack_position(self):
+        track_with_highest_position_value = (
+            self.tracks.all().order_by("stack_position").last()
+        )
+        return track_with_highest_position_value.stack_position
+
+    def get_active_annotations_from_tracks(self):
+        """
+        Get all currently active annotations across all tracks.
+        """
+        annotations = []
+        for track in list(self.tracks.all()):
+            annotations.extend(track.get_active_annotations())
+        return sorted(annotations, key=lambda a: a.start_time)
+
+    def to_player_json(self):
+        """Export all active annotations in this set for the AnnotationPlayer."""
+        return [
+            annotation.to_player_json()
+            for annotation in self.get_active_annotations_from_tracks()
+        ]
+
+
+class Track(models.Model):
+    annotation_set = models.ForeignKey(
+        AnnotationSet,
+        on_delete=models.CASCADE,
+        related_name="tracks",
+        null=False,
+        blank=False,
+    )
+    name = models.CharField(max_length=50, default="Track 1")
+    stack_position = models.IntegerField(default=0)
+
     def get_active_annotations(self):
         """
         Get all currently active annotations across all types.
@@ -452,10 +492,11 @@ class AnnotationSet(models.Model):
             BlurAnnotation,
             CommentAnnotation,
         ]:
-            annotations.extend(
-                model_class.objects.filter(annotation_set=self, active=True)
-            )
+            annotations.extend(model_class.objects.filter(track=self, active=True))
         return sorted(annotations, key=lambda a: a.start_time)
+
+    def is_final_stack_position(self):
+        return self.annotation_set.get_highest_stack_position() == self.stack_position
 
     def to_player_json(self):
         """Export all active annotations in this set for the AnnotationPlayer."""
@@ -591,14 +632,11 @@ class BaseAnnotation(models.Model):
         blank=True,
     )
     name = models.CharField(max_length=255, blank=True)
-    annotation_set = models.ForeignKey(
-        AnnotationSet,
+    track = models.ForeignKey(
+        Track,
         on_delete=models.CASCADE,
         related_name="%(app_label)s_%(class)s_annotations",
-        null=True,
-        blank=True,
     )
-    track_name = models.CharField(default="Track 1", blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     start_time = models.FloatField(default=0.0)
@@ -634,7 +672,10 @@ class BaseAnnotation(models.Model):
     @property
     def annotation_type(self):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
-        return self.__class__.__name__.replace("Annotation", "").lower()
+        type_string = self.__class__.__name__.replace("Annotation", "").lower()
+        if type_string == "blur":
+            type_string = "censor"
+        return type_string
 
     def calculate_position(self):
         """Calculate visual position on timeline."""
@@ -805,12 +846,13 @@ class PauseAnnotation(BaseAnnotation):
         }
 
     def to_player_json(self):
-        """Override: pause uses 'time' instead of 'start/end'."""
+        """pause needs a start time even though it doesnt have an end time. This is because
+        of how the AnnotationPlayer parses annotations for Y-video"""
         t = float(self.start_time or 0)
         return {
             "id": self.pk,
             "type": "pause",
-            "time": t,
+            "start": t,
             "time_display": seconds2hms(t),
             "label": self.name,
             "message": self.message,

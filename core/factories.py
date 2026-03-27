@@ -9,6 +9,7 @@ from .models import Clip
 from .models import Collection
 from .models import CollectionRole
 from .models import CollectionUserAccess
+from .models import CommentAnnotation
 from .models import Content
 from .models import Course
 from .models import Language
@@ -17,7 +18,9 @@ from .models import PrivilegeLevel
 from .models import Resource
 from .models import ResourceAccess
 from .models import ResourceFile
+from .models import ResourceFileKey
 from .models import Subtitle
+from .models import Track
 from .models import User
 from .models import UserCourses
 
@@ -169,6 +172,15 @@ class AnnotationSetFactory(factory.django.DjangoModelFactory):
         self.editors.set(extracted)
 
 
+class TrackFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Track
+
+    annotation_set = factory.SubFactory(AnnotationSetFactory)
+    name = factory.Sequence(lambda n: f"Track {n + 1}")
+    stack_position = 0
+
+
 class ContentFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Content
@@ -203,8 +215,10 @@ class MuteAnnotationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = MuteAnnotation
 
-    owner = factory.SubFactory(UserFactory, instructor=True)
-    annotation_set = factory.SubFactory(AnnotationSetFactory)
+    track = factory.SubFactory(TrackFactory)
+    owner = factory.LazyAttribute(
+        lambda annotation: annotation.track.annotation_set.owner
+    )
     name = factory.Sequence(lambda n: f"Mute {n}")
     start_time = 5.0
     end_time = 12.0
@@ -215,13 +229,32 @@ class BlankAnnotationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = BlankAnnotation
 
-    owner = factory.SubFactory(UserFactory, instructor=True)
-    annotation_set = factory.SubFactory(AnnotationSetFactory)
+    track = factory.SubFactory(TrackFactory)
+    owner = factory.LazyAttribute(
+        lambda annotation: annotation.track.annotation_set.owner
+    )
     name = factory.Sequence(lambda n: f"Blank {n}")
     start_time = 15.0
     end_time = 20.0
     description = "Hide distracting visual content"
     type = "#"
+
+
+class CommentAnnotationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = CommentAnnotation
+
+    track = factory.SubFactory(TrackFactory)
+    owner = factory.LazyAttribute(
+        lambda annotation: annotation.track.annotation_set.owner
+    )
+    name = factory.Sequence(lambda n: f"Comment {n}")
+    start_time = 10.0
+    end_time = 18.0
+    description = "Comment overlay"
+    text = "Demo comment"
+    x = 50.0
+    y = 50.0
 
 
 class SubtitleFactory(factory.django.DjangoModelFactory):
@@ -241,3 +274,11 @@ class SubtitleFactory(factory.django.DjangoModelFactory):
     )
     is_original = True
     words = ""
+
+
+class ResourceFileKeyFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = ResourceFileKey
+
+    user = factory.SubFactory(UserFactory)
+    resource_file = factory.SubFactory(ResourceFileFactory)

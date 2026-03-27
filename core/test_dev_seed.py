@@ -8,12 +8,18 @@ from django.urls import reverse
 
 from core.dev_features import DEMO_ADMIN_NETID
 from core.dev_seed import seed_demo_data
+from core.models import AnnotationSet
+from core.models import BlankAnnotation
 from core.models import Collection
 from core.models import CollectionRole
 from core.models import CollectionUserAccess
+from core.models import CommentAnnotation
 from core.models import Content
+from core.models import MuteAnnotation
 from core.models import ResourceAccess
 from core.models import ResourceFile
+from core.models import ResourceFileKey
+from core.models import Track
 from core.models import User
 
 
@@ -78,6 +84,65 @@ class DemoSeedDataTests(TestCase):
             ).exists()
         )
         self.assertTrue(alice.can_view_content(birds_content))
+
+    def test_seed_creates_track_based_editor_data_for_fixture_covered_models(self):
+        admin_user = User.objects.get(netid=DEMO_ADMIN_NETID)
+        birds_annotation_set = AnnotationSet.objects.get(
+            name="Professor Ada Birds Annotations"
+        )
+        grid_annotation_set = AnnotationSet.objects.get(
+            name="Professor Ben Grid Annotations"
+        )
+        birds_track = Track.objects.get(
+            annotation_set=birds_annotation_set,
+            name="Track 1",
+        )
+        grid_track = Track.objects.get(
+            annotation_set=grid_annotation_set, name="Track 1"
+        )
+
+        self.assertEqual(AnnotationSet.objects.count(), 2)
+        self.assertEqual(Track.objects.count(), 2)
+        self.assertEqual(MuteAnnotation.objects.filter(active=True).count(), 2)
+        self.assertEqual(
+            CommentAnnotation.objects.filter(active=True, track=birds_track).count(), 3
+        )
+        self.assertEqual(
+            CommentAnnotation.objects.filter(
+                active=True,
+                track=birds_track,
+                owner=admin_user,
+            ).count(),
+            3,
+        )
+        self.assertEqual(
+            CommentAnnotation.objects.filter(active=True, track=grid_track).count(), 1
+        )
+        self.assertEqual(
+            set(
+                BlankAnnotation.objects.filter(active=True).values_list(
+                    "type", flat=True
+                )
+            ),
+            {"#", "k"},
+        )
+        self.assertEqual(
+            set(birds_annotation_set.editors.values_list("netid", flat=True)),
+            {DEMO_ADMIN_NETID, "caseyta"},
+        )
+        self.assertFalse(grid_annotation_set.editors.exists())
+        self.assertTrue(
+            ResourceFile.objects.filter(
+                resource__name="Grid Overlay",
+                burned_in_subtitles_language__lang_tag="es",
+            ).exists()
+        )
+        self.assertTrue(ResourceFileKey.objects.filter(user=admin_user).exists())
+        self.assertGreaterEqual(
+            Content.objects.filter(clips__isnull=False).distinct().count(),
+            2,
+        )
+        self.assertTrue(Content.objects.filter(clips__isnull=True).exists())
 
     def test_seed_is_repeatable(self):
         first_counts = {

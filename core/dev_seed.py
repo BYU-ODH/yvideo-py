@@ -12,13 +12,16 @@ from .factories import BlankAnnotationFactory
 from .factories import ClipFactory
 from .factories import CollectionFactory
 from .factories import CollectionUserAccessFactory
+from .factories import CommentAnnotationFactory
 from .factories import ContentFactory
 from .factories import CourseFactory
 from .factories import LanguageFactory
 from .factories import MuteAnnotationFactory
 from .factories import ResourceAccessFactory
 from .factories import ResourceFactory
+from .factories import ResourceFileKeyFactory
 from .factories import SubtitleFactory
+from .factories import TrackFactory
 from .factories import UserCourseFactory
 from .factories import UserFactory
 from .models import Collection
@@ -268,24 +271,95 @@ def create_demo_data():
         name="Professor Ada Birds Annotations",
         resource=birds_resource,
         owner=professor_ada,
-        editors=[teaching_assistant],
+        editors=[teaching_assistant, admin],
+    )
+    birds_track = TrackFactory(
+        annotation_set=birds_annotation_set,
+        name="Track 1",
+        stack_position=0,
+    )
+    grid_annotation_set = AnnotationSetFactory(
+        name="Professor Ben Grid Annotations",
+        resource=grid_resource,
+        owner=professor_ben,
+    )
+    grid_track = TrackFactory(
+        annotation_set=grid_annotation_set,
+        name="Track 1",
+        stack_position=0,
     )
     MuteAnnotationFactory(
-        owner=professor_ada,
-        annotation_set=birds_annotation_set,
+        track=birds_track,
         name="Mute Interview Section",
         start_time=6.0,
         end_time=11.5,
         description="Mute the narration segment used for discussion prompts.",
     )
     BlankAnnotationFactory(
-        owner=professor_ada,
-        annotation_set=birds_annotation_set,
+        track=birds_track,
         name="Blur Caption Cue",
         start_time=12.0,
         end_time=14.5,
         description="Blur an embedded lower-third before class discussion.",
         type="#",
+    )
+    CommentAnnotationFactory(
+        track=birds_track,
+        owner=admin,
+        name="Bird Notes 1",
+        start_time=8.0,
+        end_time=15.0,
+        description="Prompt students to compare the birds' motion.",
+        text="Notice how the group gathers before the turn.",
+        x=42.0,
+        y=28.0,
+    )
+    CommentAnnotationFactory(
+        track=birds_track,
+        owner=admin,
+        name="Bird Notes 2",
+        start_time=12.0,
+        end_time=19.5,
+        description="Call out the wing movement overlap on the same track.",
+        text="Compare the spacing between the front and rear birds.",
+        x=56.0,
+        y=36.0,
+    )
+    CommentAnnotationFactory(
+        track=birds_track,
+        owner=admin,
+        name="Bird Notes 3",
+        start_time=16.0,
+        end_time=22.5,
+        description="Keep one more overlapping comment active later in the clip.",
+        text="The final turn stays visible long enough to test overlap rendering.",
+        x=50.0,
+        y=50.0,
+    )
+    MuteAnnotationFactory(
+        track=grid_track,
+        name="Mute Tone Sweep",
+        start_time=0.5,
+        end_time=1.5,
+        description="Mute the audio cue used during the pattern demo.",
+    )
+    BlankAnnotationFactory(
+        track=grid_track,
+        name="Black Out Grid Cell",
+        start_time=2.0,
+        end_time=3.0,
+        description="Hide the highlighted square during discussion.",
+        type="k",
+    )
+    CommentAnnotationFactory(
+        track=grid_track,
+        name="Grid Callout",
+        start_time=4.0,
+        end_time=9.0,
+        description="Call out the grid region students should focus on.",
+        text="Watch how the pattern shifts across the center cells.",
+        x=50.0,
+        y=50.0,
     )
 
     birds_content = ContentFactory(
@@ -307,6 +381,7 @@ def create_demo_data():
     ContentFactory(
         collection=admin_collection,
         resource_file=grid_file,
+        annotation_set=grid_annotation_set,
         title="Admin Review Warmup",
         description="Published demo content for local admin review.",
         published=True,
@@ -321,6 +396,7 @@ def create_demo_data():
     ContentFactory(
         collection=ben_collection,
         resource_file=grid_file,
+        annotation_set=grid_annotation_set,
         title="Pattern Analysis Warmup",
         description="Published grid-based lesson content for Professor Ben.",
         published=True,
@@ -344,6 +420,7 @@ def create_demo_data():
         ),
         is_original=True,
     )
+    ResourceFileKeyFactory(user=admin, resource_file=birds_file)
 
     return {
         "users": User.objects.filter(netid__in=DEMO_USER_NETIDS).count(),
