@@ -1,52 +1,51 @@
-<div class="timeline-wrapper">
-    <!-- Fixed left column for labels -->
-    <div class="timeline-labels-column">
-        <!-- Zoom controls at top -->
-        <div class="timeline-zoom-controls">
-            <input type="range"
-                id="zoom-slider"
-                class="zoom-slider"
-                min="1"
-                max="10"
-                value="1"
-                step="any">
+<div id="timeline-wrapper" class="editor-container-component-dark" data-annotation-set-id="{{ annotation_set.id }}">
+    <div id="timeline-scrubber-row" class="timeline-row">
+        <div class="timeline-row-left">
         </div>
-        <!-- Layer labels will be added here dynamically or via includes -->
-        <div id="timeline-layer-labels">
-            {% for layer_type, layer_data in layer_buttons.items %}
-            <div class="layer-label-fixed" data-layer-type="{{ layer_type }}">
-                <span>{{ layer_data.display_name }}</span>
-                {% if layer_data.can_add %}
-                <button class="add-item-btn"
-                    data-content-id="{{content_id}}"
-                    data-annotation-type="{{layer_type}}"
-                type="button">
-                    +
-                </button>
-                {% endif %}
+        <div id="timeline-row-ticks-and-scrubbers" class="timeline-row-right">
+            <div id="timeline-scrubber">
             </div>
-            {% endfor %}
-        </div>
-    </div>
-
-    <!-- Scrollable content area -->
-    <div class="timeline-content-wrapper">
-        <div class="timeline-container">
-            <!-- Timeline tick marks row -->
-            <div class="timeline-ticks-row">
-                <div class="timeline-ticks">
-                    <div class="timeline-ticks-content">
-                        <div class="editor-scrubber" style="--scrubber-position: 0%;"></div>
-                        <div class="timeline-hover-scrubber"></div>
-                        <div class="tick-marks-container"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Timeline layers -->
-            <div id="annotation-timeline">
-                {% include 'partials/timeline_layers.html' with layers=layers %}
+            <div id="editor-scrubber" class="vertical-scrubber" style="--scrubber-position: 0%;"></div>
+            <div id="timeline-hover-scrubber" class="vertical-scrubber"></div>
+            <div id="timeline-ticks-content">
+                <div class="tick-marks-container"></div>
             </div>
         </div>
     </div>
+    {% for track in tracks %}
+        {% include "partials/timeline-track-row.html" %}
+    {% endfor %}
+    <div id="timeline-new-track-and-zoom-row" class="timeline-row">
+        <div id="timeline-new-track-wrapper" class="timeline-row-left timeline-row-left-dark">
+            <button id="timeline-new-track-button" class="plain-text-button" commandfor="new-track-dialog" command="show-modal">
+                + New Track
+            </button>
+        </div>
+        <div id="timeline-zoom-controls" class="timeline-row-right">
+            <img class="timeline-zoom-icon" src="/static/img/minus-circle.svg" />
+            <div id="timeline-zoom-slider">
+                <input id="timeline-zoom-input"
+                    type="range"
+                    min="1"
+                    max="10"
+                    value="1"
+                    step="any"
+                />
+            </div>
+            <img class="timeline-zoom-icon" src="/static/img/plus-circle.svg" />
+        </div>
+    </div>
+    <dialog id="new-track-dialog">
+        <h2>New Track</h2>
+        <div class="dialog-content">
+            <div>
+                <label>New Track Name</label>
+                <input id="new-track-name" type="text" />
+            </div>
+            <button id="new-track-save-button" class="small-button">
+                Save
+            </button>
+        </div>
+        <button id="new-track-dialog-close-button" class="close-dialog-button red-button" command="close" commandfor="new-track-dialog">x</button>
+    </dialog>
 </div>

@@ -6,6 +6,9 @@ secret_settings.py
 *.mp4
 *.sqlite3
 *staticfiles
+*media
+*requirements.txt
+*migrations
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
