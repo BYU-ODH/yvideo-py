@@ -33,7 +33,7 @@
 }
 
 /* Editor Container */
-.editor-container {
+#editor-container {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -105,7 +105,7 @@
     align-items: center;
 }
 
-.annotation-type-add-button {
+.plain-text-button {
     border-radius: 8px;
     padding: 8px;
     background-color: inherit;
@@ -113,14 +113,20 @@
     font-weight: 500;
     text-align: left;
     font-size: 14px;
+}
+
+.plain-text-button:hover {
+    cursor: pointer;
+    box-shadow: 0px 3px 6px #00000075;
+}
+
+.annotation-type-add-button {
     color: white;
 }
 
 .annotation-type-add-button:hover {
     color: black;
     background-color: white;
-    cursor: pointer;
-    box-shadow: 0px 3px 6px #00000075;
 }
 
 #skip-type-header-right {
@@ -382,61 +388,95 @@
     margin-top: 0.25rem;
 }
 
-/* Timeline Section */
-.timeline-section {
-    border-top: 1px solid #ccc;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.timeline-wrapper {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-}
-
-/* Fixed left column for labels and zoom */
-.timeline-labels-column {
-    width: 100px;
-    flex-shrink: 0;
-    background-color: #f8f9fa;
-    border-right: 1px solid #ccc;
+#timeline-wrapper {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    row-gap: 2px;
 }
 
-.timeline-zoom-controls {
-    height: 30px;
-    padding: 5px 10px;
+.timeline-row {
+    display: flex;
+    flex-direction: row;
+    column-gap: 2px;
+}
+
+.timeline-row-left-dark, .timeline-row-right-dark {
+    background-color: var(--dark-mode-light-gray);
+}
+
+.timeline-row-left {
+    width: 200px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+}
+
+.timeline-track-edit-wrapper {
+    position: relative;
+}
+
+.timeline-track-menu {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    z-index: 4;
+}
+
+.track-menu-bumped-up {
+    bottom: 0px;
+}
+
+.visible-timeline-track-menu {
+    display: flex;
+}
+
+.timeline-track-open-menu-button {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: stretch;
-    border-bottom: 1px solid #ccc;
-    background-color: #f8f9fa;
-    flex-shrink: 0;
+    border-radius: 25%;
+    padding: 10px 10px;
+    background-color: inherit;
+    border: none;
 }
 
-#timeline-layer-labels {
+.timeline-track-open-menu-button:hover {
+    background-color: var(--dark-mode-very-light-gray);
+    box-shadow: 0px 3px 6px #00000075;
+    cursor: pointer;
+}
+
+.timeline-track-menu-button {
+    font-size: 1rem;
+    white-space: nowrap;
+    padding: 5px;
+    transition: 0.5s ease all;
+}
+
+.timeline-track-menu-button:hover {
+    transform: translateX(5px);
+    cursor: pointer;
+}
+
+.timeline-row-right {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
 }
 
-.layer-label-fixed {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #333;
-    padding: 0.5rem;
+.timeline-track-row-right {
+    position: relative;
     min-height: 40px;
-    border-bottom: 1px solid #e0e0e0;
+}
+
+.track-rename-wrapper {
+    display: none;
+    flex-direction: column
+}
+
+.track-rename-wrapper-visible {
+    display: flex;
 }
 
 /* Scrollable content area */
@@ -470,6 +510,12 @@
 }
 
 /* Timeline Ticks Row */
+#timeline-row-ticks-and-scrubbers {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
 .timeline-ticks-row {
     height: 30px;
     border-bottom: 1px solid #ccc;
@@ -485,11 +531,13 @@
     height: 100%;
 }
 
-.timeline-ticks-content {
+#timeline-ticks-content {
     position: relative;
-    height: 100%;
+    height: 32px;
     width: 100%;
     min-width: 100%;
+    margin-top: auto;
+    background-color: var(--dark-mode-light-gray);
 }
 
 .tick-marks-container {
@@ -506,31 +554,32 @@
     position: absolute;
     bottom: 0;
     width: 1px;
-    background-color: #999;
+    background-color: black;
 }
 
 .tick-mark.major {
     height: 15px;
-    background-color: #666;
 }
 
 .tick-mark.minor {
     height: 8px;
-    background-color: #bbb;
 }
 
 .tick-label {
     position: absolute;
     bottom: 16px;
     font-size: 11px;
-    color: #333;
     white-space: nowrap;
     transform: translateX(-50%);
     user-select: none;  /* eslint-disable-line css/use-baseline */
 }
 
+.tick-label.first-tick {
+    left: 10px;
+}
+
 /* Hover Scrubber */
-.timeline-hover-scrubber {
+#timeline-hover-scrubber {
     position: absolute;
     left: 0;
     top: 0;
@@ -538,12 +587,12 @@
     height: 100%;
     background: rgba(5, 130, 202, 0.3);
     pointer-events: none;
-    z-index: 50;
+    z-index: 2;
     opacity: 0;
     transition: opacity 0.1s ease;
 }
 
-.timeline-hover-scrubber::before {
+#timeline-hover-scrubber::before {
     content: '';
     position: absolute;
     top: -6px;
@@ -557,35 +606,83 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.timeline-ticks:hover .timeline-hover-scrubber {
+.timeline-ticks:hover #timeline-hover-scrubber {
     opacity: 1;
 }
 
-.timeline-ticks.dragging .timeline-hover-scrubber {
+.timeline-ticks.dragging #timeline-hover-scrubber {
     opacity: 0;
 }
 
-/* Layer - Simplified Layout */
-.layer {
-    min-height: 40px;
-    border-bottom: 1px solid #e0e0e0;
-    display: flex;
+/* Editor Scrubber */
+#editor-scrubber {
+    position: absolute;
+    left: var(--scrubber-position, 0%);
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background-color: black;
+    pointer-events: none;
+    z-index: 3;
 }
 
-.layer-content {
-    position: relative;
-    background-color: #fafafa;
-    min-height: 40px;
-    overflow: visible;
-    flex: 1;
-    width: 100%;
+#editor-scrubber::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-3px) translateY(2px) rotate(45deg);
+    width: 6px;
+    height: 6px;
+    background-color: black;
 }
 
-/* Layer Items */
-.layer-item {
+#editor-scrubber::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    transform: translateX(-4px) translateY(-3px);
+    background-color: black;
+}
+
+/* Bottom video controls and timeline */
+#timeline-scrubber-row {
+    height: 40px;
+}
+
+/* Track Items */
+.track-item[data-annotation-type="skip"] {
+    background-color: var(--skip-type-color);
+}
+
+.track-item[data-annotation-type="mute"] {
+    background-color: var(--mute-type-color);
+}
+
+.track-item[data-annotation-type="blank"] {
+    background-color: var(--blank-type-color);
+}
+
+.track-item[data-annotation-type="pause"] {
+    background-color: var(--pause-type-color);
+}
+
+.track-item[data-annotation-type="censor"] {
+    background-color: var(--censor-type-color);
+}
+
+.track-item[data-annotation-type="comment"] {
+    background-color: var(--comment-type-color);
+}
+
+.track-item[data-annotation-type="clip"] {
+    background-color: var(--clip-type-color);
+}
+
+.track-item {
     position: absolute;
     height: 30px;
-    background: #4a90e2;
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.2s, box-shadow 0.2s;
@@ -597,26 +694,24 @@
     user-select: none; /* eslint-disable-line css/use-baseline */
 }
 
-.layer-item:hover {
-    background: #357abd;
+.pause-type-track-item {
+    padding: 0px 10px;
+}
+
+.track-item:hover {
     box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
-.layer-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
-#detail-form:has([data-clip-id]) ~ .layer-items .layer-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
+.track-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
+#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
     background: #2a5f8f;
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2a5f8f;
 }
 
-.layer-item.dragging {
+.track-item.dragging {
     opacity: 0.8;
-    z-index: 50;
-}
-
-.layer-item:focus {
-    outline: 2px solid #357abd;  /* eslint-disable-line css/use-baseline */
-    outline-offset: 2px;
+    z-index: 2;
 }
 
 /* Resize Handles */
@@ -656,14 +751,14 @@
     border-radius: 8px;
 }
 
-.layer-item-content {
+.track-item-content {
     flex: 1;
     overflow: hidden;
     pointer-events: none;
     min-width: 0;
 }
 
-.layer-item-label {
+.track-item-label {
     color: white;
     font-size: 0.85rem;
     font-weight: 500;
@@ -672,37 +767,107 @@
     text-overflow: ellipsis;
 }
 
-/* Editor Scrubber */
-.editor-scrubber {
-    position: absolute;
-    left: var(--scrubber-position, 0%);
-    top: 0;
-    width: 2px;
-    height: 100%;
-    background: #0582ca;
-    pointer-events: none;
-    z-index: 100;
+/* Styles for zoom slider. */
+/* The default styling for each browser needs to be removed first */
+/* see https://css-tricks.com/styling-cross-browser-compatible-range-inputs-css/
+   for reference. the ms style rules are removed since those are for IE which
+   no one should use anymore. */
+#timeline-zoom-input {
+  -webkit-appearance: none; /* Hides the slider so that custom slider can be made */
+  width: 100%; /* Specific width is required for Firefox. */
+  background: transparent; /* Otherwise white in Chrome */
 }
 
-.editor-scrubber::before {
-    content: '';
-    position: absolute;
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 12px;
+#timeline-zoom-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+}
+
+/* Now we can apply our custom styles for the slider */
+/* "thumb" styles. This is the part the user interacts with */
+#timeline-zoom-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 12px;
+  width: 90px;
+  border-radius: 12px;
+  background: var(--dark-mode-dark-gray);
+  cursor: pointer;
+  margin-top: 4px; /* Chrome requires margin to be defined. This is automatic in Firefox */
+}
+
+#timeline-zoom-input::-moz-range-thumb {
+    -webkit-appearance: none;
     height: 12px;
-    background: #0582ca;
+    width: 90px;
+    border-radius: 12px;
+    background: var(--dark-mode-dark-gray);
+    cursor: pointer;
+}
+
+/* "track" styles. This is the container the thumb resides within */
+#timeline-zoom-input::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 20px;
+  cursor: pointer;
+  background: var(--dark-mode-light-gray);
+  padding: 0px 4px;
+}
+
+#timeline-zoom-input::-moz-range-track {
+  width: 100%;
+  height: 20px;
+  cursor: pointer;
+  background: var(--dark-mode-light-gray);
+  padding: 0px 4px;
+}
+/* end of zoom slider styles */
+
+#timeline-new-track-and-zoom-row {
+    height: 32px;
+}
+
+#timeline-zoom-controls {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: 8px;
+    padding: 0px 4px;
+}
+
+.timeline-zoom-icon {
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    padding: 2px;
+    filter: invert(1);
+}
+
+.timeline-zoom-icon:hover {
+    cursor: pointer;
+    background-color: #ffffff50;
+}
+
+#timeline-zoom-slider {
+    flex: 1;
+}
+
+#timeline-zoom-input {
+    width: 100%;
+}
+
+#timeline-new-track-button {
+    flex: 1;
+}
+
+#timeline-new-track-button:hover {
+    background-color: white;
 }
 
 /* Resizers */
 .resizer {
     background-color: #e0e0e0;
     position: relative;
-    z-index: 10;
+    z-index: 1;
 }
 
 .resizer:hover {
@@ -773,40 +938,6 @@ body.resizing-item {
 
 .info-message strong {
     font-weight: 600;
-}
-
-.zoom-label {
-    font-size: 11px;
-    color: #666;
-    margin-bottom: 2px;
-    text-align: center;
-}
-
-.zoom-slider {
-    width: 100%;
-    height: 4px;
-    background: #ddd;
-    outline: none;  /* eslint-disable-line css/use-baseline */
-    border-radius: 2px;
-    cursor: pointer;
-}
-
-.zoom-slider::-webkit-slider-thumb {
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    background: #0582ca;
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-.zoom-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    background: #0582ca;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
 }
 
 /* Remove individual scrollbars */

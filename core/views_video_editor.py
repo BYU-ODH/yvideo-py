@@ -10,7 +10,6 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.template.loader import render_to_string
-from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
@@ -24,6 +23,7 @@ from .models import Content
 from .models import MuteAnnotation
 from .models import PauseAnnotation
 from .models import SkipAnnotation
+from .models import Track
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -48,12 +48,10 @@ ANNOTATION_ICONS = {
 }
 
 
-def get_annotation_groups(annotation_set):
-    if not annotation_set:
-        return []
-    # [{type:"", instances: []}]
-    groups = []
-    for type_name, model_class in ANNOTATION_MODELS.items():
+def get_annotation_groups(annotations):
+    # [{type:"", type_display:"", icon:"", instances: []}]
+    groups = {}
+    for type_name in ANNOTATION_MODELS.keys():
         type_icon = ANNOTATION_ICONS[type_name]
         new_group = {
             "type": type_name,
@@ -61,34 +59,20 @@ def get_annotation_groups(annotation_set):
             "icon": type_icon,
             "instances": [],
         }
-        annotations = model_class.objects.filter(
-            annotation_set=annotation_set, active=True
-        ).order_by("start_time")
-        for annotation in annotations:
-            start_time = annotation.start_time
-            end_time = getattr(annotation, "end_time", start_time)
-            new_group["instances"].append(
-                {
-                    "instance": annotation,
-                    "id": annotation.pk,
-                    "name": annotation.name,
-                    "item_type": type_name,
-                    "track": annotation.track_name,
-                    "position": {
-                        "start": start_time,
-                        "end": end_time,
-                    },
-                }
-            )
-        groups.append(new_group)
+        groups[type_name] = new_group
 
-    return groups
+    if type(annotations) == list:
+        for annotation in annotations:
+            groups[annotation.annotation_type]["instances"].append(annotation)
+
+    return groups.values()
 
 
 def build_annotation_panel(request, annotation_set_id):
     try:
         annotation_set = get_object_or_404(AnnotationSet, pk=annotation_set_id)
-        annotation_groups = get_annotation_groups(annotation_set)
+        annotations = annotation_set.get_active_annotations_from_tracks()
+        annotation_groups = get_annotation_groups(annotations)
         annotation_panel_html = render_to_string(
             "core/partials/annotation_panel.html",
             {"annotation_groups": annotation_groups},
@@ -99,75 +83,6 @@ def build_annotation_panel(request, annotation_set_id):
         return HttpResponseServerError()
 
     return HttpResponse(annotation_panel_html)
-
-
-# build_annotation_layers will be replaced by using get_annotation_groups
-# in another issue.
-def build_annotation_layers(content, annotation_set, can_edit):
-    layers = []
-    layer_buttons = {}
-    for type_name, model_class in ANNOTATION_MODELS.items():
-        layer_items = []
-        if annotation_set:
-            annotations = model_class.objects.filter(
-                annotation_set=annotation_set, active=True
-            ).order_by("start_time")
-            for annotation in annotations:
-                start_time = annotation.start_time
-                end_time = getattr(annotation, "end_time", start_time)
-                layer_items.append(
-                    {
-                        "instance": annotation,
-                        "content": content,
-                        "item_type": type_name,
-                        "update_url": "update_annotation",
-                        "load_form_url": "load_annotation_form",
-                        "position": {
-                            "start": start_time,
-                            "end": end_time,
-                        },
-                    }
-                )
-
-        # Add to list (for timeline_layers.html)
-        layers.append(
-            {
-                "type": type_name,
-                "label": type_name.title(),
-                "can_edit": can_edit,
-                "items": layer_items,
-                "add_button": {
-                    "post_url": reverse(
-                        "create_annotation", args=[type_name, content.pk]
-                    ),
-                    "vals": "js:...getNewItemStartEndTimes()",
-                    "swap": "none",
-                    "title": f"Add new {type_name} annotation",
-                }
-                if can_edit
-                else None,
-            }
-        )
-
-        layer_buttons[type_name] = {
-            "display_name": type_name.title(),
-            "can_add": can_edit,
-            "add_form_url": "create_annotation",
-        }
-    return {"layers": layers, "layer_buttons": layer_buttons}
-
-
-def build_timeline_layers_html(request, content, annotation_set, can_edit):
-    layers_build_result = build_annotation_layers(content, annotation_set, can_edit)
-    layers = layers_build_result["layers"]
-    timeline_layers_html = render_to_string(
-        "core/partials/timeline_layers.html",
-        {
-            "layers": layers,
-        },
-        request=request,
-    )
-    return timeline_layers_html
 
 
 def return_annotation_if_authorized_and_exists(
@@ -239,10 +154,15 @@ def video_editor(request, content_id):
     # Get file key for video streaming
     file_key = request.user.get_resource_filekey(content)
 
-    # Prepare layer data for timeline
-    layer_results = build_annotation_layers(content, annotation_set, can_edit)
+    # Prepare track data for timeline
+    tracks = annotation_set.get_tracks()
+    if not tracks:
+        Track.objects.create(annotation_set=annotation_set)
+        tracks = annotation_set.get_tracks()
 
-    annotation_groups = get_annotation_groups(annotation_set)
+    annotations = annotation_set.get_active_annotations_from_tracks()
+
+    annotation_groups = get_annotation_groups(annotations)
 
     context = {
         "content": content,
@@ -254,10 +174,7 @@ def video_editor(request, content_id):
         "can_edit": can_edit,
         "can_edit_annotation_set": can_edit_annotation_set,
         "annotation_groups": annotation_groups,
-        "layers": layer_results["layers"],  # For timeline_layers.html content
-        "layer_buttons": layer_results[
-            "layer_buttons"
-        ],  # For timeline_base.html label column
+        "tracks": tracks,
     }
 
     return render(request, "core/video_editor.html", context)
@@ -353,15 +270,15 @@ def select_annotation_set(request):
     can_edit = annotation_set.can_edit(request.user) if annotation_set else True
 
     # Prepare layers for timeline rendering (matching clip editor structure)
-    layer_results = build_annotation_layers(content, annotation_set, can_edit)
-    layers = layer_results["layers"]
+    # layer_results = build_annotation_layers(content, annotation_set, can_edit)
+    # layers = layer_results["layers"]
 
-    # Render timeline using shared partial
-    timeline_layers_html = render_to_string(
-        "core/partials/timeline_layers.html",
-        {"layers": layers, "content_id": content_id},
-        request=request,
-    )
+    # # Render timeline using shared partial
+    # timeline_layers_html = render_to_string(
+    #     "core/partials/timeline_layers.html",
+    #     {"layers": layers, "content_id": content_id},
+    #     request=request,
+    # )
 
     # Get JSON from model method
     video_html = render_to_string(
@@ -374,7 +291,8 @@ def select_annotation_set(request):
     )
 
     return JsonResponse(
-        {"video_section": video_html, "timeline_layers": timeline_layers_html}
+        # {"video_section": video_html, "timeline_layers": timeline_layers_html}
+        {"video_section": video_html}
     )
 
 
@@ -511,18 +429,12 @@ def remove_editor_from_annotation_set(request, annotation_set_id, user_id):
 @require_POST
 @login_required
 @transaction.atomic
-def create_annotation(request, annotation_type, content_id):
+def create_annotation(request, annotation_type, track_id):
     """Create annotation in the active AnnotationSet."""
 
-    content = get_object_or_404(Content, id=content_id)
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
+    track = get_object_or_404(Track, id=track_id)
 
-    annotation_set = content.annotation_set
-    if not annotation_set:
-        return HttpResponse("No active AnnotationSet", status=404)
-
-    if not annotation_set.can_edit(request.user):
+    if not track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
     model_class = ANNOTATION_MODELS.get(annotation_type.lower())
@@ -536,9 +448,9 @@ def create_annotation(request, annotation_type, content_id):
     )
 
     data = {
-        "annotation_set": annotation_set,
+        "track": track,
         "owner": request.user,
-        "name": f"{annotation_type.title()} {model_class.objects.filter(annotation_set=annotation_set).count() + 1}",
+        "name": f"{annotation_type.title()} {model_class.objects.filter(track=track).count() + 1}",
         "start_time": start_time,
         "active": True,
         "prev": None,
@@ -568,16 +480,9 @@ def create_annotation(request, annotation_type, content_id):
     }
 
     # Render item using shared partial
-    layer_item_html = render_to_string(
+    track_item_html = render_to_string(
         "partials/item.html",
-        {
-            "instance": annotation,
-            "content": content,
-            "item_type": annotation_type,
-            "update_url": "update_annotation",
-            "load_form_url": "load_annotation_form",
-            "position": position,
-        },
+        {"item": annotation},
         request=request,
     )
 
@@ -587,7 +492,7 @@ def create_annotation(request, annotation_type, content_id):
     )
 
     return JsonResponse(
-        {"layer_item_html": layer_item_html, "panel_item_html": panel_item_html}
+        {"track_item_html": track_item_html, "panel_item_html": panel_item_html}
     )
 
 
@@ -613,7 +518,7 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
             "result": HttpResponse("Annotation not found or inactive", status=404),
         }
 
-    if not annotation.annotation_set.can_edit(user):
+    if not annotation.track.annotation_set.can_edit(user):
         return {
             "success": False,
             "result": HttpResponse("Cannot edit this AnnotationSet", status=403),
@@ -640,7 +545,7 @@ def generate_censor_positions_html(parent_annotation_id):
         parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
     except Exception as e:
         logger.error(
-            f"Failed to get parent_annoation while updateing censor positions html. Exception: {e}"
+            f"Failed to get parent_annotation while updateing censor positions html. Exception: {e}"
         )
         return False
 
@@ -793,14 +698,7 @@ def generate_annotation_updated_html(
 ):
     item_html = render_to_string(
         "partials/item.html",
-        {
-            "instance": annotation,
-            "content": content,
-            "item_type": annotation_type,
-            "update_url": "update_annotation",
-            "load_form_url": "load_annotation_form",
-            "position": position,
-        },
+        {"item": annotation},
         request=request,
     )
 
@@ -958,7 +856,7 @@ def delete_annotation(request, annotation_type, annotation_id):
         return HttpResponse("Annotation not found or inactive", status=404)
 
     # Check edit permissions
-    if not annotation.annotation_set.can_edit(request.user):
+    if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
     # Use delete_with_history() to preserve undo capability
@@ -988,7 +886,7 @@ def load_annotation_form(request, annotation_type, annotation_id):
     content_id = request.GET.get("content_id")
     content = get_object_or_404(Content, id=content_id)
 
-    if not annotation.annotation_set.can_edit(request.user):
+    if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse(
             "You don't have permission to edit this annotation", status=403
         )
@@ -1066,3 +964,128 @@ def update_annotation_set_name(request, annotation_set_id):
             "content": content,
         },
     )
+
+
+@login_required
+@require_POST
+def update_track(request):
+    """Edit track name by changing the track_name attribute of all associated annotations"""
+    try:
+        parsed_data = json.loads(request.body)
+        track_id = parsed_data["track_id"]
+        track = Track.objects.get(pk=track_id)
+    except Track.DoesNotExist:
+        logger.error("Failed to get track object because it does not exist.")
+        return HttpResponse(status=404)
+    except Exception as e:
+        logger.error(f"Failed to get track object. Exception: {e}")
+        return HttpResponseServerError()
+
+    try:
+        if "new_track_name" in parsed_data:
+            track.name = parsed_data["new_track_name"]
+        if "new_stack_position" in parsed_data:
+            track.stack_position = parsed_data["new_stack_position"]
+        track.save()
+    except Exception as e:
+        logger.error(f"Failed to update track name. Exception: {e}")
+        return HttpResponseServerError()
+
+    track_html = render_to_string(
+        "core/partials/timeline-track-row.html", {"track": track}, request
+    )
+
+    return HttpResponse(track_html)
+
+
+def convertTracksToHTML(annotation_set, request):
+    tracks = annotation_set.get_tracks()
+    tracks_html = []
+    for track in tracks:
+        tracks_html.append(
+            render_to_string(
+                "core/partials/timeline-track-row.html", {"track": track}, request
+            )
+        )
+
+    return JsonResponse({"tracks_html": tracks_html})
+
+
+@login_required
+@require_POST
+def update_track_positions_in_set(request):
+    """Update all track stack positions in an annotation set"""
+    parsed_data = json.loads(request.body)
+    if "track_ids" not in parsed_data:
+        logger.error("Failed to update track positions due to invalid input")
+        return HttpResponseBadRequest()
+
+    try:
+        annotation_set = Track.objects.get(
+            pk=parsed_data["track_ids"][0]
+        ).annotation_set
+    except Exception as e:
+        logger.error(
+            f"Failed to get annotation set from track while updating track positions. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+    try:
+        index = 0
+        for track_id in parsed_data["track_ids"]:
+            track = Track.objects.get(pk=track_id)
+            track.stack_position = index
+            track.save()
+            index += 1
+    except Exception as e:
+        logger.error(f"Failed to update track positions. Exception: {e}")
+        return HttpResponseServerError()
+
+    return convertTracksToHTML(annotation_set, request)
+
+
+@login_required
+@require_POST
+def create_track(request):
+    try:
+        parsed_body = json.loads(request.body)
+        if "annotation_set_id" not in parsed_body:
+            logger.error("Failed to create new track due to missing annotation_set_id")
+            return HttpResponseBadRequest()
+
+        annotation_set = AnnotationSet.objects.get(pk=parsed_body["annotation_set_id"])
+
+        track = {
+            "annotation_set": annotation_set,
+            "stack_position": annotation_set.get_highest_stack_position() + 1,
+        }
+        if "track_name" in parsed_body:
+            track["name"] = parsed_body["track_name"]
+
+        new_track = Track.objects.create(**track)
+
+        return convertTracksToHTML(annotation_set, request)
+    except Exception as e:
+        logger.error(f"Failed to create a new track. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@login_required
+def delete_track(request, track_id):
+    if request.method != "DELETE":
+        return HttpResponseBadRequest()
+    try:
+        track = Track.objects.get(pk=track_id)
+        if track.stack_position == 0:
+            logger.error(
+                f"Request to delete primary track ignored. Track id: {track_id}"
+            )
+            return HttpResponseBadRequest()
+        track.delete()
+        return HttpResponse()
+    except Track.DoesNotExist:
+        logger.error("Failed to delete track because it does not exist.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to delete track. Exception: {e}")
+        return HttpResponseServerError()
