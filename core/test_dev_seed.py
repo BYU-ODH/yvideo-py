@@ -24,6 +24,8 @@ class DemoSeedDataTests(TestCase):
             DEBUG=True,
             DEV_QUICK_LOGIN_ENABLED=True,
             MEDIA_ROOT=cls._media_root,
+            ALLOWED_HOSTS=["localhost", "127.0.0.1", "example.com", "testserver"],
+            SECRET_KEY="test-secret-key",
         )
         cls._settings.enable()
 
