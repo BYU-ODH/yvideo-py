@@ -1226,6 +1226,7 @@ export class Editor {
             trackIdOrder[i + 1] = currentTrackId;
             trackIdOrder[i] = swappingTrackId
           }
+          break;
         }
       }
 
