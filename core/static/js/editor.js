@@ -1436,16 +1436,16 @@ export class Editor {
 
     listenForNewItemCreation() {
       const assignListeners = (elements) => {
-        const trackRows = document.getElementsByClassName("track-row");
-        if (trackRows.length <= 0) {
-          console.error("Unable to assign listeners to new item creation buttons. Invalid track row.");
-          return;
-        }
-        const trackId = trackRows[0].dataset["trackId"];
         for (let button of elements) {
           const annotationType = button.dataset["annotationType"];
           button.addEventListener("click", async (e) => {
             e.preventDefault();
+            const trackRow = document.querySelector(".track-row");
+            if (!trackRow) {
+              console.error("Unable to assign listeners to new item creation buttons. Invalid track row.");
+              return;
+            }
+            const trackId = trackRow.dataset["trackId"];
 
             let startTime = 0;
             let endTime = 0;
