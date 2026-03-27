@@ -856,7 +856,7 @@ def delete_annotation(request, annotation_type, annotation_id):
         return HttpResponse("Annotation not found or inactive", status=404)
 
     # Check edit permissions
-    if not annotation.annotation_set.can_edit(request.user):
+    if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
     # Use delete_with_history() to preserve undo capability
@@ -886,7 +886,7 @@ def load_annotation_form(request, annotation_type, annotation_id):
     content_id = request.GET.get("content_id")
     content = get_object_or_404(Content, id=content_id)
 
-    can_edit = annotation.annotation_set.can_edit(request.user)
+    can_edit = annotation.track.annotation_set.can_edit(request.user)
 
     start_seconds = annotation.start_time
     end_seconds = getattr(annotation, "end_time", start_seconds)
