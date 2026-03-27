@@ -1036,10 +1036,20 @@ export class Editor {
         menu.classList.remove(visibleMenuCSSClass);
       }
 
-      // now we are safe to make the track menu visible
+      // get track menu and position it properly
+      const timelineWrapper = document.getElementById("timeline-wrapper");
+      const wrapperDim = timelineWrapper.getBoundingClientRect();
       const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
       const trackOptionsMenu = trackMenuWrapper.querySelector(".timeline-track-menu");
+      trackOptionsMenu.style.visibility = "hidden";
       trackOptionsMenu.classList.add(visibleMenuCSSClass);
+      const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
+      if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
+        trackOptionsMenu.classList.add("track-menu-bumped-up");
+      }
+
+      // now we are safe to make the track menu visible
+      trackOptionsMenu.style.visibility = "";
     }
 
     watchForTrackMenuOpen(trackRootElement) {

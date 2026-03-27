@@ -425,19 +425,39 @@
     z-index: 4;
 }
 
+.track-menu-bumped-up {
+    bottom: 0px;
+}
+
 .visible-timeline-track-menu {
     display: flex;
 }
 
 .timeline-track-open-menu-button {
-    width: 22px;
-    height: 22px;
-    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     border-radius: 25%;
+    padding: 10px 10px;
+    background-color: inherit;
+    border: none;
 }
 
 .timeline-track-open-menu-button:hover {
     background-color: var(--dark-mode-very-light-gray);
+    box-shadow: 0px 3px 6px #00000075;
+    cursor: pointer;
+}
+
+.timeline-track-menu-button {
+    font-size: 1rem;
+    white-space: nowrap;
+    padding: 5px;
+    transition: 0.5s ease all;
+}
+
+.timeline-track-menu-button:hover {
+    transform: translateX(5px);
     cursor: pointer;
 }
 
