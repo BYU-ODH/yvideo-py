@@ -29,5 +29,8 @@ jobs:
     - name: Install python dependencies
       run: uv sync
 
+    - name: Run server
+      run: uv run manage.py runserver
+
     - name: Run pre-commit
       run: uv run pre-commit run --all-files
