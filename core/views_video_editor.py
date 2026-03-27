@@ -992,6 +992,19 @@ def update_track(request):
     return HttpResponse(track_html)
 
 
+def convertTracksToHTML(annotation_set, request):
+    tracks = annotation_set.get_tracks()
+    tracks_html = []
+    for track in tracks:
+        tracks_html.append(
+            render_to_string(
+                "core/partials/timeline-track-row.html", {"track": track}, request
+            )
+        )
+
+    return JsonResponse({"tracks_html": tracks_html})
+
+
 @login_required
 @require_POST
 def update_track_positions_in_set(request):
@@ -1022,16 +1035,7 @@ def update_track_positions_in_set(request):
         logger.error(f"Failed to update track positions. Exception: {e}")
         return HttpResponseServerError()
 
-    tracks = annotation_set.get_tracks()
-    tracks_html = []
-    for track in tracks:
-        tracks_html.append(
-            render_to_string(
-                "core/partials/timeline-track-row.html", {"track": track}, request
-            )
-        )
-
-    return JsonResponse(tracks_html)
+    return convertTracksToHTML(annotation_set, request)
 
 
 @login_required
@@ -1054,11 +1058,7 @@ def create_track(request):
 
         new_track = Track.objects.create(**track)
 
-        new_track_html = render_to_string(
-            "core/partials/timeline-track-row.html", {"track": new_track}, request
-        )
-
-        return HttpResponse(new_track_html)
+        return convertTracksToHTML(annotation_set, request)
     except Exception as e:
         logger.error(f"Failed to create a new track. Exception: {e}")
         return HttpResponseServerError()

@@ -1065,6 +1065,26 @@ export class Editor {
       });
     }
 
+    replaceTracksWithNewHTML(newTracksHTML) {
+      // remove old tracks
+      const trackRows = document.getElementsByClassName("track-row");
+
+      for (let i = trackRows.length - 1; i >= 0; i--) {
+        trackRows[i].remove();
+      }
+
+      // place new tracks in appropriate positions
+      const timelineWrapper = document.getElementById("timeline-wrapper");
+      const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
+      for (let newTrackHTML of newTracksHTML) {
+        const trackTemplate = document.createElement("template");
+        trackTemplate.innerHTML = newTrackHTML;
+        const trackParentNode = trackTemplate.content.childNodes[0];
+        this.setupTrackWatchers(trackParentNode);
+        timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
+      }
+    }
+
     /* track name change */
     async handleTrackNameChange(e) {
       e.stopPropagation();
@@ -1226,23 +1246,10 @@ export class Editor {
         console.error("Failed to update stack positions across all tracks");
         return;
       }
+      const jsonData = await orderUpdateResponse.json();
+      const newTracksHTML = jsonData["tracks_html"];
 
-      // remove all current tracks
-      for (let trackRow in trackRows) {
-        trackRow.remove();
-      }
-
-      // place new tracks in appropriate positions
-      const timelineWrapper = document.getElementById("timeline-wrapper");
-      const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
-      const newTracks = await orderUpdateResponse.json();
-      for (let newTrackHTML of newTracks) {
-        const trackTemplate = document.createElement("template");
-        trackTemplate.innerHTML = newTrackHTML;
-        const trackParentNode = trackTemplate.content.childNodes[0];
-        this.setupTrackWatchers(trackParentNode);
-        timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
-      }
+      this.replaceTracksWithNewHTML(newTracksHTML);
     }
 
     watchForTrackMovement(trackRootElement) {
@@ -1265,7 +1272,7 @@ export class Editor {
     watchForTrackCreation() {
       const addNewTrackButton = document.getElementById("new-track-save-button");
       const addNewTrackInput = document.getElementById("new-track-name");
-      const dialogCloseButton = document.getElementById("new-track-dialog-close-button");
+      const dialog = document.getElementById("new-track-dialog");
       const timelineWrapper = document.getElementById("timeline-wrapper");
       const annotationSetId = timelineWrapper.dataset["annotationSetId"];
 
@@ -1292,22 +1299,19 @@ export class Editor {
           })
         });
 
+        dialog.close();
+
         if (!newTrackResponse.ok) {
           console.error("Failed to create new track!");
           return;
         }
 
-        const newTrackHtml = await newTrackResponse.text();
-        dialogCloseButton.click();
-        const addNewAndZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
-        const newTrackDOMNode = document.createElement("template");
-        newTrackDOMNode.innerHTML = newTrackHtml;
-        const nodes = newTrackDOMNode.content.childNodes;
-        const newTrackParentNode = nodes[0];
+        addNewTrackInput.value = "";
 
-        this.setupTrackWatchers(newTrackParentNode);
+        const responseData = await newTrackResponse.json();
+        const newTracksHTML = responseData["tracks_html"];
 
-        timelineWrapper.insertBefore(newTrackParentNode, addNewAndZoomRow);
+        this.replaceTracksWithNewHTML(newTracksHTML);
         this.adjustScrubberHeight();
       }
       addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
