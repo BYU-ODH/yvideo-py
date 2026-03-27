@@ -654,7 +654,7 @@ body {
 
 .main-content {
     width: 100%;
-    max-width: 100rem;
+    max-width: 100%;
     min-width: 0;
     padding: 1rem;
     margin: 0px auto;
