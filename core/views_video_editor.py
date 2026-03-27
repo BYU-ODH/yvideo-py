@@ -971,6 +971,9 @@ def update_track(request):
         parsed_data = json.loads(request.body)
         track_id = parsed_data["track_id"]
         track = get_object_or_404(Track, pk=track_id)
+    except Http404:
+        logger.error("Failed to get track object because it does not exist.")
+        return HttpResponse(status=404)
     except Exception as e:
         logger.error(f"Failed to get track object. Exception: {e}")
         return HttpResponseServerError()
@@ -1077,6 +1080,9 @@ def delete_track(request, track_id):
             return HttpResponseBadRequest()
         track.delete()
         return HttpResponse()
+    except Track.DoesNotExist:
+        logger.error("Failed to delete track because it does not exist.")
+        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to delete track. Exception: {e}")
         return HttpResponseServerError()
