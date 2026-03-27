@@ -58,8 +58,8 @@ class Api:
 
     @staticmethod
     def parse_api_datetime(value):
-        # TODO: Confirm whether BYU API timestamps are local time or UTC.
-        # Until then, assume the current Django timezone so all comparisons stay aware.
+        # BYU API timestamps omit timezone information but should be interpreted
+        # as server-local time, i.e. the current Django timezone.
         return timezone.make_aware(
             datetime.strptime(value, "%Y-%m-%dT%H:%M:%S"),
             timezone.get_current_timezone(),
