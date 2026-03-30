@@ -1,8 +1,10 @@
 # Copy this file to secret_settings.py
 # NEVER COMMIT secret_settings.py to the repository!
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 DEBUG = True
-SECRET_KEY = ""
+DEV_QUICK_LOGIN_ENABLED = False
+# Development-only fallback so local runs and CI tests work without secret_settings.py.
+SECRET_KEY = "dev-only-insecure-secret-key"
 TIME_ZONE = "America/Denver"
 API_CLIENT_ID = ""
 API_CLIENT_SECRET = ""
