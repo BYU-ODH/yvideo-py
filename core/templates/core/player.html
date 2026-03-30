@@ -2,12 +2,13 @@
 {% load static %}
 
 {% block title %}
-    Video Player
+    YVideo - Player
 {% endblock %}
+
 {% block extra_css %}
     <link rel="stylesheet" href="{% static 'AnnotationPlayer.css' %}">
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
-</body>
-</html>
+{% endblock %}

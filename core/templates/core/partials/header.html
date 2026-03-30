@@ -1,33 +1,63 @@
 <body>
     {% load static %}
-    <nav class="navbar">
-        <a href="{% url 'index' %}">
-            <img class="logo" src="/static/img/logo.svg" alt="Logo">
-            <h1>Y-VIDEO</h1>
-        <div class="breadcrumbs">
-            <span class="breadcrumb-item">Home</span>
-        </div>
-        </a>
-
-        {% if request.can_spoof and not request.is_spoofing %}
-        <form method="post" action="{% url 'start_spoofing' %}" class="spoof-form">
-            {% csrf_token %}
-            <label for="spoof-user-input" class="spoof-label">Act for:</label>
-            <div class="spoof-input-group">
-                <input id="spoof-user-input" type="search"
-                    name="search"
-                    placeholder="User search"
-                    hx-post="{% url 'spoof_user_search' %}"
-                    hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
-                    hx-target="#spoof-user-select"
-                    autocomplete="off">
-                <select name="spoof_user_id" id="spoof-user-select" size="4" class="spoof-select">
-                    <!-- Options populated by HTMX response -->
-                </select>
+    <nav class="navbar{% if request.is_spoofing %} navbar-spoofing{% endif %}">
+        <div class="navbar-start">
+            <a class="navbar-brand" href="{% url 'index' %}">
+                <img class="logo" src="/static/img/logo.svg" alt="Logo">
+                <h1>Y-VIDEO</h1>
+            </a>
+            <div class="breadcrumbs">
+                <span class="breadcrumb-item">Home</span>
             </div>
-            <button id="spoof-user-submit" type="submit" disabled class="spoof-go-btn">Go</button>
-        </form>
+        </div>
+
+        {% if request.is_spoofing %}
+        <div class="navbar-center">
+            <div id="spoof-warning">
+                <span class="spoof-warning-message">
+                    <span class="spoof-warning-message-content">
+                        <span class="spoof-warning-as">{{ request.original_user.netid }} as</span>
+                        <span class="spoof-warning-target">
+                            {{ request.user.first_name }} {{ request.user.last_name }}
+                            <span class="spoof-warning-netid">({{ request.user.netid }})</span>
+                        </span>
+                    </span>
+                </span>
+                <a
+                    class="spoof-warning-stop"
+                    href="{% url 'stop_spoofing' %}?next={{ request.get_full_path|urlencode }}"
+                >[Stop]</a>
+            </div>
+        </div>
         {% endif %}
+
+        <div class="navbar-actions">
+            {% if request.can_spoof and not request.is_spoofing %}
+            <form method="post" action="{% url 'start_spoofing' %}" class="spoof-form">
+                {% csrf_token %}
+                <label for="spoof-user-input" class="spoof-label">Act for:</label>
+                <div class="spoof-input-group">
+                    <input id="spoof-user-input" type="search"
+                        name="search"
+                        placeholder="User search"
+                        hx-post="{% url 'spoof_user_search' %}"
+                        hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
+                        hx-target="#spoof-user-select"
+                        autocomplete="off">
+                    <select name="spoof_user_id" id="spoof-user-select" size="4" class="spoof-select">
+                        <!-- Options populated by HTMX response -->
+                    </select>
+                </div>
+                <button id="spoof-user-submit" type="submit" disabled class="spoof-go-btn">Go</button>
+            </form>
+            {% endif %}
+
+            <button class="sidebar-toggle" aria-label="Toggle sidebar">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
 
         <aside class="sidebar">
             <h4> {{ user.netid }} </h4>
@@ -57,12 +87,6 @@
             <a href="https://privacy.byu.edu" target="_blank" rel="noopener noreferrer">Privacy Notice</a>
             <a href="https://infosec.byu.edu/cookie-prefs" target="_blank" rel="noopener noreferrer">Cookie Preferences</a>
         </aside>
-
-        <button class="sidebar-toggle" aria-label="Toggle sidebar">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
     </nav>
 
 
