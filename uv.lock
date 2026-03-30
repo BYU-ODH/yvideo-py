@@ -119,19 +119,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-debug-toolbar"
-version = "6.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "sqlparse" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/d5/5fc90234532088aeec5faa48d5b09951cc7eab6626030ed427d3bd8cd9bc/django_debug_toolbar-6.0.0.tar.gz", hash = "sha256:6eb9fa6f4a5884bf04004700ffb5a44043f1fff38784447fc52c1633448c8c14", size = 305331, upload-time = "2025-07-25T13:11:48.68Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/05/b5/4724a8c18fcc5b09dca7b7a0e70c34208317bb110075ad12484d6588ae91/django_debug_toolbar-6.0.0-py3-none-any.whl", hash = "sha256:0cf2cac5c307b77d6e143c914e5c6592df53ffe34642d93929e5ef095ae56841", size = 266967, upload-time = "2025-07-25T13:11:47.265Z" },
-]
-
-[[package]]
 name = "django-reversion"
 version = "6.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -141,6 +128,30 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ad/df/5870e38067fd80b3d749de2d11a4cbd32be811d1f43eb8ab948f9f3152c4/django_reversion-6.0.0.tar.gz", hash = "sha256:cab0fd90640b2ceb37d7a897823ca72a21b960ad1d6a3b9cb4e351fabbd27d9c", size = 74528, upload-time = "2025-09-20T08:56:20.119Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9c/0d/7e558eb30afcdb21eca15a6ef8aa048b6089efc4599e28611275a0643260/django_reversion-6.0.0-py3-none-any.whl", hash = "sha256:0755b4b3e615254b305d01012e426e09006455d375254e5adc29572fc9edf2ab", size = 85968, upload-time = "2025-09-20T08:56:18.761Z" },
+]
+
+[[package]]
+name = "factory-boy"
+version = "3.3.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "faker" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ba/98/75cacae9945f67cfe323829fc2ac451f64517a8a330b572a06a323997065/factory_boy-3.3.3.tar.gz", hash = "sha256:866862d226128dfac7f2b4160287e899daf54f2612778327dd03d0e2cb1e3d03", size = 164146, upload-time = "2025-02-03T09:49:04.433Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/8d/2bc5f5546ff2ccb3f7de06742853483ab75bf74f36a92254702f8baecc79/factory_boy-3.3.3-py2.py3-none-any.whl", hash = "sha256:1c39e3289f7e667c4285433f305f8d506efc2fe9c73aaea4151ebd5cdea394fc", size = 37036, upload-time = "2025-02-03T09:49:01.659Z" },
+]
+
+[[package]]
+name = "faker"
+version = "40.11.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/e5/b16bf568a2f20fe7423282db4a4059dbcadef70e9029c1c106836f8edd84/faker-40.11.1.tar.gz", hash = "sha256:61965046e79e8cfde4337d243eac04c0d31481a7c010033141103b43f603100c", size = 1957415, upload-time = "2026-03-23T14:05:50.233Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/ec/3c4b78eb0d2f6a81fb8cc9286745845bff661e6815741eff7a6ac5fcc9ea/faker-40.11.1-py3-none-any.whl", hash = "sha256:3af3a213ba8fb33ce6ba2af7aef2ac91363dae35d0cec0b2b0337d189e5bee2a", size = 1989484, upload-time = "2026-03-23T14:05:48.793Z" },
 ]
 
 [[package]]
@@ -642,7 +653,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "django-debug-toolbar" },
+    { name = "factory-boy" },
     { name = "pre-commit" },
     { name = "ruff" },
 ]
@@ -659,7 +670,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "django-debug-toolbar", specifier = "==6.0.0" },
+    { name = "factory-boy", specifier = "==3.3.3" },
     { name = "pre-commit", specifier = "==4.5.1" },
     { name = "ruff", specifier = "==0.15.7" },
 ]

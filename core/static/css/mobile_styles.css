@@ -7,6 +7,25 @@
         margin: 0.9rem;
     }
 
+    .spoof-label {
+        display: none;
+    }
+
+    .spoof-input-group {
+        width: 7.25rem;
+    }
+
+    .spoof-go-btn {
+        padding: 0.55rem 0.8rem;
+    }
+
+    #spoof-warning {
+        gap: 0.25rem;
+        padding: 0.5rem 0.7rem;
+        font-size: 0.92rem;
+        max-width: 100%;
+    }
+
     .controls-left .control-btn svg,
     .controls-right .control-btn svg {
         width: 17px;
@@ -25,6 +44,10 @@
 }
 
 @media screen and (max-width: 375px) {
+    #spoof-warning {
+        font-size: 0.84rem;
+    }
+
     .controls-left button,
     .controls-right button {
         height: 1.5rem;

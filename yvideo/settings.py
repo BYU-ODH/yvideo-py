@@ -34,6 +34,7 @@ SECRET_KEY = secret_settings.SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = secret_settings.DEBUG
+DEV_QUICK_LOGIN_ENABLED = getattr(secret_settings, "DEV_QUICK_LOGIN_ENABLED", False)
 
 ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
 
@@ -151,16 +152,3 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
-
-
-if DEBUG:
-    INSTALLED_APPS.append("debug_toolbar")  # django-debug-toolbar
-
-    DEBUG_TOOLBAR_MIDDLEWARE_INDEX = (
-        1  # as close to the top as possible after middleware that encodes data
-    )
-    MIDDLEWARE.insert(
-        DEBUG_TOOLBAR_MIDDLEWARE_INDEX,
-        "debug_toolbar.middleware.DebugToolbarMiddleware",
-    )
-    INTERNAL_IPS = ["127.0.0.1", "localhost"]
