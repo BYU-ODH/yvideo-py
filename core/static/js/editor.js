@@ -801,7 +801,7 @@ export class Editor {
 
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
-      this.fetchEditFormOnClick(newTargetItem);
+      this.setUpItemClickListeners(newTargetItem);
       window.dispatchEvent(this.annotationUpdatedEvent);
     }
 
@@ -898,11 +898,13 @@ export class Editor {
       this.setupCensorPositionSeekListeners();
     }
 
-    markPanelItemAsActive(annotationType, annotationId) {
+    markItemAsActive(annotationType, annotationId) {
       if (!annotationType || !annotationId) {
         console.error("Invalid annotation type of annotation id");
         return;
       }
+
+      // handle panel item style
       const activePanelItemClass = "active-panel-item";
       const itemListExpansionClass = "annotation-type-list-expanded";
       const arrowRotationClass = "annotation-header-arrow-rotated";
@@ -932,32 +934,55 @@ export class Editor {
 
       // we are ready to add the active item's style
       thisPanelItem.classList.add(`${annotationType}-list-item-wrapper-selected`, activePanelItemClass);
+      thisPanelItem.scrollIntoView({behavior: "smooth"});
       const thisItemList = thisPanelItem.closest(".annotation-type-list");
       thisItemList.classList.add(itemListExpansionClass);
       const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
       const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
       thisGroupArrow.classList.add(arrowRotationClass);
+
+      // handle track item style
+      const activeTrackItemCSSClass = "active-track-item";
+      const timelineWrapper = document.getElementById("timeline-wrapper");
+      // first turn off styling of current active element
+      const currentActiveTrackItem = timelineWrapper.querySelector(`.${activeTrackItemCSSClass}`);
+      if (currentActiveTrackItem) {
+        currentActiveTrackItem.classList.remove(activeTrackItemCSSClass);
+      }
+
+      const trackItem = timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
+      if (!trackItem) {
+        console.error("No track item found");
+        return;
+      }
+      trackItem.classList.add(activeTrackItemCSSClass);
+
+      // skip to start of this annotation in video
+      const startTime = Number(trackItem.dataset["start"]);
+      if (startTime && !isNaN(startTime)) {
+        this.video.currentTime = startTime;
+      }
     }
 
-    fetchEditFormOnClick(element) {
+    setUpItemClickListeners(element) {
       const annotationType = element.dataset["annotationType"];
       const annotationId = element.dataset["annotationId"];
       element.addEventListener("click", async (e) => {
         e.preventDefault();
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
-        this.markPanelItemAsActive(annotationType, annotationId);
+        this.markItemAsActive(annotationType, annotationId);
       });
     }
 
-    setUpItemClickListeners() {
+    setUpClickListenersForAllPanelAndTrackItems() {
       const trackItems = document.getElementsByClassName("track-item");
       for (let trackItem of trackItems) {
-        this.fetchEditFormOnClick(trackItem);
+        this.setUpItemClickListeners(trackItem);
       }
 
       const annotationPanelItems = document.getElementsByClassName("annotation-list-item-wrapper");
       for (let panelItem of annotationPanelItems) {
-        this.fetchEditFormOnClick(panelItem);
+        this.setUpItemClickListeners(panelItem);
       }
     }
 
@@ -1437,7 +1462,7 @@ export class Editor {
             }
         });
       this.adjustScrubberHeight();
-      this.setUpItemClickListeners();
+      this.setUpClickListenersForAllPanelAndTrackItems();
     }
 
     handleTrackItemPlacementAfterEvent(e) {
@@ -1494,7 +1519,7 @@ export class Editor {
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);
-              this.fetchEditFormOnClick(newNode);
+              this.setUpItemClickListeners(newNode);
               this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
