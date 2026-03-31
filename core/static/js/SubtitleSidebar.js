@@ -97,7 +97,6 @@ export class SubtitleSidebar {
     const container = this.videoElem.closest('.annotation-player-container');
     if (container) {
       container.appendChild(this.sidebarElem);
-      console.log('Subtitle sidebar added to container');
     } else {
       document.body.appendChild(this.sidebarElem);
       console.warn('Player container not found, appending sidebar to body');
