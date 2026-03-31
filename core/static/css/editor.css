@@ -714,6 +714,10 @@
     z-index: 2;
 }
 
+.active-track-item {
+    border: 2px solid white;
+}
+
 /* Resize Handles */
 .resize-handle {
     display: flex;
