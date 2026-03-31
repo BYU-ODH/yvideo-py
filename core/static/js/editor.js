@@ -385,11 +385,13 @@ export class Editor {
 
       // check if right side panel form should be emptied
       const itemForm = document.getElementById("existing-item-form");
-      const itemFormType = itemForm.dataset["annotationType"];
-      const itemFormId = itemForm.dataset["annotationId"];
-      if (annotationType == itemFormType && annotationId == itemFormId) {
-        const detailForm = document.getElementById("detail-form");
-        detailForm.innerHTML = "";
+      if (itemForm) {
+        const itemFormType = itemForm.dataset["annotationType"];
+        const itemFormId = itemForm.dataset["annotationId"];
+        if (annotationType == itemFormType && annotationId == itemFormId) {
+          const detailForm = document.getElementById("detail-form");
+          detailForm.innerHTML = "";
+        }
       }
       this.placeTrackItems();
     }
@@ -994,6 +996,18 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
+
+      if (element.className.includes("panel-item")) {
+        const panelItemDeleteButton = element.querySelector(".panel-item-delete");
+        if (!panelItemDeleteButton) {
+          return;
+        }
+        panelItemDeleteButton.addEventListener("click", async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          await this.deleteItem(annotationType, annotationId);
+        })
+      }
     }
 
     setUpClickListenersForAllPanelAndTrackItems() {
@@ -1002,7 +1016,7 @@ export class Editor {
         this.setUpItemClickListeners(trackItem);
       }
 
-      const annotationPanelItems = document.getElementsByClassName("annotation-list-item-wrapper");
+      const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
         this.setUpItemClickListeners(panelItem);
       }
