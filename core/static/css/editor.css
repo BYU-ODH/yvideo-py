@@ -164,8 +164,25 @@
     color: white;
 }
 
-.annotation-list-item-wrapper:hover > .annotation-instance-delete-icon {
-    display: block;
+.panel-item-delete {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-radius: 25%;
+    padding: 3px;
+    background-color: #00000000; /* full transparent */
+    border: none;
+}
+
+.panel-item-delete:hover {
+    background-color: var(--dark-mode-very-light-gray);
+    box-shadow: 0px 3px 6px #00000075;
+    cursor: pointer;
+}
+
+.panel-item-delete img {
+    height: 17px;
+    width: 17px;
 }
 
 .skip-list-item-wrapper:hover {
@@ -223,20 +240,6 @@
 
 .comment-list-item-wrapper-selected {
     background-color: var(--comment-type-color-transparent);
-}
-
-.annotation-instance-delete-icon {
-    display: none;
-    width: 24px;
-    height: 24px;
-    z-index: 1;
-    padding: 4px;
-}
-
-.annotation-instance-delete-icon:hover {
-    background-color: white;
-    box-shadow: 0px 3px 6px #00000075;
-    border-radius: 50%;
 }
 
 .annotation-type-list {
