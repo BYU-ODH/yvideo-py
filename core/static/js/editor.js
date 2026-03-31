@@ -351,42 +351,66 @@ export class Editor {
 
     async deleteItem(annotationType, annotationId) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": csrfToken}
       });
+
+      if (!response.ok) {
+        console.error("Failed to delete item!");
+        return;
+      }
+
+      if(this.typeOfAnnotationInFocus == "censor") {
+        this.handleFocusChangeAwayFromCensorType();
+      }
+      window.dispatchEvent(this.annotationUpdatedEvent);
+
+      // remove item from panel
+      const panelItemToRemove = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
+      if (panelItemToRemove) {
+        panelItemToRemove.remove();
+      } else {
+        console.error("Failed to remove deleted panel item");
+      }
+
+      // remove item from track
+      const timelineWrapper = document.getElementById("timeline-wrapper");
+      const trackItemToRemove = timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
+      if (trackItemToRemove) {
+        trackItemToRemove.remove();
+      } else {
+        console.error("Failed to remove deleted track item");
+      }
+
+      // check if right side panel form should be emptied
+      const itemForm = document.getElementById("existing-item-form");
+      if (itemForm) {
+        const itemFormType = itemForm.dataset["annotationType"];
+        const itemFormId = itemForm.dataset["annotationId"];
+        if (annotationType == itemFormType && annotationId == itemFormId) {
+          const detailForm = document.getElementById("detail-form");
+          detailForm.innerHTML = "";
+        }
+      }
+      this.placeTrackItems();
     }
 
-    async setUpItemDeleteButton() {
+    async setUpItemFormDeleteButton() {
       const itemForm = document.getElementById("existing-item-form");
       if (!itemForm) {
         return;
       }
-      const annotationType = itemForm.dataset["itemtype"];
-      const annotationId = itemForm.dataset["annotationid"];
       const deleteItemButton = itemForm.querySelector("#annotation-form-delete-button");
+      if (!deleteItemButton) {
+        return;
+      }
+
+      const annotationType = itemForm.dataset["annotationType"];
+      const annotationId = itemForm.dataset["annotationId"];
       deleteItemButton.addEventListener("click", async (e) => {
         e.preventDefault();
-        const response = await this.deleteItem(annotationType, annotationId);
-        if (!response.ok) {
-          console.error("The item could not be deleted");
-        }
-        else {
-          if(this.typeOfAnnotationInFocus == "censor") {
-            this.handleFocusChangeAwayFromCensorType();
-          }
-          window.dispatchEvent(this.annotationUpdatedEvent);
-          const panelItemToRemove = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
-          if (panelItemToRemove) {
-            panelItemToRemove.remove();
-          }
-
-          const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
-          deletedItem.remove();
-          const detailForm = document.getElementById("detail-form");
-          detailForm.innerHTML = "";
-          this.placeTrackItems();
-        }
+        await this.deleteItem(annotationType, annotationId);
       });
     }
 
@@ -408,7 +432,7 @@ export class Editor {
 
     placeNewCensorPositionHtml(censor_parent_id, html) {
       const annotationUpdateForm = document.getElementById("existing-item-form");
-      const currentFormId = annotationUpdateForm.dataset["annotationid"];
+      const currentFormId = annotationUpdateForm.dataset["annotationId"];
       const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
       // don't do anything if the user has moved onto a different item
       if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
@@ -487,7 +511,7 @@ export class Editor {
       const time = parseFloat(this.video.currentTime).toFixed(2);
 
       const itemForm = document.getElementById("existing-item-form");
-      const annotationId = itemForm.dataset["annotationid"];
+      const annotationId = itemForm.dataset["annotationId"];
 
       const currentPositions = this.getCensorPositions();
       const existingPosition = currentPositions.find(position => Math.abs(position.time - time) < 0.01);
@@ -718,8 +742,8 @@ export class Editor {
         return;
       }
 
-      this.typeOfAnnotationInFocus = itemForm.dataset["itemtype"];
-      this.annotationIdInFocus = itemForm.dataset["annotationid"];
+      this.typeOfAnnotationInFocus = itemForm.dataset["annotationType"];
+      this.annotationIdInFocus = itemForm.dataset["annotationId"];
 
       if (previousTypeInFocus == "censor") {
         this.handleFocusChangeAwayFromCensorType();
@@ -734,7 +758,7 @@ export class Editor {
       for (let mutation of mutationList) {
         if (mutation.type == "childList") {
           this.listenForItemUpdateFormSubmission();
-          this.setUpItemDeleteButton();
+          this.setUpItemFormDeleteButton();
           this.changeAnnotationInFocus();
         }
       }
@@ -972,6 +996,18 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
+
+      if (element.className.includes("panel-item")) {
+        const panelItemDeleteButton = element.querySelector(".panel-item-delete");
+        if (!panelItemDeleteButton) {
+          return;
+        }
+        panelItemDeleteButton.addEventListener("click", async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          await this.deleteItem(annotationType, annotationId);
+        })
+      }
     }
 
     setUpClickListenersForAllPanelAndTrackItems() {
@@ -980,7 +1016,7 @@ export class Editor {
         this.setUpItemClickListeners(trackItem);
       }
 
-      const annotationPanelItems = document.getElementsByClassName("annotation-list-item-wrapper");
+      const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
         this.setUpItemClickListeners(panelItem);
       }

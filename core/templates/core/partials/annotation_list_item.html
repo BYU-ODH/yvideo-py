@@ -1,6 +1,8 @@
-<div id="{{type}}-panel-item-{{id}}" class="annotation-list-item-wrapper {{type}}-list-item-wrapper row-flex flex-apart-aligned" data-annotation-type="{{type}}" data-annotation-id="{{id}}">
+<div id="{{type}}-panel-item-{{id}}" class="panel-item {{type}}-list-item-wrapper row-flex flex-apart-aligned" data-annotation-type="{{type}}" data-annotation-id="{{id}}">
     <div>
         {{ name }}
     </div>
-    <img class="annotation-instance-delete-icon" src="/static/img/trash.svg" alt="delete">
+    <button class="panel-item-delete" aria-label="Delete annotation">
+        <img src="/static/img/trash.svg" alt="delete" />
+    </button>
 </div>
