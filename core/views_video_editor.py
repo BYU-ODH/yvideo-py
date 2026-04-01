@@ -727,114 +727,69 @@ def generate_annotation_updated_html(
     return {"item_html": item_html, "form_html": form_html}
 
 
-def update_annotation_from_form(request, annotation_type, annotation_id):
-    parsed_body = json.loads(request.body)
-    content_id = parsed_body["content_id"]
-    content = get_object_or_404(Content, id=content_id)
-    validation_result = validate_annotation_update_request(
-        request.user, content, annotation_type, annotation_id
-    )
-    if not validation_result["success"]:
-        return validation_result["result"]
-    annotation = validation_result["result"]
-
-    update_fields = {}
-    update_fields["name"] = parsed_body["annotation_name"]
-    update_fields["start_time"] = parsed_body["start_time"]
-    update_fields["description"] = parsed_body["description"]
-
-    if annotation_type == "pause" or annotation_type == "skip":
-        update_fields["message"] = parsed_body["message"]
-
-    if annotation_type != "pause":
-        update_fields["end_time"] = parsed_body["end_time"]
-    elif annotation_type == "comment":
-        update_fields["text"] = parsed_body["text"]
-        x = parsed_body["x"]
-        y = parsed_body["y"]
-        if x is not None:
-            update_fields["x"] = float(x)
-        if y is not None:
-            update_fields["y"] = float(y)
-    elif annotation_type == "blank":
-        update_fields["type"] = parsed_body["blank_type"]
-
-    for field, value in update_fields.items():
-        setattr(annotation, field, value)
-
-    try:
-        annotation.save()
-    except Exception as e:
-        logger.error(f"Unable to save annotation: {e}")
-        return HttpResponseServerError()
-
-    # Update the data-label attribute on the element
-    annotation.refresh_from_db()
-
-    # Calculate new position
-    start_time = annotation.start_time
-    end_time = getattr(annotation, "end_time", start_time)
-
-    position = {
-        "start": start_time,
-        "end": end_time,
-    }
-
-    new_html = generate_annotation_updated_html(
-        request, content, annotation, annotation_type, position
-    )
-    item_html = new_html["item_html"]
-    form_html = new_html["form_html"]
-
-    return JsonResponse({"item_html": item_html, "form_html": form_html})
-
-
-def update_annotation_from_item(request, annotation_type, annotation_id):
-    """Update annotation by creating a new version in the linked list."""
-    parsed_post = json.loads(request.body)
-    content_id = parsed_post["content_id"]
-    content = get_object_or_404(Content, id=content_id)
-
-    validation_result = validate_annotation_update_request(
-        request.user, content, annotation_type, annotation_id
-    )
-    if not validation_result["success"]:
-        return validation_result["result"]
-    annotation = validation_result["result"]
-
-    annotation.start_time = parsed_post["start_time"]
-    if annotation_type != "pause":
-        annotation.end_time = parsed_post["end_time"]
-
-    annotation.save()
-
-    # Update the data-label attribute on the element
-    annotation.refresh_from_db()
-
-    position = {
-        "start": annotation.start_time,
-        "end": annotation.end_time,
-    }
-
-    # Render updated item
-    updated_html = generate_annotation_updated_html(
-        request, content, annotation, annotation_type, position
-    )
-    item_html = updated_html["item_html"]
-    form_html = updated_html["form_html"]
-
-    return JsonResponse({"item_html": item_html, "form_html": form_html})
-
-
 @require_POST
 @login_required
 @transaction.atomic
-def update_annotation(request, annotation_type, annotation_id, is_from_item):
+def update_annotation(request, annotation_type, annotation_id):
     try:
-        if is_from_item:
-            return update_annotation_from_item(request, annotation_type, annotation_id)
-        else:
-            return update_annotation_from_form(request, annotation_type, annotation_id)
+        json_data = json.loads(request.body)
+        if "content_id" not in json_data or "start_time" not in json_data:
+            return HttpResponseBadRequest()
+
+        content_id = json_data["content_id"]
+        content = Content.objects.get(pk=content_id)
+
+        validation_result = validate_annotation_update_request(
+            request.user, content, annotation_type, annotation_id
+        )
+        if not validation_result["success"]:
+            return validation_result["result"]
+        annotation = validation_result["result"]
+
+        fields_to_update = {}
+        fields_to_update["start_time"] = json_data["start_time"]
+        if "annotation_name" in json_data:
+            fields_to_update["name"] = json_data["annotation_name"]
+
+        if "description" in json_data:
+            fields_to_update["description"] = json_data["description"]
+
+        if annotation_type != "pause":
+            fields_to_update["end_time"] = json_data["end_time"]
+
+        if (
+            annotation_type == "pause" or annotation_type == "skip"
+        ) and "message" in json_data:
+            fields_to_update["message"] = json_data["message"]
+
+        if annotation_type == "blank" and "blank_type" in json_data:
+            fields_to_update["type"] = json_data["blank_type"]
+
+        if annotation_type == "comment":
+            if "text" in json_data:
+                fields_to_update["text"] = json_data["text"]
+            if "x" in json_data and json_data["x"] is not None:
+                fields_to_update["x"] = float(json_data["x"])
+            if "y" in json_data and json_data["y"] is not None:
+                fields_to_update["y"] = float(json_data["y"])
+
+        for key, value in fields_to_update.items():
+            setattr(annotation, key, value)
+
+        annotation.save()
+        annotation.refresh_from_db()
+
+        new_start_time = annotation.start_time
+        new_end_time = getattr(annotation, "end_time", new_start_time)
+        position = {"start": new_start_time, "end": new_end_time}
+
+        new_annotation_html = generate_annotation_updated_html(
+            request, content, annotation, annotation_type, position
+        )
+        item_html = new_annotation_html["item_html"]
+        form_html = new_annotation_html["form_html"]
+
+        return JsonResponse({"item_html": item_html, "form_html": form_html})
     except Exception as e:
         logger.error(f"Failed to update annotation. Exception: {e}")
         return HttpResponseServerError()

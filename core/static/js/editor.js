@@ -748,7 +748,6 @@ export class Editor {
 
     async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const isFromItemValue = Number(isFromItem)
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -773,7 +772,7 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/${isFromItemValue}/update/`, {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": csrfToken,

@@ -12,7 +12,7 @@
 
     {% if item.annotation_type != "pause" %}
     <div class="resize-handle resize-handle-left"
-        hx-post="{% url 'update_annotation' item.annotation_type item.id 1 %}"
+        hx-post="{% url 'update_annotation' item.annotation_type item.id %}"
         hx-trigger="click"
         hx-vals='js:{
         delta_left: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaLeft,
@@ -41,7 +41,7 @@
 
     {% if item.annotation_type != "pause" %}
     <div class="resize-handle resize-handle-right"
-        hx-post="{% url 'update_annotation' item.annotation_type item.id 1 %}"
+        hx-post="{% url 'update_annotation' item.annotation_type item.id %}"
         hx-trigger="click"
         hx-vals='js:{
         delta_left: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaLeft,
