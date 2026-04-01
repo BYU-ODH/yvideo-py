@@ -880,12 +880,15 @@ class CommentAnnotation(BaseAnnotation):
 
 
 class BlurAnnotation(BaseAnnotation):
+    def get_child_positions(self):
+        return list(
+            BlurAnnotationPosition.objects.filter(blur_annotation=self).order_by("time")
+        )
+
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        positions_query_set = list(
-            BlurAnnotationPosition.objects.filter(blur_annotation=self).order_by("time")
-        )
+        positions_query_set = self.get_child_positions()
         positions = []
         for position in positions_query_set:
             positions.append(
@@ -902,6 +905,26 @@ class BlurAnnotation(BaseAnnotation):
             )
         data.update({"positions": positions, "type": "censor"})
         return data
+
+    def get_position_locators(self):
+        positions = self.get_child_positions()
+        locators = []
+        normalized_duration = self.end_time - self.start_time
+        if normalized_duration <= 0:
+            return locators
+        for position in positions:
+            relative_time = position.time - self.start_time
+            locators.append(
+                {
+                    "id": position.pk,
+                    "time": position.time,
+                    "is_not_start": position.time != 0,
+                    "relative_location": round(
+                        (relative_time / normalized_duration) * 100, 2
+                    ),
+                }
+            )
+        return locators
 
 
 class BlurAnnotationPosition(models.Model):

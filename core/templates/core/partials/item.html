@@ -27,6 +27,16 @@
 
     <div class="track-item-content">
         <span class="track-item-label">{{ item.name }}</span>
+        {% if item.annotation_type == "censor" %}
+        <div class="censor-position-circles-container">
+            {% for position_locator in item.get_position_locators %}
+                {% if position_locator.is_not_start %}
+                    <div class="censor-position-locator" style="left: calc({{position_locator.relative_location}}% - 14px - 5px)" data-position-id="{{position_locator.id}}">
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 
     {% if item.annotation_type != "pause" %}
