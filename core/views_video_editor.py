@@ -777,6 +777,8 @@ def update_annotation(request, annotation_type, annotation_id):
             setattr(annotation, key, value)
 
         annotation.save()
+        if annotation_type == "censor":
+            annotation.remove_positions_outside_of_timebox()
         annotation.refresh_from_db()
 
         new_start_time = annotation.start_time
