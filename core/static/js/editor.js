@@ -1012,9 +1012,10 @@ export class Editor {
             if (parentItem.className.includes("active-track-item")) {
               e.stopPropagation();
             }
-
-            this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-            this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+            setTimeout(() => {
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+            }, 50);
           })
         }
       }
