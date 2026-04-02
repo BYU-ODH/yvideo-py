@@ -390,9 +390,14 @@ export class Editor {
       const positionEls = positionsWrapper.querySelectorAll(".position-entry");
       const positions = [];
       for (let positionEl of positionEls) {
+        const timeInput = positionEl.querySelector(".position-time-input");
+        let time = 0.0;
+        if (timeInput) {
+          time = parseFloat(timeInput.value).toFixed(2);
+        }
         positions.push({
           "id": positionEl.dataset["positionId"],
-          "time": parseFloat(positionEl.querySelector(".position-time-input").value).toFixed(2),
+          "time": time
         });
       }
       return positions;
@@ -1408,7 +1413,9 @@ export class Editor {
         this.tracks.forEach(track => {
             const trackItems = Array.from(track.children);
             for (let item of trackItems) {
-              const itemDuration = parseFloat(item.dataset["end"]) - parseFloat(item.dataset["start"]);
+              const itemStart = parseFloat(item.dataset["start"]);
+              const itemEnd = parseFloat(item.dataset["end"]);
+              const itemDuration = itemEnd - itemStart;
 
               if (item.dataset.annotationType != "pause") {
                 const itemWidthValue = itemDuration / this.duration * 100;
@@ -1421,8 +1428,11 @@ export class Editor {
               if (item.dataset.annotationType == "censor") {
                 const censorPositionLocators = item.querySelectorAll(".censor-position-locator");
                 for (let positionLocator of censorPositionLocators) {
-                  const leftValue = parseFloat(positionLocator.dataset["time"]) / this.duration * 100;
-                  positionLocator.style.setProperty("left", `${leftValue}%`);
+                  const positionLocatorDim = positionLocator.getBoundingClientRect();
+                  const positionWidth = positionLocatorDim.width;
+                  const positionTime = positionLocator.dataset["positionTime"];
+                  const leftValue = ((positionTime - itemStart) / (itemEnd - itemStart)) * 100;
+                  positionLocator.style.setProperty("left", `calc(${leftValue}% - ${positionWidth / 2 - 2}px`);
                 }
               }
             }

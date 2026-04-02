@@ -4,10 +4,12 @@
     {% for position in item_positions %}
         <h5>Position {{forloop.counter}}</h5>
         <div class="position-entry" data-position-id="{{position.pk}}">
+            {% if forloop.counter != 1 %}
             <div class="position-input-group">
                 <label for="position-time">Time (s):</label>
                 <input class="position-time-input" name="position-time" type="text" value="{{position.time}}">
             </div>
+            {% endif %}
             <div class="position-input-group">
                 <label for="position-width">Width (%):</label>
                 <input class="position-width-input" name="position-width" type="text" value="{{position.width}}">
