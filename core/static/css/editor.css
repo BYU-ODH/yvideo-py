@@ -774,6 +774,10 @@
     text-overflow: ellipsis;
 }
 
+.active-position-entry {
+    background-color: var(--pause-type-color-very-transparent);
+}
+
 .censor-position-locator {
     position: absolute;
     bottom: 2px;
