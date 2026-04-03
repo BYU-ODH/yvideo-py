@@ -896,7 +896,12 @@ export class Editor {
         if (!parent) {
           return;
         }
-        this.video.currentTime = parent.querySelector(".position-time-input").value;
+        const timeInput = parent.querySelector(".position-time-input");
+        let time = 0;
+        if (timeInput) {
+          time = timeInput.value;
+        }
+        this.video.currentTime = time;
         this.markCensorPositionAsActive(parent.dataset["positionId"]);
       }
       const buttons = document.getElementsByClassName("censor-position-seek-button");
@@ -1011,7 +1016,11 @@ export class Editor {
             const parentItem = element.closest(".track-item");
             if (parentItem.className.includes("active-track-item")) {
               e.stopPropagation();
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+              return;
             }
+            // Wait a moment, to allow html to be loaded into the DOM
             setTimeout(() => {
               this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
               this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
