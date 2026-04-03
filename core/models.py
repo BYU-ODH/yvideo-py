@@ -883,9 +883,7 @@ class BlurAnnotation(BaseAnnotation):
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        positions_query_set = list(
-            BlurAnnotationPosition.objects.filter(blur_annotation=self).order_by("time")
-        )
+        positions_query_set = self.positions.all()
         positions = []
         for position in positions_query_set:
             positions.append(
@@ -903,10 +901,45 @@ class BlurAnnotation(BaseAnnotation):
         data.update({"positions": positions, "type": "censor"})
         return data
 
+    def get_position_locators(self):
+        positions = self.positions.all()
+        locators = []
+        normalized_duration = self.end_time - self.start_time
+        if normalized_duration <= 0:
+            return locators
+        for position in positions:
+            relative_time = position.time - self.start_time
+            locators.append(
+                {
+                    "id": position.pk,
+                    "time": position.time,
+                    "is_not_start": position.time != 0,
+                    "relative_location": round(
+                        (relative_time / normalized_duration) * 100, 2
+                    ),
+                }
+            )
+        return locators
+
+    def remove_positions_outside_of_timebox(self):
+        positions = list(self.positions.all())
+        position_index = len(positions) - 1
+        while position_index >= 0:
+            position = positions[position_index]
+            if position.time != 0 and (
+                position.time < self.start_time or position.time > self.end_time
+            ):
+                position.delete()
+            position_index = position_index - 1
+
 
 class BlurAnnotationPosition(models.Model):
     blur_annotation = models.ForeignKey(
-        BlurAnnotation, on_delete=models.CASCADE, null=False, blank=False
+        BlurAnnotation,
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+        related_name="positions",
     )
     time = models.FloatField(null=False, blank=False)
     x = models.FloatField(null=False, blank=False)

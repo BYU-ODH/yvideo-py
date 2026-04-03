@@ -75,14 +75,6 @@ export class Editor {
       this.tracks = tracks;
     }
 
-    placeItem(item) {
-      const itemDuration = parseFloat(item.dataset["end"]) - parseFloat(item.dataset["start"]);
-      if (item.dataset.annotationType != "pause") {
-        item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
-      }
-      item.style.setProperty("left", `${parseFloat(item.dataset["start"]) / this.duration * 100}%`);
-    }
-
     handleMouseDown(e) {
         const trackItem = e.target.closest('.track-item');
         if (!trackItem) return;
@@ -422,9 +414,14 @@ export class Editor {
       const positionEls = positionsWrapper.querySelectorAll(".position-entry");
       const positions = [];
       for (let positionEl of positionEls) {
+        const timeInput = positionEl.querySelector(".position-time-input");
+        let time = 0.0;
+        if (timeInput) {
+          time = parseFloat(timeInput.value).toFixed(2);
+        }
         positions.push({
           "id": positionEl.dataset["positionId"],
-          "time": parseFloat(positionEl.querySelector(".position-time-input").value).toFixed(2),
+          "time": time
         });
       }
       return positions;
@@ -772,7 +769,6 @@ export class Editor {
 
     async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const isFromItemValue = Number(isFromItem)
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -797,7 +793,7 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/${isFromItemValue}/update/`, {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": csrfToken,
@@ -818,8 +814,7 @@ export class Editor {
 
       const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
       targetItem.outerHTML = itemHtml;
-      // if you pass the previous targetItem into this.placeItem, it will make changes to an
-      // element that no longer exists. You must get the new element before making style changes.
+      // You must get the new element before making the style changes that occur while placing the track item.
       const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
       this.placeTrackItems();
 
@@ -890,9 +885,48 @@ export class Editor {
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
+
+    markCensorPositionAsActive(positionId) {
+      // inactivate any active form elements
+      const activeFormPositionCSSClass = "active-position-entry";
+      const currentActiveFormPositions = document.querySelectorAll(`.${activeFormPositionCSSClass}`);
+      for (let activePosition of currentActiveFormPositions) {
+        activePosition.classList.remove(activeFormPositionCSSClass);
+      }
+
+      // activate form element
+      const formPositionToActivate = document.querySelector(`.position-entry[data-position-id="${positionId}"]`);
+      if (formPositionToActivate) {
+        formPositionToActivate.classList.add(activeFormPositionCSSClass);
+      }
+
+      // inactivate any active position locators
+      const activePositionLocatorCSSClass = "active-censor-position-locator";
+      const currentActivePositionLocators = document.querySelectorAll(`.${activePositionLocatorCSSClass}`);
+      for (let activePositionLocator of currentActivePositionLocators) {
+        activePositionLocator.classList.remove(activePositionLocatorCSSClass);
+      }
+
+      // activeate position locator
+      const positionLocatorToActivate = document.querySelector(`.censor-position-locator[data-position-id="${positionId}"]`);
+      if (positionLocatorToActivate) {
+        positionLocatorToActivate.classList.add(activePositionLocatorCSSClass);
+      }
+    }
+
     setupCensorPositionSeekListeners() {
       const handler = (clickEvent) => {
-        this.video.currentTime = clickEvent.target.parentElement.querySelector(".position-time-input").value;
+        const parent = clickEvent.target.closest(".position-entry");
+        if (!parent) {
+          return;
+        }
+        const timeInput = parent.querySelector(".position-time-input");
+        let time = 0;
+        if (timeInput) {
+          time = timeInput.value;
+        }
+        this.video.currentTime = time;
+        this.markCensorPositionAsActive(parent.dataset["positionId"]);
       }
       const buttons = document.getElementsByClassName("censor-position-seek-button");
       for (let button of buttons) {
@@ -997,16 +1031,26 @@ export class Editor {
         this.markItemAsActive(annotationType, annotationId);
       });
 
-      if (element.className.includes("panel-item")) {
-        const panelItemDeleteButton = element.querySelector(".panel-item-delete");
-        if (!panelItemDeleteButton) {
-          return;
+      // set up censor position locator listeners
+      if (annotationType == "censor") {
+        const positionLocators = element.querySelectorAll(".censor-position-locator");
+        for (let positionLocator of positionLocators) {
+          positionLocator.addEventListener("click", (e) => {
+            // allow propagation only if the patent item is not active
+            const parentItem = element.closest(".track-item");
+            if (parentItem.className.includes("active-track-item")) {
+              e.stopPropagation();
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+              return;
+            }
+            // Wait a moment, to allow html to be loaded into the DOM
+            setTimeout(() => {
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+            }, 50);
+          })
         }
-        panelItemDeleteButton.addEventListener("click", async (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          await this.deleteItem(annotationType, annotationId);
-        })
       }
     }
 
@@ -1403,7 +1447,28 @@ export class Editor {
         this.tracks.forEach(track => {
             const trackItems = Array.from(track.children);
             for (let item of trackItems) {
-              this.placeItem(item);
+              const itemStart = parseFloat(item.dataset["start"]);
+              const itemEnd = parseFloat(item.dataset["end"]);
+              const itemDuration = itemEnd - itemStart;
+
+              if (item.dataset.annotationType != "pause") {
+                const itemWidthValue = itemDuration / this.duration * 100;
+                item.style.setProperty("width", `${itemWidthValue}%`);
+              }
+              const itemLeftValue = parseFloat(item.dataset["start"]) / this.duration * 100
+              item.style.setProperty("left", `${itemLeftValue}%`);
+
+              // apply postion styling to censor positions
+              if (item.dataset.annotationType == "censor") {
+                const censorPositionLocators = item.querySelectorAll(".censor-position-locator");
+                for (let positionLocator of censorPositionLocators) {
+                  const positionLocatorDim = positionLocator.getBoundingClientRect();
+                  const positionWidth = positionLocatorDim.width;
+                  const positionTime = positionLocator.dataset["positionTime"];
+                  const leftValue = ((positionTime - itemStart) / (itemEnd - itemStart)) * 100;
+                  positionLocator.style.setProperty("left", `calc(${leftValue}% - ${positionWidth / 2 - 2}px`);
+                }
+              }
             }
             const trackDim = track.getBoundingClientRect();
             const itemCount = trackItems.length;

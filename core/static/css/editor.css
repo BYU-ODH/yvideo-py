@@ -761,8 +761,11 @@
 .track-item-content {
     flex: 1;
     overflow: hidden;
-    pointer-events: none;
     min-width: 0;
+}
+
+.track-item[data-annotation-type="censor"] .track-item-content {
+    margin-bottom: 15px;
 }
 
 .track-item-label {
@@ -772,6 +775,29 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.active-position-entry {
+    background-color: var(--pause-type-color-very-transparent);
+}
+
+.censor-position-locator {
+    position: absolute;
+    bottom: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--dark-mode-light-gray);
+    z-index: 2;
+}
+
+.censor-position-locator:hover {
+    cursor: pointer;
+    box-shadow: 0px 3px 6px #00000075;
+}
+
+.active-censor-position-locator {
+    border: 2px solid white;
 }
 
 /* Styles for zoom slider. */

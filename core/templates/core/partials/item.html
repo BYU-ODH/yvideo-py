@@ -12,7 +12,7 @@
 
     {% if item.annotation_type != "pause" %}
     <div class="resize-handle resize-handle-left"
-        hx-post="{% url 'update_annotation' item.annotation_type item.id 1 %}"
+        hx-post="{% url 'update_annotation' item.annotation_type item.id %}"
         hx-trigger="click"
         hx-vals='js:{
         delta_left: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaLeft,
@@ -27,11 +27,19 @@
 
     <div class="track-item-content">
         <span class="track-item-label">{{ item.name }}</span>
+        {% if item.annotation_type == "censor" %}
+        {% for position_locator in item.get_position_locators %}
+            {% if position_locator.is_not_start %}
+                <div class="censor-position-locator" data-position-id="{{position_locator.id}}" data-position-time="{{position_locator.time}}">
+                </div>
+            {% endif %}
+        {% endfor %}
+        {% endif %}
     </div>
 
     {% if item.annotation_type != "pause" %}
     <div class="resize-handle resize-handle-right"
-        hx-post="{% url 'update_annotation' item.annotation_type item.id 1 %}"
+        hx-post="{% url 'update_annotation' item.annotation_type item.id %}"
         hx-trigger="click"
         hx-vals='js:{
         delta_left: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaLeft,
