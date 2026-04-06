@@ -1,6 +1,19 @@
 {% load static %}
 
-<div id="annotation-set-settings-compact">
+<div id="annotation-set-settings-compact" class="column-flex">
+    <button class="red-button close-dialog-button" command="close" commandfor="annotation-set-settings">X</button>
+    <div id="annotation-set-select-form">
+        <select id="annotation-set-selector" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
+            <option value="">-- Select Annotation Set --</option>
+            {% for set in available_annotation_sets %}
+                <option value="{{ set.id }}"
+                        {% if annotation_set and set.id == annotation_set.id %}selected{% endif %}>
+                    {{ set.name }} ({{ set.owner.get_full_name }})
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
     <form hx-post="{% url 'update_annotation_set_name' annotation_set.id %}"
           hx-target="#annotation-set-settings-panel"
           hx-swap="outerHTML"
