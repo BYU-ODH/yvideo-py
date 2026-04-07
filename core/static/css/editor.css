@@ -478,7 +478,7 @@
 annotations container. all timeline-track-row-right elements will
 be controlled simultaneously by the 'scroll-bar' element at the bottom
 of the page */
-.timeline-track-row-right, #tick-marks-content {
+.timeline-track-row-right, #timeline-ticks-content {
     -ms-overflow-style: none;
     scrollbar-width: none; /* eslint-disable-line css/use-baseline */
 }
@@ -487,7 +487,7 @@ of the page */
     display: none;
 }
 
-#tick-marks-content::-webkit-scrollbar {
+#timeline-ticks-content::-webkit-scrollbar {
     display: none;
 }
 
@@ -557,6 +557,7 @@ of the page */
     min-width: 100%;
     margin-top: auto;
     background-color: var(--dark-mode-light-gray);
+    overflow: auto;
 }
 
 .tick-mark {

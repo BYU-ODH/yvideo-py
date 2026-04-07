@@ -23,7 +23,7 @@ export class Editor {
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
-        this.zoomSlider = document.getElementById('zoom-slider');
+        this.zoomSliderInput = document.getElementById('timeline-zoom-input');
         this.scrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrubber = null;
@@ -61,6 +61,7 @@ export class Editor {
         this.setupTrackWatchersForAllTracks();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
+        this.watchForTimelineScrollChangeAndHandleIt();
     }
 
     updateTracks() {
@@ -1766,6 +1767,24 @@ export class Editor {
           this.handleZoom();
         });
       }
+    }
+
+    watchForTimelineScrollChangeAndHandleIt() {
+      this.zoomSliderInput.addEventListener("input", (e) => {
+        console.log(e.target.value);
+        const newValue = e.target.value;
+        const tickMarksContainer = document.getElementById("tick-marks-container")
+        const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
+        const sliderMax = Number(this.zoomSliderInput.max);
+        const ratio = widthInPixels / sliderMax;
+        const newScrollLeft = newValue * ratio;
+        const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
+        const tickMarksWrapper = document.getElementById("timeline-ticks-content");
+        for (let track of tracksToAdjust) {
+          track.scrollLeft = newScrollLeft;
+        }
+        tickMarksWrapper.scrollLeft = newScrollLeft;
+      });
     }
 
     createtimelineScrubber() {
