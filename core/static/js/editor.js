@@ -1771,13 +1771,10 @@ export class Editor {
 
     watchForTimelineScrollChangeAndHandleIt() {
       this.zoomSliderInput.addEventListener("input", (e) => {
-        console.log(e.target.value);
         const newValue = e.target.value;
-        const tickMarksContainer = document.getElementById("tick-marks-container")
+        const tickMarksContainer = document.getElementById("tick-marks-container");
         const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
-        const sliderMax = Number(this.zoomSliderInput.max);
-        const ratio = widthInPixels / sliderMax;
-        const newScrollLeft = newValue * ratio;
+        const newScrollLeft = widthInPixels * (newValue / 100);
         const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
         const tickMarksWrapper = document.getElementById("timeline-ticks-content");
         for (let track of tracksToAdjust) {
