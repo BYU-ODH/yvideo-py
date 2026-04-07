@@ -22,7 +22,8 @@
             </button>
         </div>
         <div id="timeline-zoom-controls" class="timeline-row-right">
-            <img class="timeline-zoom-icon" src="/static/img/minus-circle.svg" />
+            <img id="zoom-out-button" class="timeline-zoom-icon" src="/static/img/minus-circle.svg" />
+            <img id="zoom-in-button" class="timeline-zoom-icon" src="/static/img/plus-circle.svg" />
             <div id="timeline-zoom-slider">
                 <input id="timeline-zoom-input"
                     type="range"
@@ -32,7 +33,6 @@
                     step="any"
                 />
             </div>
-            <img class="timeline-zoom-icon" src="/static/img/plus-circle.svg" />
         </div>
     </div>
     <dialog id="new-track-dialog">

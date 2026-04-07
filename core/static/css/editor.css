@@ -521,15 +521,6 @@ of the page */
     background: #f0f0f0;
 }
 
-.timeline-container {
-    --timeline-zoom: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: min-content;
-    height: 100%;
-    width: calc(100% * var(--timeline-zoom, 1));
-}
-
 /* Timeline Ticks Row */
 #timeline-row-ticks-and-scrubbers {
     display: flex;
