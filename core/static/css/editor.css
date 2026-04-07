@@ -468,9 +468,27 @@
     flex: 1;
 }
 
+/* timeline-track-row-right acts as the scrollable container for the
+annotations container. all timeline-track-row-right elements will
+be controlled simultaneously by the 'scroll-bar' element at the bottom
+of the page */
 .timeline-track-row-right {
     position: relative;
     min-height: 40px;
+    overflow: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none; /* eslint-disable-line css/use-baseline */
+}
+
+.timeline-track-row-right::-webkit-scrollbar {
+    display: none;
+}
+
+.track-row-annotations-container {
+    position: absolute;
+    background-color: inherit;
+    height: 100%;
+    width: 100%;
 }
 
 .track-rename-wrapper {

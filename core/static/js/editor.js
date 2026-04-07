@@ -68,7 +68,7 @@ export class Editor {
     }
 
     updateTracks() {
-      const tracks = document.querySelectorAll('.timeline-track-row-right');
+      const tracks = document.querySelectorAll('.track-row-annotations-container');
       tracks.forEach(container => {
           container.addEventListener('mousedown', this.handleMouseDown.bind(this));
       });
@@ -117,7 +117,7 @@ export class Editor {
     }
 
     startDrag(trackItem, e) {
-        const itemContainer = trackItem.closest('.timeline-row-right');
+        const itemContainer = trackItem.closest('.track-row-annotations-container');
         const rect = itemContainer.getBoundingClientRect();
         const containerWidth = itemContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
@@ -145,7 +145,7 @@ export class Editor {
 
     startResize(trackItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
-        const itemContainer = trackItem.closest('.timeline-row-right');
+        const itemContainer = trackItem.closest('.track-row-annotations-container');
         const rect = itemContainer.getBoundingClientRect();
         const containerWidth = itemContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
@@ -1613,7 +1613,7 @@ export class Editor {
               panel.innerHTML = panel.innerHTML + newPanelItemHtml;
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
-              const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .timeline-track-row-right`);
+              const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
               const newElement = document.createElement("template");
               newElement.innerHTML = newTrackItemHtml;
               const newNode = newElement.content.firstChild;
