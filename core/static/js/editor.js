@@ -19,7 +19,7 @@ export class Editor {
         this.annotationIdInFocus = null;
         this.activeCensorPosition = null;
 
-        this.tickMarksContainer = document.querySelector('.tick-marks-container');
+        this.tickMarksContainer = document.querySelector('#tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
@@ -1721,8 +1721,13 @@ export class Editor {
         return;
       }
 
+      const newWidth = `${100 * this.zoomLevel}%`;
+      const tickMarksContainer = document.getElementById("tick-marks-container");
+      if (tickMarksContainer) {
+        tickMarksContainer.style.width = newWidth;
+      }
       for (let annotationContainer of annotationContainers) {
-        annotationContainer.style.width = `${100 * this.zoomLevel}%`;
+        annotationContainer.style.width = newWidth;
       }
 
       this.renderTickMarksAndLabels();
