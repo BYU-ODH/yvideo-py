@@ -1152,7 +1152,7 @@ export class Editor {
     }
 
     watchForTrackMenuOpen(trackRootElement) {
-      const menuButton = trackRootElement.querySelector(".timeline-track-open-menu-button");
+      const menuButton = trackRootElement.querySelector(".editor-menu-button");
       if (menuButton) {
         menuButton.addEventListener("click", this.handleTrackOpenMenuClick)
       }
