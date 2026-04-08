@@ -38,8 +38,10 @@
         </div>
     </div>
     <div class="timeline-row-right timeline-row-right-dark timeline-track-row-right">
-        {% for item in track.get_active_annotations %}
-            {% include "partials/item.html" %}
-        {% endfor %}
+        <div class="track-row-annotations-container">
+            {% for item in track.get_active_annotations %}
+                {% include "partials/item.html" %}
+            {% endfor %}
+        </div>
     </div>
 </div>

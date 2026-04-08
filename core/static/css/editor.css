@@ -471,6 +471,31 @@
 .timeline-track-row-right {
     position: relative;
     min-height: 40px;
+    overflow: auto;
+}
+
+/* timeline-track-row-right acts as the scrollable container for the
+annotations container. all timeline-track-row-right elements will
+be controlled simultaneously by the 'scroll-bar' element at the bottom
+of the page */
+.timeline-track-row-right, #timeline-ticks-content {
+    -ms-overflow-style: none;
+    scrollbar-width: none; /* eslint-disable-line css/use-baseline */
+}
+
+.timeline-track-row-right::-webkit-scrollbar {
+    display: none;
+}
+
+#timeline-ticks-content::-webkit-scrollbar {
+    display: none;
+}
+
+.track-row-annotations-container, #tick-marks-container {
+    position: absolute;
+    background-color: inherit;
+    height: 100%;
+    width: 100%;
 }
 
 .track-rename-wrapper {
@@ -503,15 +528,6 @@
     background: #f0f0f0;
 }
 
-.timeline-container {
-    --timeline-zoom: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: min-content;
-    height: 100%;
-    width: calc(100% * var(--timeline-zoom, 1));
-}
-
 /* Timeline Ticks Row */
 #timeline-row-ticks-and-scrubbers {
     display: flex;
@@ -541,16 +557,7 @@
     min-width: 100%;
     margin-top: auto;
     background-color: var(--dark-mode-light-gray);
-}
-
-.tick-marks-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    min-width: 100%;
-    transform: scaleX(var(--timeline-scale, 1));
-    transform-origin: 0 0;
-    transition: transform 0.2s ease-out;
+    overflow: auto;
 }
 
 .tick-mark {
