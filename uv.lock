@@ -115,28 +115,28 @@ wheels = [
 
 [[package]]
 name = "django"
-version = "5.2.7"
+version = "5.2.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "sqlparse" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/96/bd84e2bb997994de8bcda47ae4560991084e86536541d7214393880f01a8/django-5.2.7.tar.gz", hash = "sha256:e0f6f12e2551b1716a95a63a1366ca91bbcd7be059862c1b18f989b1da356cdd", size = 10865812, upload-time = "2025-10-01T14:22:12.081Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/c5/c69e338eb2959f641045802e5ea87ca4bf5ac90c5fd08953ca10742fad51/django-5.2.13.tar.gz", hash = "sha256:a31589db5188d074c63f0945c3888fad104627dfcc236fb2b97f71f89da33bc4", size = 10890368, upload-time = "2026-04-07T14:02:15.072Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/ef/81f3372b5dd35d8d354321155d1a38894b2b766f576d0abffac4d8ae78d9/django-5.2.7-py3-none-any.whl", hash = "sha256:59a13a6515f787dec9d97a0438cd2efac78c8aca1c80025244b0fe507fe0754b", size = 8307145, upload-time = "2025-10-01T14:22:49.476Z" },
+    { url = "https://files.pythonhosted.org/packages/59/b1/51ab36b2eefcf8cdb9338c7188668a157e29e30306bfc98a379704c9e10d/django-5.2.13-py3-none-any.whl", hash = "sha256:5788fce61da23788a8ce6f02583765ab060d396720924789f97fa42119d37f7a", size = 8310982, upload-time = "2026-04-07T14:02:08.883Z" },
 ]
 
 [[package]]
 name = "django-reversion"
-version = "6.0.0"
+version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ad/df/5870e38067fd80b3d749de2d11a4cbd32be811d1f43eb8ab948f9f3152c4/django_reversion-6.0.0.tar.gz", hash = "sha256:cab0fd90640b2ceb37d7a897823ca72a21b960ad1d6a3b9cb4e351fabbd27d9c", size = 74528, upload-time = "2025-09-20T08:56:20.119Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/8b/72000ad3ba05cb72134f62ad093267e3d83d8fdf1406102d2a1a2ec7d55e/django_reversion-6.1.0.tar.gz", hash = "sha256:31dd7fee02e2a21af7c2d0a61c1c0f27ba07df2317c9a0a3f31d3ee40069025d", size = 76140, upload-time = "2025-12-12T20:23:51.948Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/0d/7e558eb30afcdb21eca15a6ef8aa048b6089efc4599e28611275a0643260/django_reversion-6.0.0-py3-none-any.whl", hash = "sha256:0755b4b3e615254b305d01012e426e09006455d375254e5adc29572fc9edf2ab", size = 85968, upload-time = "2025-09-20T08:56:18.761Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/8e/c80904ce5cb94f78cdd7d794cb7b4a8e8891a7515621bbce5f2a45de6555/django_reversion-6.1.0-py3-none-any.whl", hash = "sha256:1f5815791d9accdb0bad9d5982668f217dc65225be57041ae9641dbdcd838ce3", size = 86196, upload-time = "2025-12-12T20:23:50.18Z" },
 ]
 
 [[package]]
@@ -607,7 +607,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.32.5"
+version = "2.33.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -615,9 +615,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/a4/98b9c7c6428a668bf7e42ebb7c79d576a1c3c1e3ae2d47e674b468388871/requests-2.33.1.tar.gz", hash = "sha256:18817f8c57c6263968bc123d237e3b8b08ac046f5456bd1e307ee8f4250d3517", size = 134120, upload-time = "2026-03-30T16:09:15.531Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/8e/7540e8a2036f79a125c1d2ebadf69ed7901608859186c856fa0388ef4197/requests-2.33.1-py3-none-any.whl", hash = "sha256:4e6d1ef462f3626a1f0a0a9c42dd93c63bad33f9f1c1937509b8c5c8718ab56a", size = 64947, upload-time = "2026-03-30T16:09:13.83Z" },
 ]
 
 [[package]]
@@ -860,12 +860,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "django", specifier = ">=5.2.3" },
-    { name = "django-reversion", specifier = ">=5.1.0" },
-    { name = "onelogin", specifier = "==3.1.5" },
-    { name = "python3-saml", specifier = ">=1.16.0" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "xxhash", specifier = ">=3.5.0" },
+    { name = "django", specifier = ">=5.2.13,<5.3" },
+    { name = "django-reversion", specifier = ">=6.1.0,<7" },
+    { name = "onelogin", specifier = ">=3.1,<4" },
+    { name = "python3-saml", specifier = ">=1.16,<2" },
+    { name = "requests", specifier = ">=2.33,<2.34" },
+    { name = "xxhash", specifier = ">=3.6,<4" },
 ]
 
 [package.metadata.requires-dev]
