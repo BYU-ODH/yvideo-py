@@ -24,7 +24,7 @@ export class Editor {
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
         this.zoomSliderInput = document.getElementById('timeline-zoom-input');
-        this.scrubber = document.querySelector('#editor-scrubber');
+        this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrubber = null;
         this.isDragging = false;
@@ -1716,6 +1716,34 @@ export class Editor {
         }
     }
 
+    adjustScrubberPosition() {
+      /* The scrubber is bound between 0% and 100%, it never goes off the page,
+     so we need to position it based on the current time of the video and how far zoomed
+    the page timeline is. We can think of the currently displayed time as a window on slider.*/
+      const totalTimeline = document.getElementById("tick-marks-container");
+      const totalScrollableWidth = totalTimeline.getBoundingClientRect().width;
+      const visibleTimeline = document.getElementById("timeline-ticks-content");
+      const timeWindowWidth = visibleTimeline.getBoundingClientRect().width;
+      const currentPositionLeft = visibleTimeline.scrollLeft;
+      const currentPositionRight = currentPositionLeft + timeWindowWidth;
+
+      const timeAtLeftEnd = this.video.duration * (currentPositionLeft / totalScrollableWidth);
+      const timeAtRightEnd = this.video.duration * (currentPositionRight / totalScrollableWidth);
+      const currentTime = this.video.currentTime;
+      if (currentTime <= timeAtLeftEnd) {
+        this.editorScrubber.style.left = "0%";
+      }
+      else if (currentTime >= timeAtRightEnd) {
+        this.editorScrubber.style.left = "100%";
+      }
+      else {
+        const normalizedTime = currentTime - timeAtLeftEnd;
+        const normalizedEndTime = timeAtRightEnd - timeAtLeftEnd;
+        const scrubberPos = normalizedTime / normalizedEndTime * 100;
+        this.editorScrubber.style.left = `${scrubberPos}%`;
+      }
+    }
+
     handleZoom() {
       const annotationContainers = this.timelineWrapper.querySelectorAll(".track-row-annotations-container");
       if (annotationContainers.length == 0) {
@@ -1732,6 +1760,7 @@ export class Editor {
       }
 
       this.renderTickMarksAndLabels();
+      this.adjustScrubberPosition();
     }
 
     attachZoomListener() {
@@ -1781,6 +1810,7 @@ export class Editor {
           track.scrollLeft = newScrollLeft;
         }
         tickMarksWrapper.scrollLeft = newScrollLeft;
+        this.adjustScrubberPosition();
       });
     }
 
@@ -1918,7 +1948,7 @@ export class Editor {
 
     attachVideoListeners() {
         this.video.addEventListener('timeupdate', () => {
-            this.updateEditorScrubberPosition(this.video.currentTime);
+          this.adjustScrubberPosition();
         });
     }
 }
