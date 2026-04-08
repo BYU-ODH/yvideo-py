@@ -1704,13 +1704,14 @@ export class Editor {
 
         // Generate tick marks
         for (let time = 0; time <= this.duration; time += minorInterval) {
-            const isMajor = Math.abs(time % interval) < 0.01;
-            const tick = this.createTickMark(time, isMajor);
+            const compTime = time.toFixed(2);
+            const isMajor = Math.abs(compTime % interval) < 0.01;
+            const tick = this.createTickMark(compTime, isMajor);
             this.tickMarksContainer.appendChild(tick);
 
             // Add label for major ticks
             if (isMajor) {
-                const label = this.createTickLabel(time);
+                const label = this.createTickLabel(compTime);
                 this.tickMarksContainer.appendChild(label);
             }
         }
