@@ -1,8 +1,10 @@
 {% load static %}
 
 <div id="annotation-set-settings-compact" class="column-flex">
+    <h2>Annotation Set Settings</h2>
     <button class="red-button close-dialog-button" command="close" commandfor="annotation-set-settings">X</button>
-    <div id="annotation-set-select-form">
+    <div id="annotation-set-select-form" class="column-flex-no-gap">
+        <label for="annotation-set-selector">Selected annotation set:</label>
         <select id="annotation-set-selector" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
             <option value="">-- Select Annotation Set --</option>
             {% for set in available_annotation_sets %}
@@ -17,23 +19,27 @@
     <form hx-post="{% url 'update_annotation_set_name' annotation_set.id %}"
           hx-target="#annotation-set-settings-panel"
           hx-swap="outerHTML"
-          style="margin-bottom: 0.5em;">
-        <label for="annotation-set-name">Name:</label>
-        <input type="text" id="annotation-set-name" name="name" value="{{ annotation_set.name }}" required>
-        <button type="submit" class="btn-primary" style="margin-left: 0.5em;">Save</button>
-        <button type="button" command="close" commandfor="annotation-set-settings">Cancel</button>
+          class="column-flex">
+        <h4>Update Annotation Set</h4>
+        <div>
+            <label for="annotation-set-name">Name:</label>
+            <input type="text" id="annotation-set-name" name="name" value="{{ annotation_set.name }}" required>
+        </div>
+        <div>
+            <button type="submit" class="small-button">Save</button>
+            <button type="button" class="cancel-button" command="close" commandfor="annotation-set-settings">Cancel</button>
+        </div>
     </form>
 
     <div>
-        <h4>Allow others to edit this annotation set</h4>
+        <h4>Editors</h4>
         <ul>
             {% for editor in annotation_set.editors.all %}
-                <li style="display: flex; align-items: center; gap: 0.5em;">
+                <li>
                     {{ editor.get_full_name }} ({{ editor.netid }})
                     <button hx-delete="{% url 'remove_editor_from_annotation_set' annotation_set.id editor.id %}?content_id={{ content.id }}"
-                            hx-target="#annotation-set-settings-panel"
-                            style="background: none; border: none; cursor: pointer;">
-                        <img src="{% static 'img/trash.svg' %}" alt="Remove" style="width: 16px; height: 16px; color: red;">
+                            hx-target="#annotation-set-settings-panel">
+                        <img src="{% static 'img/trash.svg' %}" alt="Remove">
                     </button>
                 </li>
             {% endfor %}
@@ -44,12 +50,15 @@
           hx-target="#annotation-set-settings-compact"
           hx-swap="outerHTML"
           autocomplete="off"
-          style="margin-top: 0.5em;">
+          class="column-flex">
         <input type="hidden" name="content_id" value="{{ content.id }}">
-        <input type="text" name="search" id="editor-search" placeholder="Search for user..." hx-post="{% url 'spoof_user_search' %}" hx-trigger="keyup changed delay:300ms" hx-target="#editor-search-results" hx-swap="innerHTML">
-        <select name="username" id="editor-search-results" size="4" required style="width: 100%; margin-top: 0.25em;">
-            <option disabled selected>Type to search for a user...</option>
+        <div for="editor-search" class="row-flex">
+            <label for="editor-search">Search by user:</label>
+            <input type="text" name="search" id="editor-search" hx-post="{% url 'spoof_user_search' %}" hx-trigger="keyup changed delay:300ms" hx-target="#editor-search-results" hx-swap="innerHTML">
+        </div>
+        <select name="username" id="editor-search-results" size="4" aria-label="Select editors" required>
+            <option disabled selected></option>
         </select>
-        <button type="submit" class="btn-primary" style="margin-top: 0.25em;">Add Editor</button>
+        <button type="submit" class="small-button">Add Editor</button>
     </form>
 </div>

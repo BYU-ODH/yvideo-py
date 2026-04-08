@@ -185,6 +185,14 @@
     width: 17px;
 }
 
+#annotation-set-settings-compact label {
+    font-weight: 400;
+}
+
+#annotation-set-settings-compact h2, #annotation-set-settings-compact h4 {
+    margin: 0;
+}
+
 .skip-list-item-wrapper:hover {
     background-color: var(--skip-type-color-very-transparent);
     cursor: pointer;
