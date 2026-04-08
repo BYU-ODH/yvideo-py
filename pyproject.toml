@@ -16,7 +16,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "factory-boy==3.3.3",
+    "playwright==1.55.0",
     "pre-commit==4.5.1",
+    "pytest==9.0.2",
+    "pytest-django==4.12.0",
+    "pytest-playwright==0.7.2",
     "ruff==0.15.7",
 ]
 
@@ -27,3 +31,11 @@ dev = [
 force-single-line = true
 force-sort-within-sections = true
 known-first-party = ["yvideo", "core"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "yvideo.settings"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--strict-markers"
+markers = [
+    "e2e: browser-backed end-to-end tests",
+]
