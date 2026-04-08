@@ -19,13 +19,12 @@ export class Editor {
         this.annotationIdInFocus = null;
         this.activeCensorPosition = null;
 
-        this.tickMarksContainer = document.querySelector('.tick-marks-container');
+        this.tickMarksContainer = document.querySelector('#tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
-        this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
-        this.timelineContainer = document.querySelector('.timeline-container');
-        this.zoomSlider = document.getElementById('zoom-slider');
-        this.scrubber = document.querySelector('#editor-scrubber');
+        this.timelineWrapper = document.getElementById('timeline-wrapper');
+        this.zoomSliderInput = document.getElementById('timeline-zoom-input');
+        this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrubber = null;
         this.isDragging = false;
@@ -59,16 +58,14 @@ export class Editor {
         this.createtimelineScrubber();
         this.attachTimelineListeners();
         this.attachVideoListeners();
-        if (this.timelineContainer) {
-            this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
-        }
         this.setupTrackWatchersForAllTracks();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
+        this.watchForTimelineScrollChangeAndHandleIt();
     }
 
     updateTracks() {
-      const tracks = document.querySelectorAll('.timeline-track-row-right');
+      const tracks = document.querySelectorAll('.track-row-annotations-container');
       tracks.forEach(container => {
           container.addEventListener('mousedown', this.handleMouseDown.bind(this));
       });
@@ -117,7 +114,7 @@ export class Editor {
     }
 
     startDrag(trackItem, e) {
-        const itemContainer = trackItem.closest('.timeline-row-right');
+        const itemContainer = trackItem.closest('.track-row-annotations-container');
         const rect = itemContainer.getBoundingClientRect();
         const containerWidth = itemContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
@@ -145,7 +142,7 @@ export class Editor {
 
     startResize(trackItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
-        const itemContainer = trackItem.closest('.timeline-row-right');
+        const itemContainer = trackItem.closest('.track-row-annotations-container');
         const rect = itemContainer.getBoundingClientRect();
         const containerWidth = itemContainer.scrollWidth || rect.width;
         const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
@@ -367,8 +364,7 @@ export class Editor {
       }
 
       // remove item from track
-      const timelineWrapper = document.getElementById("timeline-wrapper");
-      const trackItemToRemove = timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
+      const trackItemToRemove = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
       if (trackItemToRemove) {
         trackItemToRemove.remove();
       } else {
@@ -1001,14 +997,13 @@ export class Editor {
 
       // handle track item style
       const activeTrackItemCSSClass = "active-track-item";
-      const timelineWrapper = document.getElementById("timeline-wrapper");
       // first turn off styling of current active element
-      const currentActiveTrackItem = timelineWrapper.querySelector(`.${activeTrackItemCSSClass}`);
+      const currentActiveTrackItem = this.timelineWrapper.querySelector(`.${activeTrackItemCSSClass}`);
       if (currentActiveTrackItem) {
         currentActiveTrackItem.classList.remove(activeTrackItemCSSClass);
       }
 
-      const trackItem = timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
+      const trackItem = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
       if (!trackItem) {
         console.error("No track item found");
         return;
@@ -1142,8 +1137,7 @@ export class Editor {
       }
 
       // get track menu and position it properly
-      const timelineWrapper = document.getElementById("timeline-wrapper");
-      const wrapperDim = timelineWrapper.getBoundingClientRect();
+      const wrapperDim = this.timelineWrapper.getBoundingClientRect();
       const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
       const trackOptionsMenu = trackMenuWrapper.querySelector(".timeline-track-menu");
       trackOptionsMenu.style.visibility = "hidden";
@@ -1189,14 +1183,13 @@ export class Editor {
       }
 
       // place new tracks in appropriate positions
-      const timelineWrapper = document.getElementById("timeline-wrapper");
       const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
       for (let newTrackHTML of newTracksHTML) {
         const trackTemplate = document.createElement("template");
         trackTemplate.innerHTML = newTrackHTML;
         const trackParentNode = trackTemplate.content.childNodes[0];
         this.setupTrackWatchers(trackParentNode);
-        timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
+        this.timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
       }
     }
 
@@ -1392,8 +1385,7 @@ export class Editor {
       const addNewTrackButton = document.getElementById("new-track-save-button");
       const addNewTrackInput = document.getElementById("new-track-name");
       const dialog = document.getElementById("new-track-dialog");
-      const timelineWrapper = document.getElementById("timeline-wrapper");
-      const annotationSetId = timelineWrapper.dataset["annotationSetId"];
+      const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
 
       async function handleTrackCreation(e) {
         e.stopPropagation();
@@ -1613,7 +1605,7 @@ export class Editor {
               panel.innerHTML = panel.innerHTML + newPanelItemHtml;
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
-              const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .timeline-track-row-right`);
+              const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
               const newElement = document.createElement("template");
               newElement.innerHTML = newTrackItemHtml;
               const newNode = newElement.content.firstChild;
@@ -1712,56 +1704,115 @@ export class Editor {
 
         // Generate tick marks
         for (let time = 0; time <= this.duration; time += minorInterval) {
-            const isMajor = Math.abs(time % interval) < 0.01;
-            const tick = this.createTickMark(time, isMajor);
+            const compTime = time.toFixed(2);
+            const isMajor = Math.abs(compTime % interval) < 0.01;
+            const tick = this.createTickMark(compTime, isMajor);
             this.tickMarksContainer.appendChild(tick);
 
             // Add label for major ticks
             if (isMajor) {
-                const label = this.createTickLabel(time);
+                const label = this.createTickLabel(compTime);
                 this.tickMarksContainer.appendChild(label);
             }
         }
     }
 
-    handleZoom(newZoomLevel) {
-        const video = document.querySelector('.annotation-player-container video');
-        const currentTime = video?.currentTime || 0;
-        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
+    adjustScrubberPosition() {
+      /* The scrubber is bound between 0% and 100%, it never goes off the page,
+     so we need to position it based on the current time of the video and how far zoomed
+    the page timeline is. We can think of the currently displayed time as a window on slider.*/
+      const totalTimeline = document.getElementById("tick-marks-container");
+      const totalScrollableWidth = totalTimeline.getBoundingClientRect().width;
+      const visibleTimeline = document.getElementById("timeline-ticks-content");
+      const timeWindowWidth = visibleTimeline.getBoundingClientRect().width;
+      const currentPositionLeft = visibleTimeline.scrollLeft;
+      const currentPositionRight = currentPositionLeft + timeWindowWidth;
 
-        const viewportWidth = this.timelineContentWrapper.clientWidth;
-        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        const scrollLeft = this.timelineContentWrapper.scrollLeft;
-        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
-        let scrubberViewportRatio = viewportWidth
-            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
-            : 0;
-        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
+      const timeAtLeftEnd = this.video.duration * (currentPositionLeft / totalScrollableWidth);
+      const timeAtRightEnd = this.video.duration * (currentPositionRight / totalScrollableWidth);
+      const currentTime = this.video.currentTime;
+      if (currentTime <= timeAtLeftEnd) {
+        this.editorScrubber.style.left = "0%";
+      }
+      else if (currentTime >= timeAtRightEnd) {
+        this.editorScrubber.style.left = "100%";
+      }
+      else {
+        const normalizedTime = currentTime - timeAtLeftEnd;
+        const normalizedEndTime = timeAtRightEnd - timeAtLeftEnd;
+        const scrubberPos = normalizedTime / normalizedEndTime * 100;
+        this.editorScrubber.style.left = `${scrubberPos}%`;
+      }
+    }
 
-        this.zoomLevel = newZoomLevel;
+    handleZoom() {
+      const annotationContainers = this.timelineWrapper.querySelectorAll(".track-row-annotations-container");
+      if (annotationContainers.length == 0) {
+        return;
+      }
 
-        if (this.timelineContainer) {
-            this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
-        }
+      const newWidth = `${100 * this.zoomLevel}%`;
+      const tickMarksContainer = document.getElementById("tick-marks-container");
+      if (tickMarksContainer) {
+        tickMarksContainer.style.width = newWidth;
+      }
+      for (let annotationContainer of annotationContainers) {
+        annotationContainer.style.width = newWidth;
+      }
 
-        this.renderTickMarksAndLabels();
-
-        const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        const newViewportWidth = this.timelineContentWrapper.clientWidth;
-        const scrubberPixelPosition = currentPercent * newContentWidth;
-        let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
-        const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
-        targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
-        this.timelineContentWrapper.scrollLeft = targetScrollLeft;
+      this.renderTickMarksAndLabels();
+      this.adjustScrubberPosition();
     }
 
     attachZoomListener() {
-        if (!this.zoomSlider) return;
+      const bindZoomLevel = () => {
+        if (this.zoomLevel > 10) {
+          console.error("zoomLevel exceeded expected max zoom of 10; reverting to zoom 10.");
+          this.zoomLevel = 10;
+        }
+        else if (this.zoomLevel < 1) {
+          console.error("zoomLevel lower than expected min zoom of 1; reverting to zoom 1.");
+          this.zoomLevel = 1;
+        }
+      }
 
-        this.zoomSlider.addEventListener('input', (e) => {
-            const newZoomLevel = parseFloat(e.target.value);
-            this.handleZoom(newZoomLevel);
+      const zoomInButton = document.getElementById("zoom-in-button");
+      if (zoomInButton) {
+        zoomInButton.addEventListener("click", () => {
+          if (this.zoomLevel < 10) {
+            this.zoomLevel += 1;
+          }
+          bindZoomLevel();
+          this.handleZoom();
         });
+      }
+
+      const zoomOutButton = document.getElementById("zoom-out-button");
+      if (zoomOutButton) {
+        zoomOutButton.addEventListener("click", () => {
+          if (this.zoomLevel > 1) {
+            this.zoomLevel -= 1;
+          }
+          bindZoomLevel();
+          this.handleZoom();
+        });
+      }
+    }
+
+    watchForTimelineScrollChangeAndHandleIt() {
+      this.zoomSliderInput.addEventListener("input", (e) => {
+        const newValue = e.target.value;
+        const tickMarksContainer = document.getElementById("tick-marks-container");
+        const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
+        const newScrollLeft = widthInPixels * (newValue / 100);
+        const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
+        const tickMarksWrapper = document.getElementById("timeline-ticks-content");
+        for (let track of tracksToAdjust) {
+          track.scrollLeft = newScrollLeft;
+        }
+        tickMarksWrapper.scrollLeft = newScrollLeft;
+        this.adjustScrubberPosition();
+      });
     }
 
     createtimelineScrubber() {
@@ -1898,7 +1949,7 @@ export class Editor {
 
     attachVideoListeners() {
         this.video.addEventListener('timeupdate', () => {
-            this.updateEditorScrubberPosition(this.video.currentTime);
+          this.adjustScrubberPosition();
         });
     }
 }
