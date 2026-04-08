@@ -18,6 +18,7 @@ cd yvideo-py
 ```bash
 uv sync --dev
 npm ci  # eslint and dependencies
+uv run python -m playwright install chromium
 ```
 
 3. Set up pre-commit hooks:
@@ -81,6 +82,15 @@ uv run manage.py test
 ```
 
 That uses the normal project settings and migration graph.
+
+For browser-backed end-to-end tests against the deterministic demo dataset, run:
+```bash
+uv run pytest tests/e2e --browser chromium
+```
+
+The pytest Playwright e2e suite runs headless Chromium, enables the local dev quick-login
+route for the test server, seeds demo data before each test, and runs in CI as a separate
+job instead of inside pre-commit.
 
 To upgrade dependency versions, use the following commands:
 
