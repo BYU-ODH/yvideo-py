@@ -385,31 +385,30 @@ def add_editor_to_annotation_set(request, annotation_set_id):
 @login_required
 def remove_editor_from_annotation_set(request, annotation_set_id, user_id):
     """Remove a user as an editor from an AnnotationSet."""
-    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+    try:
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
 
-    # Only owner can remove editors
-    if request.user != annotation_set.owner:
-        return HttpResponse("Unauthorized", status=403)
+        # Only owner can remove editors
+        if request.user != annotation_set.owner:
+            return HttpResponse("Unauthorized", status=403)
 
-    user = get_object_or_404(User, id=user_id)
-    annotation_set.editors.remove(user)
+        user = User.objects.get(pk=user_id)
+        annotation_set.editors.remove(user)
 
-    # Re-render annotation set form
-    content_id = request.GET.get("content_id")
-    content = get_object_or_404(Content, id=content_id)
-
-    form_html = render_to_string(
-        "core/partials/annotation_set_form.html",
-        {
-            "content": content,
-            "annotation_set": annotation_set,
-            "can_edit": True,
-            "available_annotation_sets": content.get_available_annotation_sets(),
-        },
-        request=request,
-    )
-
-    return HttpResponse(form_html)
+        return HttpResponse()
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            f"Failed to remove user from annotation set because the annotation set doesn't exist. AnnotationSet id: {annotation_set_id}"
+        )
+        return HttpResponseBadRequest()
+    except User.DoesNotExist:
+        logger.error(
+            f"Failed to remove user from annotation set because the User does not exist. User id: {user_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to remove user from annotation set. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST

@@ -63,6 +63,7 @@ export class Editor {
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
+        this.watchForAnnotationSetEditorRemovalAndHandleIt();
     }
 
     updateTracks() {
@@ -1997,6 +1998,37 @@ export class Editor {
         }
 
         setSelector.addEventListener("change", this.handleAnnotationSetChange.bind(this));
+    }
+
+    watchForAnnotationSetEditorRemovalAndHandleIt() {
+      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
+      if (!annotationSetSettingsEl) {
+        console.error("Failed to find annotation set settings element");
+        return;
+      }
+      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
+      const editorRemovalButtons = document.getElementsByClassName("remove-editor-button");
+      for (let button of editorRemovalButtons) {
+        const userId = button.dataset["editorId"];
+        button.addEventListener("click", async (e) => {
+          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+          const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/remove-editor/${userId}/`,
+            {
+              method: "DELETE",
+              headers: {
+                "X-CSRFToken": csrfToken
+              }
+            });
+          if (!deleteResponse.ok) {
+            console.error("Failed to delete editor from annotation set");
+            return;
+          }
+          const editorDetailsWrapper = e.target.closest(".annotation-set-editor-details");
+          if (editorDetailsWrapper) {
+            editorDetailsWrapper.remove();
+          }
+        });
+      }
     }
 }
 
