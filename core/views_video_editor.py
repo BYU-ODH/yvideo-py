@@ -246,54 +246,40 @@ def select_annotation_set(request):
     """Switch the active AnnotationSet for a content."""
     body = json.loads(request.body.decode("utf-8"))
     content_id = body["content_id"]
-    content = get_object_or_404(Content, pk=content_id)
+    try:
+        content = Content.objects.get(pk=content_id)
 
-    # Check permissions
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
+        # Check permissions
+        if not request.user.can_view_content(content):
+            return HttpResponse("Unauthorized", status=403)
 
-    annotation_set_id = body["annotation_set_id"]
+        annotation_set_id = body["annotation_set_id"]
 
-    if not annotation_set_id:
-        logger.error(f"Annotation set id was not provided: {annotation_set_id}")
+        if not annotation_set_id:
+            logger.error(f"Annotation set id was not provided: {annotation_set_id}")
+            return HttpResponseBadRequest()
+
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        if not annotation_set.can_be_viewed_by(request.user):
+            return HttpResponse("Unauthorized", status=403)
+
+        content.annotation_set = annotation_set
+        content.save()
+
+        return HttpResponse()
+    except Content.DoesNotExist:
+        logger.error(
+            f"Failed to update selected annotaiton set because Content does not exist. Content id: {content_id}"
+        )
         return HttpResponseBadRequest()
-
-    annotation_set = get_object_or_404(
-        AnnotationSet, id=annotation_set_id, resource=content.resource_file.resource
-    )
-    if not annotation_set.can_be_viewed_by(request.user):
-        return HttpResponse("Unauthorized", status=403)
-
-    content.annotation_set = annotation_set
-    content.save()
-
-    can_edit = annotation_set.can_edit(request.user) if annotation_set else True
-
-    # Prepare layers for timeline rendering (matching clip editor structure)
-    # layer_results = build_annotation_layers(content, annotation_set, can_edit)
-    # layers = layer_results["layers"]
-
-    # # Render timeline using shared partial
-    # timeline_layers_html = render_to_string(
-    #     "core/partials/timeline_layers.html",
-    #     {"layers": layers, "content_id": content_id},
-    #     request=request,
-    # )
-
-    # Get JSON from model method
-    video_html = render_to_string(
-        "partials/player-wrapper.html",
-        {
-            "content_id": content_id,
-            "resource_file_key_id": request.user.get_resource_filekey(content).pk,
-        },
-        request=request,
-    )
-
-    return JsonResponse(
-        # {"video_section": video_html, "timeline_layers": timeline_layers_html}
-        {"video_section": video_html}
-    )
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            f"Failed to update selected annotation set becuase AnnotationSet does not exist. AnnotationSet id: {annotation_set_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to update selected annotation set. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST

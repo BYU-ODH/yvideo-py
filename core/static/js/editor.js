@@ -62,6 +62,7 @@ export class Editor {
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
+        this.setupAnnotationSelectorFunctions();
     }
 
     updateTracks() {
@@ -1952,53 +1953,51 @@ export class Editor {
           this.adjustScrubberPosition();
         });
     }
-}
 
-async function handleAnnotationSetChange(event) {
-    event.stopPropagation();
-    let annotationSetId;
-    const selectorOptions = event.target.children;
-    for (let option of selectorOptions) {
-        if (option.selected) {
-            annotationSetId = Number(option.value);
-            break;
+    async handleAnnotationSetChange(event) {
+        event.stopPropagation();
+        let annotationSetId;
+        const selectorOptions = event.target.children;
+        for (let option of selectorOptions) {
+            if (option.selected) {
+                annotationSetId = Number(option.value);
+                break;
+            }
         }
+
+        if (isNaN(annotationSetId) || annotationSetId === undefined) {
+            console.error("Selected value was not defined!");
+            return;
+        }
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        if (!this.contentId) {
+            console.error("could not retrieve content id while switching annotation sets!");
+            return;
+        }
+        const htmlContentResponse = await fetch("/select-annotation-set", {
+            method: "POST",
+            body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
+            headers: {"X-CSRFToken": csrfToken},
+            mode: "same-origin"
+        });
+        if (!htmlContentResponse.ok) {
+          console.error("Failed to update annotation_set!");
+          return;
+        }
+        // rebuild the page with the new annotation set
+        window.location.reload();
     }
 
-    if (isNaN(annotationSetId) || annotationSetId === undefined) {
-        console.error("Selected value was not defined!");
-        return;
+    setupAnnotationSelectorFunctions() {
+        const setSelector = document.getElementById("annotation-set-selector");
+        if (!setSelector) {
+            console.error("Annotation set selector cannot be found!");
+            return;
+        }
+
+        setSelector.addEventListener("change", this.handleAnnotationSetChange.bind(this));
     }
-
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    if (!this.contentId) {
-        console.error("could not retrieve content id while switching annotation sets!");
-        return;
-    }
-    const htmlContentResponse = await fetch("/select-annotation-set", {
-        method: "POST",
-        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
-        headers: {"X-CSRFToken": csrfToken},
-        mode: "same-origin"
-    });
-
-    const newHTMLContent = await htmlContentResponse.json();
-
-    const videoSection = document.getElementById("video-section");
-    videoSection.innerHTML = newHTMLContent["video_section"];
-
-    const timelineLayers = document.getElementById("annotation-timeline");
-    timelineLayers.innerHTML = newHTMLContent["timeline_layers"];
-}
-
-function setupAnnotationSelectorFunctions() {
-    const setSelector = document.getElementById("annotation-set-selector");
-    if (!setSelector) {
-        console.error("Annotation set selector cannot be found!");
-        return;
-    }
-
-    setSelector.addEventListener("change", handleAnnotationSetChange);
 }
 
 function editorInit() {
@@ -2012,7 +2011,6 @@ function editorInit() {
       editor = new Editor();
   }
   editor.setUpAnnotationPanelClickListeners();
-  setupAnnotationSelectorFunctions();
 }
 
 const checkVideo = setInterval(() => {
