@@ -5,7 +5,7 @@
     <button class="red-button close-dialog-button" command="close" commandfor="annotation-set-settings">X</button>
     <div id="annotation-set-select-form" class="column-flex-no-gap">
         <label for="annotation-set-selector">Selected annotation set:</label>
-        <select id="annotation-set-selector" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
+        <select id="annotation-set-selector" class="position-flex-start" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
             <option value="">-- Select Annotation Set --</option>
             {% for set in available_annotation_sets %}
                 <option value="{{ set.id }}"
@@ -33,17 +33,17 @@
 
     <div>
         <h4>Editors</h4>
-        <ul>
-            {% for editor in annotation_set.editors.all %}
-                <li>
-                    {{ editor.get_full_name }} ({{ editor.netid }})
-                    <button hx-delete="{% url 'remove_editor_from_annotation_set' annotation_set.id editor.id %}?content_id={{ content.id }}"
-                            hx-target="#annotation-set-settings-panel">
-                        <img src="{% static 'img/trash.svg' %}" alt="Remove">
-                    </button>
-                </li>
-            {% endfor %}
-        </ul>
+        {% for editor in annotation_set.editors.all %}
+            <div class="annotation-set-editor-details">
+                <p>{{ editor.get_full_name }} ({{ editor.netid }})</p>
+                <button hx-delete="{% url 'remove_editor_from_annotation_set' annotation_set.id editor.id %}?content_id={{ content.id }}"
+                        hx-target="#annotation-set-settings-panel"
+                        aria-label="Remove Editor"
+                        class="remove-editor-button">
+                    <img src="{% static 'img/trash.svg' %}" alt="Remove Editor">
+                </button>
+            </div>
+        {% endfor %}
     </div>
 
     <form hx-post="{% url 'add_editor_to_annotation_set' annotation_set.id %}"
@@ -52,13 +52,13 @@
           autocomplete="off"
           class="column-flex">
         <input type="hidden" name="content_id" value="{{ content.id }}">
-        <div for="editor-search" class="row-flex">
+        <div for="editor-search" class="row-flex-no-gap">
             <label for="editor-search">Search by user:</label>
             <input type="text" name="search" id="editor-search" hx-post="{% url 'spoof_user_search' %}" hx-trigger="keyup changed delay:300ms" hx-target="#editor-search-results" hx-swap="innerHTML">
         </div>
-        <select name="username" id="editor-search-results" size="4" aria-label="Select editors" required>
+        <select name="username" id="editor-search-results" class="position-flex-start" size="4" aria-label="Select editors" required>
             <option disabled selected></option>
         </select>
-        <button type="submit" class="small-button">Add Editor</button>
+        <button type="submit" class="small-button position-flex-start">Add Editor</button>
     </form>
 </div>

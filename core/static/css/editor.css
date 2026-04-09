@@ -193,6 +193,37 @@
     margin: 0;
 }
 
+.annotation-set-editor-details {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
+    align-items: center;
+}
+
+.annotation-set-editor-details p {
+    margin: 0;
+}
+
+.remove-editor-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: inherit;
+    border: none;
+    border-radius: 50%;
+    padding: 0.4rem 0.5rem;
+}
+
+.remove-editor-button:hover {
+    background-color: var(--dark-mode-very-light-gray);
+    box-shadow: 0px 3px 6px #00000075;
+    cursor: pointer;
+}
+
+#editor-search-results {
+    min-width: 15rem;
+}
+
 .skip-list-item-wrapper:hover {
     background-color: var(--skip-type-color-very-transparent);
     cursor: pointer;
