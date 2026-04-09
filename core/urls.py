@@ -149,7 +149,7 @@ urlpatterns = [
         name="load_annotation_set_settings",
     ),
     path(
-        "annotation-set/<int:annotation_set_id>/update-name/",
+        "annotation-set/update-name/",
         views_video_editor.update_annotation_set_name,
         name="update_annotation_set_name",
     ),

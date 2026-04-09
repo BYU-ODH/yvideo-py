@@ -269,7 +269,7 @@ def select_annotation_set(request):
         return HttpResponse()
     except Content.DoesNotExist:
         logger.error(
-            f"Failed to update selected annotaiton set because Content does not exist. Content id: {content_id}"
+            f"Failed to update selected annotation set because Content does not exist. Content id: {content_id}"
         )
         return HttpResponseBadRequest()
     except AnnotationSet.DoesNotExist:
@@ -888,24 +888,37 @@ def load_annotation_set_settings(request, annotation_set_id):
 
 @require_POST
 @login_required
-def update_annotation_set_name(request, annotation_set_id):
-    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
-    if not (request.user == annotation_set.owner or request.user.is_admin):
-        return HttpResponse("Unauthorized", status=403)
-    name = request.POST.get("name", "").strip()
-    if name:
-        annotation_set.name = name
-        annotation_set.save()
-    content_id = request.POST.get("content_id")
-    content = get_object_or_404(Content, id=content_id)
-    return render(
-        request,
-        "core/partials/annotation_set_settings_compact.html",
-        {
-            "annotation_set": annotation_set,
-            "content": content,
-        },
-    )
+def update_annotation_set_name(request):
+    try:
+        parsed_body = json.loads(request.body)
+        if "annotation_set_id" not in parsed_body:
+            logger.error(
+                "Failed to update annotation set name due to missing annotation_set_id value"
+            )
+            return HttpResponseBadRequest()
+        if "name" not in parsed_body:
+            logger.error("Failed to update annotation set name; missing name value.")
+            return HttpResponseBadRequest()
+
+        annotation_set_id = parsed_body["annotation_set_id"]
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        if not (request.user == annotation_set.owner or request.user.is_admin):
+            return HttpResponse("Unauthorized", status=403)
+
+        name = parsed_body["name"].strip()
+        if name:
+            annotation_set.name = name
+            annotation_set.save()
+
+        return HttpResponse()
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            f"Failed to update annotation set name; unknown AnnotationSet. id: {annotation_set_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to update annotation set name. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @login_required

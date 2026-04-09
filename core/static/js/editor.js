@@ -64,6 +64,7 @@ export class Editor {
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
         this.watchForAnnotationSetEditorRemovalAndHandleIt();
+        this.watchForAnnotationSetNameChangeAndHandleIt();
     }
 
     updateTracks() {
@@ -2029,6 +2030,45 @@ export class Editor {
           }
         });
       }
+    }
+
+    watchForAnnotationSetNameChangeAndHandleIt() {
+      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
+      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
+      const annotationNameInput = document.getElementById("annotation-set-name");
+      const annotationNameSubmitButton = document.getElementById("annotation-name-submit-button");
+
+      const handleNameChange = async () => {
+        const currentAnnotationSetName = annotationSetSettingsEl.dataset["annotationSetName"];
+        const newName = annotationNameInput.value.trim();
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const nameChangeResponse = await fetch("/annotation-set/update-name/", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify({
+              annotation_set_id: annotationSetId,
+              name: newName
+            })
+        });
+        if (!nameChangeResponse.ok) {
+          console.error("Failed to update annotation set name");
+          annotationNameInput.value = currentAnnotationSetName;
+          return;
+        }
+        annotationNameInput.value = newName;
+        annotationSetSettingsEl.dataset["annotationSetName"] = newName;
+        const annotationSetOptionName = annotationSetSettingsEl.querySelector(`.annotation-set-option[value="${annotationSetId}"] .set-option-name`);
+        annotationSetOptionName.innerText = newName;
+      }
+
+      annotationNameInput.addEventListener("keydown", (e) => {
+        if (e.key == "Enter") {
+          handleNameChange();
+        }
+      })
+      annotationNameSubmitButton.addEventListener("click", handleNameChange);
     }
 }
 
