@@ -373,6 +373,7 @@
     padding: 0.4rem 1rem;
     border: none;
     font-size: 1.1rem;
+    border-radius: 5px;
 }
 
 #annotation-form-save-button:hover, #annotation-form-delete-button:hover {
