@@ -8,8 +8,10 @@ import uuid
 
 from django.conf import settings
 from django.contrib.messages import get_messages
+from django.core.exceptions import ImproperlyConfigured
 from django.db import OperationalError
 from django.db import connection
+from django.db import connections
 from django.test import Client
 from django.test import TestCase
 from django.test import override_settings
@@ -241,6 +243,23 @@ class LegacyMigrationTests(TestCase):
         return LegacyMigrationService(
             catalog_client=LegacyCatalogClient(alias="default")
         )
+
+    def test_legacy_catalog_client_rejects_non_sqlite_engine(self):
+        with mock.patch.dict(
+            connections.databases,
+            {
+                "legacy_postgres": {
+                    "ENGINE": "django.db.backends.postgresql",
+                    "NAME": "legacy",
+                }
+            },
+            clear=False,
+        ):
+            with self.assertRaisesMessage(
+                ImproperlyConfigured,
+                "Legacy migration only supports SQLite dumps.",
+            ):
+                LegacyCatalogClient(alias="legacy_postgres")
 
     def test_preflight_builds_file_candidates_and_fuzzy_name_issue(self):
         self.create_legacy_schema()

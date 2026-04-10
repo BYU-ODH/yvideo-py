@@ -244,10 +244,10 @@ class LegacyCatalogClient:
                 f"Legacy database alias '{self.alias}' is not configured."
             )
         database_settings = connections.databases[self.alias]
-        if (
-            self.alias == getattr(settings, "LEGACY_MIGRATION_DB_ALIAS", "legacy")
-            and database_settings.get("ENGINE") == "django.db.backends.sqlite3"
-        ):
+        if database_settings.get("ENGINE") != "django.db.backends.sqlite3":
+            raise ImproperlyConfigured("Legacy migration only supports SQLite dumps.")
+
+        if self.alias == getattr(settings, "LEGACY_MIGRATION_DB_ALIAS", "legacy"):
             database_name_value = database_settings.get("NAME")
             if not database_name_value:
                 raise ImproperlyConfigured(

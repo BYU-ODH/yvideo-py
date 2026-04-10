@@ -150,14 +150,11 @@ LEGACY_MIGRATION_DUMP_SCRIPT = str(
     )
 )
 
-legacy_database = getattr(secret_settings, "LEGACY_DATABASE", None)
 if LEGACY_MIGRATION_SQLITE_PATH:
     DATABASES[LEGACY_MIGRATION_DB_ALIAS] = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": LEGACY_MIGRATION_SQLITE_PATH,
     }
-elif legacy_database:
-    DATABASES[LEGACY_MIGRATION_DB_ALIAS] = legacy_database
 
 
 # Password validation
