@@ -134,7 +134,7 @@ urlpatterns = [
         name="select_annotation_set",
     ),
     path(
-        "annotation-set/<int:annotation_set_id>/add-editor/",
+        "annotation-set/add-editor",
         views_video_editor.add_editor_to_annotation_set,
         name="add_editor_to_annotation_set",
     ),
@@ -149,9 +149,14 @@ urlpatterns = [
         name="load_annotation_set_settings",
     ),
     path(
-        "annotation-set/<int:annotation_set_id>/update-name/",
+        "annotation-set/update-name/",
         views_video_editor.update_annotation_set_name,
         name="update_annotation_set_name",
+    ),
+    path(
+        "annotation-set/search-for-editor",
+        views_video_editor.search_for_editor,
+        name="search_for_editor",
     ),
     path(
         "annotation-panel/<int:annotation_set_id>",
