@@ -32,6 +32,7 @@ dev = [
 force-single-line = true
 force-sort-within-sections = true
 known-first-party = ["yvideo", "core"]
+skip-glob = "core/migrations/*.py"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "yvideo.settings"
