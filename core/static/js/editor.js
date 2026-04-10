@@ -2129,6 +2129,9 @@ export class Editor {
         keydownTimerId = setTimeout(async () => {
           const searchResultsWrapper = document.getElementById("editor-search-results");
           const searchString = editorSearchInput.value.trim();
+          if (searchString == "") {
+            searchResultsWrapper.innerHTML = "";
+          }
           if (!searchString) {
             return;
           }

@@ -34,7 +34,10 @@
     </div>
 
     <div id="editor-search-wrapper" class="column-flex">
-        <input id="editor-search-input" aria-label="Search for editor" type="text" placeholder="Search to add an editor">
+        <label for="editor-search-input">
+            Search for editor:
+        </label>
+        <input id="editor-search-input" aria-label="Search for editor" type="text" placeholder="Search for an editor to add">
         {% include 'partials/editor_search_results.html' %}
     </div>
 </div>

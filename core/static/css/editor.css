@@ -222,6 +222,22 @@
 
 #editor-search-results {
     min-width: 15rem;
+    max-height: 10rem;
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.1rem;
+    overflow: auto;
+}
+
+.editor-search-result {
+    align-self: flex-start;
+    border-radius: 10px;
+    padding: 0.4rem;
+}
+
+.editor-search-result:hover {
+    background-color: var(--selectable-grey);
+    cursor: pointer;
 }
 
 .skip-list-item-wrapper:hover {
