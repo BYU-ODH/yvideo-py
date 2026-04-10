@@ -63,8 +63,13 @@ export class Editor {
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
-        this.watchForAnnotationSetEditorRemovalAndHandleIt();
         this.watchForAnnotationSetNameChangeAndHandleIt();
+        this.attachRemoveEditorListeners();
+        this.watchForEditorSearchInputAndHandleIt();
+    }
+
+    getCSRFToken() {
+      return document.querySelector('[name=csrfmiddlewaretoken]').value;
     }
 
     updateTracks() {
@@ -342,10 +347,9 @@ export class Editor {
     }
 
     async deleteItem(annotationType, annotationId) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
-        headers: {"X-CSRFToken": csrfToken}
+        headers: {"X-CSRFToken": this.getCSRFToken()}
       });
 
       if (!response.ok) {
@@ -444,10 +448,9 @@ export class Editor {
       if (parseFloat(parentStartTime) > parseFloat(time) || parseFloat(parentEndTime) < parseFloat(time)) {
         return;
       }
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch("/annotations/censor-position/create", {
         method: "POST",
-        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        headers: {"X-CSRFToken": this.getCSRFToken(), "Content-Type": "application/json"},
         body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
       if (response.status == 201) {
@@ -461,10 +464,12 @@ export class Editor {
     }
 
     async updateCensorPosition(positionId, time, x, y, width, height, parentAnnotationId) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch("/annotations/censor-position/update", {
         method: "POST",
-        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({position_id: positionId, time, x, y, width, height})
       });
       if (response.status == 201) {
@@ -478,10 +483,9 @@ export class Editor {
     }
 
     async deleteCensorPosition(parentAnnotationId, positionId) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch(`/annotations/censor-position/delete/${positionId}`, {
         method: "DELETE",
-        headers: {"X-CSRFToken": csrfToken}
+        headers: {"X-CSRFToken": this.getCSRFToken()}
       });
       if (response.status == 200) {
         const responseHtml = await response.text();
@@ -767,7 +771,6 @@ export class Editor {
     }
 
     async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -795,7 +798,7 @@ export class Editor {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
         method: "POST",
         headers: {
-          "X-CSRFToken": csrfToken,
+          "X-CSRFToken": this.getCSRFToken(),
           "Content-Type": contentType,
         },
         body: requestBody
@@ -1282,11 +1285,11 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const trackDeleteResponse = await fetch(`/track/delete/${trackId}`, {
         method: "delete",
         headers: {
-          "X-CSRFToken": csrfToken
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
         }
       });
 
@@ -1342,12 +1345,12 @@ export class Editor {
         }
       }
 
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const orderUpdateResponse = await fetch("/tracks/update_stack_positions",
         {
           method: "post",
           headers: {
-            "X-CSRFToken": csrfToken
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
             track_ids: trackIdOrder
@@ -1401,11 +1404,11 @@ export class Editor {
           return;
         }
 
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         const newTrackResponse = await fetch("/track/create", {
           method: "post",
           headers: {
-            "X-CSRFToken": csrfToken
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
             "annotation_set_id": annotationSetId,
@@ -1591,11 +1594,13 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             const response = await fetch(`/annotations/${annotationType}/create/track/${trackId}`,
               {
                 method: "POST",
-                headers: {"X-CSRFToken": csrfToken},
+                headers: {
+                  "X-CSRFToken": this.getCSRFToken(),
+                  "Content-Type": "application/json"
+                },
                 body: JSON.stringify({
                   "start_time": startTime,
                   "end_time": endTime
@@ -1972,7 +1977,6 @@ export class Editor {
             return;
         }
 
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         if (!this.contentId) {
             console.error("could not retrieve content id while switching annotation sets!");
             return;
@@ -1980,7 +1984,10 @@ export class Editor {
         const htmlContentResponse = await fetch("/select-annotation-set", {
             method: "POST",
             body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
-            headers: {"X-CSRFToken": csrfToken},
+            headers: {
+              "X-CSRFToken": this.getCSRFToken(),
+              "Content-Type": "application/json"
+            },
             mode: "same-origin"
         });
         if (!htmlContentResponse.ok) {
@@ -2001,37 +2008,6 @@ export class Editor {
         setSelector.addEventListener("change", this.handleAnnotationSetChange.bind(this));
     }
 
-    watchForAnnotationSetEditorRemovalAndHandleIt() {
-      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
-      if (!annotationSetSettingsEl) {
-        console.error("Failed to find annotation set settings element");
-        return;
-      }
-      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
-      const editorRemovalButtons = document.getElementsByClassName("remove-editor-button");
-      for (let button of editorRemovalButtons) {
-        const userId = button.dataset["editorId"];
-        button.addEventListener("click", async (e) => {
-          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-          const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/remove-editor/${userId}/`,
-            {
-              method: "DELETE",
-              headers: {
-                "X-CSRFToken": csrfToken
-              }
-            });
-          if (!deleteResponse.ok) {
-            console.error("Failed to delete editor from annotation set");
-            return;
-          }
-          const editorDetailsWrapper = e.target.closest(".annotation-set-editor-details");
-          if (editorDetailsWrapper) {
-            editorDetailsWrapper.remove();
-          }
-        });
-      }
-    }
-
     watchForAnnotationSetNameChangeAndHandleIt() {
       const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
       const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
@@ -2041,11 +2017,11 @@ export class Editor {
       const handleNameChange = async () => {
         const currentAnnotationSetName = annotationSetSettingsEl.dataset["annotationSetName"];
         const newName = annotationNameInput.value.trim();
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         const nameChangeResponse = await fetch("/annotation-set/update-name/", {
             method: "POST",
             headers: {
-              "X-CSRFToken": csrfToken
+              "X-CSRFToken": this.getCSRFToken(),
+              "Content-Type": "application/json"
             },
             body: JSON.stringify({
               annotation_set_id: annotationSetId,
@@ -2069,6 +2045,122 @@ export class Editor {
         }
       })
       annotationNameSubmitButton.addEventListener("click", handleNameChange);
+    }
+
+    async handleRemoveEditor(e) {
+      e.stopPropagation();
+      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
+      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
+      // because the remove button has an element inside it, e.target could refer to the image element,
+      // or the button element which is the img's parent. The editorId is only on the button element.
+      // To get around this, the closest .remove-editor-button will find the correct in either case.
+      const buttonEl = e.target.closest(".remove-editor-button");
+      const editorId = buttonEl.dataset["editorId"];
+      const removalResponse = await fetch(`/annotation-set/${annotationSetId}/remove-editor/${editorId}/`, {
+        method: "DELETE",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken()
+        }
+      });
+      if (!removalResponse.ok) {
+        console.error("Failed to remove editor");
+        return;
+      }
+      e.target.closest(".annotation-set-editor-details").remove();
+    }
+
+    attachRemoveEditorListener(editorDetailEl) {
+      const removeEditorButton = editorDetailEl.querySelector(".remove-editor-button");
+      removeEditorButton.addEventListener("click", this.handleRemoveEditor.bind(this));
+    }
+
+    attachRemoveEditorListeners() {
+      const editorDetailEls = document.getElementsByClassName("annotation-set-editor-details");
+      for (let editorDetailEl of editorDetailEls) {
+        this.attachRemoveEditorListener(editorDetailEl);
+      }
+    }
+
+    async handleAddEditor(e) {
+      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
+      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
+      const editorId = e.target.dataset["editorId"];
+      const selectedEditorsResponse = await fetch("/annotation-set/add-editor", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          annotation_set_id: annotationSetId,
+          editor_id: editorId
+        })
+      });
+      if (!selectedEditorsResponse.ok) {
+        console.error("Failed to add new editor");
+        return;
+      }
+      const newWrapper = await selectedEditorsResponse.text();
+      const selectedEditorsWrapper = document.getElementById("selected-editors");
+      selectedEditorsWrapper.outerHTML = newWrapper;
+      this.attachRemoveEditorListeners();
+    }
+
+    attachAddEditorListeners() {
+      const editorSearchResultsWrapper = document.getElementById("editor-search-results");
+      const resultEntries = editorSearchResultsWrapper.querySelectorAll(".editor-search-result");
+      if (resultEntries.length == 0) {
+        editorSearchResultsWrapper.innerText = "No search results";
+        return;
+      }
+      for (let resultEl of resultEntries) {
+        resultEl.addEventListener("click", this.handleAddEditor.bind(this));
+      }
+    }
+
+    watchForEditorSearchInputAndHandleIt() {
+      /* Watch for keydown on input field, if its been less than timer amount since
+      the last keydown, clear the last request and start the timer again. If
+      the timer ends, execute the search function. */
+      const editorSearchInput = document.getElementById("editor-search-input");
+      let keydownTimerId;
+      const handleSearchInput = () => {
+        clearTimeout(keydownTimerId);
+        keydownTimerId = setTimeout(async () => {
+          const searchResultsWrapper = document.getElementById("editor-search-results");
+          const searchString = editorSearchInput.value.trim();
+          if (!searchString) {
+            return;
+          }
+
+          // remove old search results
+          const oldSearchResultEls = document.getElementsByClassName("editor-option");
+          for (let i = oldSearchResultEls.length - 1; i >= 0; i--) {
+            const resultEl = oldSearchResultEls[i];
+            resultEl.remove();
+          }
+
+          // execute request
+          const searchResponse = await fetch("/annotation-set/search-for-editor", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": this.getCSRFToken(),
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({search_string: searchString})
+          });
+
+          if (!searchResponse.ok) {
+            console.error("Failed to execute editor search");
+            searchResultsWrapper.innerText = "An error has occurred, please try searching again.";
+            return;
+          }
+          const results = await searchResponse.text();
+          searchResultsWrapper.outerHTML = results;
+          this.attachAddEditorListeners();
+        }, 300);
+      }
+      editorSearchInput.addEventListener("keydown", handleSearchInput.bind(this));
     }
 }
 

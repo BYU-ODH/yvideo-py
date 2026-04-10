@@ -3,6 +3,7 @@ import logging
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
@@ -350,35 +351,76 @@ def redo_annotation(request, content_id):
 
 @require_POST
 @login_required
-def add_editor_to_annotation_set(request, annotation_set_id):
+def add_editor_to_annotation_set(request):
     """Add a user as an editor to an AnnotationSet."""
-    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+    try:
+        parsed_body = json.loads(request.body)
+        if "annotation_set_id" not in parsed_body or "editor_id" not in parsed_body:
+            logger.error(
+                "Failed to add editor to annotaion set; missing annotation_set_id and/or editor_id"
+            )
+            return HttpResponseBadRequest()
 
-    # Only owner can add editors
-    if request.user != annotation_set.owner:
-        return HttpResponse("Unauthorized", status=403)
+        annotation_set_id = parsed_body["annotation_set_id"]
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
 
-    username = request.POST.get("username")
-    user = get_object_or_404(User, username=username)
+        # Only owner can add editors
+        if request.user != annotation_set.owner:
+            return HttpResponse("Unauthorized", status=403)
 
-    annotation_set.editors.add(user)
+        user_id = parsed_body["editor_id"]
+        user = User.objects.get(pk=user_id)
 
-    # Re-render annotation set form with updated editors
-    content_id = request.POST.get("content_id")
-    content = get_object_or_404(Content, id=content_id)
+        annotation_set.editors.add(user)
 
-    form_html = render_to_string(
-        "core/partials/annotation_set_form.html",
-        {
-            "content": content,
-            "annotation_set": annotation_set,
-            "can_edit": True,
-            "available_annotation_sets": content.get_available_annotation_sets(),
-        },
-        request=request,
-    )
+        form_html = render_to_string(
+            "core/partials/annotation_set_selected_editors.html",
+            {"annotation_set": annotation_set},
+            request=request,
+        )
 
-    return HttpResponse(form_html)
+        return HttpResponse(form_html)
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            "Failed to add editor to annotation set because the set doesn't exist"
+        )
+        return HttpResponseBadRequest()
+    except User.DoesNotExist:
+        logger.error(
+            "Failed to add editor to annotation set because the editor doesn't exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to add editor to annotation set. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_POST
+@login_required
+def search_for_editor(request):
+    try:
+        parsed_body = json.loads(request.body)
+        if "search_string" not in parsed_body:
+            logger.error("Failed to search for editors; missing search string")
+            return HttpResponseBadRequest()
+        query = parsed_body["search_string"].strip()
+        editor_results = User.objects.filter(
+            (
+                Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+                | Q(netid__icontains=query)
+            )
+            & ~Q(id=request.user.id)
+        ).order_by("last_name")[:25]
+        result_html = render_to_string(
+            "partials/editor_search_results.html",
+            {"editor_results": editor_results},
+            request,
+        )
+        return HttpResponse(result_html)
+    except Exception as e:
+        logger.error(f"Failed to search for editors. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_http_methods(["DELETE"])
