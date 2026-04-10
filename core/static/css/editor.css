@@ -295,6 +295,14 @@
     font-size: 1.4rem;
 }
 
+#description {
+    width: 100%;
+    max-width: 100%;
+    min-width: 100%;
+    min-height: 5rem;
+    max-height: 10rem;
+}
+
 .form-group {
     margin-bottom: 1rem;
     row-gap: 0.5rem;
