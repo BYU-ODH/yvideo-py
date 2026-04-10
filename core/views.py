@@ -179,7 +179,8 @@ def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
     resource_file_key = request.user.get_resource_filekey(content)
-    if not resource_file_key:
+    content_source_url = content.url if content.is_url_only() else None
+    if not resource_file_key and not content_source_url:
         return HttpResponse(
             "User does not have permission to view this content", status=403
         )
@@ -187,6 +188,7 @@ def player(request, content_id):
     context = {
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
+        "content_source_url": content_source_url,
         "allow_events": True,
     }
 
@@ -522,6 +524,7 @@ def create_content(request):
                 allow_notes=data["allow_notes"],
                 allow_captions=data["allow_captions"],
                 resource_file=data["resource_file"],
+                resource=data["resource_file"].resource,
             )
         except Exception as e:
             logger.error(
@@ -767,7 +770,7 @@ def spoof_user_search(request):
 def clip_editor(request, content_id):
     """Render the clip editor page."""
     content = get_object_or_404(Content, id=content_id)
-    file_key = request.user.get_filekey(content)
+    file_key = request.user.get_resource_filekey(content)
 
     # Calculate clip positions
     duration = content.duration
@@ -808,6 +811,7 @@ def clip_editor(request, content_id):
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
+        "content_source_url": content.url if content.is_url_only() else None,
         "allow_events": True,
         "events": json.dumps([]),
         "subtitles": json.dumps(subtitles_data),
@@ -1040,12 +1044,13 @@ def create_clip(request, content_id):
         return HttpResponse("Invalid clip times", status=400)
 
     # Get resource from content's file
-    if not content.file or not content.file.resource:
+    target_resource = content.get_resource()
+    if not target_resource:
         return HttpResponse("Content has no associated resource", status=400)
 
     # Create new clip
     clip = Clip.objects.create(
-        resource=content.file.resource,
+        resource=target_resource,
         owner=request.user,
         name=f"Clip {content.clips.count() + 1}",
         start_time=seconds2hms(start_time),
@@ -1148,7 +1153,8 @@ def delete_clip(request, clip_id):
 def subtitle_editor(request, content_id):
     try:
         content = get_object_or_404(Content, id=content_id)
-        subtitle_files = Subtitle.objects.filter(resource=content.file.resource)
+        resource = content.get_resource()
+        subtitle_files = Subtitle.objects.filter(resource=resource)
         subtitle_options = []
         for sub_file in subtitle_files:
             subtitle_options.append(
@@ -1157,7 +1163,7 @@ def subtitle_editor(request, content_id):
                     "id": sub_file.pk,
                 }
             )
-        file_key = request.user.get_filekey(content)
+        file_key = request.user.get_resource_filekey(content)
     except Exception as e:
         logger.error(
             f"Error retrieving subtitles for content_id: {content_id}. Exception: {e}"
@@ -1175,7 +1181,8 @@ def subtitle_editor(request, content_id):
         {
             "content": content,
             "subtitle_tracks": subtitle_options,
-            "file_key": file_key,
+            "file_key": file_key.id if file_key else None,
+            "content_source_url": content.url if content.is_url_only() else None,
             "events": player_json["annotations"],
             "subtitles": player_json["subtitleTracks"],
             "clips": player_json["clips"],

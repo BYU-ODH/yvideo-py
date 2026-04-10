@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Manage Collections {% endblock %}
 
@@ -8,6 +9,11 @@
             <button id="collection-create" class="large-button position-flex-start" onclick="collection_modal.showModal(); document.getElementById('collection-form').reset();">
                 + Collection
             </button>
+            {% if legacy_migration_enabled %}
+                <a class="large-button position-flex-start" href="{% url 'legacy_migration_requests' %}">
+                    Migrate from legacy <img src="{% static 'img/legacy-yvideo-icon.svg' %}" alt="YVideo" style="height: 1.2em; vertical-align: middle;"> <span class="legacy-yvideo-logo">Y-VIDEO</span>
+                </a>
+            {% endif %}
             {% include "partials/add_collection_modal.html" %}
 
             <h4 id="collection-username">

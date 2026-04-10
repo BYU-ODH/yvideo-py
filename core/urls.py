@@ -2,12 +2,28 @@ from django.urls import path
 
 from . import views
 from . import views_clip_editor
+from . import views_legacy_migration
 from . import views_video_editor
 
 app_name = "core"
 
 urlpatterns = [
     path("", views.index, name="index"),
+    path(
+        "legacy-migrations/",
+        views_legacy_migration.legacy_migration_requests,
+        name="legacy_migration_requests",
+    ),
+    path(
+        "legacy-migrations/create/",
+        views_legacy_migration.create_legacy_migration_request,
+        name="create_legacy_migration_request",
+    ),
+    path(
+        "legacy-migrations/<int:pk>/",
+        views_legacy_migration.legacy_migration_request_detail,
+        name="legacy_migration_request_detail",
+    ),
     path("manage-collections/", views.manage_collections, name="manage_collections"),
     path("collections/create/", views.create_collection, name="create_collection"),
     path("collections/view/<int:pk>/", views.view_collection, name="view_collection"),

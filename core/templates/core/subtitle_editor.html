@@ -13,7 +13,7 @@
 
 {% block content %}
     <div id="subtitle-editor-container" class="row-flex">
-        {% include 'partials/player-wrapper.html' with file_key=file_key.id events=events subtitles=subtitles clips=clips has_subtitles=has_subtitles %}
+        {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url %}
         <div id="subtitle-editor" class="column-flex">
             <select id="subtitle-track-selector">
                 <option value="">Choose a Subtitle Track</option>

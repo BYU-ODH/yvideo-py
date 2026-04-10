@@ -26,6 +26,15 @@ except ImportError:
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _resolve_repo_path(raw_value):
+    if raw_value in (None, ""):
+        return None
+    path_value = Path(raw_value)
+    if path_value.is_absolute():
+        return path_value
+    return BASE_DIR / path_value
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
@@ -58,7 +67,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.staticfiles",
     "reversion",  # django-reversion
-    "core",
+    "core.apps.CoreConfig",
 ]
 
 MIDDLEWARE = [
@@ -86,6 +95,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.feature_flags",
             ],
         },
     },
@@ -106,6 +116,48 @@ DATABASES = {
         },
     }
 }
+
+LEGACY_MIGRATION_ENABLED = getattr(secret_settings, "LEGACY_MIGRATION_ENABLED", False)
+LEGACY_MIGRATION_MEDIA_ROOT = getattr(
+    secret_settings, "LEGACY_MIGRATION_MEDIA_ROOT", ""
+)
+LEGACY_MIGRATION_DB_ALIAS = getattr(
+    secret_settings, "LEGACY_MIGRATION_DB_ALIAS", "legacy"
+)
+LEGACY_MIGRATION_SQLITE_PATH = _resolve_repo_path(
+    getattr(
+        secret_settings,
+        "LEGACY_MIGRATION_SQLITE_PATH",
+        "var/legacy_migration/legacy_dump.sqlite3",
+    )
+)
+LEGACY_MIGRATION_CREATE_MISSING_USERS = getattr(
+    secret_settings, "LEGACY_MIGRATION_CREATE_MISSING_USERS", False
+)
+LEGACY_MIGRATION_AUTO_DUMP_ENABLED = getattr(
+    secret_settings, "LEGACY_MIGRATION_AUTO_DUMP_ENABLED", True
+)
+LEGACY_MIGRATION_AUTO_DUMP_HOUR = getattr(
+    secret_settings, "LEGACY_MIGRATION_AUTO_DUMP_HOUR", 3
+)
+LEGACY_MIGRATION_DUMP_SCRIPT = str(
+    _resolve_repo_path(
+        getattr(
+            secret_settings,
+            "LEGACY_MIGRATION_DUMP_SCRIPT",
+            "scripts/dump_legacy_to_sqlite.py",
+        )
+    )
+)
+
+legacy_database = getattr(secret_settings, "LEGACY_DATABASE", None)
+if LEGACY_MIGRATION_SQLITE_PATH:
+    DATABASES[LEGACY_MIGRATION_DB_ALIAS] = {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": LEGACY_MIGRATION_SQLITE_PATH,
+    }
+elif legacy_database:
+    DATABASES[LEGACY_MIGRATION_DB_ALIAS] = legacy_database
 
 
 # Password validation

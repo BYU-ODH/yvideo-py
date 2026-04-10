@@ -794,6 +794,15 @@ dialog {
     padding: 1rem;
 }
 
+.legacy-yvideo-logo {
+    font-family: "Roboto Mono", monospace;
+    font-weight: bold;
+    background: linear-gradient(to right, #0582CA 0%, #002E5D 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text; /* eslint-disable-line css/use-baseline */
+}
+
 /* Right side (main content) */
 #collections-container {
     display: flex;

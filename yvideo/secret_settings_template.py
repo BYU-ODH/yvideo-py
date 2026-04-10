@@ -19,3 +19,16 @@ API_WORKER_ID_IAM_URL = ""
 API_WORKER_SUMMARY_URL = ""
 API_STUDENT_SUMMARY_URL = ""
 API_STUDENT_ENROLLMENTS_URL = ""
+LEGACY_MIGRATION_ENABLED = False
+LEGACY_MIGRATION_MEDIA_ROOT = ""
+LEGACY_MIGRATION_DB_ALIAS = "legacy"
+LEGACY_MIGRATION_SQLITE_PATH = "var/legacy_migration/legacy_dump.sqlite3"
+LEGACY_MIGRATION_CREATE_MISSING_USERS = False
+LEGACY_MIGRATION_AUTO_DUMP_ENABLED = True
+LEGACY_MIGRATION_AUTO_DUMP_HOUR = 3
+# The app reads a local SQLite snapshot for legacy migration.
+# The snapshot is created by scripts/dump_legacy_to_sqlite.py using
+# scripts/dump_legacy_to_sqlite_settings.py.
+# LEGACY_DATABASE remains as an optional fallback and is not needed for the
+# normal SQLite snapshot workflow.
+LEGACY_DATABASE = None

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Legacy Migration Requests{% endblock %}
+
+{% block content %}
+    <section class="collections-page">
+        <div id="collections-container">
+            <h2>Legacy Migration Requests</h2>
+            <p>Submit a legacy collection or resource for preflight review. Preflight runs in the background and staff will finish the migration in Django admin.</p>
+
+            <form method="post" action="{% url 'create_legacy_migration_request' %}" class="form-section">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button type="submit" class="large-button">Submit Migration Request</button>
+            </form>
+        </div>
+
+        <div id="collections-detail">
+            <h3>Your Requests</h3>
+            {% if migration_requests %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Reference</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for migration_request in migration_requests %}
+                            <tr>
+                                <td>{{ migration_request.get_migration_kind_display }}</td>
+                                <td>{{ migration_request.legacy_reference }}</td>
+                                <td>{{ migration_request.get_status_display }}</td>
+                                <td>{{ migration_request.created_at }}</td>
+                                <td><a href="{% url 'legacy_migration_request_detail' migration_request.pk %}">View</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No migration requests yet.</p>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}

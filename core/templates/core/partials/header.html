@@ -67,7 +67,10 @@
             {% endif %}
             {# Add other role-specific links as needed #}
             <a href="#">Lab Assistant Dashboard</a>
-            <a href="#">Manage Resource</a>
+            <a href="#">Manage Resources</a>
+            {% if legacy_migration_enabled %}
+                <a href="{% url 'legacy_migration_requests' %}">Legacy Migration Requests</a>
+            {% endif %}
             {% comment %} TODO: Uncomment when logout functionality is implemented
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
@@ -78,7 +81,7 @@
             <h4>Collections</h4>
             <hr>
             <a href="{% url 'index' %}">Collections</a>
-            <a href="#">Manage Collections</a>
+            <a href="{% url 'manage_collections' %}">Manage Collections</a>
             <a href="#">Manage Public Collections</a>
 
             <h4>Connect With Us</h4>

@@ -1,6 +1,8 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
+from .legacy_migration import LegacyMigrationKind
+from .legacy_migration import LegacyMigrationRequest
 from .models import Clip
 from .models import Collection
 from .models import Content
@@ -133,4 +135,24 @@ class ResourceContentIntakeRequestForm(forms.ModelForm):
             "profanity_or_vulgarity",
             "self_harm_or_suicide",
             "drug_use",
+        ]
+
+
+class LegacyMigrationRequestForm(forms.ModelForm):
+    migration_kind = forms.ChoiceField(choices=LegacyMigrationKind.choices)
+    legacy_reference = forms.CharField(
+        help_text="Paste a legacy collection/resource URL or UUID.",
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "https://yvideo.byu.edu/collections/<uuid> or <uuid>",
+            }
+        ),
+    )
+
+    class Meta:
+        model = LegacyMigrationRequest
+        fields = [
+            "migration_kind",
+            "legacy_reference",
+            "request_notes",
         ]

@@ -1,9 +1,24 @@
 import os
 
 from django.contrib import admin
+from django.contrib import messages
 from django.core.files.base import ContentFile
+from django.urls import NoReverseMatch
+from django.urls import reverse
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from reversion.admin import VersionAdmin
 
+from .legacy_migration import LegacyMigrationFileDecision
+from .legacy_migration import LegacyMigrationIssue
+from .legacy_migration import LegacyMigrationJob
+from .legacy_migration import LegacyMigrationKind
+from .legacy_migration import LegacyMigrationRequest
+from .legacy_migration import LegacyMigrationResource
+from .legacy_migration import LegacyMigrationStatus
+from .legacy_migration import LegacyMigrationUserResolution
+from .legacy_migration import LegacySourceMap
+from .legacy_migration_services import LegacyMigrationService
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -68,7 +83,7 @@ class ResourceAdmin(VersionAdmin):
             user = User.objects.get(netid=requester_netid)
         except Exception:
             return
-        ResourceAccess.objects.create(user=user, resource=obj)
+        ResourceAccess.objects.get_or_create(user=user, resource=obj)
 
 
 @admin.register(Collection)
@@ -88,7 +103,14 @@ class ResourceFileAdmin(VersionAdmin):
 
 @admin.register(Content)
 class ContentAdmin(VersionAdmin):
-    list_display = ("title", "collection", "published", "views", "created_at")
+    list_display = (
+        "title",
+        "collection",
+        "resource",
+        "published",
+        "views",
+        "created_at",
+    )
     list_filter = (
         "published",
         "allow_definitions",
@@ -124,9 +146,9 @@ class ContentAdmin(VersionAdmin):
                 form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
 
             # Filter clips to show only those associated with the selected file
-            if obj.resource_file:
+            if obj.get_resource():
                 form.base_fields["clips"].queryset = Clip.objects.filter(
-                    resource=obj.resource_file.resource
+                    resource=obj.get_resource()
                 )
             else:
                 form.base_fields["clips"].queryset = Clip.objects.none()
@@ -298,3 +320,390 @@ class TrackAdmin(VersionAdmin):
 class UserCourses(VersionAdmin):
     list_display = ("user", "course", "yearterm")
     search_fields = ("user", "course", "yearterm")
+
+
+class LegacyMigrationResourceInline(admin.TabularInline):
+    model = LegacyMigrationResource
+    extra = 0
+    fields = (
+        "legacy_name",
+        "target_resource_name",
+        "legacy_media_type",
+        "include",
+        "is_synthetic",
+        "fuzzy_matches_preview",
+    )
+    readonly_fields = (
+        "legacy_name",
+        "legacy_media_type",
+        "is_synthetic",
+        "fuzzy_matches_preview",
+    )
+
+    def fuzzy_matches_preview(self, obj):
+        if not obj.fuzzy_matches:
+            return "-"
+        lines = []
+        for match in obj.fuzzy_matches:
+            lines.append(f"<li>{match['resource_name']} ({match['score']})</li>")
+        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+
+    fuzzy_matches_preview.short_description = "Similar Resources"
+
+
+class LegacyMigrationFileDecisionInline(admin.TabularInline):
+    model = LegacyMigrationFileDecision
+    extra = 0
+    fields = (
+        "migration_resource_label",
+        "legacy_version",
+        "target_version",
+        "size_display",
+        "modified_display",
+        "last_accessed_display",
+        "device_inode_display",
+        "absolute_path_display",
+        "legacy_path",
+        "linked_contents_preview",
+        "linked_collections_preview",
+        "linked_instructors_preview",
+        "candidate_matches_preview",
+        "action",
+        "selected_existing_resource_file",
+    )
+    readonly_fields = (
+        "migration_resource_label",
+        "legacy_version",
+        "size_display",
+        "modified_display",
+        "last_accessed_display",
+        "device_inode_display",
+        "absolute_path_display",
+        "legacy_path",
+        "linked_contents_preview",
+        "linked_collections_preview",
+        "linked_instructors_preview",
+        "candidate_matches_preview",
+    )
+
+    def migration_resource_label(self, obj):
+        return obj.migration_resource.legacy_name
+
+    migration_resource_label.short_description = "Legacy Resource"
+
+    def size_display(self, obj):
+        if obj.size_bytes is None:
+            return "Unavailable"
+        return f"{obj.size_bytes:,} bytes"
+
+    size_display.short_description = "Size"
+
+    def modified_display(self, obj):
+        if not obj.mtime_at:
+            return "Unavailable"
+        return obj.mtime_at
+
+    modified_display.short_description = "Modified"
+
+    def last_accessed_display(self, obj):
+        if not obj.atime_at:
+            return "Unavailable"
+        return obj.atime_at
+
+    last_accessed_display.short_description = "Last Accessed"
+
+    def device_inode_display(self, obj):
+        if obj.device is None or obj.inode is None:
+            return "Unavailable"
+        return f"{obj.device}:{obj.inode}"
+
+    device_inode_display.short_description = "Device/Inode"
+
+    def absolute_path_display(self, obj):
+        return obj.metadata.get("absolute_path") or "Unavailable"
+
+    absolute_path_display.short_description = "Absolute Path"
+
+    def linked_contents_preview(self, obj):
+        if not obj.linked_contents:
+            return "-"
+        return ", ".join(sorted(content["title"] for content in obj.linked_contents))
+
+    linked_contents_preview.short_description = "Contents Using File"
+
+    def linked_collections_preview(self, obj):
+        if not obj.linked_collections:
+            return "-"
+        return ", ".join(
+            sorted(collection["name"] for collection in obj.linked_collections)
+        )
+
+    linked_collections_preview.short_description = "Collections Using File"
+
+    def linked_instructors_preview(self, obj):
+        if not obj.linked_instructors:
+            return "-"
+        return ", ".join(sorted(obj.linked_instructors))
+
+    linked_instructors_preview.short_description = "Instructors/TAs"
+
+    def candidate_matches_preview(self, obj):
+        if not obj.candidate_matches:
+            return "-"
+        lines = []
+        for match in obj.candidate_matches:
+            collections = ", ".join(match["collections"]) or "No collections"
+            instructors = ", ".join(match["instructors"]) or "No instructors"
+            lines.append(
+                "<li>"
+                f"{match['resource_name']} / {match['version']} "
+                f"[{match['match_reason']}] "
+                f"size={match['size_bytes']:,} "
+                f"path={match['path']} "
+                f"collections={collections} "
+                f"instructors={instructors}"
+                "</li>"
+            )
+        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+
+    candidate_matches_preview.short_description = "Candidate Matches"
+
+
+class LegacyMigrationUserResolutionInline(admin.TabularInline):
+    model = LegacyMigrationUserResolution
+    extra = 0
+    fields = (
+        "legacy_username",
+        "legacy_byu_id",
+        "legacy_email",
+        "roles",
+        "resolution_status",
+        "matched_user",
+        "notes",
+    )
+    readonly_fields = ("legacy_username", "legacy_byu_id", "legacy_email", "roles")
+
+
+class LegacyMigrationIssueInline(admin.TabularInline):
+    model = LegacyMigrationIssue
+    extra = 0
+    fields = ("severity", "code", "message", "details")
+    readonly_fields = ("severity", "code", "message", "details")
+    can_delete = False
+
+
+class LegacyMigrationJobInline(admin.TabularInline):
+    model = LegacyMigrationJob
+    extra = 0
+    fields = (
+        "job_type",
+        "status",
+        "current_phase",
+        "attempts",
+        "started_at",
+        "finished_at",
+        "last_error",
+    )
+    readonly_fields = (
+        "job_type",
+        "status",
+        "current_phase",
+        "attempts",
+        "started_at",
+        "finished_at",
+        "last_error",
+    )
+    can_delete = False
+
+
+class LegacySourceMapInline(admin.TabularInline):
+    model = LegacySourceMap
+    extra = 0
+    fields = ("source_type", "source_id", "target_model", "target_id")
+    readonly_fields = ("source_type", "source_id", "target_model", "target_id")
+    can_delete = False
+
+
+@admin.register(LegacyMigrationRequest)
+class LegacyMigrationRequestAdmin(VersionAdmin):
+    list_display = (
+        "request_uuid",
+        "migration_kind",
+        "status",
+        "requested_by",
+        "target_owner",
+        "created_at",
+    )
+    list_filter = ("migration_kind", "status", "created_at")
+    search_fields = ("request_uuid", "legacy_reference", "legacy_identifier")
+    readonly_fields = ("snapshot_summary", "created_targets")
+    actions = (
+        "run_preflight_action",
+        "refresh_issues_action",
+        "approve_and_queue_action",
+        "retry_latest_failed_job_action",
+        "cancel_jobs_action",
+    )
+    inlines = (
+        LegacyMigrationResourceInline,
+        LegacyMigrationFileDecisionInline,
+        LegacyMigrationUserResolutionInline,
+        LegacyMigrationIssueInline,
+        LegacyMigrationJobInline,
+        LegacySourceMapInline,
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.requested_by:
+            obj.requested_by = request.user
+        if not obj.target_owner:
+            obj.target_owner = obj.requested_by
+        super().save_model(request, obj, form, change)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        LegacyMigrationService(require_catalog=False).sync_request_issues(form.instance)
+
+    def snapshot_summary(self, obj):
+        if not obj.raw_snapshot:
+            return "No preflight snapshot yet."
+        resource_count = obj.migration_resources.count()
+        file_count = obj.file_decisions.count()
+        blocking_count = obj.issues.filter(severity="blocking").count()
+        warning_count = obj.issues.filter(severity="warning").count()
+        collection_name = ""
+        if obj.migration_kind == LegacyMigrationKind.COLLECTION:
+            collection_name = obj.raw_snapshot.get("collection", {}).get("name", "")
+        return format_html(
+            "<strong>Collection:</strong> {}<br>"
+            "<strong>Resources:</strong> {}<br>"
+            "<strong>Files:</strong> {}<br>"
+            "<strong>Blocking Issues:</strong> {}<br>"
+            "<strong>Warnings:</strong> {}",
+            collection_name or "-",
+            resource_count,
+            file_count,
+            blocking_count,
+            warning_count,
+        )
+
+    snapshot_summary.short_description = "Snapshot Summary"
+
+    def created_targets(self, obj):
+        if not obj.source_maps.exists():
+            return "No imported objects yet."
+        lines = []
+        for source_map in obj.source_maps.all().order_by("source_type", "source_id"):
+            try:
+                admin_url = reverse(
+                    f"admin:core_{source_map.target_model.lower()}_change",
+                    args=[source_map.target_id],
+                )
+                target_display = format_html(
+                    '<a href="{}">{}:{}</a>',
+                    admin_url,
+                    source_map.target_model,
+                    source_map.target_id,
+                )
+            except NoReverseMatch:
+                target_display = f"{source_map.target_model}:{source_map.target_id}"
+            lines.append(
+                "<li>"
+                f"{source_map.source_type}:{source_map.source_id} -> "
+                f"{target_display}"
+                "</li>"
+            )
+        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+
+    created_targets.short_description = "Imported Targets"
+
+    def _report_action_error(self, request, migration_request, action_label, exc):
+        self.message_user(
+            request,
+            (
+                f"{action_label} failed for request {migration_request.request_uuid}: "
+                f"{exc}"
+            ),
+            level=messages.ERROR,
+        )
+
+    @admin.action(description="Run preflight now")
+    def run_preflight_action(self, request, queryset):
+        processed = 0
+        for migration_request in queryset:
+            try:
+                LegacyMigrationService().preflight_request(migration_request)
+            except Exception as exc:
+                migration_request.status = LegacyMigrationStatus.PREFLIGHT_FAILED
+                migration_request.latest_job_error = str(exc)
+                migration_request.save(
+                    update_fields=["status", "latest_job_error", "updated_at"]
+                )
+                self._report_action_error(request, migration_request, "Preflight", exc)
+            else:
+                processed += 1
+        if processed:
+            self.message_user(request, f"Ran preflight for {processed} request(s).")
+
+    @admin.action(description="Refresh issues after user/file edits")
+    def refresh_issues_action(self, request, queryset):
+        service = LegacyMigrationService(require_catalog=False)
+        processed = 0
+        for migration_request in queryset:
+            try:
+                service.sync_request_issues(migration_request)
+            except Exception as exc:
+                self._report_action_error(
+                    request, migration_request, "Issue refresh", exc
+                )
+            else:
+                processed += 1
+        if processed:
+            self.message_user(request, f"Refreshed issues for {processed} request(s).")
+
+    @admin.action(description="Approve and queue import")
+    def approve_and_queue_action(self, request, queryset):
+        service = LegacyMigrationService(require_catalog=False)
+        processed = 0
+        for migration_request in queryset:
+            try:
+                service.approve_and_queue_import(migration_request)
+            except Exception as exc:
+                migration_request.latest_job_error = str(exc)
+                migration_request.save(update_fields=["latest_job_error", "updated_at"])
+                self._report_action_error(request, migration_request, "Approval", exc)
+            else:
+                processed += 1
+        if processed:
+            self.message_user(request, f"Approved and queued {processed} request(s).")
+
+    @admin.action(description="Retry latest failed job")
+    def retry_latest_failed_job_action(self, request, queryset):
+        processed = 0
+        for migration_request in queryset:
+            latest_failed_job = (
+                migration_request.jobs.filter(status="failed")
+                .order_by("-created_at")
+                .first()
+            )
+            if not latest_failed_job:
+                continue
+            migration_request.queue_job(latest_failed_job.job_type)
+            migration_request.status = LegacyMigrationStatus.QUEUED
+            migration_request.save(update_fields=["status", "updated_at"])
+            processed += 1
+        if processed:
+            self.message_user(request, f"Queued retries for {processed} request(s).")
+
+    @admin.action(description="Cancel queued/running jobs")
+    def cancel_jobs_action(self, request, queryset):
+        processed = 0
+        for migration_request in queryset:
+            migration_request.jobs.filter(status__in=("queued", "running")).update(
+                status="canceled"
+            )
+            migration_request.status = LegacyMigrationStatus.CANCELED
+            migration_request.save(update_fields=["status", "updated_at"])
+            processed += 1
+        if processed:
+            self.message_user(request, f"Canceled jobs for {processed} request(s).")

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Legacy Migration Request{% endblock %}
+
+{% block content %}
+    <section class="collections-page">
+        <div id="collections-container">
+            <h2>Migration Request {{ migration_request.request_uuid }}</h2>
+            <p><strong>Status:</strong> {{ migration_request.get_status_display }}</p>
+            <p><strong>Type:</strong> {{ migration_request.get_migration_kind_display }}</p>
+            <p><strong>Legacy Reference:</strong> {{ migration_request.legacy_reference }}</p>
+            <p><strong>Target Owner:</strong> {{ migration_request.target_owner }}</p>
+            {% if migration_request.latest_job_error %}
+                <p><strong>Last Error:</strong> {{ migration_request.latest_job_error }}</p>
+            {% endif %}
+
+            <h3>Resources</h3>
+            <ul>
+                {% for migration_resource in migration_request.migration_resources.all %}
+                    <li>
+                        {{ migration_resource.legacy_name }}
+                        {% if migration_resource.include %}(included){% else %}(excluded){% endif %}
+                        <ul>
+                            {% for file_decision in migration_resource.file_decisions.all %}
+                                <li>
+                                    {{ file_decision.legacy_version }} |
+                                    {{ file_decision.legacy_path }} |
+                                    {{ file_decision.get_action_display }}
+                                </li>
+                            {% empty %}
+                                <li>No files discovered for this resource.</li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% empty %}
+                    <li>Preflight has not created a resource snapshot yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div id="collections-detail">
+            <h3>Issues</h3>
+            <ul>
+                {% for issue in migration_request.issues.all %}
+                    <li>{{ issue.severity|title }}: {{ issue.message }}</li>
+                {% empty %}
+                    <li>No current issues.</li>
+                {% endfor %}
+            </ul>
+
+            <h3>Jobs</h3>
+            <ul>
+                {% for job in migration_request.jobs.all %}
+                    <li>{{ job.get_job_type_display }} | {{ job.get_status_display }} | {{ job.current_phase }}</li>
+                {% empty %}
+                    <li>No jobs recorded yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </section>
+{% endblock %}

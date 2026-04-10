@@ -1,5 +1,7 @@
 media/
 secret_settings.py
+dump_legacy_to_sqlite_settings.py
+scripts/dump_legacy_to_sqlite_settings.py
 *settings.json
 *advanced_settings.json
 *sp.cert

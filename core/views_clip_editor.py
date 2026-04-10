@@ -75,6 +75,7 @@ def clip_editor(request, content_id):
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
+        "content_source_url": content.url if content.is_url_only() else None,
         "allow_events": True,
         "layers": layers_dict,  # For timeline_base.html label column
         "layers_list": layers_list,  # For timeline_layers.html content
@@ -267,12 +268,13 @@ def create_clip(request, annotation_type, content_id):
         return HttpResponse("Invalid item times", status=400)
 
     # Get resource from content's file
-    if not content.file or not content.file.resource:
+    target_resource = content.get_resource()
+    if not target_resource:
         return HttpResponse("Content has no associated resource", status=400)
 
     # Create new item
     new_item = Clip.objects.create(
-        resource=content.file.resource,
+        resource=target_resource,
         owner=request.user,
         name=f"Clip {content.clips.count() + 1}",
         start_time=seconds2hms(start_time),

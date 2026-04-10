@@ -48,6 +48,15 @@ ANNOTATION_ICONS = {
 }
 
 
+def build_player_wrapper_context(request, content):
+    resource_file_key = request.user.get_resource_filekey(content)
+    return {
+        "content_id": content.pk,
+        "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
+        "content_source_url": content.url if content.is_url_only() else None,
+    }
+
+
 def get_annotation_groups(annotations):
     # [{type:"", type_display:"", icon:"", instances: []}]
     groups = {}
@@ -145,6 +154,11 @@ def video_editor(request, content_id):
 
     # Determine if user can edit the active annotation set
     annotation_set = content.annotation_set
+    if annotation_set is None and content.get_resource():
+        annotation_set = AnnotationSet.create_for_content(content, request.user)
+        content.annotation_set = annotation_set
+        content.save(update_fields=["annotation_set", "updated_at"])
+
     can_edit = annotation_set.can_edit(request.user) if annotation_set else True
 
     can_edit_annotation_set = annotation_set is not None and (
@@ -168,6 +182,7 @@ def video_editor(request, content_id):
         "content": content,
         "content_id": content_id,
         "file_key": file_key.id if file_key else None,
+        "content_source_url": content.url if content.is_url_only() else None,
         "allow_events": True,
         "available_annotation_sets": available_sets,
         "annotation_set": annotation_set,
@@ -227,10 +242,7 @@ def get_player_wrapper_html(request):
     try:
         video_html = render_to_string(
             "partials/player-wrapper.html",
-            {
-                "content_id": content_id,
-                "resource_file_key_id": request.user.get_resource_filekey(content).pk,
-            },
+            build_player_wrapper_context(request, content),
             request=request,
         )
 
@@ -259,7 +271,7 @@ def select_annotation_set(request):
         return HttpResponseBadRequest()
 
     annotation_set = get_object_or_404(
-        AnnotationSet, id=annotation_set_id, resource=content.resource_file.resource
+        AnnotationSet, id=annotation_set_id, resource=content.get_resource()
     )
     if not annotation_set.can_be_viewed_by(request.user):
         return HttpResponse("Unauthorized", status=403)
@@ -283,10 +295,7 @@ def select_annotation_set(request):
     # Get JSON from model method
     video_html = render_to_string(
         "partials/player-wrapper.html",
-        {
-            "content_id": content_id,
-            "resource_file_key_id": request.user.get_resource_filekey(content).pk,
-        },
+        build_player_wrapper_context(request, content),
         request=request,
     )
 

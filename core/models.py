@@ -124,10 +124,16 @@ class User(AbstractUser):
 
     def can_view_content(self, content):
         # owners and admins should have view permission even if the collection is not published
-        if content.collection.owner == self:
+        if content.collection and content.collection.owner == self:
             return True
         if self.is_admin or self.is_superuser or self.is_staff:
             return True
+        if content.collection is None:
+            resource = content.get_resource()
+            return bool(
+                resource
+                and ResourceAccess.objects.filter(user=self, resource=resource).exists()
+            )
         if content.collection.published:
             if CollectionUserAccess.objects.filter(
                 user=self, collection=content.collection
@@ -138,7 +144,7 @@ class User(AbstractUser):
 
     def get_resource_filekey(self, content):
         """Get or create a FileKey for the given content."""
-        if self.can_view_content(content):
+        if self.can_view_content(content) and content.resource_file:
             resource_file_key = ResourceFileKey.objects.filter(
                 resource_file=content.resource_file, user=self
             ).first()
@@ -409,8 +415,8 @@ class AnnotationSet(models.Model):
 
     def can_be_viewed_by(self, user):
         """Check if user can view this annotation set (through any content using the resource)."""
-        return Content.objects.filter(resource_file__resource=self.resource).filter(
-            collection__owner=user
+        return Content.objects.filter(
+            resource=self.resource, collection__owner=user
         ).exists() or self.can_edit(user)
 
     @classmethod
@@ -420,11 +426,11 @@ class AnnotationSet(models.Model):
         Automatically adds collection owner and instructor/TAs as editors.
         """
         collection = content.collection
-        resource = content.resource_file.resource if content.resource_file else None
+        resource = content.get_resource()
 
         if not resource:
             raise ValueError(
-                "Content must have a file with a resource to create an AnnotationSet"
+                "Content must be associated with a resource to create an AnnotationSet"
             )
 
         # Create annotation set with user as owner
@@ -521,6 +527,13 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
+    resource = models.ForeignKey(
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="contents",
+        null=True,
+        blank=True,
+    )
     annotation_set = models.ForeignKey(
         AnnotationSet,
         on_delete=models.SET_NULL,
@@ -549,13 +562,30 @@ class Content(models.Model):
         unique_together = ("collection", "title")
 
     def __str__(self):
-        return f"{self.title} | {self.collection.name} | {self.id}"
+        collection_name = self.collection.name if self.collection else "No Collection"
+        return f"{self.title} | {collection_name} | {self.id}"
+
+    def save(self, *args, **kwargs):
+        if self.resource_file:
+            self.resource = self.resource_file.resource
+        super().save(*args, **kwargs)
+
+    def get_resource(self):
+        if self.resource_id:
+            return self.resource
+        if self.resource_file_id:
+            return self.resource_file.resource
+        return None
+
+    def is_url_only(self):
+        return self.resource_file_id is None and bool(self.url)
 
     def get_available_annotation_sets(self):
         """Get all AnnotationSets available for this content's resource."""
-        if not self.resource_file or not self.resource_file.resource:
+        resource = self.get_resource()
+        if not resource:
             return AnnotationSet.objects.none()
-        return AnnotationSet.objects.filter(resource=self.resource_file.resource)
+        return AnnotationSet.objects.filter(resource=resource)
 
     def get_clips_json(self):
         """
@@ -584,7 +614,10 @@ class Content(models.Model):
             - 'vtt' or 'url'
             - 'label'
         """
-        sub_objs = Subtitle.objects.filter(resource=self.resource_file.resource)
+        resource = self.get_resource()
+        if not resource:
+            return []
+        sub_objs = Subtitle.objects.filter(resource=resource)
         subtitles = [
             {
                 "srclang": sub.language.lang_tag,
@@ -1170,4 +1203,7 @@ class ResourceContentIntakeRequest(models.Model):
     drug_use = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Content request for {self.resource.title}"
+        return f"Content request for {self.resource.name}"
+
+
+from . import legacy_migration  # noqa: F401, E402

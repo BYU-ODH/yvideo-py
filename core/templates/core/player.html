@@ -10,5 +10,5 @@
 {% endblock %}
 
 {% block content %}
-    {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
+    {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id content_source_url=content_source_url %}
 {% endblock %}
