@@ -1,5 +1,11 @@
-<div id="annotation-panel-header">
-    Annotations
+<div id="annotation-panel-header" class="row-flex flex-apart-aligned">
+    <p>Annotations</p>
+    <button id="annotation-set-menu-button" class="editor-menu-button" aria-label="Annotation set settings" command="show-modal" commandfor="annotation-set-settings">
+        <img src="/static/img/dots_menu.svg" />
+    </button>
+    <dialog id="annotation-set-settings">
+        {% include 'partials/annotation_set_settings_compact.html' %}
+    </dialog>
 </div>
 <div id="annotation-groups-wrapper">
     {% for group in annotation_groups %}
