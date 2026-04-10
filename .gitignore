@@ -11,7 +11,8 @@ scripts/dump_legacy_to_sqlite_settings.py
 *staticfiles
 *media
 *requirements.txt
-*migrations
+# TODO start tracking migrations once we have a stable database schema (and before we start the pilot!)
+core/migrations/*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
