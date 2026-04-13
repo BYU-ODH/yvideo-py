@@ -2071,7 +2071,9 @@ export class Editor {
 
     attachRemoveEditorListener(editorDetailEl) {
       const removeEditorButton = editorDetailEl.querySelector(".remove-editor-button");
-      removeEditorButton.addEventListener("click", this.handleRemoveEditor.bind(this));
+      if (removeEditorButton) {
+        removeEditorButton.addEventListener("click", this.handleRemoveEditor.bind(this));
+      }
     }
 
     attachRemoveEditorListeners() {
