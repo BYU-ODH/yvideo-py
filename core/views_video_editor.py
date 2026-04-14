@@ -26,6 +26,11 @@ from .models import PauseAnnotation
 from .models import SkipAnnotation
 from .models import Track
 from .models import User
+from .utils import VTTCue
+from .utils import build_vtt_file_string_from_cues
+from .utils import convert_srt_content_to_vtt
+from .utils import generate_vtt_cues_from_file_path
+from .utils import nudge_cue_times
 
 logger = logging.getLogger(__name__)
 
@@ -135,50 +140,60 @@ def return_annotation_if_authorized_and_exists(
 @login_required
 def video_editor(request, content_id):
     """Main video editor page."""
-    content = get_object_or_404(Content, id=content_id)
+    try:
+        content = Content.objects.get(pk=content_id)
 
-    # Check if user can view this content
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
+        # Check if user can view this content
+        if not request.user.can_view_content(content):
+            return HttpResponse("Unauthorized", status=403)
 
-    # Get available annotation sets
-    available_sets = content.get_available_annotation_sets()
+        # Get available annotation sets
+        available_sets = content.get_available_annotation_sets()
 
-    # Determine if user can edit the active annotation set
-    annotation_set = content.annotation_set
-    can_edit = annotation_set.can_edit(request.user) if annotation_set else True
+        # Determine if user can edit the active annotation set
+        annotation_set = content.annotation_set
+        can_edit = annotation_set.can_edit(request.user) if annotation_set else True
 
-    can_edit_annotation_set = annotation_set is not None and (
-        annotation_set.owner == request.user or request.user.is_admin
-    )
+        can_edit_annotation_set = annotation_set is not None and (
+            annotation_set.owner == request.user or request.user.is_admin
+        )
 
-    # Get file key for video streaming
-    file_key = request.user.get_resource_filekey(content)
+        # Get file key for video streaming
+        file_key = request.user.get_resource_filekey(content)
 
-    # Prepare track data for timeline
-    tracks = annotation_set.get_tracks()
-    if not tracks:
-        Track.objects.create(annotation_set=annotation_set)
+        # Prepare track data for timeline
         tracks = annotation_set.get_tracks()
+        if not tracks:
+            Track.objects.create(annotation_set=annotation_set)
+            tracks = annotation_set.get_tracks()
 
-    annotations = annotation_set.get_active_annotations_from_tracks()
+        annotations = annotation_set.get_active_annotations_from_tracks()
 
-    annotation_groups = get_annotation_groups(annotations)
+        annotation_groups = get_annotation_groups(annotations)
 
-    context = {
-        "content": content,
-        "content_id": content_id,
-        "file_key": file_key.id if file_key else None,
-        "allow_events": True,
-        "available_annotation_sets": available_sets,
-        "annotation_set": annotation_set,
-        "can_edit": can_edit,
-        "can_edit_annotation_set": can_edit_annotation_set,
-        "annotation_groups": annotation_groups,
-        "tracks": tracks,
-    }
+        subtitle_options = content.get_subtitles()
 
-    return render(request, "core/video_editor.html", context)
+        context = {
+            "content": content,
+            "content_id": content_id,
+            "file_key": file_key.id if file_key else None,
+            "allow_events": True,
+            "available_annotation_sets": available_sets,
+            "annotation_set": annotation_set,
+            "can_edit": can_edit,
+            "can_edit_annotation_set": can_edit_annotation_set,
+            "annotation_groups": annotation_groups,
+            "tracks": tracks,
+            "subtitle_options": subtitle_options,
+        }
+
+        return render(request, "core/video_editor.html", context)
+    except Content.DoesNotExist:
+        logger.error("Failed to load video annotator: missing content.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to load video annotator. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @login_required
@@ -1085,4 +1100,186 @@ def delete_track(request, track_id):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to delete track. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_GET
+def get_editable_subtitles(request, subtitle_id):
+    try:
+        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
+        cues = generate_vtt_cues_from_file_path(subtitle_obj.subtitles_file.path)
+        return HttpResponse(
+            render_to_string(
+                "partials/subtitle_panel_content.html",
+                {"subtitle_track": subtitle_obj, "cues": cues},
+            )
+        )
+
+    except Subtitle.DoesNotExist:
+        logger.error("Failed to generate subtitle html: missing Subtitle object.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Error generating html cues from file path. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_POST
+def create_subtitle(request):
+    form = SubtitleForm(request.POST, request.FILES)
+    if form.is_valid():
+        data = form.cleaned_data
+        uploaded_file = request.FILES["subtitles_file"]
+        if uploaded_file is None:
+            logger.error("No subtitle file provided.")
+            return HttpResponseBadRequest()
+
+        # automatically convert .srt files to .vtt
+        uploaded_file_content = convert_srt_content_to_vtt(
+            uploaded_file.read().decode("utf-8")
+        )
+
+        # create new subtitle object
+        try:
+            new_subtitle = Subtitle.objects.create(
+                resource=data["resource"],
+                owner=data["owner"],
+                language=data["language"],
+                name=data["name"],
+                subtitles_file=ContentFile(
+                    content=uploaded_file_content, name=uploaded_file.name
+                ),
+                is_original=data["is_original"],
+            )
+        except Exception as e:
+            logger.error(
+                f"Error creating Subtitles object. data: {data}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+    return render(
+        request, "partials/subtitle_track.html", {"subtitle_track": new_subtitle}
+    )
+
+
+@require_POST
+def update_subtitle_metadata(request):
+    form = SubtitleForm(request.POST, request.FILES)
+    if form.is_valid():
+        data = form.cleaned_data
+
+        uploaded_file = request.FILES["subtitles_file"]
+
+        if uploaded_file is not None:
+            uploaded_file_content = convert_srt_content_to_vtt(
+                uploaded_file.read().decode("utf-8")
+            )
+            uploaded_file_name = uploaded_file.name
+
+        try:
+            if "subtitle_id" in request.POST:
+                subtitle_obj = get_object_or_404(
+                    Subtitle, id=request.POST.get("subtitle_id")
+                )
+            else:
+                return HttpResponseBadRequest()
+
+            if "language" in data:
+                subtitle_obj.language = data["language"]
+            if "name" in data:
+                subtitle_obj.name = data["name"]
+            if uploaded_file is not None:
+                subtitle_obj.subtitles_file = ContentFile(
+                    content=uploaded_file_content, name=uploaded_file_name
+                )
+            if "is_original" in data:
+                subtitle_obj.is_original = data["is_original"]
+            if "words" in request.POST:
+                subtitle_obj.words = data["words"]
+            subtitle_obj.save()
+
+            # remove temp file when main file is updated
+            # this is not included where subtitles_file is set because we want
+            # to ensure we don't over write the temp file unless the main file
+            # is successfully updated.
+            if uploaded_file is not None:
+                subtitle_obj.subtitles_temp_file = None
+                subtitle_obj.save()
+
+            return render(
+                request,
+                "partials/subtitle_track.html",
+                {"subtitle_track": subtitle_obj},
+            )
+        except Exception as e:
+            logger.error(
+                f"Error while updating subtitle object with id: {request.POST.get('subtitle_id')}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+
+@require_POST
+def update_subtitle_content(request):
+    try:
+        # build VTTCue list
+        request_data = json.loads(request.body)
+        subtitle_id = request_data["subtitle_id"]
+        dict_cue_list = json.loads(request_data["cues"])
+        cues_list: list[VTTCue] = []
+        for dict_cue in dict_cue_list:
+            new_cue = VTTCue()
+            new_cue.from_json_dict(dict_cue)
+            cues_list.append(new_cue)
+
+        # change timing of cues if applicable
+        seconds_nudge = request_data["seconds_nudge"]
+        nudge_excluded_cues = request_data["nudge_excluded_cues"]
+        if seconds_nudge:
+            nudge_cue_times(cues_list, nudge_excluded_cues, seconds_nudge)
+
+        # build and save new vtt file
+        new_vtt_string = build_vtt_file_string_from_cues(cues_list)
+        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
+        is_autosave = request_data["is_autosave"]
+
+        # something is giong on here where part of the path name is being duplicated
+        # files are saved as media/filename where in this case, filename is something like
+        # "resource name/subtitles/original filename"
+        # but the model is set to attach the current filename in place of "original filename"
+        # so we end up with "resource name/subtitles/resource name/subtitles/.../intended filename"
+        if is_autosave:
+            with subtitle_obj.subtitles_temp_file.open("w") as f:
+                f.write(new_vtt_string)
+        else:
+            with subtitle_obj.subtitles_file.open("w") as f:
+                f.write(new_vtt_string)
+        subtitle_obj.save()
+        return HttpResponse("", status=200)
+
+    except Subtitle.DoesNotExist:
+        logger.error(
+            "Failed to update subtitle content: Subtitle object does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Error while updating subtitle content: {e}")
+        return HttpResponseServerError()
+
+
+@require_http_methods(["DELETE"])
+def delete_subtitle(request, subtitle_id):
+    try:
+        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
+        subtitle_obj.delete()
+        return HttpResponse("", status=200)
+    except Subtitle.DoesNotExist:
+        logger.error("Failed to delete subtitle: Subtitle object does not exist")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(
+            f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
+        )
         return HttpResponseServerError()

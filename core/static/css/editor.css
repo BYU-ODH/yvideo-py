@@ -58,13 +58,29 @@
     overflow: hidden;
 }
 
-#editor-annotation-panel {
-    width: 200px;
-    display: flex;
+.editor-panel-wrapper {
     flex-direction: column;
 }
 
-#annotation-panel-header {
+.editor-panel-switch {
+    margin-top: auto;
+    align-self: center;
+    margin-bottom: 1rem;
+}
+
+#editor-annotation-panel {
+    width: 200px;
+}
+
+.editor-annotation-panel-visible {
+    display: flex;
+}
+
+.editor-annotation-panel-hidden {
+    display: none;
+}
+
+#annotation-panel-header, #subtitle-panel-header {
     padding: 8px;
 }
 
@@ -307,6 +323,60 @@
     padding: 10px 12px;
     max-height: 10vh;
     overflow: auto;
+}
+
+/* Subtitle Editor Panel */
+#subtitle-editor-panel {
+    width: 350px;
+}
+
+#subtitle-panel-content-wrapper, #subtitle-panel-list {
+    flex: 1;
+}
+
+#subtitle-panel-content-wrapper, #subtitle-panel-list, .subtitle-cue-input-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.subtitle-editor-panel-hidden {
+    display: none;
+}
+
+.subtitle-editor-panel-visible {
+    display: flex;
+}
+
+#subtitle-panel-list {
+    overflow: auto;
+}
+
+.subtitle-cue {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: 0.2rem;
+}
+
+.subtitle-cue-active {
+    background-color: var(--subtitle-type-color-transparent);
+}
+
+.subtitle-cue-count, .subtitle-cue-content {
+    margin: 0;
+}
+
+.subtitle-cue-input-group {
+    row-gap: 0.2rem;
+}
+
+.subtitle-panel-list, #subtitle-panel-content-wrapper {
+    row-gap: 0.5rem;
+}
+
+#delete-subtitles-track-button {
+    margin-top: 5rem;
+    align-self: flex-end;
 }
 
 /* Video Section */

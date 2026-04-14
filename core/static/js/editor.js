@@ -18,7 +18,6 @@ export class Editor {
         this.typeOfAnnotationInFocus = null;
         this.annotationIdInFocus = null;
         this.activeCensorPosition = null;
-
         this.tickMarksContainer = document.querySelector('#tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
@@ -29,8 +28,8 @@ export class Editor {
         this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
-
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
+
 
         this.init();
     }
@@ -66,6 +65,7 @@ export class Editor {
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
+        this.watchAndHandleEditorPanelSwitch();
     }
 
     getCSRFToken() {
@@ -1160,7 +1160,7 @@ export class Editor {
     watchForTrackMenuOpen(trackRootElement) {
       const menuButton = trackRootElement.querySelector(".editor-menu-button");
       if (menuButton) {
-        menuButton.addEventListener("click", this.handleTrackOpenMenuClick)
+        menuButton.addEventListener("click", this.handleTrackOpenMenuClick.bind(this));
       }
       else {
         console.error("No menu button found for track");
@@ -2167,6 +2167,22 @@ export class Editor {
       }
       editorSearchInput.addEventListener("keydown", handleSearchInput.bind(this));
     }
+
+    watchAndHandleEditorPanelSwitch() {
+      const annotationPanel = document.getElementById("editor-annotation-panel");
+      const subtitlesPanel = document.getElementById("subtitle-editor-panel");
+      const togglePanelVisiblity = () => {
+        annotationPanel.classList.toggle("editor-annotation-panel-hidden");
+        annotationPanel.classList.toggle("editor-annotation-panel-visible");
+        subtitlesPanel.classList.toggle("subtitle-editor-panel-visible");
+        subtitlesPanel.classList.toggle("subtitle-editor-panel-hidden");
+      }
+      const annotationPanelSwitchButton = document.getElementById("annotation-panel-switch");
+      const subtitlePanelSwitchButton = document.getElementById("subtitle-panel-switch");
+      annotationPanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+      subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+    }
+
 }
 
 function editorInit() {
