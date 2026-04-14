@@ -106,7 +106,18 @@ LEGACY_MIGRATION_MEDIA_ROOT = "/absolute/path/to/legacy/media/root"
 
 This should be the root directory that contains the legacy files referenced by the old `files.filepath` values.
 
-The migration code expects direct local filesystem access. It does not use SSH.
+If the legacy files live on the same host, the migration code uses direct local
+filesystem access.
+
+If the legacy files live on another host that is reachable over SSH, you can
+also use an `scp`-style root:
+
+```python
+LEGACY_MIGRATION_MEDIA_ROOT = "yvideo:/opt/media/y-video/"
+```
+
+Preflight will inspect remote files over `ssh`, and imports will copy them
+locally with `scp`.
 
 ### 5. Create the initial SQLite snapshot
 
@@ -400,6 +411,7 @@ When a file is imported:
 2. If an exact match already exists, the admin must decide whether to reuse it, skip it, or change the plan.
 3. If importing a new file and the legacy media root is on the same filesystem device as `MEDIA_ROOT`, the app hard-links the file instead of copying it.
 4. If hard-linking is not possible, the app falls back to a local copy.
+5. If the legacy media root is configured as `host:/path`, the app copies the file with `scp`.
 
 This is why the file review step is important.
 

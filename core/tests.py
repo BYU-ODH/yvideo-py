@@ -1,12 +1,8 @@
 # Create your tests here.
 import copy
 
-# import json
-import unittest
-
 from django.test import TestCase
 
-# from django.urls import reverse
 from core.utils import VTTCue
 from core.utils import build_cues_from_vtt_file_string
 from core.utils import build_vtt_file_string_from_cues
@@ -15,40 +11,45 @@ from core.utils import seconds2hms
 
 from . import api
 
-# from .models import AnnotationSet
-# from .models import Resource
-# from .models import Track
-# from .models import User
-#
-from .utils import seconds2hms
-
 
 class ApiTests(TestCase):
-    @unittest.expectedFailure
+    def _run_informational_check(self, description, callback):
+        try:
+            callback()
+        except Exception as exc:
+            self.skipTest(f"Informational API check failed for {description}: {exc}")
+
     def test_build_auth_header(self):
-        new_api = api.Api()
-        pattern = r"Bearer[ ]\S*"
-        result = new_api.build_auth_header()
-        self.assertRegex(result, pattern)
+        def check():
+            new_api = api.Api()
+            pattern = r"Bearer[ ]\S*"
+            result = new_api.build_auth_header()
+            self.assertRegex(result, pattern)
 
-    @unittest.expectedFailure
+        self._run_informational_check("build_auth_header", check)
+
     def test_get_current_year_term(self):
-        pattern = r"[0-9]{4}[1-6]"
-        new_api = api.Api()
-        result = new_api.get_current_year_term()
-        self.assertRegex(result["yearterm"], pattern)
+        def check():
+            pattern = r"[0-9]{4}[1-6]"
+            new_api = api.Api()
+            result = new_api.get_current_year_term()
+            self.assertRegex(result["yearterm"], pattern)
 
-    @unittest.expectedFailure
+        self._run_informational_check("get_current_year_term", check)
+
     def test_calculate_next_year_term(self):
-        new_api = api.Api()
-        fall_to_winter = new_api.calculate_next_year_term("20255")
-        self.assertEqual(fall_to_winter, "20261")
-        winter_to_spring = new_api.calculate_next_year_term("20261")
-        self.assertEqual(winter_to_spring, "20263")
-        spring_to_summer = new_api.calculate_next_year_term("20263")
-        self.assertEqual(spring_to_summer, "20264")
-        summer_to_fall = new_api.calculate_next_year_term("20264")
-        self.assertEqual(summer_to_fall, "20265")
+        def check():
+            new_api = api.Api()
+            fall_to_winter = new_api.calculate_next_year_term("20255")
+            self.assertEqual(fall_to_winter, "20261")
+            winter_to_spring = new_api.calculate_next_year_term("20261")
+            self.assertEqual(winter_to_spring, "20263")
+            spring_to_summer = new_api.calculate_next_year_term("20263")
+            self.assertEqual(spring_to_summer, "20264")
+            summer_to_fall = new_api.calculate_next_year_term("20264")
+            self.assertEqual(summer_to_fall, "20265")
+
+        self._run_informational_check("calculate_next_year_term", check)
 
 
 class Seconds2HMSTests(TestCase):

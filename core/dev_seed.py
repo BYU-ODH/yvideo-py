@@ -38,6 +38,7 @@ DEMO_USER_NETIDS = {
     DEMO_ADMIN_NETID,
     "profada",
     "profben",
+    "rjr45",
     "caseyta",
     "labdemo",
     "studali",
@@ -104,6 +105,14 @@ def create_demo_data():
         last_name="Professor",
         email="profben@example.test",
         password="profben",
+    )
+    UserFactory(
+        instructor=True,
+        netid="rjr45",
+        first_name="Rob",
+        last_name="Reynolds",
+        email="rjr45@example.test",
+        password="rjr45",
     )
     teaching_assistant = UserFactory(
         lab_assistant=True,

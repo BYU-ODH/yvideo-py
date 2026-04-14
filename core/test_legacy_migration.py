@@ -1,3 +1,4 @@
+import io
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,7 @@ from unittest import mock
 import uuid
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.messages import get_messages
 from django.core.exceptions import ImproperlyConfigured
 from django.db import OperationalError
@@ -16,6 +18,7 @@ from django.test import Client
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
+import xxhash
 
 from .factories import CollectionFactory
 from .factories import LanguageFactory
@@ -24,6 +27,8 @@ from .factories import UserFactory
 from .legacy_migration import LegacyMigrationJob
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationStatus
+from .legacy_migration import LegacyMigrationUserResolutionStatus
+from .legacy_migration_services import ChecksumCache
 from .legacy_migration_services import LegacyCatalogClient
 from .legacy_migration_services import LegacyMigrationService
 from .models import BlurAnnotation
@@ -855,7 +860,10 @@ class LegacyMigrationTests(TestCase):
         client = Client()
         client.force_login(admin_user)
 
-        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+        with (
+            mock.patch("core.admin.LegacyMigrationService") as service_class,
+            mock.patch("core.admin.logger") as logger_mock,
+        ):
             service_class.return_value.preflight_request.side_effect = OperationalError(
                 "legacy database unavailable"
             )
@@ -871,12 +879,26 @@ class LegacyMigrationTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        messages = [message.message for message in get_messages(response.wsgi_request)]
+        admin_messages = list(get_messages(response.wsgi_request))
         self.assertTrue(
-            any("Preflight failed for request" in message for message in messages)
+            any(
+                "Preflight failed for request" in message.message
+                for message in admin_messages
+            )
         )
         self.assertTrue(
-            any("legacy database unavailable" in message for message in messages)
+            any(
+                message.message == "Preflight failed for 1 request(s)."
+                and message.level == messages.ERROR
+                for message in admin_messages
+            )
+        )
+        self.assertFalse(
+            any(
+                "Ran preflight for" in message.message
+                and message.level == messages.SUCCESS
+                for message in admin_messages
+            )
         )
         migration_request.refresh_from_db()
         self.assertEqual(
@@ -884,4 +906,236 @@ class LegacyMigrationTests(TestCase):
         )
         self.assertEqual(
             migration_request.latest_job_error, "legacy database unavailable"
+        )
+        logger_mock.exception.assert_called_once()
+
+    def test_admin_preflight_action_warns_when_results_are_mixed(self):
+        admin_user = UserFactory(admin=True)
+        successful_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        failed_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(admin_user)
+
+        with (
+            mock.patch("core.admin.LegacyMigrationService") as service_class,
+            mock.patch("core.admin.logger"),
+        ):
+            service_class.return_value.preflight_request.side_effect = [
+                None,
+                OperationalError("legacy database unavailable"),
+            ]
+            response = client.post(
+                reverse("admin:core_legacymigrationrequest_changelist"),
+                data={
+                    "action": "run_preflight_action",
+                    "select_across": "0",
+                    "index": "0",
+                    "_selected_action": [
+                        str(successful_request.pk),
+                        str(failed_request.pk),
+                    ],
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == "Ran preflight for 1 request(s). 1 request(s) failed."
+                and message.level == messages.WARNING
+                for message in admin_messages
+            )
+        )
+        self.assertFalse(
+            any(
+                message.message == "Ran preflight for 1 request(s)."
+                and message.level == messages.SUCCESS
+                for message in admin_messages
+            )
+        )
+        successful_request.refresh_from_db()
+        failed_request.refresh_from_db()
+        failed_requests = [
+            migration_request
+            for migration_request in (successful_request, failed_request)
+            if migration_request.status == LegacyMigrationStatus.PREFLIGHT_FAILED
+        ]
+        self.assertEqual(len(failed_requests), 1)
+        self.assertEqual(
+            failed_requests[0].latest_job_error,
+            "legacy database unavailable",
+        )
+
+    @override_settings(LEGACY_MIGRATION_CREATE_MISSING_USERS=True)
+    def test_upsert_user_resolution_handles_missing_autocreate_user(self):
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        service = self.build_service()
+
+        with mock.patch(
+            "core.legacy_migration_services.create_or_update_user",
+            return_value={
+                "is_new_user_created": False,
+                "user": None,
+                "enrollment_update_message": "Course enrollment was not updated",
+            },
+        ):
+            resolution = service._upsert_user_resolution(
+                migration_request,
+                {
+                    "legacy_user_id": "legacy-user-1",
+                    "legacy_username": "",
+                    "legacy_byu_id": "555555555",
+                    "legacy_email": "",
+                },
+                "collection_owner",
+                "collection:demo",
+            )
+
+        self.assertIsNone(resolution.matched_user)
+        self.assertEqual(
+            resolution.resolution_status,
+            LegacyMigrationUserResolutionStatus.PENDING,
+        )
+
+    @override_settings(LEGACY_MIGRATION_CREATE_MISSING_USERS=True)
+    def test_upsert_user_resolution_resolves_serialized_autocreate_user(self):
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        created_user = UserFactory(
+            netid="rjr45",
+            byu_id="555555555",
+            first_name="Rob",
+            last_name="Reynolds",
+            instructor=True,
+        )
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        service = self.build_service()
+
+        with mock.patch(
+            "core.legacy_migration_services.create_or_update_user",
+            return_value={
+                "is_new_user_created": False,
+                "user": created_user.to_dict(),
+                "enrollment_update_message": "",
+            },
+        ):
+            resolution = service._upsert_user_resolution(
+                migration_request,
+                {
+                    "legacy_user_id": "legacy-user-2",
+                    "legacy_username": "",
+                    "legacy_byu_id": "555555555",
+                    "legacy_email": "",
+                },
+                "collection_owner",
+                "collection:demo",
+            )
+
+        self.assertEqual(resolution.matched_user, created_user)
+        self.assertEqual(
+            resolution.resolution_status,
+            LegacyMigrationUserResolutionStatus.AUTO,
+        )
+
+    @override_settings(LEGACY_MIGRATION_MEDIA_ROOT="yvideo:/opt/media/y-video")
+    def test_get_legacy_file_info_reads_remote_paths_over_ssh(self):
+        service = self.build_service()
+
+        with mock.patch("core.legacy_migration_services.subprocess.run") as run_mock:
+            run_mock.return_value = mock.Mock(
+                stdout=(
+                    "12\t1700000000\t1700000100\t"
+                    "/opt/media/y-video/legacy/shared-birds.mp4\n"
+                ),
+                stderr="",
+            )
+            file_info = service._get_legacy_file_info(
+                {"filepath": "legacy/shared-birds.mp4"}
+            )
+
+        self.assertEqual(
+            file_info["absolute_path"],
+            "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
+        )
+        self.assertEqual(
+            file_info["realpath"],
+            "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
+        )
+        self.assertEqual(file_info["size_bytes"], 12)
+        self.assertIsNone(file_info["device"])
+        self.assertIsNone(file_info["inode"])
+        self.assertEqual(file_info["extension"], ".mp4")
+        self.assertEqual(
+            run_mock.call_args.args[0][:3],
+            ["ssh", "-oBatchMode=yes", "yvideo"],
+        )
+
+    def test_remote_legacy_checksum_streams_over_ssh(self):
+        checksum_cache = ChecksumCache()
+        process = mock.MagicMock()
+        process.stdout = io.BytesIO(b"legacy-video")
+        process.stderr = io.BytesIO(b"")
+        process.wait.return_value = 0
+        process.__enter__.return_value = process
+
+        with mock.patch(
+            "core.legacy_migration_services.subprocess.Popen",
+            return_value=process,
+        ) as popen_mock:
+            checksum = checksum_cache.get_or_compute_legacy_checksum(
+                {
+                    "absolute_path": "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
+                    "size_bytes": 12,
+                    "mtime_ns": 1700000000000000000,
+                }
+            )
+
+        self.assertEqual(checksum, xxhash.xxh64(b"legacy-video").hexdigest())
+        self.assertEqual(
+            popen_mock.call_args.args[0][:3],
+            ["ssh", "-oBatchMode=yes", "yvideo"],
+        )
+
+    def test_import_file_to_storage_uses_scp_for_remote_source(self):
+        service = self.build_service()
+        resource = ResourceFactory(name="Imported Lecture")
+        source_path = "yvideo:/opt/media/y-video/legacy/imported.mp4"
+
+        with mock.patch("core.legacy_migration_services.subprocess.run") as run_mock:
+            relative_name = service._import_file_to_storage(
+                source_path,
+                resource,
+                "english",
+            )
+
+        destination = Path(settings.MEDIA_ROOT) / relative_name
+        self.assertEqual(relative_name, "Imported Lecture/english.mp4")
+        self.assertTrue(destination.parent.exists())
+        run_mock.assert_called_once_with(
+            ["scp", "-p", "-oBatchMode=yes", source_path, str(destination)],
+            capture_output=True,
+            text=True,
+            check=True,
         )

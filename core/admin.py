@@ -1,3 +1,4 @@
+import logging
 import os
 
 from django.contrib import admin
@@ -43,6 +44,8 @@ from .models import Track
 from .models import User
 from .models import UserCourses
 from .utils import convert_srt_content_to_vtt
+
+logger = logging.getLogger(__name__)
 
 
 @admin.register(User)
@@ -618,6 +621,11 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
     created_targets.short_description = "Imported Targets"
 
     def _report_action_error(self, request, migration_request, action_label, exc):
+        logger.exception(
+            "%s failed for legacy migration request %s",
+            action_label,
+            migration_request.request_uuid,
+        )
         self.message_user(
             request,
             (
@@ -627,13 +635,44 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
             level=messages.ERROR,
         )
 
+    def _report_action_summary(
+        self,
+        request,
+        action_label,
+        success_count,
+        failure_count,
+        success_message,
+    ):
+        if success_count and failure_count:
+            self.message_user(
+                request,
+                f"{success_message} {failure_count} request(s) failed.",
+                level=messages.WARNING,
+            )
+            return
+        if failure_count:
+            self.message_user(
+                request,
+                f"{action_label} failed for {failure_count} request(s).",
+                level=messages.ERROR,
+            )
+            return
+        if success_count:
+            self.message_user(
+                request,
+                success_message,
+                level=messages.SUCCESS,
+            )
+
     @admin.action(description="Run preflight now")
     def run_preflight_action(self, request, queryset):
         processed = 0
+        failed = 0
         for migration_request in queryset:
             try:
                 LegacyMigrationService().preflight_request(migration_request)
             except Exception as exc:
+                failed += 1
                 migration_request.status = LegacyMigrationStatus.PREFLIGHT_FAILED
                 migration_request.latest_job_error = str(exc)
                 migration_request.save(
@@ -642,68 +681,111 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                 self._report_action_error(request, migration_request, "Preflight", exc)
             else:
                 processed += 1
-        if processed:
-            self.message_user(request, f"Ran preflight for {processed} request(s).")
+        self._report_action_summary(
+            request,
+            "Preflight",
+            processed,
+            failed,
+            f"Ran preflight for {processed} request(s).",
+        )
 
     @admin.action(description="Refresh issues after user/file edits")
     def refresh_issues_action(self, request, queryset):
         service = LegacyMigrationService(require_catalog=False)
         processed = 0
+        failed = 0
         for migration_request in queryset:
             try:
                 service.sync_request_issues(migration_request)
             except Exception as exc:
+                failed += 1
                 self._report_action_error(
                     request, migration_request, "Issue refresh", exc
                 )
             else:
                 processed += 1
-        if processed:
-            self.message_user(request, f"Refreshed issues for {processed} request(s).")
+        self._report_action_summary(
+            request,
+            "Issue refresh",
+            processed,
+            failed,
+            f"Refreshed issues for {processed} request(s).",
+        )
 
     @admin.action(description="Approve and queue import")
     def approve_and_queue_action(self, request, queryset):
         service = LegacyMigrationService(require_catalog=False)
         processed = 0
+        failed = 0
         for migration_request in queryset:
             try:
                 service.approve_and_queue_import(migration_request)
             except Exception as exc:
+                failed += 1
                 migration_request.latest_job_error = str(exc)
                 migration_request.save(update_fields=["latest_job_error", "updated_at"])
                 self._report_action_error(request, migration_request, "Approval", exc)
             else:
                 processed += 1
-        if processed:
-            self.message_user(request, f"Approved and queued {processed} request(s).")
+        self._report_action_summary(
+            request,
+            "Approval",
+            processed,
+            failed,
+            f"Approved and queued {processed} request(s).",
+        )
 
     @admin.action(description="Retry latest failed job")
     def retry_latest_failed_job_action(self, request, queryset):
         processed = 0
+        failed = 0
         for migration_request in queryset:
-            latest_failed_job = (
-                migration_request.jobs.filter(status="failed")
-                .order_by("-created_at")
-                .first()
-            )
-            if not latest_failed_job:
-                continue
-            migration_request.queue_job(latest_failed_job.job_type)
-            migration_request.status = LegacyMigrationStatus.QUEUED
-            migration_request.save(update_fields=["status", "updated_at"])
-            processed += 1
-        if processed:
-            self.message_user(request, f"Queued retries for {processed} request(s).")
+            try:
+                latest_failed_job = (
+                    migration_request.jobs.filter(status="failed")
+                    .order_by("-created_at")
+                    .first()
+                )
+                if not latest_failed_job:
+                    continue
+                migration_request.queue_job(latest_failed_job.job_type)
+                migration_request.status = LegacyMigrationStatus.QUEUED
+                migration_request.save(update_fields=["status", "updated_at"])
+                processed += 1
+            except Exception as exc:
+                failed += 1
+                migration_request.latest_job_error = str(exc)
+                migration_request.save(update_fields=["latest_job_error", "updated_at"])
+                self._report_action_error(request, migration_request, "Retry", exc)
+        self._report_action_summary(
+            request,
+            "Retry",
+            processed,
+            failed,
+            f"Queued retries for {processed} request(s).",
+        )
 
     @admin.action(description="Cancel queued/running jobs")
     def cancel_jobs_action(self, request, queryset):
         processed = 0
+        failed = 0
         for migration_request in queryset:
-            migration_request.jobs.filter(status__in=("queued", "running")).update(
-                status="canceled"
-            )
-            migration_request.status = LegacyMigrationStatus.CANCELED
-            migration_request.save(update_fields=["status", "updated_at"])
-            processed += 1
-        if processed:
-            self.message_user(request, f"Canceled jobs for {processed} request(s).")
+            try:
+                migration_request.jobs.filter(status__in=("queued", "running")).update(
+                    status="canceled"
+                )
+                migration_request.status = LegacyMigrationStatus.CANCELED
+                migration_request.save(update_fields=["status", "updated_at"])
+                processed += 1
+            except Exception as exc:
+                failed += 1
+                migration_request.latest_job_error = str(exc)
+                migration_request.save(update_fields=["latest_job_error", "updated_at"])
+                self._report_action_error(request, migration_request, "Cancel", exc)
+        self._report_action_summary(
+            request,
+            "Cancel",
+            processed,
+            failed,
+            f"Canceled jobs for {processed} request(s).",
+        )

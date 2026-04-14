@@ -4,8 +4,11 @@ import json
 import logging
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import re
+import shlex
 import shutil
+import subprocess
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -74,6 +77,7 @@ LEGACY_UUID_RE = re.compile(
 LEGACY_PUBLIC_URL_RE = re.compile(
     r"/(?P<kind>collections|resources)/(?P<identifier>[0-9a-fA-F-]{36})"
 )
+REMOTE_LEGACY_MEDIA_ROOT_RE = re.compile(r"^(?P<host>[^:]+):(?P<path>/.*)$")
 LEGACY_URL_ONLY_RESOURCE_ID = "00000000-0000-0000-0000-000000000000"
 
 
@@ -192,16 +196,148 @@ def make_json_safe(value):
     return value
 
 
+def parse_remote_legacy_path(raw_value):
+    match = REMOTE_LEGACY_MEDIA_ROOT_RE.match(str(raw_value or ""))
+    if not match:
+        return None
+    return match.group("host"), match.group("path")
+
+
+def is_remote_legacy_path(raw_value):
+    return parse_remote_legacy_path(raw_value) is not None
+
+
+def build_remote_legacy_path(host, raw_path):
+    return f"{host}:{PurePosixPath(raw_path).as_posix()}"
+
+
 def resolve_legacy_file_path(legacy_path):
-    raw_path = Path(legacy_path)
-    if raw_path.is_absolute():
-        return raw_path
+    raw_path = str(legacy_path)
     media_root = getattr(settings, "LEGACY_MIGRATION_MEDIA_ROOT", "")
+    remote_media_root = parse_remote_legacy_path(media_root)
+    if remote_media_root:
+        host, root_path = remote_media_root
+        path_value = PurePosixPath(raw_path)
+        resolved_path = (
+            path_value
+            if path_value.is_absolute()
+            else PurePosixPath(root_path) / path_value
+        )
+        return build_remote_legacy_path(host, resolved_path)
+
+    raw_path_obj = Path(raw_path)
+    if raw_path_obj.is_absolute():
+        return str(raw_path_obj)
     if not media_root:
         raise ImproperlyConfigured(
             "LEGACY_MIGRATION_MEDIA_ROOT must be configured for legacy file access."
         )
-    return Path(media_root) / raw_path
+    return str(Path(media_root) / raw_path_obj)
+
+
+def get_legacy_file_extension(resolved_path):
+    remote_path = parse_remote_legacy_path(resolved_path)
+    if remote_path:
+        _, path_value = remote_path
+        return PurePosixPath(path_value).suffix.lower()
+    return Path(resolved_path).suffix.lower()
+
+
+def inspect_remote_legacy_file(resolved_path):
+    remote_path = parse_remote_legacy_path(resolved_path)
+    if not remote_path:
+        raise ValueError(f"{resolved_path} is not a remote legacy path.")
+
+    host, path_value = remote_path
+    quoted_path = shlex.quote(path_value)
+    command = (
+        f"resolved=$(readlink -f -- {quoted_path} 2>/dev/null "
+        f"|| realpath -- {quoted_path} 2>/dev/null "
+        f'|| printf "%s" {quoted_path}); '
+        f'stat -Lc "%s\\t%Y\\t%X" -- {quoted_path}; '
+        'printf "\\t%s\\n" "$resolved"'
+    )
+
+    try:
+        result = subprocess.run(
+            ["ssh", "-oBatchMode=yes", host, command],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        error_text = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        raise OSError(
+            f"Could not inspect remote legacy file {resolved_path}: {error_text}"
+        ) from exc
+
+    raw_output = result.stdout.rstrip("\n")
+    try:
+        size_bytes, mtime_epoch, atime_epoch, realpath = raw_output.split("\t", 3)
+    except ValueError as exc:
+        raise OSError(
+            f"Unexpected metadata response for remote legacy file {resolved_path}."
+        ) from exc
+
+    mtime_seconds = int(mtime_epoch)
+    atime_seconds = int(atime_epoch)
+    return {
+        "absolute_path": resolved_path,
+        "realpath": build_remote_legacy_path(host, realpath),
+        "size_bytes": int(size_bytes),
+        "device": None,
+        "inode": None,
+        "mtime_ns": mtime_seconds * 1_000_000_000,
+        "mtime_at": datetime.datetime.fromtimestamp(mtime_seconds, tz=datetime.UTC),
+        "atime_at": datetime.datetime.fromtimestamp(atime_seconds, tz=datetime.UTC),
+    }
+
+
+def compute_remote_checksum(resolved_path):
+    remote_path = parse_remote_legacy_path(resolved_path)
+    if not remote_path:
+        raise ValueError(f"{resolved_path} is not a remote legacy path.")
+
+    host, path_value = remote_path
+    command = f"cat -- {shlex.quote(path_value)}"
+    file_hash = xxhash.xxh64()
+
+    with subprocess.Popen(
+        ["ssh", "-oBatchMode=yes", host, command],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ) as process:
+        if process.stdout is None or process.stderr is None:
+            raise OSError(f"Could not read remote legacy file {resolved_path}.")
+        for chunk in iter(lambda: process.stdout.read(1024 * 1024), b""):
+            file_hash.update(chunk)
+        stderr_output = process.stderr.read()
+        return_code = process.wait()
+
+    if return_code != 0:
+        error_text = (
+            stderr_output.decode().strip() or f"ssh exited with status {return_code}"
+        )
+        raise OSError(
+            f"Could not read remote legacy file {resolved_path}: {error_text}"
+        )
+
+    return file_hash.hexdigest()
+
+
+def scp_remote_legacy_file(resolved_path, destination):
+    try:
+        subprocess.run(
+            ["scp", "-p", "-oBatchMode=yes", resolved_path, str(destination)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        error_text = exc.stderr.strip() or exc.stdout.strip() or str(exc)
+        raise OSError(
+            f"Could not copy remote legacy file {resolved_path}: {error_text}"
+        ) from exc
 
 
 def file_fingerprint_from_stat(path_obj, stat_result):
@@ -739,8 +875,21 @@ class ChecksumCache:
         return self.cache[key]
 
     def get_or_compute_legacy_checksum(self, legacy_file_info):
+        absolute_path = legacy_file_info["absolute_path"]
+        if is_remote_legacy_path(absolute_path):
+            host, path_value = parse_remote_legacy_path(absolute_path)
+            key = (
+                "remote",
+                host,
+                path_value,
+                legacy_file_info.get("size_bytes"),
+                legacy_file_info.get("mtime_ns"),
+            )
+            if key not in self.cache:
+                self.cache[key] = compute_remote_checksum(absolute_path)
+            return self.cache[key]
         try:
-            path_obj = Path(legacy_file_info["absolute_path"])
+            path_obj = Path(absolute_path)
             key = (
                 legacy_file_info.get("device"),
                 legacy_file_info.get("inode"),
@@ -781,6 +930,29 @@ class LegacyMigrationService:
             return True
         return self._migration_resource_is_included(request_obj, legacy_resource_id)
 
+    def _coerce_created_user_result(self, created_user_result, byu_id):
+        if isinstance(created_user_result, User):
+            return created_user_result
+        if not isinstance(created_user_result, dict):
+            return None
+
+        created_user_payload = created_user_result.get("user")
+        if isinstance(created_user_payload, User):
+            return created_user_payload
+        if not isinstance(created_user_payload, dict):
+            return None
+
+        payload_byu_id = (created_user_payload.get("byuid") or byu_id or "").strip()
+        payload_netid = (created_user_payload.get("netid") or "").strip()
+
+        if payload_byu_id:
+            user = User.objects.filter(byu_id=payload_byu_id).first()
+            if user:
+                return user
+        if payload_netid:
+            return User.objects.filter(netid=payload_netid).first()
+        return None
+
     def _resolve_user(self, legacy_user_dict):
         byu_id = legacy_user_dict.get("legacy_byu_id", "").strip()
         username = legacy_user_dict.get("legacy_username", "").strip()
@@ -803,7 +975,10 @@ class LegacyMigrationService:
 
         if byu_id and getattr(settings, "LEGACY_MIGRATION_CREATE_MISSING_USERS", False):
             try:
-                created_user = create_or_update_user(byu_id)
+                created_user = self._coerce_created_user_result(
+                    create_or_update_user(byu_id),
+                    byu_id,
+                )
                 if created_user:
                     return created_user, LegacyMigrationUserResolutionStatus.AUTO
             except Exception:
@@ -858,7 +1033,7 @@ class LegacyMigrationService:
     def _get_legacy_file_info(self, file_row):
         absolute_path = resolve_legacy_file_path(file_row["filepath"])
         file_info = {
-            "absolute_path": str(absolute_path),
+            "absolute_path": absolute_path,
             "realpath": "",
             "size_bytes": None,
             "device": None,
@@ -866,33 +1041,37 @@ class LegacyMigrationService:
             "mtime_ns": None,
             "mtime_at": None,
             "atime_at": None,
-            "extension": absolute_path.suffix.lower(),
+            "extension": get_legacy_file_extension(absolute_path),
         }
         try:
-            stat_result = absolute_path.stat()
-            file_info.update(
-                {
-                    "realpath": str(absolute_path.resolve()),
-                    "size_bytes": int(stat_result.st_size),
-                    "device": int(stat_result.st_dev),
-                    "inode": int(stat_result.st_ino),
-                    "mtime_ns": int(
-                        getattr(
-                            stat_result,
-                            "st_mtime_ns",
-                            int(stat_result.st_mtime * 1_000_000_000),
-                        )
-                    ),
-                    "mtime_at": datetime.datetime.fromtimestamp(
-                        stat_result.st_mtime,
-                        tz=datetime.UTC,
-                    ),
-                    "atime_at": datetime.datetime.fromtimestamp(
-                        stat_result.st_atime,
-                        tz=datetime.UTC,
-                    ),
-                }
-            )
+            if is_remote_legacy_path(absolute_path):
+                file_info.update(inspect_remote_legacy_file(absolute_path))
+            else:
+                absolute_path_obj = Path(absolute_path)
+                stat_result = absolute_path_obj.stat()
+                file_info.update(
+                    {
+                        "realpath": str(absolute_path_obj.resolve()),
+                        "size_bytes": int(stat_result.st_size),
+                        "device": int(stat_result.st_dev),
+                        "inode": int(stat_result.st_ino),
+                        "mtime_ns": int(
+                            getattr(
+                                stat_result,
+                                "st_mtime_ns",
+                                int(stat_result.st_mtime * 1_000_000_000),
+                            )
+                        ),
+                        "mtime_at": datetime.datetime.fromtimestamp(
+                            stat_result.st_mtime,
+                            tz=datetime.UTC,
+                        ),
+                        "atime_at": datetime.datetime.fromtimestamp(
+                            stat_result.st_atime,
+                            tz=datetime.UTC,
+                        ),
+                    }
+                )
         except OSError:
             logger.warning("Legacy file is missing on disk: %s", absolute_path)
         return file_info
@@ -1476,13 +1655,16 @@ class LegacyMigrationService:
         return collection
 
     def _import_file_to_storage(self, source_path, resource, version):
-        source_path = Path(source_path)
-        extension = source_path.suffix
+        extension = get_legacy_file_extension(source_path)
         relative_name = f"{resource.name}/{version}{extension}"
         destination = Path(settings.MEDIA_ROOT) / relative_name
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
             destination.unlink()
+        if is_remote_legacy_path(source_path):
+            scp_remote_legacy_file(source_path, destination)
+            return relative_name
+        source_path = Path(source_path)
         try:
             if source_path.stat().st_dev == destination.parent.stat().st_dev:
                 os.link(source_path, destination)
@@ -1516,9 +1698,7 @@ class LegacyMigrationService:
             return mapped_file
 
         relative_name = self._import_file_to_storage(
-            file_decision.legacy_path
-            if Path(file_decision.legacy_path).is_absolute()
-            else str(resolve_legacy_file_path(file_decision.legacy_path)),
+            resolve_legacy_file_path(file_decision.legacy_path),
             target_resource,
             file_decision.target_version or file_decision.legacy_version,
         )
