@@ -29,7 +29,7 @@ export class Editor {
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
-
+        this.selectedSubtitleTrackId = null;
 
         this.init();
     }
@@ -66,6 +66,7 @@ export class Editor {
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
+        this.watchAndHandleSubtitleTrackChange();
     }
 
     getCSRFToken() {
@@ -2183,6 +2184,27 @@ export class Editor {
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
     }
 
+    watchAndHandleSubtitleTrackChange() {
+      const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+      subtitleSelectInput.addEventListener("change", async () => {
+        const newSubtitleTrackId = subtitleSelectInput.value;
+        if (subtitleSelectInput == undefined) {
+          console.error("Invalid subtitle track id");
+          return;
+        }
+        this.selectedSubtitleTrackId = newSubtitleTrackId;
+        const subtitlesResponse = await fetch(`/subtitles/get-editable-subtitles/${this.selectedSubtitleTrackId}`);
+        if (!subtitlesResponse.ok) {
+          console.error("Failed to get subtitle cues");
+          return;
+        }
+        const subtitlesPanelHTML = await subtitlesResponse.text();
+        const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+        currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
+        const subtitlesSettingsModal = document.getElementById("subtitles-settings");
+        subtitlesSettingsModal.close();
+      })
+    }
 }
 
 function editorInit() {

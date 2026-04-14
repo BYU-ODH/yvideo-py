@@ -24,6 +24,7 @@ from .models import Content
 from .models import MuteAnnotation
 from .models import PauseAnnotation
 from .models import SkipAnnotation
+from .models import Subtitle
 from .models import Track
 from .models import User
 from .utils import VTTCue
