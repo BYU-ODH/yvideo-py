@@ -348,7 +348,7 @@
 }
 
 #add-new-subtitle-button {
-    align-self: flex
+    align-self: center;
 }
 
 #subtitle-panel-list {
