@@ -365,7 +365,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    column-gap: 0.2rem;
+    column-gap: 1rem;
 }
 
 .subtitle-cue-active {
