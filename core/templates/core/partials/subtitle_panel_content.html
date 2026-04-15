@@ -4,37 +4,7 @@
         + Add new subtitle at current time
     </button>
     <div id="subtitle-panel-list">
-        {% for cue in cues %}
-        <div class="editor-subtitle-cue">
-            <p class="editor-subtitle-cue-count">
-                {{forloop.counter}}
-            </p>
-            <div class="subtitle-input-groups">
-                <div class="editor-subtitle-cue-input-group">
-                    <label for="cue-{{forloop.counter0}}-start">
-                        Start:
-                    </label>
-                    <input id="cue-{{forloop.counter0}}-start" type="text" value={{cue.display_start_time}}>
-                </div>
-                <div class="editor-subtitle-cue-input-group">
-                    <label for="cue-{{forloop.counter0}}-end">
-                        End:
-                    </label>
-                    <input id="cue-{{forloop.counter0}}-end" type="text" value={{cue.display_end_time}}>
-                </div>
-            </div>
-            <p class="editor-subtitle-cue-content">
-                {{cue.payload}}
-            </p>
-            <button class="panel-item-delete editor-subtitle-cue-delete" aria-label="Delete Cue">
-                <img src="/static/img/trash.svg" alt="T">
-            </button>
-        </div>
-        {% empty %}
-        <p>
-            There are no cues for this subtitle track
-        </p>
-        {% endfor %}
+        {% include 'partials/subtitle_cues.html' %}
     </div>
     {% endif %}
 </div>
