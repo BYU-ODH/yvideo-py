@@ -361,29 +361,34 @@
     row-gap: 0.2rem;
 }
 
-.subtitle-cue {
+.editor-subtitle-cue {
     display: flex;
     flex-direction: row;
     align-items: center;
     column-gap: 1rem;
+    padding: 4px 8px;
 }
 
-.subtitle-cue-active {
+.editor-subtitle-cue:hover {
+    background-color: var(--subtitle-type-color-very-transparent);
+}
+
+.editor-subtitle-cue-active {
     background-color: var(--subtitle-type-color-transparent);
 }
 
-.subtitle-cue-count, .subtitle-cue-content {
+.editor-subtitle-cue-count, .editor-subtitle-cue-content {
     margin: 0;
 }
 
-.subtitle-cue-input-group {
+.editor-subtitle-cue-input-group {
     display: flex;
     flex-direction: row;
     column-gap: 0.2rem;
     align-self: flex-end;
 }
 
-.subtitle-cue-input-group input {
+.editor-subtitle-cue-input-group input {
     justify-self: flex-start;
     width: 5rem;
 }
