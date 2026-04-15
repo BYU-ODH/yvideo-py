@@ -87,7 +87,7 @@ urlpatterns = [
         name="get_editable_subtitles",
     ),
     path(
-        "subtitles/update-subtitle-file",
+        "subtitles/update-subtitle-cues",
         views_video_editor.update_subtitle_content,
         name="update_subtitle_content",
     ),

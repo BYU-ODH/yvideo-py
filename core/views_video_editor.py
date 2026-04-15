@@ -1,3 +1,4 @@
+from functools import cmp_to_key
 import json
 import logging
 
@@ -1228,12 +1229,17 @@ def update_subtitle_content(request):
         # build VTTCue list
         request_data = json.loads(request.body)
         subtitle_id = request_data["subtitle_id"]
-        dict_cue_list = json.loads(request_data["cues"])
+        dict_cue_list = request_data["cues"]
         cues_list: list[VTTCue] = []
         for dict_cue in dict_cue_list:
             new_cue = VTTCue()
             new_cue.from_json_dict(dict_cue)
             cues_list.append(new_cue)
+
+        def compare_cues(cueA, cueB):
+            return cueA.start_time - cueB.start_time
+
+        cues_list.sort(key=cmp_to_key(compare_cues))
 
         # change timing of cues if applicable
         seconds_nudge = request_data["seconds_nudge"]
@@ -1258,7 +1264,11 @@ def update_subtitle_content(request):
             with subtitle_obj.subtitles_file.open("w") as f:
                 f.write(new_vtt_string)
         subtitle_obj.save()
-        return HttpResponse("", status=200)
+        return HttpResponse(
+            render_to_string(
+                "partials/subtitle_cues.html", {"cues": cues_list}, request
+            )
+        )
 
     except Subtitle.DoesNotExist:
         logger.error(

@@ -8,14 +8,17 @@
             <label for="cue-{{forloop.counter0}}-start">
                 Start:
             </label>
-            <input id="cue-{{forloop.counter0}}-start" type="text" value={{cue.display_start_time}}>
+            <input id="cue-{{forloop.counter0}}-start" class="editor-subtitle-cue-start" type="text" value={{cue.display_start_time}}>
         </div>
         <div class="editor-subtitle-cue-input-group">
             <label for="cue-{{forloop.counter0}}-end">
                 End:
             </label>
-            <input id="cue-{{forloop.counter0}}-end" type="text" value={{cue.display_end_time}}>
+            <input id="cue-{{forloop.counter0}}-end" class="editor-subtitle-cue-end" type="text" value={{cue.display_end_time}}>
         </div>
+        <input class="editor-subtitle-cue-type" hidden aria-label="Cue type" type="text" value={{cue.type}}>
+        <input class="editor-subtitle-cue-identifier" hidden aria-label="Cue identifier" type="text" value={{cue.identifier}}>
+        <input class="editor-subtitle-cue-settings" hidden aria-label="Cue settings" type="text" value={{cue.cue_settings}}>
     </div>
     <p class="editor-subtitle-cue-content">
         {{cue.payload}}

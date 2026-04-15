@@ -59,7 +59,7 @@ class VTTCue:
     def from_json_dict(self, json_dict):
         self.type = json_dict["type"]
         self.payload = json_dict["payload"]
-        self.identfier = json_dict["identifier"]
+        self.identifier = json_dict["identifier"]
         self.start_time = hms2seconds(json_dict["start_time"])
         self.end_time = hms2seconds(json_dict["end_time"])
         self.cue_settings = json_dict["cue_settings"]

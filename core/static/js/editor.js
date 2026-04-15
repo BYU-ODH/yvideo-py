@@ -1,3 +1,5 @@
+import { formatSecondsToString } from "./utils.js";
+
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
     const newString = percentString.replace('%', '');
@@ -1223,7 +1225,7 @@ export class Editor {
         const newTrackName = e.target.value.trim();
         const response = await fetch("/track/update", {
           method: "post",
-          headers: {"X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value},
+          headers: {"X-CSRFToken": this.getCSRFToken()},
           body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
         });
         if (!response.ok) {
@@ -2202,8 +2204,101 @@ export class Editor {
         const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
         currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
         const subtitlesSettingsModal = document.getElementById("subtitles-settings");
+        this.buildWatchersForSubtitlePanelContent();
+        this.buildWatchersForSubtitleEditorCues();
         subtitlesSettingsModal.close();
       })
+    }
+
+    collectCues() {
+      const rawCues = document.getElementsByClassName("editor-subtitle-cue");
+      const cues = [];
+      for (let cue of rawCues) {
+        // gather elements to extract data from
+        const typeEl = cue.querySelector(".editor-subtitle-cue-type");
+        const payloadEl = cue.querySelector(".editor-subtitle-cue-content");
+        const identifierEl = cue.querySelector(".editor-subtitle-cue-identifier");
+        const startTimeEl = cue.querySelector(".editor-subtitle-cue-start");
+        const endTimeEl = cue.querySelector(".editor-subtitle-cue-end");
+        const settingsEl = cue.querySelector(".editor-subtitle-cue-settings");
+
+        // extract the data and package into array to send to backend
+        cues.push({
+          type: typeEl.value,
+          payload: payloadEl.innerText,
+          identifier: identifierEl.value,
+          start_time: startTimeEl.value,
+          end_time: endTimeEl.value,
+          cue_settings: settingsEl.value,
+        });
+      }
+      return cues;
+    }
+
+    async saveCues(cues, isAutosave=true) {
+      if (typeof isAutosave !== "boolean") {
+        console.error("isAutosave must be a boolean");
+        return;
+      }
+
+      const updateResponse = await fetch("/subtitles/update-subtitle-cues", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          subtitle_id: this.selectedSubtitleTrackId,
+          cues: cues,
+          seconds_nudge: 0,
+          nudge_excluded_cues: [],
+          is_autosave: isAutosave
+        })
+      });
+
+      if (!updateResponse.ok) {
+        console.error("Failed to save cues");
+        return;
+      }
+
+      const subtitleCueListWrapper = document.getElementById("subtitle-panel-list");
+      subtitleCueListWrapper.innerHTML = await updateResponse.text();
+      this.buildWatchersForSubtitleEditorCues();
+    }
+
+    buildWatchersForSubtitlePanelContent() {
+      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
+      addNewCueButton.addEventListener("click", () => {
+        const cues = this.collectCues();
+        // build new cue and append it to cues array
+        const time = this.video.currentTime;
+        // the back end sorts cues, so this will go in its correct place.
+        cues.push(
+          {
+            start_time: formatSecondsToString(time, true),
+            end_time: formatSecondsToString(time + 2, true),
+            type: "CUE",
+            payload: "",
+            identifier: "",
+            cue_settings: "",
+          }
+        )
+        this.saveCues(cues, false)
+      });
+    }
+
+    buildWatchersForSubtitleEditorCues() {
+      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      const deleteCue = (e) => {
+        const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
+        editorSubtitleCueEl.remove();
+        this.saveCues(this.collectCues(), false);
+      }
+      const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
+      for (let cueDelButton of editorSubtitleCueDeleteButtons) {
+        cueDelButton.addEventListener("click", deleteCue.bind(this));
+      }
     }
 }
 

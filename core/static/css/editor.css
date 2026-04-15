@@ -339,6 +339,11 @@
     flex-direction: column;
 }
 
+#subtitle-panel-content-wrapper {
+    height: 100%;
+    overflow: hidden;
+}
+
 .subtitle-editor-panel-hidden {
     display: none;
 }
