@@ -15,9 +15,8 @@
         <div id="editor-container">
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
-                <div id="editor-annotation-panel" class="editor-container-component-dark">
-                    {% include 'partials/annotation_panel.html' %}
-                </div>
+                {% include 'partials/annotation_panel.html' %}
+                {% include 'partials/subtitle_editor_panel.html' %}
 
                 <div id="video-section" class="video-section">
                     {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key %}
