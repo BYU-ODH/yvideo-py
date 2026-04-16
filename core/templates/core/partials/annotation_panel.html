@@ -1,36 +1,41 @@
-<div id="annotation-panel-header" class="row-flex flex-apart-aligned">
-    <p>Annotations</p>
-    <button id="annotation-set-menu-button" class="editor-menu-button" aria-label="Annotation set settings" command="show-modal" commandfor="annotation-set-settings">
-        <img src="/static/img/dots_menu.svg" />
-    </button>
-    <dialog id="annotation-set-settings">
-        {% include 'partials/annotation_set_settings_compact.html' %}
-    </dialog>
-</div>
-<div id="annotation-groups-wrapper">
-    {% for group in annotation_groups %}
-    <div id="{{group.type}}-annotation-type-wrapper" class="annotation-type-wrapper">
-        <div id="{{group.type}}-annotation-type-header" class="annotation-type-header row-flex flex-apart-aligned">
-            <div class="annotation-type-header-left row-flex">
-                <img id="{{group.type}}-annotation-type-header-arrow" class="annotation-type-header-arrow" src="/static/img/arrow.svg" alt="" />
-                <div class="annotation-type-header-text">
-                    {{ group.type_display }}
+<div id="editor-annotation-panel" class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
+    <div id="annotation-panel-header" class="row-flex flex-apart-aligned">
+        <p>Annotations</p>
+        <button id="annotation-set-menu-button" class="editor-menu-button" aria-label="Annotation set settings" command="show-modal" commandfor="annotation-set-settings">
+            <img src="/static/img/dots_menu.svg" />
+        </button>
+        <dialog id="annotation-set-settings">
+            {% include 'partials/annotation_set_settings_compact.html' %}
+        </dialog>
+    </div>
+    <div id="annotation-groups-wrapper">
+        {% for group in annotation_groups %}
+        <div id="{{group.type}}-annotation-type-wrapper" class="annotation-type-wrapper">
+            <div id="{{group.type}}-annotation-type-header" class="annotation-type-header row-flex flex-apart-aligned">
+                <div class="annotation-type-header-left row-flex">
+                    <img id="{{group.type}}-annotation-type-header-arrow" class="annotation-type-header-arrow" src="/static/img/arrow.svg" alt="" />
+                    <div class="annotation-type-header-text">
+                        {{ group.type_display }}
+                    </div>
+                </div>
+                <div id="{{group.type}}-type-header-right" class="annotation-type-header-right">
+                    <img class="annotation-icon" src="{{ group.icon }}" alt="{{group.type}} icon">
                 </div>
             </div>
-            <div id="{{group.type}}-type-header-right" class="annotation-type-header-right">
-                <img class="annotation-icon" src="{{ group.icon }}" alt="{{group.type}} icon">
+            <div id="{{group.type}}-annotation-type-list" class="annotation-type-list column-flex">
+                <button class="annotation-type-add-button plain-text-button" data-annotation-type="{{group.type}}">
+                    + Add New
+                </button>
+                <div id="{{group.type}}-annotation-items-list" class="annotation-items-list column-flex">
+                    {% for instance in group.instances %}
+                        {% include "partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}
+                    {% endfor %}
+                </div>
             </div>
         </div>
-        <div id="{{group.type}}-annotation-type-list" class="annotation-type-list column-flex">
-            <button class="annotation-type-add-button plain-text-button" data-annotation-type="{{group.type}}">
-                + Add New
-            </button>
-            <div id="{{group.type}}-annotation-items-list" class="annotation-items-list column-flex">
-                {% for instance in group.instances %}
-                    {% include "partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}
-                {% endfor %}
-            </div>
-        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
+    <button id="annotation-panel-switch" class="small-button editor-panel-switch">
+        Switch to Subtitle Editor
+    </button>
 </div>

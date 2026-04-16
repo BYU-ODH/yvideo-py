@@ -1,0 +1,32 @@
+{% for cue in cues %}
+<div class="editor-subtitle-cue">
+    <p class="editor-subtitle-cue-count">
+        {{forloop.counter}}
+    </p>
+    <div class="subtitle-input-groups">
+        <div class="editor-subtitle-cue-input-group">
+            <label for="cue-{{forloop.counter0}}-start">
+                Start:
+            </label>
+            <input id="cue-{{forloop.counter0}}-start" class="editor-subtitle-cue-start" type="text" value={{cue.display_start_time}}>
+        </div>
+        <div class="editor-subtitle-cue-input-group">
+            <label for="cue-{{forloop.counter0}}-end">
+                End:
+            </label>
+            <input id="cue-{{forloop.counter0}}-end" class="editor-subtitle-cue-end" type="text" value={{cue.display_end_time}}>
+        </div>
+        <input class="editor-subtitle-cue-type" hidden aria-label="Cue type" type="text" value={{cue.type}}>
+        <input class="editor-subtitle-cue-identifier" hidden aria-label="Cue identifier" type="text" value={{cue.identifier}}>
+        <input class="editor-subtitle-cue-settings" hidden aria-label="Cue settings" type="text" value={{cue.cue_settings}}>
+    </div>
+    <textarea id="editor-subtitle-{{forloop.counter0}}-payload" class="editor-subtitle-cue-content" rows="2" aria-label="Cue text content">{{cue.payload}}</textarea>
+    <button class="panel-item-delete editor-subtitle-cue-delete" aria-label="Delete Cue">
+        <img src="/static/img/trash.svg" alt="T">
+    </button>
+</div>
+{% empty %}
+<p>
+    There are no cues for this subtitle track
+</p>
+{% endfor %}

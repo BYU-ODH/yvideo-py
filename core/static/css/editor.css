@@ -58,13 +58,29 @@
     overflow: hidden;
 }
 
-#editor-annotation-panel {
-    width: 200px;
-    display: flex;
+.editor-panel-wrapper {
     flex-direction: column;
 }
 
-#annotation-panel-header {
+.editor-panel-switch {
+    margin-top: auto;
+    align-self: center;
+    margin-bottom: 1rem;
+}
+
+#editor-annotation-panel {
+    width: 200px;
+}
+
+.editor-annotation-panel-visible {
+    display: flex;
+}
+
+.editor-annotation-panel-hidden {
+    display: none;
+}
+
+#annotation-panel-header, #subtitle-panel-header {
     padding: 8px;
 }
 
@@ -307,6 +323,93 @@
     padding: 10px 12px;
     max-height: 10vh;
     overflow: auto;
+}
+
+/* Subtitle Editor Panel */
+#subtitle-editor-panel {
+    width: 350px;
+}
+
+#subtitle-panel-content-wrapper, #subtitle-panel-list {
+    flex: 1;
+}
+
+#subtitle-panel-content-wrapper, #subtitle-panel-list {
+    display: flex;
+    flex-direction: column;
+}
+
+#subtitle-panel-content-wrapper {
+    height: 100%;
+    overflow: hidden;
+}
+
+.subtitle-editor-panel-hidden {
+    display: none;
+}
+
+.subtitle-editor-panel-visible {
+    display: flex;
+}
+
+#add-new-subtitle-button {
+    align-self: center;
+}
+
+#subtitle-panel-list {
+    overflow: auto;
+}
+
+.subtitle-input-groups {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.2rem;
+}
+
+.editor-subtitle-cue {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: 1rem;
+    padding: 4px 8px;
+}
+
+.editor-subtitle-cue:hover {
+    background-color: var(--subtitle-type-color-very-transparent);
+}
+
+.editor-subtitle-cue-active {
+    background-color: var(--subtitle-type-color-transparent);
+}
+
+.editor-subtitle-cue-count, .editor-subtitle-cue-content {
+    margin: 0;
+}
+
+.editor-subtitle-cue-content {
+    height: 100%;
+    resize: none; /* eslint-disable-line css/use-baseline */
+}
+
+.editor-subtitle-cue-input-group {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.2rem;
+    align-self: flex-end;
+}
+
+.editor-subtitle-cue-input-group input {
+    justify-self: flex-start;
+    width: 5rem;
+}
+
+.subtitle-panel-list, #subtitle-panel-content-wrapper {
+    row-gap: 0.5rem;
+}
+
+#delete-subtitles-track-button {
+    margin-top: 5rem;
+    align-self: flex-end;
 }
 
 /* Video Section */

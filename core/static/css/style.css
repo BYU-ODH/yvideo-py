@@ -41,6 +41,7 @@ body {
 
 .small-button:hover {
     background-color: var(--deep-blue);
+    cursor: pointer;
 }
 
 .large-button {
