@@ -20,9 +20,7 @@
         <input class="editor-subtitle-cue-identifier" hidden aria-label="Cue identifier" type="text" value={{cue.identifier}}>
         <input class="editor-subtitle-cue-settings" hidden aria-label="Cue settings" type="text" value={{cue.cue_settings}}>
     </div>
-    <p class="editor-subtitle-cue-content">
-        {{cue.payload}}
-    </p>
+    <textarea id="editor-subtitle-{{forloop.counter0}}-payload" class="editor-subtitle-cue-content" rows="2" aria-label="Cue text content">{{cue.payload}}</textarea>
     <button class="panel-item-delete editor-subtitle-cue-delete" aria-label="Delete Cue">
         <img src="/static/img/trash.svg" alt="T">
     </button>

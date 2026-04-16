@@ -2225,7 +2225,7 @@ export class Editor {
         // extract the data and package into array to send to backend
         cues.push({
           type: typeEl.value,
-          payload: payloadEl.innerText,
+          payload: payloadEl.value,
           identifier: identifierEl.value,
           start_time: startTimeEl.value,
           end_time: endTimeEl.value,
@@ -2298,6 +2298,19 @@ export class Editor {
       const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
       for (let cueDelButton of editorSubtitleCueDeleteButtons) {
         cueDelButton.addEventListener("click", deleteCue.bind(this));
+      }
+
+      const saveUpdatedInformation = () => {
+        this.saveCues(this.collectCues(), false);
+      }
+      const cueInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
+      for (let cueInput of cueInputs) {
+        cueInput.addEventListener("keydown", (e) => {
+          if (e.key != "Enter") {
+            return;
+          }
+          saveUpdatedInformation();
+        });
       }
     }
 }

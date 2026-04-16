@@ -386,6 +386,11 @@
     margin: 0;
 }
 
+.editor-subtitle-cue-content {
+    height: 100%;
+    resize: none; /* eslint-disable-line css/use-baseline */
+}
+
 .editor-subtitle-cue-input-group {
     display: flex;
     flex-direction: row;
