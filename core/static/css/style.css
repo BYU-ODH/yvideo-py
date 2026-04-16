@@ -30,6 +30,10 @@ body {
     flex-direction: column;
 }
 
+textarea {
+    font-family: system-ui;
+}
+
 .small-button {
     cursor: pointer;
     color: white;

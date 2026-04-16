@@ -389,6 +389,7 @@
 .editor-subtitle-cue-content {
     height: 100%;
     resize: none; /* eslint-disable-line css/use-baseline */
+    flex: 1;
 }
 
 .editor-subtitle-cue-input-group {
