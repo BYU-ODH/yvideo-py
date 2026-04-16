@@ -128,6 +128,13 @@ class LegacyMigrationResource(models.Model):
     legacy_owner_byu_id = models.CharField(max_length=50, blank=True)
     target_resource_name = models.CharField(max_length=255, blank=True)
     include = models.BooleanField(default=True)
+    selected_existing_resource = models.ForeignKey(
+        "Resource",
+        on_delete=models.SET_NULL,
+        related_name="legacy_migration_reuse_targets",
+        null=True,
+        blank=True,
+    )
     is_synthetic = models.BooleanField(default=False)
     provenance = models.JSONField(default=dict, blank=True)
     fuzzy_matches = models.JSONField(default=list, blank=True)

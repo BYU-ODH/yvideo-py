@@ -1,15 +1,18 @@
 import logging
 import os
 
+from django import forms
 from django.contrib import admin
 from django.contrib import messages
 from django.core.files.base import ContentFile
+from django.forms.models import BaseInlineFormSet
 from django.urls import NoReverseMatch
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from reversion.admin import VersionAdmin
 
+from .legacy_migration import LegacyMigrationFileAction
 from .legacy_migration import LegacyMigrationFileDecision
 from .legacy_migration import LegacyMigrationIssue
 from .legacy_migration import LegacyMigrationJob
@@ -25,6 +28,7 @@ from .models import BlankAnnotation
 from .models import BlurAnnotation
 from .models import Clip
 from .models import Collection
+from .models import CollectionRole
 from .models import CollectionUserAccess
 from .models import CommentAnnotation
 from .models import Content
@@ -46,6 +50,67 @@ from .models import UserCourses
 from .utils import convert_srt_content_to_vtt
 
 logger = logging.getLogger(__name__)
+
+
+class LegacyMigrationFileDecisionForm(forms.ModelForm):
+    class Meta:
+        model = LegacyMigrationFileDecision
+        fields = "__all__"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get("action")
+        selected_existing_resource_file = cleaned_data.get(
+            "selected_existing_resource_file"
+        )
+
+        if (
+            action == LegacyMigrationFileAction.REUSE_EXISTING
+            and not selected_existing_resource_file
+        ):
+            raise forms.ValidationError(
+                "Choose an existing resource file when file action is 'Reuse Existing'."
+            )
+
+        if (
+            action != LegacyMigrationFileAction.REUSE_EXISTING
+            and selected_existing_resource_file
+        ):
+            raise forms.ValidationError(
+                "Selected existing resource file is only used with 'Reuse Existing'."
+            )
+        return cleaned_data
+
+
+class LegacyMigrationFileDecisionInlineFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        reused_targets_by_resource = {}
+
+        for form in self.forms:
+            if not hasattr(form, "cleaned_data") or form.cleaned_data.get("DELETE"):
+                continue
+            action = form.cleaned_data.get("action")
+            if action != LegacyMigrationFileAction.REUSE_EXISTING:
+                continue
+
+            selected_existing_resource_file = form.cleaned_data.get(
+                "selected_existing_resource_file"
+            )
+            migration_resource = form.cleaned_data.get("migration_resource")
+            if not migration_resource:
+                migration_resource = getattr(form.instance, "migration_resource", None)
+            if not selected_existing_resource_file or not migration_resource:
+                continue
+
+            target_resource_id = selected_existing_resource_file.resource_id
+            existing_target_id = reused_targets_by_resource.get(migration_resource.pk)
+            if existing_target_id and existing_target_id != target_resource_id:
+                raise forms.ValidationError(
+                    "All reused files for a legacy resource must point to the same "
+                    "existing resource."
+                )
+            reused_targets_by_resource[migration_resource.pk] = target_resource_id
 
 
 @admin.register(User)
@@ -331,7 +396,9 @@ class LegacyMigrationResourceInline(admin.TabularInline):
     fields = (
         "legacy_name",
         "target_resource_name",
+        "selected_existing_resource",
         "legacy_media_type",
+        "resource_access_preview",
         "include",
         "is_synthetic",
         "fuzzy_matches_preview",
@@ -339,9 +406,41 @@ class LegacyMigrationResourceInline(admin.TabularInline):
     readonly_fields = (
         "legacy_name",
         "legacy_media_type",
+        "resource_access_preview",
         "is_synthetic",
         "fuzzy_matches_preview",
     )
+
+    def resource_access_preview(self, obj):
+        matching_resource = next(
+            (
+                resource_row
+                for resource_row in obj.request.raw_snapshot.get("resources", [])
+                if resource_row.get("legacy_resource_id") == obj.legacy_resource_id
+            ),
+            None,
+        )
+        if not matching_resource:
+            return "-"
+
+        access_rows = matching_resource.get("resource_access", [])
+        if not access_rows:
+            return "-"
+
+        identities = []
+        for access_row in access_rows:
+            identity = (
+                access_row.get("username")
+                or access_row.get("email")
+                or access_row.get("byu_person_id")
+                or access_row.get("legacy_user_id")
+                or "Unknown user"
+            )
+            if identity not in identities:
+                identities.append(identity)
+        return ", ".join(sorted(identities)) or "-"
+
+    resource_access_preview.short_description = "Resource Access"
 
     def fuzzy_matches_preview(self, obj):
         if not obj.fuzzy_matches:
@@ -356,6 +455,8 @@ class LegacyMigrationResourceInline(admin.TabularInline):
 
 class LegacyMigrationFileDecisionInline(admin.TabularInline):
     model = LegacyMigrationFileDecision
+    form = LegacyMigrationFileDecisionForm
+    formset = LegacyMigrationFileDecisionInlineFormSet
     extra = 0
     fields = (
         "migration_resource_label",
@@ -367,9 +468,6 @@ class LegacyMigrationFileDecisionInline(admin.TabularInline):
         "device_inode_display",
         "absolute_path_display",
         "legacy_path",
-        "linked_contents_preview",
-        "linked_collections_preview",
-        "linked_instructors_preview",
         "candidate_matches_preview",
         "action",
         "selected_existing_resource_file",
@@ -383,9 +481,6 @@ class LegacyMigrationFileDecisionInline(admin.TabularInline):
         "device_inode_display",
         "absolute_path_display",
         "legacy_path",
-        "linked_contents_preview",
-        "linked_collections_preview",
-        "linked_instructors_preview",
         "candidate_matches_preview",
     )
 
@@ -427,44 +522,17 @@ class LegacyMigrationFileDecisionInline(admin.TabularInline):
 
     absolute_path_display.short_description = "Absolute Path"
 
-    def linked_contents_preview(self, obj):
-        if not obj.linked_contents:
-            return "-"
-        return ", ".join(sorted(content["title"] for content in obj.linked_contents))
-
-    linked_contents_preview.short_description = "Contents Using File"
-
-    def linked_collections_preview(self, obj):
-        if not obj.linked_collections:
-            return "-"
-        return ", ".join(
-            sorted(collection["name"] for collection in obj.linked_collections)
-        )
-
-    linked_collections_preview.short_description = "Collections Using File"
-
-    def linked_instructors_preview(self, obj):
-        if not obj.linked_instructors:
-            return "-"
-        return ", ".join(sorted(obj.linked_instructors))
-
-    linked_instructors_preview.short_description = "Instructors/TAs"
-
     def candidate_matches_preview(self, obj):
         if not obj.candidate_matches:
             return "-"
         lines = []
         for match in obj.candidate_matches:
-            collections = ", ".join(match["collections"]) or "No collections"
-            instructors = ", ".join(match["instructors"]) or "No instructors"
             lines.append(
                 "<li>"
                 f"{match['resource_name']} / {match['version']} "
                 f"[{match['match_reason']}] "
                 f"size={match['size_bytes']:,} "
                 f"path={match['path']} "
-                f"collections={collections} "
-                f"instructors={instructors}"
                 "</li>"
             )
         return mark_safe(f"<ul>{''.join(lines)}</ul>")
@@ -479,12 +547,27 @@ class LegacyMigrationUserResolutionInline(admin.TabularInline):
         "legacy_username",
         "legacy_byu_id",
         "legacy_email",
-        "roles",
+        "roles_display",
+        "contexts_display",
         "resolution_status",
         "matched_user",
         "notes",
     )
-    readonly_fields = ("legacy_username", "legacy_byu_id", "legacy_email", "roles")
+    readonly_fields = (
+        "legacy_username",
+        "legacy_byu_id",
+        "legacy_email",
+        "roles_display",
+        "contexts_display",
+    )
+
+    @admin.display(description="Roles")
+    def roles_display(self, obj):
+        return ", ".join(obj.roles) or "-"
+
+    @admin.display(description="Contexts")
+    def contexts_display(self, obj):
+        return ", ".join(obj.contexts) or "-"
 
 
 class LegacyMigrationIssueInline(admin.TabularInline):
@@ -539,13 +622,73 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
     )
     list_filter = ("migration_kind", "status", "created_at")
     search_fields = ("request_uuid", "legacy_reference", "legacy_identifier")
-    readonly_fields = ("snapshot_summary", "created_targets")
+    readonly_fields = (
+        "request_uuid",
+        "legacy_identifier",
+        "snapshot_summary",
+        "snapshot_collection_access_preview",
+        "snapshot_courses_preview",
+        "snapshot_contents_preview",
+        "raw_snapshot",
+        "created_targets",
+        "preflight_completed_at",
+        "imported_at",
+        "created_at",
+        "updated_at",
+    )
     actions = (
         "run_preflight_action",
         "refresh_issues_action",
         "approve_and_queue_action",
         "retry_latest_failed_job_action",
         "cancel_jobs_action",
+    )
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "request_uuid",
+                    "requested_by",
+                    "target_owner",
+                    "migration_kind",
+                    "legacy_reference",
+                    "legacy_identifier",
+                    "status",
+                    "request_notes",
+                    "admin_notes",
+                    "target_collection_name",
+                    "target_collection_published",
+                    "target_collection_archived",
+                    "target_collection_public",
+                    "latest_job_error",
+                )
+            },
+        ),
+        (
+            "Preflight Snapshot",
+            {
+                "fields": (
+                    "snapshot_summary",
+                    "snapshot_collection_access_preview",
+                    "snapshot_courses_preview",
+                    "snapshot_contents_preview",
+                    "raw_snapshot",
+                )
+            },
+        ),
+        ("Import Results", {"fields": ("created_targets",)}),
+        (
+            "Timestamps",
+            {
+                "fields": (
+                    "preflight_completed_at",
+                    "imported_at",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
     )
     inlines = (
         LegacyMigrationResourceInline,
@@ -565,8 +708,11 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
-        LegacyMigrationService(require_catalog=False).sync_request_issues(form.instance)
+        service = LegacyMigrationService(require_catalog=False)
+        service.sync_resource_reuse_targets(form.instance)
+        service.sync_request_issues(form.instance)
 
+    @admin.display(description="Snapshot Summary")
     def snapshot_summary(self, obj):
         if not obj.raw_snapshot:
             return "No preflight snapshot yet."
@@ -590,8 +736,58 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
             warning_count,
         )
 
-    snapshot_summary.short_description = "Snapshot Summary"
+    @admin.display(description="Collection Access")
+    def snapshot_collection_access_preview(self, obj):
+        access_rows = obj.raw_snapshot.get("collection_access", [])
+        if not access_rows:
+            return "No collection access rows in the snapshot."
 
+        lines = []
+        for access_row in access_rows:
+            identity = (
+                access_row.get("username")
+                or access_row.get("email")
+                or access_row.get("byu_person_id")
+                or access_row.get("legacy_user_id")
+                or "Unknown user"
+            )
+            try:
+                role_label = CollectionRole(int(access_row["account_role"])).label
+            except (KeyError, TypeError, ValueError):
+                role_label = access_row.get("account_role", "Unknown")
+            lines.append(f"<li>{identity} ({role_label})</li>")
+        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+
+    @admin.display(description="Course Associations")
+    def snapshot_courses_preview(self, obj):
+        course_rows = obj.raw_snapshot.get("courses", [])
+        if not course_rows:
+            return "No course associations in the snapshot."
+
+        lines = []
+        for course_row in course_rows:
+            department = (course_row.get("department") or "").upper()
+            catalog_number = str(course_row.get("catalog_number") or "").zfill(3)
+            section_number = str(course_row.get("section_number") or "").zfill(3)
+            lines.append(f"<li>{department} {catalog_number}-{section_number}</li>")
+        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+
+    @admin.display(description="Contents")
+    def snapshot_contents_preview(self, obj):
+        content_rows = obj.raw_snapshot.get("contents", [])
+        if not content_rows:
+            return "No contents in the snapshot."
+
+        lines = []
+        for content_row in content_rows[:10]:
+            title = content_row.get("title") or "Untitled content"
+            resource_id = content_row.get("resource_id") or "No resource"
+            lines.append(f"<li>{title} ({resource_id})</li>")
+        if len(content_rows) > 10:
+            lines.append(f"<li>... and {len(content_rows) - 10} more</li>")
+        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+
+    @admin.display(description="Imported Targets")
     def created_targets(self, obj):
         if not obj.source_maps.exists():
             return "No imported objects yet."
@@ -617,8 +813,6 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                 "</li>"
             )
         return mark_safe(f"<ul>{''.join(lines)}</ul>")
-
-    created_targets.short_description = "Imported Targets"
 
     def _report_action_error(self, request, migration_request, action_label, exc):
         logger.exception(

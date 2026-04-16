@@ -243,6 +243,55 @@ def get_legacy_file_extension(resolved_path):
     return Path(resolved_path).suffix.lower()
 
 
+def format_subprocess_command(command_args):
+    return shlex.join([str(arg) for arg in command_args])
+
+
+def build_subprocess_failure_message(
+    action_label,
+    target_path,
+    command_args,
+    return_code=None,
+    stdout="",
+    stderr="",
+):
+    message_parts = [
+        f"{action_label} {target_path}.",
+        f"Command: {format_subprocess_command(command_args)}.",
+    ]
+    if return_code is not None:
+        message_parts.append(f"Exit status: {return_code}.")
+
+    normalized_stderr = (stderr or "").strip()
+    normalized_stdout = (stdout or "").strip()
+    if normalized_stderr:
+        message_parts.append(f"stderr: {normalized_stderr}")
+    if normalized_stdout:
+        message_parts.append(f"stdout: {normalized_stdout}")
+    if not normalized_stderr and not normalized_stdout:
+        message_parts.append("No stdout/stderr output.")
+
+    return " ".join(message_parts)
+
+
+def parse_remote_metadata_output(raw_output, resolved_path, command_args):
+    normalized_output = raw_output.replace("\\t", "\t").replace("\r\n", "\n")
+    normalized_output = normalized_output.replace("\n\t", "\t", 1)
+
+    try:
+        size_bytes, mtime_epoch, atime_epoch, realpath = normalized_output.split(
+            "\t", 3
+        )
+    except ValueError as exc:
+        raise OSError(
+            "Unexpected metadata response for remote legacy file "
+            f"{resolved_path}. Command: {format_subprocess_command(command_args)}. "
+            f"Output: {raw_output!r}"
+        ) from exc
+
+    return int(size_bytes), int(mtime_epoch), int(atime_epoch), realpath.strip()
+
+
 def inspect_remote_legacy_file(resolved_path):
     remote_path = parse_remote_legacy_path(resolved_path)
     if not remote_path:
@@ -254,30 +303,38 @@ def inspect_remote_legacy_file(resolved_path):
         f"resolved=$(readlink -f -- {quoted_path} 2>/dev/null "
         f"|| realpath -- {quoted_path} 2>/dev/null "
         f'|| printf "%s" {quoted_path}); '
-        f'stat -Lc "%s\\t%Y\\t%X" -- {quoted_path}; '
-        'printf "\\t%s\\n" "$resolved"'
+        f"size=$(stat -Lc '%s' -- {quoted_path}) && "
+        f"mtime=$(stat -Lc '%Y' -- {quoted_path}) && "
+        f"atime=$(stat -Lc '%X' -- {quoted_path}) && "
+        'printf "%s\\t%s\\t%s\\t%s\\n" "$size" "$mtime" "$atime" "$resolved"'
     )
+    command_args = ["ssh", "-oBatchMode=yes", host, command]
 
     try:
         result = subprocess.run(
-            ["ssh", "-oBatchMode=yes", host, command],
+            command_args,
             capture_output=True,
             text=True,
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        error_text = exc.stderr.strip() or exc.stdout.strip() or str(exc)
         raise OSError(
-            f"Could not inspect remote legacy file {resolved_path}: {error_text}"
+            build_subprocess_failure_message(
+                "Could not inspect remote legacy file",
+                resolved_path,
+                command_args,
+                return_code=exc.returncode,
+                stdout=exc.stdout,
+                stderr=exc.stderr,
+            )
         ) from exc
 
     raw_output = result.stdout.rstrip("\n")
-    try:
-        size_bytes, mtime_epoch, atime_epoch, realpath = raw_output.split("\t", 3)
-    except ValueError as exc:
-        raise OSError(
-            f"Unexpected metadata response for remote legacy file {resolved_path}."
-        ) from exc
+    size_bytes, mtime_epoch, atime_epoch, realpath = parse_remote_metadata_output(
+        raw_output,
+        resolved_path,
+        command_args,
+    )
 
     mtime_seconds = int(mtime_epoch)
     atime_seconds = int(atime_epoch)
@@ -300,43 +357,59 @@ def compute_remote_checksum(resolved_path):
 
     host, path_value = remote_path
     command = f"cat -- {shlex.quote(path_value)}"
+    command_args = ["ssh", "-oBatchMode=yes", host, command]
     file_hash = xxhash.xxh64()
 
     with subprocess.Popen(
-        ["ssh", "-oBatchMode=yes", host, command],
+        command_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     ) as process:
         if process.stdout is None or process.stderr is None:
-            raise OSError(f"Could not read remote legacy file {resolved_path}.")
+            raise OSError(
+                "Could not read remote legacy file "
+                f"{resolved_path}. Command: {format_subprocess_command(command_args)}. "
+                "stdout/stderr pipes were not available."
+            )
         for chunk in iter(lambda: process.stdout.read(1024 * 1024), b""):
             file_hash.update(chunk)
         stderr_output = process.stderr.read()
         return_code = process.wait()
 
     if return_code != 0:
-        error_text = (
-            stderr_output.decode().strip() or f"ssh exited with status {return_code}"
-        )
+        stderr_text = stderr_output.decode(errors="replace")
         raise OSError(
-            f"Could not read remote legacy file {resolved_path}: {error_text}"
+            build_subprocess_failure_message(
+                "Could not read remote legacy file",
+                resolved_path,
+                command_args,
+                return_code=return_code,
+                stderr=stderr_text,
+            )
         )
 
     return file_hash.hexdigest()
 
 
 def scp_remote_legacy_file(resolved_path, destination):
+    command_args = ["scp", "-p", "-oBatchMode=yes", resolved_path, str(destination)]
     try:
         subprocess.run(
-            ["scp", "-p", "-oBatchMode=yes", resolved_path, str(destination)],
+            command_args,
             capture_output=True,
             text=True,
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        error_text = exc.stderr.strip() or exc.stdout.strip() or str(exc)
         raise OSError(
-            f"Could not copy remote legacy file {resolved_path}: {error_text}"
+            build_subprocess_failure_message(
+                "Could not copy remote legacy file",
+                resolved_path,
+                command_args,
+                return_code=exc.returncode,
+                stdout=exc.stdout,
+                stderr=exc.stderr,
+            )
         ) from exc
 
 
@@ -523,12 +596,12 @@ class LegacyCatalogClient:
             SELECT
                 uca.collection_id,
                 uca.account_role,
-                u.username,
+                uca.username AS username,
                 u.id AS legacy_user_id,
                 u.byu_person_id,
                 u.email
             FROM user_collections_assoc uca
-            JOIN users u ON u.username = uca.username
+            LEFT JOIN users u ON u.username = uca.username
             WHERE uca.deleted IS NULL AND uca.collection_id = %s
             ORDER BY uca.account_role, u.username
             """,
@@ -749,40 +822,8 @@ class CurrentFileIndex:
         self.by_pk = {}
         self._load()
 
-    def _build_usage_maps(self, resource_file_ids):
-        collections_by_file = defaultdict(list)
-        instructors_by_file = defaultdict(list)
-        contents = (
-            Content.objects.filter(resource_file_id__in=resource_file_ids)
-            .select_related("collection__owner")
-            .prefetch_related("collection__collectionuseraccess_set__user")
-        )
-        for content in contents:
-            resource_file_id = content.resource_file_id
-            if (
-                content.collection
-                and content.collection.name not in collections_by_file[resource_file_id]
-            ):
-                collections_by_file[resource_file_id].append(content.collection.name)
-            if not content.collection:
-                continue
-            owner_label = content.collection.owner.netid
-            if owner_label not in instructors_by_file[resource_file_id]:
-                instructors_by_file[resource_file_id].append(owner_label)
-            for access in content.collection.collectionuseraccess_set.all():
-                if access.collection_role in {
-                    CollectionRole.INSTRUCTOR,
-                    CollectionRole.TA,
-                }:
-                    if access.user.netid not in instructors_by_file[resource_file_id]:
-                        instructors_by_file[resource_file_id].append(access.user.netid)
-        return collections_by_file, instructors_by_file
-
     def _load(self):
         resource_files = list(ResourceFile.objects.select_related("resource"))
-        collections_by_file, instructors_by_file = self._build_usage_maps(
-            [resource_file.pk for resource_file in resource_files]
-        )
         for resource_file in resource_files:
             if not resource_file.file:
                 continue
@@ -804,8 +845,6 @@ class CurrentFileIndex:
                 "inode": int(stat_result.st_ino),
                 "size_bytes": int(stat_result.st_size),
                 "checksum": resource_file.checksum or "",
-                "collections": collections_by_file[resource_file.pk],
-                "instructors": instructors_by_file[resource_file.pk],
             }
             self.by_realpath[entry["realpath"]].append(entry)
             self.by_inode[(entry["device"], entry["inode"])].append(entry)
@@ -1030,6 +1069,64 @@ class LegacyMigrationService:
         matches.sort(key=lambda item: item["score"], reverse=True)
         return matches[:5]
 
+    def _auto_reuse_checksum_match(self, candidate_matches):
+        checksum_matches = [
+            candidate
+            for candidate in candidate_matches
+            if candidate.get("match_reason") == "same_checksum"
+        ]
+        if len(checksum_matches) != 1:
+            return {}
+        return {
+            "action": LegacyMigrationFileAction.REUSE_EXISTING,
+            "selected_existing_resource_file_id": checksum_matches[0][
+                "resource_file_id"
+            ],
+        }
+
+    def _auto_reuse_resource_ids(self, pending_file_decisions):
+        resource_ids = set()
+        for pending_file_decision in pending_file_decisions:
+            resource_file_id = pending_file_decision.get(
+                "selected_existing_resource_file_id"
+            )
+            if not resource_file_id:
+                continue
+            entry = self.current_file_index.get_entry(resource_file_id)
+            if entry:
+                resource_ids.add(entry["resource_id"])
+        return resource_ids
+
+    def _reused_resource_ids_for_migration_resource(self, migration_resource):
+        return sorted(
+            {
+                file_decision.selected_existing_resource_file.resource_id
+                for file_decision in migration_resource.file_decisions.filter(
+                    action=LegacyMigrationFileAction.REUSE_EXISTING,
+                    selected_existing_resource_file__isnull=False,
+                ).select_related("selected_existing_resource_file__resource")
+            }
+        )
+
+    def sync_resource_reuse_targets(self, request_obj):
+        for migration_resource in request_obj.migration_resources.all():
+            reused_resource_ids = self._reused_resource_ids_for_migration_resource(
+                migration_resource
+            )
+            if len(reused_resource_ids) == 1:
+                target_resource_id = reused_resource_ids[0]
+                if (
+                    migration_resource.selected_existing_resource_id
+                    != target_resource_id
+                ):
+                    migration_resource.selected_existing_resource_id = (
+                        target_resource_id
+                    )
+                    migration_resource.save(
+                        update_fields=["selected_existing_resource", "updated_at"]
+                    )
+        return request_obj
+
     def _get_legacy_file_info(self, file_row):
         absolute_path = resolve_legacy_file_path(file_row["filepath"])
         file_info = {
@@ -1042,6 +1139,7 @@ class LegacyMigrationService:
             "mtime_at": None,
             "atime_at": None,
             "extension": get_legacy_file_extension(absolute_path),
+            "inspection_error": "",
         }
         try:
             if is_remote_legacy_path(absolute_path):
@@ -1072,40 +1170,14 @@ class LegacyMigrationService:
                         ),
                     }
                 )
-        except OSError:
-            logger.warning("Legacy file is missing on disk: %s", absolute_path)
+        except OSError as exc:
+            file_info["inspection_error"] = str(exc)
+            logger.warning(
+                "Legacy file inspection failed for %s: %s",
+                absolute_path,
+                file_info["inspection_error"],
+            )
         return file_info
-
-    def _linked_usage_for_file(self, resource_id, file_version):
-        usage_rows = self._get_catalog_client().get_file_usage(
-            resource_id, file_version
-        )
-        linked_contents = []
-        linked_collections = []
-        linked_instructors = []
-        for row in usage_rows:
-            if row["content_id"]:
-                linked_contents.append(
-                    {
-                        "legacy_content_id": row["content_id"],
-                        "title": row["content_title"],
-                    }
-                )
-            if row["collection_id"] and row["collection_name"]:
-                collection_payload = {
-                    "legacy_collection_id": row["collection_id"],
-                    "name": row["collection_name"],
-                }
-                if collection_payload not in linked_collections:
-                    linked_collections.append(collection_payload)
-            if row["collection_owner_username"]:
-                owner_label = row["collection_owner_username"]
-                if owner_label not in linked_instructors:
-                    linked_instructors.append(owner_label)
-            if row["access_username"] and row["account_role"] in {0, 1}:
-                if row["access_username"] not in linked_instructors:
-                    linked_instructors.append(row["access_username"])
-        return linked_contents, linked_collections, linked_instructors
 
     def preflight_request(self, request_obj):
         with transaction.atomic():
@@ -1144,15 +1216,15 @@ class LegacyMigrationService:
                     "collection_owner",
                     f"collection:{snapshot['collection']['legacy_collection_id']}",
                 )
+                update_fields = []
                 if not request_obj.target_owner:
                     request_obj.target_owner = request_obj.requested_by
-                    request_obj.target_collection_name = (
-                        request_obj.target_collection_name
-                        or snapshot["collection"]["name"]
-                    )
-                    request_obj.save(
-                        update_fields=["target_owner", "target_collection_name"]
-                    )
+                    update_fields.append("target_owner")
+                if not request_obj.target_collection_name:
+                    request_obj.target_collection_name = snapshot["collection"]["name"]
+                    update_fields.append("target_collection_name")
+                if update_fields:
+                    request_obj.save(update_fields=[*update_fields, "updated_at"])
 
             for access_row in snapshot.get("collection_access", []):
                 self._upsert_user_resolution(
@@ -1202,48 +1274,59 @@ class LegacyMigrationService:
                         f"resource:{resource_payload['legacy_resource_id']}",
                     )
 
+                pending_file_decisions = []
                 for file_row in resource_payload.get("files", []):
                     file_info = self._get_legacy_file_info(file_row)
-                    linked_contents, linked_collections, linked_instructors = (
-                        self._linked_usage_for_file(
-                            resource_payload["legacy_resource_id"],
-                            file_row["file_version"],
-                        )
-                    )
                     candidate_matches = self.current_file_index.find_candidates(
                         file_info
                     )
-                    LegacyMigrationFileDecision.objects.create(
-                        request=request_obj,
-                        migration_resource=resource_row,
-                        legacy_file_id=file_row["id"],
-                        legacy_version=file_row["file_version"] or "",
-                        target_version=file_row["file_version"] or "",
-                        legacy_path=file_row["filepath"],
-                        legacy_extension=file_info["extension"],
-                        size_bytes=file_info["size_bytes"],
-                        device=file_info["device"],
-                        inode=file_info["inode"],
-                        mtime_at=file_info["mtime_at"],
-                        atime_at=file_info["atime_at"],
-                        metadata={
-                            "legacy_metadata": file_row["metadata"] or "",
-                            "absolute_path": file_info["absolute_path"],
-                            "realpath": file_info["realpath"],
-                            "mtime_ns": file_info["mtime_ns"],
-                        },
-                        linked_contents=linked_contents,
-                        linked_collections=linked_collections,
-                        linked_instructors=linked_instructors,
-                        candidate_matches=candidate_matches,
+                    auto_reuse_defaults = self._auto_reuse_checksum_match(
+                        candidate_matches
+                    )
+                    pending_file_decisions.append(
+                        {
+                            "request": request_obj,
+                            "migration_resource": resource_row,
+                            "legacy_file_id": file_row["id"],
+                            "legacy_version": file_row["file_version"] or "",
+                            "target_version": file_row["file_version"] or "",
+                            "legacy_path": file_row["filepath"],
+                            "legacy_extension": file_info["extension"],
+                            "size_bytes": file_info["size_bytes"],
+                            "device": file_info["device"],
+                            "inode": file_info["inode"],
+                            "mtime_at": file_info["mtime_at"],
+                            "atime_at": file_info["atime_at"],
+                            "metadata": {
+                                "legacy_metadata": file_row["metadata"] or "",
+                                "absolute_path": file_info["absolute_path"],
+                                "realpath": file_info["realpath"],
+                                "mtime_ns": file_info["mtime_ns"],
+                                "inspection_error": file_info["inspection_error"],
+                            },
+                            "candidate_matches": candidate_matches,
+                            **auto_reuse_defaults,
+                        }
                     )
 
+                if len(self._auto_reuse_resource_ids(pending_file_decisions)) > 1:
+                    for pending_file_decision in pending_file_decisions:
+                        pending_file_decision.pop("action", None)
+                        pending_file_decision.pop(
+                            "selected_existing_resource_file_id", None
+                        )
+
+                for pending_file_decision in pending_file_decisions:
+                    LegacyMigrationFileDecision.objects.create(**pending_file_decision)
+
+            self.sync_resource_reuse_targets(request_obj)
             self.sync_request_issues(request_obj)
             request_obj.status = LegacyMigrationStatus.NEEDS_REVIEW
             request_obj.save(update_fields=["status", "updated_at"])
             return request_obj
 
     def sync_request_issues(self, request_obj):
+        self.sync_resource_reuse_targets(request_obj)
         request_obj.issues.all().delete()
 
         for resolution in request_obj.user_resolutions.all():
@@ -1280,7 +1363,7 @@ class LegacyMigrationService:
             if not migration_resource.include:
                 continue
             fuzzy_matches = migration_resource.fuzzy_matches or []
-            if fuzzy_matches:
+            if fuzzy_matches and not migration_resource.selected_existing_resource_id:
                 top_match = fuzzy_matches[0]
                 if (
                     top_match["score"] >= 92
@@ -1306,13 +1389,9 @@ class LegacyMigrationService:
                         details=top_match,
                     )
 
-            reuse_resource_ids = {
-                file_decision.selected_existing_resource_file.resource_id
-                for file_decision in migration_resource.file_decisions.filter(
-                    action=LegacyMigrationFileAction.REUSE_EXISTING,
-                    selected_existing_resource_file__isnull=False,
-                ).select_related("selected_existing_resource_file__resource")
-            }
+            reuse_resource_ids = set(
+                self._reused_resource_ids_for_migration_resource(migration_resource)
+            )
             if len(reuse_resource_ids) > 1:
                 LegacyMigrationIssue.objects.create(
                     request=request_obj,
@@ -1332,14 +1411,21 @@ class LegacyMigrationService:
             if not file_decision.migration_resource.include:
                 continue
             if file_decision.size_bytes is None:
+                issue_details = {"path": file_decision.legacy_path}
+                inspection_error = file_decision.metadata.get("inspection_error", "")
+                if inspection_error:
+                    issue_details["inspection_error"] = inspection_error
                 LegacyMigrationIssue.objects.create(
                     request=request_obj,
                     migration_resource=file_decision.migration_resource,
                     file_decision=file_decision,
                     severity=LegacyMigrationIssueSeverity.BLOCKING,
                     code="missing_legacy_file",
-                    message="The legacy file could not be found on disk during preflight.",
-                    details={"path": file_decision.legacy_path},
+                    message=(
+                        "The legacy file could not be inspected during preflight. "
+                        "See details for the failing command."
+                    ),
+                    details=issue_details,
                 )
 
             if (
@@ -1571,6 +1657,16 @@ class LegacyMigrationService:
         )
         if existing:
             return existing
+
+        if migration_resource.selected_existing_resource_id:
+            target_resource = migration_resource.selected_existing_resource
+            self._upsert_source_map(
+                request_obj,
+                "resource",
+                migration_resource.legacy_resource_id,
+                target_resource,
+            )
+            return target_resource
 
         reused_files = list(
             migration_resource.file_decisions.filter(

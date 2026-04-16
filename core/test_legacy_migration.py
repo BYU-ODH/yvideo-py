@@ -3,11 +3,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 from unittest import mock
 import uuid
 
 from django.conf import settings
+from django.contrib import admin
 from django.contrib import messages
 from django.contrib.messages import get_messages
 from django.core.exceptions import ImproperlyConfigured
@@ -20,12 +22,18 @@ from django.test import override_settings
 from django.urls import reverse
 import xxhash
 
+from .admin import LegacyMigrationFileDecisionForm
+from .admin import LegacyMigrationRequestAdmin
+from .admin import LegacyMigrationResourceInline
 from .factories import CollectionFactory
 from .factories import LanguageFactory
 from .factories import ResourceFactory
 from .factories import UserFactory
+from .legacy_migration import LegacyMigrationFileAction
+from .legacy_migration import LegacyMigrationFileDecision
 from .legacy_migration import LegacyMigrationJob
 from .legacy_migration import LegacyMigrationRequest
+from .legacy_migration import LegacyMigrationResource
 from .legacy_migration import LegacyMigrationStatus
 from .legacy_migration import LegacyMigrationUserResolutionStatus
 from .legacy_migration_services import ChecksumCache
@@ -479,11 +487,11 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(
             file_decision.candidate_matches[0]["match_reason"], "same_realpath"
         )
-        self.assertIn(
-            "Current Birds Collection",
-            file_decision.candidate_matches[0]["collections"],
-        )
-        self.assertIn("caseyta", file_decision.candidate_matches[0]["instructors"])
+        self.assertNotIn("collections", file_decision.candidate_matches[0])
+        self.assertNotIn("instructors", file_decision.candidate_matches[0])
+        self.assertEqual(file_decision.linked_contents, [])
+        self.assertEqual(file_decision.linked_collections, [])
+        self.assertEqual(file_decision.linked_instructors, [])
         self.assertTrue(
             migration_request.issues.filter(
                 code="duplicate_file_requires_decision",
@@ -514,12 +522,20 @@ class LegacyMigrationTests(TestCase):
         LanguageFactory(language="English", lang_tag="en")
 
         target_owner = UserFactory(netid="profben", byu_id="111111111", instructor=True)
-        ta_user = UserFactory(netid="caseyta", byu_id="222222222", instructor=True)
+        collection_ta = UserFactory(
+            netid="caseyta", byu_id="222222222", instructor=True
+        )
+        resource_guest = UserFactory(
+            netid="resourceg",
+            byu_id="333333333",
+            instructor=True,
+        )
 
         legacy_collection_id = str(uuid.uuid4())
         legacy_resource_id = str(uuid.uuid4())
         legacy_owner_id = str(uuid.uuid4())
         legacy_ta_id = str(uuid.uuid4())
+        legacy_resource_guest_id = str(uuid.uuid4())
         legacy_content_id = str(uuid.uuid4())
         legacy_url_content_id = str(uuid.uuid4())
         legacy_file_id = str(uuid.uuid4())
@@ -546,6 +562,16 @@ class LegacyMigrationTests(TestCase):
                 "username": "caseyta",
                 "byu_person_id": "222222222",
                 "email": "caseyta@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_resource_guest_id,
+                "deleted": None,
+                "username": "resourceg",
+                "byu_person_id": "333333333",
+                "email": "resourceg@example.test",
             },
         )
         self.insert_legacy_row(
@@ -611,7 +637,7 @@ class LegacyMigrationTests(TestCase):
             {
                 "id": str(uuid.uuid4()),
                 "deleted": None,
-                "username": "caseyta",
+                "username": "resourceg",
                 "resource_id": legacy_resource_id,
             },
         )
@@ -777,7 +803,12 @@ class LegacyMigrationTests(TestCase):
         )
         self.assertTrue(
             ResourceAccess.objects.filter(
-                user=ta_user, resource=imported_video.resource
+                user=resource_guest, resource=imported_video.resource
+            ).exists()
+        )
+        self.assertFalse(
+            ResourceAccess.objects.filter(
+                user=collection_ta, resource=imported_video.resource
             ).exists()
         )
         self.assertTrue(
@@ -789,9 +820,15 @@ class LegacyMigrationTests(TestCase):
         )
         self.assertTrue(
             CollectionUserAccess.objects.filter(
-                user=ta_user,
+                user=collection_ta,
                 collection=imported_collection,
                 collection_role=CollectionRole.TA,
+            ).exists()
+        )
+        self.assertFalse(
+            CollectionUserAccess.objects.filter(
+                user=resource_guest,
+                collection=imported_collection,
             ).exists()
         )
         self.assertEqual(migration_request.status, LegacyMigrationStatus.COMPLETED)
@@ -802,6 +839,966 @@ class LegacyMigrationTests(TestCase):
                 status="completed",
             ).exists()
         )
+
+    def test_preflight_auto_reuses_same_checksum_match(self):
+        self.create_legacy_schema()
+
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        current_resource = ResourceFactory(
+            name="Current Checksum Resource",
+            requester_netid=owner.netid,
+        )
+        current_file_path = self.write_media_file(
+            "current/existing-audio.mp3",
+            payload=b"checksum-match-payload",
+        )
+        current_resource_file = ResourceFile(
+            resource=current_resource,
+            version="english",
+            full_video=True,
+        )
+        current_resource_file.file.name = "current/existing-audio.mp3"
+        current_resource_file.save()
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_resource_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        legacy_file_id = str(uuid.uuid4())
+        legacy_content_id = str(uuid.uuid4())
+        self.write_media_file(
+            "legacy/incoming-audio.mp3",
+            payload=b"checksum-match-payload",
+        )
+
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profada",
+                "byu_person_id": "123456789",
+                "email": "profada@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Checksum Legacy Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 1,
+            },
+        )
+        self.insert_legacy_row(
+            "resources",
+            {
+                "id": legacy_resource_id,
+                "deleted": None,
+                "resource_name": "Checksum Legacy Resource",
+                "resource_type": "audio",
+                "requester_email": "profada@example.test",
+                "copyrighted": 1,
+                "physical_copy_exists": 0,
+                "full_video": 1,
+                "published": 1,
+                "views": 11,
+                "metadata": "{}",
+            },
+        )
+        self.insert_legacy_row(
+            "files",
+            {
+                "id": legacy_file_id,
+                "deleted": None,
+                "resource_id": legacy_resource_id,
+                "filepath": "legacy/incoming-audio.mp3",
+                "file_version": "english",
+                "metadata": "{}",
+                "created": "2026-01-01 00:00:00",
+                "updated": "2026-01-01 00:00:00",
+            },
+        )
+        self.insert_legacy_row(
+            "contents",
+            {
+                "id": legacy_content_id,
+                "deleted": None,
+                "created": "2026-01-01 00:00:00",
+                "collection_id": legacy_collection_id,
+                "resource_id": legacy_resource_id,
+                "title": "Checksum Audio Lesson",
+                "content_type": "audio",
+                "url": "",
+                "description": "Same bytes, new path",
+                "tags": "",
+                "annotations": json.dumps([]),
+                "thumbnail": "",
+                "allow_definitions": 1,
+                "allow_notes": 1,
+                "allow_captions": 1,
+                "views": 5,
+                "file_version": "english",
+                "published": 1,
+                "words": "",
+                "clips": json.dumps([]),
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+
+        service = self.build_service()
+        service.preflight_request(migration_request)
+        migration_request.refresh_from_db()
+
+        file_decision = migration_request.file_decisions.get()
+        migration_resource = migration_request.migration_resources.get(
+            is_synthetic=False
+        )
+        self.assertEqual(
+            file_decision.candidate_matches[0]["match_reason"],
+            "same_checksum",
+        )
+        self.assertEqual(
+            file_decision.action,
+            LegacyMigrationFileAction.REUSE_EXISTING,
+        )
+        self.assertEqual(
+            file_decision.selected_existing_resource_file_id,
+            current_resource_file.pk,
+        )
+        self.assertEqual(
+            migration_resource.selected_existing_resource_id,
+            current_resource.pk,
+        )
+        self.assertFalse(
+            migration_request.issues.filter(
+                code="duplicate_file_requires_decision",
+            ).exists()
+        )
+        self.assertEqual(
+            file_decision.metadata["absolute_path"],
+            str(Path(settings.MEDIA_ROOT) / "legacy/incoming-audio.mp3"),
+        )
+        self.assertNotEqual(
+            file_decision.metadata["absolute_path"], str(current_file_path)
+        )
+
+    def test_preflight_does_not_auto_reuse_files_across_multiple_existing_resources(
+        self,
+    ):
+        self.create_legacy_schema()
+
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        current_video_resource = ResourceFactory(
+            name="Existing Video Resource",
+            requester_netid=owner.netid,
+        )
+        current_video_file = ResourceFile(
+            resource=current_video_resource,
+            version="video",
+            full_video=True,
+        )
+        self.write_media_file("current/existing-video.mp4", payload=b"video-bytes")
+        current_video_file.file.name = "current/existing-video.mp4"
+        current_video_file.save()
+
+        current_audio_resource = ResourceFactory(
+            name="Existing Audio Resource",
+            requester_netid=owner.netid,
+        )
+        current_audio_file = ResourceFile(
+            resource=current_audio_resource,
+            version="audio",
+            full_video=False,
+        )
+        self.write_media_file("current/existing-audio.mp3", payload=b"audio-bytes")
+        current_audio_file.file.name = "current/existing-audio.mp3"
+        current_audio_file.save()
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_resource_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        legacy_video_file_id = str(uuid.uuid4())
+        legacy_audio_file_id = str(uuid.uuid4())
+        legacy_content_id = str(uuid.uuid4())
+        self.write_media_file("legacy/new-video.mp4", payload=b"video-bytes")
+        self.write_media_file("legacy/new-audio.mp3", payload=b"audio-bytes")
+
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profada",
+                "byu_person_id": "123456789",
+                "email": "profada@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Mixed Reuse Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 1,
+            },
+        )
+        self.insert_legacy_row(
+            "resources",
+            {
+                "id": legacy_resource_id,
+                "deleted": None,
+                "resource_name": "Mixed Reuse Resource",
+                "resource_type": "video",
+                "requester_email": "profada@example.test",
+                "copyrighted": 1,
+                "physical_copy_exists": 0,
+                "full_video": 1,
+                "published": 1,
+                "views": 11,
+                "metadata": "{}",
+            },
+        )
+        self.insert_legacy_row(
+            "files",
+            {
+                "id": legacy_video_file_id,
+                "deleted": None,
+                "resource_id": legacy_resource_id,
+                "filepath": "legacy/new-video.mp4",
+                "file_version": "video",
+                "metadata": "{}",
+                "created": "2026-01-01 00:00:00",
+                "updated": "2026-01-01 00:00:00",
+            },
+        )
+        self.insert_legacy_row(
+            "files",
+            {
+                "id": legacy_audio_file_id,
+                "deleted": None,
+                "resource_id": legacy_resource_id,
+                "filepath": "legacy/new-audio.mp3",
+                "file_version": "audio",
+                "metadata": "{}",
+                "created": "2026-01-01 00:00:00",
+                "updated": "2026-01-01 00:00:00",
+            },
+        )
+        self.insert_legacy_row(
+            "contents",
+            {
+                "id": legacy_content_id,
+                "deleted": None,
+                "created": "2026-01-01 00:00:00",
+                "collection_id": legacy_collection_id,
+                "resource_id": legacy_resource_id,
+                "title": "Mixed Reuse Lesson",
+                "content_type": "video",
+                "url": "",
+                "description": "",
+                "tags": "",
+                "annotations": json.dumps([]),
+                "thumbnail": "",
+                "allow_definitions": 1,
+                "allow_notes": 1,
+                "allow_captions": 1,
+                "views": 5,
+                "file_version": "video",
+                "published": 1,
+                "words": "",
+                "clips": json.dumps([]),
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+
+        service = self.build_service()
+        service.preflight_request(migration_request)
+        migration_request.refresh_from_db()
+
+        migration_resource = migration_request.migration_resources.get(
+            is_synthetic=False
+        )
+        file_decisions = list(
+            migration_request.file_decisions.order_by("legacy_path").all()
+        )
+
+        self.assertIsNone(migration_resource.selected_existing_resource_id)
+        self.assertEqual(len(file_decisions), 2)
+        self.assertEqual(
+            [file_decision.action for file_decision in file_decisions],
+            [
+                LegacyMigrationFileAction.IMPORT,
+                LegacyMigrationFileAction.IMPORT,
+            ],
+        )
+        self.assertEqual(
+            [
+                file_decision.selected_existing_resource_file_id
+                for file_decision in file_decisions
+            ],
+            [None, None],
+        )
+        self.assertTrue(
+            all(
+                file_decision.candidate_matches[0]["match_reason"] == "same_checksum"
+                for file_decision in file_decisions
+            )
+        )
+        self.assertEqual(
+            migration_request.issues.filter(
+                code="duplicate_file_requires_decision",
+            ).count(),
+            2,
+        )
+        self.assertFalse(
+            migration_request.issues.filter(code="reuse_conflict").exists()
+        )
+
+    def test_sync_request_issues_defaults_resource_reuse_target_from_file_reuse(self):
+        self.create_legacy_schema()
+
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        current_resource = ResourceFactory(
+            name="Existing Lecture Resource",
+            requester_netid=owner.netid,
+        )
+        current_resource_file = ResourceFile(
+            resource=current_resource,
+            version="english",
+            full_video=True,
+        )
+        self.write_media_file("current/existing-lecture.mp4", payload=b"lecture-bytes")
+        current_resource_file.file.name = "current/existing-lecture.mp4"
+        current_resource_file.save()
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_resource_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        legacy_file_id = str(uuid.uuid4())
+        legacy_content_id = str(uuid.uuid4())
+        self.write_media_file("legacy/new-lecture.mp4", payload=b"new-lecture")
+
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profada",
+                "byu_person_id": "123456789",
+                "email": "profada@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Manual Reuse Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 1,
+            },
+        )
+        self.insert_legacy_row(
+            "resources",
+            {
+                "id": legacy_resource_id,
+                "deleted": None,
+                "resource_name": "Manual Reuse Resource",
+                "resource_type": "video",
+                "requester_email": "profada@example.test",
+                "copyrighted": 1,
+                "physical_copy_exists": 0,
+                "full_video": 1,
+                "published": 1,
+                "views": 1,
+                "metadata": "{}",
+            },
+        )
+        self.insert_legacy_row(
+            "files",
+            {
+                "id": legacy_file_id,
+                "deleted": None,
+                "resource_id": legacy_resource_id,
+                "filepath": "legacy/new-lecture.mp4",
+                "file_version": "english",
+                "metadata": "{}",
+                "created": "2026-01-01 00:00:00",
+                "updated": "2026-01-01 00:00:00",
+            },
+        )
+        self.insert_legacy_row(
+            "contents",
+            {
+                "id": legacy_content_id,
+                "deleted": None,
+                "created": "2026-01-01 00:00:00",
+                "collection_id": legacy_collection_id,
+                "resource_id": legacy_resource_id,
+                "title": "Manual Reuse Content",
+                "content_type": "video",
+                "url": "",
+                "description": "",
+                "tags": "",
+                "annotations": json.dumps([]),
+                "thumbnail": "",
+                "allow_definitions": 1,
+                "allow_notes": 1,
+                "allow_captions": 1,
+                "views": 1,
+                "file_version": "english",
+                "published": 1,
+                "words": "",
+                "clips": json.dumps([]),
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+
+        service = self.build_service()
+        service.preflight_request(migration_request)
+        migration_request.refresh_from_db()
+        migration_resource = migration_request.migration_resources.get(
+            is_synthetic=False
+        )
+        file_decision = migration_request.file_decisions.get()
+
+        migration_resource.selected_existing_resource = None
+        migration_resource.save(
+            update_fields=["selected_existing_resource", "updated_at"]
+        )
+        file_decision.action = LegacyMigrationFileAction.REUSE_EXISTING
+        file_decision.selected_existing_resource_file = current_resource_file
+        file_decision.save(
+            update_fields=[
+                "action",
+                "selected_existing_resource_file",
+                "updated_at",
+            ]
+        )
+
+        service.sync_request_issues(migration_request)
+        migration_resource.refresh_from_db()
+
+        self.assertEqual(
+            migration_resource.selected_existing_resource_id,
+            current_resource.pk,
+        )
+
+    def test_file_decision_form_requires_existing_file_for_reuse(self):
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="resource",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        migration_resource = LegacyMigrationResource.objects.create(
+            request=migration_request,
+            legacy_resource_id=str(uuid.uuid4()),
+            legacy_name="Lecture Resource",
+            target_resource_name="Lecture Resource",
+        )
+        file_decision = LegacyMigrationFileDecision.objects.create(
+            request=migration_request,
+            migration_resource=migration_resource,
+            legacy_file_id=str(uuid.uuid4()),
+            legacy_version="english",
+            target_version="english",
+            legacy_path="legacy/lecture.mp4",
+        )
+
+        form = LegacyMigrationFileDecisionForm(
+            instance=file_decision,
+            data={
+                "request": migration_request.pk,
+                "migration_resource": migration_resource.pk,
+                "legacy_file_id": file_decision.legacy_file_id,
+                "legacy_version": "english",
+                "target_version": "english",
+                "legacy_path": "legacy/lecture.mp4",
+                "legacy_extension": "",
+                "size_bytes": "",
+                "device": "",
+                "inode": "",
+                "mtime_at": "",
+                "atime_at": "",
+                "metadata": "{}",
+                "linked_contents": "[]",
+                "linked_collections": "[]",
+                "linked_instructors": "[]",
+                "candidate_matches": "[]",
+                "checksum": "",
+                "action": LegacyMigrationFileAction.REUSE_EXISTING,
+                "selected_existing_resource_file": "",
+                "notes": "",
+            },
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn(
+            "Choose an existing resource file",
+            form.non_field_errors()[0],
+        )
+
+    def test_import_reuses_selected_existing_resource(self):
+        self.create_legacy_schema()
+        LanguageFactory(language="English", lang_tag="en")
+
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        existing_resource = ResourceFactory(
+            name="Existing Reused Resource",
+            requester_netid=owner.netid,
+        )
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_resource_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        legacy_file_id = str(uuid.uuid4())
+        legacy_content_id = str(uuid.uuid4())
+        self.write_media_file("legacy/reused-resource.mp4", payload=b"reused-resource")
+
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profada",
+                "byu_person_id": "123456789",
+                "email": "profada@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Reuse Existing Resource Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 1,
+            },
+        )
+        self.insert_legacy_row(
+            "resources",
+            {
+                "id": legacy_resource_id,
+                "deleted": None,
+                "resource_name": "Legacy Resource That Should Reuse",
+                "resource_type": "video",
+                "requester_email": "profada@example.test",
+                "copyrighted": 1,
+                "physical_copy_exists": 0,
+                "full_video": 1,
+                "published": 1,
+                "views": 1,
+                "metadata": "{}",
+            },
+        )
+        self.insert_legacy_row(
+            "files",
+            {
+                "id": legacy_file_id,
+                "deleted": None,
+                "resource_id": legacy_resource_id,
+                "filepath": "legacy/reused-resource.mp4",
+                "file_version": "english",
+                "metadata": "{}",
+                "created": "2026-01-01 00:00:00",
+                "updated": "2026-01-01 00:00:00",
+            },
+        )
+        self.insert_legacy_row(
+            "contents",
+            {
+                "id": legacy_content_id,
+                "deleted": None,
+                "created": "2026-01-01 00:00:00",
+                "collection_id": legacy_collection_id,
+                "resource_id": legacy_resource_id,
+                "title": "Reuse Existing Resource Content",
+                "content_type": "video",
+                "url": "",
+                "description": "",
+                "tags": "",
+                "annotations": json.dumps([]),
+                "thumbnail": "",
+                "allow_definitions": 1,
+                "allow_notes": 1,
+                "allow_captions": 1,
+                "views": 1,
+                "file_version": "english",
+                "published": 1,
+                "words": "",
+                "clips": json.dumps([]),
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+
+        service = self.build_service()
+        service.preflight_request(migration_request)
+        migration_request.refresh_from_db()
+        migration_resource = migration_request.migration_resources.get(
+            is_synthetic=False
+        )
+        migration_resource.selected_existing_resource = existing_resource
+        migration_resource.save(
+            update_fields=["selected_existing_resource", "updated_at"]
+        )
+
+        job = service.approve_and_queue_import(migration_request)
+        service.run_job(job)
+
+        imported_collection = Collection.objects.get(
+            name="Reuse Existing Resource Shelf"
+        )
+        imported_content = Content.objects.get(
+            collection=imported_collection,
+            title="Reuse Existing Resource Content",
+        )
+
+        self.assertEqual(imported_content.resource_id, existing_resource.pk)
+        self.assertFalse(
+            Resource.objects.filter(name="Legacy Resource That Should Reuse").exists()
+        )
+
+    def test_preflight_backfills_target_collection_name_for_existing_target_owner(self):
+        self.create_legacy_schema()
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profada",
+                "byu_person_id": "123456789",
+                "email": "profada@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Legacy Named Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 1,
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+            target_collection_name="",
+        )
+
+        self.build_service().preflight_request(migration_request)
+        migration_request.refresh_from_db()
+
+        self.assertEqual(migration_request.target_collection_name, "Legacy Named Shelf")
+
+    def test_preflight_keeps_collection_access_rows_without_matching_legacy_user(self):
+        self.create_legacy_schema()
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profada",
+                "byu_person_id": "123456789",
+                "email": "profada@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Legacy Access Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 1,
+            },
+        )
+        self.insert_legacy_row(
+            "user_collections_assoc",
+            {
+                "id": str(uuid.uuid4()),
+                "deleted": None,
+                "username": "missingguest",
+                "collection_id": legacy_collection_id,
+                "account_role": CollectionRole.TA,
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+
+        self.build_service().preflight_request(migration_request)
+        migration_request.refresh_from_db()
+
+        self.assertEqual(
+            migration_request.raw_snapshot["collection_access"],
+            [
+                {
+                    "collection_id": legacy_collection_id,
+                    "account_role": CollectionRole.TA,
+                    "username": "missingguest",
+                    "legacy_user_id": None,
+                    "byu_person_id": None,
+                    "email": None,
+                }
+            ],
+        )
+        missing_guest_resolution = migration_request.user_resolutions.get(
+            legacy_username="missingguest"
+        )
+        self.assertEqual(
+            missing_guest_resolution.resolution_status,
+            LegacyMigrationUserResolutionStatus.PENDING,
+        )
+
+    def test_admin_snapshot_previews_show_courses_and_collection_access(self):
+        self.create_legacy_schema()
+        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        legacy_ta_byu_id = "987654321"
+        ta_user = UserFactory(
+            netid="caseyta",
+            byu_id=legacy_ta_byu_id,
+            instructor=True,
+        )
+        resource_guest = UserFactory(
+            netid="resourceg",
+            byu_id="333333333",
+            instructor=True,
+        )
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        legacy_ta_id = str(uuid.uuid4())
+        legacy_course_id = str(uuid.uuid4())
+        legacy_resource_id = str(uuid.uuid4())
+        legacy_resource_guest_id = str(uuid.uuid4())
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profada",
+                "byu_person_id": "123456789",
+                "email": "profada@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_ta_id,
+                "deleted": None,
+                "username": ta_user.netid,
+                "byu_person_id": legacy_ta_byu_id,
+                "email": ta_user.email,
+            },
+        )
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_resource_guest_id,
+                "deleted": None,
+                "username": resource_guest.netid,
+                "byu_person_id": "333333333",
+                "email": resource_guest.email,
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Legacy Review Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 1,
+                "copyrighted": 1,
+            },
+        )
+        self.insert_legacy_row(
+            "user_collections_assoc",
+            {
+                "id": str(uuid.uuid4()),
+                "deleted": None,
+                "username": ta_user.netid,
+                "collection_id": legacy_collection_id,
+                "account_role": CollectionRole.TA,
+            },
+        )
+        self.insert_legacy_row(
+            "courses",
+            {
+                "id": legacy_course_id,
+                "deleted": None,
+                "department": "FILM",
+                "catalog_number": "101",
+                "section_number": "001",
+            },
+        )
+        self.insert_legacy_row(
+            "collection_courses_assoc",
+            {
+                "id": str(uuid.uuid4()),
+                "deleted": None,
+                "collection_id": legacy_collection_id,
+                "course_id": legacy_course_id,
+            },
+        )
+        self.insert_legacy_row(
+            "resources",
+            {
+                "id": legacy_resource_id,
+                "deleted": None,
+                "resource_name": "Legacy Review Resource",
+                "resource_type": "video",
+                "requester_email": owner.email,
+                "copyrighted": 1,
+                "physical_copy_exists": 0,
+                "full_video": 1,
+                "published": 1,
+                "views": 3,
+                "metadata": "{}",
+            },
+        )
+        self.insert_legacy_row(
+            "resource_access",
+            {
+                "id": str(uuid.uuid4()),
+                "deleted": None,
+                "username": resource_guest.netid,
+                "resource_id": legacy_resource_id,
+            },
+        )
+        self.insert_legacy_row(
+            "files",
+            {
+                "id": str(uuid.uuid4()),
+                "deleted": None,
+                "resource_id": legacy_resource_id,
+                "filepath": "legacy/review-video.mp4",
+                "file_version": "english",
+                "metadata": "{}",
+                "created": "2026-01-01 00:00:00",
+                "updated": "2026-01-01 00:00:00",
+            },
+        )
+        self.write_media_file("legacy/review-video.mp4", payload=b"review-video")
+        self.insert_legacy_row(
+            "contents",
+            {
+                "id": str(uuid.uuid4()),
+                "deleted": None,
+                "created": "2026-01-01 00:00:00",
+                "collection_id": legacy_collection_id,
+                "resource_id": legacy_resource_id,
+                "title": "Legacy Review Content",
+                "content_type": "video",
+                "url": "",
+                "description": "",
+                "tags": "",
+                "annotations": json.dumps([]),
+                "thumbnail": "",
+                "allow_definitions": 1,
+                "allow_notes": 1,
+                "allow_captions": 1,
+                "views": 1,
+                "file_version": "english",
+                "published": 1,
+                "words": "",
+                "clips": json.dumps([]),
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+
+        self.build_service().preflight_request(migration_request)
+        migration_request.refresh_from_db()
+
+        admin_instance = LegacyMigrationRequestAdmin(LegacyMigrationRequest, admin.site)
+        resource_inline = LegacyMigrationResourceInline(
+            LegacyMigrationRequest,
+            admin.site,
+        )
+        access_preview = admin_instance.snapshot_collection_access_preview(
+            migration_request
+        )
+        course_preview = admin_instance.snapshot_courses_preview(migration_request)
+        resource_access_preview = resource_inline.resource_access_preview(
+            migration_request.migration_resources.get(
+                legacy_resource_id=legacy_resource_id
+            )
+        )
+
+        self.assertIn(ta_user.netid, access_preview)
+        self.assertIn(CollectionRole(CollectionRole.TA).label, access_preview)
+        self.assertIn("FILM 101-001", course_preview)
+        self.assertIn(resource_guest.netid, resource_access_preview)
 
     def test_instructor_request_view_creates_queued_preflight_job(self):
         instructor = UserFactory(instructor=True)
@@ -1090,6 +2087,122 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(
             run_mock.call_args.args[0][:3],
             ["ssh", "-oBatchMode=yes", "yvideo"],
+        )
+
+    @override_settings(LEGACY_MIGRATION_MEDIA_ROOT="yvideo:/opt/media/y-video")
+    def test_get_legacy_file_info_parses_remote_metadata_with_literal_tab_escapes(self):
+        service = self.build_service()
+
+        with mock.patch("core.legacy_migration_services.subprocess.run") as run_mock:
+            run_mock.return_value = mock.Mock(
+                stdout=(
+                    "998149\\t1697125681\\t1776149000\n"
+                    "\t/opt/media/y-video/legacy/shared-birds.mp4\n"
+                ),
+                stderr="",
+            )
+            file_info = service._get_legacy_file_info(
+                {"filepath": "legacy/shared-birds.mp4"}
+            )
+
+        self.assertEqual(file_info["size_bytes"], 998149)
+        self.assertEqual(
+            file_info["realpath"],
+            "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
+        )
+        self.assertEqual(
+            run_mock.call_args.args[0][:3],
+            ["ssh", "-oBatchMode=yes", "yvideo"],
+        )
+
+    @override_settings(LEGACY_MIGRATION_MEDIA_ROOT="yvideo:/opt/media/y-video")
+    def test_get_legacy_file_info_logs_remote_command_failure_details(self):
+        service = self.build_service()
+        failure = subprocess.CalledProcessError(
+            returncode=1,
+            cmd=["ssh", "-oBatchMode=yes", "yvideo", "stat"],
+            output="",
+            stderr=(
+                "stat: cannot stat '/opt/media/y-video/legacy/shared-birds.mp4': "
+                "No such file or directory"
+            ),
+        )
+
+        with (
+            mock.patch(
+                "core.legacy_migration_services.subprocess.run",
+                side_effect=failure,
+            ),
+            self.assertLogs("core.legacy_migration_services", level="WARNING") as logs,
+        ):
+            file_info = service._get_legacy_file_info(
+                {"filepath": "legacy/shared-birds.mp4"}
+            )
+
+        self.assertIsNone(file_info["size_bytes"])
+        self.assertIn(
+            "Could not inspect remote legacy file", file_info["inspection_error"]
+        )
+        self.assertIn(
+            "Command: ssh -oBatchMode=yes yvideo",
+            file_info["inspection_error"],
+        )
+        self.assertIn(
+            "stderr: stat: cannot stat '/opt/media/y-video/legacy/shared-birds.mp4'",
+            file_info["inspection_error"],
+        )
+        self.assertIn(
+            "Legacy file inspection failed for "
+            "yvideo:/opt/media/y-video/legacy/shared-birds.mp4:",
+            logs.output[0],
+        )
+
+    def test_missing_legacy_file_issue_includes_inspection_error_details(self):
+        owner = UserFactory(netid="profada", instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        migration_resource = LegacyMigrationResource.objects.create(
+            request=migration_request,
+            legacy_resource_id=str(uuid.uuid4()),
+            legacy_name="Legacy Video",
+            target_resource_name="Legacy Video",
+        )
+        file_decision = LegacyMigrationFileDecision.objects.create(
+            request=migration_request,
+            migration_resource=migration_resource,
+            legacy_file_id=str(uuid.uuid4()),
+            legacy_version="english",
+            legacy_path="legacy/shared-birds.mp4",
+            metadata={
+                "inspection_error": (
+                    "Could not inspect remote legacy file "
+                    "yvideo:/opt/media/y-video/legacy/shared-birds.mp4. "
+                    "Command: ssh -oBatchMode=yes yvideo 'stat ...'. "
+                    "Exit status: 1. stderr: Permission denied"
+                )
+            },
+        )
+
+        LegacyMigrationService(require_catalog=False).sync_request_issues(
+            migration_request
+        )
+
+        issue = migration_request.issues.get(
+            code="missing_legacy_file",
+            file_decision=file_decision,
+        )
+        self.assertEqual(
+            issue.message,
+            "The legacy file could not be inspected during preflight. "
+            "See details for the failing command.",
+        )
+        self.assertEqual(issue.details["path"], "legacy/shared-birds.mp4")
+        self.assertIn(
+            "Command: ssh -oBatchMode=yes yvideo", issue.details["inspection_error"]
         )
 
     def test_remote_legacy_checksum_streams_over_ssh(self):
