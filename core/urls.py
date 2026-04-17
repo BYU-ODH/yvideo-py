@@ -113,12 +113,12 @@ urlpatterns = [
     ),
     # Video editor page
     path(
-        "video-annotator/<int:content_id>/",
+        "video-editor/<int:content_id>/",
         views_video_editor.video_editor,
-        name="video_annotator",
+        name="video_editor",
     ),
     path(
-        "video-annotator/reload-player",
+        "video-editor/reload-player",
         views_video_editor.get_player_wrapper_html,
         name="reload-video-player",
     ),
