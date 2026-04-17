@@ -1,7 +1,9 @@
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
     branches: [main, prod]
 
 # The dev environment is not auto-deployed. Developers SSH into the
@@ -10,12 +12,13 @@ on:
 
 jobs:
   deploy:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Map branch to environment
         id: env
         run: |
-          case "${{ github.ref_name }}" in
+          case "${{ github.event.workflow_run.head_branch }}" in
             main) echo "env=staging" >> "$GITHUB_OUTPUT" ;;
             prod) echo "env=prod"    >> "$GITHUB_OUTPUT" ;;
           esac
