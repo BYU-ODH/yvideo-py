@@ -22,4 +22,4 @@ API_STUDENT_ENROLLMENTS_URL = ""
 # Required when behind a reverse proxy (Apache, nginx).
 # Uncomment both lines for deployed environments.
 # SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-# CSRF_TRUSTED_ORIGINS = ["https://yvideo.example.com"]
+# CSRF_TRUSTED_ORIGINS = ["https://example.com"]
