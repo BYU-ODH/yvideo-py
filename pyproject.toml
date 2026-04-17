@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "django-reversion>=6.1.0,<7",
     "django>=5.2.13,<5.3",
+    "gunicorn>=23.0,<24",
     "onelogin>=3.1,<4",
     "python3-saml>=1.16,<2",
     "requests>=2.33,<2.34",
@@ -25,7 +26,8 @@ dev = [
 ]
 
 [tool.ruff]
-    lint.extend-select = ["I", "UP"] # Extend with isort, pydocstyle, and pyupgrade
+exclude = ["core/migrations/*.py"]
+lint.extend-select = ["I", "UP"] # Extend with isort, pydocstyle, and pyupgrade
 
 [tool.ruff.lint.isort]
 force-single-line = true

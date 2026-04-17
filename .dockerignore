@@ -1,0 +1,26 @@
+.git/
+.venv/
+IC_player/
+old/
+node_modules/
+demo_media/
+tests/
+tmp/
+
+db.sqlite3*
+data/
+media/
+var/
+staticfiles/
+
+*.pyc
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+
+# Per-environment config (bind-mounted at runtime)
+.env
+yvideo/secret_settings.py
+yvideo/saml_config/certs/

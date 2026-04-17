@@ -19,3 +19,7 @@ API_WORKER_ID_IAM_URL = ""
 API_WORKER_SUMMARY_URL = ""
 API_STUDENT_SUMMARY_URL = ""
 API_STUDENT_ENROLLMENTS_URL = ""
+# Required when behind a reverse proxy (Apache, nginx).
+# Uncomment both lines for deployed environments.
+# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# CSRF_TRUSTED_ORIGINS = ["https://yvideo.byu.edu"]

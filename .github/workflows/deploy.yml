@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, staging]
+
+# The dev environment is not auto-deployed. Developers SSH into the
+# server and run `deploy/deploy.sh` manually from whatever branch
+# they choose.
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Map branch to environment
+        id: env
+        run: |
+          case "${{ github.ref_name }}" in
+            main)    echo "dir=prod"    >> "$GITHUB_OUTPUT" ;;
+            staging) echo "dir=staging" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: cd /srv/yvideo/${{ steps.env.outputs.dir }} && bash deploy/deploy.sh
