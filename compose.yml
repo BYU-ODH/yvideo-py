@@ -1,0 +1,18 @@
+# Per-environment config comes from .env (gitignored):
+#   COMPOSE_PROJECT_NAME=yvideo-dev    # or yvideo-staging, yvideo-prod
+#   HOST_PORT=8001                     # or 8002, 8003
+services:
+  web:
+    build: .
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data                                        # SQLite DB + WAL/SHM journal files
+      - ./media:/app/media                                      # user-uploaded media
+      - ./staticfiles:/app/staticfiles                          # collectstatic output (served by Apache)
+      - ./var:/app/var                                          # legacy migration snapshots
+      - ./yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
+      - ./yvideo/saml_config:/app/yvideo/saml_config:ro
+    environment:
+      YVIDEO_DB_DIR: /app/data
+    restart: unless-stopped
