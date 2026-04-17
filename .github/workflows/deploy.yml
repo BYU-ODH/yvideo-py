@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main, staging]
+    branches: [main, prod]
 
 # The dev environment is not auto-deployed. Developers SSH into the
 # server and run `deploy/deploy.sh` manually from whatever branch
@@ -16,8 +16,8 @@ jobs:
         id: env
         run: |
           case "${{ github.ref_name }}" in
-            main)    echo "env=prod"    >> "$GITHUB_OUTPUT" ;;
-            staging) echo "env=staging" >> "$GITHUB_OUTPUT" ;;
+            main) echo "env=staging" >> "$GITHUB_OUTPUT" ;;
+            prod) echo "env=prod"    >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Trigger deploy

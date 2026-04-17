@@ -5,8 +5,8 @@ Three environments run on a single server behind Apache reverse proxies:
 | Environment | Subdomain | Host Port | Directory | Auto-deploy branch |
 |---|---|---|---|---|
 | dev | dev.yvideo.byu.edu | 8001 | `/srv/yvideo/dev/` | none (manual) |
-| staging | staging.yvideo.byu.edu | 8002 | `/srv/yvideo/staging/` | `staging` |
-| prod | yvideo.byu.edu | 8003 | `/srv/yvideo/prod/` | `main` |
+| staging | staging.yvideo.byu.edu | 8002 | `/srv/yvideo/staging/` | `main` |
+| prod | yvideo.byu.edu | 8003 | `/srv/yvideo/prod/` | `prod` |
 
 Each environment is an independent git clone with its own configuration
 files, database, and Docker container.
@@ -45,7 +45,7 @@ Repeat for each environment (`dev`, `staging`, `prod`):
 # 1. Clone the repo
 git clone git@github.com:BYU-ODH/yvideo-py.git /srv/yvideo/prod
 cd /srv/yvideo/prod
-git checkout main  # or staging, or any branch for dev
+git checkout main  # or prod, or any branch for dev
 
 # 2. Create .env from template
 cp .env_template .env
@@ -107,7 +107,7 @@ the auto-deploy `.env` file).
 
 ### Staging and prod (automatic)
 
-Pushes to `main` and `staging` trigger the GitHub Actions workflow in
+Pushes to `main` and `prod` trigger the GitHub Actions workflow in
 `.github/workflows/deploy.yml`, which POSTs to
 `https://auto-deploy.yvideo.byu.edu/deploy` with the shared secret.
 The auto-deploy service then runs `deploy/deploy.sh` in the
