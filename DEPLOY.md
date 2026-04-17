@@ -4,9 +4,9 @@ Three environments run on a single server behind Apache reverse proxies:
 
 | Environment | Subdomain | Host Port | Directory | Auto-deploy branch |
 |---|---|---|---|---|
-| dev | dev.yvideo.byu.edu | 8001 | `/srv/yvideo/dev/` | none (manual) |
-| staging | staging.yvideo.byu.edu | 8002 | `/srv/yvideo/staging/` | `main` |
-| prod | yvideo.byu.edu | 8003 | `/srv/yvideo/prod/` | `prod` |
+| dev | dev.yvideo.example.com | 8001 | `/srv/yvideo/dev/` | none (manual) |
+| staging | staging.yvideo.example.com | 8002 | `/srv/yvideo/staging/` | `main` |
+| prod | yvideo.example.com | 8003 | `/srv/yvideo/prod/` | `prod` |
 
 Each environment is an independent git clone with its own configuration
 files, database, and Docker container.
@@ -14,10 +14,10 @@ files, database, and Docker container.
 ## Architecture
 
 ```txt
-                        ┌─ dev.yvideo.byu.edu ─────────→ :8001 → yvideo-dev container
-Apache (443, TLS) ─────┤─ staging.yvideo.byu.edu ──────→ :8002 → yvideo-staging container
-                        ├─ yvideo.byu.edu ──────────────→ :8003 → yvideo-prod container
-                        └─ auto-deploy.yvideo.byu.edu ─→ :8004 → auto-deploy container
+                        ┌─ dev.yvideo.example.com ─────────→ :8001 → yvideo-dev container
+Apache (443, TLS) ─────┤─ staging.yvideo.example.com ──────→ :8002 → yvideo-staging container
+                        ├─ yvideo.example.com ──────────────→ :8003 → yvideo-prod container
+                        └─ auto-deploy.yvideo.example.com ─→ :8004 → auto-deploy container
 ```
 
 Apache serves `/static/` and `/media/` directly from the host filesystem.
@@ -55,10 +55,10 @@ cp .env_template .env
 cp yvideo/secret_settings_template.py yvideo/secret_settings.py
 # Edit secret_settings.py — at minimum set:
 #   DEBUG = False  (for staging/prod)
-#   ALLOWED_HOSTS = ["yvideo.byu.edu"]
+#   ALLOWED_HOSTS = ["yvideo.example.com"]
 #   SECRET_KEY = "<unique random value>"
 #   SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-#   CSRF_TRUSTED_ORIGINS = ["https://yvideo.byu.edu"]
+#   CSRF_TRUSTED_ORIGINS = ["https://yvideo.example.com"]
 #   API_CLIENT_ID, API_CLIENT_SECRET, and all API_*_URL values
 
 # 4. Set up SAML config
@@ -109,7 +109,7 @@ the auto-deploy `.env` file).
 
 Pushes to `main` and `prod` trigger the GitHub Actions workflow in
 `.github/workflows/deploy.yml`, which POSTs to
-`https://auto-deploy.yvideo.byu.edu/deploy` with the shared secret.
+`https://auto-deploy.yvideo.example.com/deploy` with the shared secret.
 The auto-deploy service then runs `deploy/deploy.sh` in the
 corresponding environment directory.
 
