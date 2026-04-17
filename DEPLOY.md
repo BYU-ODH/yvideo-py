@@ -87,6 +87,11 @@ requests from GitHub Actions. It runs as its own Docker container on
 the server, with access to the Docker socket and the deployment
 directories.
 
+Jobs are defined in `jobs.toml` (gitignored). Each job is an arbitrary
+shell command run in a specified working directory. A request
+authenticated by the shared secret with a matching `job` key will
+execute that command. See `jobs_example.toml` for the format.
+
 ```bash
 cd /srv/yvideo
 git clone git@github.com:BYU-ODH/yvideo-py.git auto-deploy-repo
@@ -95,6 +100,9 @@ cd auto-deploy-repo/deploy/auto-deploy
 # Create .env with a shared secret (also stored as DEPLOY_SECRET in GitHub repo secrets)
 cp .env_template .env
 # Edit .env: set DEPLOY_SECRET to a long random string
+
+# Create jobs.toml from the example and customize
+cp jobs_example.toml jobs.toml
 
 docker compose build
 docker compose up -d
@@ -108,10 +116,10 @@ the auto-deploy `.env` file).
 ### Staging and prod (automatic)
 
 Pushes to `main` and `prod` trigger the GitHub Actions workflow in
-`.github/workflows/deploy.yml`, which POSTs to
-`https://auto-deploy.example.com/deploy` with the shared secret.
-The auto-deploy service then runs `deploy/deploy.sh` in the
-corresponding environment directory.
+`.github/workflows/deploy.yml`, which POSTs to the auto-deploy service
+with the shared secret and a `job` key (`staging` for `main`, `prod`
+for `prod`). The auto-deploy service looks up that job in `jobs.toml`
+and runs the configured command.
 
 ### Dev (manual)
 

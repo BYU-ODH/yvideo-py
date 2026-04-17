@@ -6,7 +6,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /srv/yvideo:/srv/yvideo
+      - ./jobs.toml:/app/jobs.toml:ro
     environment:
       DEPLOY_SECRET: ${DEPLOY_SECRET}
-      DEPLOY_ROOT: /srv/yvideo
     restart: unless-stopped

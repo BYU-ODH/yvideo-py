@@ -1,8 +1,10 @@
 import hmac
 import logging
 import os
+from pathlib import Path
 import subprocess
 import threading
+import tomllib
 
 from flask import Flask
 from flask import jsonify
@@ -16,33 +18,39 @@ logging.basicConfig(
 logger = logging.getLogger("auto-deploy")
 
 DEPLOY_SECRET = os.environ["DEPLOY_SECRET"]
-DEPLOY_ROOT = os.environ.get("DEPLOY_ROOT", "/srv/yvideo")
-VALID_ENVIRONMENTS = {"staging", "prod"}
+JOBS_CONFIG_PATH = Path(
+    os.environ.get("JOBS_CONFIG_PATH", Path(__file__).parent / "jobs.toml")
+)
+
+with JOBS_CONFIG_PATH.open("rb") as f:
+    JOBS = tomllib.load(f).get("jobs", {})
+
+logger.info("Loaded jobs: %s", list(JOBS.keys()))
 
 
-def run_deploy(env_name):
-    deploy_dir = os.path.join(DEPLOY_ROOT, env_name)
-    logger.info("Starting deploy for %s in %s", env_name, deploy_dir)
+def run_job(job_name, working_dir, command):
+    logger.info("Starting job %s: %s (in %s)", job_name, command, working_dir)
     try:
         result = subprocess.run(
-            ["bash", "deploy/deploy.sh"],
-            cwd=deploy_dir,
+            command,
+            shell=True,
+            cwd=working_dir,
             capture_output=True,
             text=True,
             timeout=600,
         )
         if result.returncode == 0:
-            logger.info("Deploy succeeded for %s:\n%s", env_name, result.stdout)
+            logger.info("Job %s succeeded:\n%s", job_name, result.stdout)
         else:
             logger.error(
-                "Deploy failed for %s (exit %d):\nstdout: %s\nstderr: %s",
-                env_name,
+                "Job %s failed (exit %d):\nstdout: %s\nstderr: %s",
+                job_name,
                 result.returncode,
                 result.stdout,
                 result.stderr,
             )
     except Exception:
-        logger.exception("Deploy error for %s", env_name)
+        logger.exception("Job %s error", job_name)
 
 
 @app.post("/deploy")
@@ -51,13 +59,18 @@ def deploy():
 
     secret = data.get("secret", "")
     if not hmac.compare_digest(secret, DEPLOY_SECRET):
-        logger.warning("Rejected deploy request: bad secret")
+        logger.warning("Rejected request: bad secret")
         return jsonify({"error": "unauthorized"}), 403
 
-    environment = data.get("environment", "")
-    if environment not in VALID_ENVIRONMENTS:
-        return jsonify({"error": f"invalid environment: {environment}"}), 400
+    job_name = data.get("job", "")
+    if job_name not in JOBS:
+        return jsonify({"error": f"unknown job: {job_name}"}), 400
 
-    logger.info("Accepted deploy request for %s", environment)
-    threading.Thread(target=run_deploy, args=(environment,), daemon=True).start()
-    return jsonify({"status": "accepted", "environment": environment}), 202
+    job = JOBS[job_name]
+    logger.info("Accepted request for job %s", job_name)
+    threading.Thread(
+        target=run_job,
+        args=(job_name, job["working_dir"], job["command"]),
+        daemon=True,
+    ).start()
+    return jsonify({"status": "accepted", "job": job_name}), 202
