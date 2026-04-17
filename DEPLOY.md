@@ -14,9 +14,10 @@ files, database, and Docker container.
 ## Architecture
 
 ```txt
-                        ┌─ dev.yvideo.byu.edu ────→ :8001 → yvideo-dev container
-Apache (443, TLS) ─────┤─ staging.yvideo.byu.edu ─→ :8002 → yvideo-staging container
-                        └─ yvideo.byu.edu ────────→ :8003 → yvideo-prod container
+                        ┌─ dev.yvideo.byu.edu ─────────→ :8001 → yvideo-dev container
+Apache (443, TLS) ─────┤─ staging.yvideo.byu.edu ──────→ :8002 → yvideo-staging container
+                        ├─ yvideo.byu.edu ──────────────→ :8003 → yvideo-prod container
+                        └─ auto-deploy.yvideo.byu.edu ─→ :8004 → auto-deploy container
 ```
 
 Apache serves `/static/` and `/media/` directly from the host filesystem.
@@ -32,8 +33,9 @@ All other requests are proxied to the Docker container. See
 | `.env_template` | Template for the per-environment `.env` (copy to `.env`) |
 | `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
 | `deploy/deploy.sh` | Pulls latest code, rebuilds, and restarts the container |
-| `deploy/apache-vhost.conf` | Example Apache reverse proxy config for all three environments |
-| `.github/workflows/deploy.yml` | GitHub Actions workflow for auto-deploying staging and prod |
+| `deploy/auto-deploy/` | Webhook microservice that receives deploy requests from GitHub Actions |
+| `deploy/apache-vhost.conf` | Example Apache reverse proxy config for all environments |
+| `.github/workflows/deploy.yml` | GitHub Actions workflow that triggers auto-deploy for staging and prod |
 
 ## Initial server setup
 
@@ -77,19 +79,38 @@ docker compose up -d
 docker compose exec web uv run python manage.py seed_demo_data
 ```
 
+## Auto-deploy service setup
+
+A small webhook microservice in `deploy/auto-deploy/` receives deploy
+requests from GitHub Actions. It runs as its own Docker container on
+the server, with access to the Docker socket and the deployment
+directories.
+
+```bash
+cd /srv/yvideo
+git clone git@github.com:BYU-ODH/yvideo-py.git auto-deploy-repo
+cd auto-deploy-repo/deploy/auto-deploy
+
+# Create .env with a shared secret (also stored as DEPLOY_SECRET in GitHub repo secrets)
+cp .env_template .env
+# Edit .env: set DEPLOY_SECRET to a long random string
+
+docker compose build
+docker compose up -d
+```
+
+Required GitHub repo secret: `DEPLOY_SECRET` (must match the value in
+the auto-deploy `.env` file).
+
 ## Deploying updates
 
 ### Staging and prod (automatic)
 
 Pushes to `main` and `staging` trigger the GitHub Actions workflow in
-`.github/workflows/deploy.yml`, which SSHes into the server and runs
-`deploy/deploy.sh` in the corresponding directory.
-
-Required GitHub secrets:
-
-- `DEPLOY_HOST` -- server hostname or IP
-- `DEPLOY_USER` -- SSH user (must be in the `docker` group)
-- `DEPLOY_SSH_KEY` -- SSH private key for that user
+`.github/workflows/deploy.yml`, which POSTs to
+`https://auto-deploy.yvideo.byu.edu/deploy` with the shared secret.
+The auto-deploy service then runs `deploy/deploy.sh` in the
+corresponding environment directory.
 
 ### Dev (manual)
 
@@ -119,6 +140,10 @@ bash deploy/deploy.sh
 cd /srv/yvideo/prod
 docker compose logs -f        # follow all logs
 docker compose logs -f web    # follow just the web service
+
+# Auto-deploy service logs
+cd /srv/yvideo/auto-deploy-repo/deploy/auto-deploy
+docker compose logs -f
 ```
 
 ## Key configuration notes
