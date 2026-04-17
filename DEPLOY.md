@@ -76,6 +76,7 @@ docker compose build
 docker compose up -d
 
 # 7. (dev/staging only) Seed demo data
+# Only needed once — the database persists across deploys via the data/ bind mount.
 docker compose exec web uv run python manage.py seed_demo_data
 ```
 
