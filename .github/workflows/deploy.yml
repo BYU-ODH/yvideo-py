@@ -23,6 +23,7 @@ jobs:
       - name: Trigger deploy
         env:
           DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
           DEPLOY_ENV: ${{ steps.env.outputs.env }}
         run: |
           jq -n --arg secret "$DEPLOY_SECRET" --arg env "$DEPLOY_ENV" \
@@ -30,4 +31,4 @@ jobs:
           curl -sf --max-time 10 -X POST \
             -H "Content-Type: application/json" \
             -d @- \
-            https://auto-deploy.yvideo.byu.edu/deploy
+            "$DEPLOY_URL"
