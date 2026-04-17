@@ -24,7 +24,7 @@ export class Editor {
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
-        this.zoomSliderInput = document.getElementById('timeline-zoom-input');
+        this.zoomSliderInput = document.getElementById('timeline-scroll-input');
         this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrubber = null;
@@ -1771,8 +1771,12 @@ export class Editor {
         annotationContainer.style.width = newWidth;
       }
 
+      const locationRatio = this.video.currentTime / this.video.duration;
+      const trackWidth = tickMarksContainer.getBoundingClientRect().width;
+      const tickMarkContainerParent = tickMarksContainer.closest("#timeline-ticks-content");
+      const parentWidth = tickMarkContainerParent.getBoundingClientRect().width;
+      this.scrollTracksToPoint((trackWidth * locationRatio) - parentWidth / 2);
       this.renderTickMarksAndLabels();
-      this.adjustScrubberPosition();
     }
 
     attachZoomListener() {
@@ -1810,18 +1814,22 @@ export class Editor {
       }
     }
 
+    scrollTracksToPoint(scrollValue) {
+      const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
+      const tickMarksWrapper = document.getElementById("timeline-ticks-content");
+      for (let track of tracksToAdjust) {
+        track.scrollLeft = scrollValue;
+      }
+      tickMarksWrapper.scrollLeft = scrollValue;
+    }
+
     watchForTimelineScrollChangeAndHandleIt() {
       this.zoomSliderInput.addEventListener("input", (e) => {
         const newValue = e.target.value;
         const tickMarksContainer = document.getElementById("tick-marks-container");
         const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
         const newScrollLeft = widthInPixels * (newValue / 100);
-        const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
-        const tickMarksWrapper = document.getElementById("timeline-ticks-content");
-        for (let track of tracksToAdjust) {
-          track.scrollLeft = newScrollLeft;
-        }
-        tickMarksWrapper.scrollLeft = newScrollLeft;
+        this.scrollTracksToPoint(newScrollLeft);
         this.adjustScrubberPosition();
       });
     }
