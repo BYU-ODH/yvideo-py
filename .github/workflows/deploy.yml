@@ -16,14 +16,19 @@ jobs:
         id: env
         run: |
           case "${{ github.ref_name }}" in
-            main)    echo "dir=prod"    >> "$GITHUB_OUTPUT" ;;
-            staging) echo "dir=staging" >> "$GITHUB_OUTPUT" ;;
+            main)    echo "env=prod"    >> "$GITHUB_OUTPUT" ;;
+            staging) echo "env=staging" >> "$GITHUB_OUTPUT" ;;
           esac
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: cd /srv/yvideo/${{ steps.env.outputs.dir }} && bash deploy/deploy.sh
+      - name: Trigger deploy
+        env:
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          DEPLOY_ENV: ${{ steps.env.outputs.env }}
+        run: |
+          jq -n --arg secret "$DEPLOY_SECRET" --arg env "$DEPLOY_ENV" \
+            '{secret: $secret, environment: $env}' |
+          curl -sf --max-time 10 -X POST \
+            -H "Content-Type: application/json" \
+            -d @- \
+            "$DEPLOY_URL"

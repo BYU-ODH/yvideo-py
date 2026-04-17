@@ -1,0 +1,12 @@
+services:
+  auto-deploy:
+    build: .
+    ports:
+      - "8004:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/yvideo:/srv/yvideo
+    environment:
+      DEPLOY_SECRET: ${DEPLOY_SECRET}
+      DEPLOY_ROOT: /srv/yvideo
+    restart: unless-stopped
