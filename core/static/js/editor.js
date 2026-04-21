@@ -1140,7 +1140,7 @@ export class Editor {
     handleTrackOpenMenuClick(e) {
       e.stopPropagation();
       // we don't want more than one track menu visible at one time
-      const visibleMenuCSSClass = "visible-timeline-track-menu";
+      const visibleMenuCSSClass = "visible-multi-select-menu";
       const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
       for (let menu of allVisibleTrackMenus) {
         menu.classList.remove(visibleMenuCSSClass);
@@ -1149,7 +1149,7 @@ export class Editor {
       // get track menu and position it properly
       const wrapperDim = this.timelineWrapper.getBoundingClientRect();
       const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
-      const trackOptionsMenu = trackMenuWrapper.querySelector(".timeline-track-menu");
+      const trackOptionsMenu = trackMenuWrapper.querySelector(".multi-select-menu");
       trackOptionsMenu.style.visibility = "hidden";
       trackOptionsMenu.classList.add(visibleMenuCSSClass);
       const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
@@ -1174,11 +1174,11 @@ export class Editor {
     watchForClickOutsideOfTrackMenu() {
       const editorContainer = document.getElementById("editor-container");
       editorContainer.addEventListener("click", (e) => {
-        const visibleTrackMenus = document.getElementsByClassName("visible-timeline-track-menu");
+        const visibleTrackMenus = document.getElementsByClassName("visible-multi-select-menu");
         for (let menu of visibleTrackMenus) {
           const menuDim = menu.getBoundingClientRect();
           if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
-            menu.classList.remove("visible-timeline-track-menu");
+            menu.classList.remove("visible-multi-select-menu");
           }
         }
       });

@@ -1004,7 +1004,19 @@ def create_annotation_set(request):
             )
             return HttpResponseBadRequest()
         content = Content.objects.get(pk=parsed_body["content_id"])
-        name = None
+        name = parsed_body.get("name")
+
+        annotation_set = AnnotationSet.create_for_content(
+            content, request.user, set_name=name
+        )
+
+        if annotation_set is None:
+            return HttpResponseServerError()
+
+        content.annotation_set = annotation_set
+        content.save()
+
+        return HttpResponse()
 
     except Exception as e:
         logger.error(f"Failed to create new annotation set. Exception: {e}")

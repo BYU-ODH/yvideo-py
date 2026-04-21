@@ -587,7 +587,7 @@
     position: relative;
 }
 
-.timeline-track-menu {
+.multi-select-menu {
     position: absolute;
     display: none;
     flex-direction: column;
@@ -598,7 +598,7 @@
     bottom: 0px;
 }
 
-.visible-timeline-track-menu {
+.visible-multi-select-menu {
     display: flex;
 }
 
@@ -618,14 +618,14 @@
     cursor: pointer;
 }
 
-.timeline-track-menu-button {
+.multi-select-menu-button {
     font-size: 1rem;
     white-space: nowrap;
     padding: 5px;
     transition: 0.5s ease all;
 }
 
-.timeline-track-menu-button:hover {
+.multi-select-menu-button:hover {
     transform: translateX(5px);
     cursor: pointer;
 }
