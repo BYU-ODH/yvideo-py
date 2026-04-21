@@ -201,6 +201,10 @@
     width: 17px;
 }
 
+#annotation-set-delete {
+    align-self: flex-start;
+}
+
 #annotation-set-settings-compact label {
     font-weight: 400;
 }

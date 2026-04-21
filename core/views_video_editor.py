@@ -152,6 +152,16 @@ def video_editor(request, content_id):
         # Get available annotation sets
         available_sets = content.get_available_annotation_sets()
 
+        # check if the annotation set is defined, if not, assign one or create one.
+        if content.annotation_set is None:
+            if available_sets.count() != 0:
+                content.annotation_set = available_sets.first()
+                content.save()
+            else:
+                new_set = AnnotationSet.create_for_content(content, request.user)
+                content.annotation_set = new_set
+                content.save()
+
         # Determine if user can edit the active annotation set
         annotation_set = content.annotation_set
         can_edit = annotation_set.can_edit(request.user) if annotation_set else True
@@ -977,6 +987,22 @@ def update_annotation_set_name(request):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to update annotation set name. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def delete_annotation_set(request, annotation_set_id):
+    if annotation_set_id is None:
+        return HttpResponseBadRequest()
+    try:
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        annotation_set.delete()
+
+        return HttpResponse()
+    except AnnotationSet.DoesNotExist:
+        logger.error("Failed to delete annotation set because it doesn't exist.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to delete annotation set. Exception: {e}")
         return HttpResponseServerError()
 
 

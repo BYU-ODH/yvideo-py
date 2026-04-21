@@ -3,17 +3,20 @@
 <div id="annotation-set-settings-compact" class="column-flex" data-annotation-set-id="{{annotation_set.id}}" data-annotation-set-name="{{annotation_set.name}}">
     <h2>Annotation Set Settings</h2>
     <button class="red-button close-dialog-button" command="close" commandfor="annotation-set-settings">X</button>
-    <div id="annotation-set-select-form" class="column-flex-no-gap">
-        <label for="annotation-set-selector">Selected annotation set:</label>
-        <select id="annotation-set-selector" class="position-flex-start" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
-            <option class="annotation-set-option" value="">-- Select Annotation Set --</option>
-            {% for set in available_annotation_sets %}
-                <option class="annotation-set-option" value="{{ set.id }}"
-                        {% if annotation_set and set.id == annotation_set.id %}selected{% endif %}>
-                    <span class="set-option-name">{{ set.name }}</span> <span class="set-option-owner">({{ set.owner.get_full_name }})</span>
-                </option>
-            {% endfor %}
-        </select>
+    <div id="annotation-set-select-form" class="column-flex">
+        <div class="column-flex-no-gap">
+            <label for="annotation-set-selector">Selected annotation set:</label>
+            <select id="annotation-set-selector" class="position-flex-start" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
+                <option class="annotation-set-option" value="">-- Select Annotation Set --</option>
+                {% for set in available_annotation_sets %}
+                    <option class="annotation-set-option" value="{{ set.id }}"
+                            {% if annotation_set and set.id == annotation_set.id %}selected{% endif %}>
+                        <span class="set-option-name">{{ set.name }}</span> <span class="set-option-owner">({{ set.owner.get_full_name }})</span>
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button id="annotation-set-delete" class="red-button">Delete this set</button>
     </div>
 
     <div class="column-flex">

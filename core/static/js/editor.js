@@ -65,6 +65,7 @@ export class Editor {
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
         this.watchForAnnotationSetNameChangeAndHandleIt();
+        this.watchAndHandleAnnotationSetDelete();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
@@ -1973,16 +1974,37 @@ export class Editor {
         });
     }
 
+    watchAndHandleAnnotationSetDelete() {
+      const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
+      if (!deleteAnnotationSetButton) {
+        console.error("Failed to get annotation set delete button");
+        return;
+      }
+
+      deleteAnnotationSetButton.addEventListener("click", async () => {
+        const selectorEl = document.getElementById("annotation-set-selector");
+        const annotationSetId = selectorEl.value;
+        if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
+          return;
+        }
+        const deleteResponse = await fetch(`/annotation-set/delete/${annotationSetId}`, {
+          method: "DELETE",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken()
+          }
+        });
+        if (!deleteResponse.ok) {
+          console.error("Failed to delete annotation set");
+          return;
+        }
+
+        window.location.reload();
+      });
+    }
+
     async handleAnnotationSetChange(event) {
         event.stopPropagation();
-        let annotationSetId;
-        const selectorOptions = event.target.children;
-        for (let option of selectorOptions) {
-            if (option.selected) {
-                annotationSetId = Number(option.value);
-                break;
-            }
-        }
+        let annotationSetId = event.target.value;
 
         if (isNaN(annotationSetId) || annotationSetId === undefined) {
             console.error("Selected value was not defined!");
