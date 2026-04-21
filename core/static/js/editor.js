@@ -1433,6 +1433,7 @@ export class Editor {
 
         this.replaceTracksWithNewHTML(newTracksHTML);
         this.updateTracks();
+        this.placeTrackItems();
         this.adjustScrubberHeight();
       }
       addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
