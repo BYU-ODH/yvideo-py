@@ -84,65 +84,7 @@ def display_yearterm(yearterm):
 
 
 def index(request):
-    # if admin, gather owned collections
-    owned_collections = []
-    allowed_privilege_levels = [2, 0]
-    if (
-        request.user.privilege_level in allowed_privilege_levels
-        or request.user.privilege_level_override in allowed_privilege_levels
-    ):
-        owned_collections_raw = Collection.objects.filter(owner=request.user)
-        owned_collections = [
-            prepare_collection_for_display(collection)
-            for collection in owned_collections_raw
-        ]
-
-    # organize assigned collections by yearterm and then by course.
-    yearterms = []
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """SELECT yearterm FROM core_usercourses GROUP BY yearterm ORDER BY yearterm"""
-        )
-        yearterms = [result[0] for result in cursor.fetchall()]
-
-    collections_by_course_by_yearterm = []
-    for yearterm in yearterms:
-        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
-        collections_by_course = []
-        for user_course in user_courses:
-            collections = Collection.objects.filter(courses=user_course.course)
-            collections_by_course.append(
-                {
-                    "course_name": user_course.course.__str__(),
-                    "collections": [
-                        prepare_collection_for_display(collection)
-                        for collection in collections
-                    ],
-                }
-            )
-        collections_by_course_by_yearterm.append(
-            {
-                "yearterm_display": display_yearterm(yearterm),
-                "collections_by_course": collections_by_course,
-            }
-        )
-
-    manual_access_collections = Collection.objects.filter(
-        collectionuseraccess__user=request.user
-    )
-    manual_collections = []
-    for collection in manual_access_collections:
-        prepared_collection = prepare_collection_for_display(collection)
-        manual_collections.append(prepared_collection)
-
-    context = {
-        "user": request.user,
-        "owned_collections": owned_collections,
-        "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
-        "public_collections": [],
-        "manual_collections": manual_collections,
-    }
-    return render(request, "index.html", context)
+    return render(request, "index.html", {})
 
 
 @require_POST
@@ -295,6 +237,68 @@ def stream_file(request, resource_file_key_id):
         raise Http404("Invalid resource file key")
     except Exception as e:
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
+
+
+def collections(request):
+    # if admin, gather owned collections
+    owned_collections = []
+    allowed_privilege_levels = [2, 0]
+    if (
+        request.user.privilege_level in allowed_privilege_levels
+        or request.user.privilege_level_override in allowed_privilege_levels
+    ):
+        owned_collections_raw = Collection.objects.filter(owner=request.user)
+        owned_collections = [
+            prepare_collection_for_display(collection)
+            for collection in owned_collections_raw
+        ]
+
+    # organize assigned collections by yearterm and then by course.
+    yearterms = []
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT yearterm FROM core_usercourses GROUP BY yearterm ORDER BY yearterm"""
+        )
+        yearterms = [result[0] for result in cursor.fetchall()]
+
+    collections_by_course_by_yearterm = []
+    for yearterm in yearterms:
+        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
+        collections_by_course = []
+        for user_course in user_courses:
+            collections = Collection.objects.filter(courses=user_course.course)
+            collections_by_course.append(
+                {
+                    "course_name": user_course.course.__str__(),
+                    "collections": [
+                        prepare_collection_for_display(collection)
+                        for collection in collections
+                    ],
+                }
+            )
+        collections_by_course_by_yearterm.append(
+            {
+                "yearterm_display": display_yearterm(yearterm),
+                "collections_by_course": collections_by_course,
+            }
+        )
+
+    manual_access_collections = Collection.objects.filter(
+        collectionuseraccess__user=request.user
+    )
+    manual_collections = []
+    for collection in manual_access_collections:
+        prepared_collection = prepare_collection_for_display(collection)
+        manual_collections.append(prepared_collection)
+
+    context = {
+        "user": request.user,
+        "owned_collections": owned_collections,
+        "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
+        "public_collections": [],
+        "manual_collections": manual_collections,
+    }
+    return render(request, "collections.html", context)
 
 
 def get_collection_types(user):
