@@ -64,6 +64,7 @@ export class Editor {
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
+        this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
         this.attachRemoveEditorListeners();
@@ -1129,7 +1130,7 @@ export class Editor {
     // use this method to apply all relevant watchers (event listeners) to
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
-      this.watchForTrackMenuOpen(trackRootElement);
+      this.watchForMultiSelectMenuOpen(trackRootElement);
       this.watchForDisplayTrackRename(trackRootElement);
       this.watchForTrackRename(trackRootElement);
       this.watchForTrackMovement(trackRootElement);
@@ -1137,7 +1138,7 @@ export class Editor {
     }
 
     /* track options menu */
-    handleTrackOpenMenuClick(e) {
+    handleMultiSelectMenuOpen(e) {
       e.stopPropagation();
       // we don't want more than one track menu visible at one time
       const visibleMenuCSSClass = "visible-multi-select-menu";
@@ -1148,26 +1149,26 @@ export class Editor {
 
       // get track menu and position it properly
       const wrapperDim = this.timelineWrapper.getBoundingClientRect();
-      const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
+      const trackMenuWrapper = e.target.closest(".multi-select-menu-parent");
       const trackOptionsMenu = trackMenuWrapper.querySelector(".multi-select-menu");
       trackOptionsMenu.style.visibility = "hidden";
       trackOptionsMenu.classList.add(visibleMenuCSSClass);
       const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
       if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
-        trackOptionsMenu.classList.add("track-menu-bumped-up");
+        trackOptionsMenu.classList.add("multi-select-menu-bumped-up");
       }
 
       // now we are safe to make the track menu visible
       trackOptionsMenu.style.visibility = "";
     }
 
-    watchForTrackMenuOpen(trackRootElement) {
-      const menuButton = trackRootElement.querySelector(".editor-menu-button");
+    watchForMultiSelectMenuOpen(multiSelectMenuWrapper) {
+      const menuButton = multiSelectMenuWrapper.querySelector(".open-multi-select-button");
       if (menuButton) {
-        menuButton.addEventListener("click", this.handleTrackOpenMenuClick.bind(this));
+        menuButton.addEventListener("click", this.handleMultiSelectMenuOpen.bind(this));
       }
       else {
-        console.error("No menu button found for track");
+        console.error("No menu button element found");
       }
     }
 
@@ -1972,6 +1973,11 @@ export class Editor {
         this.video.addEventListener('timeupdate', () => {
           this.adjustScrubberPosition();
         });
+    }
+
+    watchAndHandleAnnotationSetMenuOpen() {
+      const annotationSetMenuWrapper = document.getElementById("annotation-panel-header");
+      this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
     }
 
     watchAndHandleAnnotationSetDelete() {

@@ -11,7 +11,7 @@
                 <input id="track-{{track.id}}-rename-input" class="track-rename-input" type="text" placeholder="{{track.name}}" value="{{track.name}}" maxlength=50 />
             </div>
         </div>
-        <div class="timeline-track-edit-wrapper">
+        <div class="timeline-track-edit-wrapper multi-select-menu-parent">
             <div class="multi-select-menu">
                 <button class="multi-select-menu-button track-menu-rename" aria-label="Rename track {{track.name}}">
                     Rename
@@ -32,7 +32,7 @@
                 </button>
                 {% endif %}
             </div>
-            <button class="editor-menu-button" aria-label="Show options menu for track {{track.name}}">
+            <button class="editor-menu-button open-multi-select-button" aria-label="Show options menu for track {{track.name}}">
                 <img class="timeline-track-icon" src="/static/img/dots_menu.svg" />
             </button>
         </div>

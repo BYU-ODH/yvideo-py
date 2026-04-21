@@ -587,10 +587,6 @@
     position: relative;
 }
 
-.track-menu-bumped-up {
-    bottom: 0px;
-}
-
 .editor-menu-button {
     display: flex;
     flex-direction: column;

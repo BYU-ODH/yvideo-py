@@ -241,6 +241,10 @@ dialog {
     cursor: pointer;
 }
 
+.multi-select-menu-bumped-up {
+    bottom: 0px;
+}
+
 /* Video Overlay and Blank Screen */
 .video-overlay {
     position: absolute;
