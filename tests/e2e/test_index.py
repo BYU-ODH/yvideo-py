@@ -13,4 +13,4 @@ def test_demo_admin_can_load_index_page(page, live_server, seeded_demo_data):
     assert response is not None
     assert response.ok
     expect(page).to_have_url(f"{live_server.url}/")
-    expect(page.get_by_role("heading", name="My Collections")).to_be_visible()
+    expect(page.get_by_role("heading", name="Y-VIDEO")).to_be_visible()
