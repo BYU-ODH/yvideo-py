@@ -155,6 +155,11 @@ urlpatterns = [
         name="search_for_editor",
     ),
     path(
+        "annotation-set/create",
+        views_video_editor.create_annotation_set,
+        name="create_annotation_set",
+    ),
+    path(
         "annotation-set/delete/<int:annotation_set_id>",
         views_video_editor.delete_annotation_set,
         name="delete_annotation_set",

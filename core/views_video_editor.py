@@ -159,6 +159,11 @@ def video_editor(request, content_id):
                 content.save()
             else:
                 new_set = AnnotationSet.create_for_content(content, request.user)
+                if new_set is None:
+                    logger.error(
+                        "Failed to load video content due to missing annotation set on content object"
+                    )
+                    return HttpResponseServerError()
                 content.annotation_set = new_set
                 content.save()
 
@@ -987,6 +992,22 @@ def update_annotation_set_name(request):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to update annotation set name. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def create_annotation_set(request):
+    try:
+        parsed_body = json.loads(request.body)
+        if "content_id" not in parsed_body:
+            logger.error(
+                "Failed to create new annotation set because content_id is not defined"
+            )
+            return HttpResponseBadRequest()
+        content = Content.objects.get(pk=parsed_body["content_id"])
+        name = None
+
+    except Exception as e:
+        logger.error(f"Failed to create new annotation set. Exception: {e}")
         return HttpResponseServerError()
 
 

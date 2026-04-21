@@ -414,29 +414,45 @@ class AnnotationSet(models.Model):
         ).exists() or self.can_edit(user)
 
     @classmethod
-    def create_for_content(cls, content, user):
+    def create_for_content(cls, content, user, set_name=None):
         """
         Create a new AnnotationSet for a content's resource.
         Automatically adds collection owner and instructor/TAs as editors.
         """
-        collection = content.collection
-        resource = content.resource_file.resource if content.resource_file else None
+        try:
+            collection = content.collection
+            resource = content.resource_file.resource if content.resource_file else None
 
-        if not resource:
-            raise ValueError(
-                "Content must have a file with a resource to create an AnnotationSet"
+            if not resource:
+                raise ValueError(
+                    "Content must have a file with a resource to create an AnnotationSet"
+                )
+
+            # Create annotation set with user as owner
+            if set_name is not None and set_name != "":
+                name = set_name
+            else:
+                name = f"{user.get_full_name()}'s Annotations"
+
+            # check for set with the same name and resource combination
+            existing_count = cls.objects.filter(
+                name__startswith=name, resource=resource
+            ).count()
+            if existing_count > 0:
+                name = f"{name} ({existing_count + 1})"
+
+            annotation_set = cls.objects.create(
+                name=name, resource=resource, owner=user
             )
 
-        # Create annotation set with user as owner
-        annotation_set = cls.objects.create(
-            name=f"{user.get_full_name()}'s Annotations", resource=resource, owner=user
-        )
+            # Add all collection instructors/TAs as editors
+            instructors_and_tas = collection.get_instructors_and_tas()
+            annotation_set.editors.add(*instructors_and_tas)
 
-        # Add all collection instructors/TAs as editors
-        instructors_and_tas = collection.get_instructors_and_tas()
-        annotation_set.editors.add(*instructors_and_tas)
-
-        return annotation_set
+            return annotation_set
+        except Exception as e:
+            logger.error(f"Failed to create annotation set. Exception: {e}")
+            return None
 
     def get_tracks(self):
         """
