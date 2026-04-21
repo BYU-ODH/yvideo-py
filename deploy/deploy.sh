@@ -1,7 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+source "$script_dir/require_user.sh"
+auto_deploy_require_repo_uid "$repo_root"
+
+cd "$repo_root"
 
 echo "Deploying $(git branch --show-current) at $(date)"
 

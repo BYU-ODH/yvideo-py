@@ -2,6 +2,7 @@ data/
 media/
 secret_settings.py
 deploy/auto-deploy/jobs.toml
+.auto-deploy-required-user
 *settings.json
 *advanced_settings.json
 *sp.cert

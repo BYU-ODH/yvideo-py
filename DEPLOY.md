@@ -2,11 +2,11 @@
 
 Three environments run on a single server behind Apache reverse proxies:
 
-| Environment | Subdomain | Host Port | Directory | Auto-deploy branch |
-|---|---|---|---|---|
-| dev | dev.example.com | 8001 | `/srv/yvideo/dev/` | none (manual) |
-| staging | staging.example.com | 8002 | `/srv/yvideo/staging/` | `main` |
-| prod | example.com | 8003 | `/srv/yvideo/prod/` | `prod` |
+| Environment | Subdomain | Host Port | Directory |
+|---|---|---|---|
+| dev | dev.example.com | 8001 | `/srv/yvideo/dev/` |
+| staging | staging.example.com | 8002 | `/srv/yvideo/staging/` |
+| prod | example.com | 8003 | `/srv/yvideo/prod/` |
 
 Each environment is an independent git clone with its own configuration
 files, database, and Docker container.
@@ -16,8 +16,7 @@ files, database, and Docker container.
 ```txt
                         ┌─ dev.example.com ─────────→  :8001 → yvideo-dev container
 Apache (443, TLS)  ─────┤─ staging.example.com ──────→ :8002 → yvideo-staging container
-                        ├─ example.com ──────────────→ :8003 → yvideo-prod container
-                        └─ auto-deploy.example.com ─→  :8004 → auto-deploy container
+                        └─ example.com ──────────────→ :8003 → yvideo-prod container
 ```
 
 Apache serves `/static/` and `/media/` directly from the host filesystem.
@@ -33,9 +32,7 @@ All other requests are proxied to the Docker container. See
 | `.env_template` | Template for the per-environment `.env` (copy to `.env`) |
 | `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
 | `deploy/deploy.sh` | Pulls latest code, rebuilds, and restarts the container |
-| `deploy/auto-deploy/` | Webhook microservice that receives deploy requests from GitHub Actions |
 | `deploy/apache-vhost.conf` | Example Apache reverse proxy config for all environments |
-| `.github/workflows/deploy.yml` | GitHub Actions workflow that triggers auto-deploy for staging and prod |
 
 ## Initial server setup
 
@@ -80,50 +77,10 @@ docker compose up -d
 docker compose exec web uv run python manage.py seed_demo_data
 ```
 
-## Auto-deploy service setup
-
-A small webhook microservice in `deploy/auto-deploy/` receives deploy
-requests from GitHub Actions. It runs as its own Docker container on
-the server, with access to the Docker socket and the deployment
-directories.
-
-Jobs are defined in `jobs.toml` (gitignored). Each job is an arbitrary
-shell command run in a specified working directory. A request
-authenticated by the shared secret with a matching `job` key will
-execute that command. See `jobs_example.toml` for the format.
-
-```bash
-cd /srv/yvideo
-git clone git@github.com:BYU-ODH/yvideo-py.git auto-deploy-repo
-cd auto-deploy-repo/deploy/auto-deploy
-
-# Create .env with a shared secret (also stored as DEPLOY_SECRET in GitHub repo secrets)
-cp .env_template .env
-# Edit .env: set DEPLOY_SECRET to a long random string
-
-# Create jobs.toml from the example and customize
-cp jobs_example.toml jobs.toml
-
-docker compose build
-docker compose up -d
-```
-
-Required GitHub repo secret: `DEPLOY_SECRET` (must match the value in
-the auto-deploy `.env` file).
-
 ## Deploying updates
 
-### Staging and prod (automatic)
-
-Pushes to `main` and `prod` trigger the GitHub Actions workflow in
-`.github/workflows/deploy.yml`, which POSTs to the auto-deploy service
-with the shared secret and a `job` key (`staging` for `main`, `prod`
-for `prod`). The auto-deploy service looks up that job in `jobs.toml`
-and runs the configured command.
-
-### Dev (manual)
-
-SSH into the server and deploy whatever branch you want:
+SSH into the server and run the deploy script in the environment you
+want to update. For `dev`, you can switch to any branch first:
 
 ```bash
 cd /srv/yvideo/dev
@@ -149,10 +106,6 @@ bash deploy/deploy.sh
 cd /srv/yvideo/prod
 docker compose logs -f        # follow all logs
 docker compose logs -f web    # follow just the web service
-
-# Auto-deploy service logs
-cd /srv/yvideo/auto-deploy-repo/deploy/auto-deploy
-docker compose logs -f
 ```
 
 ## Key configuration notes
