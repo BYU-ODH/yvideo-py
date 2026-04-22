@@ -64,6 +64,7 @@ export class Editor {
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
+        this.watchAndHandleAnnotationSetCreation();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
@@ -1978,6 +1979,42 @@ export class Editor {
     watchAndHandleAnnotationSetMenuOpen() {
       const annotationSetMenuWrapper = document.getElementById("annotation-panel-header");
       this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
+    }
+
+    watchAndHandleAnnotationSetCreation() {
+      const createAnnotationSetButton = document.getElementById("create-annotation-set-submit-button");
+      const setNameInputEl = document.getElementById("new-annotation-set-name");
+      const handleNameSubmit = async () => {
+        const setName = setNameInputEl.value;
+        if (!setName) {
+          return;
+        }
+
+        const createResponse = await fetch("/annotation-set/create", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            content_id: this.contentId,
+            name: setName
+          })
+        });
+
+        if (!createResponse.ok) {
+          console.error("Failed to create new annotation set");
+          return;
+        }
+        window.location.reload();
+      }
+      createAnnotationSetButton.addEventListener("click", handleNameSubmit);
+      setNameInputEl.addEventListener("keydown", (event) => {
+        if (event.key != "Enter") {
+          return;
+        }
+        handleNameSubmit();
+      })
     }
 
     watchAndHandleAnnotationSetDelete() {
