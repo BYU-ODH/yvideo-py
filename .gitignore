@@ -12,6 +12,9 @@ deploy/auto-deploy/jobs.toml
 *staticfiles
 *media
 *requirements.txt
+
+# TODO start tracking migrations once pilot begins
+# Until then, just keep replacing 0001 when models change
 *migrations
 
 # Byte-compiled / optimized / DLL files
