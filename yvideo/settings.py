@@ -9,6 +9,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 try:
@@ -37,6 +38,9 @@ DEBUG = secret_settings.DEBUG
 DEV_QUICK_LOGIN_ENABLED = getattr(secret_settings, "DEV_QUICK_LOGIN_ENABLED", False)
 
 ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
+
+SECURE_PROXY_SSL_HEADER = getattr(secret_settings, "SECURE_PROXY_SSL_HEADER", None)
+CSRF_TRUSTED_ORIGINS = getattr(secret_settings, "CSRF_TRUSTED_ORIGINS", [])
 
 SAML_FOLDER = str(BASE_DIR / "yvideo" / "saml_config")
 
@@ -97,15 +101,20 @@ WSGI_APPLICATION = "yvideo.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+_DB_DIR = Path(os.environ.get("YVIDEO_DB_DIR", str(BASE_DIR)))
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": _DB_DIR / "db.sqlite3",
         "OPTIONS": {
             "init_command": "PRAGMA journal_mode=wal;PRAGMA synchronous=NORMAL; PRAGMA mmap_size=134217728; PRAGMA journal_size_limit=67108864; PRAGMA cache_size=2000;",
         },
     }
 }
+
+CONN_MAX_AGE = 600
+CONN_HEALTH_CHECKS = True
 
 
 # Password validation

@@ -1,5 +1,8 @@
+data/
 media/
 secret_settings.py
+deploy/auto-deploy/jobs.toml
+.auto-deploy-required-user
 *settings.json
 *advanced_settings.json
 *sp.cert
@@ -9,6 +12,9 @@ secret_settings.py
 *staticfiles
 *media
 *requirements.txt
+
+# TODO start tracking migrations once pilot begins
+# Until then, just keep replacing 0001 when models change
 *migrations
 
 # Byte-compiled / optimized / DLL files
