@@ -191,10 +191,10 @@ def video_editor(request, content_id):
 
         return render(request, "core/video_editor.html", context)
     except Content.DoesNotExist:
-        logger.error("Failed to load video annotator: missing content.")
+        logger.error("Failed to load video editor: missing content.")
         return HttpResponseBadRequest()
     except Exception as e:
-        logger.error(f"Failed to load video annotator. Exception: {e}")
+        logger.error(f"Failed to load video editor. Exception: {e}")
         return HttpResponseServerError()
 
 
