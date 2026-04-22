@@ -31,7 +31,7 @@ All other requests are proxied to the Docker container. See
 | `compose.yml` | Defines the `web` service with bind mounts for data, media, config |
 | `.env_template` | Template for the per-environment `.env` (copy to `.env`) |
 | `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
-| `deploy/deploy.sh` | Pulls latest code, rebuilds, and restarts the container |
+| `deploy/deploy.sh` | Verifies the expected branch, pulls latest code, rebuilds, and restarts the container |
 | `deploy/apache-vhost.conf` | Example Apache reverse proxy config for all environments |
 
 ## Initial server setup
@@ -77,28 +77,31 @@ docker compose up -d
 docker compose exec web uv run python manage.py seed_demo_data
 ```
 
-## Deploying updates
+## Manually deploying updates
 
 SSH into the server and run the deploy script in the environment you
-want to update. For `dev`, you can switch to any branch first:
+want to update. For `dev`, you can switch to any branch first, but
+`staging` and `prod` should always deploy from their respective branches.
 
 ```bash
 cd /srv/yvideo/dev
 git fetch origin
 git checkout my-branch
-bash deploy/deploy.sh
+bash deploy/deploy.sh my-branch
 ```
 
 ### What deploy.sh does
 
-1. `git fetch origin`
-2. `git reset --hard origin/<current branch>` -- deploy directories are
+1. Verifies that the checked-out local branch matches the required
+   `<branch>` argument and exits if it does not
+2. `git fetch origin`
+3. `git reset --hard origin/<branch>` -- deploy directories are
    automation-managed; local edits are overwritten
-3. `docker compose build --pull` -- rebuilds the image with latest code and
+4. `docker compose build --pull` -- rebuilds the image with latest code and
    base image
-4. `docker compose up -d` -- restarts the container (the entrypoint runs
+5. `docker compose up -d` -- restarts the container (the entrypoint runs
    `migrate` and `collectstatic` automatically)
-5. `docker image prune -f` -- cleans up old images
+6. `docker image prune -f` -- cleans up old images
 
 ## Viewing logs
 
