@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Tune Gunicorn by CPU and memory budget: start WORKERS near the number of
 # cores that can be dedicated to this container, and only raise THREADS if
-# requests spend significant time waiting on the DB or other I/O.
-WORKERS=2
-THREADS=2
+# requests spend significant time waiting on the DB or other I/O. These
+# defaults can be overridden per environment via .env.
+WORKERS="${WORKERS:-2}"
+THREADS="${THREADS:-2}"
 
 mkdir -p /app/data /app/media /app/staticfiles /app/var
 

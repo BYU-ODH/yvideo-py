@@ -28,8 +28,8 @@ All other requests are proxied to the Docker container. See
 | File | Purpose |
 |---|---|
 | `Dockerfile` | Builds the app image (Python 3.13, system deps for SAML, uv, gunicorn) |
-| `compose.yml` | Defines the `web` service with bind mounts for data, media, config |
-| `.env_template` | Template for the per-environment `.env` (copy to `.env`) |
+| `compose.yml` | Defines how `docker compose up` starts the `web` service with bind mounts for data, media, config |
+| `.env_template` | Template for the per-environment `.env` used by `compose.yml` to specify name, port, and Gunicorn tuning (copy to `.env`) |
 | `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
 | `deploy/deploy.sh` | Verifies the expected branch, pulls latest code, rebuilds, and restarts the container |
 | `deploy/apache-vhost.conf` | Example Apache reverse proxy config for all environments |
@@ -46,7 +46,7 @@ git checkout main  # or prod, or any branch for dev
 
 # 2. Create .env from template
 cp .env_template .env
-# Edit .env: set COMPOSE_PROJECT_NAME and HOST_PORT
+# Edit .env: set COMPOSE_PROJECT_NAME, HOST_PORT, WORKERS, and THREADS
 
 # 3. Create secret_settings.py
 cp yvideo/secret_settings_template.py yvideo/secret_settings.py
@@ -95,12 +95,10 @@ bash deploy/deploy.sh my-branch
 1. Verifies that the checked-out local branch matches the required
    `<branch>` argument and exits if it does not
 2. `git fetch origin`
-3. `git reset --hard origin/<branch>` -- deploy directories are
-   automation-managed; local edits are overwritten
+3. `git reset --hard origin/<branch>` -- local edits are overwritten
 4. `docker compose build --pull` -- rebuilds the image with latest code and
    base image
-5. `docker compose up -d` -- restarts the container (the entrypoint runs
-   `migrate` and `collectstatic` automatically)
+5. `docker compose up -d` -- restarts the container
 6. `docker image prune -f` -- cleans up old images
 
 ## Viewing logs
@@ -108,7 +106,7 @@ bash deploy/deploy.sh my-branch
 ```bash
 cd /srv/yvideo/prod
 docker compose logs -f        # follow all logs
-docker compose logs -f web    # follow just the web service
+docker compose logs -f web    # follow just the `web` service defined in compose.yml
 ```
 
 ## Key configuration notes
@@ -116,11 +114,14 @@ docker compose logs -f web    # follow just the web service
 - **SQLite database**: Stored in `data/db.sqlite3` (with WAL/SHM journal
   files alongside it). The `data/` directory is bind-mounted so all three
   files persist across container rebuilds.
-- **Static files**: `collectstatic` writes to `staticfiles/` via bind mount.
+- **Static files**: `manage.py collectstatic` writes to `staticfiles/` via bind mount.
   Apache serves this directory directly at `/static/`.
 - **Media files**: User uploads go to `media/`, also served directly by
   Apache at `/media/`.
 - **SAML config**: Bind-mounted read-only into the container. Each
   environment needs its own SP entity ID, ACS URL, and certificates.
 - **Gunicorn**: Runs with `--preload` (so the legacy dump scheduler starts
-  once in the master process), 2 workers, and 2 threads per worker.
+  once in the master process). Set `WORKERS` and `THREADS` in `.env`;
+  start `WORKERS` near the CPU cores available to the container, and only
+  increase `THREADS` if requests spend significant time waiting on the DB
+  or other I/O. Defaults are `2` and `2`.

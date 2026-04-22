@@ -1,6 +1,8 @@
 # Per-environment config comes from .env (gitignored):
 #   COMPOSE_PROJECT_NAME=yvideo-dev    # or yvideo-staging, yvideo-prod
 #   HOST_PORT=8001                     # or 8002, 8003
+#   WORKERS=2                          # tune by CPU and memory budget
+#   THREADS=2                          # raise only for I/O-heavy workloads
 services:
   web:
     build: .
@@ -16,4 +18,6 @@ services:
       - ./yvideo/saml_config:/app/yvideo/saml_config:ro
     environment:
       YVIDEO_DB_DIR: /app/data
+      WORKERS: "${WORKERS:-2}"
+      THREADS: "${THREADS:-2}"
     restart: unless-stopped
