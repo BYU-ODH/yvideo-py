@@ -435,7 +435,7 @@
 .detail-form-section {
     width: 400px;
     overflow-y: auto;
-    color: white;
+    color: #fffdfd;
 }
 
 @media screen and (max-width: 1367px) {
@@ -446,6 +446,25 @@
 
 .detail-form {
     padding: 1rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.item-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.item-form h3 {
+    margin-top: 0;
+}
+
+#annotation-update-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .editor-detail-form-placeholder {
@@ -466,6 +485,8 @@
 }
 
 .form-group {
+    display: flex;
+    flex-direction: column;
     margin-bottom: 1rem;
     row-gap: 0.5rem;
 }
@@ -475,12 +496,15 @@
     font-weight: 500;
 }
 
+.form-group input, .form-group textarea, .form-group select {
+    background-color: var(--dark-mode-very-light-gray);
+    border: 1px solid var(--dark-mode-very-light-gray);
+    padding: 0.25rem;
+}
+
 .form-group input[type="text"],
 .form-group input[type="number"] {
     width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    font-size: 0.9rem;
 }
 
 .form-group input:focus {
@@ -523,10 +547,9 @@
 }
 
 .form-actions {
-    align-self: flex-end;
     display: flex;
     gap: 0.5rem;
-    margin-top: 1.5rem;
+    margin-top: auto;
 }
 
 #annotation-form-save-button, #annotation-form-delete-button {
