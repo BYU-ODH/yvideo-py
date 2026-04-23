@@ -10,6 +10,7 @@
     --light-red: #f34a3f;
     --red: #f01d0f;
     --header-height: 69px;
+    --primary-blue: #3b85a1;
 }
 
 * {
@@ -30,17 +31,38 @@ body {
     flex-direction: column;
 }
 
-.small-button {
-    cursor: pointer;
+textarea {
+    font-family: system-ui;
+}
+
+.blue-button, .white-button-with-border {
+    border-radius: 20px;
+    padding: 10px 20px;
+}
+
+.blue-button {
+    background-color: var(--primary-blue);
     color: white;
-    background-color: var(--medium-blue);
-    padding: 0.5rem 1rem;
-    border-radius: 1rem;
     border: none;
 }
 
-.small-button:hover {
-    background-color: var(--deep-blue);
+.blue-button:hover {
+    cursor: pointer;
+    background-color: white;
+    color: var(--primary-blue);
+}
+
+.white-button-with-border {
+    background-color: white;
+    color: var(--primary-blue);
+    border: 2px solid var(--primary-blue);
+}
+
+.white-button-with-border:hover {
+    cursor: pointer;
+    background-color: var(--primary-blue);
+    color: white;
+    border: 2px solid white;
 }
 
 .large-button {
@@ -1356,4 +1378,68 @@ dialog {
     overflow: hidden;
     position: relative;
     background-color: black;
+}
+
+/* index page */
+#index-page {
+    display: flex;
+    flex-direction: column;
+}
+
+#index-page-title {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: lightgrey;
+    height: 300px;
+}
+
+#index-page-title button {
+    box-shadow: 0px 3px 6px black;
+    font-size: 1.2rem;
+    width: 150px;
+}
+
+#index-page-content-wrapper {
+    background-color: var(--primary-blue);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: white;
+}
+
+#index-page-content {
+    max-width: 1200px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    row-gap: 3rem;
+    padding: 3rem 0rem;
+}
+
+.index-page-row {
+    display: flex;
+    flex-direction: row;
+    column-gap: 3rem;
+    height: 200px;
+}
+
+.index-page-text-group, .index-page-image {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    flex: 0.5;
+}
+
+.index-page-image {
+    border-radius: 20px;
+    box-shadow: 0px 3px 6px black;
+    overflow: hidden;
+}
+
+.index-page-image img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
 }

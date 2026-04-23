@@ -1,0 +1,127 @@
+# Deployment
+
+Three environments run on a single server behind Apache reverse proxies:
+
+| Environment | Subdomain | Host Port | Directory |
+|---|---|---|---|
+| dev | dev.example.com | 8001 | `/srv/yvideo/dev/` |
+| staging | staging.example.com | 8002 | `/srv/yvideo/staging/` |
+| prod | example.com | 8003 | `/srv/yvideo/prod/` |
+
+Each environment is an independent git clone with its own configuration
+files, database, and Docker container.
+
+## Architecture
+
+```txt
+                        ┌─ dev.example.com ─────────→  :8001 → yvideo-dev container
+Apache (443, TLS)  ─────┤─ staging.example.com ──────→ :8002 → yvideo-staging container
+                        └─ example.com ──────────────→ :8003 → yvideo-prod container
+```
+
+Apache serves `/static/` and `/media/` directly from the host filesystem.
+All other requests are proxied to the Docker container. See
+`deploy/apache-vhost.conf` for an example configuration.
+
+## Deployment files
+
+| File | Purpose |
+|---|---|
+| `Dockerfile` | Builds the app image (Python 3.13, system deps for SAML, uv, gunicorn) |
+| `compose.yml` | Defines how `docker compose up` starts the `web` service with bind mounts for data, media, config |
+| `.env_template` | Template for the per-environment `.env` used by `compose.yml` to specify name, port, and Gunicorn tuning (copy to `.env`) |
+| `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
+| `deploy/deploy.sh` | Verifies the expected branch, pulls latest code, rebuilds, and restarts the container |
+| `deploy/apache-vhost.conf` | Example Apache reverse proxy config for all environments |
+
+## Initial server setup
+
+Repeat for each environment (`dev`, `staging`, `prod`):
+
+```bash
+# 1. Clone the repo
+git clone git@github.com:BYU-ODH/yvideo-py.git /srv/yvideo/prod
+cd /srv/yvideo/prod
+git checkout main  # or prod, or any branch for dev
+
+# 2. Create .env from template
+cp .env_template .env
+# Edit .env: set COMPOSE_PROJECT_NAME, HOST_PORT, WORKERS, and THREADS
+
+# 3. Create secret_settings.py
+cp yvideo/secret_settings_template.py yvideo/secret_settings.py
+# Edit secret_settings.py — at minimum set:
+#   DEBUG = False  (for staging/prod)
+#   ALLOWED_HOSTS = ["example.com"]
+#   SECRET_KEY = "<unique random value>"
+#   SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+#   CSRF_TRUSTED_ORIGINS = ["https://example.com"]
+#   API_CLIENT_ID, API_CLIENT_SECRET, and all API_*_URL values
+
+# 4. Set up SAML config
+# Place your SAML SP/IdP settings and certificates in:
+#   yvideo/saml_config/settings.json
+#   yvideo/saml_config/advanced_settings.json
+#   yvideo/saml_config/certs/sp.cert
+#   yvideo/saml_config/certs/sp.key
+
+# 5. Create persistent data directories
+mkdir -p data media var
+
+# 6. Build and start
+docker compose build
+docker compose up -d
+
+# 7. (dev/staging only) Seed demo data
+# Only needed once — the database persists across deploys via the data/ bind mount.
+docker compose exec web uv run python manage.py seed_demo_data
+```
+
+## Manually deploying updates
+
+SSH into the server and run the deploy script in the environment you
+want to update. For `dev`, you can switch to any branch first, but
+`staging` and `prod` should always deploy from their respective branches.
+
+```bash
+cd /srv/yvideo/dev
+git fetch origin
+git checkout my-branch
+bash deploy/deploy.sh my-branch
+```
+
+### What deploy.sh does
+
+1. Verifies that the checked-out local branch matches the required
+   `<branch>` argument and exits if it does not
+2. `git fetch origin`
+3. `git reset --hard origin/<branch>` -- local edits are overwritten
+4. `docker compose build --pull` -- rebuilds the image with latest code and
+   base image
+5. `docker compose up -d` -- restarts the container
+6. `docker image prune -f` -- cleans up old images
+
+## Viewing logs
+
+```bash
+cd /srv/yvideo/prod
+docker compose logs -f        # follow all logs
+docker compose logs -f web    # follow just the `web` service defined in compose.yml
+```
+
+## Key configuration notes
+
+- **SQLite database**: Stored in `data/db.sqlite3` (with WAL/SHM journal
+  files alongside it). The `data/` directory is bind-mounted so all three
+  files persist across container rebuilds.
+- **Static files**: `manage.py collectstatic` writes to `staticfiles/` via bind mount.
+  Apache serves this directory directly at `/static/`.
+- **Media files**: User uploads go to `media/`, also served directly by
+  Apache at `/media/`.
+- **SAML config**: Bind-mounted read-only into the container. Each
+  environment needs its own SP entity ID, ACS URL, and certificates.
+- **Gunicorn**: Runs with `--preload` (so the legacy dump scheduler starts
+  once in the master process). Set `WORKERS` and `THREADS` in `.env`;
+  start `WORKERS` near the CPU cores available to the container, and only
+  increase `THREADS` if requests spend significant time waiting on the DB
+  or other I/O. Defaults are `2` and `2`.

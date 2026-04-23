@@ -1,8 +1,10 @@
+from functools import cmp_to_key
 import json
 import logging
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
@@ -23,8 +25,14 @@ from .models import Content
 from .models import MuteAnnotation
 from .models import PauseAnnotation
 from .models import SkipAnnotation
+from .models import Subtitle
 from .models import Track
 from .models import User
+from .utils import VTTCue
+from .utils import build_vtt_file_string_from_cues
+from .utils import convert_srt_content_to_vtt
+from .utils import generate_vtt_cues_from_file_path
+from .utils import nudge_cue_times
 
 logger = logging.getLogger(__name__)
 
@@ -134,50 +142,60 @@ def return_annotation_if_authorized_and_exists(
 @login_required
 def video_editor(request, content_id):
     """Main video editor page."""
-    content = get_object_or_404(Content, id=content_id)
+    try:
+        content = Content.objects.get(pk=content_id)
 
-    # Check if user can view this content
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
+        # Check if user can view this content
+        if not request.user.can_view_content(content):
+            return HttpResponse("Unauthorized", status=403)
 
-    # Get available annotation sets
-    available_sets = content.get_available_annotation_sets()
+        # Get available annotation sets
+        available_sets = content.get_available_annotation_sets()
 
-    # Determine if user can edit the active annotation set
-    annotation_set = content.annotation_set
-    can_edit = annotation_set.can_edit(request.user) if annotation_set else True
+        # Determine if user can edit the active annotation set
+        annotation_set = content.annotation_set
+        can_edit = annotation_set.can_edit(request.user) if annotation_set else True
 
-    can_edit_annotation_set = annotation_set is not None and (
-        annotation_set.owner == request.user or request.user.is_admin
-    )
+        can_edit_annotation_set = annotation_set is not None and (
+            annotation_set.owner == request.user or request.user.is_admin
+        )
 
-    # Get file key for video streaming
-    file_key = request.user.get_resource_filekey(content)
+        # Get file key for video streaming
+        file_key = request.user.get_resource_filekey(content)
 
-    # Prepare track data for timeline
-    tracks = annotation_set.get_tracks()
-    if not tracks:
-        Track.objects.create(annotation_set=annotation_set)
+        # Prepare track data for timeline
         tracks = annotation_set.get_tracks()
+        if not tracks:
+            Track.objects.create(annotation_set=annotation_set)
+            tracks = annotation_set.get_tracks()
 
-    annotations = annotation_set.get_active_annotations_from_tracks()
+        annotations = annotation_set.get_active_annotations_from_tracks()
 
-    annotation_groups = get_annotation_groups(annotations)
+        annotation_groups = get_annotation_groups(annotations)
 
-    context = {
-        "content": content,
-        "content_id": content_id,
-        "file_key": file_key.id if file_key else None,
-        "allow_events": True,
-        "available_annotation_sets": available_sets,
-        "annotation_set": annotation_set,
-        "can_edit": can_edit,
-        "can_edit_annotation_set": can_edit_annotation_set,
-        "annotation_groups": annotation_groups,
-        "tracks": tracks,
-    }
+        subtitle_options = content.get_subtitles()
 
-    return render(request, "core/video_editor.html", context)
+        context = {
+            "content": content,
+            "content_id": content_id,
+            "file_key": file_key.id if file_key else None,
+            "allow_events": True,
+            "available_annotation_sets": available_sets,
+            "annotation_set": annotation_set,
+            "can_edit": can_edit,
+            "can_edit_annotation_set": can_edit_annotation_set,
+            "annotation_groups": annotation_groups,
+            "tracks": tracks,
+            "subtitle_options": subtitle_options,
+        }
+
+        return render(request, "core/video_editor.html", context)
+    except Content.DoesNotExist:
+        logger.error("Failed to load video editor: missing content.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to load video editor. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @login_required
@@ -246,54 +264,40 @@ def select_annotation_set(request):
     """Switch the active AnnotationSet for a content."""
     body = json.loads(request.body.decode("utf-8"))
     content_id = body["content_id"]
-    content = get_object_or_404(Content, pk=content_id)
+    try:
+        content = Content.objects.get(pk=content_id)
 
-    # Check permissions
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
+        # Check permissions
+        if not request.user.can_view_content(content):
+            return HttpResponse("Unauthorized", status=403)
 
-    annotation_set_id = body["annotation_set_id"]
+        annotation_set_id = body["annotation_set_id"]
 
-    if not annotation_set_id:
-        logger.error(f"Annotation set id was not provided: {annotation_set_id}")
+        if not annotation_set_id:
+            logger.error(f"Annotation set id was not provided: {annotation_set_id}")
+            return HttpResponseBadRequest()
+
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        if not annotation_set.can_be_viewed_by(request.user):
+            return HttpResponse("Unauthorized", status=403)
+
+        content.annotation_set = annotation_set
+        content.save()
+
+        return HttpResponse()
+    except Content.DoesNotExist:
+        logger.error(
+            f"Failed to update selected annotation set because Content does not exist. Content id: {content_id}"
+        )
         return HttpResponseBadRequest()
-
-    annotation_set = get_object_or_404(
-        AnnotationSet, id=annotation_set_id, resource=content.resource_file.resource
-    )
-    if not annotation_set.can_be_viewed_by(request.user):
-        return HttpResponse("Unauthorized", status=403)
-
-    content.annotation_set = annotation_set
-    content.save()
-
-    can_edit = annotation_set.can_edit(request.user) if annotation_set else True
-
-    # Prepare layers for timeline rendering (matching clip editor structure)
-    # layer_results = build_annotation_layers(content, annotation_set, can_edit)
-    # layers = layer_results["layers"]
-
-    # # Render timeline using shared partial
-    # timeline_layers_html = render_to_string(
-    #     "core/partials/timeline_layers.html",
-    #     {"layers": layers, "content_id": content_id},
-    #     request=request,
-    # )
-
-    # Get JSON from model method
-    video_html = render_to_string(
-        "partials/player-wrapper.html",
-        {
-            "content_id": content_id,
-            "resource_file_key_id": request.user.get_resource_filekey(content).pk,
-        },
-        request=request,
-    )
-
-    return JsonResponse(
-        # {"video_section": video_html, "timeline_layers": timeline_layers_html}
-        {"video_section": video_html}
-    )
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            f"Failed to update selected annotation set becuase AnnotationSet does not exist. AnnotationSet id: {annotation_set_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to update selected annotation set. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST
@@ -364,66 +368,106 @@ def redo_annotation(request, content_id):
 
 @require_POST
 @login_required
-def add_editor_to_annotation_set(request, annotation_set_id):
+def add_editor_to_annotation_set(request):
     """Add a user as an editor to an AnnotationSet."""
-    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+    try:
+        parsed_body = json.loads(request.body)
+        if "annotation_set_id" not in parsed_body or "editor_id" not in parsed_body:
+            logger.error(
+                "Failed to add editor to annotaion set; missing annotation_set_id and/or editor_id"
+            )
+            return HttpResponseBadRequest()
 
-    # Only owner can add editors
-    if request.user != annotation_set.owner:
-        return HttpResponse("Unauthorized", status=403)
+        annotation_set_id = parsed_body["annotation_set_id"]
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
 
-    username = request.POST.get("username")
-    user = get_object_or_404(User, username=username)
+        # Only owner can add editors
+        if request.user != annotation_set.owner:
+            return HttpResponse("Unauthorized", status=403)
 
-    annotation_set.editors.add(user)
+        user_id = parsed_body["editor_id"]
+        user = User.objects.get(pk=user_id)
 
-    # Re-render annotation set form with updated editors
-    content_id = request.POST.get("content_id")
-    content = get_object_or_404(Content, id=content_id)
+        annotation_set.editors.add(user)
 
-    form_html = render_to_string(
-        "core/partials/annotation_set_form.html",
-        {
-            "content": content,
-            "annotation_set": annotation_set,
-            "can_edit": True,
-            "available_annotation_sets": content.get_available_annotation_sets(),
-        },
-        request=request,
-    )
+        form_html = render_to_string(
+            "core/partials/annotation_set_selected_editors.html",
+            {"annotation_set": annotation_set},
+            request=request,
+        )
 
-    return HttpResponse(form_html)
+        return HttpResponse(form_html)
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            "Failed to add editor to annotation set because the set doesn't exist"
+        )
+        return HttpResponseBadRequest()
+    except User.DoesNotExist:
+        logger.error(
+            "Failed to add editor to annotation set because the editor doesn't exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to add editor to annotation set. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_POST
+@login_required
+def search_for_editor(request):
+    try:
+        parsed_body = json.loads(request.body)
+        if "search_string" not in parsed_body:
+            logger.error("Failed to search for editors; missing search string")
+            return HttpResponseBadRequest()
+        query = parsed_body["search_string"].strip()
+        editor_results = User.objects.filter(
+            (
+                Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+                | Q(netid__icontains=query)
+            )
+            & ~Q(id=request.user.id)
+        ).order_by("last_name")[:25]
+        result_html = render_to_string(
+            "partials/editor_search_results.html",
+            {"editor_results": editor_results},
+            request,
+        )
+        return HttpResponse(result_html)
+    except Exception as e:
+        logger.error(f"Failed to search for editors. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_http_methods(["DELETE"])
 @login_required
 def remove_editor_from_annotation_set(request, annotation_set_id, user_id):
     """Remove a user as an editor from an AnnotationSet."""
-    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+    try:
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
 
-    # Only owner can remove editors
-    if request.user != annotation_set.owner:
-        return HttpResponse("Unauthorized", status=403)
+        # Only owner can remove editors
+        if request.user != annotation_set.owner:
+            return HttpResponse("Unauthorized", status=403)
 
-    user = get_object_or_404(User, id=user_id)
-    annotation_set.editors.remove(user)
+        user = User.objects.get(pk=user_id)
+        annotation_set.editors.remove(user)
 
-    # Re-render annotation set form
-    content_id = request.GET.get("content_id")
-    content = get_object_or_404(Content, id=content_id)
-
-    form_html = render_to_string(
-        "core/partials/annotation_set_form.html",
-        {
-            "content": content,
-            "annotation_set": annotation_set,
-            "can_edit": True,
-            "available_annotation_sets": content.get_available_annotation_sets(),
-        },
-        request=request,
-    )
-
-    return HttpResponse(form_html)
+        return HttpResponse()
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            f"Failed to remove user from annotation set because the annotation set doesn't exist. AnnotationSet id: {annotation_set_id}"
+        )
+        return HttpResponseBadRequest()
+    except User.DoesNotExist:
+        logger.error(
+            f"Failed to remove user from annotation set because the User does not exist. User id: {user_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to remove user from annotation set. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST
@@ -903,24 +947,37 @@ def load_annotation_set_settings(request, annotation_set_id):
 
 @require_POST
 @login_required
-def update_annotation_set_name(request, annotation_set_id):
-    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
-    if not (request.user == annotation_set.owner or request.user.is_admin):
-        return HttpResponse("Unauthorized", status=403)
-    name = request.POST.get("name", "").strip()
-    if name:
-        annotation_set.name = name
-        annotation_set.save()
-    content_id = request.POST.get("content_id")
-    content = get_object_or_404(Content, id=content_id)
-    return render(
-        request,
-        "core/partials/annotation_set_settings_compact.html",
-        {
-            "annotation_set": annotation_set,
-            "content": content,
-        },
-    )
+def update_annotation_set_name(request):
+    try:
+        parsed_body = json.loads(request.body)
+        if "annotation_set_id" not in parsed_body:
+            logger.error(
+                "Failed to update annotation set name due to missing annotation_set_id value"
+            )
+            return HttpResponseBadRequest()
+        if "name" not in parsed_body:
+            logger.error("Failed to update annotation set name; missing name value.")
+            return HttpResponseBadRequest()
+
+        annotation_set_id = parsed_body["annotation_set_id"]
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        if not (request.user == annotation_set.owner or request.user.is_admin):
+            return HttpResponse("Unauthorized", status=403)
+
+        name = parsed_body["name"].strip()
+        if name:
+            annotation_set.name = name
+            annotation_set.save()
+
+        return HttpResponse()
+    except AnnotationSet.DoesNotExist:
+        logger.error(
+            f"Failed to update annotation set name; unknown AnnotationSet. id: {annotation_set_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to update annotation set name. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @login_required
@@ -1045,4 +1102,195 @@ def delete_track(request, track_id):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to delete track. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_GET
+def get_editable_subtitles(request, subtitle_id):
+    try:
+        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
+        cues = generate_vtt_cues_from_file_path(subtitle_obj.subtitles_file.path)
+        return HttpResponse(
+            render_to_string(
+                "partials/subtitle_panel_content.html",
+                {"subtitle_track": subtitle_obj, "cues": cues},
+            )
+        )
+
+    except Subtitle.DoesNotExist:
+        logger.error("Failed to generate subtitle html: missing Subtitle object.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Error generating html cues from file path. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_POST
+def create_subtitle(request):
+    form = SubtitleForm(request.POST, request.FILES)
+    if form.is_valid():
+        data = form.cleaned_data
+        uploaded_file = request.FILES["subtitles_file"]
+        if uploaded_file is None:
+            logger.error("No subtitle file provided.")
+            return HttpResponseBadRequest()
+
+        # automatically convert .srt files to .vtt
+        uploaded_file_content = convert_srt_content_to_vtt(
+            uploaded_file.read().decode("utf-8")
+        )
+
+        # create new subtitle object
+        try:
+            new_subtitle = Subtitle.objects.create(
+                resource=data["resource"],
+                owner=data["owner"],
+                language=data["language"],
+                name=data["name"],
+                subtitles_file=ContentFile(
+                    content=uploaded_file_content, name=uploaded_file.name
+                ),
+                is_original=data["is_original"],
+            )
+        except Exception as e:
+            logger.error(
+                f"Error creating Subtitles object. data: {data}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+    return render(
+        request, "partials/subtitle_track.html", {"subtitle_track": new_subtitle}
+    )
+
+
+@require_POST
+def update_subtitle_metadata(request):
+    form = SubtitleForm(request.POST, request.FILES)
+    if form.is_valid():
+        data = form.cleaned_data
+
+        uploaded_file = request.FILES["subtitles_file"]
+
+        if uploaded_file is not None:
+            uploaded_file_content = convert_srt_content_to_vtt(
+                uploaded_file.read().decode("utf-8")
+            )
+            uploaded_file_name = uploaded_file.name
+
+        try:
+            if "subtitle_id" in request.POST:
+                subtitle_obj = get_object_or_404(
+                    Subtitle, id=request.POST.get("subtitle_id")
+                )
+            else:
+                return HttpResponseBadRequest()
+
+            if "language" in data:
+                subtitle_obj.language = data["language"]
+            if "name" in data:
+                subtitle_obj.name = data["name"]
+            if uploaded_file is not None:
+                subtitle_obj.subtitles_file = ContentFile(
+                    content=uploaded_file_content, name=uploaded_file_name
+                )
+            if "is_original" in data:
+                subtitle_obj.is_original = data["is_original"]
+            if "words" in request.POST:
+                subtitle_obj.words = data["words"]
+            subtitle_obj.save()
+
+            # remove temp file when main file is updated
+            # this is not included where subtitles_file is set because we want
+            # to ensure we don't over write the temp file unless the main file
+            # is successfully updated.
+            if uploaded_file is not None:
+                subtitle_obj.subtitles_temp_file = None
+                subtitle_obj.save()
+
+            return render(
+                request,
+                "partials/subtitle_track.html",
+                {"subtitle_track": subtitle_obj},
+            )
+        except Exception as e:
+            logger.error(
+                f"Error while updating subtitle object with id: {request.POST.get('subtitle_id')}. Exception: {e}"
+            )
+            return HttpResponseServerError()
+    else:
+        return HttpResponseBadRequest()
+
+
+@require_POST
+def update_subtitle_content(request):
+    try:
+        # build VTTCue list
+        request_data = json.loads(request.body)
+        subtitle_id = request_data["subtitle_id"]
+        dict_cue_list = request_data["cues"]
+        cues_list: list[VTTCue] = []
+        for dict_cue in dict_cue_list:
+            new_cue = VTTCue()
+            new_cue.from_json_dict(dict_cue)
+            cues_list.append(new_cue)
+
+        def compare_cues(cueA, cueB):
+            return cueA.start_time - cueB.start_time
+
+        cues_list.sort(key=cmp_to_key(compare_cues))
+
+        # change timing of cues if applicable
+        seconds_nudge = request_data["seconds_nudge"]
+        nudge_excluded_cues = request_data["nudge_excluded_cues"]
+        if seconds_nudge:
+            nudge_cue_times(cues_list, nudge_excluded_cues, seconds_nudge)
+
+        # build and save new vtt file
+        new_vtt_string = build_vtt_file_string_from_cues(cues_list)
+        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
+        is_autosave = request_data["is_autosave"]
+
+        # something is giong on here where part of the path name is being duplicated
+        # files are saved as media/filename where in this case, filename is something like
+        # "resource name/subtitles/original filename"
+        # but the model is set to attach the current filename in place of "original filename"
+        # so we end up with "resource name/subtitles/resource name/subtitles/.../intended filename"
+        if is_autosave:
+            with subtitle_obj.subtitles_temp_file.open("w") as f:
+                f.write(new_vtt_string)
+        else:
+            with subtitle_obj.subtitles_file.open("w") as f:
+                f.write(new_vtt_string)
+        subtitle_obj.save()
+        return HttpResponse(
+            render_to_string(
+                "partials/subtitle_cues.html", {"cues": cues_list}, request
+            )
+        )
+
+    except Subtitle.DoesNotExist:
+        logger.error(
+            "Failed to update subtitle content: Subtitle object does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Error while updating subtitle content: {e}")
+        return HttpResponseServerError()
+
+
+@require_http_methods(["DELETE"])
+def delete_subtitle(request, subtitle_id):
+    try:
+        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
+        subtitle_obj.delete()
+        return HttpResponse("", status=200)
+    except Subtitle.DoesNotExist:
+        logger.error("Failed to delete subtitle: Subtitle object does not exist")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(
+            f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
+        )
         return HttpResponseServerError()

@@ -58,13 +58,29 @@
     overflow: hidden;
 }
 
-#editor-annotation-panel {
-    width: 200px;
-    display: flex;
+.editor-panel-wrapper {
     flex-direction: column;
 }
 
-#annotation-panel-header {
+.editor-panel-switch {
+    margin-top: auto;
+    align-self: center;
+    margin-bottom: 1rem;
+}
+
+#editor-annotation-panel {
+    width: 200px;
+}
+
+.editor-annotation-panel-visible {
+    display: flex;
+}
+
+.editor-annotation-panel-hidden {
+    display: none;
+}
+
+#annotation-panel-header, #subtitle-panel-header {
     padding: 8px;
 }
 
@@ -185,6 +201,61 @@
     width: 17px;
 }
 
+#annotation-set-settings-compact label {
+    font-weight: 400;
+}
+
+#annotation-set-settings-compact h2, #annotation-set-settings-compact h4 {
+    margin: 0;
+}
+
+.annotation-set-editor-details {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
+    align-items: center;
+}
+
+.annotation-set-editor-details p {
+    margin: 0;
+}
+
+.remove-editor-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: inherit;
+    border: none;
+    border-radius: 50%;
+    padding: 0.4rem 0.5rem;
+}
+
+.remove-editor-button:hover {
+    background-color: var(--dark-mode-very-light-gray);
+    box-shadow: 0px 3px 6px #00000075;
+    cursor: pointer;
+}
+
+#editor-search-results {
+    min-width: 15rem;
+    max-height: 10rem;
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.1rem;
+    overflow: auto;
+}
+
+.editor-search-result {
+    align-self: flex-start;
+    border-radius: 10px;
+    padding: 0.4rem;
+}
+
+.editor-search-result:hover {
+    background-color: var(--selectable-grey);
+    cursor: pointer;
+}
+
 .skip-list-item-wrapper:hover {
     background-color: var(--skip-type-color-very-transparent);
     cursor: pointer;
@@ -252,6 +323,97 @@
     padding: 10px 12px;
     max-height: 10vh;
     overflow: auto;
+}
+
+/* Subtitle Editor Panel */
+#subtitle-editor-panel {
+    width: 350px;
+}
+
+#subtitle-panel-content-wrapper, #subtitle-panel-list {
+    flex: 1;
+}
+
+#subtitle-panel-content-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+
+#subtitle-panel-content-wrapper {
+    height: 100%;
+    overflow: hidden;
+}
+
+.subtitle-editor-panel-hidden {
+    display: none;
+}
+
+.subtitle-editor-panel-visible {
+    display: flex;
+}
+
+#add-new-subtitle-button {
+    align-self: center;
+}
+
+#subtitle-panel-list {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+    overflow: auto;
+}
+
+.subtitle-input-groups {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.2rem;
+}
+
+.editor-subtitle-cue {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: 1rem;
+    padding: 4px 8px;
+}
+
+.editor-subtitle-cue:hover {
+    background-color: var(--subtitle-type-color-very-transparent);
+}
+
+.editor-subtitle-cue-active {
+    background-color: var(--subtitle-type-color-transparent);
+}
+
+.editor-subtitle-cue-count, .editor-subtitle-cue-content {
+    margin: 0;
+}
+
+.editor-subtitle-cue-content {
+    height: 100%;
+    resize: none; /* eslint-disable-line css/use-baseline */
+    flex: 1;
+}
+
+.editor-subtitle-cue-input-group {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.2rem;
+    align-self: flex-end;
+}
+
+.editor-subtitle-cue-input-group input {
+    justify-self: flex-start;
+    width: 5rem;
+}
+
+#subtitle-panel-content-wrapper {
+    row-gap: 0.5rem;
+}
+
+#delete-subtitles-track-button {
+    margin-top: 5rem;
+    align-self: flex-end;
 }
 
 /* Video Section */
@@ -459,7 +621,7 @@
     display: flex;
 }
 
-.timeline-track-open-menu-button {
+.editor-menu-button {
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -469,7 +631,7 @@
     border: none;
 }
 
-.timeline-track-open-menu-button:hover {
+.editor-menu-button:hover {
     background-color: var(--dark-mode-very-light-gray);
     box-shadow: 0px 3px 6px #00000075;
     cursor: pointer;
@@ -835,19 +997,19 @@ of the page */
 /* see https://css-tricks.com/styling-cross-browser-compatible-range-inputs-css/
    for reference. the ms style rules are removed since those are for IE which
    no one should use anymore. */
-#timeline-zoom-input {
+#timeline-scroll-input {
   -webkit-appearance: none; /* Hides the slider so that custom slider can be made */
   width: 100%; /* Specific width is required for Firefox. */
   background: transparent; /* Otherwise white in Chrome */
 }
 
-#timeline-zoom-input::-webkit-slider-thumb {
+#timeline-scroll-input::-webkit-slider-thumb {
   -webkit-appearance: none;
 }
 
 /* Now we can apply our custom styles for the slider */
 /* "thumb" styles. This is the part the user interacts with */
-#timeline-zoom-input::-webkit-slider-thumb {
+#timeline-scroll-input::-webkit-slider-thumb {
   -webkit-appearance: none;
   height: 12px;
   width: 90px;
@@ -857,7 +1019,7 @@ of the page */
   margin-top: 4px; /* Chrome requires margin to be defined. This is automatic in Firefox */
 }
 
-#timeline-zoom-input::-moz-range-thumb {
+#timeline-scroll-input::-moz-range-thumb {
     -webkit-appearance: none;
     height: 12px;
     width: 90px;
@@ -867,7 +1029,7 @@ of the page */
 }
 
 /* "track" styles. This is the container the thumb resides within */
-#timeline-zoom-input::-webkit-slider-runnable-track {
+#timeline-scroll-input::-webkit-slider-runnable-track {
   width: 100%;
   height: 20px;
   cursor: pointer;
@@ -875,7 +1037,7 @@ of the page */
   padding: 0px 4px;
 }
 
-#timeline-zoom-input::-moz-range-track {
+#timeline-scroll-input::-moz-range-track {
   width: 100%;
   height: 20px;
   cursor: pointer;
@@ -910,11 +1072,11 @@ of the page */
     background-color: #ffffff50;
 }
 
-#timeline-zoom-slider {
+#timeline-scroll-slider {
     flex: 1;
 }
 
-#timeline-zoom-input {
+#timeline-scroll-input {
     width: 100%;
 }
 

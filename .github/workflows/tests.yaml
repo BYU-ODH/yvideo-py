@@ -1,8 +1,10 @@
 name: Tests
 
 on:
+  push:
+    branches: [main, prod]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, prod]
 
 jobs:
   pre-commit:

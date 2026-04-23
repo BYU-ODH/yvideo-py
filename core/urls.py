@@ -8,6 +8,7 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.index, name="index"),
+    path("collections/", views.collections, name="collections"),
     path("manage-collections/", views.manage_collections, name="manage_collections"),
     path("collections/create/", views.create_collection, name="create_collection"),
     path("collections/view/<int:pk>/", views.view_collection, name="view_collection"),
@@ -82,18 +83,13 @@ urlpatterns = [
     path("spoof-user-stop/", views.spoof_user_stop, name="stop_spoofing"),
     path("spoof-user-search/", views.spoof_user_search, name="spoof_user_search"),
     path(
-        "subtitle-editor/<int:content_id>/",
-        views.subtitle_editor,
-        name="subtitle_editor",
-    ),
-    path(
-        "subtitle-editor/get-editable-subtitles/<int:subtitle_id>/",
-        views.get_editable_subtitles,
+        "subtitles/get-editable-subtitles/<int:subtitle_id>/",
+        views_video_editor.get_editable_subtitles,
         name="get_editable_subtitles",
     ),
     path(
-        "subtitle-editor/update-subtitle-file",
-        views.update_subtitle_content,
+        "subtitles/update-subtitle-cues",
+        views_video_editor.update_subtitle_content,
         name="update_subtitle_content",
     ),
     path(
@@ -118,12 +114,12 @@ urlpatterns = [
     ),
     # Video editor page
     path(
-        "video-annotator/<int:content_id>/",
+        "video-editor/<int:content_id>/",
         views_video_editor.video_editor,
-        name="video_annotator",
+        name="video_editor",
     ),
     path(
-        "video-annotator/reload-player",
+        "video-editor/reload-player",
         views_video_editor.get_player_wrapper_html,
         name="reload-video-player",
     ),
@@ -134,7 +130,7 @@ urlpatterns = [
         name="select_annotation_set",
     ),
     path(
-        "annotation-set/<int:annotation_set_id>/add-editor/",
+        "annotation-set/add-editor",
         views_video_editor.add_editor_to_annotation_set,
         name="add_editor_to_annotation_set",
     ),
@@ -149,9 +145,14 @@ urlpatterns = [
         name="load_annotation_set_settings",
     ),
     path(
-        "annotation-set/<int:annotation_set_id>/update-name/",
+        "annotation-set/update-name/",
         views_video_editor.update_annotation_set_name,
         name="update_annotation_set_name",
+    ),
+    path(
+        "annotation-set/search-for-editor",
+        views_video_editor.search_for_editor,
+        name="search_for_editor",
     ),
     path(
         "annotation-panel/<int:annotation_set_id>",
