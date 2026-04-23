@@ -8,7 +8,7 @@
     --yellow: #ffbf00;
     --light-yellow: #ffc;
     --light-red: #f34a3f;
-    --red: #f01d0f;
+    --red: #ce0000;
     --header-height: 69px;
     --primary-blue: #3b85a1;
 }
@@ -21,8 +21,11 @@ body,
 html {
     margin: 0;
     padding: 0;
-    font-family: "Roboto", sans-serif;
-    font-weight: lighter;
+    font-family: system-ui;
+}
+
+input, textarea, select, option {
+    font-family: system-ui;
 }
 
 body {
@@ -31,11 +34,7 @@ body {
     flex-direction: column;
 }
 
-textarea {
-    font-family: system-ui;
-}
-
-.blue-button, .white-button-with-border {
+.blue-button, .white-button-with-border, .red-button {
     border-radius: 20px;
     padding: 10px 20px;
 }
@@ -96,7 +95,6 @@ textarea {
     cursor: pointer;
     color: white;
     background-color: var(--light-red);
-    padding: 0.5rem 1rem;
     border-radius: 1rem;
     border: none;
 }
