@@ -55,6 +55,10 @@ in `yvideo/secret_settings.py` and visit `/login/dev/quick/` on localhost. The r
 returns 404 unless both `DEBUG` and `DEV_QUICK_LOGIN_ENABLED` are true, and it is only
 usable from `localhost` or `127.0.0.1`.
 
+### Deployment
+
+See [DEPLOY.md](DEPLOY.md) for production deployment with Docker and Apache.
+
 ### Running the Development Server
 
 Start the Django development server:

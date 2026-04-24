@@ -1,7 +1,10 @@
+data/
 media/
 secret_settings.py
 dump_legacy_to_sqlite_settings.py
 scripts/dump_legacy_to_sqlite_settings.py
+deploy/auto-deploy/jobs.toml
+.auto-deploy-required-user
 *settings.json
 *advanced_settings.json
 *sp.cert
@@ -11,7 +14,9 @@ scripts/dump_legacy_to_sqlite_settings.py
 *staticfiles
 *media
 *requirements.txt
+
 # TODO start tracking migrations once we have a stable database schema (and before we start the pilot!)
+# Until then, just keep replacing 0001 when models change
 core/migrations/*.py
 
 # Byte-compiled / optimized / DLL files

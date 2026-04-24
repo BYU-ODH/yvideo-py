@@ -606,7 +606,7 @@ class Content(models.Model):
             )
         return clips_data
 
-    def get_subtitles_json(self):
+    def get_subtitles(self):
         """
         Get all subtitles as list of dicts for the AnnotationPlayer.
         Each dict has the following keys:
@@ -620,9 +620,10 @@ class Content(models.Model):
         sub_objs = Subtitle.objects.filter(resource=resource)
         subtitles = [
             {
+                "id": sub.pk,
                 "srclang": sub.language.lang_tag,
                 "vtt": sub.subtitles_file.read().decode("utf-8"),
-                "label": sub.name,
+                "name": sub.name,
             }
             for sub in sub_objs
         ]
@@ -638,7 +639,7 @@ class Content(models.Model):
             if self.annotation_set
             else [],
             "clips": self.get_clips_json(),
-            "subtitleTracks": self.get_subtitles_json(),
+            "subtitleTracks": self.get_subtitles(),
         }
 
 

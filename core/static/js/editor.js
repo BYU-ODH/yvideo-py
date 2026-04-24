@@ -1,3 +1,5 @@
+import { formatSecondsToString } from "./utils.js";
+
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
     const newString = percentString.replace('%', '');
@@ -18,19 +20,18 @@ export class Editor {
         this.typeOfAnnotationInFocus = null;
         this.annotationIdInFocus = null;
         this.activeCensorPosition = null;
-
         this.tickMarksContainer = document.querySelector('#tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
-        this.zoomSliderInput = document.getElementById('timeline-zoom-input');
+        this.zoomSliderInput = document.getElementById('timeline-scroll-input');
         this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
-
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
+        this.selectedSubtitleTrackId = null;
 
         this.init();
     }
@@ -66,6 +67,8 @@ export class Editor {
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
+        this.watchAndHandleEditorPanelSwitch();
+        this.watchAndHandleSubtitleTrackChange();
     }
 
     getCSRFToken() {
@@ -1160,7 +1163,7 @@ export class Editor {
     watchForTrackMenuOpen(trackRootElement) {
       const menuButton = trackRootElement.querySelector(".editor-menu-button");
       if (menuButton) {
-        menuButton.addEventListener("click", this.handleTrackOpenMenuClick)
+        menuButton.addEventListener("click", this.handleTrackOpenMenuClick.bind(this));
       }
       else {
         console.error("No menu button found for track");
@@ -1222,7 +1225,7 @@ export class Editor {
         const newTrackName = e.target.value.trim();
         const response = await fetch("/track/update", {
           method: "post",
-          headers: {"X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value},
+          headers: {"X-CSRFToken": this.getCSRFToken()},
           body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
         });
         if (!response.ok) {
@@ -1430,6 +1433,7 @@ export class Editor {
 
         this.replaceTracksWithNewHTML(newTracksHTML);
         this.updateTracks();
+        this.placeTrackItems();
         this.adjustScrubberHeight();
       }
       addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
@@ -1768,8 +1772,12 @@ export class Editor {
         annotationContainer.style.width = newWidth;
       }
 
+      const locationRatio = this.video.currentTime / this.video.duration;
+      const trackWidth = tickMarksContainer.getBoundingClientRect().width;
+      const tickMarkContainerParent = tickMarksContainer.closest("#timeline-ticks-content");
+      const parentWidth = tickMarkContainerParent.getBoundingClientRect().width;
+      this.scrollTracksToPoint((trackWidth * locationRatio) - parentWidth / 2);
       this.renderTickMarksAndLabels();
-      this.adjustScrubberPosition();
     }
 
     attachZoomListener() {
@@ -1807,18 +1815,22 @@ export class Editor {
       }
     }
 
+    scrollTracksToPoint(scrollValue) {
+      const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
+      const tickMarksWrapper = document.getElementById("timeline-ticks-content");
+      for (let track of tracksToAdjust) {
+        track.scrollLeft = scrollValue;
+      }
+      tickMarksWrapper.scrollLeft = scrollValue;
+    }
+
     watchForTimelineScrollChangeAndHandleIt() {
       this.zoomSliderInput.addEventListener("input", (e) => {
         const newValue = e.target.value;
         const tickMarksContainer = document.getElementById("tick-marks-container");
         const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
         const newScrollLeft = widthInPixels * (newValue / 100);
-        const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
-        const tickMarksWrapper = document.getElementById("timeline-ticks-content");
-        for (let track of tracksToAdjust) {
-          track.scrollLeft = newScrollLeft;
-        }
-        tickMarksWrapper.scrollLeft = newScrollLeft;
+        this.scrollTracksToPoint(newScrollLeft);
         this.adjustScrubberPosition();
       });
     }
@@ -2071,7 +2083,9 @@ export class Editor {
 
     attachRemoveEditorListener(editorDetailEl) {
       const removeEditorButton = editorDetailEl.querySelector(".remove-editor-button");
-      removeEditorButton.addEventListener("click", this.handleRemoveEditor.bind(this));
+      if (removeEditorButton) {
+        removeEditorButton.addEventListener("click", this.handleRemoveEditor.bind(this));
+      }
     }
 
     attachRemoveEditorListeners() {
@@ -2164,6 +2178,149 @@ export class Editor {
         }, 300);
       }
       editorSearchInput.addEventListener("keydown", handleSearchInput.bind(this));
+    }
+
+    watchAndHandleEditorPanelSwitch() {
+      const annotationPanel = document.getElementById("editor-annotation-panel");
+      const subtitlesPanel = document.getElementById("subtitle-editor-panel");
+      const togglePanelVisiblity = () => {
+        annotationPanel.classList.toggle("editor-annotation-panel-hidden");
+        annotationPanel.classList.toggle("editor-annotation-panel-visible");
+        subtitlesPanel.classList.toggle("subtitle-editor-panel-visible");
+        subtitlesPanel.classList.toggle("subtitle-editor-panel-hidden");
+      }
+      const annotationPanelSwitchButton = document.getElementById("annotation-panel-switch");
+      const subtitlePanelSwitchButton = document.getElementById("subtitle-panel-switch");
+      annotationPanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+      subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+    }
+
+    watchAndHandleSubtitleTrackChange() {
+      const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+      subtitleSelectInput.addEventListener("change", async () => {
+        const newSubtitleTrackId = subtitleSelectInput.value;
+        if (subtitleSelectInput == undefined) {
+          console.error("Invalid subtitle track id");
+          return;
+        }
+        this.selectedSubtitleTrackId = newSubtitleTrackId;
+        const subtitlesResponse = await fetch(`/subtitles/get-editable-subtitles/${this.selectedSubtitleTrackId}`);
+        if (!subtitlesResponse.ok) {
+          console.error("Failed to get subtitle cues");
+          return;
+        }
+        const subtitlesPanelHTML = await subtitlesResponse.text();
+        const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+        currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
+        const subtitlesSettingsModal = document.getElementById("subtitles-settings");
+        this.buildWatchersForSubtitlePanelContent();
+        this.buildWatchersForSubtitleEditorCues();
+        subtitlesSettingsModal.close();
+      })
+    }
+
+    collectCues() {
+      const rawCues = document.getElementsByClassName("editor-subtitle-cue");
+      const cues = [];
+      for (let cue of rawCues) {
+        // gather elements to extract data from
+        const typeEl = cue.querySelector(".editor-subtitle-cue-type");
+        const payloadEl = cue.querySelector(".editor-subtitle-cue-content");
+        const identifierEl = cue.querySelector(".editor-subtitle-cue-identifier");
+        const startTimeEl = cue.querySelector(".editor-subtitle-cue-start");
+        const endTimeEl = cue.querySelector(".editor-subtitle-cue-end");
+        const settingsEl = cue.querySelector(".editor-subtitle-cue-settings");
+
+        // extract the data and package into array to send to backend
+        cues.push({
+          type: typeEl.value,
+          payload: payloadEl.value,
+          identifier: identifierEl.value,
+          start_time: startTimeEl.value,
+          end_time: endTimeEl.value,
+          cue_settings: settingsEl.value,
+        });
+      }
+      return cues;
+    }
+
+    async saveCues(cues, isAutosave=true) {
+      if (typeof isAutosave !== "boolean") {
+        console.error("isAutosave must be a boolean");
+        return;
+      }
+
+      const updateResponse = await fetch("/subtitles/update-subtitle-cues", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          subtitle_id: this.selectedSubtitleTrackId,
+          cues: cues,
+          seconds_nudge: 0,
+          nudge_excluded_cues: [],
+          is_autosave: isAutosave
+        })
+      });
+
+      if (!updateResponse.ok) {
+        console.error("Failed to save cues");
+        return;
+      }
+
+      const subtitleCueListWrapper = document.getElementById("subtitle-panel-list");
+      subtitleCueListWrapper.innerHTML = await updateResponse.text();
+      this.buildWatchersForSubtitleEditorCues();
+    }
+
+    buildWatchersForSubtitlePanelContent() {
+      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
+      addNewCueButton.addEventListener("click", () => {
+        const cues = this.collectCues();
+        // build new cue and append it to cues array
+        const time = this.video.currentTime;
+        // the back end sorts cues, so this will go in its correct place.
+        cues.push(
+          {
+            start_time: formatSecondsToString(time, true),
+            end_time: formatSecondsToString(time + 2, true),
+            type: "CUE",
+            payload: "",
+            identifier: "",
+            cue_settings: "",
+          }
+        )
+        this.saveCues(cues, false)
+      });
+    }
+
+    buildWatchersForSubtitleEditorCues() {
+      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      const deleteCue = (e) => {
+        const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
+        editorSubtitleCueEl.remove();
+        this.saveCues(this.collectCues(), false);
+      }
+      const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
+      for (let cueDelButton of editorSubtitleCueDeleteButtons) {
+        cueDelButton.addEventListener("click", deleteCue.bind(this));
+      }
+
+      const saveUpdatedInformation = () => {
+        this.saveCues(this.collectCues(), false);
+      }
+      const cueInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
+      for (let cueInput of cueInputs) {
+        cueInput.addEventListener("keydown", (e) => {
+          if (e.key != "Enter") {
+            return;
+          }
+          saveUpdatedInformation();
+        });
+      }
     }
 }
 

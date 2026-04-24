@@ -28,3 +28,15 @@ LEGACY_MIGRATION_AUTO_DUMP_ENABLED = True
 LEGACY_MIGRATION_AUTO_DUMP_HOUR = 3
 # The app only reads a local SQLite snapshot for legacy migration.
 # Refresh the snapshot externally or with scripts/dump_legacy_to_sqlite.py.
+
+
+# Required when behind a reverse proxy (Apache, nginx).
+# Uncomment both lines for deployed environments.
+# WARNING Modifying this setting can compromise your site’s security. Ensure you fully understand your setup before changing it.
+# Make sure ALL of the following are true before setting this (assuming the values from the example above):
+# * Your Django app is behind a proxy.
+# * Your proxy strips the X-Forwarded-Proto header from all incoming requests, even when it contains a comma-separated list of protocols. In other words, if end users include that header in their requests, the proxy will discard it.
+# * Your proxy sets the X-Forwarded-Proto header and sends it to Django, but only for requests that originally come in via HTTPS.
+# If any of those are not true, you should keep this setting set to its default None and find another way of determining HTTPS, perhaps via custom middleware.
+# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# CSRF_TRUSTED_ORIGINS = ["https://example.com"]

@@ -1,0 +1,10 @@
+<div id="subtitle-panel-content-wrapper">
+    {% if subtitle_track %}
+    <button id="add-new-subtitle-button" class="white-button-with-border">
+        + Add new subtitle at current time
+    </button>
+    <div id="subtitle-panel-list">
+        {% include 'partials/subtitle_cues.html' %}
+    </div>
+    {% endif %}
+</div>
