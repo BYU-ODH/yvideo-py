@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -414,7 +415,14 @@ class AnnotationSet(models.Model):
         ).exists() or self.can_edit(user)
 
     @classmethod
-    def create_for_content(cls, content, user, set_name=None):
+    def create_for_content(
+        cls,
+        content,
+        user,
+        set_name=None,
+        annotations_json=None,
+        annotation_set_id_to_copy=None,
+    ):
         """
         Create a new AnnotationSet for a content's resource.
         Automatically adds collection owner and instructor/TAs as editors.
@@ -448,6 +456,47 @@ class AnnotationSet(models.Model):
             # Add all collection instructors/TAs as editors
             instructors_and_tas = collection.get_instructors_and_tas()
             annotation_set.editors.add(*instructors_and_tas)
+
+            # create new annotations if provided (if importing from json, for example)
+            if annotations_json is not None and type(annotations_json) == str:
+                annotation_types = {
+                    "SkipAnnotation": SkipAnnotation,
+                    "MuteAnnotation": MuteAnnotation,
+                    "BlankAnnotation": BlankAnnotation,
+                    "PauseAnnotation": PauseAnnotation,
+                    "BlurAnnotation": BlurAnnotation,
+                    "CommentAnnotation": CommentAnnotation,
+                }
+
+                annotations = json.loads(annotations_json)
+                for annotation in annotations:
+                    annotation_class = annotation["class_type"]
+                    annotation_id = annotation["id"]
+                    try:
+                        existing_annotation = annotation_types[
+                            annotation_class
+                        ].objects.get(pk=annotation_id)
+                        existing_annotation.copy_to_new_annotation_set(annotation_set)
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to copy annotation. Annotation type: {annotation_class}, id: {annotation_id}. Exception: {e}"
+                        )
+                        continue
+
+            # copying from pre-existing annotation set
+            if annotations_json is None and annotation_set_id_to_copy is not None:
+                annotation_set_to_copy = AnnotationSet.objects.get(
+                    pk=annotation_set_id_to_copy
+                )
+                if set_name is None or set_name == "":
+                    annotation_set.name = (
+                        annotation_set_to_copy.name + f" (copied by {user.__str__})"
+                    )
+                annotations = (
+                    annotation_set_to_copy.get_active_annotations_from_tracks()
+                )
+                for annotation in annotations:
+                    annotation.copy_to_new_annotation_set(annotation_set)
 
             return annotation_set
         except Exception as e:
@@ -519,6 +568,21 @@ class Track(models.Model):
         return [
             annotation.to_player_json() for annotation in self.get_active_annotations()
         ]
+
+    def copy_to_new_annotation_set(self, annotation_set):
+        # check if a track with this name exists in the new annotation set
+        track_query_set = Track.objects.filter(
+            annotation_set=annotation_set, name=self.name
+        )
+        if track_query_set.count() > 0:
+            return track_query_set.first()
+        else:
+            new_track = Track.objects.create(
+                annotation_set=annotation_set,
+                name=self.name,
+                stack_position=self.stack_position,
+            )
+            return new_track
 
 
 class Content(models.Model):
@@ -641,13 +705,6 @@ class BaseAnnotation(models.Model):
     Undo/redo is per-annotation: each annotation has its own version history.
     """
 
-    owner = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="%(app_label)s_%(class)s_owner",
-        null=True,
-        blank=True,
-    )
     name = models.CharField(max_length=255, blank=True)
     track = models.ForeignKey(
         Track,
@@ -710,12 +767,33 @@ class BaseAnnotation(models.Model):
         return {
             "id": self.pk,
             "type": self.annotation_type,
+            "class_type": self.__class__.__name__,
             "start": start,
             "end": end,
             "start_display": seconds2hms(start),
             "end_display": seconds2hms(end),
             "label": self.name,
         }
+
+    def copy_to_new_annotation_set(self, annotation_set):
+        new_track = self.track.copy_to_new_annotation_set(annotation_set)
+        annotation_types = {
+            "SkipAnnotation": SkipAnnotation,
+            "MuteAnnotation": MuteAnnotation,
+            "BlankAnnotation": BlankAnnotation,
+            "PauseAnnotation": PauseAnnotation,
+            "BlurAnnotation": BlurAnnotation,
+            "CommentAnnotation": CommentAnnotation,
+        }
+        new_annotation = annotation_types[self.__class__.__name__].objects.create(
+            name=self.name,
+            track=new_track,
+            start_time=self.start_time,
+            end_time=self.end_time,
+            description=self.description,
+            active=self.active,
+        )
+        return new_annotation
 
     @transaction.atomic
     def edit(self, **update_fields):
@@ -827,6 +905,12 @@ class SkipAnnotation(BaseAnnotation):
         data["message"] = self.message
         return data
 
+    def copy_to_new_annotation_set(self, annotation_set):
+        new_annotation = super().copy_to_new_annotation_set(annotation_set)
+        new_annotation.message = self.message
+        new_annotation.save()
+        return new_annotation
+
 
 class MuteAnnotation(BaseAnnotation):
     """Mute annotation - standard time range."""
@@ -847,6 +931,12 @@ class BlankAnnotation(BaseAnnotation):
         default="k",
     )
 
+    def copy_to_new_annotation_set(self, annotation_set):
+        new_annotation = super().copy_to_new_annotation_set(annotation_set)
+        new_annotation.type = self.type
+        new_annotation.save()
+        return new_annotation
+
 
 class PauseAnnotation(BaseAnnotation):
     """Pause annotation - point in time, not a range."""
@@ -866,22 +956,23 @@ class PauseAnnotation(BaseAnnotation):
         """pause needs a start time even though it doesnt have an end time. This is because
         of how the AnnotationPlayer parses annotations for Y-video"""
         t = float(self.start_time or 0)
-        return {
-            "id": self.pk,
-            "type": "pause",
-            "start": t,
-            "time_display": seconds2hms(t),
-            "label": self.name,
-            "message": self.message,
-        }
+        data = super().to_player_json()
+        data["message"] = self.message
+        return data
+
+    def copy_to_new_annotation_set(self, annotation_set):
+        new_annotation = super().copy_to_new_annotation_set(annotation_set)
+        new_annotation.message = self.message
+        new_annotation.save()
+        return new_annotation
 
 
 class CommentAnnotation(BaseAnnotation):
     """Comment annotation with text and position."""
 
-    text = models.TextField()
-    x = models.FloatField()
-    y = models.FloatField()
+    text = models.TextField(default="Your comment here")
+    x = models.FloatField(default=50.0)
+    y = models.FloatField(default=50.0)
 
     def to_player_json(self):
         """Override: include text and coordinates."""
@@ -894,6 +985,14 @@ class CommentAnnotation(BaseAnnotation):
             }
         )
         return data
+
+    def copy_to_new_annotation_set(self, annotation_set):
+        new_annotation = super().copy_to_new_annotation_set(annotation_set)
+        new_annotation.text = self.text
+        new_annotation.x = self.x
+        new_annotation.y = self.y
+        new_annotation.save()
+        return new_annotation
 
 
 class BlurAnnotation(BaseAnnotation):
@@ -948,6 +1047,23 @@ class BlurAnnotation(BaseAnnotation):
             ):
                 position.delete()
             position_index = position_index - 1
+
+    def copy_to_new_annotation_set(self, annotation_set):
+        new_annotation = super().copy_to_new_annotation_set(annotation_set)
+        positions = self.positions.all()
+        for position in positions:
+            BlurAnnotationPosition.objects.create(
+                blur_annotation=new_annotation,
+                time=position.time,
+                x=position.x,
+                y=position.y,
+                width=position.width,
+                height=position.height,
+                blur_amount=position.blur_amount,
+                type=position.type,
+            )
+        new_annotation.save()
+        return new_annotation
 
 
 class BlurAnnotationPosition(models.Model):

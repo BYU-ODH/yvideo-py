@@ -508,7 +508,6 @@ def create_annotation(request, annotation_type, track_id):
 
     data = {
         "track": track,
-        "owner": request.user,
         "name": f"{annotation_type.title()} {model_class.objects.filter(track=track).count() + 1}",
         "start_time": start_time,
         "active": True,

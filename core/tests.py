@@ -1,7 +1,6 @@
 # Create your tests here.
 import copy
-
-# import json
+import json
 import unittest
 
 from django.test import TestCase
@@ -14,13 +13,21 @@ from core.utils import nudge_cue_times
 from core.utils import seconds2hms
 
 from . import api
-
-# from .models import AnnotationSet
-# from .models import Resource
-# from .models import Track
-# from .models import User
-#
-from .utils import seconds2hms
+from .factories import AnnotationSetFactory
+from .factories import BlankAnnotationFactory
+from .factories import CollectionFactory
+from .factories import CommentAnnotationFactory
+from .factories import ContentFactory
+from .factories import MuteAnnotationFactory
+from .factories import ResourceFactory
+from .factories import ResourceFileFactory
+from .factories import TrackFactory
+from .factories import UserFactory
+from .models import AnnotationSet
+from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
+from .models import PauseAnnotation
+from .models import SkipAnnotation
 
 
 class ApiTests(TestCase):
@@ -477,3 +484,236 @@ class SubtitlesTests(TestCase):
 #             reverse("delete_track", kwargs={"track_id": 99999})
 #         )
 #         self.assertEqual(response.status_code, 400)
+
+
+# The tests in AnnotationSetCreateForContentTests were created by Claude and reviewed by BDR 4/24/2026
+class AnnotationSetCreateForContentTests(TestCase):
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.resource = ResourceFactory()
+        self.resource_file = ResourceFileFactory(resource=self.resource)
+        self.collection = CollectionFactory(owner=self.owner)
+        self.content = ContentFactory(
+            collection=self.collection,
+            resource_file=self.resource_file,
+        )
+
+        self.original_set = AnnotationSetFactory(
+            name="Original Set",
+            resource=self.resource,
+            owner=self.owner,
+        )
+        self.tracks = [
+            TrackFactory(
+                annotation_set=self.original_set,
+                name=f"Track {i + 1}",
+                stack_position=i,
+            )
+            for i in range(5)
+        ]
+
+        # Track 0 holds an example of every annotation subclass so per-track
+        # copy/serialization paths are exercised for all types on a single track.
+        full_coverage_track = self.tracks[0]
+
+        self.mute_annotation = MuteAnnotationFactory(
+            track=full_coverage_track,
+            name="Mute 1",
+            start_time=0.0,
+            end_time=2.0,
+            description="mute opening",
+        )
+        self.comment_annotation = CommentAnnotationFactory(
+            track=full_coverage_track,
+            name="Comment 1",
+            start_time=3.0,
+            end_time=5.0,
+            description="opening comment",
+            text="Observe the framing",
+            x=20.0,
+            y=30.0,
+        )
+        self.blank_annotation = BlankAnnotationFactory(
+            track=full_coverage_track,
+            name="Blank 1",
+            start_time=6.0,
+            end_time=8.0,
+            description="blank interlude",
+            type="k",
+        )
+        self.skip_annotation = SkipAnnotation.objects.create(
+            track=full_coverage_track,
+            name="Skip 1",
+            start_time=9.0,
+            end_time=12.0,
+            description="skip intro",
+            message="Skipping introduction",
+        )
+        self.pause_annotation = PauseAnnotation.objects.create(
+            track=full_coverage_track,
+            name="Pause 1",
+            start_time=13.0,
+            end_time=13.0,
+            description="pause for prompt",
+            message="Discuss what you saw",
+        )
+        self.blur_annotation = BlurAnnotation.objects.create(
+            track=full_coverage_track,
+            name="Blur 1",
+            start_time=15.0,
+            end_time=20.0,
+            description="blur face on screen",
+        )
+        for time, x, y in [(15.0, 10.0, 20.0), (17.5, 15.0, 25.0), (20.0, 20.0, 30.0)]:
+            BlurAnnotationPosition.objects.create(
+                blur_annotation=self.blur_annotation,
+                time=time,
+                x=x,
+                y=y,
+                width=100.0,
+                height=80.0,
+                blur_amount=60,
+                type="blur",
+            )
+
+        # Tracks 1-4 collectively cover every annotation type at least once so
+        # distributed-across-tracks copy/serialization paths are also exercised.
+        MuteAnnotationFactory(
+            track=self.tracks[1],
+            name="Mute 2",
+            start_time=22.0,
+            end_time=26.0,
+            description="mute second section",
+        )
+        BlankAnnotationFactory(
+            track=self.tracks[2],
+            name="Blank 2",
+            start_time=27.0,
+            end_time=30.0,
+            description="blank second section",
+            type="#",
+        )
+        SkipAnnotation.objects.create(
+            track=self.tracks[2],
+            name="Skip 2",
+            start_time=31.0,
+            end_time=34.0,
+            description="skip interlude",
+            message="Skipping interlude",
+        )
+        PauseAnnotation.objects.create(
+            track=self.tracks[3],
+            name="Pause 2",
+            start_time=35.0,
+            end_time=35.0,
+            description="pause for reflection",
+            message="Reflect before continuing",
+        )
+        CommentAnnotationFactory(
+            track=self.tracks[3],
+            name="Comment 2",
+            start_time=36.0,
+            end_time=40.0,
+            description="closing comment",
+            text="Note the composition",
+            x=40.0,
+            y=60.0,
+        )
+        distributed_blur = BlurAnnotation.objects.create(
+            track=self.tracks[4],
+            name="Blur 2",
+            start_time=42.0,
+            end_time=48.0,
+            description="blur logo",
+        )
+        for time, x, y in [(42.0, 5.0, 10.0), (45.0, 6.0, 11.0), (48.0, 7.0, 12.0)]:
+            BlurAnnotationPosition.objects.create(
+                blur_annotation=distributed_blur,
+                time=time,
+                x=x,
+                y=y,
+                width=50.0,
+                height=50.0,
+                blur_amount=55,
+                type="blur",
+            )
+
+    def _assert_player_json_copy(self, original_json, new_json):
+        """Assert each annotation pair has a different id but otherwise matches."""
+        self.assertEqual(len(original_json), len(new_json))
+        for original_entry, new_entry in zip(original_json, new_json):
+            self.assertIn("id", original_entry)
+            self.assertIn("id", new_entry)
+            self.assertNotEqual(original_entry["id"], new_entry["id"])
+
+            original_other = {k: v for k, v in original_entry.items() if k != "id"}
+            new_other = {k: v for k, v in new_entry.items() if k != "id"}
+
+            # Positions (BlurAnnotation) also contain ids we must compare pairwise.
+            original_positions = original_other.pop("positions", None)
+            new_positions = new_other.pop("positions", None)
+            self.assertEqual(original_positions is None, new_positions is None)
+            if original_positions is not None:
+                self.assertEqual(len(original_positions), len(new_positions))
+                for original_pos, new_pos in zip(original_positions, new_positions):
+                    self.assertNotEqual(original_pos["id"], new_pos["id"])
+                    self.assertEqual(
+                        {k: v for k, v in original_pos.items() if k != "id"},
+                        {k: v for k, v in new_pos.items() if k != "id"},
+                    )
+
+            self.assertEqual(original_other, new_other)
+
+    def _assert_disjoint_set_track_annotation_ids(self, new_set):
+        self.assertNotEqual(new_set.pk, self.original_set.pk)
+
+        original_track_ids = {t.pk for t in self.original_set.tracks.all()}
+        new_track_ids = {t.pk for t in new_set.tracks.all()}
+        self.assertEqual(len(new_track_ids), len(original_track_ids))
+        self.assertTrue(original_track_ids.isdisjoint(new_track_ids))
+
+        original_annotation_ids = {
+            (a.__class__.__name__, a.pk)
+            for a in self.original_set.get_active_annotations_from_tracks()
+        }
+        new_annotation_ids = {
+            (a.__class__.__name__, a.pk)
+            for a in new_set.get_active_annotations_from_tracks()
+        }
+        self.assertEqual(len(new_annotation_ids), len(original_annotation_ids))
+        self.assertTrue(original_annotation_ids.isdisjoint(new_annotation_ids))
+
+    def test_create_for_content_with_annotations_json(self):
+        original_json = self.original_set.to_player_json()
+        annotations_json = json.dumps(original_json)
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            set_name="Copied From JSON",
+            annotations_json=annotations_json,
+        )
+
+        self.assertIsNotNone(new_set)
+        self.assertEqual(new_set.resource, self.resource)
+        self.assertEqual(new_set.owner, self.owner)
+
+        self._assert_player_json_copy(original_json, new_set.to_player_json())
+        self._assert_disjoint_set_track_annotation_ids(new_set)
+
+    def test_create_for_content_with_annotation_set_id_to_copy(self):
+        original_json = self.original_set.to_player_json()
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            set_name="Copied From Existing Set",
+            annotation_set_id_to_copy=self.original_set.pk,
+        )
+
+        self.assertIsNotNone(new_set)
+        self.assertEqual(new_set.resource, self.resource)
+        self.assertEqual(new_set.owner, self.owner)
+
+        self._assert_player_json_copy(original_json, new_set.to_player_json())
+        self._assert_disjoint_set_track_annotation_ids(new_set)

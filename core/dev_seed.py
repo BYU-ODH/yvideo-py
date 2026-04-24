@@ -305,7 +305,6 @@ def create_demo_data():
     )
     CommentAnnotationFactory(
         track=birds_track,
-        owner=admin,
         name="Bird Notes 1",
         start_time=8.0,
         end_time=15.0,
@@ -316,7 +315,6 @@ def create_demo_data():
     )
     CommentAnnotationFactory(
         track=birds_track,
-        owner=admin,
         name="Bird Notes 2",
         start_time=12.0,
         end_time=19.5,
@@ -327,7 +325,6 @@ def create_demo_data():
     )
     CommentAnnotationFactory(
         track=birds_track,
-        owner=admin,
         name="Bird Notes 3",
         start_time=16.0,
         end_time=22.5,
