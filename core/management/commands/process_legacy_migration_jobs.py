@@ -3,7 +3,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 
-from core.legacy_migration_services import LegacyMigrationService
+from core.legacy_migration import LegacyMigrationService
 
 
 class Command(BaseCommand):

@@ -19,10 +19,10 @@ from .legacy_migration import LegacyMigrationJob
 from .legacy_migration import LegacyMigrationKind
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationResource
+from .legacy_migration import LegacyMigrationService
 from .legacy_migration import LegacyMigrationStatus
 from .legacy_migration import LegacyMigrationUserResolution
 from .legacy_migration import LegacySourceMap
-from .legacy_migration_services import LegacyMigrationService
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation

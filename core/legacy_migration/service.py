@@ -1,22 +1,13 @@
-from collections import defaultdict
-import datetime
 import json
 import logging
 import os
 from pathlib import Path
-from pathlib import PurePosixPath
-import re
-import shlex
 import shutil
-import subprocess
 
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile
-from django.db import connections
 from django.db import transaction
 from django.utils import timezone
-import xxhash
 
 try:
     from rapidfuzz import fuzz
@@ -30,916 +21,60 @@ except ImportError:  # pragma: no cover - fallback only matters if dependency is
 
     fuzz = _FuzzFallback()
 
-from .legacy_migration import LegacyMigrationFileAction
-from .legacy_migration import LegacyMigrationFileDecision
-from .legacy_migration import LegacyMigrationIssue
-from .legacy_migration import LegacyMigrationIssueSeverity
-from .legacy_migration import LegacyMigrationJob
-from .legacy_migration import LegacyMigrationJobStatus
-from .legacy_migration import LegacyMigrationJobType
-from .legacy_migration import LegacyMigrationKind
-from .legacy_migration import LegacyMigrationResource
-from .legacy_migration import LegacyMigrationStatus
-from .legacy_migration import LegacyMigrationUserResolution
-from .legacy_migration import LegacyMigrationUserResolutionStatus
-from .legacy_migration import LegacySourceMap
-from .model_utils import create_or_update_user
-from .models import AnnotationSet
-from .models import BlankAnnotation
-from .models import BlurAnnotation
-from .models import BlurAnnotationPosition
-from .models import Clip
-from .models import Collection
-from .models import CollectionRole
-from .models import CollectionUserAccess
-from .models import CommentAnnotation
-from .models import Content
-from .models import Course
-from .models import Language
-from .models import MuteAnnotation
-from .models import PauseAnnotation
-from .models import Resource
-from .models import ResourceAccess
-from .models import ResourceFile
-from .models import SkipAnnotation
-from .models import Subtitle
-from .models import Track
-from .models import User
-from .utils import VTTCue
-from .utils import build_vtt_file_string_from_cues
-from .utils import seconds2hms
+from ..model_utils import create_or_update_user
+from ..models import AnnotationSet
+from ..models import BlankAnnotation
+from ..models import BlurAnnotation
+from ..models import BlurAnnotationPosition
+from ..models import Clip
+from ..models import Collection
+from ..models import CollectionRole
+from ..models import CollectionUserAccess
+from ..models import CommentAnnotation
+from ..models import Content
+from ..models import Course
+from ..models import Language
+from ..models import MuteAnnotation
+from ..models import PauseAnnotation
+from ..models import Resource
+from ..models import ResourceAccess
+from ..models import ResourceFile
+from ..models import SkipAnnotation
+from ..models import Subtitle
+from ..models import Track
+from ..models import User
+from .catalog import LegacyCatalogClient
+from .file_index import ChecksumCache
+from .file_index import CurrentFileIndex
+from .models import LegacyMigrationFileAction
+from .models import LegacyMigrationFileDecision
+from .models import LegacyMigrationIssue
+from .models import LegacyMigrationIssueSeverity
+from .models import LegacyMigrationJob
+from .models import LegacyMigrationJobStatus
+from .models import LegacyMigrationJobType
+from .models import LegacyMigrationKind
+from .models import LegacyMigrationResource
+from .models import LegacyMigrationStatus
+from .models import LegacyMigrationUserResolution
+from .models import LegacyMigrationUserResolutionStatus
+from .models import LegacySourceMap
+from .parsers import LegacyFileInfo
+from .parsers import build_subtitle_vtt
+from .parsers import build_user_fingerprint
+from .parsers import make_json_safe
+from .parsers import map_legacy_media_type
+from .parsers import normalize_name
+from .parsers import parse_legacy_annotations
+from .parsers import parse_legacy_clips
+from .parsers import parse_legacy_reference
+from .remote_files import get_legacy_file_extension
+from .remote_files import inspect_remote_legacy_file
+from .remote_files import is_remote_legacy_path
+from .remote_files import resolve_legacy_file_path
+from .remote_files import scp_remote_legacy_file
 
 logger = logging.getLogger(__name__)
-
-LEGACY_UUID_RE = re.compile(
-    r"(?P<kind>collections|resources)?/?(?P<identifier>[0-9a-fA-F-]{36})"
-)
-LEGACY_PUBLIC_URL_RE = re.compile(
-    r"/(?P<kind>collections|resources)/(?P<identifier>[0-9a-fA-F-]{36})"
-)
-REMOTE_LEGACY_MEDIA_ROOT_RE = re.compile(r"^(?P<host>[^:]+):(?P<path>/.*)$")
-LEGACY_URL_ONLY_RESOURCE_ID = "00000000-0000-0000-0000-000000000000"
-
-
-def normalize_name(name):
-    normalized = re.sub(r"[^a-z0-9]+", " ", (name or "").lower()).strip()
-    return re.sub(r"\s+", " ", normalized)
-
-
-def parse_legacy_reference(reference, requested_kind=None):
-    raw_reference = (reference or "").strip()
-    if not raw_reference:
-        raise ValueError("A legacy URL or UUID is required.")
-
-    url_match = LEGACY_PUBLIC_URL_RE.search(raw_reference)
-    if url_match:
-        discovered_kind = (
-            LegacyMigrationKind.COLLECTION
-            if url_match.group("kind") == "collections"
-            else LegacyMigrationKind.RESOURCE
-        )
-        identifier = url_match.group("identifier")
-    else:
-        uuid_match = LEGACY_UUID_RE.search(raw_reference)
-        if not uuid_match:
-            raise ValueError("Could not find a legacy collection/resource UUID.")
-        discovered_kind = requested_kind
-        identifier = uuid_match.group("identifier")
-
-    if requested_kind and discovered_kind and requested_kind != discovered_kind:
-        raise ValueError(
-            f"The provided reference points to a {discovered_kind}, not a {requested_kind}."
-        )
-    return discovered_kind or requested_kind, identifier
-
-
-def timestamp_to_datetime(raw_timestamp):
-    if raw_timestamp in (None, ""):
-        return None
-    if isinstance(raw_timestamp, datetime.datetime):
-        return (
-            raw_timestamp
-            if timezone.is_aware(raw_timestamp)
-            else timezone.make_aware(raw_timestamp)
-        )
-    return datetime.datetime.fromtimestamp(float(raw_timestamp), tz=datetime.UTC)
-
-
-def json_loads_loose(value, default=None):
-    if value in (None, ""):
-        return [] if default is None else default
-    if isinstance(value, (list, dict)):
-        return value
-    try:
-        return json.loads(value)
-    except json.JSONDecodeError:
-        return [] if default is None else default
-
-
-def parse_legacy_annotations(raw_annotations):
-    if raw_annotations in (None, ""):
-        return []
-    parsed = json_loads_loose(raw_annotations, default=None)
-    if parsed is not None:
-        return parsed if isinstance(parsed, list) else []
-
-    annotations = []
-    for part in [item.strip() for item in raw_annotations.split("; ") if item.strip()]:
-        try:
-            annotations.append(json.loads(part))
-        except json.JSONDecodeError:
-            logger.warning("Skipping invalid legacy annotation payload: %s", part)
-    return annotations
-
-
-def parse_legacy_clips(raw_clips):
-    clips = json_loads_loose(raw_clips, default=[])
-    return clips if isinstance(clips, list) else []
-
-
-def build_subtitle_vtt(raw_content):
-    cues = []
-    for cue in json_loads_loose(raw_content, default=[]):
-        cues.append(
-            VTTCue(
-                type="CUE",
-                payload=cue.get("text", ""),
-                start_time=seconds2hms(float(cue.get("start", 0) or 0)),
-                end_time=seconds2hms(float(cue.get("end", 0) or 0)),
-            )
-        )
-    return build_vtt_file_string_from_cues(cues)
-
-
-def map_legacy_media_type(legacy_value):
-    value = (legacy_value or "").strip().lower()
-    if value in {"vid", "video"}:
-        return Resource.MediaType.VIDEO
-    if value in {"aud", "audio"}:
-        return Resource.MediaType.AUDIO
-    if value in {"txt", "text"}:
-        return Resource.MediaType.TEXT
-    if value in {"www", "web"}:
-        return Resource.MediaType.WEB
-    return Resource.MediaType.VIDEO
-
-
-def make_json_safe(value):
-    if isinstance(value, dict):
-        return {key: make_json_safe(subvalue) for key, subvalue in value.items()}
-    if isinstance(value, list):
-        return [make_json_safe(item) for item in value]
-    if isinstance(value, tuple):
-        return [make_json_safe(item) for item in value]
-    if isinstance(value, datetime.datetime):
-        return value.isoformat()
-    return value
-
-
-def parse_remote_legacy_path(raw_value):
-    match = REMOTE_LEGACY_MEDIA_ROOT_RE.match(str(raw_value or ""))
-    if not match:
-        return None
-    return match.group("host"), match.group("path")
-
-
-def is_remote_legacy_path(raw_value):
-    return parse_remote_legacy_path(raw_value) is not None
-
-
-def build_remote_legacy_path(host, raw_path):
-    return f"{host}:{PurePosixPath(raw_path).as_posix()}"
-
-
-def resolve_legacy_file_path(legacy_path):
-    raw_path = str(legacy_path)
-    media_root = getattr(settings, "LEGACY_MIGRATION_MEDIA_ROOT", "")
-    remote_media_root = parse_remote_legacy_path(media_root)
-    if remote_media_root:
-        host, root_path = remote_media_root
-        path_value = PurePosixPath(raw_path)
-        resolved_path = (
-            path_value
-            if path_value.is_absolute()
-            else PurePosixPath(root_path) / path_value
-        )
-        return build_remote_legacy_path(host, resolved_path)
-
-    raw_path_obj = Path(raw_path)
-    if raw_path_obj.is_absolute():
-        return str(raw_path_obj)
-    if not media_root:
-        raise ImproperlyConfigured(
-            "LEGACY_MIGRATION_MEDIA_ROOT must be configured for legacy file access."
-        )
-    return str(Path(media_root) / raw_path_obj)
-
-
-def get_legacy_file_extension(resolved_path):
-    remote_path = parse_remote_legacy_path(resolved_path)
-    if remote_path:
-        _, path_value = remote_path
-        return PurePosixPath(path_value).suffix.lower()
-    return Path(resolved_path).suffix.lower()
-
-
-def format_subprocess_command(command_args):
-    return shlex.join([str(arg) for arg in command_args])
-
-
-def build_subprocess_failure_message(
-    action_label,
-    target_path,
-    command_args,
-    return_code=None,
-    stdout="",
-    stderr="",
-):
-    message_parts = [
-        f"{action_label} {target_path}.",
-        f"Command: {format_subprocess_command(command_args)}.",
-    ]
-    if return_code is not None:
-        message_parts.append(f"Exit status: {return_code}.")
-
-    normalized_stderr = (stderr or "").strip()
-    normalized_stdout = (stdout or "").strip()
-    if normalized_stderr:
-        message_parts.append(f"stderr: {normalized_stderr}")
-    if normalized_stdout:
-        message_parts.append(f"stdout: {normalized_stdout}")
-    if not normalized_stderr and not normalized_stdout:
-        message_parts.append("No stdout/stderr output.")
-
-    return " ".join(message_parts)
-
-
-def parse_remote_metadata_output(raw_output, resolved_path, command_args):
-    normalized_output = raw_output.replace("\\t", "\t").replace("\r\n", "\n")
-    normalized_output = normalized_output.replace("\n\t", "\t", 1)
-
-    try:
-        size_bytes, mtime_epoch, atime_epoch, realpath = normalized_output.split(
-            "\t", 3
-        )
-    except ValueError as exc:
-        raise OSError(
-            "Unexpected metadata response for remote legacy file "
-            f"{resolved_path}. Command: {format_subprocess_command(command_args)}. "
-            f"Output: {raw_output!r}"
-        ) from exc
-
-    return int(size_bytes), int(mtime_epoch), int(atime_epoch), realpath.strip()
-
-
-def inspect_remote_legacy_file(resolved_path):
-    remote_path = parse_remote_legacy_path(resolved_path)
-    if not remote_path:
-        raise ValueError(f"{resolved_path} is not a remote legacy path.")
-
-    host, path_value = remote_path
-    quoted_path = shlex.quote(path_value)
-    command = (
-        f"resolved=$(readlink -f -- {quoted_path} 2>/dev/null "
-        f"|| realpath -- {quoted_path} 2>/dev/null "
-        f'|| printf "%s" {quoted_path}); '
-        f"size=$(stat -Lc '%s' -- {quoted_path}) && "
-        f"mtime=$(stat -Lc '%Y' -- {quoted_path}) && "
-        f"atime=$(stat -Lc '%X' -- {quoted_path}) && "
-        'printf "%s\\t%s\\t%s\\t%s\\n" "$size" "$mtime" "$atime" "$resolved"'
-    )
-    command_args = ["ssh", "-oBatchMode=yes", host, command]
-
-    try:
-        result = subprocess.run(
-            command_args,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        raise OSError(
-            build_subprocess_failure_message(
-                "Could not inspect remote legacy file",
-                resolved_path,
-                command_args,
-                return_code=exc.returncode,
-                stdout=exc.stdout,
-                stderr=exc.stderr,
-            )
-        ) from exc
-
-    raw_output = result.stdout.rstrip("\n")
-    size_bytes, mtime_epoch, atime_epoch, realpath = parse_remote_metadata_output(
-        raw_output,
-        resolved_path,
-        command_args,
-    )
-
-    mtime_seconds = int(mtime_epoch)
-    atime_seconds = int(atime_epoch)
-    return {
-        "absolute_path": resolved_path,
-        "realpath": build_remote_legacy_path(host, realpath),
-        "size_bytes": int(size_bytes),
-        "device": None,
-        "inode": None,
-        "mtime_ns": mtime_seconds * 1_000_000_000,
-        "mtime_at": datetime.datetime.fromtimestamp(mtime_seconds, tz=datetime.UTC),
-        "atime_at": datetime.datetime.fromtimestamp(atime_seconds, tz=datetime.UTC),
-    }
-
-
-def compute_remote_checksum(resolved_path):
-    remote_path = parse_remote_legacy_path(resolved_path)
-    if not remote_path:
-        raise ValueError(f"{resolved_path} is not a remote legacy path.")
-
-    host, path_value = remote_path
-    command = f"cat -- {shlex.quote(path_value)}"
-    command_args = ["ssh", "-oBatchMode=yes", host, command]
-    file_hash = xxhash.xxh64()
-
-    with subprocess.Popen(
-        command_args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    ) as process:
-        if process.stdout is None or process.stderr is None:
-            raise OSError(
-                "Could not read remote legacy file "
-                f"{resolved_path}. Command: {format_subprocess_command(command_args)}. "
-                "stdout/stderr pipes were not available."
-            )
-        for chunk in iter(lambda: process.stdout.read(1024 * 1024), b""):
-            file_hash.update(chunk)
-        stderr_output = process.stderr.read()
-        return_code = process.wait()
-
-    if return_code != 0:
-        stderr_text = stderr_output.decode(errors="replace")
-        raise OSError(
-            build_subprocess_failure_message(
-                "Could not read remote legacy file",
-                resolved_path,
-                command_args,
-                return_code=return_code,
-                stderr=stderr_text,
-            )
-        )
-
-    return file_hash.hexdigest()
-
-
-def scp_remote_legacy_file(resolved_path, destination):
-    command_args = ["scp", "-p", "-oBatchMode=yes", resolved_path, str(destination)]
-    try:
-        subprocess.run(
-            command_args,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        raise OSError(
-            build_subprocess_failure_message(
-                "Could not copy remote legacy file",
-                resolved_path,
-                command_args,
-                return_code=exc.returncode,
-                stdout=exc.stdout,
-                stderr=exc.stderr,
-            )
-        ) from exc
-
-
-def file_fingerprint_from_stat(path_obj, stat_result):
-    return (
-        int(stat_result.st_dev),
-        int(stat_result.st_ino),
-        int(stat_result.st_size),
-        int(
-            getattr(
-                stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000)
-            )
-        ),
-        str(path_obj.resolve()),
-    )
-
-
-def compute_checksum(path_obj):
-    file_hash = xxhash.xxh64()
-    with open(path_obj, "rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            file_hash.update(chunk)
-    return file_hash.hexdigest()
-
-
-def build_user_fingerprint(user_dict):
-    parts = [
-        user_dict.get("legacy_user_id", ""),
-        user_dict.get("legacy_username", ""),
-        user_dict.get("legacy_byu_id", ""),
-        user_dict.get("legacy_email", ""),
-    ]
-    return "|".join(parts)
-
-
-class LegacyCatalogClient:
-    def __init__(self, alias=None):
-        self.alias = alias or getattr(settings, "LEGACY_MIGRATION_DB_ALIAS", "legacy")
-        if self.alias not in connections.databases:
-            raise ImproperlyConfigured(
-                f"Legacy database alias '{self.alias}' is not configured."
-            )
-        database_settings = connections.databases[self.alias]
-        if database_settings.get("ENGINE") != "django.db.backends.sqlite3":
-            raise ImproperlyConfigured("Legacy migration only supports SQLite dumps.")
-
-        if self.alias == getattr(settings, "LEGACY_MIGRATION_DB_ALIAS", "legacy"):
-            database_name_value = database_settings.get("NAME")
-            if not database_name_value:
-                raise ImproperlyConfigured(
-                    "The legacy SQLite dump path is not configured."
-                )
-            database_name = Path(database_name_value)
-            if not database_name.exists():
-                raise ImproperlyConfigured(
-                    "The legacy SQLite dump does not exist yet. Run "
-                    "scripts/dump_legacy_to_sqlite.py before preflight."
-                )
-
-    def _fetchall(self, query, params=None):
-        with connections[self.alias].cursor() as cursor:
-            cursor.execute(query, params or [])
-            columns = [column[0] for column in cursor.description]
-            return [dict(zip(columns, row, strict=False)) for row in cursor.fetchall()]
-
-    def _fetchone(self, query, params=None):
-        rows = self._fetchall(query, params=params)
-        return rows[0] if rows else None
-
-    def get_collection(self, collection_id):
-        return self._fetchone(
-            """
-            SELECT
-                c.id,
-                c.collection_name,
-                c.owner,
-                c.published,
-                c.archived,
-                c.public,
-                c.copyrighted,
-                u.username AS owner_username,
-                u.byu_person_id AS owner_byu_id,
-                u.email AS owner_email
-            FROM collections c
-            LEFT JOIN users u ON u.id = c.owner
-            WHERE c.deleted IS NULL AND c.id = %s
-            """,
-            [collection_id],
-        )
-
-    def get_resource(self, resource_id):
-        return self._fetchone(
-            """
-            SELECT
-                r.id,
-                r.resource_name,
-                r.resource_type,
-                r.requester_email,
-                r.copyrighted,
-                r.physical_copy_exists,
-                r.full_video,
-                r.published,
-                r.views,
-                r.metadata
-            FROM resources r
-            WHERE r.deleted IS NULL AND r.id = %s
-            """,
-            [resource_id],
-        )
-
-    def get_collection_contents(self, collection_id):
-        return self._fetchall(
-            """
-            SELECT
-                c.id,
-                c.collection_id,
-                c.resource_id,
-                c.title,
-                c.content_type,
-                c.url,
-                c.description,
-                c.tags,
-                c.annotations,
-                c.thumbnail,
-                c.allow_definitions,
-                c.allow_notes,
-                c.allow_captions,
-                c.views,
-                c.file_version,
-                c.published,
-                c.words,
-                c.clips
-            FROM contents c
-            WHERE c.deleted IS NULL AND c.collection_id = %s
-            ORDER BY c.created
-            """,
-            [collection_id],
-        )
-
-    def get_files_for_resources(self, resource_ids):
-        if not resource_ids:
-            return []
-        placeholders = ", ".join(["%s"] * len(resource_ids))
-        return self._fetchall(
-            f"""
-            SELECT
-                f.id,
-                f.resource_id,
-                f.filepath,
-                f.file_version,
-                f.metadata,
-                f.created,
-                f.updated
-            FROM files f
-            WHERE f.deleted IS NULL AND f.resource_id IN ({placeholders})
-            ORDER BY f.resource_id, f.file_version, f.created
-            """,
-            resource_ids,
-        )
-
-    def get_resource_access(self, resource_ids):
-        if not resource_ids:
-            return []
-        placeholders = ", ".join(["%s"] * len(resource_ids))
-        return self._fetchall(
-            f"""
-            SELECT
-                ra.resource_id,
-                ra.username,
-                u.id AS legacy_user_id,
-                u.byu_person_id,
-                u.email
-            FROM resource_access ra
-            LEFT JOIN users u ON u.username = ra.username
-            WHERE ra.deleted IS NULL AND ra.resource_id IN ({placeholders})
-            ORDER BY ra.resource_id, ra.username
-            """,
-            resource_ids,
-        )
-
-    def get_collection_access(self, collection_id):
-        return self._fetchall(
-            """
-            SELECT
-                uca.collection_id,
-                uca.account_role,
-                uca.username AS username,
-                u.id AS legacy_user_id,
-                u.byu_person_id,
-                u.email
-            FROM user_collections_assoc uca
-            LEFT JOIN users u ON u.username = uca.username
-            WHERE uca.deleted IS NULL AND uca.collection_id = %s
-            ORDER BY uca.account_role, u.username
-            """,
-            [collection_id],
-        )
-
-    def get_collection_courses(self, collection_id):
-        return self._fetchall(
-            """
-            SELECT
-                c.id,
-                c.department,
-                c.catalog_number,
-                c.section_number
-            FROM collection_courses_assoc cca
-            JOIN courses c ON c.id = cca.course_id
-            WHERE cca.deleted IS NULL
-              AND c.deleted IS NULL
-              AND cca.collection_id = %s
-            ORDER BY c.department, c.catalog_number, c.section_number
-            """,
-            [collection_id],
-        )
-
-    def get_subtitles_for_contents(self, content_ids):
-        if not content_ids:
-            return []
-        placeholders = ", ".join(["%s"] * len(content_ids))
-        return self._fetchall(
-            f"""
-            SELECT
-                s.id,
-                s.title,
-                s.language,
-                s.content,
-                s.words,
-                s.content_id
-            FROM subtitles s
-            WHERE s.deleted IS NULL AND s.content_id IN ({placeholders})
-            ORDER BY s.content_id, s.created
-            """,
-            content_ids,
-        )
-
-    def get_file_usage(self, resource_id, file_version):
-        return self._fetchall(
-            """
-            SELECT
-                c.id AS content_id,
-                c.title AS content_title,
-                col.id AS collection_id,
-                col.collection_name,
-                u.username AS collection_owner_username,
-                uca.username AS access_username,
-                uca.account_role
-            FROM contents c
-            LEFT JOIN collections col ON col.id = c.collection_id
-            LEFT JOIN users u ON u.id = col.owner
-            LEFT JOIN user_collections_assoc uca
-                ON uca.collection_id = col.id AND uca.deleted IS NULL
-            WHERE c.deleted IS NULL
-              AND c.resource_id = %s
-              AND c.file_version = %s
-            ORDER BY col.collection_name, c.title
-            """,
-            [resource_id, file_version],
-        )
-
-    def build_collection_snapshot(self, collection_id):
-        collection_row = self.get_collection(collection_id)
-        if not collection_row:
-            raise LookupError(f"Legacy collection {collection_id} was not found.")
-
-        contents = self.get_collection_contents(collection_id)
-        content_ids = [row["id"] for row in contents]
-        resource_ids = {
-            row["resource_id"]
-            for row in contents
-            if row["resource_id"] and row["resource_id"] != LEGACY_URL_ONLY_RESOURCE_ID
-        }
-
-        resources = []
-        for resource_id in sorted(resource_ids):
-            resource_row = self.get_resource(resource_id)
-            if resource_row:
-                resources.append(resource_row)
-
-        resource_map = {resource["id"]: resource for resource in resources}
-        files_by_resource = defaultdict(list)
-        for file_row in self.get_files_for_resources(sorted(resource_ids)):
-            files_by_resource[file_row["resource_id"]].append(file_row)
-
-        resource_access_by_resource = defaultdict(list)
-        for access_row in self.get_resource_access(sorted(resource_ids)):
-            resource_access_by_resource[access_row["resource_id"]].append(access_row)
-
-        subtitles_by_content = defaultdict(list)
-        for subtitle_row in self.get_subtitles_for_contents(content_ids):
-            subtitles_by_content[subtitle_row["content_id"]].append(subtitle_row)
-
-        collection_access = self.get_collection_access(collection_id)
-        courses = self.get_collection_courses(collection_id)
-
-        snapshot_resources = []
-        for resource_id in sorted(resource_ids):
-            resource_row = resource_map[resource_id]
-            snapshot_resources.append(
-                {
-                    "legacy_resource_id": resource_row["id"],
-                    "name": resource_row["resource_name"],
-                    "resource_type": resource_row["resource_type"],
-                    "requester_email": resource_row["requester_email"],
-                    "copyrighted": bool(resource_row["copyrighted"]),
-                    "physical_copy_exists": bool(resource_row["physical_copy_exists"]),
-                    "full_video": bool(resource_row["full_video"]),
-                    "published": bool(resource_row["published"]),
-                    "views": resource_row["views"] or 0,
-                    "metadata": resource_row["metadata"],
-                    "files": files_by_resource[resource_id],
-                    "resource_access": resource_access_by_resource[resource_id],
-                }
-            )
-
-        for content_row in contents:
-            if content_row["resource_id"] == LEGACY_URL_ONLY_RESOURCE_ID:
-                synthetic_resource_id = f"synthetic:{content_row['id']}"
-                snapshot_resources.append(
-                    {
-                        "legacy_resource_id": synthetic_resource_id,
-                        "name": content_row["title"] or "Legacy URL Content",
-                        "resource_type": "www",
-                        "requester_email": collection_row["owner_email"] or "",
-                        "copyrighted": bool(collection_row["copyrighted"]),
-                        "physical_copy_exists": False,
-                        "full_video": False,
-                        "published": bool(content_row["published"]),
-                        "views": content_row["views"] or 0,
-                        "metadata": {"synthetic_for_content_id": content_row["id"]},
-                        "files": [],
-                        "resource_access": [],
-                    }
-                )
-                content_row["resource_id"] = synthetic_resource_id
-
-            content_row["subtitles"] = subtitles_by_content[content_row["id"]]
-
-        return {
-            "kind": LegacyMigrationKind.COLLECTION,
-            "collection": {
-                "legacy_collection_id": collection_row["id"],
-                "name": collection_row["collection_name"],
-                "published": bool(collection_row["published"]),
-                "archived": bool(collection_row["archived"]),
-                "public": bool(collection_row["public"]),
-                "copyrighted": bool(collection_row["copyrighted"]),
-                "owner": {
-                    "legacy_user_id": collection_row["owner"],
-                    "legacy_username": collection_row["owner_username"] or "",
-                    "legacy_byu_id": collection_row["owner_byu_id"] or "",
-                    "legacy_email": collection_row["owner_email"] or "",
-                },
-            },
-            "collection_access": collection_access,
-            "courses": courses,
-            "contents": contents,
-            "resources": snapshot_resources,
-        }
-
-    def build_resource_snapshot(self, resource_id):
-        resource_row = self.get_resource(resource_id)
-        if not resource_row:
-            raise LookupError(f"Legacy resource {resource_id} was not found.")
-
-        files = self.get_files_for_resources([resource_id])
-        resource_access = self.get_resource_access([resource_id])
-        return {
-            "kind": LegacyMigrationKind.RESOURCE,
-            "resource": {
-                "legacy_resource_id": resource_row["id"],
-                "name": resource_row["resource_name"],
-                "resource_type": resource_row["resource_type"],
-                "requester_email": resource_row["requester_email"],
-                "copyrighted": bool(resource_row["copyrighted"]),
-                "physical_copy_exists": bool(resource_row["physical_copy_exists"]),
-                "full_video": bool(resource_row["full_video"]),
-                "published": bool(resource_row["published"]),
-                "views": resource_row["views"] or 0,
-                "metadata": resource_row["metadata"],
-            },
-            "resources": [
-                {
-                    "legacy_resource_id": resource_row["id"],
-                    "name": resource_row["resource_name"],
-                    "resource_type": resource_row["resource_type"],
-                    "requester_email": resource_row["requester_email"],
-                    "copyrighted": bool(resource_row["copyrighted"]),
-                    "physical_copy_exists": bool(resource_row["physical_copy_exists"]),
-                    "full_video": bool(resource_row["full_video"]),
-                    "published": bool(resource_row["published"]),
-                    "views": resource_row["views"] or 0,
-                    "metadata": resource_row["metadata"],
-                    "files": files,
-                    "resource_access": resource_access,
-                }
-            ],
-            "collection_access": [],
-            "courses": [],
-            "contents": [],
-        }
-
-
-class CurrentFileIndex:
-    def __init__(self, checksum_cache):
-        self.checksum_cache = checksum_cache
-        self.by_realpath = defaultdict(list)
-        self.by_inode = defaultdict(list)
-        self.by_size = defaultdict(list)
-        self.by_pk = {}
-        self._load()
-
-    def _load(self):
-        resource_files = list(ResourceFile.objects.select_related("resource"))
-        for resource_file in resource_files:
-            if not resource_file.file:
-                continue
-            try:
-                path = Path(resource_file.file.path)
-                stat_result = path.stat()
-            except OSError:
-                continue
-
-            entry = {
-                "resource_file_id": resource_file.pk,
-                "resource_id": resource_file.resource_id,
-                "resource_name": resource_file.resource.name,
-                "version": resource_file.version,
-                "path": resource_file.file.name,
-                "absolute_path": str(path),
-                "realpath": str(path.resolve()),
-                "device": int(stat_result.st_dev),
-                "inode": int(stat_result.st_ino),
-                "size_bytes": int(stat_result.st_size),
-                "checksum": resource_file.checksum or "",
-            }
-            self.by_realpath[entry["realpath"]].append(entry)
-            self.by_inode[(entry["device"], entry["inode"])].append(entry)
-            self.by_size[entry["size_bytes"]].append(entry)
-            self.by_pk[entry["resource_file_id"]] = entry
-
-    def get_entry(self, resource_file_id):
-        return self.by_pk.get(resource_file_id)
-
-    def _checksum_for_entry(self, entry):
-        if entry["checksum"]:
-            return entry["checksum"]
-        checksum = self.checksum_cache.get_or_compute_path_checksum(
-            Path(entry["absolute_path"])
-        )
-        entry["checksum"] = checksum
-        return checksum
-
-    def find_candidates(self, legacy_file_info):
-        candidates = []
-        seen_ids = set()
-
-        def append_matches(entries, reason):
-            for entry in entries:
-                if entry["resource_file_id"] in seen_ids:
-                    continue
-                seen_ids.add(entry["resource_file_id"])
-                candidates.append(
-                    {
-                        **entry,
-                        "match_reason": reason,
-                    }
-                )
-
-        realpath = legacy_file_info.get("realpath")
-        if realpath:
-            append_matches(self.by_realpath.get(realpath, []), "same_realpath")
-
-        inode_key = (legacy_file_info.get("device"), legacy_file_info.get("inode"))
-        if all(value is not None for value in inode_key):
-            append_matches(self.by_inode.get(inode_key, []), "same_device_inode")
-
-        if not candidates and legacy_file_info.get("size_bytes") is not None:
-            source_checksum = self.checksum_cache.get_or_compute_legacy_checksum(
-                legacy_file_info
-            )
-            if source_checksum:
-                for entry in self.by_size.get(legacy_file_info["size_bytes"], []):
-                    if self._checksum_for_entry(entry) == source_checksum:
-                        append_matches([entry], "same_checksum")
-
-        return candidates
-
-
-class ChecksumCache:
-    def __init__(self):
-        self.cache = {}
-
-    def _key_from_path(self, path_obj):
-        stat_result = path_obj.stat()
-        return file_fingerprint_from_stat(path_obj, stat_result)
-
-    def get_or_compute_path_checksum(self, path_obj):
-        key = self._key_from_path(path_obj)
-        if key not in self.cache:
-            self.cache[key] = compute_checksum(path_obj)
-        return self.cache[key]
-
-    def get_or_compute_legacy_checksum(self, legacy_file_info):
-        absolute_path = legacy_file_info["absolute_path"]
-        if is_remote_legacy_path(absolute_path):
-            host, path_value = parse_remote_legacy_path(absolute_path)
-            key = (
-                "remote",
-                host,
-                path_value,
-                legacy_file_info.get("size_bytes"),
-                legacy_file_info.get("mtime_ns"),
-            )
-            if key not in self.cache:
-                self.cache[key] = compute_remote_checksum(absolute_path)
-            return self.cache[key]
-        try:
-            path_obj = Path(absolute_path)
-            key = (
-                legacy_file_info.get("device"),
-                legacy_file_info.get("inode"),
-                legacy_file_info.get("size_bytes"),
-                legacy_file_info.get("mtime_ns"),
-            )
-            if key not in self.cache:
-                self.cache[key] = compute_checksum(path_obj)
-            return self.cache[key]
-        except OSError:
-            return ""
 
 
 class LegacyMigrationService:
@@ -1128,54 +263,43 @@ class LegacyMigrationService:
         return request_obj
 
     def _get_legacy_file_info(self, file_row):
+        import datetime
+
         absolute_path = resolve_legacy_file_path(file_row["filepath"])
-        file_info = {
-            "absolute_path": absolute_path,
-            "realpath": "",
-            "size_bytes": None,
-            "device": None,
-            "inode": None,
-            "mtime_ns": None,
-            "mtime_at": None,
-            "atime_at": None,
-            "extension": get_legacy_file_extension(absolute_path),
-            "inspection_error": "",
-        }
+        file_info = LegacyFileInfo(
+            absolute_path=absolute_path,
+            extension=get_legacy_file_extension(absolute_path),
+        )
         try:
             if is_remote_legacy_path(absolute_path):
-                file_info.update(inspect_remote_legacy_file(absolute_path))
+                for key, value in inspect_remote_legacy_file(absolute_path).items():
+                    setattr(file_info, key, value)
             else:
                 absolute_path_obj = Path(absolute_path)
                 stat_result = absolute_path_obj.stat()
-                file_info.update(
-                    {
-                        "realpath": str(absolute_path_obj.resolve()),
-                        "size_bytes": int(stat_result.st_size),
-                        "device": int(stat_result.st_dev),
-                        "inode": int(stat_result.st_ino),
-                        "mtime_ns": int(
-                            getattr(
-                                stat_result,
-                                "st_mtime_ns",
-                                int(stat_result.st_mtime * 1_000_000_000),
-                            )
-                        ),
-                        "mtime_at": datetime.datetime.fromtimestamp(
-                            stat_result.st_mtime,
-                            tz=datetime.UTC,
-                        ),
-                        "atime_at": datetime.datetime.fromtimestamp(
-                            stat_result.st_atime,
-                            tz=datetime.UTC,
-                        ),
-                    }
+                file_info.realpath = str(absolute_path_obj.resolve())
+                file_info.size_bytes = int(stat_result.st_size)
+                file_info.device = int(stat_result.st_dev)
+                file_info.inode = int(stat_result.st_ino)
+                file_info.mtime_ns = int(
+                    getattr(
+                        stat_result,
+                        "st_mtime_ns",
+                        int(stat_result.st_mtime * 1_000_000_000),
+                    )
+                )
+                file_info.mtime_at = datetime.datetime.fromtimestamp(
+                    stat_result.st_mtime, tz=datetime.UTC
+                )
+                file_info.atime_at = datetime.datetime.fromtimestamp(
+                    stat_result.st_atime, tz=datetime.UTC
                 )
         except OSError as exc:
-            file_info["inspection_error"] = str(exc)
+            file_info.inspection_error = str(exc)
             logger.warning(
                 "Legacy file inspection failed for %s: %s",
                 absolute_path,
-                file_info["inspection_error"],
+                file_info.inspection_error,
             )
         return file_info
 
@@ -1249,15 +373,6 @@ class LegacyMigrationService:
                     is_synthetic=resource_payload["legacy_resource_id"].startswith(
                         "synthetic:"
                     ),
-                    provenance={
-                        "requester_email": resource_payload.get("requester_email", ""),
-                        "metadata": resource_payload.get("metadata", ""),
-                        "copyrighted": bool(resource_payload.get("copyrighted", True)),
-                        "physical_copy_exists": bool(
-                            resource_payload.get("physical_copy_exists", False)
-                        ),
-                        "views": int(resource_payload.get("views") or 0),
-                    },
                     fuzzy_matches=self._build_fuzzy_matches(resource_payload["name"]),
                 )
 
@@ -1291,18 +406,18 @@ class LegacyMigrationService:
                             "legacy_version": file_row["file_version"] or "",
                             "target_version": file_row["file_version"] or "",
                             "legacy_path": file_row["filepath"],
-                            "legacy_extension": file_info["extension"],
-                            "size_bytes": file_info["size_bytes"],
-                            "device": file_info["device"],
-                            "inode": file_info["inode"],
-                            "mtime_at": file_info["mtime_at"],
-                            "atime_at": file_info["atime_at"],
+                            "legacy_extension": file_info.extension,
+                            "size_bytes": file_info.size_bytes,
+                            "device": file_info.device,
+                            "inode": file_info.inode,
+                            "mtime_at": file_info.mtime_at,
+                            "atime_at": file_info.atime_at,
                             "metadata": {
                                 "legacy_metadata": file_row["metadata"] or "",
-                                "absolute_path": file_info["absolute_path"],
-                                "realpath": file_info["realpath"],
-                                "mtime_ns": file_info["mtime_ns"],
-                                "inspection_error": file_info["inspection_error"],
+                                "absolute_path": file_info.absolute_path,
+                                "realpath": file_info.realpath,
+                                "mtime_ns": file_info.mtime_ns,
+                                "inspection_error": file_info.inspection_error,
                             },
                             "candidate_matches": candidate_matches,
                             **auto_reuse_defaults,
@@ -1528,17 +643,23 @@ class LegacyMigrationService:
         self.sync_request_issues(request_obj)
         if request_obj.has_blocking_issues():
             raise ValueError("The migration request still has blocking issues.")
-        request_obj.status = LegacyMigrationStatus.APPROVED
-        request_obj.save(update_fields=["status", "updated_at"])
-        job = request_obj.queue_job(LegacyMigrationJobType.IMPORT)
-        request_obj.status = LegacyMigrationStatus.QUEUED
-        request_obj.save(update_fields=["status", "updated_at"])
-        return job
+        return self._queue_job(
+            request_obj,
+            LegacyMigrationJobType.IMPORT,
+            LegacyMigrationStatus.QUEUED,
+        )
 
     def queue_preflight(self, request_obj):
-        request_obj.status = LegacyMigrationStatus.SUBMITTED
+        return self._queue_job(
+            request_obj,
+            LegacyMigrationJobType.PREFLIGHT,
+            LegacyMigrationStatus.SUBMITTED,
+        )
+
+    def _queue_job(self, request_obj, job_type, request_status):
+        request_obj.status = request_status
         request_obj.save(update_fields=["status", "updated_at"])
-        return request_obj.queue_job(LegacyMigrationJobType.PREFLIGHT)
+        return request_obj.queue_job(job_type)
 
     def run_next_job(self):
         job = (
@@ -1649,6 +770,12 @@ class LegacyMigrationService:
             },
         )
 
+    def _snapshot_resource(self, request_obj, legacy_resource_id):
+        for resource_payload in request_obj.raw_snapshot.get("resources", []):
+            if resource_payload.get("legacy_resource_id") == legacy_resource_id:
+                return resource_payload
+        return {}
+
     def _determine_target_resource(self, request_obj, migration_resource, owner):
         existing = self._get_source_map_target(
             "resource",
@@ -1684,11 +811,21 @@ class LegacyMigrationService:
             )
             return target_resource
 
-        provenance = dict(migration_resource.provenance)
+        snapshot_resource = self._snapshot_resource(
+            request_obj, migration_resource.legacy_resource_id
+        )
         notes = json.dumps(
             {
                 "legacy_resource_id": migration_resource.legacy_resource_id,
-                "legacy": provenance,
+                "legacy": {
+                    "requester_email": snapshot_resource.get("requester_email", ""),
+                    "metadata": snapshot_resource.get("metadata", ""),
+                    "copyrighted": bool(snapshot_resource.get("copyrighted", True)),
+                    "physical_copy_exists": bool(
+                        snapshot_resource.get("physical_copy_exists", False)
+                    ),
+                    "views": int(snapshot_resource.get("views") or 0),
+                },
             },
             sort_keys=True,
         )
@@ -1697,9 +834,11 @@ class LegacyMigrationService:
             or migration_resource.legacy_name,
             media_type=map_legacy_media_type(migration_resource.legacy_media_type),
             requester_netid=owner.netid,
-            copyrighted=bool(provenance.get("copyrighted", True)),
-            physical_copy_exists=bool(provenance.get("physical_copy_exists", False)),
-            views=int(provenance.get("views", 0) or 0),
+            copyrighted=bool(snapshot_resource.get("copyrighted", True)),
+            physical_copy_exists=bool(
+                snapshot_resource.get("physical_copy_exists", False)
+            ),
+            views=int(snapshot_resource.get("views") or 0),
             notes=notes,
         )
         self._upsert_source_map(

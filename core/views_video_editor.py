@@ -3,6 +3,7 @@ import json
 import logging
 
 from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
@@ -16,6 +17,7 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
+from .forms import SubtitleForm
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -78,7 +80,7 @@ def get_annotation_groups(annotations):
         }
         groups[type_name] = new_group
 
-    if type(annotations) == list:
+    if isinstance(annotations, list):
         for annotation in annotations:
             groups[annotation.annotation_type]["instances"].append(annotation)
 
@@ -335,14 +337,7 @@ def undo_annotation(request, content_id):
     if not prev_version:
         return HttpResponse("Nothing to undo for this annotation", status=400)
 
-    # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(
-        request, content, annotation_set, True
-    )
-    if timeline_layers_html:
-        return HttpResponse(timeline_layers_html)
-    else:
-        return HttpResponseServerError()
+    return convertTracksToHTML(annotation_set, request)
 
 
 @require_POST
@@ -368,14 +363,7 @@ def redo_annotation(request, content_id):
     if not next_version:
         return HttpResponse("Nothing to redo for this annotation", status=400)
 
-    # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(
-        request, content, annotation_set, True
-    )
-    if timeline_layers_html:
-        return HttpResponse(timeline_layers_html)
-    else:
-        return HttpResponseServerError()
+    return convertTracksToHTML(annotation_set, request)
 
 
 @require_POST
@@ -528,12 +516,6 @@ def create_annotation(request, annotation_type, track_id):
         BlurAnnotationPosition.objects.create(
             blur_annotation=annotation, time=0, x=50, y=50, width=4, height=3
         )
-
-    # Calculate position
-    position = {
-        "start": start_time,
-        "end": end_time,
-    }
 
     # Render item using shared partial
     track_item_html = render_to_string(
@@ -1088,7 +1070,7 @@ def create_track(request):
         if "track_name" in parsed_body:
             track["name"] = parsed_body["track_name"]
 
-        new_track = Track.objects.create(**track)
+        Track.objects.create(**track)
 
         return convertTracksToHTML(annotation_set, request)
     except Exception as e:

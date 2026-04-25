@@ -15,7 +15,6 @@ class LegacyMigrationStatus(models.TextChoices):
     SUBMITTED = "submitted", "Submitted"
     PREFLIGHT_FAILED = "preflight_failed", "Preflight Failed"
     NEEDS_REVIEW = "needs_review", "Needs Review"
-    APPROVED = "approved", "Approved"
     QUEUED = "queued", "Queued"
     RUNNING = "running", "Running"
     COMPLETED = "completed", "Completed"
@@ -136,7 +135,6 @@ class LegacyMigrationResource(models.Model):
         blank=True,
     )
     is_synthetic = models.BooleanField(default=False)
-    provenance = models.JSONField(default=dict, blank=True)
     fuzzy_matches = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

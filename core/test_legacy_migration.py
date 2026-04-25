@@ -29,16 +29,17 @@ from .factories import CollectionFactory
 from .factories import LanguageFactory
 from .factories import ResourceFactory
 from .factories import UserFactory
+from .legacy_migration import ChecksumCache
+from .legacy_migration import LegacyCatalogClient
 from .legacy_migration import LegacyMigrationFileAction
 from .legacy_migration import LegacyMigrationFileDecision
 from .legacy_migration import LegacyMigrationJob
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationResource
+from .legacy_migration import LegacyMigrationService
 from .legacy_migration import LegacyMigrationStatus
 from .legacy_migration import LegacyMigrationUserResolutionStatus
-from .legacy_migration_services import ChecksumCache
-from .legacy_migration_services import LegacyCatalogClient
-from .legacy_migration_services import LegacyMigrationService
+from .legacy_migration.parsers import LegacyFileInfo
 from .models import BlurAnnotation
 from .models import BlurAnnotationPosition
 from .models import Collection
@@ -1987,7 +1988,7 @@ class LegacyMigrationTests(TestCase):
         service = self.build_service()
 
         with mock.patch(
-            "core.legacy_migration_services.create_or_update_user",
+            "core.legacy_migration.service.create_or_update_user",
             return_value={
                 "is_new_user_created": False,
                 "user": None,
@@ -2031,7 +2032,7 @@ class LegacyMigrationTests(TestCase):
         service = self.build_service()
 
         with mock.patch(
-            "core.legacy_migration_services.create_or_update_user",
+            "core.legacy_migration.service.create_or_update_user",
             return_value={
                 "is_new_user_created": False,
                 "user": created_user.to_dict(),
@@ -2060,7 +2061,9 @@ class LegacyMigrationTests(TestCase):
     def test_get_legacy_file_info_reads_remote_paths_over_ssh(self):
         service = self.build_service()
 
-        with mock.patch("core.legacy_migration_services.subprocess.run") as run_mock:
+        with mock.patch(
+            "core.legacy_migration.remote_files.subprocess.run"
+        ) as run_mock:
             run_mock.return_value = mock.Mock(
                 stdout=(
                     "12\t1700000000\t1700000100\t"
@@ -2073,17 +2076,17 @@ class LegacyMigrationTests(TestCase):
             )
 
         self.assertEqual(
-            file_info["absolute_path"],
+            file_info.absolute_path,
             "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
         )
         self.assertEqual(
-            file_info["realpath"],
+            file_info.realpath,
             "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
         )
-        self.assertEqual(file_info["size_bytes"], 12)
-        self.assertIsNone(file_info["device"])
-        self.assertIsNone(file_info["inode"])
-        self.assertEqual(file_info["extension"], ".mp4")
+        self.assertEqual(file_info.size_bytes, 12)
+        self.assertIsNone(file_info.device)
+        self.assertIsNone(file_info.inode)
+        self.assertEqual(file_info.extension, ".mp4")
         self.assertEqual(
             run_mock.call_args.args[0][:3],
             ["ssh", "-oBatchMode=yes", "yvideo"],
@@ -2093,7 +2096,9 @@ class LegacyMigrationTests(TestCase):
     def test_get_legacy_file_info_parses_remote_metadata_with_literal_tab_escapes(self):
         service = self.build_service()
 
-        with mock.patch("core.legacy_migration_services.subprocess.run") as run_mock:
+        with mock.patch(
+            "core.legacy_migration.remote_files.subprocess.run"
+        ) as run_mock:
             run_mock.return_value = mock.Mock(
                 stdout=(
                     "998149\\t1697125681\\t1776149000\n"
@@ -2105,9 +2110,9 @@ class LegacyMigrationTests(TestCase):
                 {"filepath": "legacy/shared-birds.mp4"}
             )
 
-        self.assertEqual(file_info["size_bytes"], 998149)
+        self.assertEqual(file_info.size_bytes, 998149)
         self.assertEqual(
-            file_info["realpath"],
+            file_info.realpath,
             "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
         )
         self.assertEqual(
@@ -2130,26 +2135,26 @@ class LegacyMigrationTests(TestCase):
 
         with (
             mock.patch(
-                "core.legacy_migration_services.subprocess.run",
+                "core.legacy_migration.remote_files.subprocess.run",
                 side_effect=failure,
             ),
-            self.assertLogs("core.legacy_migration_services", level="WARNING") as logs,
+            self.assertLogs("core.legacy_migration.service", level="WARNING") as logs,
         ):
             file_info = service._get_legacy_file_info(
                 {"filepath": "legacy/shared-birds.mp4"}
             )
 
-        self.assertIsNone(file_info["size_bytes"])
+        self.assertIsNone(file_info.size_bytes)
         self.assertIn(
-            "Could not inspect remote legacy file", file_info["inspection_error"]
+            "Could not inspect remote legacy file", file_info.inspection_error
         )
         self.assertIn(
             "Command: ssh -oBatchMode=yes yvideo",
-            file_info["inspection_error"],
+            file_info.inspection_error,
         )
         self.assertIn(
             "stderr: stat: cannot stat '/opt/media/y-video/legacy/shared-birds.mp4'",
-            file_info["inspection_error"],
+            file_info.inspection_error,
         )
         self.assertIn(
             "Legacy file inspection failed for "
@@ -2214,15 +2219,15 @@ class LegacyMigrationTests(TestCase):
         process.__enter__.return_value = process
 
         with mock.patch(
-            "core.legacy_migration_services.subprocess.Popen",
+            "core.legacy_migration.remote_files.subprocess.Popen",
             return_value=process,
         ) as popen_mock:
             checksum = checksum_cache.get_or_compute_legacy_checksum(
-                {
-                    "absolute_path": "yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
-                    "size_bytes": 12,
-                    "mtime_ns": 1700000000000000000,
-                }
+                LegacyFileInfo(
+                    absolute_path="yvideo:/opt/media/y-video/legacy/shared-birds.mp4",
+                    size_bytes=12,
+                    mtime_ns=1700000000000000000,
+                )
             )
 
         self.assertEqual(checksum, xxhash.xxh64(b"legacy-video").hexdigest())
@@ -2236,7 +2241,9 @@ class LegacyMigrationTests(TestCase):
         resource = ResourceFactory(name="Imported Lecture")
         source_path = "yvideo:/opt/media/y-video/legacy/imported.mp4"
 
-        with mock.patch("core.legacy_migration_services.subprocess.run") as run_mock:
+        with mock.patch(
+            "core.legacy_migration.remote_files.subprocess.run"
+        ) as run_mock:
             relative_name = service._import_file_to_storage(
                 source_path,
                 resource,
