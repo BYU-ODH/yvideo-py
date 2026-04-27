@@ -1,12 +1,14 @@
 from functools import cmp_to_key
 import json
 import logging
+from urllib.parse import quote
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
+from django.http import HttpResponseNotFound
 from django.http import HttpResponseServerError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -1004,9 +1006,15 @@ def create_annotation_set(request):
             return HttpResponseBadRequest()
         content = Content.objects.get(pk=parsed_body["content_id"])
         name = parsed_body.get("name")
+        annotations_json = parsed_body.get("annotations_json", None)
+        annotation_set_id_to_copy = parsed_body.get("annotation_set_id_to_copy", None)
 
         annotation_set = AnnotationSet.create_for_content(
-            content, request.user, set_name=name
+            content,
+            request.user,
+            set_name=name,
+            annotations_json=annotations_json,
+            annotation_set_id_to_copy=annotation_set_id_to_copy,
         )
 
         if annotation_set is None:
@@ -1019,6 +1027,26 @@ def create_annotation_set(request):
 
     except Exception as e:
         logger.error(f"Failed to create new annotation set. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def export_annotation_set(request, annotation_set_id):
+    try:
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        annotations = annotation_set.to_player_json()
+        response = HttpResponse(
+            json.dumps(annotations, indent=2),
+            content_type="application/json",
+        )
+        filename = quote(f"{annotation_set.name}.json")
+        response["Content-Disposition"] = f"attachment; filename*=UTF-8''{filename}"
+        return response
+
+    except AnnotationSet.DoesNotExist:
+        logger.error("Failed to export annotation set because it does not exist")
+        return HttpResponseNotFound()
+    except Exception as e:
+        logger.error(f"Failed to export annotation set. Exception: {e}")
         return HttpResponseServerError()
 
 
