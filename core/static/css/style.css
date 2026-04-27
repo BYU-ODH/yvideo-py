@@ -602,6 +602,10 @@ dialog {
     color: black;
 }
 
+.navbar a:hover {
+    text-decoration: underline;
+}
+
 .navbar h1 {
     font-family: "Roboto", sans-serif;
     font-weight: normal;
@@ -748,17 +752,12 @@ dialog {
     grid-template-columns: 1fr 75px 25px;
     align-items: center;
     cursor: pointer;
-    /* max-width: 1000px;
-    margin: 0 auto; */
 }
 
 .collections-list-content {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
-    gap: 20px;
-    justify-content: center !important;
-    /* max-width: 1000px;
-    margin: 0 auto; */
+    gap: 30px;
 }
 
 .landing-page-collection-list {
@@ -768,7 +767,6 @@ dialog {
 }
 .landing-page-collection {
     border-radius: 12px;
-    /* border: 1px solid lightgrey; */
     box-shadow: rgb(185, 184, 184) 0px 1px 3px;
 }
 
@@ -803,18 +801,31 @@ p.tile-subtitle {
 }
 
 .search-wrapper {
-    position: relative;
-    width: 260px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 300px;
+    max-width: 300px;
+    background-color: #e0e0e0;
+    border-radius: 30px;
+    padding: 0px 12px;
 }
 
 .collections-search {
+    flex: 1;
     width: 100%;
-    padding: 10px 40px 10px 16px;
+    padding: 10px 10px;
     border: none;
-    border-radius: 20px;
-    background: #DBDBDB;
-    font-size: 14px;
+    font-size: 16px;
+    background-color: transparent;
+}
 
+.search-icon {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    opacity: 0.6;
 }
 
 .course-header {

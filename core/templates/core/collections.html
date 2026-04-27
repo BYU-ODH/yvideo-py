@@ -5,13 +5,15 @@
         {% if user.privilege_level == 2 or user.privilege_level == 0 %}
         <div class="landing-page-collection-list column-flex">
             <header class="collections-header row-flex flex-apart-aligned">
-                <h3>My Collections</h3>
+                <h2>My Collections</h2>
                 <div class="search-wrapper">
                     <input
                         type="text"
                         class="collections-search"
                         placeholder="Search"
+                        aria-label="Search collections"
                     >
+                    <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
                 </div>
             </header>
 
@@ -27,14 +29,7 @@
 
         <div class="landing-page-collection-list">
             <header class="collections-header row-flex flex-apart-aligned">
-                <h3>Class Collections</h3>
-                 <div class="search-wrapper">
-                    <input
-                        type="text"
-                        class="collections-search"
-                        placeholder="Search"
-                    >
-                </div>
+                <h2>Class Collections</h2>
             </header>
             <div class="yearterm-courses-list">
                 {% for yearterm in assigned_courses_by_yearterm %}
