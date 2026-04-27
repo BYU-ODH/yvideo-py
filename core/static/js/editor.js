@@ -68,6 +68,7 @@ export class Editor {
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
+        this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
@@ -2025,7 +2026,8 @@ export class Editor {
       }
 
       deleteAnnotationSetButton.addEventListener("click", async () => {
-        const selectorEl = document.getElementById("annotation-set-selector");
+        const annotationSetSettingsEl = document.getElementById("annotation-set-settings");
+        const selectorEl = annotationSetSettingsEl.querySelector(".annotation-set-selector");
         const annotationSetId = selectorEl.value;
         if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
           return;
@@ -2042,6 +2044,22 @@ export class Editor {
         }
 
         window.location.reload();
+      });
+    }
+
+    watchAndHandleAnnotationSetExport() {
+      const exportAnnotationSetEl = document.getElementById("export-annotation-set");
+      const exportButton = document.getElementById("annotation-set-export-button");
+      exportButton.addEventListener("click", async () => {
+        const exportLink = document.getElementById("export-annotation-set-link");
+        const setSelector = exportAnnotationSetEl.querySelector(".annotation-set-selector");
+        const annotationSetId = setSelector.value;
+        if (isNaN(Number(annotationSetId)) || annotationSetId == '' || annotationSetId == undefined) {
+          // prevent any non-number value from being injected into link
+          return;
+        }
+        exportLink.href = `/annotation-set/export/${Number(annotationSetId)}`;
+        exportLink.click();
       });
     }
 
@@ -2076,7 +2094,8 @@ export class Editor {
     }
 
     setupAnnotationSelectorFunctions() {
-        const setSelector = document.getElementById("annotation-set-selector");
+        const annotationSetSettingsEl = document.getElementById("annotation-set-settings");
+        const setSelector = annotationSetSettingsEl.querySelector(".annotation-set-selector");
         if (!setSelector) {
             console.error("Annotation set selector cannot be found!");
             return;

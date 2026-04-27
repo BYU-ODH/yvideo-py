@@ -1,0 +1,12 @@
+<div class="annotation-set-selector-wrapper column-flex-no-gap">
+    <label for="annotation-set-selector">Select an Annotation Set</label>
+    <select class="annotation-set-selector" class="position-flex-start" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
+        <option class="annotation-set-option" value="">-- Select Annotation Set --</option>
+        {% for set in available_annotation_sets %}
+            <option class="annotation-set-option" value="{{ set.id }}"
+                    {% if annotation_set and set.id == annotation_set.id %}selected{% endif %}>
+                <span class="set-option-name">{{ set.name }}</span> <span class="set-option-owner">({{ set.owner.get_full_name }})</span>
+            </option>
+        {% endfor %}
+    </select>
+</div>

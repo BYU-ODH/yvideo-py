@@ -224,6 +224,18 @@
     margin: 0;
 }
 
+.annotation-set-selector {
+    align-self: flex-start;
+}
+
+#annotation-set-export-button {
+    align-self: flex-start;
+}
+
+#export-annotation-set-link {
+    display: none;
+}
+
 #create-annotation-set-submit-button {
     align-self: flex-start;
 }
