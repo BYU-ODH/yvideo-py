@@ -1031,6 +1031,11 @@ def create_annotation_set(request):
 
 
 def export_annotation_set(request, annotation_set_id):
+    """Gets all annotations in the set as a JSON object and allows it to be downloaded
+    via the Content-Disposition: attachment HTTP response header. UTF-8 characters are
+    allowed in the filename in case non-ASCII/non-english characters are used. Note:
+    no file is created from this request, the JSON data is made available as if it was
+    a file and is downloaded by the client's browser."""
     try:
         annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
         annotations = annotation_set.to_player_json()
