@@ -5,24 +5,39 @@ description = "Copyright-safe course-based media sharing"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "django-reversion>=5.1.0",
-    "django>=5.2.3",
-    "onelogin==3.1.5",
-    "python3-saml>=1.16.0",
-    "requests>=2.32.5",
-    "xxhash>=3.5.0",
+    "django-reversion>=6.1.0,<7",
+    "django>=5.2.13,<5.3",
+    "gunicorn>=25.3,<26",
+    "onelogin>=3.1,<4",
+    "python3-saml>=1.16,<2",
+    "requests>=2.33,<2.34",
+    "xxhash>=3.6,<4",
 ]
 
 [dependency-groups]
 dev = [
-    "django-debug-toolbar==6.0.0",
-    "pre-commit==4.3.0",
-    "ruff==0.14.0",
+    "factory-boy==3.3.3",
+    "playwright==1.55.0",
+    "pre-commit==4.5.1",
+    "pytest==9.0.2",
+    "pytest-django==4.12.0",
+    "pytest-playwright==0.7.2",
+    "ruff==0.15.7",
 ]
 
 [tool.ruff]
-    lint.extend-select = ["I", "UP"] # Extend with isort, pydocstyle, and pyupgrade
+exclude = ["core/migrations/*.py"]
+lint.extend-select = ["I", "UP"] # Extend with isort, pydocstyle, and pyupgrade
 
 [tool.ruff.lint.isort]
 force-single-line = true
 force-sort-within-sections = true
+known-first-party = ["yvideo", "core"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "yvideo.settings"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--strict-markers"
+markers = [
+    "e2e: browser-backed end-to-end tests",
+]

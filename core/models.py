@@ -189,7 +189,7 @@ class Collection(models.Model):
         """Get all users with instructor or TA access to this collection."""
         instructor_tas = CollectionUserAccess.objects.filter(
             collection=self,
-            account_role__in=[0, 1],  # 0=instructor, 1=TA
+            collection_role__in=[CollectionRole.INSTRUCTOR, CollectionRole.TA],
         ).select_related("user")
         return [access.user for access in instructor_tas]
 
@@ -439,6 +439,46 @@ class AnnotationSet(models.Model):
 
         return annotation_set
 
+    def get_tracks(self):
+        """
+        Get all tracks as they are
+        """
+        return sorted(self.tracks.all(), key=lambda track: track.stack_position)
+
+    def get_highest_stack_position(self):
+        track_with_highest_position_value = (
+            self.tracks.all().order_by("stack_position").last()
+        )
+        return track_with_highest_position_value.stack_position
+
+    def get_active_annotations_from_tracks(self):
+        """
+        Get all currently active annotations across all tracks.
+        """
+        annotations = []
+        for track in list(self.tracks.all()):
+            annotations.extend(track.get_active_annotations())
+        return sorted(annotations, key=lambda a: a.start_time)
+
+    def to_player_json(self):
+        """Export all active annotations in this set for the AnnotationPlayer."""
+        return [
+            annotation.to_player_json()
+            for annotation in self.get_active_annotations_from_tracks()
+        ]
+
+
+class Track(models.Model):
+    annotation_set = models.ForeignKey(
+        AnnotationSet,
+        on_delete=models.CASCADE,
+        related_name="tracks",
+        null=False,
+        blank=False,
+    )
+    name = models.CharField(max_length=50, default="Track 1")
+    stack_position = models.IntegerField(default=0)
+
     def get_active_annotations(self):
         """
         Get all currently active annotations across all types.
@@ -453,10 +493,11 @@ class AnnotationSet(models.Model):
             BlurAnnotation,
             CommentAnnotation,
         ]:
-            annotations.extend(
-                model_class.objects.filter(annotation_set=self, active=True)
-            )
+            annotations.extend(model_class.objects.filter(track=self, active=True))
         return sorted(annotations, key=lambda a: a.start_time)
+
+    def is_final_stack_position(self):
+        return self.annotation_set.get_highest_stack_position() == self.stack_position
 
     def to_player_json(self):
         """Export all active annotations in this set for the AnnotationPlayer."""
@@ -536,7 +577,7 @@ class Content(models.Model):
             )
         return clips_data
 
-    def get_subtitles_json(self):
+    def get_subtitles(self):
         """
         Get all subtitles as list of dicts for the AnnotationPlayer.
         Each dict has the following keys:
@@ -547,9 +588,10 @@ class Content(models.Model):
         sub_objs = Subtitle.objects.filter(resource=self.resource_file.resource)
         subtitles = [
             {
+                "id": sub.pk,
                 "srclang": sub.language.lang_tag,
                 "vtt": sub.subtitles_file.read().decode("utf-8"),
-                "label": sub.name,
+                "name": sub.name,
             }
             for sub in sub_objs
         ]
@@ -565,7 +607,7 @@ class Content(models.Model):
             if self.annotation_set
             else [],
             "clips": self.get_clips_json(),
-            "subtitleTracks": self.get_subtitles_json(),
+            "subtitleTracks": self.get_subtitles(),
         }
 
 
@@ -592,14 +634,11 @@ class BaseAnnotation(models.Model):
         blank=True,
     )
     name = models.CharField(max_length=255, blank=True)
-    annotation_set = models.ForeignKey(
-        AnnotationSet,
+    track = models.ForeignKey(
+        Track,
         on_delete=models.CASCADE,
         related_name="%(app_label)s_%(class)s_annotations",
-        null=True,
-        blank=True,
     )
-    track_name = models.CharField(default="Track 1", blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     start_time = models.FloatField(default=0.0)
@@ -635,7 +674,10 @@ class BaseAnnotation(models.Model):
     @property
     def annotation_type(self):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
-        return self.__class__.__name__.replace("Annotation", "").lower()
+        type_string = self.__class__.__name__.replace("Annotation", "").lower()
+        if type_string == "blur":
+            type_string = "censor"
+        return type_string
 
     def calculate_position(self):
         """Calculate visual position on timeline."""
@@ -806,12 +848,13 @@ class PauseAnnotation(BaseAnnotation):
         }
 
     def to_player_json(self):
-        """Override: pause uses 'time' instead of 'start/end'."""
+        """pause needs a start time even though it doesnt have an end time. This is because
+        of how the AnnotationPlayer parses annotations for Y-video"""
         t = float(self.start_time or 0)
         return {
             "id": self.pk,
             "type": "pause",
-            "time": t,
+            "start": t,
             "time_display": seconds2hms(t),
             "label": self.name,
             "message": self.message,
@@ -842,9 +885,7 @@ class BlurAnnotation(BaseAnnotation):
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        positions_query_set = list(
-            BlurAnnotationPosition.objects.filter(blur_annotation=self).order_by("time")
-        )
+        positions_query_set = self.positions.all()
         positions = []
         for position in positions_query_set:
             positions.append(
@@ -862,10 +903,45 @@ class BlurAnnotation(BaseAnnotation):
         data.update({"positions": positions, "type": "censor"})
         return data
 
+    def get_position_locators(self):
+        positions = self.positions.all()
+        locators = []
+        normalized_duration = self.end_time - self.start_time
+        if normalized_duration <= 0:
+            return locators
+        for position in positions:
+            relative_time = position.time - self.start_time
+            locators.append(
+                {
+                    "id": position.pk,
+                    "time": position.time,
+                    "is_not_start": position.time != 0,
+                    "relative_location": round(
+                        (relative_time / normalized_duration) * 100, 2
+                    ),
+                }
+            )
+        return locators
+
+    def remove_positions_outside_of_timebox(self):
+        positions = list(self.positions.all())
+        position_index = len(positions) - 1
+        while position_index >= 0:
+            position = positions[position_index]
+            if position.time != 0 and (
+                position.time < self.start_time or position.time > self.end_time
+            ):
+                position.delete()
+            position_index = position_index - 1
+
 
 class BlurAnnotationPosition(models.Model):
     blur_annotation = models.ForeignKey(
-        BlurAnnotation, on_delete=models.CASCADE, null=False, blank=False
+        BlurAnnotation,
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+        related_name="positions",
     )
     time = models.FloatField(null=False, blank=False)
     x = models.FloatField(null=False, blank=False)

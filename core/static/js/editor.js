@@ -1,3 +1,5 @@
+import { formatSecondsToString } from "./utils.js";
+
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
     const newString = percentString.replace('%', '');
@@ -9,7 +11,6 @@ function convertPercentStringToDecimal(percentString) {
 
 export class Editor {
     constructor() {
-        this.layerContainers = document.querySelectorAll('.layer-items');
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
         this.annotationBox = window.videoPlayer.annotationBox;
@@ -19,20 +20,18 @@ export class Editor {
         this.typeOfAnnotationInFocus = null;
         this.annotationIdInFocus = null;
         this.activeCensorPosition = null;
-
-        this.tickMarksContainer = document.querySelector('.tick-marks-container');
+        this.tickMarksContainer = document.querySelector('#tick-marks-container');
         this.timelineTicks = document.querySelector('.timeline-ticks');
         this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
-        this.timelineContentWrapper = document.querySelector('.timeline-content-wrapper');
-        this.timelineContainer = document.querySelector('.timeline-container');
-        this.zoomSlider = document.getElementById('zoom-slider');
-        this.scrubber = document.querySelector('.editor-scrubber');
+        this.timelineWrapper = document.getElementById('timeline-wrapper');
+        this.zoomSliderInput = document.getElementById('timeline-scroll-input');
+        this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
-
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
+        this.selectedSubtitleTrackId = null;
 
         this.init();
     }
@@ -40,11 +39,8 @@ export class Editor {
     init() {
         const playerContainer = document.getElementById("annotation-player-container");
         this.contentId = playerContainer.dataset["contentid"];
-        this.determineLayerItemPositions();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
-        this.layerContainers.forEach(container => {
-            container.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        });
+        this.updateTracks();
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
         document.addEventListener('mouseup', this.handleMouseUp.bind(this));
 
@@ -54,8 +50,8 @@ export class Editor {
                 this.setTimeFromVideo(e.target.dataset.setTime);
             }
         });
-        this.placeLayerItems();
-        document.body.addEventListener('htmx:afterSettle', this.handleLayerItemPlacementAfterEvent.bind(this));
+        this.placeTrackItems();
+        document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
         this.watchForItemFormChanges();
 
         this.renderTickMarksAndLabels();
@@ -63,40 +59,43 @@ export class Editor {
         this.createtimelineScrubber();
         this.attachTimelineListeners();
         this.attachVideoListeners();
-        if (this.timelineContainer) {
-            this.timelineContainer.style.setProperty('--timeline-zoom', this.zoomLevel);
-        }
+        this.setupTrackWatchersForAllTracks();
+        this.watchForTrackCreation();
+        this.watchForClickOutsideOfTrackMenu();
+        this.watchForTimelineScrollChangeAndHandleIt();
+        this.setupAnnotationSelectorFunctions();
+        this.watchForAnnotationSetNameChangeAndHandleIt();
+        this.attachRemoveEditorListeners();
+        this.watchForEditorSearchInputAndHandleIt();
+        this.watchAndHandleEditorPanelSwitch();
+        this.watchAndHandleSubtitleTrackChange();
     }
 
-    placeItem(item) {
-      const itemDuration = parseFloat(item.dataset["end"]) - parseFloat(item.dataset["start"]);
-      item.style.setProperty("width", `${itemDuration / this.duration * 100}%`);
-      item.style.setProperty("left", `${parseFloat(item.dataset["start"]) / this.duration * 100}%`);
+    getCSRFToken() {
+      return document.querySelector('[name=csrfmiddlewaretoken]').value;
     }
 
-    determineLayerItemPositions() {
-      this.layerContainers.forEach(layerContainer => {
-        const layerItems = Array.from(layerContainer.children);
-
-        for (let item of layerItems) {
-          this.placeItem(item);
-        }
+    updateTracks() {
+      const tracks = document.querySelectorAll('.track-row-annotations-container');
+      tracks.forEach(container => {
+          container.addEventListener('mousedown', this.handleMouseDown.bind(this));
       });
+      this.tracks = tracks;
     }
 
     handleMouseDown(e) {
-        const layerItem = e.target.closest('.layer-item');
-        if (!layerItem) return;
+        const trackItem = e.target.closest('.track-item');
+        if (!trackItem) return;
 
         // Always trigger the form load first, regardless of where clicked
-        const contentArea = layerItem.querySelector('.layer-item-content');
+        const contentArea = trackItem.querySelector('.track-item-content');
         if (contentArea) {
             // Use htmx to trigger the GET request to load the form if available,
             // otherwise dispatch a DOM event so other code can listen for it.
             if (window.htmx && typeof window.htmx.trigger === 'function') {
-                window.htmx.trigger(contentArea, 'layer-item-click');
+                window.htmx.trigger(contentArea, 'track-item-click');
             } else {
-                const evt = new CustomEvent('layer-item-click', { bubbles: true, cancelable: true });
+                const evt = new CustomEvent('track-item-click', { bubbles: true, cancelable: true });
                 contentArea.dispatchEvent(evt);
             }
         }
@@ -104,11 +103,11 @@ export class Editor {
         const resizeHandle = e.target.closest('.resize-handle');
 
         if (resizeHandle) {
-            this.startResize(layerItem, resizeHandle, e);
+            this.startResize(trackItem, resizeHandle, e);
             e.preventDefault();
             e.stopPropagation();
         } else if (!e.target.closest('.resize-handle')) {
-            this.startDrag(layerItem, e);
+            this.startDrag(trackItem, e);
             e.preventDefault();
         }
     }
@@ -125,17 +124,17 @@ export class Editor {
       return (endTime - startTime) / this.duration;
     }
 
-    startDrag(layerItem, e) {
-        const layerContainer = layerItem.closest('.layer-items');
-        const rect = layerContainer.getBoundingClientRect();
-        const containerWidth = layerContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
+    startDrag(trackItem, e) {
+        const itemContainer = trackItem.closest('.track-row-annotations-container');
+        const rect = itemContainer.getBoundingClientRect();
+        const containerWidth = itemContainer.scrollWidth || rect.width;
+        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
 
         this.dragState = {
             type: 'drag',
-            item: layerItem,
-            container: layerContainer,
+            item: trackItem,
+            container: itemContainer,
             startX: e.clientX,
             startLeft: itemLeft * 100,
             containerWidth,
@@ -145,25 +144,25 @@ export class Editor {
         };
 
         // Reset deltas
-        layerItem.dataset.deltaLeft = '0';
-        layerItem.dataset.deltaWidth = '0';
+        trackItem.dataset.deltaLeft = '0';
+        trackItem.dataset.deltaWidth = '0';
 
-        layerItem.classList.add('dragging');
+        trackItem.classList.add('dragging');
         document.body.classList.add('dragging', 'dragging-item');
     }
 
-    startResize(layerItem, handle, e) {
+    startResize(trackItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
-        const layerContainer = layerItem.closest('.layer-items');
-        const rect = layerContainer.getBoundingClientRect();
-        const containerWidth = layerContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(layerItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(layerItem);
+        const itemContainer = trackItem.closest('.track-row-annotations-container');
+        const rect = itemContainer.getBoundingClientRect();
+        const containerWidth = itemContainer.scrollWidth || rect.width;
+        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
 
         this.dragState = {
             type: 'resize',
-            item: layerItem,
-            container: layerContainer,
+            item: trackItem,
+            container: itemContainer,
             handle,
             isLeft,
             startX: e.clientX,
@@ -176,13 +175,13 @@ export class Editor {
         };
 
         // Reset deltas
-        layerItem.dataset.deltaLeft = '0';
-        layerItem.dataset.deltaWidth = '0';
+        trackItem.dataset.deltaLeft = '0';
+        trackItem.dataset.deltaWidth = '0';
 
         document.body.classList.add('resizing', 'resizing-item');
 
         // Seek video to the handle position being dragged
-        this.seekToHandlePosition(isLeft, parseFloat(layerItem.style.left), parseFloat(layerItem.style.width));
+        this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
     }
 
     handleMouseMove(e) {
@@ -228,7 +227,12 @@ export class Editor {
 
             this.seekToHandlePosition(true, newLeft, minWidthPercent);
         } else {
-            const width = parseFloat(this.dragState.item.style.width);
+            let width = parseFloat(this.dragState.item.style.width);
+            if (width === '' || width === undefined || isNaN(width)) {
+              const itemRect = this.dragState.item.getBoundingClientRect();
+              width = itemRect.width / this.dragState.containerWidth * 100;
+              this.dragState.item.style.width = `${width}%`;
+            }
             newLeft = Math.max(0, Math.min(newLeft, 100 - width));
 
             this.dragState.item.style.left = `${newLeft}%`;
@@ -346,43 +350,65 @@ export class Editor {
     }
 
     async deleteItem(annotationType, annotationId) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      return await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
-        headers: {"X-CSRFToken": csrfToken}
+        headers: {"X-CSRFToken": this.getCSRFToken()}
       });
+
+      if (!response.ok) {
+        console.error("Failed to delete item!");
+        return;
+      }
+
+      if(this.typeOfAnnotationInFocus == "censor") {
+        this.handleFocusChangeAwayFromCensorType();
+      }
+      window.dispatchEvent(this.annotationUpdatedEvent);
+
+      // remove item from panel
+      const panelItemToRemove = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
+      if (panelItemToRemove) {
+        panelItemToRemove.remove();
+      } else {
+        console.error("Failed to remove deleted panel item");
+      }
+
+      // remove item from track
+      const trackItemToRemove = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
+      if (trackItemToRemove) {
+        trackItemToRemove.remove();
+      } else {
+        console.error("Failed to remove deleted track item");
+      }
+
+      // check if right side panel form should be emptied
+      const itemForm = document.getElementById("existing-item-form");
+      if (itemForm) {
+        const itemFormType = itemForm.dataset["annotationType"];
+        const itemFormId = itemForm.dataset["annotationId"];
+        if (annotationType == itemFormType && annotationId == itemFormId) {
+          const detailForm = document.getElementById("detail-form");
+          detailForm.innerHTML = "";
+        }
+      }
+      this.placeTrackItems();
     }
 
-    async setUpItemDeleteButton() {
+    async setUpItemFormDeleteButton() {
       const itemForm = document.getElementById("existing-item-form");
       if (!itemForm) {
         return;
       }
-      const annotationType = itemForm.dataset["itemtype"];
-      const annotationId = itemForm.dataset["annotationid"];
       const deleteItemButton = itemForm.querySelector("#annotation-form-delete-button");
+      if (!deleteItemButton) {
+        return;
+      }
+
+      const annotationType = itemForm.dataset["annotationType"];
+      const annotationId = itemForm.dataset["annotationId"];
       deleteItemButton.addEventListener("click", async (e) => {
         e.preventDefault();
-        const response = await this.deleteItem(annotationType, annotationId);
-        if (!response.ok) {
-          console.error("The item could not be deleted");
-        }
-        else {
-          if(this.typeOfAnnotationInFocus == "censor") {
-            this.handleFocusChangeAwayFromCensorType();
-          }
-          window.dispatchEvent(this.annotationUpdatedEvent);
-          const panelItemToRemove = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
-          if (panelItemToRemove) {
-            panelItemToRemove.remove();
-          }
-
-          const deletedItem = document.getElementById(`${annotationType}-${annotationId}`);
-          deletedItem.remove();
-          const detailForm = document.getElementById("detail-form");
-          detailForm.innerHTML = "";
-          this.placeLayerItems();
-        }
+        await this.deleteItem(annotationType, annotationId);
       });
     }
 
@@ -394,9 +420,14 @@ export class Editor {
       const positionEls = positionsWrapper.querySelectorAll(".position-entry");
       const positions = [];
       for (let positionEl of positionEls) {
+        const timeInput = positionEl.querySelector(".position-time-input");
+        let time = 0.0;
+        if (timeInput) {
+          time = parseFloat(timeInput.value).toFixed(2);
+        }
         positions.push({
           "id": positionEl.dataset["positionId"],
-          "time": parseFloat(positionEl.querySelector(".position-time-input").value).toFixed(2),
+          "time": time
         });
       }
       return positions;
@@ -404,7 +435,7 @@ export class Editor {
 
     placeNewCensorPositionHtml(censor_parent_id, html) {
       const annotationUpdateForm = document.getElementById("existing-item-form");
-      const currentFormId = annotationUpdateForm.dataset["annotationid"];
+      const currentFormId = annotationUpdateForm.dataset["annotationId"];
       const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
       // don't do anything if the user has moved onto a different item
       if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
@@ -420,10 +451,9 @@ export class Editor {
       if (parseFloat(parentStartTime) > parseFloat(time) || parseFloat(parentEndTime) < parseFloat(time)) {
         return;
       }
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch("/annotations/censor-position/create", {
         method: "POST",
-        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        headers: {"X-CSRFToken": this.getCSRFToken(), "Content-Type": "application/json"},
         body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
       if (response.status == 201) {
@@ -437,10 +467,12 @@ export class Editor {
     }
 
     async updateCensorPosition(positionId, time, x, y, width, height, parentAnnotationId) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch("/annotations/censor-position/update", {
         method: "POST",
-        headers: {"X-CSRFToken": csrfToken, "Content-Type": "application/json"},
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({position_id: positionId, time, x, y, width, height})
       });
       if (response.status == 201) {
@@ -454,10 +486,9 @@ export class Editor {
     }
 
     async deleteCensorPosition(parentAnnotationId, positionId) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
       const response = await fetch(`/annotations/censor-position/delete/${positionId}`, {
         method: "DELETE",
-        headers: {"X-CSRFToken": csrfToken}
+        headers: {"X-CSRFToken": this.getCSRFToken()}
       });
       if (response.status == 200) {
         const responseHtml = await response.text();
@@ -483,7 +514,7 @@ export class Editor {
       const time = parseFloat(this.video.currentTime).toFixed(2);
 
       const itemForm = document.getElementById("existing-item-form");
-      const annotationId = itemForm.dataset["annotationid"];
+      const annotationId = itemForm.dataset["annotationId"];
 
       const currentPositions = this.getCensorPositions();
       const existingPosition = currentPositions.find(position => Math.abs(position.time - time) < 0.01);
@@ -714,8 +745,8 @@ export class Editor {
         return;
       }
 
-      this.typeOfAnnotationInFocus = itemForm.dataset["itemtype"];
-      this.annotationIdInFocus = itemForm.dataset["annotationid"];
+      this.typeOfAnnotationInFocus = itemForm.dataset["annotationType"];
+      this.annotationIdInFocus = itemForm.dataset["annotationId"];
 
       if (previousTypeInFocus == "censor") {
         this.handleFocusChangeAwayFromCensorType();
@@ -730,7 +761,7 @@ export class Editor {
       for (let mutation of mutationList) {
         if (mutation.type == "childList") {
           this.listenForItemUpdateFormSubmission();
-          this.setUpItemDeleteButton();
+          this.setUpItemFormDeleteButton();
           this.changeAnnotationInFocus();
         }
       }
@@ -743,8 +774,6 @@ export class Editor {
     }
 
     async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
-      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-      const isFromItemValue = Number(isFromItem)
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -769,10 +798,10 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/${isFromItemValue}/update/`, {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
         method: "POST",
         headers: {
-          "X-CSRFToken": csrfToken,
+          "X-CSRFToken": this.getCSRFToken(),
           "Content-Type": contentType,
         },
         body: requestBody
@@ -790,14 +819,13 @@ export class Editor {
 
       const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
       targetItem.outerHTML = itemHtml;
-      // if you pass the previous targetItem into this.placeItem, it will make changes to an
-      // element that no longer exists. You must get the new element before making style changes.
+      // You must get the new element before making the style changes that occur while placing the track item.
       const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      this.placeItem(newTargetItem);
+      this.placeTrackItems();
 
       const targetForm = document.getElementById("detail-form");
       targetForm.innerHTML = formHtml;
-      this.fetchEditFormOnClick(newTargetItem);
+      this.setUpItemClickListeners(newTargetItem);
       window.dispatchEvent(this.annotationUpdatedEvent);
     }
 
@@ -862,9 +890,48 @@ export class Editor {
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
+
+    markCensorPositionAsActive(positionId) {
+      // inactivate any active form elements
+      const activeFormPositionCSSClass = "active-position-entry";
+      const currentActiveFormPositions = document.querySelectorAll(`.${activeFormPositionCSSClass}`);
+      for (let activePosition of currentActiveFormPositions) {
+        activePosition.classList.remove(activeFormPositionCSSClass);
+      }
+
+      // activate form element
+      const formPositionToActivate = document.querySelector(`.position-entry[data-position-id="${positionId}"]`);
+      if (formPositionToActivate) {
+        formPositionToActivate.classList.add(activeFormPositionCSSClass);
+      }
+
+      // inactivate any active position locators
+      const activePositionLocatorCSSClass = "active-censor-position-locator";
+      const currentActivePositionLocators = document.querySelectorAll(`.${activePositionLocatorCSSClass}`);
+      for (let activePositionLocator of currentActivePositionLocators) {
+        activePositionLocator.classList.remove(activePositionLocatorCSSClass);
+      }
+
+      // activeate position locator
+      const positionLocatorToActivate = document.querySelector(`.censor-position-locator[data-position-id="${positionId}"]`);
+      if (positionLocatorToActivate) {
+        positionLocatorToActivate.classList.add(activePositionLocatorCSSClass);
+      }
+    }
+
     setupCensorPositionSeekListeners() {
       const handler = (clickEvent) => {
-        this.video.currentTime = clickEvent.target.parentElement.querySelector(".position-time-input").value;
+        const parent = clickEvent.target.closest(".position-entry");
+        if (!parent) {
+          return;
+        }
+        const timeInput = parent.querySelector(".position-time-input");
+        let time = 0;
+        if (timeInput) {
+          time = timeInput.value;
+        }
+        this.video.currentTime = time;
+        this.markCensorPositionAsActive(parent.dataset["positionId"]);
       }
       const buttons = document.getElementsByClassName("censor-position-seek-button");
       for (let button of buttons) {
@@ -894,11 +961,13 @@ export class Editor {
       this.setupCensorPositionSeekListeners();
     }
 
-    markPanelItemAsActive(annotationType, annotationId) {
+    markItemAsActive(annotationType, annotationId) {
       if (!annotationType || !annotationId) {
         console.error("Invalid annotation type of annotation id");
         return;
       }
+
+      // handle panel item style
       const activePanelItemClass = "active-panel-item";
       const itemListExpansionClass = "annotation-type-list-expanded";
       const arrowRotationClass = "annotation-header-arrow-rotated";
@@ -928,32 +997,76 @@ export class Editor {
 
       // we are ready to add the active item's style
       thisPanelItem.classList.add(`${annotationType}-list-item-wrapper-selected`, activePanelItemClass);
+      thisPanelItem.scrollIntoView({behavior: "smooth"});
       const thisItemList = thisPanelItem.closest(".annotation-type-list");
       thisItemList.classList.add(itemListExpansionClass);
       const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
       const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
       thisGroupArrow.classList.add(arrowRotationClass);
+
+      // handle track item style
+      const activeTrackItemCSSClass = "active-track-item";
+      // first turn off styling of current active element
+      const currentActiveTrackItem = this.timelineWrapper.querySelector(`.${activeTrackItemCSSClass}`);
+      if (currentActiveTrackItem) {
+        currentActiveTrackItem.classList.remove(activeTrackItemCSSClass);
+      }
+
+      const trackItem = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
+      if (!trackItem) {
+        console.error("No track item found");
+        return;
+      }
+      trackItem.classList.add(activeTrackItemCSSClass);
+
+      // skip to start of this annotation in video
+      const startTime = Number(trackItem.dataset["start"]);
+      if (startTime && !isNaN(startTime)) {
+        this.video.currentTime = startTime;
+      }
     }
 
-    fetchEditFormOnClick(element) {
+    setUpItemClickListeners(element) {
       const annotationType = element.dataset["annotationType"];
       const annotationId = element.dataset["annotationId"];
       element.addEventListener("click", async (e) => {
         e.preventDefault();
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
-        this.markPanelItemAsActive(annotationType, annotationId);
+        this.markItemAsActive(annotationType, annotationId);
       });
+
+      // set up censor position locator listeners
+      if (annotationType == "censor") {
+        const positionLocators = element.querySelectorAll(".censor-position-locator");
+        for (let positionLocator of positionLocators) {
+          positionLocator.addEventListener("click", (e) => {
+            // allow propagation only if the patent item is not active
+            const parentItem = element.closest(".track-item");
+            if (parentItem.className.includes("active-track-item")) {
+              e.stopPropagation();
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+              return;
+            }
+            // Wait a moment, to allow html to be loaded into the DOM
+            setTimeout(() => {
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+            }, 50);
+          })
+        }
+      }
     }
 
-    setUpItemClickListeners() {
-      const layerItems = document.getElementsByClassName("layer-item");
-      for (let layerItem of layerItems) {
-        this.fetchEditFormOnClick(layerItem);
+    setUpClickListenersForAllPanelAndTrackItems() {
+      const trackItems = document.getElementsByClassName("track-item");
+      for (let trackItem of trackItems) {
+        this.setUpItemClickListeners(trackItem);
       }
 
-      const annotationPanelItems = document.getElementsByClassName("annotation-list-item-wrapper");
+      const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
-        this.fetchEditFormOnClick(panelItem);
+        this.setUpItemClickListeners(panelItem);
       }
     }
 
@@ -985,28 +1098,399 @@ export class Editor {
       }
     }
 
-    placeLayerItems() {
-        // Process each layer container separately
-        this.layerContainers.forEach(layerContainer => {
-            const layerItems = Array.from(layerContainer.children);
-            const layerContainerDim = layerContainer.getBoundingClientRect();
-            const itemCount = layerItems.length;
+    adjustScrubberHeight() {
+      const scrubberContainer = document.getElementById("timeline-row-ticks-and-scrubbers");
+      const trackRows = document.getElementsByClassName("track-row")
+      const scrubberContainerDim = scrubberContainer.getBoundingClientRect();
+      const topOfScrubber = scrubberContainerDim.top;
+      let bottomOfBottomTrack = scrubberContainerDim.bottom;
+      for (let trackRow of trackRows) {
+        const trackRowDim = trackRow.getBoundingClientRect();
+        if (bottomOfBottomTrack < trackRowDim.bottom) {
+          bottomOfBottomTrack = trackRowDim.bottom;
+        }
+      }
+      const scrubbers = document.getElementsByClassName("vertical-scrubber");
+      const newScrubberHeight = (bottomOfBottomTrack - topOfScrubber) + "px";
+      for (let scrubber of scrubbers) {
+        scrubber.style.height = newScrubberHeight;
+      }
+    }
+
+    /* TRACK EVENT WATCHERS AND HANDLERS */
+    setupTrackWatchersForAllTracks() {
+      const trackRows = document.getElementsByClassName("track-row");
+      for (let trackRow of trackRows) {
+        this.setupTrackWatchers(trackRow);
+      }
+    }
+
+    // use this method to apply all relevant watchers (event listeners) to
+    // tracks that are new to the DOM.
+    setupTrackWatchers(trackRootElement) {
+      this.watchForTrackMenuOpen(trackRootElement);
+      this.watchForDisplayTrackRename(trackRootElement);
+      this.watchForTrackRename(trackRootElement);
+      this.watchForTrackMovement(trackRootElement);
+      this.watchForTrackDelete(trackRootElement);
+    }
+
+    /* track options menu */
+    handleTrackOpenMenuClick(e) {
+      e.stopPropagation();
+      // we don't want more than one track menu visible at one time
+      const visibleMenuCSSClass = "visible-timeline-track-menu";
+      const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
+      for (let menu of allVisibleTrackMenus) {
+        menu.classList.remove(visibleMenuCSSClass);
+      }
+
+      // get track menu and position it properly
+      const wrapperDim = this.timelineWrapper.getBoundingClientRect();
+      const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
+      const trackOptionsMenu = trackMenuWrapper.querySelector(".timeline-track-menu");
+      trackOptionsMenu.style.visibility = "hidden";
+      trackOptionsMenu.classList.add(visibleMenuCSSClass);
+      const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
+      if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
+        trackOptionsMenu.classList.add("track-menu-bumped-up");
+      }
+
+      // now we are safe to make the track menu visible
+      trackOptionsMenu.style.visibility = "";
+    }
+
+    watchForTrackMenuOpen(trackRootElement) {
+      const menuButton = trackRootElement.querySelector(".editor-menu-button");
+      if (menuButton) {
+        menuButton.addEventListener("click", this.handleTrackOpenMenuClick.bind(this));
+      }
+      else {
+        console.error("No menu button found for track");
+      }
+    }
+
+    watchForClickOutsideOfTrackMenu() {
+      const editorContainer = document.getElementById("editor-container");
+      editorContainer.addEventListener("click", (e) => {
+        const visibleTrackMenus = document.getElementsByClassName("visible-timeline-track-menu");
+        for (let menu of visibleTrackMenus) {
+          const menuDim = menu.getBoundingClientRect();
+          if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
+            menu.classList.remove("visible-timeline-track-menu");
+          }
+        }
+      });
+    }
+
+    replaceTracksWithNewHTML(newTracksHTML) {
+      // remove old tracks
+      const trackRows = document.getElementsByClassName("track-row");
+
+      for (let i = trackRows.length - 1; i >= 0; i--) {
+        trackRows[i].remove();
+      }
+
+      // place new tracks in appropriate positions
+      const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
+      for (let newTrackHTML of newTracksHTML) {
+        const trackTemplate = document.createElement("template");
+        trackTemplate.innerHTML = newTrackHTML;
+        const trackParentNode = trackTemplate.content.childNodes[0];
+        this.setupTrackWatchers(trackParentNode);
+        this.timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
+      }
+    }
+
+    /* track name change */
+    async handleTrackNameChange(e) {
+      e.stopPropagation();
+      let parentTrackRow = e.target.closest(".track-row");
+
+      if (!parentTrackRow) {
+        console.error("Failed to change track name due to undefined track row element");
+        return;
+      }
+
+      const trackNameEl = parentTrackRow.querySelector(".track-name");
+      const trackId = parentTrackRow.dataset["trackId"];
+
+      function resetTrackName() {
+        const renameWrapper = parentTrackRow.querySelector(".track-rename-wrapper");
+        renameWrapper.classList.remove("track-rename-wrapper-visible");
+        e.target.value = trackNameEl.innerText;
+      }
+
+      if (e.key == "Enter") {
+        const newTrackName = e.target.value.trim();
+        const response = await fetch("/track/update", {
+          method: "post",
+          headers: {"X-CSRFToken": this.getCSRFToken()},
+          body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
+        });
+        if (!response.ok) {
+          resetTrackName();
+          return;
+        }
+
+        trackNameEl.innerText = newTrackName;
+        e.target.value = trackNameEl.innerText;
+      }
+      if (e.key == "Escape") {
+        resetTrackName();
+        return;
+      }
+    }
+
+    watchForTrackRename(trackRootElement) {
+      const trackRenameInput = trackRootElement.querySelector(".track-rename-input");
+      if (trackRenameInput) {
+        trackRenameInput.addEventListener("keydown", this.handleTrackNameChange.bind(this));
+      }
+      else {
+        console.error("No rename input found for track");
+      }
+    }
+
+    // Handles renaming of track name, canceling attempted rename,
+    // replacement of track with new track, and appending this same
+    // event listener to the new track name edit button.
+    displayTrackRenameField(e) {
+      e.stopPropagation();
+      const visibleRenameCSSClass = "track-rename-wrapper-visible";
+
+      // close any other open rename fields
+      const visibleRenameWrappers = document.getElementsByClassName(visibleRenameCSSClass);
+      for (let wrapper of visibleRenameWrappers) {
+        wrapper.classList.remove(visibleRenameCSSClass);
+      }
+
+      // open the rename wrapper we are interested in
+      const parentRow = e.target.closest(".track-row");
+      const renameWrapper = parentRow.querySelector(".track-rename-wrapper");
+      const renameInput = renameWrapper.querySelector(".track-rename-input");
+      renameWrapper.classList.add(visibleRenameCSSClass);
+      renameInput.focus();
+      renameInput.setSelectionRange(0, 50);
+    }
+
+    watchForDisplayTrackRename(trackRootElement) {
+      const renameButton = trackRootElement.querySelector(".track-menu-rename");
+      if (renameButton) {
+        renameButton.addEventListener("click", this.displayTrackRenameField.bind(this))
+      }
+      else {
+        console.error("No rename button found for track");
+      }
+    }
+
+    /* track delete */
+    async deleteTrack(e) {
+      const trackRow = e.target.closest(".track-row");
+      const trackId = trackRow.dataset["trackId"];
+      const trackDeleteResponse = await fetch(`/track/delete/${trackId}`, {
+        method: "delete",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!trackDeleteResponse.ok) {
+        console.error("Failed to delete track");
+        return;
+      }
+
+      trackRow.remove();
+      this.updateTracks();
+    }
+
+    watchForTrackDelete(trackRootElement) {
+      const deleteButton = trackRootElement.querySelector(".track-menu-delete");
+      if (deleteButton) {
+        deleteButton.addEventListener("click", this.deleteTrack.bind(this))
+      }
+    }
+
+    /* Track order reassignment */
+    async handleTrackOrderReassignment(trackIdToMove, isMoveUp) {
+      if (typeof(isMoveUp) != "boolean") {
+        console.error("isMoveUp must be boolean type");
+        return;
+      }
+      const trackRows = document.getElementsByClassName("track-row");
+      const trackIdOrder = [];
+      for (let trackRow of trackRows) {
+        trackIdOrder.push(trackRow.dataset["trackId"]);
+      }
+
+      // we don't want to attempt to move the first track up, or the last track down
+      if ((isMoveUp && trackIdOrder[0] == trackIdToMove) || (!isMoveUp && trackIdOrder[trackIdOrder.length - 1] == trackIdToMove)) {
+        return;
+      }
+
+      // use isMoveUp to iterate over only the parts of the array that we care about.
+      // Remember - we don't care to move the top row up, or the bottom row down
+      for (let i = Number(isMoveUp); i < trackIdOrder.length - Number(!isMoveUp); i++) {
+        const currentTrackId = trackIdOrder[i];
+        if (currentTrackId == trackIdToMove) {
+          if (isMoveUp) {
+            const swappingTrackId = trackIdOrder[i - 1];
+            trackIdOrder[i - 1] = currentTrackId;
+            trackIdOrder[i] = swappingTrackId;
+          }
+          else {
+            const swappingTrackId = trackIdOrder[i + 1];
+            trackIdOrder[i + 1] = currentTrackId;
+            trackIdOrder[i] = swappingTrackId
+          }
+          break;
+        }
+      }
+
+      const orderUpdateResponse = await fetch("/tracks/update_stack_positions",
+        {
+          method: "post",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            track_ids: trackIdOrder
+          })
+        }
+      );
+
+      if (!orderUpdateResponse.ok) {
+        console.error("Failed to update stack positions across all tracks");
+        return;
+      }
+      const jsonData = await orderUpdateResponse.json();
+      const newTracksHTML = jsonData["tracks_html"];
+
+      this.replaceTracksWithNewHTML(newTracksHTML);
+      this.updateTracks();
+      this.placeTrackItems();
+    }
+
+    watchForTrackMovement(trackRootElement) {
+      const trackId = trackRootElement.dataset["trackId"];
+      const moveUpButton = trackRootElement.querySelector(".track-menu-move-up");
+
+      if (moveUpButton) {
+        const handleMoveUp = () => {this.handleTrackOrderReassignment(trackId, true)};
+        moveUpButton.addEventListener("click", handleMoveUp.bind(this));
+      }
+
+      const moveDownButton = trackRootElement.querySelector(".track-menu-move-down");
+      if (moveDownButton) {
+        const handleMoveDown = () => {this.handleTrackOrderReassignment(trackId, false)};
+        moveDownButton.addEventListener("click", handleMoveDown.bind(this));
+      }
+    }
+
+    /* track creation */
+    watchForTrackCreation() {
+      const addNewTrackButton = document.getElementById("new-track-save-button");
+      const addNewTrackInput = document.getElementById("new-track-name");
+      const dialog = document.getElementById("new-track-dialog");
+      const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
+
+      async function handleTrackCreation(e) {
+        e.stopPropagation();
+        // allow any event unless it is keydown triggered from a key other than the Enter key
+        if (e.type == "keydown" && e.key != "Enter") {
+          return;
+        }
+        const newTrackName = addNewTrackInput.value;
+        if (!newTrackName) {
+          return;
+        }
+
+        const newTrackResponse = await fetch("/track/create", {
+          method: "post",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            "annotation_set_id": annotationSetId,
+            "track_name": newTrackName
+          })
+        });
+
+        dialog.close();
+
+        if (!newTrackResponse.ok) {
+          console.error("Failed to create new track!");
+          return;
+        }
+
+        addNewTrackInput.value = "";
+
+        const responseData = await newTrackResponse.json();
+        const newTracksHTML = responseData["tracks_html"];
+
+        this.replaceTracksWithNewHTML(newTracksHTML);
+        this.updateTracks();
+        this.placeTrackItems();
+        this.adjustScrubberHeight();
+      }
+      addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
+      addNewTrackInput.addEventListener("keydown", (e) => {
+        if (e.key == "Enter") {
+          addNewTrackButton.click();
+        }
+      });
+    }
+
+    placeTrackItems() {
+        // Process each track container separately
+        this.tracks.forEach(track => {
+            const trackItems = Array.from(track.children);
+            for (let item of trackItems) {
+              const itemStart = parseFloat(item.dataset["start"]);
+              const itemEnd = parseFloat(item.dataset["end"]);
+              const itemDuration = itemEnd - itemStart;
+
+              if (item.dataset.annotationType != "pause") {
+                const itemWidthValue = itemDuration / this.duration * 100;
+                item.style.setProperty("width", `${itemWidthValue}%`);
+              }
+              const itemLeftValue = parseFloat(item.dataset["start"]) / this.duration * 100
+              item.style.setProperty("left", `${itemLeftValue}%`);
+
+              // apply postion styling to censor positions
+              if (item.dataset.annotationType == "censor") {
+                const censorPositionLocators = item.querySelectorAll(".censor-position-locator");
+                for (let positionLocator of censorPositionLocators) {
+                  const positionLocatorDim = positionLocator.getBoundingClientRect();
+                  const positionWidth = positionLocatorDim.width;
+                  const positionTime = positionLocator.dataset["positionTime"];
+                  const leftValue = ((positionTime - itemStart) / (itemEnd - itemStart)) * 100;
+                  positionLocator.style.setProperty("left", `calc(${leftValue}% - ${positionWidth / 2 - 2}px`);
+                }
+              }
+            }
+            const trackDim = track.getBoundingClientRect();
+            const itemCount = trackItems.length;
 
             // Track the bottom of each row (stack)
             let rowBottoms = [];
 
-            // place each layer item
+            // place each track item
             for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
-                const currentLayerItem = layerItems[itemIndex];
-                const currentItemStart = Number(currentLayerItem.dataset.start);
-                const currentItemEnd = Number(currentLayerItem.dataset.end);
+                const currentTrackItem = trackItems[itemIndex];
+                const currentItemStart = Number(currentTrackItem.dataset.start);
+                const currentItemEnd = Number(currentTrackItem.dataset.end);
+                const currentTrackItemDim = currentTrackItem.getBoundingClientRect();
 
-                // find the lowest positioned overlapping sibling so we know where to place currentLayerItem
+                // find the lowest positioned overlapping sibling so we know where to place currentTrackItem
                 let allOverlappingSiblings = [];
                 let lowestPositionedOverlappingSibling;
                 for (let siblingItemIndex = 0; siblingItemIndex < itemIndex; siblingItemIndex++) {
-                    const siblingItem = layerItems[siblingItemIndex];
-                    if (siblingItem == currentLayerItem) { // this should never happen
+                    const siblingItem = trackItems[siblingItemIndex];
+                    if (siblingItem == currentTrackItem) { // this should never happen
                         break;
                     }
                     const siblingItemStart = Number(siblingItem.dataset.start);
@@ -1036,13 +1520,13 @@ export class Editor {
                     }
                 }
 
-                // place currentLayerItem if there is an overlapping sibling
+                // place currentTrackItem if there is an overlapping sibling
                 if (lowestPositionedOverlappingSibling) {
                     // check if there is room at the top
                     let isSiblingOccupyingTopSpot = false;
                     for (let sibling of allOverlappingSiblings) {
                         const overLapSibDim = sibling.getBoundingClientRect();
-                        if (overLapSibDim.bottom - layerContainerDim.top <= 35) {
+                        if (overLapSibDim.bottom - trackDim.top <= 35) {
                             isSiblingOccupyingTopSpot = true;
                             break;
                         }
@@ -1050,44 +1534,45 @@ export class Editor {
                     if (isSiblingOccupyingTopSpot) {
                         // take the bottom of sibling, subtract the top of the container, add 5 pixels
                         const siblingDim = lowestPositionedOverlappingSibling.getBoundingClientRect();
-                        currentLayerItem.style.top = siblingDim.bottom - layerContainerDim.top + 5 + "px";
+                        currentTrackItem.style.top = siblingDim.bottom - trackDim.top + 5 + "px";
                     }
-                    // else place at the top (default)
                 } else {
-                    currentLayerItem.style.top = "0px";
+                    // else place at the top (default)
+                    currentTrackItem.style.top = "5px";
                 }
 
                 // Track the bottom of this item for stacking calculation
-                const itemTop = parseFloat(currentLayerItem.style.top) || 0;
-                const itemBottom = itemTop + 30; // item height is 30px
+                const itemTop = parseFloat(currentTrackItem.style.top) || 0;
+                const itemBottom = itemTop + currentTrackItemDim.height; // item height is 30px
                 rowBottoms.push(itemBottom);
             }
 
             // Calculate the number of stacked rows (find max top value / 35 + 1)
             let maxStack = 1;
-            if (layerItems.length > 0) {
+            if (trackItems.length > 0) {
                 // Find all unique top positions (rounded to nearest 5px)
-                const tops = layerItems.map(item => Math.round((parseFloat(item.style.top) || 0) / 5) * 5);
+                const tops = trackItems.map(item => Math.round((parseFloat(item.style.top) || 0) / 5) * 5);
                 const uniqueRows = Array.from(new Set(tops));
                 maxStack = uniqueRows.length;
             }
 
-            // Set min-height on the parent .layer
-            const layer = layerContainer.closest('.layer');
-            if (layer) {
+            // Set min-height on the parent track (timeline-row)
+            const trackContainer = track.closest('.timeline-row');
+            if (trackContainer) {
                 // 1 item = 40px; 2 = 75px; 3 = 110px; 4 = 145px; etc. (diff = 35px)
                 const minHeight = (maxStack * 35) + 5;
-                layer.style.minHeight = `${minHeight}px`;
+                trackContainer.style.minHeight = `${minHeight}px`;
             }
         });
-      this.setUpItemClickListeners();
+      this.adjustScrubberHeight();
+      this.setUpClickListenersForAllPanelAndTrackItems();
     }
 
-    handleLayerItemPlacementAfterEvent(e) {
+    handleTrackItemPlacementAfterEvent(e) {
         const classList = e.detail.target.classList;
         const id = e.detail.target.id;
-        if (classList.contains('layer-items') || classList.contains("layer-item") || classList.contains("detail-form") || id.includes("item-")) {
-            this.placeLayerItems();
+        if (classList.contains('track-items') || classList.contains("track-item") || classList.contains("detail-form") || id.includes("item-")) {
+            this.placeTrackItems();
         }
     }
 
@@ -1097,6 +1582,12 @@ export class Editor {
           const annotationType = button.dataset["annotationType"];
           button.addEventListener("click", async (e) => {
             e.preventDefault();
+            const trackRow = document.querySelector(".track-row");
+            if (!trackRow) {
+              console.error("Unable to assign listeners to new item creation buttons. Invalid track row.");
+              return;
+            }
+            const trackId = trackRow.dataset["trackId"];
 
             let startTime = 0;
             let endTime = 0;
@@ -1107,11 +1598,13 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            const response = await fetch(`/annotations/${annotationType}/create/content/${this.contentId}`,
+            const response = await fetch(`/annotations/${annotationType}/create/track/${trackId}`,
               {
                 method: "POST",
-                headers: {"X-CSRFToken": csrfToken},
+                headers: {
+                  "X-CSRFToken": this.getCSRFToken(),
+                  "Content-Type": "application/json"
+                },
                 body: JSON.stringify({
                   "start_time": startTime,
                   "end_time": endTime
@@ -1123,17 +1616,16 @@ export class Editor {
               const panel = document.getElementById(`${annotationType}-annotation-items-list`);
               panel.innerHTML = panel.innerHTML + newPanelItemHtml;
 
-              const newLayerItemHtml = parsedResponse["layer_item_html"];
-              const layerContainer = document.getElementById(`${annotationType}-item-container`);
+              const newTrackItemHtml = parsedResponse["track_item_html"];
+              const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
               const newElement = document.createElement("template");
-              newElement.innerHTML = newLayerItemHtml;
+              newElement.innerHTML = newTrackItemHtml;
               const newNode = newElement.content.firstChild;
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
-              layerContainer.append(newNode);
-              this.fetchEditFormOnClick(newNode);
-              this.placeItem(newNode);
-              this.placeLayerItems();
+              trackContainer.appendChild(newNode);
+              this.setUpItemClickListeners(newNode);
+              this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
             else {
@@ -1181,7 +1673,12 @@ export class Editor {
         label.textContent = this.formatTime(time);
 
         const percent = (time / this.duration) * 100;
-        label.style.left = `${percent}%`;
+        if (percent == 0) {
+          label.className += " first-tick";
+        }
+        else {
+          label.style.left = `${percent}%`;
+        }
 
         return label;
     }
@@ -1219,63 +1716,130 @@ export class Editor {
 
         // Generate tick marks
         for (let time = 0; time <= this.duration; time += minorInterval) {
-            const isMajor = Math.abs(time % interval) < 0.01;
-            const tick = this.createTickMark(time, isMajor);
+            const compTime = time.toFixed(2);
+            const isMajor = Math.abs(compTime % interval) < 0.01;
+            const tick = this.createTickMark(compTime, isMajor);
             this.tickMarksContainer.appendChild(tick);
 
             // Add label for major ticks
             if (isMajor) {
-                const label = this.createTickLabel(time);
+                const label = this.createTickLabel(compTime);
                 this.tickMarksContainer.appendChild(label);
             }
         }
     }
 
-    handleZoom(newZoomLevel) {
-        const video = document.querySelector('.annotation-player-container video');
-        const currentTime = video?.currentTime || 0;
-        const currentPercent = this.duration > 0 ? currentTime / this.duration : 0;
+    adjustScrubberPosition() {
+      /* The scrubber is bound between 0% and 100%, it never goes off the page,
+     so we need to position it based on the current time of the video and how far zoomed
+    the page timeline is. We can think of the currently displayed time as a window on slider.*/
+      const totalTimeline = document.getElementById("tick-marks-container");
+      const totalScrollableWidth = totalTimeline.getBoundingClientRect().width;
+      const visibleTimeline = document.getElementById("timeline-ticks-content");
+      const timeWindowWidth = visibleTimeline.getBoundingClientRect().width;
+      const currentPositionLeft = visibleTimeline.scrollLeft;
+      const currentPositionRight = currentPositionLeft + timeWindowWidth;
 
-        const viewportWidth = this.timelineContentWrapper.clientWidth;
-        const oldContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        const scrollLeft = this.timelineContentWrapper.scrollLeft;
-        const scrubberPixelPositionOld = currentPercent * oldContentWidth;
-        let scrubberViewportRatio = viewportWidth
-            ? (scrubberPixelPositionOld - scrollLeft) / viewportWidth
-            : 0;
-        scrubberViewportRatio = Math.max(0, Math.min(1, scrubberViewportRatio));
+      const timeAtLeftEnd = this.video.duration * (currentPositionLeft / totalScrollableWidth);
+      const timeAtRightEnd = this.video.duration * (currentPositionRight / totalScrollableWidth);
+      const currentTime = this.video.currentTime;
+      if (currentTime <= timeAtLeftEnd) {
+        this.editorScrubber.style.left = "0%";
+      }
+      else if (currentTime >= timeAtRightEnd) {
+        this.editorScrubber.style.left = "100%";
+      }
+      else {
+        const normalizedTime = currentTime - timeAtLeftEnd;
+        const normalizedEndTime = timeAtRightEnd - timeAtLeftEnd;
+        const scrubberPos = normalizedTime / normalizedEndTime * 100;
+        this.editorScrubber.style.left = `${scrubberPos}%`;
+      }
+    }
 
-        this.zoomLevel = newZoomLevel;
+    handleZoom() {
+      const annotationContainers = this.timelineWrapper.querySelectorAll(".track-row-annotations-container");
+      if (annotationContainers.length == 0) {
+        return;
+      }
 
-        if (this.timelineContainer) {
-            this.timelineContainer.style.setProperty('--timeline-zoom', newZoomLevel);
-        }
+      const newWidth = `${100 * this.zoomLevel}%`;
+      const tickMarksContainer = document.getElementById("tick-marks-container");
+      if (tickMarksContainer) {
+        tickMarksContainer.style.width = newWidth;
+      }
+      for (let annotationContainer of annotationContainers) {
+        annotationContainer.style.width = newWidth;
+      }
 
-        this.renderTickMarksAndLabels();
-
-        const newContentWidth = this.timelineContainer?.scrollWidth || viewportWidth;
-        const newViewportWidth = this.timelineContentWrapper.clientWidth;
-        const scrubberPixelPosition = currentPercent * newContentWidth;
-        let targetScrollLeft = scrubberPixelPosition - (scrubberViewportRatio * newViewportWidth);
-        const maxScrollLeft = Math.max(0, newContentWidth - newViewportWidth);
-        targetScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
-        this.timelineContentWrapper.scrollLeft = targetScrollLeft;
+      const locationRatio = this.video.currentTime / this.video.duration;
+      const trackWidth = tickMarksContainer.getBoundingClientRect().width;
+      const tickMarkContainerParent = tickMarksContainer.closest("#timeline-ticks-content");
+      const parentWidth = tickMarkContainerParent.getBoundingClientRect().width;
+      this.scrollTracksToPoint((trackWidth * locationRatio) - parentWidth / 2);
+      this.renderTickMarksAndLabels();
     }
 
     attachZoomListener() {
-        if (!this.zoomSlider) return;
+      const bindZoomLevel = () => {
+        if (this.zoomLevel > 10) {
+          console.error("zoomLevel exceeded expected max zoom of 10; reverting to zoom 10.");
+          this.zoomLevel = 10;
+        }
+        else if (this.zoomLevel < 1) {
+          console.error("zoomLevel lower than expected min zoom of 1; reverting to zoom 1.");
+          this.zoomLevel = 1;
+        }
+      }
 
-        this.zoomSlider.addEventListener('input', (e) => {
-            const newZoomLevel = parseFloat(e.target.value);
-            this.handleZoom(newZoomLevel);
+      const zoomInButton = document.getElementById("zoom-in-button");
+      if (zoomInButton) {
+        zoomInButton.addEventListener("click", () => {
+          if (this.zoomLevel < 10) {
+            this.zoomLevel += 1;
+          }
+          bindZoomLevel();
+          this.handleZoom();
         });
+      }
+
+      const zoomOutButton = document.getElementById("zoom-out-button");
+      if (zoomOutButton) {
+        zoomOutButton.addEventListener("click", () => {
+          if (this.zoomLevel > 1) {
+            this.zoomLevel -= 1;
+          }
+          bindZoomLevel();
+          this.handleZoom();
+        });
+      }
+    }
+
+    scrollTracksToPoint(scrollValue) {
+      const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
+      const tickMarksWrapper = document.getElementById("timeline-ticks-content");
+      for (let track of tracksToAdjust) {
+        track.scrollLeft = scrollValue;
+      }
+      tickMarksWrapper.scrollLeft = scrollValue;
+    }
+
+    watchForTimelineScrollChangeAndHandleIt() {
+      this.zoomSliderInput.addEventListener("input", (e) => {
+        const newValue = e.target.value;
+        const tickMarksContainer = document.getElementById("tick-marks-container");
+        const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
+        const newScrollLeft = widthInPixels * (newValue / 100);
+        this.scrollTracksToPoint(newScrollLeft);
+        this.adjustScrubberPosition();
+      });
     }
 
     createtimelineScrubber() {
-        this.timelineScrubber = document.querySelector('.timeline-hover-scrubber');
+        this.timelineScrubber = document.querySelector('#timeline-hover-scrubber');
         if (!this.timelineScrubber) {
             this.timelineScrubber = document.createElement('div');
-            this.timelineScrubber.className = 'timeline-hover-scrubber';
+            this.timelineScrubber.id = 'timeline-hover-scrubber';
             if (this.timelineTicksContent) {
                 this.timelineTicksContent.appendChild(this.timelineScrubber);
             }
@@ -1405,56 +1969,359 @@ export class Editor {
 
     attachVideoListeners() {
         this.video.addEventListener('timeupdate', () => {
-            this.updateEditorScrubberPosition(this.video.currentTime);
+          this.adjustScrubberPosition();
         });
     }
-}
 
-async function handleAnnotationSetChange(event) {
-    event.stopPropagation();
-    let annotationSetId;
-    const selectorOptions = event.target.children;
-    for (let option of selectorOptions) {
-        if (option.selected) {
-            annotationSetId = Number(option.value);
-            break;
+    async handleAnnotationSetChange(event) {
+        event.stopPropagation();
+        let annotationSetId;
+        const selectorOptions = event.target.children;
+        for (let option of selectorOptions) {
+            if (option.selected) {
+                annotationSetId = Number(option.value);
+                break;
+            }
         }
+
+        if (isNaN(annotationSetId) || annotationSetId === undefined) {
+            console.error("Selected value was not defined!");
+            return;
+        }
+
+        if (!this.contentId) {
+            console.error("could not retrieve content id while switching annotation sets!");
+            return;
+        }
+        const htmlContentResponse = await fetch("/select-annotation-set", {
+            method: "POST",
+            body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
+            headers: {
+              "X-CSRFToken": this.getCSRFToken(),
+              "Content-Type": "application/json"
+            },
+            mode: "same-origin"
+        });
+        if (!htmlContentResponse.ok) {
+          console.error("Failed to update annotation_set!");
+          return;
+        }
+        // rebuild the page with the new annotation set
+        window.location.reload();
     }
 
-    if (isNaN(annotationSetId) || annotationSetId === undefined) {
-        console.error("Selected value was not defined!");
-        return;
+    setupAnnotationSelectorFunctions() {
+        const setSelector = document.getElementById("annotation-set-selector");
+        if (!setSelector) {
+            console.error("Annotation set selector cannot be found!");
+            return;
+        }
+
+        setSelector.addEventListener("change", this.handleAnnotationSetChange.bind(this));
     }
 
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    if (!this.contentId) {
-        console.error("could not retrieve content id while switching annotation sets!");
-        return;
+    watchForAnnotationSetNameChangeAndHandleIt() {
+      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
+      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
+      const annotationNameInput = document.getElementById("annotation-set-name");
+      const annotationNameSubmitButton = document.getElementById("annotation-name-submit-button");
+
+      const handleNameChange = async () => {
+        const currentAnnotationSetName = annotationSetSettingsEl.dataset["annotationSetName"];
+        const newName = annotationNameInput.value.trim();
+        const nameChangeResponse = await fetch("/annotation-set/update-name/", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": this.getCSRFToken(),
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              annotation_set_id: annotationSetId,
+              name: newName
+            })
+        });
+        if (!nameChangeResponse.ok) {
+          console.error("Failed to update annotation set name");
+          annotationNameInput.value = currentAnnotationSetName;
+          return;
+        }
+        annotationNameInput.value = newName;
+        annotationSetSettingsEl.dataset["annotationSetName"] = newName;
+        const annotationSetOptionName = annotationSetSettingsEl.querySelector(`.annotation-set-option[value="${annotationSetId}"] .set-option-name`);
+        annotationSetOptionName.innerText = newName;
+      }
+
+      annotationNameInput.addEventListener("keydown", (e) => {
+        if (e.key == "Enter") {
+          handleNameChange();
+        }
+      })
+      annotationNameSubmitButton.addEventListener("click", handleNameChange);
     }
-    const htmlContentResponse = await fetch("/select-annotation-set", {
+
+    async handleRemoveEditor(e) {
+      e.stopPropagation();
+      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
+      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
+      // because the remove button has an element inside it, e.target could refer to the image element,
+      // or the button element which is the img's parent. The editorId is only on the button element.
+      // To get around this, the closest .remove-editor-button will find the correct in either case.
+      const buttonEl = e.target.closest(".remove-editor-button");
+      const editorId = buttonEl.dataset["editorId"];
+      const removalResponse = await fetch(`/annotation-set/${annotationSetId}/remove-editor/${editorId}/`, {
+        method: "DELETE",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken()
+        }
+      });
+      if (!removalResponse.ok) {
+        console.error("Failed to remove editor");
+        return;
+      }
+      e.target.closest(".annotation-set-editor-details").remove();
+    }
+
+    attachRemoveEditorListener(editorDetailEl) {
+      const removeEditorButton = editorDetailEl.querySelector(".remove-editor-button");
+      if (removeEditorButton) {
+        removeEditorButton.addEventListener("click", this.handleRemoveEditor.bind(this));
+      }
+    }
+
+    attachRemoveEditorListeners() {
+      const editorDetailEls = document.getElementsByClassName("annotation-set-editor-details");
+      for (let editorDetailEl of editorDetailEls) {
+        this.attachRemoveEditorListener(editorDetailEl);
+      }
+    }
+
+    async handleAddEditor(e) {
+      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
+      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
+      const editorId = e.target.dataset["editorId"];
+      const selectedEditorsResponse = await fetch("/annotation-set/add-editor", {
         method: "POST",
-        body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
-        headers: {"X-CSRFToken": csrfToken},
-        mode: "same-origin"
-    });
-
-    const newHTMLContent = await htmlContentResponse.json();
-
-    const videoSection = document.getElementById("video-section");
-    videoSection.innerHTML = newHTMLContent["video_section"];
-
-    const timelineLayers = document.getElementById("annotation-timeline");
-    timelineLayers.innerHTML = newHTMLContent["timeline_layers"];
-}
-
-function setupAnnotationSelectorFunctions() {
-    const setSelector = document.getElementById("annotation-set-selector");
-    if (!setSelector) {
-        console.error("Annotation set selector cannot be found!");
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          annotation_set_id: annotationSetId,
+          editor_id: editorId
+        })
+      });
+      if (!selectedEditorsResponse.ok) {
+        console.error("Failed to add new editor");
         return;
+      }
+      const newWrapper = await selectedEditorsResponse.text();
+      const selectedEditorsWrapper = document.getElementById("selected-editors");
+      selectedEditorsWrapper.outerHTML = newWrapper;
+      this.attachRemoveEditorListeners();
     }
 
-    setSelector.addEventListener("change", handleAnnotationSetChange);
+    attachAddEditorListeners() {
+      const editorSearchResultsWrapper = document.getElementById("editor-search-results");
+      const resultEntries = editorSearchResultsWrapper.querySelectorAll(".editor-search-result");
+      if (resultEntries.length == 0) {
+        editorSearchResultsWrapper.innerText = "No search results";
+        return;
+      }
+      for (let resultEl of resultEntries) {
+        resultEl.addEventListener("click", this.handleAddEditor.bind(this));
+      }
+    }
+
+    watchForEditorSearchInputAndHandleIt() {
+      /* Watch for keydown on input field, if its been less than timer amount since
+      the last keydown, clear the last request and start the timer again. If
+      the timer ends, execute the search function. */
+      const editorSearchInput = document.getElementById("editor-search-input");
+      let keydownTimerId;
+      const handleSearchInput = () => {
+        clearTimeout(keydownTimerId);
+        keydownTimerId = setTimeout(async () => {
+          const searchResultsWrapper = document.getElementById("editor-search-results");
+          const searchString = editorSearchInput.value.trim();
+          if (searchString == "") {
+            searchResultsWrapper.innerHTML = "";
+          }
+          if (!searchString) {
+            return;
+          }
+
+          // remove old search results
+          const oldSearchResultEls = document.getElementsByClassName("editor-option");
+          for (let i = oldSearchResultEls.length - 1; i >= 0; i--) {
+            const resultEl = oldSearchResultEls[i];
+            resultEl.remove();
+          }
+
+          // execute request
+          const searchResponse = await fetch("/annotation-set/search-for-editor", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": this.getCSRFToken(),
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({search_string: searchString})
+          });
+
+          if (!searchResponse.ok) {
+            console.error("Failed to execute editor search");
+            searchResultsWrapper.innerText = "An error has occurred, please try searching again.";
+            return;
+          }
+          const results = await searchResponse.text();
+          searchResultsWrapper.outerHTML = results;
+          this.attachAddEditorListeners();
+        }, 300);
+      }
+      editorSearchInput.addEventListener("keydown", handleSearchInput.bind(this));
+    }
+
+    watchAndHandleEditorPanelSwitch() {
+      const annotationPanel = document.getElementById("editor-annotation-panel");
+      const subtitlesPanel = document.getElementById("subtitle-editor-panel");
+      const togglePanelVisiblity = () => {
+        annotationPanel.classList.toggle("editor-annotation-panel-hidden");
+        annotationPanel.classList.toggle("editor-annotation-panel-visible");
+        subtitlesPanel.classList.toggle("subtitle-editor-panel-visible");
+        subtitlesPanel.classList.toggle("subtitle-editor-panel-hidden");
+      }
+      const annotationPanelSwitchButton = document.getElementById("annotation-panel-switch");
+      const subtitlePanelSwitchButton = document.getElementById("subtitle-panel-switch");
+      annotationPanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+      subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+    }
+
+    watchAndHandleSubtitleTrackChange() {
+      const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+      subtitleSelectInput.addEventListener("change", async () => {
+        const newSubtitleTrackId = subtitleSelectInput.value;
+        if (subtitleSelectInput == undefined) {
+          console.error("Invalid subtitle track id");
+          return;
+        }
+        this.selectedSubtitleTrackId = newSubtitleTrackId;
+        const subtitlesResponse = await fetch(`/subtitles/get-editable-subtitles/${this.selectedSubtitleTrackId}`);
+        if (!subtitlesResponse.ok) {
+          console.error("Failed to get subtitle cues");
+          return;
+        }
+        const subtitlesPanelHTML = await subtitlesResponse.text();
+        const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+        currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
+        const subtitlesSettingsModal = document.getElementById("subtitles-settings");
+        this.buildWatchersForSubtitlePanelContent();
+        this.buildWatchersForSubtitleEditorCues();
+        subtitlesSettingsModal.close();
+      })
+    }
+
+    collectCues() {
+      const rawCues = document.getElementsByClassName("editor-subtitle-cue");
+      const cues = [];
+      for (let cue of rawCues) {
+        // gather elements to extract data from
+        const typeEl = cue.querySelector(".editor-subtitle-cue-type");
+        const payloadEl = cue.querySelector(".editor-subtitle-cue-content");
+        const identifierEl = cue.querySelector(".editor-subtitle-cue-identifier");
+        const startTimeEl = cue.querySelector(".editor-subtitle-cue-start");
+        const endTimeEl = cue.querySelector(".editor-subtitle-cue-end");
+        const settingsEl = cue.querySelector(".editor-subtitle-cue-settings");
+
+        // extract the data and package into array to send to backend
+        cues.push({
+          type: typeEl.value,
+          payload: payloadEl.value,
+          identifier: identifierEl.value,
+          start_time: startTimeEl.value,
+          end_time: endTimeEl.value,
+          cue_settings: settingsEl.value,
+        });
+      }
+      return cues;
+    }
+
+    async saveCues(cues, isAutosave=true) {
+      if (typeof isAutosave !== "boolean") {
+        console.error("isAutosave must be a boolean");
+        return;
+      }
+
+      const updateResponse = await fetch("/subtitles/update-subtitle-cues", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          subtitle_id: this.selectedSubtitleTrackId,
+          cues: cues,
+          seconds_nudge: 0,
+          nudge_excluded_cues: [],
+          is_autosave: isAutosave
+        })
+      });
+
+      if (!updateResponse.ok) {
+        console.error("Failed to save cues");
+        return;
+      }
+
+      const subtitleCueListWrapper = document.getElementById("subtitle-panel-list");
+      subtitleCueListWrapper.innerHTML = await updateResponse.text();
+      this.buildWatchersForSubtitleEditorCues();
+    }
+
+    buildWatchersForSubtitlePanelContent() {
+      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
+      addNewCueButton.addEventListener("click", () => {
+        const cues = this.collectCues();
+        // build new cue and append it to cues array
+        const time = this.video.currentTime;
+        // the back end sorts cues, so this will go in its correct place.
+        cues.push(
+          {
+            start_time: formatSecondsToString(time, true),
+            end_time: formatSecondsToString(time + 2, true),
+            type: "CUE",
+            payload: "",
+            identifier: "",
+            cue_settings: "",
+          }
+        )
+        this.saveCues(cues, false)
+      });
+    }
+
+    buildWatchersForSubtitleEditorCues() {
+      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      const deleteCue = (e) => {
+        const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
+        editorSubtitleCueEl.remove();
+        this.saveCues(this.collectCues(), false);
+      }
+      const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
+      for (let cueDelButton of editorSubtitleCueDeleteButtons) {
+        cueDelButton.addEventListener("click", deleteCue.bind(this));
+      }
+
+      const saveUpdatedInformation = () => {
+        this.saveCues(this.collectCues(), false);
+      }
+      const cueInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
+      for (let cueInput of cueInputs) {
+        cueInput.addEventListener("keydown", (e) => {
+          if (e.key != "Enter") {
+            return;
+          }
+          saveUpdatedInformation();
+        });
+      }
+    }
 }
 
 function editorInit() {
@@ -1468,12 +2335,11 @@ function editorInit() {
       editor = new Editor();
   }
   editor.setUpAnnotationPanelClickListeners();
-  setupAnnotationSelectorFunctions();
 }
 
 const checkVideo = setInterval(() => {
     const video = document.querySelector('.annotation-player-container video');
-    if (video && !isNaN(video.duration)) {
+    if (video && !isNaN(video.duration) && window?.videoPlayer) {
       clearInterval(checkVideo);
       editorInit();
     }

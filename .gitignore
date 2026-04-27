@@ -1,4 +1,8 @@
+data/
+media/
 secret_settings.py
+deploy/auto-deploy/jobs.toml
+.auto-deploy-required-user
 *settings.json
 *advanced_settings.json
 *sp.cert
@@ -6,6 +10,12 @@ secret_settings.py
 *.mp4
 *.sqlite3
 *staticfiles
+*media
+*requirements.txt
+
+# TODO start tracking migrations once pilot begins
+# Until then, just keep replacing 0001 when models change
+*migrations
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -69,6 +79,8 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+db.sqlite3-shm
+db.sqlite3-wal
 
 # Flask stuff:
 instance/

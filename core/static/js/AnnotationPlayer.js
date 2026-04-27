@@ -1,4 +1,5 @@
 import { SubtitleSidebar } from "./SubtitleSidebar.js";
+import { formatSecondsToString } from "./utils.js";
 
 export class AnnotationPlayer {
   constructor(options = {}) {
@@ -773,7 +774,6 @@ export class AnnotationPlayer {
                 "#censor" + i,
               );
               const positionToShow = determineWhichBlurPositionToShow(aPositions);
-              console.log(positionToShow);
               censor.dataset["censorPositionParentId"] = a.id;
               censor.dataset["censorPositionId"] = positionToShow.id;
               censor.style.width =  positionToShow["width"] + "%";
@@ -1002,20 +1002,8 @@ export class AnnotationPlayer {
   updateTimeDisplay() {
     if (!this.controls.playTime) return;
 
-    const formatTime = (timeInSeconds) => {
-        const time = Math.round(timeInSeconds);
-        const hours = Math.floor(time / 3600);
-        const minutes = Math.floor((time % 3600) / 60);
-        const seconds = time % 60;
-
-        if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const currentTimeStr = formatTime(this.state.currentTime);
-    const durationStr = formatTime(this.videoElem.duration || 0);
+    const currentTimeStr = formatSecondsToString(this.state.currentTime);
+    const durationStr = formatSecondsToString(this.videoElem.duration || 0);
 
     this.controls.playTime.textContent = `${currentTimeStr} / ${durationStr}`;
   }

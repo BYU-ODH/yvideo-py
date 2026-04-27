@@ -9,9 +9,19 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
-from . import secret_settings
+try:
+    from . import secret_settings
+except ImportError:
+    import warnings
+
+    warnings.warn(
+        "secret_settings.py not found; falling back to secret_settings_template.py",
+        stacklevel=1,
+    )
+    from . import secret_settings_template as secret_settings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,8 +35,12 @@ SECRET_KEY = secret_settings.SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = secret_settings.DEBUG
+DEV_QUICK_LOGIN_ENABLED = getattr(secret_settings, "DEV_QUICK_LOGIN_ENABLED", False)
 
 ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
+
+SECURE_PROXY_SSL_HEADER = getattr(secret_settings, "SECURE_PROXY_SSL_HEADER", None)
+CSRF_TRUSTED_ORIGINS = getattr(secret_settings, "CSRF_TRUSTED_ORIGINS", [])
 
 SAML_FOLDER = str(BASE_DIR / "yvideo" / "saml_config")
 
@@ -87,15 +101,20 @@ WSGI_APPLICATION = "yvideo.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+_DB_DIR = Path(os.environ.get("YVIDEO_DB_DIR", str(BASE_DIR)))
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": _DB_DIR / "db.sqlite3",
         "OPTIONS": {
             "init_command": "PRAGMA journal_mode=wal;PRAGMA synchronous=NORMAL; PRAGMA mmap_size=134217728; PRAGMA journal_size_limit=67108864; PRAGMA cache_size=2000;",
         },
     }
 }
+
+CONN_MAX_AGE = 600
+CONN_HEALTH_CHECKS = True
 
 
 # Password validation
@@ -142,16 +161,3 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
-
-
-if DEBUG:
-    INSTALLED_APPS.append("debug_toolbar")  # django-debug-toolbar
-
-    DEBUG_TOOLBAR_MIDDLEWARE_INDEX = (
-        1  # as close to the top as possible after middleware that encodes data
-    )
-    MIDDLEWARE.insert(
-        DEBUG_TOOLBAR_MIDDLEWARE_INDEX,
-        "debug_toolbar.middleware.DebugToolbarMiddleware",
-    )
-    INTERNAL_IPS = ["127.0.0.1", "localhost"]

@@ -18,6 +18,7 @@ cd yvideo-py
 ```bash
 uv sync --dev
 npm ci  # eslint and dependencies
+uv run python -m playwright install chromium
 ```
 
 3. Set up pre-commit hooks:
@@ -29,17 +30,34 @@ uv run pre-commit install
 
 5. Run database migrations:
 ```bash
-uv run manage.py makemigrations core  # Needed to init new database
 uv run manage.py migrate
 ```
 
-6. Load development data and install sample media files:
+6. Seed deterministic development data and copy checked-in sample media files:
 ```bash
-uv run manage.py loaddata fixtures/dev.json
-bash fixtures/install_mp4s.sh
+uv run manage.py seed_demo_data
 ```
 
-In the dev data, the admin user is `admin` with password `admin`.
+The deterministic demo dataset includes a local admin with netid `devadmin` and password `devadmin`.
+The seed command copies the checked-in sample mp4 files from `demo_media/` into `MEDIA_ROOT`.
+
+If you want to wipe local state and rebuild from the current models, use:
+```bash
+bash scripts/dangerously_reset_local_state.sh --bootstrap
+```
+
+That removes the local SQLite database, generated media under `media/`, and any local
+derived files in `media/`. It does not touch `demo_media/`, committed migrations,
+or `yvideo/secret_settings.py`.
+
+If you want a one-click local app login for that admin, enable `DEV_QUICK_LOGIN_ENABLED = True`
+in `yvideo/secret_settings.py` and visit `/login/dev/quick/` on localhost. The route
+returns 404 unless both `DEBUG` and `DEV_QUICK_LOGIN_ENABLED` are true, and it is only
+usable from `localhost` or `127.0.0.1`.
+
+### Deployment
+
+See [DEPLOY.md](DEPLOY.md) for production deployment with Docker and Apache.
 
 ### Running the Development Server
 
@@ -61,6 +79,22 @@ Github Actions):
 ```bash
 uv run pre-commit run --all-files
 ```
+
+For local database-backed Django tests, run:
+```bash
+uv run manage.py test
+```
+
+That uses the normal project settings and migration graph.
+
+For browser-backed end-to-end tests against the deterministic demo dataset, run:
+```bash
+uv run pytest tests/e2e --browser chromium
+```
+
+The pytest Playwright e2e suite runs headless Chromium, enables the local dev quick-login
+route for the test server, seeds demo data before each test, and runs in CI as a separate
+job instead of inside pre-commit.
 
 To upgrade dependency versions, use the following commands:
 

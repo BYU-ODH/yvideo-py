@@ -8,7 +8,6 @@ import re
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
-from django.core.files.base import ContentFile
 from django.db import connection
 from django.db.models import Q
 from django.http import Http404
@@ -47,12 +46,7 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
-from .utils import VTTCue
-from .utils import build_vtt_file_string_from_cues
-from .utils import convert_srt_content_to_vtt
-from .utils import generate_vtt_cues_from_file_path
 from .utils import hms2seconds
-from .utils import nudge_cue_times
 from .utils import seconds2hms
 
 logger = logging.getLogger(__name__)
@@ -91,66 +85,7 @@ def display_yearterm(yearterm):
 
 
 def index(request):
-    # if admin, gather owned collections
-    request.user = User.objects.all().first()
-    owned_collections = []
-    allowed_privilege_levels = [2, 0]
-    if (
-        request.user.privilege_level in allowed_privilege_levels
-        or request.user.privilege_level_override in allowed_privilege_levels
-    ):
-        owned_collections_raw = Collection.objects.filter(owner=request.user)
-        owned_collections = [
-            prepare_collection_for_display(collection)
-            for collection in owned_collections_raw
-        ]
-
-    # organize assigned collections by yearterm and then by course.
-    yearterms = []
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """SELECT yearterm FROM core_usercourses GROUP BY yearterm ORDER BY yearterm"""
-        )
-        yearterms = [result[0] for result in cursor.fetchall()]
-
-    collections_by_course_by_yearterm = []
-    for yearterm in yearterms:
-        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
-        collections_by_course = []
-        for user_course in user_courses:
-            collections = Collection.objects.filter(courses=user_course.course)
-            collections_by_course.append(
-                {
-                    "course_name": user_course.course.__str__(),
-                    "collections": [
-                        prepare_collection_for_display(collection)
-                        for collection in collections
-                    ],
-                }
-            )
-        collections_by_course_by_yearterm.append(
-            {
-                "yearterm_display": display_yearterm(yearterm),
-                "collections_by_course": collections_by_course,
-            }
-        )
-
-    manual_access_collections = Collection.objects.filter(
-        collectionuseraccess__user=request.user
-    )
-    manual_collections = []
-    for collection in manual_access_collections:
-        prepared_collection = prepare_collection_for_display(collection)
-        manual_collections.append(prepared_collection)
-
-    context = {
-        "user": request.user,
-        "owned_collections": owned_collections,
-        "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
-        "public_collections": [],
-        "manual_collections": manual_collections,
-    }
-    return render(request, "index.html", context)
+    return render(request, "index.html", {})
 
 
 @require_POST
@@ -303,6 +238,68 @@ def stream_file(request, resource_file_key_id):
         raise Http404("Invalid resource file key")
     except Exception as e:
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
+
+
+def collections(request):
+    # if admin, gather owned collections
+    owned_collections = []
+    allowed_privilege_levels = [2, 0]
+    if (
+        request.user.privilege_level in allowed_privilege_levels
+        or request.user.privilege_level_override in allowed_privilege_levels
+    ):
+        owned_collections_raw = Collection.objects.filter(owner=request.user)
+        owned_collections = [
+            prepare_collection_for_display(collection)
+            for collection in owned_collections_raw
+        ]
+
+    # organize assigned collections by yearterm and then by course.
+    yearterms = []
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT yearterm FROM core_usercourses GROUP BY yearterm ORDER BY yearterm"""
+        )
+        yearterms = [result[0] for result in cursor.fetchall()]
+
+    collections_by_course_by_yearterm = []
+    for yearterm in yearterms:
+        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
+        collections_by_course = []
+        for user_course in user_courses:
+            collections = Collection.objects.filter(courses=user_course.course)
+            collections_by_course.append(
+                {
+                    "course_name": user_course.course.__str__(),
+                    "collections": [
+                        prepare_collection_for_display(collection)
+                        for collection in collections
+                    ],
+                }
+            )
+        collections_by_course_by_yearterm.append(
+            {
+                "yearterm_display": display_yearterm(yearterm),
+                "collections_by_course": collections_by_course,
+            }
+        )
+
+    manual_access_collections = Collection.objects.filter(
+        collectionuseraccess__user=request.user
+    )
+    manual_collections = []
+    for collection in manual_access_collections:
+        prepared_collection = prepare_collection_for_display(collection)
+        manual_collections.append(prepared_collection)
+
+    context = {
+        "user": request.user,
+        "owned_collections": owned_collections,
+        "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
+        "public_collections": [],
+        "manual_collections": manual_collections,
+    }
+    return render(request, "collections.html", context)
 
 
 def get_collection_types(user):
@@ -699,7 +696,6 @@ def add_annotation(request, content_id, annotation_type):
         annotation.save()
     else:
         # Create new annotation
-        annotation_set = content_obj.annotation_set
         annotation = annotation_class.objects.create(
             content=content_obj,
             owner=owner,
@@ -1166,7 +1162,10 @@ def subtitle_editor(request, content_id):
         )
         return HttpResponseServerError()
 
-    player_info = get_data_for_player(content)
+    player_json = content.get_player_json()
+    has_subtitles = bool(
+        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
+    )
 
     return render(
         request,
@@ -1175,10 +1174,10 @@ def subtitle_editor(request, content_id):
             "content": content,
             "subtitle_tracks": subtitle_options,
             "file_key": file_key,
-            "events": player_info["events"],
-            "subtitles": player_info["subtitles"],
-            "clips": player_info["clips"],
-            "has_subtitles": player_info["has_subtitles"],
+            "events": player_json["annotations"],
+            "subtitles": player_json["subtitleTracks"],
+            "clips": player_json["clips"],
+            "has_subtitles": has_subtitles,
         },
     )
 
@@ -1347,6 +1346,10 @@ def delete_subtitle(request, subtitle_id):
             f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
         )
         return HttpResponseServerError()
+
+
+def request_content(request, resource_id):
+    resource = get_object_or_404(Resource, id=resource_id)
 
 
 def content_intake_form(request):
