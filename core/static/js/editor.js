@@ -1988,6 +1988,22 @@ export class Editor {
       const createAnnotationSetButton = document.getElementById("create-annotation-set-submit-button");
       const setNameInputEl = document.getElementById("new-annotation-set-name");
       const handleNameSubmit = async () => {
+        const importFromAnotherSetEl = document.getElementById("annotation-set-import-from-set");
+        let annotationSetId;
+        if (importFromAnotherSetEl.className.includes("annotation-set-creation-option-form-visible")) {
+          annotationSetId = importFromAnotherSetEl.querySelector(".annotation-set-selector").value;
+        }
+
+        const importFromFileEl = document.getElementById("annotation-set-import-from-file");
+        let annotationJson;
+        if (importFromFileEl.className.includes("annotation-set-creation-option-form-visible")) {
+          const fileInputEl = document.getElementById("annotation-set-import-file-input");
+          const file = fileInputEl.files[0];
+          if (file) {
+            annotationJson = await file.text();
+          }
+        }
+
         const setName = setNameInputEl.value;
         if (!setName) {
           return;
@@ -2001,7 +2017,9 @@ export class Editor {
           },
           body: JSON.stringify({
             content_id: this.contentId,
-            name: setName
+            name: setName,
+            annotation_set_id_to_copy: annotationSetId,
+            annotations_json: annotationJson
           })
         });
 
