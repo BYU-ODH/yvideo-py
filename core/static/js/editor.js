@@ -2002,6 +2002,12 @@ export class Editor {
           if (file) {
             annotationJson = await file.text();
           }
+          try{
+            JSON.parse(annotationJson);
+          } catch {
+            console.error("Invalid JSON provided");
+            return;
+          }
         }
 
         const setName = setNameInputEl.value;
