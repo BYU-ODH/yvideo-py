@@ -75,6 +75,7 @@ export class Editor {
         this.watchAndRevealAnnotationImportOption();
         this.cancelAnnotationSetImport();
         this.watchAndHandleSubtitleTrackChange();
+        this.handleNoAnnotationSet();
     }
 
     getCSRFToken() {
@@ -2204,6 +2205,25 @@ export class Editor {
         }
       })
       annotationNameSubmitButton.addEventListener("click", handleNameChange);
+    }
+
+    handleNoAnnotationSet() {
+      // This is designed to run only when the editor loads to encourage a user to select,
+      // create, or import an annotation set
+      const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
+      const annotationSetOptions = document.getElementsByClassName("annotation-set-option");
+      if (annotationSetId === '' || annotationSetId === undefined) {
+        if (annotationSetOptions.length > 0) {
+          // open annotation set selector
+          const annotationSetSettingsButton = document.getElementById("annotation-settings-button");
+          annotationSetSettingsButton.click();
+        }
+        else {
+          // open the annotaion set creator/importer
+          const createOrImportAnnotationSetButton = document.getElementById("create-annotation-set-button");
+          createOrImportAnnotationSetButton.click();
+        }
+      }
     }
 
     async handleRemoveEditor(e) {

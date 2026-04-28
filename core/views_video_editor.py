@@ -60,6 +60,9 @@ ANNOTATION_ICONS = {
 
 def get_annotation_groups(annotations):
     # [{type:"", type_display:"", icon:"", instances: []}]
+    if type(annotations) == list and len(annotations) == 0:
+        return []
+
     groups = {}
     for type_name in ANNOTATION_MODELS.keys():
         type_icon = ANNOTATION_ICONS[type_name]
@@ -151,46 +154,36 @@ def video_editor(request, content_id):
         if not request.user.can_view_content(content):
             return HttpResponse("Unauthorized", status=403)
 
+        # Get file key for video streaming
+        file_key = request.user.get_resource_filekey(content)
+
+        subtitle_options = content.get_subtitles()
+
         # Get available annotation sets
         available_sets = content.get_available_annotation_sets()
 
-        # check if the annotation set is defined, if not, assign one or create one.
-        if content.annotation_set is None:
-            if available_sets.count() != 0:
-                content.annotation_set = available_sets.first()
-                content.save()
-            else:
-                new_set = AnnotationSet.create_for_content(content, request.user)
-                if new_set is None:
-                    logger.error(
-                        "Failed to load video content due to missing annotation set on content object"
-                    )
-                    return HttpResponseServerError()
-                content.annotation_set = new_set
-                content.save()
-
         # Determine if user can edit the active annotation set
         annotation_set = content.annotation_set
-        can_edit = annotation_set.can_edit(request.user) if annotation_set else True
+        can_edit = (
+            annotation_set.can_edit(request.user)
+            if annotation_set is not None
+            else True
+        )
 
         can_edit_annotation_set = annotation_set is not None and (
             annotation_set.owner == request.user or request.user.is_admin
         )
 
-        # Get file key for video streaming
-        file_key = request.user.get_resource_filekey(content)
-
         # Prepare track data for timeline
-        tracks = annotation_set.get_tracks()
-        if not tracks:
-            Track.objects.create(annotation_set=annotation_set)
-            tracks = annotation_set.get_tracks()
+        tracks = annotation_set.get_tracks() if annotation_set is not None else []
 
-        annotations = annotation_set.get_active_annotations_from_tracks()
+        annotations = (
+            annotation_set.get_active_annotations_from_tracks()
+            if annotation_set is not None
+            else []
+        )
 
         annotation_groups = get_annotation_groups(annotations)
-
-        subtitle_options = content.get_subtitles()
 
         context = {
             "content": content,
@@ -1168,10 +1161,13 @@ def create_track(request):
             return HttpResponseBadRequest()
 
         annotation_set = AnnotationSet.objects.get(pk=parsed_body["annotation_set_id"])
+        set_has_tracks = annotation_set.tracks.count() > 0
 
         track = {
             "annotation_set": annotation_set,
-            "stack_position": annotation_set.get_highest_stack_position() + 1,
+            "stack_position": annotation_set.get_highest_stack_position() + 1
+            if set_has_tracks
+            else 0,
         }
         if "track_name" in parsed_body:
             track["name"] = parsed_body["track_name"]
