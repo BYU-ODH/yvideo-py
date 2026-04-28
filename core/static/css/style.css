@@ -34,7 +34,7 @@ body {
     flex-direction: column;
 }
 
-.blue-button, .white-button-with-border, .red-button {
+.blue-button, .white-button-with-border, .red-button, .cancel-button {
     border-radius: 20px;
     padding: 10px 20px;
 }
@@ -82,8 +82,6 @@ body {
     cursor: pointer;
     color: white;
     background-color: var(--light-grey);
-    padding: 0.5rem 1rem;
-    border-radius: 1rem;
     border: none;
 }
 
@@ -214,6 +212,7 @@ dialog {
     top: 0.5rem;
     right: 0.5rem;
     font-size: 1rem;
+    padding: 0.2rem 1rem;
 }
 
 .multi-select-menu {

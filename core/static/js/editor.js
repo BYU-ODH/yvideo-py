@@ -72,6 +72,8 @@ export class Editor {
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
+        this.watchAndRevealAnnotationImportOption();
+        this.cancelAnnotationSetImport();
         this.watchAndHandleSubtitleTrackChange();
     }
 
@@ -2061,6 +2063,43 @@ export class Editor {
         exportLink.href = `/annotation-set/export/${Number(annotationSetId)}`;
         exportLink.click();
       });
+    }
+
+
+    showAnnotationSetImportRevealerButtons() {
+      const revealerButtons = document.getElementsByClassName("annotation-import-option-revealer");
+      for (let button of revealerButtons) {
+        button.classList.remove("hidden");
+      }
+    }
+
+
+    watchAndRevealAnnotationImportOption() {
+      const buttons = document.getElementsByClassName("annotation-import-option-revealer");
+      const optionsToHide = document.getElementsByClassName("annotation-set-creation-option-form");
+      for (let button of buttons) {
+        button.addEventListener("click", (event) => {
+          for (let option of optionsToHide) {
+            option.classList.remove("annotation-set-creation-option-form-visible");
+          }
+          const parent = event.target.closest(".annotation-set-creation-option");
+          const optionToShow = parent.querySelector(".annotation-set-creation-option-form");
+          optionToShow.classList.add("annotation-set-creation-option-form-visible");
+          this.showAnnotationSetImportRevealerButtons();
+          event.target.classList.add("hidden");
+        });
+      }
+    }
+
+    cancelAnnotationSetImport() {
+      const cancelButtons = document.getElementsByClassName("annotation-set-import-cancel");
+      for (let button of cancelButtons) {
+        button.addEventListener("click", (event) => {
+          const importOptionToHide = event.target.closest(".annotation-set-creation-option-form");
+          importOptionToHide.classList.remove("annotation-set-creation-option-form-visible");
+          this.showAnnotationSetImportRevealerButtons();
+        });
+      }
     }
 
     async handleAnnotationSetChange(event) {

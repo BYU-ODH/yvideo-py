@@ -232,6 +232,34 @@
     align-self: flex-start;
 }
 
+.annotation-set-creation-option {
+    align-self: flex-start;
+}
+
+.annotation-set-creation-option-form {
+    display: none;
+}
+
+.annotation-set-creation-option-form h3 {
+    margin-bottom: 0;
+}
+
+.annotation-set-creation-option-form-visible {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+}
+
+#annotation-set-options-divider {
+    width: 2px;
+    height: 100%;
+    border: 1px solid grey;
+}
+
+.annotation-set-import-cancel {
+    align-self: flex-start;
+}
+
 #export-annotation-set-link {
     display: none;
 }

@@ -1,0 +1,45 @@
+<dialog id="import-create-annotation-set">
+    <button class="red-button close-dialog-button" command="close" commandfor="import-create-annotation-set">
+        X
+    </button>
+    <div class="column-flex">
+        <h2>
+            Import or Create an Annotation Set
+        </h2>
+        <div id="annotation-set-creation-options-wrapper" class="row-flex flex-apart-aligned">
+            <div class="annotation-set-creation-option">
+                <button id="open-import-annotations-from-set" class="annotation-import-option-revealer white-button-with-border">
+                    Import from another set
+                </button>
+                <div id="annotation-set-import-from-set" class="annotation-set-creation-option-form">
+                    <h3>Import annotations from another set</h3>
+                    {% include 'partials/annotation_set_selector.html' %}
+                    <button class="annotation-set-import-cancel cancel-button">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+            <div class="annotation-set-creation-option">
+                <button id="open-import-annotations-from-file" class="annotation-import-option-revealer white-button-with-border">
+                    Import from a file
+                </button>
+                <div id="annotation-set-import-from-file" class="annotation-set-creation-option-form">
+                    <h3>Import annotations from file</h3>
+                    <input id="annotation-set-import-file-input" type="file" accept="json" name="annotations_json" aria-label="annotation set json file import">
+                    <button class="annotation-set-import-cancel cancel-button">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="row-flex">
+            <label>
+                Name:
+            </label>
+            <input type="text" id="new-annotation-set-name">
+        </div>
+        <button id="create-annotation-set-submit-button" class="white-button-with-border">
+            Create
+        </button>
+    </div>
+</dialog>

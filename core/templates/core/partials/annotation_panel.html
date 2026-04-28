@@ -1,39 +1,23 @@
 <div id="editor-annotation-panel" class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
     <div id="annotation-panel-header" class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <p>Annotations</p>
+        <p>Annotation Set</p>
         <div class="multi-select-menu">
             <button id="annotation-settings-button" class="multi-select-menu-button" command="show-modal" commandfor="annotation-set-settings">
-                Annotation Set Settings
+                Settings
             </button>
-            <button id="create-annotation-set-button" class="multi-select-menu-button" command="show-modal" commandfor="create-annotation-set">
-                Create Annotation Set
+            <button id="create-annotation-set-button" class="multi-select-menu-button" command="show-modal" commandfor="import-create-annotation-set">
+                Import or Create
+            </button>
+            <button id="export-annotation-set-button" class="multi-select-menu-button" command="show-modal" commandfor="export-annotation-set">
+                Export
             </button>
         </div>
         <button id="annotation-set-menu-button" class="open-multi-select-button" aria-label="Annotation set settings">
             <img src="/static/img/dots_menu.svg" />
         </button>
-        <dialog id="annotation-set-settings">
-            {% include 'partials/annotation_set_settings_compact.html' %}
-        </dialog>
-        <dialog id="create-annotation-set">
-            <button class="red-button close-dialog-button" command="close" commandfor="create-annotation-set">
-                X
-            </button>
-            <div class="column-flex">
-                <h2>
-                    Create New Annotation Set
-                </h2>
-                <div class="row-flex">
-                    <label>
-                        Name:
-                    </label>
-                    <input type="text" id="new-annotation-set-name">
-                </div>
-                <button id="create-annotation-set-submit-button" class="white-button-with-border">
-                    Create
-                </button>
-            </div>
-        </dialog>
+        {% include 'partials/annotation_set_settings_compact.html' %}
+        {% include 'partials/annotation_set_import_create_modal.html' %}
+        {% include 'partials/annotation_set_export_modal.html' %}
     </div>
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}
