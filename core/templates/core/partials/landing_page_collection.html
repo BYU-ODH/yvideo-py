@@ -1,14 +1,11 @@
-<div class="landing-page-collection column-flex-no-gap">
+<div class="landing-page-collection tile">
     <div class="collection-header" onclick="handleAccordian(this)">
-        <h3 class="collection-header-name">{{collection.name}}</h3>
-        <p>{{ collection.items_display }}</p>
-        <img src="/static/img/arrow.svg" class="arrow">
-    </div>
-    <div class="landing-page-collection-contents column-flex accordian-folded">
-        {% for content in collection.published_contents %}
-            {% include "partials/landing_page_collection_content.html" with content=content %}
-        {% empty %}
-            <p>No Content items</p>
-        {% endfor %}
+        <div class="tile-image">
+            <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
+        </div>
+        <div class="tile-body">
+            <h4 class="collection-header-name">{{ collection.name }}</h4>
+            <p class="tile-subtitle">{{ collection.items_display }}</p>
+        </div>
     </div>
 </div>
