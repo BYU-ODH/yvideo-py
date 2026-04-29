@@ -5,19 +5,15 @@
             <button id="annotation-settings-button" class="multi-select-menu-button" command="show-modal" commandfor="annotation-set-settings">
                 Settings
             </button>
-            <button id="create-annotation-set-button" class="multi-select-menu-button" command="show-modal" commandfor="import-create-annotation-set">
-                Import or Create
-            </button>
-            <button id="export-annotation-set-button" class="multi-select-menu-button" command="show-modal" commandfor="export-annotation-set">
-                Export
+            <button id="open-annotation-set-options-modal" class="multi-select-menu-button" command="show-modal" commandfor="annotation-set-options-modal">
+                Change Annotation Set
             </button>
         </div>
         <button id="annotation-set-menu-button" class="open-multi-select-button" aria-label="Annotation set settings">
             <img src="/static/img/dots_menu.svg" />
         </button>
         {% include 'partials/annotation_set_settings_compact.html' %}
-        {% include 'partials/annotation_set_import_create_modal.html' %}
-        {% include 'partials/annotation_set_export_modal.html' %}
+        {% include 'partials/annotation_set_options/base_modal.html' %}
     </div>
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}

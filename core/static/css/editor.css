@@ -30,6 +30,14 @@
     --subtitle-type-color-transparent: #98376975;
     --subtitle-type-color-very-transparent: #98376950;
 
+    /* new y-video editor styles that are ADA compliant */
+    --dark-mode-background-heavy: #000000;
+    --dark-mode-background-medium: #1c1c21;
+    --dark-mode-background-light: #37363c;
+    --dark-mode-border-color: #5a5a5a;
+    --dark-mode-text-color: #dedede;
+    --dark-mode-text-color-muted: #848484;
+
 }
 
 /* Editor Container */
@@ -266,6 +274,28 @@
 
 #create-annotation-set-submit-button {
     align-self: flex-start;
+}
+
+#annotation-set-options-modal {
+    background-color: var(--dark-mode-background-medium);
+    color: var(--dark-mode-text-color);
+    border: 3px solid var(--dark-mode-border-color);
+    width: 42rem;
+}
+
+#annotation-set-selection-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2rem;
+}
+
+.annotation-set-selection-option {
+    background-color: var(--dark-mode-background-light);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
 }
 
 .remove-editor-button {
