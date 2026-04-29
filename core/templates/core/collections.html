@@ -60,18 +60,7 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".search-wrapper").forEach(wrapper => {
-        const icon = wrapper.querySelector(".search-icon");
         const input = wrapper.querySelector(".collections-search");
-
-        icon.addEventListener("click", () => {
-            const isActive = wrapper.classList.toggle("active");
-            if (isActive) {
-                input.focus();
-            } else {
-                input.value = "";
-                input.dispatchEvent(new Event("input"));
-            }
-        });
 
         input.addEventListener("input", () => {
             const searchText = input.value.toLowerCase();
