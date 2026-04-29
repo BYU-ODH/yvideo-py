@@ -1996,15 +1996,15 @@ export class Editor {
         }
 
         const importFromFileEl = document.getElementById("annotation-set-import-from-file");
-        let annotationJson;
+        let annotationSetJson;
         if (importFromFileEl.className.includes("annotation-set-creation-option-form-visible")) {
           const fileInputEl = document.getElementById("annotation-set-import-file-input");
           const file = fileInputEl.files[0];
           if (file) {
-            annotationJson = await file.text();
+            annotationSetJson = await file.text();
           }
           try{
-            JSON.parse(annotationJson);
+            JSON.parse(annotationSetJson);
           } catch {
             console.error("Invalid JSON provided");
             return;
@@ -2026,7 +2026,7 @@ export class Editor {
             content_id: this.contentId,
             name: setName,
             annotation_set_id_to_copy: annotationSetId,
-            annotations_json: annotationJson
+            annotation_set_json: annotationSetJson
           })
         });
 

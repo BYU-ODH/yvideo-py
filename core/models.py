@@ -420,7 +420,7 @@ class AnnotationSet(models.Model):
         content,
         user,
         set_name=None,
-        annotations_json=None,
+        annotation_set_json=None,
         annotation_set_id_to_copy=None,
     ):
         """
@@ -458,7 +458,7 @@ class AnnotationSet(models.Model):
             annotation_set.editors.add(*instructors_and_tas)
 
             # create new annotations if provided (if importing from json, for example)
-            if annotations_json is not None and type(annotations_json) == str:
+            if annotation_set_json is not None and type(annotation_set_json) == str:
                 annotation_types = {
                     "SkipAnnotation": SkipAnnotation,
                     "MuteAnnotation": MuteAnnotation,
@@ -468,23 +468,23 @@ class AnnotationSet(models.Model):
                     "CommentAnnotation": CommentAnnotation,
                 }
 
-                annotations = json.loads(annotations_json)
-                for annotation in annotations:
-                    annotation_class = annotation["class_type"]
-                    annotation_id = annotation["id"]
+                annotation_set_data = json.loads(annotation_set_json)
+                for track in annotation_set_data.get("tracks", []):
+                    Track.from_import(track, annotation_set)
+
+                for annotation in annotation_set_data.get("annotations", []):
+                    track = annotation_set.tracks.get(name=annotation.get("track_name"))
                     try:
-                        existing_annotation = annotation_types[
-                            annotation_class
-                        ].objects.get(pk=annotation_id)
-                        existing_annotation.copy_to_new_annotation_set(annotation_set)
+                        annotation_class = annotation_types[annotation["class_type"]]
+                        annotation_class.from_import(annotation, track)
                     except Exception as e:
                         logger.error(
-                            f"Failed to copy annotation. Annotation type: {annotation_class}, id: {annotation_id}. Exception: {e}"
+                            f"Failed to import annotation. Annotation type: {annotation_class}. Exception: {e}"
                         )
                         continue
 
             # copying from pre-existing annotation set
-            if annotations_json is None and annotation_set_id_to_copy is not None:
+            if annotation_set_json is None and annotation_set_id_to_copy is not None:
                 annotation_set_to_copy = AnnotationSet.objects.get(
                     pk=annotation_set_id_to_copy
                 )
@@ -526,10 +526,13 @@ class AnnotationSet(models.Model):
 
     def to_player_json(self):
         """Export all active annotations in this set for the AnnotationPlayer."""
-        return [
-            annotation.to_player_json()
-            for annotation in self.get_active_annotations_from_tracks()
-        ]
+        return {
+            "tracks": [track.to_player_json() for track in self.get_tracks()],
+            "annotations": [
+                annotation.to_player_json()
+                for annotation in self.get_active_annotations_from_tracks()
+            ],
+        }
 
 
 class Track(models.Model):
@@ -565,9 +568,7 @@ class Track(models.Model):
 
     def to_player_json(self):
         """Export all active annotations in this set for the AnnotationPlayer."""
-        return [
-            annotation.to_player_json() for annotation in self.get_active_annotations()
-        ]
+        return {"id": self.pk, "name": self.name, "stack_position": self.stack_position}
 
     def copy_to_new_annotation_set(self, annotation_set):
         # check if a track with this name exists in the new annotation set
@@ -583,6 +584,14 @@ class Track(models.Model):
                 stack_position=self.stack_position,
             )
             return new_track
+
+    @classmethod
+    def from_import(cls, imported_data, annotation_set):
+        return cls.objects.create(
+            annotation_set=annotation_set,
+            name=imported_data.get("name", ""),
+            stack_position=imported_data.get("stack_position", 0),
+        )
 
 
 class Content(models.Model):
@@ -762,10 +771,11 @@ class BaseAnnotation(models.Model):
 
     def to_player_json(self):
         """Convert annotation to JSON format for video player."""
-        start = float(self.start_time or 0)
-        end = float(self.end_time or 0)
+        start = float(self.start_time)
+        end = float(self.end_time)
         return {
             "id": self.pk,
+            "name": self.name,
             "type": self.annotation_type,
             "class_type": self.__class__.__name__,
             "start": start,
@@ -773,6 +783,9 @@ class BaseAnnotation(models.Model):
             "start_display": seconds2hms(start),
             "end_display": seconds2hms(end),
             "label": self.name,
+            "track_name": self.track.name,
+            "description": self.description,
+            "active": self.active,
         }
 
     def copy_to_new_annotation_set(self, annotation_set):
@@ -794,6 +807,17 @@ class BaseAnnotation(models.Model):
             active=self.active,
         )
         return new_annotation
+
+    @classmethod
+    def from_import(cls, imported_data, track):
+        return cls.objects.create(
+            name=imported_data.get("name", ""),
+            track=track,
+            start_time=imported_data.get("start", 0.0),
+            end_time=imported_data.get("end", 0.0),
+            description=imported_data.get("description", ""),
+            active=True,
+        )
 
     @transaction.atomic
     def edit(self, **update_fields):
@@ -911,11 +935,20 @@ class SkipAnnotation(BaseAnnotation):
         new_annotation.save()
         return new_annotation
 
+    @classmethod
+    def from_import(cls, imported_data, track):
+        obj = super().from_import(imported_data, track)
+        obj.message = imported_data.get("message", "")
+        obj.save()
+        return obj
+
 
 class MuteAnnotation(BaseAnnotation):
     """Mute annotation - standard time range."""
 
-    pass
+    @classmethod
+    def from_import(cls, imported_data, track):
+        return super().from_import(imported_data, track)
 
 
 class BlankAnnotation(BaseAnnotation):
@@ -936,6 +969,13 @@ class BlankAnnotation(BaseAnnotation):
         new_annotation.type = self.type
         new_annotation.save()
         return new_annotation
+
+    @classmethod
+    def from_import(cls, imported_data, track):
+        obj = super().from_import(imported_data, track)
+        obj.type = imported_data.get("type", "k")
+        obj.save()
+        return obj
 
 
 class PauseAnnotation(BaseAnnotation):
@@ -966,6 +1006,13 @@ class PauseAnnotation(BaseAnnotation):
         new_annotation.save()
         return new_annotation
 
+    @classmethod
+    def from_import(cls, imported_data, track):
+        obj = super().from_import(imported_data, track)
+        obj.message = imported_data.get("message", "")
+        obj.save()
+        return obj
+
 
 class CommentAnnotation(BaseAnnotation):
     """Comment annotation with text and position."""
@@ -994,12 +1041,21 @@ class CommentAnnotation(BaseAnnotation):
         new_annotation.save()
         return new_annotation
 
+    @classmethod
+    def from_import(cls, imported_data, track):
+        obj = super().from_import(imported_data, track)
+        obj.text = imported_data.get("text", "Your comment here")
+        obj.x = imported_data.get("x", 50.0)
+        obj.y = imported_data.get("y", 50.0)
+        obj.save()
+        return obj
+
 
 class BlurAnnotation(BaseAnnotation):
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        positions_query_set = self.positions.all()
+        positions_query_set = self.positions.all().order_by("time")
         positions = []
         for position in positions_query_set:
             positions.append(
@@ -1064,6 +1120,22 @@ class BlurAnnotation(BaseAnnotation):
             )
         new_annotation.save()
         return new_annotation
+
+    @classmethod
+    def from_import(cls, imported_data, track):
+        obj = super().from_import(imported_data, track)
+        for position in imported_data.get("positions", []):
+            BlurAnnotationPosition.objects.create(
+                blur_annotation=obj,
+                time=position.get("time"),
+                x=position.get("x"),
+                y=position.get("y"),
+                width=position.get("width"),
+                height=position.get("height"),
+                blur_amount=position.get("blur_amount", 60),
+                type=position.get("type", "blur"),
+            )
+        return obj
 
 
 class BlurAnnotationPosition(models.Model):

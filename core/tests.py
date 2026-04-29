@@ -1,5 +1,6 @@
 # Create your tests here.
 import copy
+from functools import cmp_to_key
 import json
 import unittest
 
@@ -638,68 +639,102 @@ class AnnotationSetCreateForContentTests(TestCase):
                 type="blur",
             )
 
-    def _assert_player_json_copy(self, original_json, new_json):
-        """Assert each annotation pair has a different id but otherwise matches."""
-        self.assertEqual(len(original_json), len(new_json))
-        for original_entry, new_entry in zip(original_json, new_json):
-            self.assertIn("id", original_entry)
-            self.assertIn("id", new_entry)
-            self.assertNotEqual(original_entry["id"], new_entry["id"])
+    def _assert_annotation_set_json_is_correct(self, original_set_json, new_set_json):
+        self.assertTrue("tracks" in original_set_json and "tracks" in new_set_json)
+        self.assertTrue(len(original_set_json["tracks"]) == len(new_set_json["tracks"]))
 
-            original_other = {k: v for k, v in original_entry.items() if k != "id"}
-            new_other = {k: v for k, v in new_entry.items() if k != "id"}
+        # check that the tracks are equivalent except for id values, indicating successful copy
+        for i in range(0, len(original_set_json["tracks"])):
+            orig_track = original_set_json["tracks"][i]
+            new_track = new_set_json["tracks"][i]
+            self.assertTrue(orig_track["name"] == new_track["name"])
+            self.assertTrue(orig_track["stack_position"] == new_track["stack_position"])
+            self.assertTrue(orig_track["id"] != new_track["id"])
 
-            # Positions (BlurAnnotation) also contain ids we must compare pairwise.
-            original_positions = original_other.pop("positions", None)
-            new_positions = new_other.pop("positions", None)
-            self.assertEqual(original_positions is None, new_positions is None)
-            if original_positions is not None:
-                self.assertEqual(len(original_positions), len(new_positions))
-                for original_pos, new_pos in zip(original_positions, new_positions):
-                    self.assertNotEqual(original_pos["id"], new_pos["id"])
-                    self.assertEqual(
-                        {k: v for k, v in original_pos.items() if k != "id"},
-                        {k: v for k, v in new_pos.items() if k != "id"},
+        # check that the annotations are equivalent except for ids and each maps to a real track
+        self.assertTrue(
+            "annotations" in original_set_json and "annotations" in new_set_json
+        )
+        self.assertTrue(
+            len(original_set_json["annotations"]) == len(new_set_json["annotations"])
+        )
+
+        def sort_annotations(a, b):
+            a_name = a["name"]
+            b_name = b["name"]
+            if a_name < b_name:
+                return -1
+            elif a_name > b_name:
+                return 1
+            else:
+                return 0
+
+        orig_annotations = original_set_json["annotations"]
+        orig_annotations.sort(key=cmp_to_key(sort_annotations))
+        new_annotations = new_set_json["annotations"]
+        new_annotations.sort(key=cmp_to_key(sort_annotations))
+        for i in range(0, len(orig_annotations)):
+            # check inherited BaseAnnotation attributes
+            orig_annotation = orig_annotations[i]
+            new_annotation = new_annotations[i]
+            self.assertTrue(orig_annotation["name"] == new_annotation["name"])
+            self.assertTrue(
+                orig_annotation["track_name"] == new_annotation["track_name"]
+            )
+            self.assertTrue(orig_annotation["start"] == new_annotation["start"])
+            self.assertTrue(orig_annotation["end"] == new_annotation["end"])
+            self.assertTrue(
+                orig_annotation["description"] == new_annotation["description"]
+            )
+            self.assertTrue(new_annotation["active"])
+            orig_type = orig_annotation["type"]
+            self.assertTrue(orig_type == new_annotation["type"])
+
+            # check for annotation type specific attributes
+            if orig_type == "skip" or orig_type == "pause":
+                self.assertTrue(orig_annotation["message"] == new_annotation["message"])
+            elif orig_type == "blank":
+                self.assertTrue(orig_annotation["type"] == new_annotation["type"])
+            elif orig_type == "comment":
+                self.assertTrue(orig_annotation["text"] == new_annotation["text"])
+                self.assertTrue(orig_annotation["x"] == new_annotation["x"])
+                self.assertTrue(orig_annotation["y"] == new_annotation["y"])
+            elif orig_type == "censor":
+                self.assertTrue(
+                    len(orig_annotation["positions"])
+                    == len(new_annotation["positions"])
+                )
+                # check that the positions are correct
+                for j in range(0, len(orig_annotation["positions"])):
+                    orig_position = orig_annotation["positions"][j]
+                    new_position = new_annotation["positions"][j]
+                    self.assertTrue(orig_position["id"] != new_position["id"])
+                    self.assertTrue(orig_position["time"] == new_position["time"])
+                    self.assertTrue(orig_position["x"] == new_position["x"])
+                    self.assertTrue(orig_position["y"] == new_position["y"])
+                    self.assertTrue(orig_position["width"] == new_position["width"])
+                    self.assertTrue(orig_position["height"] == new_position["height"])
+                    self.assertTrue(
+                        orig_position["blur_amount"] == new_position["blur_amount"]
                     )
-
-            self.assertEqual(original_other, new_other)
-
-    def _assert_disjoint_set_track_annotation_ids(self, new_set):
-        self.assertNotEqual(new_set.pk, self.original_set.pk)
-
-        original_track_ids = {t.pk for t in self.original_set.tracks.all()}
-        new_track_ids = {t.pk for t in new_set.tracks.all()}
-        self.assertEqual(len(new_track_ids), len(original_track_ids))
-        self.assertTrue(original_track_ids.isdisjoint(new_track_ids))
-
-        original_annotation_ids = {
-            (a.__class__.__name__, a.pk)
-            for a in self.original_set.get_active_annotations_from_tracks()
-        }
-        new_annotation_ids = {
-            (a.__class__.__name__, a.pk)
-            for a in new_set.get_active_annotations_from_tracks()
-        }
-        self.assertEqual(len(new_annotation_ids), len(original_annotation_ids))
-        self.assertTrue(original_annotation_ids.isdisjoint(new_annotation_ids))
+                    self.assertTrue(orig_position["type"] == new_position["type"])
 
     def test_create_for_content_with_annotations_json(self):
-        original_json = self.original_set.to_player_json()
-        annotations_json = json.dumps(original_json)
+        original_set_json = self.original_set.to_player_json()
+        annotation_set_json = json.dumps(original_set_json)
 
         new_set = AnnotationSet.create_for_content(
             content=self.content,
             user=self.owner,
             set_name="Copied From JSON",
-            annotations_json=annotations_json,
+            annotation_set_json=annotation_set_json,
         )
 
         self.assertIsNotNone(new_set)
-        self.assertEqual(new_set.resource, self.resource)
-        self.assertEqual(new_set.owner, self.owner)
 
-        self._assert_player_json_copy(original_json, new_set.to_player_json())
-        self._assert_disjoint_set_track_annotation_ids(new_set)
+        # compare to_player_json output of both sets
+        new_set_json = new_set.to_player_json()
+        self._assert_annotation_set_json_is_correct(original_set_json, new_set_json)
 
     def test_create_for_content_with_annotation_set_id_to_copy(self):
         original_json = self.original_set.to_player_json()
@@ -715,5 +750,6 @@ class AnnotationSetCreateForContentTests(TestCase):
         self.assertEqual(new_set.resource, self.resource)
         self.assertEqual(new_set.owner, self.owner)
 
-        self._assert_player_json_copy(original_json, new_set.to_player_json())
-        self._assert_disjoint_set_track_annotation_ids(new_set)
+        self._assert_annotation_set_json_is_correct(
+            original_json, new_set.to_player_json()
+        )

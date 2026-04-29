@@ -999,12 +999,12 @@ def create_annotation_set(request):
             return HttpResponseBadRequest()
         content = Content.objects.get(pk=parsed_body["content_id"])
         name = parsed_body.get("name")
-        annotations_json = parsed_body.get("annotations_json", None)
+        annotation_set_json = parsed_body.get("annotation_set_json", None)
         annotation_set_id_to_copy = parsed_body.get("annotation_set_id_to_copy", None)
 
-        if annotations_json is not None:
+        if annotation_set_json is not None:
             try:
-                json.loads(annotations_json)
+                json.loads(annotation_set_json)
             except (json.JSONDecodeError, TypeError):
                 logger.error(
                     "Failed to create new annotation set because annotations_json is not valid JSON"
@@ -1015,7 +1015,7 @@ def create_annotation_set(request):
             content,
             request.user,
             set_name=name,
-            annotations_json=annotations_json,
+            annotation_set_json=annotation_set_json,
             annotation_set_id_to_copy=annotation_set_id_to_copy,
         )
 
