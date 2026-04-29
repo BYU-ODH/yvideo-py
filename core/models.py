@@ -690,10 +690,14 @@ class Content(models.Model):
         Generate complete JSON data for AnnotationPlayer.loadData().
         Returns a dict with 'annotations' and 'clips' keys, each containing JSON strings.
         """
-        return {
-            "annotations": self.annotation_set.to_player_json()
+        annotation_set_json = (
+            self.annotation_set.to_player_json()
             if self.annotation_set
-            else [],
+            else {"annotations": [], "tracks": []}
+        )
+        return {
+            "annotations": annotation_set_json["annotations"],
+            "tracks": annotation_set_json["tracks"],
             "clips": self.get_clips_json(),
             "subtitleTracks": self.get_subtitles(),
         }

@@ -97,7 +97,7 @@ def get_player_data(request, content_id):
         )
 
         data = {
-            "annotations": player_json["annotations"],
+            "annotation_data": player_json["annotations"],
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "clips": player_json["clips"],

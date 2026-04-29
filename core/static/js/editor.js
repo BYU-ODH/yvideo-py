@@ -64,11 +64,11 @@ export class Editor {
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
-        this.watchAndHandleAnnotationSetCreation();
+        // this.watchAndHandleAnnotationSetCreation();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
-        this.watchAndHandleAnnotationSetExport();
+        // this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
