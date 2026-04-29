@@ -59,30 +59,17 @@
     </main>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".search-wrapper").forEach(wrapper => {
+        const input = wrapper.querySelector(".collections-search");
 
-    const searchInputs = document.querySelectorAll(".collections-search");
-
-    searchInputs.forEach(function (searchInput) {
-
-        searchInput.addEventListener("input", function () {
-            const searchText = searchInput.value.toLowerCase();
-
-            const container = searchInput.closest(".landing-page-collection-list");
-            const collectionTiles = container.querySelectorAll(".landing-page-collection");
-
-            collectionTiles.forEach(function (tile) {
-                const nameElement = tile.querySelector(".collection-header-name");
-
-                if (!nameElement) return;
-
-                const collectionName = nameElement.innerText.toLowerCase();
-
-                if (collectionName.includes(searchText)) {
-                    tile.style.display = "";
-                } else {
-                    tile.style.display = "none";
-                }
-            });
+        input.addEventListener("input", () => {
+            const searchText = input.value.toLowerCase();
+            wrapper.closest(".landing-page-collection-list")
+                .querySelectorAll(".landing-page-collection")
+                .forEach(tile => {
+                    const name = tile.querySelector(".collection-header-name")?.innerText.toLowerCase();
+                    tile.style.display = name?.includes(searchText) ? "" : "none";
+                });
         });
     });
 });
