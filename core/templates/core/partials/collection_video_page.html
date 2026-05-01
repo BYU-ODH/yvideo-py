@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="collection-video-page">
+    <h2>{{ collection.name }}</h2>
+    {% for content in published_contents %}
+        <div class="collection-video tile">
+            <a href="{% url 'player' content.id %}" class="collection-video-tile">
+                <div class="tile-image">
+                    <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
+                </div>
+                <div class="tile-body">
+                    <h4 class="video-title">{{ content.title  }}</h4>
+                </div>
+            </a>
+        </div>
+    {% empty %}
+        <p>No Content items</p>
+    {% endfor %}
+</div>
+{% endblock %}
