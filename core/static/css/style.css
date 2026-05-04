@@ -1500,3 +1500,16 @@ p.tile-subtitle {
     width: 100%;
     object-fit: cover;
 }
+
+/* index page mobile */
+@media (max-width: 1280px) {
+    #index-page-content {
+        padding: 2rem 2rem;
+    }
+
+    .index-page-row {
+        flex-direction: column;
+        height: auto;
+        row-gap: 1rem;
+    }
+}
