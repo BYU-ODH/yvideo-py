@@ -1082,7 +1082,21 @@ def display_annotation_set_create_option(request):
         )
     except Exception as e:
         logger.error(
-            f"Failed to generate annotation set options modal content. Exception: {e}"
+            f"Failed to generate create annotation set option template. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
+def display_annotation_set_import_option(request):
+    try:
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/import_from_file.html", {}, request
+            )
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to return Annotation Set import option template. Exception: {e}"
         )
         return HttpResponseServerError()
 

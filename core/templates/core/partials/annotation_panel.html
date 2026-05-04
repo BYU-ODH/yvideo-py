@@ -5,6 +5,9 @@
             <button id="annotation-settings-button" class="multi-select-menu-button" command="show-modal" commandfor="annotation-set-settings">
                 Settings
             </button>
+            <button id="annotation-set-export-button" class="multi-select-menu-button" command="show-modal" commandfor="export-annotation-set">
+                Export Annotations
+            </button>
             <button id="open-annotation-set-options-modal" class="multi-select-menu-button" command="show-modal" commandfor="annotation-set-options-modal">
                 Change Annotation Set
             </button>
@@ -13,6 +16,7 @@
             <img src="/static/img/dots_menu.svg" />
         </button>
         {% include 'partials/annotation_set_settings_compact.html' %}
+        {% include 'partials/annotation_set_export_modal.html' %}
         {% include 'partials/annotation_set_options/base_modal.html' %}
     </div>
     <div id="annotation-groups-wrapper">

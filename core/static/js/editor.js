@@ -68,12 +68,10 @@ export class Editor {
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
         this.setupAnnotationSetOptionsModal();
-        // this.watchAndHandleAnnotationSetExport();
+        this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
-        this.watchAndRevealAnnotationImportOption();
-        this.cancelAnnotationSetImport();
         this.watchAndHandleSubtitleTrackChange();
         this.handleNoAnnotationSet();
     }
@@ -2048,8 +2046,34 @@ export class Editor {
 
     }
 
-    setupAnnotationSetImportModal() {
+    async setupAnnotationSetImportModal() {
+      const result = await this.replaceAnnotationSetOptionsModalContent("/annotation-options-modal/import");
+      if (!result) {
+        return;
+      }
+      this.setupAnnotationSetOptionBackButton();
+      this.toggleAnnotationSetOptionSelectorAndContent();
+      const createButton = document.getElementById("create-annotation-set-from-import-button");
+      createButton.addEventListener("click", async (event) => {
+        const parent = event.target.closest("#import-create-annotation-set");
+        const nameInput = parent.querySelector("#new-annotation-set-name");
+        if (!nameInput.value) {
+          return;
+        }
+        const fileInput = parent.querySelector("#annotation-set-import-file-input");
+        if (fileInput.files.length <= 0) {
+          return;
+        }
+        const jsonFile = await fileInput.files[0].text();
+        try {
+          JSON.parse(jsonFile);
+        } catch {
+          console.error("Invalid JSON provided");
+          return;
+        }
 
+        this.handleAnnotationSetCreation(nameInput.value, undefined, jsonFile);
+      });
     }
 
     async setupAnnotationSetCreationModal() {
@@ -2126,43 +2150,6 @@ export class Editor {
         exportLink.href = `/annotation-set/export/${Number(annotationSetId)}`;
         exportLink.click();
       });
-    }
-
-
-    showAnnotationSetImportRevealerButtons() {
-      const revealerButtons = document.getElementsByClassName("annotation-import-option-revealer");
-      for (let button of revealerButtons) {
-        button.classList.remove("hidden");
-      }
-    }
-
-
-    watchAndRevealAnnotationImportOption() {
-      const buttons = document.getElementsByClassName("annotation-import-option-revealer");
-      const optionsToHide = document.getElementsByClassName("annotation-set-creation-option-form");
-      for (let button of buttons) {
-        button.addEventListener("click", (event) => {
-          for (let option of optionsToHide) {
-            option.classList.remove("annotation-set-creation-option-form-visible");
-          }
-          const parent = event.target.closest(".annotation-set-creation-option");
-          const optionToShow = parent.querySelector(".annotation-set-creation-option-form");
-          optionToShow.classList.add("annotation-set-creation-option-form-visible");
-          this.showAnnotationSetImportRevealerButtons();
-          event.target.classList.add("hidden");
-        });
-      }
-    }
-
-    cancelAnnotationSetImport() {
-      const cancelButtons = document.getElementsByClassName("annotation-set-import-cancel");
-      for (let button of cancelButtons) {
-        button.addEventListener("click", (event) => {
-          const importOptionToHide = event.target.closest(".annotation-set-creation-option-form");
-          importOptionToHide.classList.remove("annotation-set-creation-option-form-visible");
-          this.showAnnotationSetImportRevealerButtons();
-        });
-      }
     }
 
     async handleAnnotationSetChange(event) {

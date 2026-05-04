@@ -312,7 +312,7 @@
     flex-direction: column;
 }
 
-#annotation-set-modal-option-content, #annotation-set-modal-create-new {
+#annotation-set-modal-option-content, .annotation-set-modal-option-content {
     height: 100%;
 }
 
