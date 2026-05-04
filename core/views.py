@@ -1247,6 +1247,6 @@ def collection_video(request, pk):
         "partials/collection_video_page.html",
         {
             "collection": collection,
-            "published_contents": published_contents,
+            "contents": published_contents,
         },
     )

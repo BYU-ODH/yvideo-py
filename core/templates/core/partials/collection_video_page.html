@@ -1,9 +1,20 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="collection-video-page">
-    <h2>{{ collection.name }}</h2>
-    {% for content in published_contents %}
+<div class="collection-video-page" column-flex>
+    <header class="collection-video-header row-flex flex-apart-aligned">
+        <h2>{{ collection.name }}</h2>
+        <div class="search-wrapper">
+            <input
+                type="text"
+                class="collections-search"
+                placeholder="Search"
+                aria-label="Search collections"
+            >
+            <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
+        </div>
+     </header>
+    {% for content in contents %}
         <div class="collection-video tile">
             <a href="{% url 'player' content.id %}" class="collection-video-tile">
                 <div class="tile-image">
