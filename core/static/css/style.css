@@ -34,6 +34,10 @@ body {
     flex-direction: column;
 }
 
+button:hover {
+    cursor: pointer;
+}
+
 .blue-button, .white-button-with-border, .red-button, .cancel-button {
     border-radius: 20px;
     padding: 10px 20px;
@@ -46,7 +50,6 @@ body {
 }
 
 .blue-button:hover {
-    cursor: pointer;
     background-color: white;
     color: var(--primary-blue);
 }
@@ -58,14 +61,12 @@ body {
 }
 
 .white-button-with-border:hover {
-    cursor: pointer;
     background-color: var(--primary-blue);
     color: white;
     border: 2px solid white;
 }
 
 .large-button {
-    cursor: pointer;
     color: white;
     background-color: var(--medium-blue);
     padding: 0.8rem 1.5rem;
@@ -79,7 +80,6 @@ body {
 }
 
 .cancel-button {
-    cursor: pointer;
     color: white;
     background-color: var(--light-grey);
     border: none;
@@ -90,7 +90,6 @@ body {
 }
 
 .red-button {
-    cursor: pointer;
     color: white;
     background-color: var(--light-red);
     border-radius: 1rem;

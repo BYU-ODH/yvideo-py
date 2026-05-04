@@ -281,6 +281,15 @@
     color: var(--dark-mode-text-color);
     border: 3px solid var(--dark-mode-border-color);
     width: 42rem;
+    height: 30.3rem;
+}
+
+#annotation-set-options-modal input, #annotation-set-options-modal select, #annotation-set-options-modal textarea {
+    background-color: var(--dark-mode-background-light);
+    color: var(--dark-mode-text-color);
+    border-radius: 4px;
+    border: none;
+    padding: 8px;
 }
 
 #annotation-set-selection-options {
@@ -296,6 +305,24 @@
     padding: 8px;
     display: flex;
     flex-direction: column;
+}
+
+#annotation-set-modal-create-new {
+    display: flex;
+    flex-direction: column;
+}
+
+#annotation-set-modal-option-content, #annotation-set-modal-create-new {
+    height: 100%;
+}
+
+#annotation-set-create-new-content {
+    justify-content: space-between;
+    flex: 1;
+}
+
+#annotation-set-create-button {
+    align-self: flex-start;
 }
 
 .remove-editor-button {
@@ -642,6 +669,14 @@
 #annotation-form-save-button:hover, #annotation-form-delete-button:hover {
     cursor: pointer;
     background-color: var(--dark-mode-very-dark-gray);
+}
+
+#annotation-set-modal-back {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    font-size: 1rem;
+    padding: 0.2rem 1rem;
 }
 
 .btn {

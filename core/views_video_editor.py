@@ -1073,6 +1073,20 @@ def delete_annotation_set(request, annotation_set_id):
         return HttpResponseServerError()
 
 
+def display_annotation_set_create_option(request):
+    try:
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/create_new.html", {}, request
+            )
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to generate annotation set options modal content. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
 @login_required
 @require_POST
 def update_track(request):

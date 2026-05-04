@@ -64,10 +64,10 @@ export class Editor {
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.setupAnnotationSelectorFunctions();
-        // this.watchAndHandleAnnotationSetCreation();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
+        this.setupAnnotationSetOptionsModal();
         // this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
@@ -1985,65 +1985,103 @@ export class Editor {
       this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
     }
 
-    watchAndHandleAnnotationSetCreation() {
-      const createAnnotationSetButton = document.getElementById("create-annotation-set-submit-button");
-      const setNameInputEl = document.getElementById("new-annotation-set-name");
-      const handleNameSubmit = async () => {
-        const importFromAnotherSetEl = document.getElementById("annotation-set-import-from-set");
-        let annotationSetId;
-        if (importFromAnotherSetEl.className.includes("annotation-set-creation-option-form-visible")) {
-          annotationSetId = importFromAnotherSetEl.querySelector(".annotation-set-selector").value;
-        }
+    async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
+      const createResponse = await fetch("/annotation-set/create", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          content_id: this.contentId,
+          name: setName,
+          annotation_set_id_to_copy: annotationSetId,
+          annotation_set_json: annotationSetJson
+        })
+      });
 
-        const importFromFileEl = document.getElementById("annotation-set-import-from-file");
-        let annotationSetJson;
-        if (importFromFileEl.className.includes("annotation-set-creation-option-form-visible")) {
-          const fileInputEl = document.getElementById("annotation-set-import-file-input");
-          const file = fileInputEl.files[0];
-          if (file) {
-            annotationSetJson = await file.text();
-          }
-          try{
-            JSON.parse(annotationSetJson);
-          } catch {
-            console.error("Invalid JSON provided");
-            return;
-          }
-        }
-
-        const setName = setNameInputEl.value;
-        if (!setName) {
-          return;
-        }
-
-        const createResponse = await fetch("/annotation-set/create", {
-          method: "POST",
-          headers: {
-            "X-CSRFToken": this.getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            content_id: this.contentId,
-            name: setName,
-            annotation_set_id_to_copy: annotationSetId,
-            annotation_set_json: annotationSetJson
-          })
-        });
-
-        if (!createResponse.ok) {
-          console.error("Failed to create new annotation set");
-          return;
-        }
-        window.location.reload();
+      if (!createResponse.ok) {
+        console.error("Failed to create new annotation set");
+        return;
       }
-      createAnnotationSetButton.addEventListener("click", handleNameSubmit);
-      setNameInputEl.addEventListener("keydown", (event) => {
-        if (event.key != "Enter") {
-          return;
-        }
-        handleNameSubmit();
-      })
+      window.location.reload();
     }
+
+    async replaceAnnotationSetOptionsModalContent(url) {
+      const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-content");
+      const contentResponse = await fetch(url);
+      if (!contentResponse.ok) {
+        console.error("Failed to get new content for annotation set options modal");
+        return false;
+      }
+      const newHTML = await contentResponse.text();
+      annotationSetOptionsModalContent.innerHTML = newHTML;
+      return true;
+    }
+
+    setupAnnotationSetOptionBackButton() {
+      const backButton = document.getElementById("annotation-set-modal-back");
+      backButton.addEventListener("click", () => {
+        this.toggleAnnotationSetOptionSelectorAndContent();
+      });
+    }
+
+    toggleAnnotationSetOptionSelectorAndContent() {
+      // hide the options selector and show the selected option content
+      // or do the opposite if the options selector should be shown
+      const selectOptionContent = document.getElementById("annotation-set-modal-base-content");
+      const optionContentContainer = document.getElementById("annotation-set-modal-option-content");
+      if (selectOptionContent.className.includes("hidden")) {
+        optionContentContainer.classList.add("hidden");
+        selectOptionContent.classList.remove("hidden");
+      } else {
+        selectOptionContent.classList.add("hidden");
+        optionContentContainer.classList.remove("hidden");
+      }
+    }
+
+    setupAnnotationSetUseExistingModal() {
+
+    }
+
+    setupAnnotationSetCopyModal() {
+
+    }
+
+    setupAnnotationSetImportModal() {
+
+    }
+
+    async setupAnnotationSetCreationModal() {
+      const result = await this.replaceAnnotationSetOptionsModalContent("/annotation-options-modal/create");
+      if (!result) {
+        return;
+      }
+      this.setupAnnotationSetOptionBackButton();
+      this.toggleAnnotationSetOptionSelectorAndContent();
+      const createAnnotationSetButton = document.getElementById("annotation-set-create-button");
+      createAnnotationSetButton.addEventListener("click", (event) => {
+        const parent = event.target.closest("#annotation-set-create-new-content");
+        const setName = parent.querySelector("#create-annotation-set-name");
+        this.handleAnnotationSetCreation(setName.value);
+      });
+    }
+
+    setupAnnotationSetOptionsModal() {
+      const viewExistingButton = document.getElementById("annotation-set-view-existing");
+      viewExistingButton.addEventListener("click", this.setupAnnotationSetUseExistingModal.bind(this));
+
+      const viewCopyButton = document.getElementById("annotation-set-view-copy");
+      viewCopyButton.addEventListener("click", this.setupAnnotationSetCopyModal.bind(this));
+
+      const viewImportButton = document.getElementById("annotation-set-view-import");
+      viewImportButton.addEventListener("click", this.setupAnnotationSetImportModal.bind(this));
+
+      const viewCreateButton = document.getElementById("annotation-set-view-create");
+      viewCreateButton.addEventListener("click", this.setupAnnotationSetCreationModal.bind(this));
+    }
+
+
 
     watchAndHandleAnnotationSetDelete() {
       const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
@@ -2219,9 +2257,9 @@ export class Editor {
           annotationSetSettingsButton.click();
         }
         else {
-          // open the annotaion set creator/importer
-          const createOrImportAnnotationSetButton = document.getElementById("create-annotation-set-button");
-          createOrImportAnnotationSetButton.click();
+          // open the annotaion set options modal
+          const annotationSetOptionsButton = document.getElementById("open-annotation-set-options-modal");
+          annotationSetOptionsButton.click();
         }
       }
     }

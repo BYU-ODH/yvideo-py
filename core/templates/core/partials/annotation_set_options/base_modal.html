@@ -1,12 +1,12 @@
 <dialog id="annotation-set-options-modal">
     <button class="close-dialog-button" commandfor="annotation-set-options-modal" command="close">X</button>
-    <div id="annotation-set-modal-content">
+    <div id="annotation-set-modal-base-content">
         <h2>
             Choose how to get annotations for this video
         </h2>
         <div id="annotation-set-selection-options">
             <div class="annotation-set-selection-option">
-                <button class="blue-button">
+                <button id="annotation-set-view-existing" class="blue-button">
                     Use existing annotations
                 </button>
                 <p>
@@ -14,7 +14,7 @@
                 </p>
             </div>
             <div class="annotation-set-selection-option">
-                <button class="blue-button">
+                <button id="annotation-set-view-copy" class="blue-button">
                     Copy from existing annotations
                 </button>
                 <p>
@@ -22,7 +22,7 @@
                 </p>
             </div>
             <div class="annotation-set-selection-option">
-                <button class="blue-button">
+                <button id="annotation-set-view-import" class="blue-button">
                     Import annotations
                 </button>
                 <p>
@@ -30,7 +30,7 @@
                 </p>
             </div>
             <div class="annotation-set-selection-option">
-                <button class="blue-button">
+                <button id="annotation-set-view-create" class="blue-button">
                     Create new annotations
                 </button>
                 <p>
@@ -39,4 +39,5 @@
             </div>
         </div>
     </div>
+    <div id="annotation-set-modal-option-content" class="hidden"></div>
 </dialog>
