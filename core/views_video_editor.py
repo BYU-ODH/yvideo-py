@@ -60,8 +60,6 @@ ANNOTATION_ICONS = {
 
 def get_annotation_groups(annotations):
     # [{type:"", type_display:"", icon:"", instances: []}]
-    if type(annotations) == list and len(annotations) == 0:
-        return []
 
     groups = {}
     for type_name in ANNOTATION_MODELS.keys():
@@ -183,7 +181,9 @@ def video_editor(request, content_id):
             else []
         )
 
-        annotation_groups = get_annotation_groups(annotations)
+        annotation_groups = (
+            get_annotation_groups(annotations) if annotation_set is not None else []
+        )
 
         context = {
             "content": content,
