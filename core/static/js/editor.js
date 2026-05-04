@@ -2056,14 +2056,18 @@ export class Editor {
       const createButton = document.getElementById("create-annotation-set-from-import-button");
       createButton.addEventListener("click", async (event) => {
         const parent = event.target.closest("#import-create-annotation-set");
+        let isInvalid = false;
         const nameInput = parent.querySelector("#new-annotation-set-name");
         if (!nameInput.value) {
-          return;
+          isInvalid = true;
+          nameInput.classList.add("invalid-input");
         }
         const fileInput = parent.querySelector("#annotation-set-import-file-input");
         if (fileInput.files.length <= 0) {
-          return;
+          isInvalid = true;
+          fileInput.classList.add("invalid-input");
         }
+        if (isInvalid) return;
         const jsonFile = await fileInput.files[0].text();
         try {
           JSON.parse(jsonFile);
@@ -2087,6 +2091,10 @@ export class Editor {
       createAnnotationSetButton.addEventListener("click", (event) => {
         const parent = event.target.closest("#annotation-set-create-new-content");
         const setName = parent.querySelector("#create-annotation-set-name");
+        if (!setName.value) {
+          setName.classList.add("invalid-input");
+          return;
+        }
         this.handleAnnotationSetCreation(setName.value);
       });
     }
