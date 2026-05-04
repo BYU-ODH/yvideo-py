@@ -2,12 +2,12 @@
 
 {% block content %}
 <div class="collection-video-page" column-flex>
-    <header class="collection-video-header row-flex flex-apart-aligned">
+    <header class="video-title row-flex flex-apart-aligned">
         <h2>{{ collection.name }}</h2>
         <div class="search-wrapper">
             <input
                 type="text"
-                class="collections-search"
+                class="video-search"
                 placeholder="Search"
                 aria-label="Search videos"
             >
@@ -29,4 +29,23 @@
         <p>No Content items</p>
     {% endfor %}
 </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".search-wrapper").forEach(wrapper => {
+        const input = wrapper.querySelector(".video-search");
+
+        input.addEventListener("input", () => {
+            const searchText = input.value.toLowerCase();
+            wrapper.closest(".collection-video-page")
+                .querySelectorAll(".collection-video")
+                .forEach(video => {
+                    const title = video
+                        .querySelector(".video-title")
+                        ?.innerText.toLowerCase() || "";
+                    video.style.display = title.includes(searchText) ? "" : "none";
+                });
+        });
+    });
+});
+</script>
 {% endblock %}
