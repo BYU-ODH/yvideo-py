@@ -217,7 +217,11 @@
     font-weight: 400;
 }
 
-#annotation-set-settings-compact h2, #annotation-set-settings-compact h4 {
+#annotation-set-settings-compact h2 {
+    margin-bottom: 0;
+}
+
+#annotation-set-settings-compact h4 {
     margin: 0;
 }
 
@@ -253,22 +257,11 @@
 }
 
 #annotation-set-options-modal[open] {
-    background-color: var(--dark-mode-background-medium);
-    color: var(--dark-mode-text-color);
-    border: 3px solid var(--dark-mode-border-color);
     width: 42rem;
     min-height: 25rem;
     max-height: 30.3rem;
     display: flex;
     flex-direction: column;
-}
-
-#annotation-set-options-modal input, #annotation-set-options-modal select, #annotation-set-options-modal textarea {
-    background-color: var(--dark-mode-background-light);
-    color: var(--dark-mode-text-color);
-    border-radius: 4px;
-    border: none;
-    padding: 8px;
 }
 
 #annotation-set-selection-options {
@@ -312,13 +305,13 @@
     flex-direction: column;
     justify-content: center;
     background: inherit;
-    border: none;
     border-radius: 50%;
+    border: none;
     padding: 0.4rem 0.5rem;
 }
 
 .remove-editor-button:hover {
-    background-color: var(--dark-mode-very-light-gray);
+    background-color: var(--dark-mode-background-heavy);
     box-shadow: 0px 3px 6px #00000075;
     cursor: pointer;
 }
