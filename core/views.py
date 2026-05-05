@@ -67,6 +67,7 @@ def prepare_collection_for_display(collection):
     )
     contents_count = published_contents.count()
     parsed_collection = {
+        "pk": collection.pk,
         "name": collection.name,
         "items_display": f"{contents_count} items"
         if contents_count > 1 or contents_count == 0
@@ -1236,3 +1237,28 @@ def add_collection_member(request, collection_id):
         return redirect("view_collection", pk=collection.id)
 
     return HttpResponseBadRequest()
+
+
+def collection_video(request, pk):
+    try:
+        collection = Collection.objects.get(pk=pk)
+        published_contents = Content.objects.filter(
+            collection=collection, published=True
+        )
+
+        return render(
+            request,
+            "partials/collection_video_page.html",
+            {
+                "collection": collection,
+                "contents": published_contents,
+            },
+        )
+    except Collection.DoesNotExist:
+        logger.error(
+            f"Failed to retrieve collection video because collection does not exist. Collection ID: {pk}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to retrieve collection video. Exception: {e}")
+        return HttpResponseServerError()

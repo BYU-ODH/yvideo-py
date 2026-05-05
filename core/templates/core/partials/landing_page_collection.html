@@ -1,5 +1,5 @@
 <div class="landing-page-collection tile">
-    <div class="collection-header" onclick="handleAccordian(this)">
+    <a href="{% url 'collection_video' pk=collection.pk %}" class="collection-header">
         <div class="tile-image">
             <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
         </div>
@@ -7,5 +7,5 @@
             <h4 class="collection-header-name">{{ collection.name }}</h4>
             <p class="tile-subtitle">{{ collection.items_display }}</p>
         </div>
-    </div>
+    </a>
 </div>

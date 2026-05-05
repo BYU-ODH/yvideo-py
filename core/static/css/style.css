@@ -1500,3 +1500,48 @@ p.tile-subtitle {
     width: 100%;
     object-fit: cover;
 }
+
+/* index page mobile */
+@media (max-width: 1280px) {
+    #index-page-content {
+        padding: 2rem 2rem;
+    }
+
+    .index-page-row {
+        flex-direction: column;
+        height: auto;
+        row-gap: 1rem;
+    }
+}
+
+/* Video Page */
+.collection-video-page {
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 clamp(16px, 5vw, 80px);
+}
+
+.collection-video {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+}
+
+.collection-video-tile {
+    border-radius: 12px;
+    box-shadow: rgb(185, 184, 184) 0px 1px 3px;
+}
+
+h4.video-title {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    margin: 1rem 0 1rem 0;
+}
+
+.video-search {
+    flex: 1;
+    width: 100%;
+    padding: 10px 10px;
+    border: none;
+    font-size: 0.9rem;
+    background-color: transparent;
+}
