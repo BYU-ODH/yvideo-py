@@ -2005,25 +2005,6 @@ export class Editor {
       window.location.reload();
     }
 
-    async replaceAnnotationSetOptionsModalContent(url) {
-      const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-display");
-      const contentResponse = await fetch(url);
-      if (!contentResponse.ok) {
-        console.error("Failed to get new content for annotation set options modal");
-        return false;
-      }
-      const newHTML = await contentResponse.text();
-      annotationSetOptionsModalContent.innerHTML = newHTML;
-      return true;
-    }
-
-    setupAnnotationSetOptionBackButton() {
-      const backButton = document.getElementById("annotation-set-modal-back");
-      backButton.addEventListener("click", () => {
-        this.toggleAnnotationSetOptionSelectorAndContent();
-      });
-    }
-
     toggleAnnotationSetOptionSelectorAndContent() {
       // hide the options selector and show the selected option content
       // or do the opposite if the options selector should be shown
@@ -2038,17 +2019,39 @@ export class Editor {
       }
     }
 
-    setupAnnotationSetUseExistingModal() {
+    async setupAndDisplayAnnotationSetOption(url) {
+      const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-display");
+      const contentResponse = await fetch(url);
+      if (!contentResponse.ok) {
+        console.error("Failed to get new content for annotation set options modal");
+        return false;
+      }
+      const newHTML = await contentResponse.text();
+      annotationSetOptionsModalContent.innerHTML = newHTML;
+
+      // set up back button
+      const backButton = document.getElementById("annotation-set-modal-back");
+      backButton.addEventListener("click", () => {
+        this.toggleAnnotationSetOptionSelectorAndContent();
+      });
+
+      this.toggleAnnotationSetOptionSelectorAndContent();
+      return true;
+    }
+
+    async setupAnnotationSetUseExistingModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/use-existing/${this.contentId}`);
+      if (!result) {
+        return;
+      }
 
     }
 
     async setupAnnotationSetCopyModal() {
-      const result = await this.replaceAnnotationSetOptionsModalContent(`/annotation-options-modal/copy-from-set/${this.contentId}`);
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/copy-from-set/${this.contentId}`);
       if (!result) {
         return;
       }
-      this.setupAnnotationSetOptionBackButton();
-      this.toggleAnnotationSetOptionSelectorAndContent();
       const createButton = document.getElementById("annotation-set-copy-from-button");
       createButton.addEventListener("click", (event) => {
         const parent = event.target.closest("#annotation-set-modal-copy-from-set");
@@ -2073,12 +2076,10 @@ export class Editor {
     }
 
     async setupAnnotationSetImportModal() {
-      const result = await this.replaceAnnotationSetOptionsModalContent("/annotation-options-modal/import");
+      const result = await this.setupAndDisplayAnnotationSetOption("/annotation-options-modal/import");
       if (!result) {
         return;
       }
-      this.setupAnnotationSetOptionBackButton();
-      this.toggleAnnotationSetOptionSelectorAndContent();
       const createButton = document.getElementById("create-annotation-set-from-import-button");
       createButton.addEventListener("click", async (event) => {
         const parent = event.target.closest("#import-create-annotation-set");
@@ -2111,12 +2112,10 @@ export class Editor {
     }
 
     async setupAnnotationSetCreationModal() {
-      const result = await this.replaceAnnotationSetOptionsModalContent("/annotation-options-modal/create");
+      const result = await this.setupAndDisplayAnnotationSetOption("/annotation-options-modal/create");
       if (!result) {
         return;
       }
-      this.setupAnnotationSetOptionBackButton();
-      this.toggleAnnotationSetOptionSelectorAndContent();
       const createAnnotationSetButton = document.getElementById("annotation-set-create-button");
       createAnnotationSetButton.addEventListener("click", (event) => {
         const parent = event.target.closest("#annotation-set-create-new-content");
