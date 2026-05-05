@@ -30,6 +30,14 @@
     --subtitle-type-color-transparent: #98376975;
     --subtitle-type-color-very-transparent: #98376950;
 
+    /* new y-video editor styles that are ADA compliant */
+    --dark-mode-background-heavy: #000000;
+    --dark-mode-background-medium: #1c1c21;
+    --dark-mode-background-light: #37363c;
+    --dark-mode-border-color: #5a5a5a;
+    --dark-mode-text-color: #dedede;
+    --dark-mode-text-color-muted: #848484;
+
 }
 
 /* Editor Container */
@@ -435,7 +443,8 @@
 .detail-form-section {
     width: 400px;
     overflow-y: auto;
-    color: #fffdfd;
+    color: var(--dark-mode-text-color);
+    background-color: var(--dark-mode-background-medium);
 }
 
 @media screen and (max-width: 1367px) {
@@ -465,6 +474,14 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+}
+
+#annotation-update-form input, #annotation-update-form select, #annotation-update-form textarea {
+    color: var(--dark-mode-text-color);
+    background-color: var(--dark-mode-background-light);
+    border-radius: 4px;
+    border: none;
+    padding: 8px;
 }
 
 .editor-detail-form-placeholder {
