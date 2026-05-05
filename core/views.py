@@ -1240,13 +1240,25 @@ def add_collection_member(request, collection_id):
 
 
 def collection_video(request, pk):
-    collection = get_object_or_404(Collection, pk=pk)
-    published_contents = Content.objects.filter(collection=collection, published=True)
-    return render(
-        request,
-        "partials/collection_video_page.html",
-        {
-            "collection": collection,
-            "contents": published_contents,
-        },
-    )
+    try:
+        collection = Collection.objects.get(pk=pk)
+        published_contents = Content.objects.filter(
+            collection=collection, published=True
+        )
+
+        return render(
+            request,
+            "partials/collection_video_page.html",
+            {
+                "collection": collection,
+                "contents": published_contents,
+            },
+        )
+    except Collection.DoesNotExist:
+        logger.error(
+            f"Failed to retrieve collection video because collection does not exist. Collection ID: {pk}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to retrieve collection video. Exception: {e}")
+        return HttpResponseServerError()

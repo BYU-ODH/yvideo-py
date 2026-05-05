@@ -42,7 +42,7 @@
                             </div>
                             <div class="collections-list-content course-collections-list accordian-folded">
                                 {% for collection in course.collections %}
-                                    {% include "partials/landing_page_collection.html" with collection=collection %}
+                                    {% include "partials/landing_page_collection.html" %}
                                 {% empty %}
                                     <p>No collections for {{course.course_name}}</p>
                                 {% endfor %}
