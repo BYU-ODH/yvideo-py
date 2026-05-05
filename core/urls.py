@@ -184,6 +184,11 @@ urlpatterns = [
         views_video_editor.display_annotation_set_import_option,
         name="display_annotation_set_import_option",
     ),
+    path(
+        "annotation-options-modal/copy-from-set/<int:content_id>",
+        views_video_editor.display_copy_from_annotation_set_option,
+        name="display_copy_from_annotation_set_option",
+    ),
     # Undo/Redo (per-annotation)
     path(
         "content/<int:content_id>/undo/",

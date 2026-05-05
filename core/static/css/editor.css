@@ -290,7 +290,7 @@
     flex-direction: column;
 }
 
-#annotation-set-modal-option-content, .annotation-set-modal-option-content {
+#annotation-set-modal-option-display, .annotation-set-modal-option-form, .annotation-set-modal-option-content {
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -298,10 +298,6 @@
 
 #annotation-set-create-new-content {
     justify-content: space-between;
-    flex: 1;
-}
-
-#annotation-set-import-option-content {
     flex: 1;
 }
 

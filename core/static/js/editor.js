@@ -2006,7 +2006,7 @@ export class Editor {
     }
 
     async replaceAnnotationSetOptionsModalContent(url) {
-      const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-content");
+      const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-display");
       const contentResponse = await fetch(url);
       if (!contentResponse.ok) {
         console.error("Failed to get new content for annotation set options modal");
@@ -2028,7 +2028,7 @@ export class Editor {
       // hide the options selector and show the selected option content
       // or do the opposite if the options selector should be shown
       const selectOptionContent = document.getElementById("annotation-set-modal-base-content");
-      const optionContentContainer = document.getElementById("annotation-set-modal-option-content");
+      const optionContentContainer = document.getElementById("annotation-set-modal-option-display");
       if (selectOptionContent.className.includes("hidden")) {
         optionContentContainer.classList.add("hidden");
         selectOptionContent.classList.remove("hidden");
@@ -2042,8 +2042,34 @@ export class Editor {
 
     }
 
-    setupAnnotationSetCopyModal() {
-
+    async setupAnnotationSetCopyModal() {
+      const result = await this.replaceAnnotationSetOptionsModalContent(`/annotation-options-modal/copy-from-set/${this.contentId}`);
+      if (!result) {
+        return;
+      }
+      this.setupAnnotationSetOptionBackButton();
+      this.toggleAnnotationSetOptionSelectorAndContent();
+      const createButton = document.getElementById("annotation-set-copy-from-button");
+      createButton.addEventListener("click", (event) => {
+        const parent = event.target.closest("#annotation-set-modal-copy-from-set");
+        const nameInput = parent.querySelector("#copy-from-annotation-set-name");
+        let isInvalid = false;
+        if (!nameInput.value) {
+          isInvalid = true;
+          nameInput.classList.add("invalid-input");
+        } else {
+          nameInput.classList.remove("invalid-input");
+        }
+        const setSelection = parent.querySelector(".annotation-set-selector");
+        if (setSelection.value == undefined || setSelection.value == '') {
+          isInvalid = true;
+          setSelection.classList.add("invalid-input");
+        } else {
+          setSelection.classList.remove("invalid-input");
+        }
+        if (isInvalid) return;
+        this.handleAnnotationSetCreation(nameInput.value, setSelection.value);
+      });
     }
 
     async setupAnnotationSetImportModal() {
@@ -2061,11 +2087,15 @@ export class Editor {
         if (!nameInput.value) {
           isInvalid = true;
           nameInput.classList.add("invalid-input");
+        } else {
+          nameInput.classList.remove("invalid-input");
         }
         const fileInput = parent.querySelector("#annotation-set-import-file-input");
         if (fileInput.files.length <= 0) {
           isInvalid = true;
           fileInput.classList.add("invalid-input");
+        } else {
+          fileInput.classList.remove("invalid-input");
         }
         if (isInvalid) return;
         const jsonFile = await fileInput.files[0].text();
@@ -2094,6 +2124,8 @@ export class Editor {
         if (!setName.value) {
           setName.classList.add("invalid-input");
           return;
+        } else {
+          setName.classList.remove("invalid-input");
         }
         this.handleAnnotationSetCreation(setName.value);
       });

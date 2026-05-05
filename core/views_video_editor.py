@@ -1101,6 +1101,28 @@ def display_annotation_set_import_option(request):
         return HttpResponseServerError()
 
 
+def display_copy_from_annotation_set_option(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        available_sets = content.get_available_annotation_sets()
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/copy_from_set.html",
+                {"available_annotation_sets": available_sets, "can_edit": True},
+                request,
+            )
+        )
+
+    except Content.DoesNotExist:
+        logger.error("Failed to retrieve content because it does not exist.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(
+            f"Failed to make a copy of the requested annotation set. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
 @login_required
 @require_POST
 def update_track(request):
