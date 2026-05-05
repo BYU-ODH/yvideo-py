@@ -63,7 +63,6 @@ export class Editor {
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
-        this.setupAnnotationSelectorFunctions();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
@@ -2245,17 +2244,6 @@ export class Editor {
         }
         // rebuild the page with the new annotation set
         window.location.reload();
-    }
-
-    setupAnnotationSelectorFunctions() {
-        const annotationSetSettingsEl = document.getElementById("annotation-set-settings");
-        const setSelector = annotationSetSettingsEl.querySelector(".annotation-set-selector");
-        if (!setSelector) {
-            console.error("Annotation set selector cannot be found!");
-            return;
-        }
-
-        setSelector.addEventListener("change", this.handleAnnotationSetChange.bind(this));
     }
 
     watchForAnnotationSetNameChangeAndHandleIt() {

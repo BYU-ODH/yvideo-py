@@ -1,13 +1,8 @@
 {% load static %}
 <dialog id="annotation-set-settings">
     <div id="annotation-set-settings-compact" class="column-flex" data-annotation-set-id="{{annotation_set.id}}" data-annotation-set-name="{{annotation_set.name}}">
-        <h2>Annotation Set Settings</h2>
         <button class="close-dialog-button" command="close" commandfor="annotation-set-settings">X</button>
-        <div id="annotation-set-select-form" class="column-flex">
-            {% include 'partials/annotation_set_selector.html' %}
-            <button id="annotation-set-delete" class="red-button">Delete this set</button>
-        </div>
-
+        <h2>Annotation Set Settings</h2>
         <div class="column-flex">
             <h4>Update Annotation Set</h4>
             <div>
@@ -19,7 +14,6 @@
                 <button type="button" class="cancel-button" command="close" commandfor="annotation-set-settings">Cancel</button>
             </div>
         </div>
-
         <div>
             <h4>Editors</h4>
             {% include 'partials/annotation_set_selected_editors.html' %}
@@ -32,5 +26,8 @@
             <input id="editor-search-input" aria-label="Search for editor" type="text" placeholder="Search for an editor to add">
             {% include 'partials/editor_search_results.html' %}
         </div>
+        {% if can_edit %}
+        <button id="annotation-set-delete" class="red-button">Delete this set</button>
+        {% endif %}
     </div>
 </dialog>
