@@ -89,7 +89,7 @@
         width: auto;
     }
 
-    .collections-list-content .collection-video-page  {
+    .collections-list-content  {
         grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
     }
 }
