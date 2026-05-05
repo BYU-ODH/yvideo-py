@@ -488,7 +488,7 @@ class SubtitlesTests(TestCase):
 
 
 # The tests in AnnotationSetCreateForContentTests were created by Claude and reviewed by BDR 4/24/2026
-# Except then the tests turned out to suck and I had to refactor them. AI did write the test setup though. BDR 4/30/2026
+# Except then it I realized the tests were bad and I had to refactor them. AI did write the test setup though. BDR 4/30/2026
 class AnnotationSetCreateForContentTests(TestCase):
     def setUp(self):
         self.owner = UserFactory(instructor=True)
