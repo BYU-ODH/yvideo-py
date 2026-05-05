@@ -2202,11 +2202,11 @@ export class Editor {
     }
 
     watchAndHandleAnnotationSetExport() {
-      const exportAnnotationSetEl = document.getElementById("export-annotation-set");
+      const exportAnnotationSetModal = document.getElementById("export-annotation-set");
       const exportButton = document.getElementById("annotation-set-export-button");
       exportButton.addEventListener("click", async () => {
         const exportLink = document.getElementById("export-annotation-set-link");
-        const setSelector = exportAnnotationSetEl.querySelector(".annotation-set-selector");
+        const setSelector = exportAnnotationSetModal.querySelector(".annotation-set-selector");
         const annotationSetId = setSelector.value;
         if (isNaN(Number(annotationSetId)) || annotationSetId == '' || annotationSetId == undefined) {
           // prevent any non-number value from being injected into link
