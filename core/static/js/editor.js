@@ -2044,7 +2044,33 @@ export class Editor {
       if (!result) {
         return;
       }
-
+      const confirmButton = document.getElementById("annotation-set-use-existing-button");
+      confirmButton.addEventListener("click", async (event) => {
+        const parent = event.target.closest("#annotation-set-use-existing-option");
+        const setSelector = parent.querySelector(".annotation-set-selector");
+        if (setSelector.value == undefined || setSelector.value == "") {
+          setSelector.classList.add("invalid-input");
+          return;
+        } else {
+          setSelector.classList.remove("invalid-input");
+        }
+        const contentSetAssignmentResponse = await fetch("/select-annotation-set", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            "content_id": this.contentId,
+            "annotation_set_id": setSelector.value
+          })
+        });
+        if (!contentSetAssignmentResponse.ok) {
+          console.error("Failed to set annotation set for this content");
+          return;
+        }
+        window.location.reload();
+      });
     }
 
     async setupAnnotationSetCopyModal() {

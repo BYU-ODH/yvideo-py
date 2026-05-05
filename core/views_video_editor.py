@@ -1118,7 +1118,38 @@ def display_copy_from_annotation_set_option(request, content_id):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(
-            f"Failed to make a copy of the requested annotation set. Exception: {e}"
+            f"Failed to return Copy from Annotation Set option template. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
+def display_use_existing_annotation_set_option(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        available_sets = content.get_available_annotation_sets()
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/use_existing_set.html",
+                {
+                    "available_annotation_sets": available_sets,
+                    "can_edit": (
+                        content.collection.owner == request.user
+                        or request.user.is_admin
+                    ),
+                },
+                request,
+            )
+        )
+
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to return Annotation sets associated with this content because the content does not exist"
+        )
+        return HttpResponseBadRequest()
+
+    except Exception as e:
+        logger.error(
+            f"Failed to return Use existing Annotation Set option template. Exception: {e}"
         )
         return HttpResponseServerError()
 
