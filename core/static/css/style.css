@@ -729,7 +729,7 @@ dialog {
 
 .annotation-player-container {
     width: 100%;
-    height: calc(100vh-var(--header-height)-16px);
+    height: calc(100vh - var(--header-height) - 16px);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -781,7 +781,7 @@ dialog {
 }
 
 h4.collection-header-name {
-    padding-left: 1.25rem   ;
+    padding-left: 1.25rem;
     padding-right: 1.25rem;
     margin: 1rem 0 0.5rem 0;
 }
@@ -827,17 +827,6 @@ p.tile-subtitle {
     cursor: pointer;
 }
 
-/* Mobile */
-@media (max-width: 820px) {
-    .search-wrapper {
-        width: auto;
-    }
-
-    .collections-list-content {
-        grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
-    }
-}
-
 .course-header {
     padding: 0 0.5rem;
 }
@@ -851,26 +840,6 @@ p.tile-subtitle {
     margin: 0;
     font-size: 1.2rem;
     font-weight: normal;
-}
-
-.collection-section {
-    padding: 0 1rem 0 1rem;
-}
-
-.collection-status {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    font-size: 1.5em;
-    padding: 0;
-    margin-bottom: -1rem;
-}
-
-.collection-list {
-    display: flex;
-    flex-direction: column;
-    row-gap: 1rem;
-    padding: 1rem;
 }
 
 /* Right side (main content) */
@@ -895,6 +864,10 @@ p.tile-subtitle {
 }
 
 .collection-status {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: -1rem;
     font-size: 1em;
     padding: 0;
 }
@@ -1034,11 +1007,6 @@ p.tile-subtitle {
     justify-content: center;
 }
 
-.content-title {
-    font-weight: bold;
-    margin: 0;
-}
-
 .content-actions {
     display: flex;
     flex-direction: row;
@@ -1099,6 +1067,8 @@ p.tile-subtitle {
     flex-direction: column;
     transition: height 0.25s ease-in-out;
     overflow: hidden;
+    row-gap: 1rem;
+    padding: 1rem;
 }
 
 .collection-item {
@@ -1129,6 +1099,7 @@ p.tile-subtitle {
 }
 
 .content-title {
+    font-weight: bold;
     margin: 0;
 }
 
@@ -1501,18 +1472,6 @@ p.tile-subtitle {
     object-fit: cover;
 }
 
-/* index page mobile */
-@media (max-width: 1280px) {
-    #index-page-content {
-        padding: 2rem 2rem;
-    }
-
-    .index-page-row {
-        flex-direction: column;
-        height: auto;
-        row-gap: 1rem;
-    }
-}
 
 /* Video Page */
 .collection-video-page {
@@ -1521,9 +1480,10 @@ p.tile-subtitle {
     padding: 0 clamp(16px, 5vw, 80px);
 }
 
-.collection-video {
+.collection-video-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+    gap: 30px;
 }
 
 .collection-video-tile {
