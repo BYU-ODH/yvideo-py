@@ -89,20 +89,7 @@
         width: auto;
     }
 
-    .collections-list-content .collection-video-page  {
+    .collections-list-content, .collection-video-list {
         grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
-    }
-}
-
-/* index page mobile */
-@media (max-width: 1280px) {
-    #index-page-content {
-        padding: 2rem 2rem;
-    }
-
-    .index-page-row {
-        flex-direction: column;
-        height: auto;
-        row-gap: 1rem;
     }
 }

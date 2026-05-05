@@ -1490,6 +1490,7 @@ p.tile-subtitle {
     object-fit: cover;
 }
 
+
 /* Video Page */
 .collection-video-page {
     max-width: 1200px;
@@ -1497,7 +1498,7 @@ p.tile-subtitle {
     padding: 0 clamp(16px, 5vw, 80px);
 }
 
-.collection-video {
+.collection-video-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
