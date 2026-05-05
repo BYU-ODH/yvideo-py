@@ -2157,10 +2157,14 @@ export class Editor {
 
     setupAnnotationSetOptionsModal() {
       const viewExistingButton = document.getElementById("annotation-set-view-existing");
-      viewExistingButton.addEventListener("click", this.setupAnnotationSetUseExistingModal.bind(this));
+      if (viewExistingButton) {
+        viewExistingButton.addEventListener("click", this.setupAnnotationSetUseExistingModal.bind(this));
+      }
 
       const viewCopyButton = document.getElementById("annotation-set-view-copy");
-      viewCopyButton.addEventListener("click", this.setupAnnotationSetCopyModal.bind(this));
+      if (viewCopyButton) {
+        viewCopyButton.addEventListener("click", this.setupAnnotationSetCopyModal.bind(this));
+      }
 
       const viewImportButton = document.getElementById("annotation-set-view-import");
       viewImportButton.addEventListener("click", this.setupAnnotationSetImportModal.bind(this));
@@ -2179,9 +2183,7 @@ export class Editor {
       }
 
       deleteAnnotationSetButton.addEventListener("click", async () => {
-        const annotationSetSettingsEl = document.getElementById("annotation-set-settings");
-        const selectorEl = annotationSetSettingsEl.querySelector(".annotation-set-selector");
-        const annotationSetId = selectorEl.value;
+        const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
         if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
           return;
         }
@@ -2289,18 +2291,15 @@ export class Editor {
       // This is designed to run only when the editor loads to encourage a user to select,
       // create, or import an annotation set
       const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
-      const annotationSetOptions = document.getElementsByClassName("annotation-set-option");
       if (annotationSetId === '' || annotationSetId === undefined) {
-        if (annotationSetOptions.length > 0) {
-          // open annotation set selector
-          const annotationSetSettingsButton = document.getElementById("annotation-settings-button");
-          annotationSetSettingsButton.click();
-        }
-        else {
-          // open the annotaion set options modal
-          const annotationSetOptionsButton = document.getElementById("open-annotation-set-options-modal");
-          annotationSetOptionsButton.click();
-        }
+        // prevent user from leaving modal if they need to pick an annotation set
+        const optionsModal = document.getElementById("annotation-set-options-modal");
+        const exitButton = optionsModal.querySelector(".close-dialog-button");
+        exitButton.remove();
+
+        // open the annotation set options modal
+        const annotationSetOptionsButton = document.getElementById("open-annotation-set-options-modal");
+        annotationSetOptionsButton.click();
       }
     }
 

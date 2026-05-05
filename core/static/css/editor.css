@@ -257,7 +257,8 @@
     color: var(--dark-mode-text-color);
     border: 3px solid var(--dark-mode-border-color);
     width: 42rem;
-    height: 30.3rem;
+    min-height: 25rem;
+    max-height: 30.3rem;
     display: flex;
     flex-direction: column;
 }
