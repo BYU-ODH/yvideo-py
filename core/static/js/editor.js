@@ -951,14 +951,55 @@ export class Editor {
       }
     }
 
+    setUpCommentChangeListeners(formElement) {
+      // You may wonder why commentTextBox is declared in both event listeners instead of
+      // outside them. This is because the box often does not generate quickly enough for
+      // it to be defined before we query for it in the outer function. If you wait to get
+      // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
+      const itemForm = formElement.querySelector("#existing-item-form");
+      const annotationId = itemForm.dataset["annotationId"];
+      const fontSizeInput = formElement.querySelector("#font-size");
+      fontSizeInput.addEventListener("input", () => {
+        const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
+        if (!commentTextBox) {
+          console.error("could not find comment text box with annotation id: " + annotationId);
+        }
+        const newFontSize = fontSizeInput.value;
+        if (newFontSize != undefined && newFontSize != '') {
+          commentTextBox.style.fontSize = newFontSize + 'rem';
+        }
+      });
+
+      const fontColorInput = formElement.querySelector("#font-color");
+      fontColorInput.addEventListener("input", () => {
+        const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
+        if (!commentTextBox) {
+          console.error("could not find comment text box with annotation id: " + annotationId);
+        }
+        const newFontColor = fontColorInput.value;
+        const newLength = newFontColor.length;
+        if (newLength != 3 && newLength != 6) {
+          return;
+        }
+        else {
+          commentTextBox.style.color = "#" + fontColorInput.value;
+        }
+      });
+    }
+
     async getItemFormDetails(annotationType, annotationId, contentId) {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
         method: "GET"
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
-      this.setUpCensorPositionDeleteListeners(annotationId);
-      this.setupCensorPositionSeekListeners();
+      if (annotationType == "censor") {
+        this.setUpCensorPositionDeleteListeners(annotationId);
+        this.setupCensorPositionSeekListeners();
+      }
+      else if (annotationType == "comment") {
+        this.setUpCommentChangeListeners(detailForm);
+      }
     }
 
     markItemAsActive(annotationType, annotationId) {
