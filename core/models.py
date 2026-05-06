@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
@@ -860,12 +861,32 @@ class PauseAnnotation(BaseAnnotation):
         }
 
 
+def validate_font_color(hexcode):
+    # font color must be at least 3 characters or 6 characters.
+    font_color_length = len(hexcode)
+    if font_color_length != 3 and font_color_length != 6:
+        raise ValidationError(
+            f"font_color must be 3 or 6 characters. {hexcode} was provided which has {font_color_length} characters."
+        )
+    # check that each character is [0-9], [a-f], or [A-F]
+    pattern = "[0-9a-fA-F]"
+    for char in hexcode:
+        if re.search(pattern, char) is None:
+            raise ValidationError(
+                "font_color must only include valid hexadecimal characters: 0-9, a-f or A-F"
+            )
+
+
 class CommentAnnotation(BaseAnnotation):
     """Comment annotation with text and position."""
 
     text = models.TextField()
     x = models.FloatField()
     y = models.FloatField()
+    font_size_in_rem = models.FloatField(default=1)
+    font_color = models.CharField(
+        max_length=6, default="ffffff", validators=[validate_font_color]
+    )
 
     def to_player_json(self):
         """Override: include text and coordinates."""
