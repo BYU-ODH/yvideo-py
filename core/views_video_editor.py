@@ -504,13 +504,6 @@ def create_annotation(request, annotation_type, track_id):
     if annotation_type != "pause":
         data["end_time"] = end_time
 
-    if annotation_type == "comment":
-        data.update({"text": "", "x": 50.0, "y": 50.0})
-    elif annotation_type == "pause":
-        data["message"] = ""
-    elif annotation_type == "blank":
-        data["type"] = "k"
-
     annotation = model_class.objects.create(**data)
     if annotation_type == "censor":
         BlurAnnotationPosition.objects.create(
@@ -812,10 +805,29 @@ def update_annotation(request, annotation_type, annotation_id):
         if annotation_type == "comment":
             if "text" in json_data:
                 fields_to_update["text"] = json_data["text"]
-            if "x" in json_data and json_data["x"] is not None:
-                fields_to_update["x"] = float(json_data["x"])
-            if "y" in json_data and json_data["y"] is not None:
-                fields_to_update["y"] = float(json_data["y"])
+            if "top_left_x" in json_data and json_data["top_left_x"] is not None:
+                fields_to_update["top_left_x"] = float(json_data["top_left_x"])
+            if "top_left_y" in json_data and json_data["top_left_y"] is not None:
+                fields_to_update["top_left_y"] = float(json_data["top_left_y"])
+            if (
+                "bottom_right_x" in json_data
+                and json_data["bottom_right_x"] is not None
+            ):
+                fields_to_update["bottom_right_x"] = float(json_data["bottom_right_x"])
+            if (
+                "bottom_right_y" in json_data
+                and json_data["bottom_right_y"] is not None
+            ):
+                fields_to_update["bottom_right_y"] = float(json_data["bottom_right_y"])
+            if (
+                "font_size_in_rem" in json_data
+                and json_data["font_size_in_rem"] is not None
+            ):
+                fields_to_update["font_size_in_rem"] = float(
+                    json_data["font_size_in_rem"]
+                )
+            if "font_color" in json_data:
+                fields_to_update["font_color"] = json_data["font_color"]
 
         for key, value in fields_to_update.items():
             setattr(annotation, key, value)

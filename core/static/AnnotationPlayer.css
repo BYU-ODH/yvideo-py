@@ -815,6 +815,11 @@
   }
 }
 
+/* styles for comment type annotations */
+.comment-text-box {
+    position: absolute;
+}
+
 @media screen and (max-width: 320px) {
   .video-controls {
     gap: 2px;
