@@ -1566,6 +1566,24 @@ export class Editor {
         });
       this.adjustScrubberHeight();
       this.setUpClickListenersForAllPanelAndTrackItems();
+      this.setUpItemElevationOnClick();
+    }
+
+    setUpItemElevationOnClick() {
+      const itemsToSetUp = document.querySelectorAll(".track-item[data-setup='false']");
+      for (let item of itemsToSetUp) {
+        item.addEventListener("mousedown", () => {
+          const parent = item.closest(".track-row-annotations-container");
+          console.log(parent);
+          for (let sibling of parent.querySelectorAll(".track-item")) {
+            if (sibling != item) {
+              sibling.classList.remove("elevated");
+            } else {
+              sibling.classList.add("elevated");
+            }
+          }
+        });
+      }
     }
 
     handleTrackItemPlacementAfterEvent(e) {
