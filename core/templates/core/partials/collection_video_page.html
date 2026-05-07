@@ -22,13 +22,38 @@
                 </div>
                 <div class="tile-body">
                     <h4 class="video-title">{{ content.title  }}</h4>
+<main class="main-content">
+    <div class="collection-video-page column-flex">
+        <header class="video-title row-flex flex-apart-aligned">
+            <h2>{{ collection.name }}</h2>
+            <div class="search-wrapper">
+                <input
+                    type="text"
+                    class="video-search"
+                    placeholder="Search"
+                    aria-label="Search videos"
+                >
+                <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
+            </div>
+        </header>
+        <div class="collection-video-list">
+            {% for content in contents %}
+                <div class="collection-video tile">
+                    <a href="{% url 'player' content.id %}" class="collection-video-tile">
+                        <div class="tile-image">
+                            <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
+                        </div>
+                        <div class="tile-body">
+                            <h4 class="video-title">{{ content.title  }}</h4>
+                        </div>
+                    </a>
                 </div>
-            </a>
+            {% empty %}
+                <p>No Content items</p>
+            {% endfor %}
         </div>
-    {% empty %}
-        <p>No Content items</p>
-    {% endfor %}
-</div>
+    </div>
+</main>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".search-wrapper").forEach(wrapper => {
