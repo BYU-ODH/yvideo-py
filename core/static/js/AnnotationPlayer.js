@@ -803,9 +803,11 @@ export class AnnotationPlayer {
             let commentTextBox = this.annotationBox.querySelector("#comment-text-box-" + a.id);
             if (!commentTextBox) {
               commentTextBox = document.createElement("div");
+              const commentPara = document.createElement('p');
+              commentPara.innerText = a.text;
+              commentTextBox.appendChild(commentPara);
               commentTextBox.id = "comment-text-box-" + a.id;
               commentTextBox.classList.add("comment-text-box");
-              commentTextBox.innerText = a.text;
               commentTextBox.style.top = a.top_left_y + '%';
               commentTextBox.style.left = a.top_left_x + '%';
               commentTextBox.style.width = (a.bottom_right_x - a.top_left_x) + '%';

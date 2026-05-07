@@ -583,6 +583,18 @@
     background-color: var(--dark-mode-very-dark-gray);
 }
 
+/* comment annotation */
+.comment-text-box p {
+    margin: 0;
+}
+
+.comment-text-box-editor-active {
+    border: 1px dashed white;
+    cursor: move;
+    z-index: 2;
+    pointer-events: auto;
+}
+
 .btn {
     padding: 0.5rem 1rem;
     border: none;

@@ -531,6 +531,32 @@ export class Editor {
       }
     }
 
+    buildMoveHandler(elementToMove) {
+      let lastEventClientX;
+      let lastEventClientY;
+      return (event) => {
+        if (lastEventClientX !== undefined && lastEventClientY !== undefined) {
+          // look at difference in last event's position vs this events position
+          const xChange = event.clientX - lastEventClientX;
+          const yChange = event.clientY - lastEventClientY;
+          const referenceRect = elementToMove.parentElement.getBoundingClientRect();
+          const xPercentChange = xChange / referenceRect.width * 100;
+          const yPercentChange = yChange / referenceRect.height * 100;
+
+          const elementLeft = convertPercentStringToDecimal(elementToMove.style.left) * 100;
+          const elementTop = convertPercentStringToDecimal(elementToMove.style.top) * 100;
+
+          const newLeft = (elementLeft + xPercentChange) + '%';
+          const newTop = (elementTop + yPercentChange) + '%';
+
+          elementToMove.style.left = newLeft;
+          elementToMove.style.top = newTop;
+        }
+        lastEventClientX = event.clientX;
+        lastEventClientY = event.clientY;
+      }
+    }
+
     handleCensorPointerDown(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -987,6 +1013,57 @@ export class Editor {
       });
     }
 
+    cleanUpActiveCommentBoxs() {
+      const commentBoxes = document.getElementsByClassName("comment-text-box");
+      for (let box of commentBoxes) {
+        box.classList.remove("comment-text-box-editor-active");
+        const sizeControls = box.querySelectorAll(".comment-text-box-size-control");
+        for (let control of sizeControls) {
+          control.remove();
+        }
+      }
+    }
+
+    presentCommentBoxSizeControls(annotationId) {
+      this.cleanUpActiveCommentBoxs();
+      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      commentBox.classList.add("comment-text-box-editor-active");
+      if (!commentBox) {
+        console.log("No comment text box found for annotation id: " + annotationId);
+        return;
+      }
+      // set up commentBoxDrag
+      commentBox.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+        commentBox.setPointerCapture(event.pointerId);
+        const moveHandler = this.buildMoveHandler(commentBox);
+        commentBox.addEventListener("pointermove", moveHandler);
+        commentBox.addEventListener("pointerup", (event) => {
+          event.target.removeEventListener("pointermove", moveHandler);
+        }, {once: true});
+      });
+
+      // set up controls
+      const topControlClass = "comment-text-box-top-size-control";
+      const bottomControlClass = "comment-text-box-bottom-size-control";
+      const leftControlClass = "comment-text-box-left-size-control";
+      const rightControlClass = "comment-text-box-right-size-control";
+      for (let i = 0; i < 4; i++) {
+        // the box will have 4 controls, one in each corner. The top two (from left to right) are
+        // i = 0 and i = 1. The bottom two (from left to right) are i = 2 and i = 3
+        const isTop = i < 2;
+        const isLeft = !(i % 2);
+        const newDragControl = document.createElement("div");
+        commentBox.appendChild(newDragControl);
+        newDragControl.classList.add("comment-text-box-size-control");
+        newDragControl.classList.add(isTop ? topControlClass : bottomControlClass);
+        newDragControl.classList.add(isLeft ? leftControlClass : rightControlClass);
+        newDragControl.addEventListener("mousedown", () => {
+          console.log("hey");
+        });
+      }
+    }
+
     async getItemFormDetails(annotationType, annotationId, contentId) {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
         method: "GET"
@@ -999,6 +1076,7 @@ export class Editor {
       }
       else if (annotationType == "comment") {
         this.setUpCommentChangeListeners(detailForm);
+        this.presentCommentBoxSizeControls(annotationId);
       }
     }
 
@@ -1615,7 +1693,6 @@ export class Editor {
       for (let item of itemsToSetUp) {
         item.addEventListener("mousedown", () => {
           const parent = item.closest(".track-row-annotations-container");
-          console.log(parent);
           for (let sibling of parent.querySelectorAll(".track-item")) {
             if (sibling != item) {
               sibling.classList.remove("elevated");
