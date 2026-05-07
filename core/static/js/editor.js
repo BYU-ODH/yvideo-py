@@ -543,8 +543,8 @@ export class Editor {
           const xPercentChange = xChange / referenceRect.width * 100;
           const yPercentChange = yChange / referenceRect.height * 100;
 
-          const elementLeft = convertPercentStringToDecimal(elementToMove.style.left) * 100;
-          const elementTop = convertPercentStringToDecimal(elementToMove.style.top) * 100;
+          const elementLeft = parseFloat(elementToMove.style.left);
+          const elementTop = parseFloat(elementToMove.style.top);
 
           const newLeft = (elementLeft + xPercentChange) + '%';
           const newTop = (elementTop + yPercentChange) + '%';
@@ -565,25 +565,18 @@ export class Editor {
       const censorTopStart = censorEl.style.top;
       const censorPointerId = e.pointerId;
       censorEl.setPointerCapture(censorPointerId);
-      const annotationBox = document.getElementById("annotation-box");
+      const annotationBox = censorEl.closest("#annotation-box");
       const boxRect = annotationBox.getBoundingClientRect();
       const widthPercent = parseFloat(censorEl.style.width);
       const heightPercent = parseFloat(censorEl.style.height);
 
-      function handleCensorMove(event) {
-        const xPercent = (event.clientX - boxRect.left) / boxRect.width * 100;
-        const yPercent = (event.clientY - boxRect.top) / boxRect.height * 100;
-        censorEl.style.left = `${Math.max(0, Math.min(100 - widthPercent, xPercent - widthPercent / 2))}%`;
-        censorEl.style.top = `${Math.max(0, Math.min(100 - heightPercent, yPercent - heightPercent / 2))}%`;
-      }
-
       async function onPointerUp(upEvent) {
-        handleCensorMove(upEvent);
         const positionEl = upEvent.target;
+        const positionRect = positionEl.getBoundingClientRect();
         const censorPositionId = positionEl.dataset["censorPositionId"];
         const parentCensorId = positionEl.dataset["censorPositionParentId"];
-        const newX = ((upEvent.clientX - boxRect.left) / boxRect.width * 100) - widthPercent / 2;
-        const newY = ((upEvent.clientY - boxRect.top) / boxRect.height * 100) - heightPercent / 2;
+        const newX = ((positionRect.left - boxRect.left) / boxRect.width) * 100;
+        const newY = ((positionRect.top - boxRect.top) / boxRect.height) * 100;
         await this.updateCensorPosition(censorPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentCensorId);
         handleCleanup();
       }
@@ -606,6 +599,7 @@ export class Editor {
 
       const pointerUpCallback = onPointerUp.bind(this);
 
+      const handleCensorMove = this.buildMoveHandler(censorEl);
       function handleCleanup() {
         censorEl.releasePointerCapture(censorPointerId);
         censorEl.removeEventListener('pointermove', handleCensorMove);
@@ -614,10 +608,10 @@ export class Editor {
         document.removeEventListener("keyup", handleEscKeyPress);
       }
 
-      censorEl.addEventListener('pointermove', handleCensorMove);
-      censorEl.addEventListener('pointerup', pointerUpCallback);
-      censorEl.addEventListener('pointercancel', handleMoveCancel);
       document.addEventListener("keyup", handleEscKeyPress);
+      censorEl.addEventListener('pointercancel', handleMoveCancel);
+      censorEl.addEventListener('pointerup', pointerUpCallback);
+      censorEl.addEventListener('pointermove', handleCensorMove);
     }
 
 
