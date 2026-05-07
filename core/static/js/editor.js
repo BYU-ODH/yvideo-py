@@ -1007,7 +1007,7 @@ export class Editor {
       });
     }
 
-    cleanUpActiveCommentBoxs() {
+    cleanUpActiveCommentBoxes() {
       const commentBoxes = document.getElementsByClassName("comment-text-box");
       for (let box of commentBoxes) {
         box.classList.remove("comment-text-box-editor-active");
@@ -1019,8 +1019,11 @@ export class Editor {
     }
 
     presentCommentBoxSizeControls(annotationId) {
-      this.cleanUpActiveCommentBoxs();
+      this.cleanUpActiveCommentBoxes();
       const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      if (!commentBox) {
+        return;
+      }
       commentBox.classList.add("comment-text-box-editor-active");
       if (!commentBox) {
         console.log("No comment text box found for annotation id: " + annotationId);
