@@ -803,6 +803,7 @@ export class AnnotationPlayer {
             let commentTextBox = this.annotationBox.querySelector("#comment-text-box-" + a.id);
             if (!commentTextBox) {
               commentTextBox = document.createElement("div");
+              commentTextBox.dataset["setup"] = "false";
               const commentPara = document.createElement('p');
               commentPara.innerText = a.text;
               commentTextBox.appendChild(commentPara);

@@ -1029,16 +1029,20 @@ export class Editor {
         console.log("No comment text box found for annotation id: " + annotationId);
         return;
       }
+
       // set up commentBoxDrag
-      commentBox.addEventListener("pointerdown", (event) => {
-        event.stopPropagation();
-        commentBox.setPointerCapture(event.pointerId);
-        const moveHandler = this.buildMoveHandler(commentBox);
-        commentBox.addEventListener("pointermove", moveHandler);
-        commentBox.addEventListener("pointerup", (event) => {
-          event.target.removeEventListener("pointermove", moveHandler);
-        }, {once: true});
-      });
+      if (commentBox.dataset["setup"] == "false") {
+        commentBox.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          commentBox.setPointerCapture(event.pointerId);
+          const moveHandler = this.buildMoveHandler(commentBox);
+          commentBox.addEventListener("pointermove", moveHandler);
+          commentBox.addEventListener("pointerup", (event) => {
+            event.target.removeEventListener("pointermove", moveHandler);
+          }, {once: true});
+        });
+        commentBox.dataset["setup"] = "true";
+      }
 
       // set up controls
       const topControlClass = "comment-text-box-top-size-control";
