@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="collection-video-page" column-flex>
+<div class="collection-video-page column-flex">
     <header class="video-title row-flex flex-apart-aligned">
         <h2>{{ collection.name }}</h2>
         <div class="search-wrapper">
@@ -17,7 +17,7 @@
     {% for content in contents %}
         <div class="collection-video tile">
             <a href="{% url 'player' content.id %}" class="collection-video-tile">
-                <div class="tile-image">
+                <div class="tile-image-wrapper">
                     <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
                 </div>
                 <div class="tile-body">
