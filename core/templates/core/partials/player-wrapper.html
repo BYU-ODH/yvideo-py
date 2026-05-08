@@ -13,9 +13,3 @@
 </div>
 
 <script type="module" src="{% static 'js/player-wrapper.js' %}"></script>
-<script>
-    const video = document.querySelector("#video-player");
-    video.addEventListener("play", function() {
-        document.querySelector(".fullscreen-btn").click();
-    }, { once: true });
-</script>
