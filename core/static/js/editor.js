@@ -345,7 +345,7 @@ export class Editor {
       const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        this.updateAnnotation(annotationType, annotationId)
+        this.updateAnnotation({annotationType, annotationId})
       })
     }
 
@@ -796,7 +796,7 @@ export class Editor {
       itemFormObserver.observe(itemForm, { childList: true });
     }
 
-    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -835,21 +835,27 @@ export class Editor {
         return false;
       }
 
+
       const responseData = await response.json();
 
       const itemHtml = responseData["item_html"];
       const formHtml = responseData["form_html"];
 
-      const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      targetItem.outerHTML = itemHtml;
-      // You must get the new element before making the style changes that occur while placing the track item.
-      const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      this.placeTrackItems();
+      if (autoUpdateItem) {
+        const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
+        targetItem.outerHTML = itemHtml;
+        // You must get the new element before making the style changes that occur while placing the track item.
+        const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
+        this.placeTrackItems();
+        this.setUpItemClickListeners(newTargetItem);
+      }
 
-      const targetForm = document.getElementById("detail-form");
-      targetForm.innerHTML = formHtml;
-      this.setUpItemClickListeners(newTargetItem);
-      window.dispatchEvent(this.annotationUpdatedEvent);
+      if (autoUpdateForm) {
+        const targetForm = document.getElementById("detail-form");
+        targetForm.innerHTML = formHtml;
+        window.dispatchEvent(this.annotationUpdatedEvent);
+      }
+      return true;
     }
 
     triggerSave(state) {
@@ -889,7 +895,7 @@ export class Editor {
           return;
         }
         const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
-        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true);
+        this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
     }
 
     setTimeFromVideo(fieldName) {
@@ -1021,7 +1027,36 @@ export class Editor {
       }
     }
 
-    presentCommentBoxSizeControls(annotationId) {
+    updateCommentBoxPositionAndSize(annotationId) {
+      // validate that the box exists and we are editing the correct one
+      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      const updateForm = document.getElementById("annotation-update-form");
+      if (!commentBox || !updateForm || updateForm.dataset["annotationId"] != annotationId) return;
+
+      // update the form and save
+      const boxTop = parseFloat(commentBox.style.top);
+      const boxLeft = parseFloat(commentBox.style.left);
+
+      const formTopX = updateForm.querySelector("#top-x");
+      const formTopY = updateForm.querySelector("#top-y");
+      const formBottomX = updateForm.querySelector("#bottom-x");
+      const formBottomY = updateForm.querySelector("#bottom-y");
+      if (!formTopX || !formTopY || !formBottomX || !formBottomY) {
+        console.error("Failed to get all comment form elements to update");
+        return;
+      }
+
+      // save original values in case update request goes wrong
+
+      formTopX.value = boxLeft;
+      formTopY.value = boxTop;
+      formBottomX.value = boxLeft + parseFloat(commentBox.style.width);
+      formBottomY.value = boxTop + parseFloat(commentBox.style.height);
+
+      this.updateAnnotation({annotationType:"comment", annotationId, autoUpdateItem: false});
+    }
+
+    presentCommentBoxPositionAndSizeControls(annotationId) {
       this.cleanUpActiveCommentBoxes();
       const commentBox = document.getElementById("comment-text-box-" + annotationId);
       if (!commentBox) {
@@ -1041,6 +1076,7 @@ export class Editor {
           const moveHandler = this.buildMoveHandler(commentBox);
           commentBox.addEventListener("pointermove", moveHandler);
           commentBox.addEventListener("pointerup", (event) => {
+            this.updateCommentBoxPositionAndSize(annotationId);
             event.target.removeEventListener("pointermove", moveHandler);
           }, {once: true});
         });
@@ -1071,6 +1107,7 @@ export class Editor {
           newDragControl.setPointerCapture(event.pointerId);
           newDragControl.addEventListener("pointermove", moveHandler);
           newDragControl.addEventListener("pointerup", () => {
+            this.updateCommentBoxPositionAndSize(annotationId);
             newDragControl.removeEventListener("pointermove", moveHandler)
           }, {once: true})
         });
@@ -1089,7 +1126,7 @@ export class Editor {
       }
       else if (annotationType == "comment") {
         this.setUpCommentChangeListeners(detailForm);
-        this.presentCommentBoxSizeControls(annotationId);
+        this.presentCommentBoxPositionAndSizeControls(annotationId);
       }
     }
 
