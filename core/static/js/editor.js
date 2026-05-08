@@ -986,25 +986,41 @@ export class Editor {
       // it to be defined before we query for it in the outer function. If you wait to get
       // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
       const itemForm = formElement.querySelector("#existing-item-form");
+      const saveButton = itemForm.querySelector("#annotation-form-save-button");
       const annotationId = itemForm.dataset["annotationId"];
       const fontSizeInput = formElement.querySelector("#font-size");
-      fontSizeInput.addEventListener("input", () => {
+      function getCommentBoxOrWriteError() {
         const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
         if (!commentTextBox) {
           console.error("could not find comment text box with annotation id: " + annotationId);
+          return undefined;
         }
+        return commentTextBox;
+      }
+      function callOutSaveButton() {
+        saveButton.style.backgroundColor = "white";
+        saveButton.style.color = "black";
+        saveButton.innerText = "Save changes";
+      }
+
+      // handle font size change
+      fontSizeInput.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
         const newFontSize = fontSizeInput.value;
         if (newFontSize != undefined && newFontSize != '') {
           commentTextBox.style.fontSize = newFontSize + 'rem';
+          callOutSaveButton();
         }
       });
 
-      const fontColorInput = formElement.querySelector("#font-color");
+      // handle font color change
+      const fontColorInput = itemForm.querySelector("#font-color");
       fontColorInput.addEventListener("input", () => {
-        const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
-        if (!commentTextBox) {
-          console.error("could not find comment text box with annotation id: " + annotationId);
-        }
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
         const newFontColor = fontColorInput.value;
         const newLength = newFontColor.length;
         if (newLength != 3 && newLength != 6) {
@@ -1012,8 +1028,49 @@ export class Editor {
         }
         else {
           commentTextBox.style.color = "#" + fontColorInput.value;
+          callOutSaveButton();
         }
       });
+
+      // handle top left x change
+      const topX = itemForm.querySelector("#top-x");
+      topX.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.left = parseFloat(topX.value) + '%';
+        callOutSaveButton();
+      });
+
+      // handle top left y change
+      const topY = itemForm.querySelector("#top-y");
+      topY.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.top = parseFloat(topY.value) + '%';
+        callOutSaveButton();
+      });
+
+      // handle bottom right x change
+      const bottomX = itemForm.querySelector("#bottom-x");
+      bottomX.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.width = (parseFloat(bottomX.value) - parseFloat(commentTextBox.style.left)) + '%';
+        callOutSaveButton();
+      });
+
+      // handle bottom right y change
+      const bottomY = itemForm.querySelector("#bottom-y");
+      bottomY.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.height = (parseFloat(bottomY.value) - parseFloat(commentTextBox.style.top)) + '%';
+        callOutSaveButton();
+      })
     }
 
     cleanUpActiveCommentBoxes() {
