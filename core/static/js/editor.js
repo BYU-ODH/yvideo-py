@@ -986,7 +986,6 @@ export class Editor {
       // it to be defined before we query for it in the outer function. If you wait to get
       // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
       const itemForm = formElement.querySelector("#existing-item-form");
-      const saveButton = itemForm.querySelector("#annotation-form-save-button");
       const annotationId = itemForm.dataset["annotationId"];
       const fontSizeInput = formElement.querySelector("#font-size");
       function getCommentBoxOrWriteError() {
@@ -997,10 +996,8 @@ export class Editor {
         }
         return commentTextBox;
       }
-      function callOutSaveButton() {
-        saveButton.style.backgroundColor = "white";
-        saveButton.style.color = "black";
-        saveButton.innerText = "Save changes";
+      const update = async () => {
+        await this.updateAnnotation({annotationType: "comment", annotationId, autoUpdateForm: false})
       }
 
       // handle font size change
@@ -1011,7 +1008,7 @@ export class Editor {
         const newFontSize = fontSizeInput.value;
         if (newFontSize != undefined && newFontSize != '') {
           commentTextBox.style.fontSize = newFontSize + 'rem';
-          callOutSaveButton();
+          update();
         }
       });
 
@@ -1028,7 +1025,7 @@ export class Editor {
         }
         else {
           commentTextBox.style.color = "#" + fontColorInput.value;
-          callOutSaveButton();
+          update();
         }
       });
 
@@ -1039,7 +1036,7 @@ export class Editor {
         if (!commentTextBox) return;
 
         commentTextBox.style.left = parseFloat(topX.value) + '%';
-        callOutSaveButton();
+        update();
       });
 
       // handle top left y change
@@ -1049,7 +1046,7 @@ export class Editor {
         if (!commentTextBox) return;
 
         commentTextBox.style.top = parseFloat(topY.value) + '%';
-        callOutSaveButton();
+        update();
       });
 
       // handle bottom right x change
@@ -1059,7 +1056,7 @@ export class Editor {
         if (!commentTextBox) return;
 
         commentTextBox.style.width = (parseFloat(bottomX.value) - parseFloat(commentTextBox.style.left)) + '%';
-        callOutSaveButton();
+        update();
       });
 
       // handle bottom right y change
@@ -1069,8 +1066,8 @@ export class Editor {
         if (!commentTextBox) return;
 
         commentTextBox.style.height = (parseFloat(bottomY.value) - parseFloat(commentTextBox.style.top)) + '%';
-        callOutSaveButton();
-      })
+        update();
+      });
     }
 
     cleanUpActiveCommentBoxes() {
