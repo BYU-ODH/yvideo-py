@@ -730,10 +730,10 @@ export class Editor {
               }
             }
 
-            point.addEventListener("pointermove", onMove);
-            point.addEventListener("pointerup", onPointerUp.bind(this));
-            point.addEventListener("pointercancel", onCancel.bind(this));
             document.addEventListener("keyup", handleEscKeyPress.bind(this));
+            point.addEventListener("pointercancel", onCancel.bind(this));
+            point.addEventListener("pointerup", onPointerUp.bind(this));
+            point.addEventListener("pointermove", onMove);
           });
 
           this.activeCensorPosition.appendChild(point);
