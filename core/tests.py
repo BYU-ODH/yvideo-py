@@ -4,6 +4,7 @@ import copy
 # import json
 import unittest
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 # from django.urls import reverse
@@ -14,6 +15,7 @@ from core.utils import nudge_cue_times
 from core.utils import seconds2hms
 
 from . import api
+from .models import validate_font_color
 
 # from .models import AnnotationSet
 # from .models import Resource
@@ -241,6 +243,67 @@ class SubtitlesTests(TestCase):
                 self.assertAlmostEqual(
                     cue_copy.end_time + forward_nudge, test_cue.end_time
                 )
+
+
+class FontColorValidationTests(TestCase):
+    def setUp(self):
+        self.invalid_hexcodes = [
+            "G12B34",
+            "Z99999",
+            "FF@000",
+            "123L56",
+            "??FF00",
+            "FF00",
+            "ABC12",
+            "#ABC12",
+            "A1",
+            "A",
+            "CC00FF1",
+        ]
+        self.valid_hexcodes = [
+            "FFFFFF",
+            "000000",
+            "FF0000",
+            "00FF00",
+            "0000FF",
+            "FFFF00",
+            "FFA500",
+            "800080",
+            "FFC0CB",
+            "FFF",
+            "000",
+            "F00",
+            "0F0",
+            "00F",
+            "CCC",
+            "abc123",
+            "def456",
+            "a1b2c3",
+            "d4e5f6",
+            "abcdef",
+            "f0e1d2",
+            "c3b2a1",
+            "af0123",
+            "be4567",
+            "cf8901",
+            "ace",
+            "bdf",
+            "fba",
+            "ead",
+            "cba",
+        ]
+
+    def test_invalid_hexcodes(self):
+        for code in self.invalid_hexcodes:
+            with self.assertRaises(ValidationError):
+                validate_font_color(code)
+
+    def test_valid_hexcodes(self):
+        for code in self.valid_hexcodes:
+            try:
+                validate_font_color(code)
+            except:
+                self.fail("Failed to validate valid hexcode")
 
 
 # class TrackViewTests(TestCase):
