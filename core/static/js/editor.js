@@ -63,12 +63,16 @@ export class Editor {
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
-        this.setupAnnotationSelectorFunctions();
+        this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
+        this.watchAndHandleAnnotationSetDelete();
+        this.setupAnnotationSetOptionsModal();
+        this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
         this.watchAndHandleSubtitleTrackChange();
+        this.handleNoAnnotationSet();
     }
 
     getCSRFToken() {
@@ -1351,7 +1355,7 @@ export class Editor {
     // use this method to apply all relevant watchers (event listeners) to
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
-      this.watchForTrackMenuOpen(trackRootElement);
+      this.watchForMultiSelectMenuOpen(trackRootElement);
       this.watchForDisplayTrackRename(trackRootElement);
       this.watchForTrackRename(trackRootElement);
       this.watchForTrackMovement(trackRootElement);
@@ -1359,10 +1363,10 @@ export class Editor {
     }
 
     /* track options menu */
-    handleTrackOpenMenuClick(e) {
+    handleMultiSelectMenuOpen(e) {
       e.stopPropagation();
       // we don't want more than one track menu visible at one time
-      const visibleMenuCSSClass = "visible-timeline-track-menu";
+      const visibleMenuCSSClass = "visible-multi-select-menu";
       const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
       for (let menu of allVisibleTrackMenus) {
         menu.classList.remove(visibleMenuCSSClass);
@@ -1370,37 +1374,37 @@ export class Editor {
 
       // get track menu and position it properly
       const wrapperDim = this.timelineWrapper.getBoundingClientRect();
-      const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
-      const trackOptionsMenu = trackMenuWrapper.querySelector(".timeline-track-menu");
+      const trackMenuWrapper = e.target.closest(".multi-select-menu-parent");
+      const trackOptionsMenu = trackMenuWrapper.querySelector(".multi-select-menu");
       trackOptionsMenu.style.visibility = "hidden";
       trackOptionsMenu.classList.add(visibleMenuCSSClass);
       const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
       if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
-        trackOptionsMenu.classList.add("track-menu-bumped-up");
+        trackOptionsMenu.classList.add("multi-select-menu-bumped-up");
       }
 
       // now we are safe to make the track menu visible
       trackOptionsMenu.style.visibility = "";
     }
 
-    watchForTrackMenuOpen(trackRootElement) {
-      const menuButton = trackRootElement.querySelector(".editor-menu-button");
+    watchForMultiSelectMenuOpen(multiSelectMenuWrapper) {
+      const menuButton = multiSelectMenuWrapper.querySelector(".open-multi-select-button");
       if (menuButton) {
-        menuButton.addEventListener("click", this.handleTrackOpenMenuClick.bind(this));
+        menuButton.addEventListener("click", this.handleMultiSelectMenuOpen.bind(this));
       }
       else {
-        console.error("No menu button found for track");
+        console.error("No menu button element found");
       }
     }
 
     watchForClickOutsideOfTrackMenu() {
       const editorContainer = document.getElementById("editor-container");
       editorContainer.addEventListener("click", (e) => {
-        const visibleTrackMenus = document.getElementsByClassName("visible-timeline-track-menu");
+        const visibleTrackMenus = document.getElementsByClassName("visible-multi-select-menu");
         for (let menu of visibleTrackMenus) {
           const menuDim = menu.getBoundingClientRect();
           if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
-            menu.classList.remove("visible-timeline-track-menu");
+            menu.classList.remove("visible-multi-select-menu");
           }
         }
       });
@@ -2213,16 +2217,250 @@ export class Editor {
         });
     }
 
+    watchAndHandleAnnotationSetMenuOpen() {
+      const annotationSetMenuWrapper = document.getElementById("annotation-panel-header");
+      this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
+    }
+
+    async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
+      const createResponse = await fetch("/annotation-set/create", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          content_id: this.contentId,
+          name: setName,
+          annotation_set_id_to_copy: annotationSetId,
+          annotation_set_json: annotationSetJson
+        })
+      });
+
+      if (!createResponse.ok) {
+        console.error("Failed to create new annotation set");
+        return;
+      }
+      window.location.reload();
+    }
+
+    toggleAnnotationSetOptionSelectorAndContent() {
+      // hide the options selector and show the selected option content
+      // or do the opposite if the options selector should be shown
+      const selectOptionContent = document.getElementById("annotation-set-modal-base-content");
+      const optionContentContainer = document.getElementById("annotation-set-modal-option-display");
+      if (selectOptionContent.className.includes("hidden")) {
+        optionContentContainer.classList.add("hidden");
+        selectOptionContent.classList.remove("hidden");
+      } else {
+        selectOptionContent.classList.add("hidden");
+        optionContentContainer.classList.remove("hidden");
+      }
+    }
+
+    async setupAndDisplayAnnotationSetOption(url) {
+      const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-display");
+      const contentResponse = await fetch(url);
+      if (!contentResponse.ok) {
+        console.error("Failed to get new content for annotation set options modal");
+        return false;
+      }
+      const newHTML = await contentResponse.text();
+      annotationSetOptionsModalContent.innerHTML = newHTML;
+
+      // set up back button
+      const backButton = document.getElementById("annotation-set-modal-back");
+      backButton.addEventListener("click", () => {
+        this.toggleAnnotationSetOptionSelectorAndContent();
+      });
+
+      this.toggleAnnotationSetOptionSelectorAndContent();
+      return true;
+    }
+
+    async setupAnnotationSetUseExistingModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/use-existing/${this.contentId}`);
+      if (!result) {
+        return;
+      }
+      const confirmButton = document.getElementById("annotation-set-use-existing-button");
+      confirmButton.addEventListener("click", async (event) => {
+        const parent = event.target.closest("#annotation-set-use-existing-option");
+        const setSelector = parent.querySelector(".annotation-set-selector");
+        if (setSelector.value == undefined || setSelector.value == "") {
+          setSelector.classList.add("invalid-input");
+          return;
+        } else {
+          setSelector.classList.remove("invalid-input");
+        }
+        const contentSetAssignmentResponse = await fetch("/select-annotation-set", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            "content_id": this.contentId,
+            "annotation_set_id": setSelector.value
+          })
+        });
+        if (!contentSetAssignmentResponse.ok) {
+          console.error("Failed to set annotation set for this content");
+          return;
+        }
+        window.location.reload();
+      });
+    }
+
+    async setupAnnotationSetCopyModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/copy-from-set/${this.contentId}`);
+      if (!result) {
+        return;
+      }
+      const createButton = document.getElementById("annotation-set-copy-from-button");
+      createButton.addEventListener("click", (event) => {
+        const parent = event.target.closest("#annotation-set-modal-copy-from-set");
+        const nameInput = parent.querySelector("#copy-from-annotation-set-name");
+        let isInvalid = false;
+        if (!nameInput.value) {
+          isInvalid = true;
+          nameInput.classList.add("invalid-input");
+        } else {
+          nameInput.classList.remove("invalid-input");
+        }
+        const setSelection = parent.querySelector(".annotation-set-selector");
+        if (setSelection.value == undefined || setSelection.value == '') {
+          isInvalid = true;
+          setSelection.classList.add("invalid-input");
+        } else {
+          setSelection.classList.remove("invalid-input");
+        }
+        if (isInvalid) return;
+        this.handleAnnotationSetCreation(nameInput.value, setSelection.value);
+      });
+    }
+
+    async setupAnnotationSetImportModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption("/annotation-options-modal/import");
+      if (!result) {
+        return;
+      }
+      const createButton = document.getElementById("create-annotation-set-from-import-button");
+      createButton.addEventListener("click", async (event) => {
+        const parent = event.target.closest("#import-create-annotation-set");
+        let isInvalid = false;
+        const nameInput = parent.querySelector("#new-annotation-set-name");
+        if (!nameInput.value) {
+          isInvalid = true;
+          nameInput.classList.add("invalid-input");
+        } else {
+          nameInput.classList.remove("invalid-input");
+        }
+        const fileInput = parent.querySelector("#annotation-set-import-file-input");
+        if (fileInput.files.length <= 0) {
+          isInvalid = true;
+          fileInput.classList.add("invalid-input");
+        } else {
+          fileInput.classList.remove("invalid-input");
+        }
+        if (isInvalid) return;
+        const jsonFile = await fileInput.files[0].text();
+        try {
+          JSON.parse(jsonFile);
+        } catch {
+          console.error("Invalid JSON provided");
+          return;
+        }
+
+        this.handleAnnotationSetCreation(nameInput.value, undefined, jsonFile);
+      });
+    }
+
+    async setupAnnotationSetCreationModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption("/annotation-options-modal/create");
+      if (!result) {
+        return;
+      }
+      const createAnnotationSetButton = document.getElementById("annotation-set-create-button");
+      createAnnotationSetButton.addEventListener("click", (event) => {
+        const parent = event.target.closest("#annotation-set-create-new-content");
+        const setName = parent.querySelector("#create-annotation-set-name");
+        if (!setName.value) {
+          setName.classList.add("invalid-input");
+          return;
+        } else {
+          setName.classList.remove("invalid-input");
+        }
+        this.handleAnnotationSetCreation(setName.value);
+      });
+    }
+
+    setupAnnotationSetOptionsModal() {
+      const viewExistingButton = document.getElementById("annotation-set-view-existing");
+      if (viewExistingButton) {
+        viewExistingButton.addEventListener("click", this.setupAnnotationSetUseExistingModal.bind(this));
+      }
+
+      const viewCopyButton = document.getElementById("annotation-set-view-copy");
+      if (viewCopyButton) {
+        viewCopyButton.addEventListener("click", this.setupAnnotationSetCopyModal.bind(this));
+      }
+
+      const viewImportButton = document.getElementById("annotation-set-view-import");
+      viewImportButton.addEventListener("click", this.setupAnnotationSetImportModal.bind(this));
+
+      const viewCreateButton = document.getElementById("annotation-set-view-create");
+      viewCreateButton.addEventListener("click", this.setupAnnotationSetCreationModal.bind(this));
+    }
+
+
+
+    watchAndHandleAnnotationSetDelete() {
+      const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
+      if (!deleteAnnotationSetButton) {
+        console.error("Failed to get annotation set delete button");
+        return;
+      }
+
+      deleteAnnotationSetButton.addEventListener("click", async () => {
+        const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
+        if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
+          return;
+        }
+        const deleteResponse = await fetch(`/annotation-set/delete/${annotationSetId}`, {
+          method: "DELETE",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken()
+          }
+        });
+        if (!deleteResponse.ok) {
+          console.error("Failed to delete annotation set");
+          return;
+        }
+
+        window.location.reload();
+      });
+    }
+
+    watchAndHandleAnnotationSetExport() {
+      const exportAnnotationSetModal = document.getElementById("export-annotation-set");
+      const exportButton = document.getElementById("annotation-set-export-button");
+      exportButton.addEventListener("click", async () => {
+        const exportLink = document.getElementById("export-annotation-set-link");
+        const setSelector = exportAnnotationSetModal.querySelector(".annotation-set-selector");
+        const annotationSetId = setSelector.value;
+        if (isNaN(Number(annotationSetId)) || annotationSetId == '' || annotationSetId == undefined) {
+          // prevent any non-number value from being injected into link
+          return;
+        }
+        exportLink.href = `/annotation-set/export/${Number(annotationSetId)}`;
+        exportLink.click();
+      });
+    }
+
     async handleAnnotationSetChange(event) {
         event.stopPropagation();
-        let annotationSetId;
-        const selectorOptions = event.target.children;
-        for (let option of selectorOptions) {
-            if (option.selected) {
-                annotationSetId = Number(option.value);
-                break;
-            }
-        }
+        let annotationSetId = event.target.value;
 
         if (isNaN(annotationSetId) || annotationSetId === undefined) {
             console.error("Selected value was not defined!");
@@ -2248,16 +2486,6 @@ export class Editor {
         }
         // rebuild the page with the new annotation set
         window.location.reload();
-    }
-
-    setupAnnotationSelectorFunctions() {
-        const setSelector = document.getElementById("annotation-set-selector");
-        if (!setSelector) {
-            console.error("Annotation set selector cannot be found!");
-            return;
-        }
-
-        setSelector.addEventListener("change", this.handleAnnotationSetChange.bind(this));
     }
 
     watchForAnnotationSetNameChangeAndHandleIt() {
@@ -2297,6 +2525,22 @@ export class Editor {
         }
       })
       annotationNameSubmitButton.addEventListener("click", handleNameChange);
+    }
+
+    handleNoAnnotationSet() {
+      // This is designed to run only when the editor loads to encourage a user to select,
+      // create, or import an annotation set
+      const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
+      if (annotationSetId === '' || annotationSetId === undefined) {
+        // prevent user from leaving modal if they need to pick an annotation set
+        const optionsModal = document.getElementById("annotation-set-options-modal");
+        const exitButton = optionsModal.querySelector(".close-dialog-button");
+        exitButton.remove();
+
+        // open the annotation set options modal
+        const annotationSetOptionsButton = document.getElementById("open-annotation-set-options-modal");
+        annotationSetOptionsButton.click();
+      }
     }
 
     async handleRemoveEditor(e) {

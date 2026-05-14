@@ -11,28 +11,28 @@
                 <input id="track-{{track.id}}-rename-input" class="track-rename-input" type="text" placeholder="{{track.name}}" value="{{track.name}}" maxlength=50 />
             </div>
         </div>
-        <div class="timeline-track-edit-wrapper">
-            <div class="timeline-track-menu">
-                <button class="timeline-track-menu-button track-menu-rename" aria-label="Rename track {{track.name}}">
+        <div class="timeline-track-edit-wrapper multi-select-menu-parent">
+            <div class="multi-select-menu">
+                <button class="multi-select-menu-button track-menu-rename" aria-label="Rename track {{track.name}}">
                     Rename
                 </button>
                 {% if track.stack_position != 0 %}
-                <button class="timeline-track-menu-button track-menu-move-up" aria-label="Move track {{track.name}} up">
+                <button class="multi-select-menu-button track-menu-move-up" aria-label="Move track {{track.name}} up">
                     Move Up
                 </button>
                 {% endif %}
                 {% if not track.is_final_stack_position %}
-                <button class="timeline-track-menu-button track-menu-move-down" aria-label="Move track {{track.name}} down">
+                <button class="multi-select-menu-button track-menu-move-down" aria-label="Move track {{track.name}} down">
                     Move Down
                 </button>
                 {% endif %}
                 {% if track.stack_position != 0 %}
-                <button class="timeline-track-menu-button track-menu-delete" aria-label="Delete track {{track.name}}">
+                <button class="multi-select-menu-button track-menu-delete" aria-label="Delete track {{track.name}}">
                     Delete
                 </button>
                 {% endif %}
             </div>
-            <button class="editor-menu-button" aria-label="Show options menu for track {{track.name}}">
+            <button class="editor-menu-button open-multi-select-button" aria-label="Show options menu for track {{track.name}}">
                 <img class="timeline-track-icon" src="/static/img/dots_menu.svg" />
             </button>
         </div>

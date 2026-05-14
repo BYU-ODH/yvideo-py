@@ -209,11 +209,19 @@
     width: 17px;
 }
 
+#annotation-set-delete {
+    align-self: flex-start;
+}
+
 #annotation-set-settings-compact label {
     font-weight: 400;
 }
 
-#annotation-set-settings-compact h2, #annotation-set-settings-compact h4 {
+#annotation-set-settings-compact h2 {
+    margin-bottom: 0;
+}
+
+#annotation-set-settings-compact h4 {
     margin: 0;
 }
 
@@ -228,18 +236,82 @@
     margin: 0;
 }
 
+.annotation-set-selector {
+    align-self: flex-start;
+}
+
+#annotation-set-export-button {
+    align-self: flex-start;
+}
+
+.annotation-set-import-cancel {
+    align-self: flex-start;
+}
+
+#export-annotation-set-link {
+    display: none;
+}
+
+#create-annotation-set-submit-button {
+    align-self: flex-start;
+}
+
+#annotation-set-options-modal[open] {
+    width: 42rem;
+    min-height: 25rem;
+    max-height: 30.3rem;
+    display: flex;
+    flex-direction: column;
+}
+
+#annotation-set-selection-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 2rem;
+}
+
+.annotation-set-selection-option {
+    background-color: var(--dark-mode-background-light);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+#annotation-set-modal-create-new {
+    display: flex;
+    flex-direction: column;
+}
+
+#annotation-set-modal-option-display, .annotation-set-modal-option-form, .annotation-set-modal-option-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+#annotation-set-create-new-content {
+    justify-content: space-between;
+    flex: 1;
+}
+
+.annotation-set-option-submit-button {
+    align-self: flex-start;
+    margin-top: auto;
+}
+
 .remove-editor-button {
     display: flex;
     flex-direction: column;
     justify-content: center;
     background: inherit;
-    border: none;
     border-radius: 50%;
+    border: none;
     padding: 0.4rem 0.5rem;
 }
 
 .remove-editor-button:hover {
-    background-color: var(--dark-mode-very-light-gray);
+    background-color: var(--dark-mode-background-heavy);
     box-shadow: 0px 3px 6px #00000075;
     cursor: pointer;
 }
@@ -583,6 +655,14 @@
     background-color: var(--dark-mode-very-dark-gray);
 }
 
+#annotation-set-modal-back {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    font-size: 1rem;
+    padding: 0.2rem 1rem;
+}
+
 /* resize-points */
 .resize-point {
     position: absolute;
@@ -718,49 +798,6 @@
 
 .timeline-track-edit-wrapper {
     position: relative;
-}
-
-.timeline-track-menu {
-    position: absolute;
-    display: none;
-    flex-direction: column;
-    z-index: 4;
-}
-
-.track-menu-bumped-up {
-    bottom: 0px;
-}
-
-.visible-timeline-track-menu {
-    display: flex;
-}
-
-.editor-menu-button {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    border-radius: 25%;
-    padding: 10px 10px;
-    background-color: inherit;
-    border: none;
-}
-
-.editor-menu-button:hover {
-    background-color: var(--dark-mode-very-light-gray);
-    box-shadow: 0px 3px 6px #00000075;
-    cursor: pointer;
-}
-
-.timeline-track-menu-button {
-    font-size: 1rem;
-    white-space: nowrap;
-    padding: 5px;
-    transition: 0.5s ease all;
-}
-
-.timeline-track-menu-button:hover {
-    transform: translateX(5px);
-    cursor: pointer;
 }
 
 .timeline-row-right {

@@ -1,12 +1,14 @@
 from functools import cmp_to_key
 import json
 import logging
+from urllib.parse import quote
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
+from django.http import HttpResponseNotFound
 from django.http import HttpResponseServerError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -58,6 +60,7 @@ ANNOTATION_ICONS = {
 
 def get_annotation_groups(annotations):
     # [{type:"", type_display:"", icon:"", instances: []}]
+
     groups = {}
     for type_name in ANNOTATION_MODELS.keys():
         type_icon = ANNOTATION_ICONS[type_name]
@@ -149,31 +152,38 @@ def video_editor(request, content_id):
         if not request.user.can_view_content(content):
             return HttpResponse("Unauthorized", status=403)
 
+        # Get file key for video streaming
+        file_key = request.user.get_resource_filekey(content)
+
+        subtitle_options = content.get_subtitles()
+
         # Get available annotation sets
         available_sets = content.get_available_annotation_sets()
 
         # Determine if user can edit the active annotation set
         annotation_set = content.annotation_set
-        can_edit = annotation_set.can_edit(request.user) if annotation_set else True
+        can_edit = (
+            annotation_set.can_edit(request.user)
+            if annotation_set is not None
+            else True
+        )
 
         can_edit_annotation_set = annotation_set is not None and (
             annotation_set.owner == request.user or request.user.is_admin
         )
 
-        # Get file key for video streaming
-        file_key = request.user.get_resource_filekey(content)
-
         # Prepare track data for timeline
-        tracks = annotation_set.get_tracks()
-        if not tracks:
-            Track.objects.create(annotation_set=annotation_set)
-            tracks = annotation_set.get_tracks()
+        tracks = annotation_set.get_tracks() if annotation_set is not None else []
 
-        annotations = annotation_set.get_active_annotations_from_tracks()
+        annotations = (
+            annotation_set.get_active_annotations_from_tracks()
+            if annotation_set is not None
+            else []
+        )
 
-        annotation_groups = get_annotation_groups(annotations)
-
-        subtitle_options = content.get_subtitles()
+        annotation_groups = (
+            get_annotation_groups(annotations) if annotation_set is not None else []
+        )
 
         context = {
             "content": content,
@@ -493,7 +503,6 @@ def create_annotation(request, annotation_type, track_id):
 
     data = {
         "track": track,
-        "owner": request.user,
         "name": f"{annotation_type.title()} {model_class.objects.filter(track=track).count() + 1}",
         "start_time": start_time,
         "active": True,
@@ -992,6 +1001,171 @@ def update_annotation_set_name(request):
         return HttpResponseServerError()
 
 
+def create_annotation_set(request):
+    try:
+        parsed_body = json.loads(request.body)
+        if "content_id" not in parsed_body:
+            logger.error(
+                "Failed to create new annotation set because content_id is not defined"
+            )
+            return HttpResponseBadRequest()
+        content = Content.objects.get(pk=parsed_body["content_id"])
+        name = parsed_body.get("name")
+        annotation_set_json = parsed_body.get("annotation_set_json", None)
+        annotation_set_id_to_copy = parsed_body.get("annotation_set_id_to_copy", None)
+
+        if annotation_set_json is not None:
+            try:
+                json.loads(annotation_set_json)
+            except (json.JSONDecodeError, TypeError):
+                logger.error(
+                    "Failed to create new annotation set because annotations_json is not valid JSON"
+                )
+                return HttpResponseBadRequest()
+
+        annotation_set = AnnotationSet.create_for_content(
+            content,
+            request.user,
+            set_name=name,
+            annotation_set_json=annotation_set_json,
+            annotation_set_id_to_copy=annotation_set_id_to_copy,
+        )
+
+        if annotation_set is None:
+            return HttpResponseServerError()
+
+        content.annotation_set = annotation_set
+        content.save()
+
+        return HttpResponse()
+
+    except Exception as e:
+        logger.error(f"Failed to create new annotation set. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def export_annotation_set(request, annotation_set_id):
+    """Gets all annotations in the set as a JSON object and allows it to be downloaded
+    via the Content-Disposition: attachment HTTP response header. UTF-8 characters are
+    allowed in the filename in case non-ASCII/non-english characters are used. Note:
+    no file is created from this request, the JSON data is made available as if it was
+    a file and is downloaded by the client's browser."""
+    try:
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        annotations = annotation_set.to_player_json()
+        response = HttpResponse(
+            json.dumps(annotations, indent=2),
+            content_type="application/json",
+        )
+        filename = quote(f"{annotation_set.name}.json")
+        response["Content-Disposition"] = f"attachment; filename*=UTF-8''{filename}"
+        return response
+
+    except AnnotationSet.DoesNotExist:
+        logger.error("Failed to export annotation set because it does not exist")
+        return HttpResponseNotFound()
+    except Exception as e:
+        logger.error(f"Failed to export annotation set. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def delete_annotation_set(request, annotation_set_id):
+    if annotation_set_id is None:
+        return HttpResponseBadRequest()
+    try:
+        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
+        annotation_set.delete()
+
+        return HttpResponse()
+    except AnnotationSet.DoesNotExist:
+        logger.error("Failed to delete annotation set because it doesn't exist.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to delete annotation set. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def display_annotation_set_create_option(request):
+    try:
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/create_new.html", {}, request
+            )
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to generate create annotation set option template. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
+def display_annotation_set_import_option(request):
+    try:
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/import_from_file.html", {}, request
+            )
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to return Annotation Set import option template. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
+def display_copy_from_annotation_set_option(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        available_sets = content.get_available_annotation_sets()
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/copy_from_set.html",
+                {"available_annotation_sets": available_sets, "can_edit": True},
+                request,
+            )
+        )
+
+    except Content.DoesNotExist:
+        logger.error("Failed to retrieve content because it does not exist.")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(
+            f"Failed to return Copy from Annotation Set option template. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
+def display_use_existing_annotation_set_option(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        available_sets = content.get_available_annotation_sets()
+        return HttpResponse(
+            render_to_string(
+                "partials/annotation_set_options/use_existing_set.html",
+                {
+                    "available_annotation_sets": available_sets,
+                    "can_edit": (
+                        content.collection.owner == request.user
+                        or request.user.is_admin
+                    ),
+                },
+                request,
+            )
+        )
+
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to return Annotation sets associated with this content because the content does not exist"
+        )
+        return HttpResponseBadRequest()
+
+    except Exception as e:
+        logger.error(
+            f"Failed to return Use existing Annotation Set option template. Exception: {e}"
+        )
+        return HttpResponseServerError()
+
+
 @login_required
 @require_POST
 def update_track(request):
@@ -1080,10 +1254,13 @@ def create_track(request):
             return HttpResponseBadRequest()
 
         annotation_set = AnnotationSet.objects.get(pk=parsed_body["annotation_set_id"])
+        set_has_tracks = annotation_set.tracks.count() > 0
 
         track = {
             "annotation_set": annotation_set,
-            "stack_position": annotation_set.get_highest_stack_position() + 1,
+            "stack_position": annotation_set.get_highest_stack_position() + 1
+            if set_has_tracks
+            else 0,
         }
         if "track_name" in parsed_body:
             track["name"] = parsed_body["track_name"]
