@@ -68,7 +68,6 @@ function attachAnnotationPlayer() {
         }
 
         window.videoPlayer = annotationPlayer;
-
     }
 
     if (document.readyState === 'loading') {
