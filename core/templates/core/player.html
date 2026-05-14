@@ -11,9 +11,4 @@
 
 {% block content %}
     {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
-    <script>
-        document.addEventListener("DOMContentLoaded", (event) => {
-            document.querySelector(".fullscreen-btn").click();
-        });
-    </script>
 {% endblock %}
