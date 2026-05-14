@@ -727,14 +727,6 @@ dialog {
     padding: 1rem;
 }
 
-.annotation-player-container {
-    width: 100%;
-    height: calc(100vh - var(--header-height) - 16px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
 .annotation-box-showing-message {
     display: flex;
     flex-direction: column;
