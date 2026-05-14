@@ -345,7 +345,7 @@ export class Editor {
       const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        this.updateAnnotation(annotationType, annotationId)
+        this.updateAnnotation({annotationType, annotationId})
       })
     }
 
@@ -531,6 +531,67 @@ export class Editor {
       }
     }
 
+    buildMoveHandler(elementToMove) {
+      let lastEventClientX;
+      let lastEventClientY;
+      return (event) => {
+        if (lastEventClientX !== undefined && lastEventClientY !== undefined) {
+          // look at difference in last event's position vs this events position
+          const xChange = event.clientX - lastEventClientX;
+          const yChange = event.clientY - lastEventClientY;
+          const referenceRect = elementToMove.parentElement.getBoundingClientRect();
+          const xPercentChange = xChange / referenceRect.width * 100;
+          const yPercentChange = yChange / referenceRect.height * 100;
+
+          const elementLeft = parseFloat(elementToMove.style.left);
+          const elementTop = parseFloat(elementToMove.style.top);
+
+          const newLeft = (elementLeft + xPercentChange) + '%';
+          const newTop = (elementTop + yPercentChange) + '%';
+
+          elementToMove.style.left = newLeft;
+          elementToMove.style.top = newTop;
+        }
+        lastEventClientX = event.clientX;
+        lastEventClientY = event.clientY;
+      }
+    }
+
+    buildResizePointMoveHandler(minHeightPercent = 4, minWidthPercent = 3) {
+      return (event) => {
+        event.stopPropagation();
+        const annotationBox = event.target.closest(".annotation-box");
+        const boxRect = annotationBox.getBoundingClientRect();
+        const parentEl = event.target.parentElement;
+        const newX = (event.clientX - boxRect.left) / boxRect.width * 100;
+        const newY = (event.clientY - boxRect.top) / boxRect.height * 100;
+        const curLeft = parseFloat(parentEl.style.left);
+        const curTop = parseFloat(parentEl.style.top);
+        const curWidth = parseFloat(parentEl.style.width);
+        const curHeight = parseFloat(parentEl.style.height);
+        const fixedRight = curLeft + curWidth;
+        const fixedBottom = curTop + curHeight;
+        const movesLeft = event.target.classList.contains("resize-point-left");
+        const movesTop = event.target.classList.contains("resize-point-top");
+
+        if (movesLeft) {
+          const newLeft = Math.max(0, Math.min(newX, fixedRight - minWidthPercent));
+          parentEl.style.left = `${newLeft}%`;
+          parentEl.style.width = `${fixedRight - newLeft}%`;
+        } else {
+          parentEl.style.width = `${Math.max(minWidthPercent, Math.min(newX - curLeft, 100 - curLeft))}%`;
+        }
+
+        if (movesTop) {
+          const newTop = Math.max(0, Math.min(newY, fixedBottom - minHeightPercent));
+          parentEl.style.top = `${newTop}%`;
+          parentEl.style.height = `${fixedBottom - newTop}%`;
+        } else {
+          parentEl.style.height = `${Math.max(minHeightPercent, Math.min(newY - curTop, 100 - curTop))}%`;
+        }
+      }
+    }
+
     handleCensorPointerDown(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -539,25 +600,18 @@ export class Editor {
       const censorTopStart = censorEl.style.top;
       const censorPointerId = e.pointerId;
       censorEl.setPointerCapture(censorPointerId);
-      const annotationBox = document.getElementById("annotation-box");
+      const annotationBox = censorEl.closest("#annotation-box");
       const boxRect = annotationBox.getBoundingClientRect();
       const widthPercent = parseFloat(censorEl.style.width);
       const heightPercent = parseFloat(censorEl.style.height);
 
-      function handleCensorMove(event) {
-        const xPercent = (event.clientX - boxRect.left) / boxRect.width * 100;
-        const yPercent = (event.clientY - boxRect.top) / boxRect.height * 100;
-        censorEl.style.left = `${Math.max(0, Math.min(100 - widthPercent, xPercent - widthPercent / 2))}%`;
-        censorEl.style.top = `${Math.max(0, Math.min(100 - heightPercent, yPercent - heightPercent / 2))}%`;
-      }
-
       async function onPointerUp(upEvent) {
-        handleCensorMove(upEvent);
         const positionEl = upEvent.target;
+        const positionRect = positionEl.getBoundingClientRect();
         const censorPositionId = positionEl.dataset["censorPositionId"];
         const parentCensorId = positionEl.dataset["censorPositionParentId"];
-        const newX = ((upEvent.clientX - boxRect.left) / boxRect.width * 100) - widthPercent / 2;
-        const newY = ((upEvent.clientY - boxRect.top) / boxRect.height * 100) - heightPercent / 2;
+        const newX = ((positionRect.left - boxRect.left) / boxRect.width) * 100;
+        const newY = ((positionRect.top - boxRect.top) / boxRect.height) * 100;
         await this.updateCensorPosition(censorPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentCensorId);
         handleCleanup();
       }
@@ -580,6 +634,7 @@ export class Editor {
 
       const pointerUpCallback = onPointerUp.bind(this);
 
+      const handleCensorMove = this.buildMoveHandler(censorEl);
       function handleCleanup() {
         censorEl.releasePointerCapture(censorPointerId);
         censorEl.removeEventListener('pointermove', handleCensorMove);
@@ -588,10 +643,10 @@ export class Editor {
         document.removeEventListener("keyup", handleEscKeyPress);
       }
 
-      censorEl.addEventListener('pointermove', handleCensorMove);
-      censorEl.addEventListener('pointerup', pointerUpCallback);
-      censorEl.addEventListener('pointercancel', handleMoveCancel);
       document.addEventListener("keyup", handleEscKeyPress);
+      censorEl.addEventListener('pointercancel', handleMoveCancel);
+      censorEl.addEventListener('pointerup', pointerUpCallback);
+      censorEl.addEventListener('pointermove', handleCensorMove);
     }
 
 
@@ -603,119 +658,87 @@ export class Editor {
       for (let position of censorPositions) {
         if (position.dataset["censorPositionParentId"] == this.annotationIdInFocus) {
           this.activeCensorPosition = position;
-          this.activeCensorPosition.classList.toggle("active-censor-position");
+          this.activeCensorPosition.classList.add("active-censor-position");
           break;
+        } else {
+          position.classList.remove("active-censor-position");
         }
       }
+
+      // build resize points on corners
       if (this.activeCensorPosition) {
-        function buildSizeEditPoints(censorPositionElement, editor) {
-          const MIN_SIZE = 3; // minimum percent size
-          const annotationBox = document.getElementById("annotation-box");
-          const cornerData = [
-            { cls: "top-left-point",     movesLeft: true,  movesTop: true  },
-            { cls: "top-right-point",    movesLeft: false, movesTop: true  },
-            { cls: "bottom-left-point",  movesLeft: true,  movesTop: false },
-            { cls: "bottom-right-point", movesLeft: false, movesTop: false },
-          ];
+        const cornerData = ["resize-point-top resize-point-left", "resize-point-top", "resize-point-left", ""];
 
-          for (const { cls, movesLeft, movesTop } of cornerData) {
-            const point = document.createElement("div");
-            point.className = `censor-position-adjustment-point ${cls}`;
+        for (const cssClass of cornerData) {
+          const point = document.createElement("div");
+          point.className = `censor-position-adjustment-point ${cssClass} resize-point`;
 
-            point.addEventListener("pointerdown", function(ptrDownEvent) {
-              ptrDownEvent.stopPropagation();
-              ptrDownEvent.preventDefault();
-              point.setPointerCapture(ptrDownEvent.pointerId);
+          point.addEventListener("pointerdown", (ptrDownEvent) => {
+            ptrDownEvent.stopPropagation();
+            ptrDownEvent.preventDefault();
+            point.setPointerCapture(ptrDownEvent.pointerId);
 
-              const boxRect = annotationBox.getBoundingClientRect();
-              const startLeft = censorPositionElement.style.left;
-              const startTop = censorPositionElement.style.top;
-              const startWidth = censorPositionElement.style.width;
-              const startHeight = censorPositionElement.style.height;
-              let resizeCancelled = false;
+            const startLeft = this.activeCensorPosition.style.left;
+            const startTop = this.activeCensorPosition.style.top;
+            const startWidth = this.activeCensorPosition.style.width;
+            const startHeight = this.activeCensorPosition.style.height;
+            let resizeCancelled = false;
 
-              function onMove(ptrMoveEvent) {
-                const newX = (ptrMoveEvent.clientX - boxRect.left) / boxRect.width * 100;
-                const newY = (ptrMoveEvent.clientY - boxRect.top) / boxRect.height * 100;
-                const curLeft = parseFloat(censorPositionElement.style.left);
-                const curTop = parseFloat(censorPositionElement.style.top);
-                const curWidth = parseFloat(censorPositionElement.style.width);
-                const curHeight = parseFloat(censorPositionElement.style.height);
-                const fixedRight = curLeft + curWidth;
-                const fixedBottom = curTop + curHeight;
+            const onMove = this.buildResizePointMoveHandler();
 
-                if (movesLeft) {
-                  const newLeft = Math.max(0, Math.min(newX, fixedRight - MIN_SIZE));
-                  censorPositionElement.style.left = `${newLeft}%`;
-                  censorPositionElement.style.width = `${fixedRight - newLeft}%`;
-                } else {
-                  censorPositionElement.style.width = `${Math.max(MIN_SIZE, Math.min(newX - curLeft, 100 - curLeft))}%`;
-                }
+            function handleCleanup() {
+              point.releasePointerCapture(ptrDownEvent.pointerId);
+              point.removeEventListener("pointermove", onMove);
+              point.removeEventListener("pointerup", onPointerUp);
+              point.removeEventListener("pointercancel", onCancel);
+              document.removeEventListener("keyup", handleEscKeyPress);
+            }
 
-                if (movesTop) {
-                  const newTop = Math.max(0, Math.min(newY, fixedBottom - MIN_SIZE));
-                  censorPositionElement.style.top = `${newTop}%`;
-                  censorPositionElement.style.height = `${fixedBottom - newTop}%`;
-                } else {
-                  censorPositionElement.style.height = `${Math.max(MIN_SIZE, Math.min(newY - curTop, 100 - curTop))}%`;
-                }
+            async function onPointerUp() {
+              handleCleanup();
+              if (resizeCancelled) return;
+
+              const newLeft = parseFloat(this.activeCensorPosition.style.left);
+              const newTop = parseFloat(this.activeCensorPosition.style.top);
+              const newWidth = parseFloat(this.activeCensorPosition.style.width);
+              const newHeight = parseFloat(this.activeCensorPosition.style.height);
+              const positionId = this.activeCensorPosition.dataset["censorPositionId"];
+              const parentId = this.activeCensorPosition.dataset["censorPositionParentId"];
+              await this.updateCensorPosition(positionId, this.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
+            }
+
+            function onCancel() {
+              this.activeCensorPosition.style.left = startLeft;
+              this.activeCensorPosition.style.top = startTop;
+              this.activeCensorPosition.style.width = startWidth;
+              this.activeCensorPosition.style.height = startHeight;
+              handleCleanup();
+            }
+
+            function handleEscKeyPress(keyupEvent) {
+              if (keyupEvent.defaultPrevented) {
+                return;
               }
-
-              function handleCleanup() {
-                point.releasePointerCapture(ptrDownEvent.pointerId);
+              if (keyupEvent.key === "Escape") {
+                resizeCancelled = true;
+                this.activeCensorPosition.style.left = startLeft;
+                this.activeCensorPosition.style.top = startTop;
+                this.activeCensorPosition.style.width = startWidth;
+                this.activeCensorPosition.style.height = startHeight;
                 point.removeEventListener("pointermove", onMove);
-                point.removeEventListener("pointerup", onPointerUp);
-                point.removeEventListener("pointercancel", onCancel);
                 document.removeEventListener("keyup", handleEscKeyPress);
               }
+            }
 
-              async function onPointerUp() {
-                handleCleanup();
-                if (resizeCancelled) return;
+            document.addEventListener("keyup", handleEscKeyPress.bind(this));
+            point.addEventListener("pointercancel", onCancel.bind(this));
+            point.addEventListener("pointerup", onPointerUp.bind(this));
+            point.addEventListener("pointermove", onMove);
+          });
 
-                const newLeft = parseFloat(censorPositionElement.style.left);
-                const newTop = parseFloat(censorPositionElement.style.top);
-                const newWidth = parseFloat(censorPositionElement.style.width);
-                const newHeight = parseFloat(censorPositionElement.style.height);
-                const positionId = censorPositionElement.dataset["censorPositionId"];
-                const parentId = censorPositionElement.dataset["censorPositionParentId"];
-                await editor.updateCensorPosition(positionId, editor.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
-              }
-
-              function onCancel() {
-                censorPositionElement.style.left = startLeft;
-                censorPositionElement.style.top = startTop;
-                censorPositionElement.style.width = startWidth;
-                censorPositionElement.style.height = startHeight;
-                handleCleanup();
-              }
-
-              function handleEscKeyPress(keyupEvent) {
-                if (keyupEvent.defaultPrevented) {
-                  return;
-                }
-                if (keyupEvent.key === "Escape") {
-                  resizeCancelled = true;
-                  censorPositionElement.style.left = startLeft;
-                  censorPositionElement.style.top = startTop;
-                  censorPositionElement.style.width = startWidth;
-                  censorPositionElement.style.height = startHeight;
-                  point.removeEventListener("pointermove", onMove);
-                  document.removeEventListener("keyup", handleEscKeyPress);
-                }
-              }
-
-              point.addEventListener("pointermove", onMove);
-              point.addEventListener("pointerup", onPointerUp);
-              point.addEventListener("pointercancel", onCancel);
-              document.addEventListener("keyup", handleEscKeyPress);
-            });
-
-            censorPositionElement.appendChild(point);
-          }
+          this.activeCensorPosition.appendChild(point);
         }
 
-        buildSizeEditPoints(this.activeCensorPosition, this);
         this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown.bind(this));
       }
     }
@@ -773,7 +796,7 @@ export class Editor {
       itemFormObserver.observe(itemForm, { childList: true });
     }
 
-    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -812,21 +835,27 @@ export class Editor {
         return false;
       }
 
+
       const responseData = await response.json();
 
       const itemHtml = responseData["item_html"];
       const formHtml = responseData["form_html"];
 
-      const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      targetItem.outerHTML = itemHtml;
-      // You must get the new element before making the style changes that occur while placing the track item.
-      const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      this.placeTrackItems();
+      if (autoUpdateItem) {
+        const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
+        targetItem.outerHTML = itemHtml;
+        // You must get the new element before making the style changes that occur while placing the track item.
+        const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
+        this.placeTrackItems();
+        this.setUpItemClickListeners(newTargetItem);
+      }
 
-      const targetForm = document.getElementById("detail-form");
-      targetForm.innerHTML = formHtml;
-      this.setUpItemClickListeners(newTargetItem);
-      window.dispatchEvent(this.annotationUpdatedEvent);
+      if (autoUpdateForm) {
+        const targetForm = document.getElementById("detail-form");
+        targetForm.innerHTML = formHtml;
+        window.dispatchEvent(this.annotationUpdatedEvent);
+      }
+      return true;
     }
 
     triggerSave(state) {
@@ -866,7 +895,7 @@ export class Editor {
           return;
         }
         const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
-        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true);
+        this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
     }
 
     setTimeFromVideo(fieldName) {
@@ -951,14 +980,208 @@ export class Editor {
       }
     }
 
+    setUpCommentChangeListeners(formElement) {
+      // You may wonder why commentTextBox is declared in both event listeners instead of
+      // outside them. This is because the box often does not generate quickly enough for
+      // it to be defined before we query for it in the outer function. If you wait to get
+      // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
+      const itemForm = formElement.querySelector("#existing-item-form");
+      const annotationId = itemForm.dataset["annotationId"];
+      const fontSizeInput = formElement.querySelector("#font-size");
+      function getCommentBoxOrWriteError() {
+        const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
+        if (!commentTextBox) {
+          console.error("could not find comment text box with annotation id: " + annotationId);
+          return undefined;
+        }
+        return commentTextBox;
+      }
+      const update = async () => {
+        await this.updateAnnotation({annotationType: "comment", annotationId, autoUpdateForm: false})
+      }
+
+      // handle font size change
+      fontSizeInput.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        const newFontSize = fontSizeInput.value;
+        if (newFontSize != undefined && newFontSize != '') {
+          commentTextBox.style.fontSize = newFontSize + 'rem';
+          update();
+        }
+      });
+
+      // handle font color change
+      const fontColorInput = itemForm.querySelector("#font-color");
+      fontColorInput.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        const newFontColor = fontColorInput.value;
+        const newLength = newFontColor.length;
+        if (newLength != 3 && newLength != 6) {
+          return;
+        }
+        else {
+          commentTextBox.style.color = "#" + fontColorInput.value;
+          update();
+        }
+      });
+
+      // handle top left x change
+      const topX = itemForm.querySelector("#top-x");
+      topX.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.left = parseFloat(topX.value) + '%';
+        update();
+      });
+
+      // handle top left y change
+      const topY = itemForm.querySelector("#top-y");
+      topY.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.top = parseFloat(topY.value) + '%';
+        update();
+      });
+
+      // handle bottom right x change
+      const bottomX = itemForm.querySelector("#bottom-x");
+      bottomX.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.width = (parseFloat(bottomX.value) - parseFloat(commentTextBox.style.left)) + '%';
+        update();
+      });
+
+      // handle bottom right y change
+      const bottomY = itemForm.querySelector("#bottom-y");
+      bottomY.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.height = (parseFloat(bottomY.value) - parseFloat(commentTextBox.style.top)) + '%';
+        update();
+      });
+    }
+
+    cleanUpActiveCommentBoxes() {
+      const commentBoxes = document.getElementsByClassName("comment-text-box");
+      for (let box of commentBoxes) {
+        box.classList.remove("comment-text-box-editor-active");
+        const sizeControls = box.querySelectorAll(".comment-text-box-size-control");
+        for (let control of sizeControls) {
+          control.remove();
+        }
+      }
+    }
+
+    updateCommentBoxPositionAndSize(annotationId) {
+      // validate that the box exists and we are editing the correct one
+      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      const updateForm = document.getElementById("annotation-update-form");
+      if (!commentBox || !updateForm || updateForm.dataset["annotationId"] != annotationId) return;
+
+      // update the form and save
+      const boxTop = parseFloat(commentBox.style.top);
+      const boxLeft = parseFloat(commentBox.style.left);
+
+      const formTopX = updateForm.querySelector("#top-x");
+      const formTopY = updateForm.querySelector("#top-y");
+      const formBottomX = updateForm.querySelector("#bottom-x");
+      const formBottomY = updateForm.querySelector("#bottom-y");
+      if (!formTopX || !formTopY || !formBottomX || !formBottomY) {
+        console.error("Failed to get all comment form elements to update");
+        return;
+      }
+
+      // save original values in case update request goes wrong
+
+      formTopX.value = boxLeft;
+      formTopY.value = boxTop;
+      formBottomX.value = boxLeft + parseFloat(commentBox.style.width);
+      formBottomY.value = boxTop + parseFloat(commentBox.style.height);
+
+      this.updateAnnotation({annotationType:"comment", annotationId, autoUpdateItem: false});
+    }
+
+    presentCommentBoxPositionAndSizeControls(annotationId) {
+      this.cleanUpActiveCommentBoxes();
+      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      if (!commentBox) {
+        return;
+      }
+      commentBox.classList.add("comment-text-box-editor-active");
+      if (!commentBox) {
+        console.log("No comment text box found for annotation id: " + annotationId);
+        return;
+      }
+
+      // set up commentBoxDrag
+      if (commentBox.dataset["setup"] == "false") {
+        commentBox.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          commentBox.setPointerCapture(event.pointerId);
+          const moveHandler = this.buildMoveHandler(commentBox);
+          commentBox.addEventListener("pointermove", moveHandler);
+          commentBox.addEventListener("pointerup", (event) => {
+            this.updateCommentBoxPositionAndSize(annotationId);
+            event.target.removeEventListener("pointermove", moveHandler);
+          }, {once: true});
+        });
+        commentBox.dataset["setup"] = "true";
+      }
+
+      // set up controls
+      const topControlClass = "resize-point-top";
+      const leftControlClass = "resize-point-left";
+      for (let i = 0; i < 4; i++) {
+        // the box will have 4 controls, one in each corner. The top two (from left to right) are
+        // i = 0 and i = 1. The bottom two (from left to right) are i = 2 and i = 3
+        const isTop = i < 2;
+        const isLeft = !(i % 2);
+        const newDragControl = document.createElement("div");
+        commentBox.appendChild(newDragControl);
+        newDragControl.classList.add("comment-text-box-size-control");
+        newDragControl.classList.add("resize-point");
+        if (isTop) {
+          newDragControl.classList.add(topControlClass);
+        }
+        if (isLeft) {
+          newDragControl.classList.add(leftControlClass);
+        }
+        const moveHandler = this.buildResizePointMoveHandler();
+        newDragControl.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          newDragControl.setPointerCapture(event.pointerId);
+          newDragControl.addEventListener("pointermove", moveHandler);
+          newDragControl.addEventListener("pointerup", () => {
+            this.updateCommentBoxPositionAndSize(annotationId);
+            newDragControl.removeEventListener("pointermove", moveHandler)
+          }, {once: true})
+        });
+      }
+    }
+
     async getItemFormDetails(annotationType, annotationId, contentId) {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
         method: "GET"
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
-      this.setUpCensorPositionDeleteListeners(annotationId);
-      this.setupCensorPositionSeekListeners();
+      if (annotationType == "censor") {
+        this.setUpCensorPositionDeleteListeners(annotationId);
+        this.setupCensorPositionSeekListeners();
+      }
+      else if (annotationType == "comment") {
+        this.setUpCommentChangeListeners(detailForm);
+        this.presentCommentBoxPositionAndSizeControls(annotationId);
+      }
     }
 
     markItemAsActive(annotationType, annotationId) {
@@ -1566,6 +1789,23 @@ export class Editor {
         });
       this.adjustScrubberHeight();
       this.setUpClickListenersForAllPanelAndTrackItems();
+      this.setUpItemElevationOnClick();
+    }
+
+    setUpItemElevationOnClick() {
+      const itemsToSetUp = document.querySelectorAll(".track-item[data-setup='false']");
+      for (let item of itemsToSetUp) {
+        item.addEventListener("mousedown", () => {
+          const parent = item.closest(".track-row-annotations-container");
+          for (let sibling of parent.querySelectorAll(".track-item")) {
+            if (sibling != item) {
+              sibling.classList.remove("elevated");
+            } else {
+              sibling.classList.add("elevated");
+            }
+          }
+        });
+      }
     }
 
     handleTrackItemPlacementAfterEvent(e) {
