@@ -515,7 +515,8 @@
 .detail-form-section {
     width: 400px;
     overflow-y: auto;
-    color: #fffdfd;
+    color: var(--dark-mode-text-color);
+    background-color: var(--dark-mode-background-medium);
 }
 
 @media screen and (max-width: 1367px) {
@@ -545,6 +546,14 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+}
+
+#annotation-update-form input, #annotation-update-form select, #annotation-update-form textarea {
+    color: var(--dark-mode-text-color);
+    background-color: var(--dark-mode-background-light);
+    border-radius: 4px;
+    border: none;
+    padding: 8px;
 }
 
 .editor-detail-form-placeholder {
@@ -652,6 +661,80 @@
     left: 0.5rem;
     font-size: 1rem;
     padding: 0.2rem 1rem;
+}
+
+/* resize-points */
+.resize-point {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: white;
+    z-index: 2;
+}
+
+.resize-point-top {
+    top: -5px;
+}
+
+.resize-point-left {
+    left: -5px;
+}
+
+.resize-point:not(.resize-point-top) {
+    top: calc(100% - 6px);
+}
+
+.resize-point:not(.resize-point-left) {
+    left: calc(100% - 6px);
+}
+
+.resize-point-top.resize-point-left, .resize-point:not(.resize-point-top, .resize-point-left) {
+    cursor: nwse-resize;
+}
+
+.resize-point-left.resize-point:not(.resize-point-top), .resize-point-top.resize-point:not(.resize-point-left) {
+    cursor: nesw-resize;
+}
+
+/* censor-positions */
+.active-position-entry {
+    background-color: var(--pause-type-color-very-transparent);
+}
+
+.active-censor-position {
+    border: 1px dashed white;
+}
+
+.censor-position-locator {
+    position: absolute;
+    bottom: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--dark-mode-light-gray);
+    z-index: 2;
+}
+
+.censor-position-locator:hover {
+    cursor: pointer;
+    box-shadow: 0px 3px 6px #00000075;
+}
+
+.active-censor-position-locator {
+    border: 2px solid white;
+}
+
+/* comment annotation */
+.comment-text-box p {
+    margin: 0;
+}
+
+.comment-text-box-editor-active {
+    border: 1px dashed white;
+    cursor: move;
+    z-index: 2;
+    pointer-events: auto;
 }
 
 .btn {
@@ -1035,29 +1118,6 @@ of the page */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.active-position-entry {
-    background-color: var(--pause-type-color-very-transparent);
-}
-
-.censor-position-locator {
-    position: absolute;
-    bottom: 2px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background-color: var(--dark-mode-light-gray);
-    z-index: 2;
-}
-
-.censor-position-locator:hover {
-    cursor: pointer;
-    box-shadow: 0px 3px 6px #00000075;
-}
-
-.active-censor-position-locator {
-    border: 2px solid white;
 }
 
 /* Styles for zoom slider. */

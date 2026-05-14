@@ -34,16 +34,40 @@
         </div>
         {% elif item_type == 'comment' %}
         <div class="form-group">
-            <label for="text">Text:</label>
+            <label for="text">Comment text:</label>
             <textarea id="text" name="text" {% if not can_edit %}readonly{% endif %}>{{ instance.text }}</textarea>
         </div>
-        <div class="form-group">
-            <label for="x">X Position:</label>
-            <input type="number" id="x" name="x" value="{{ instance.x }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+        <div class="row-flex flex-apart-aligned">
+            <div class='form-group'>
+                <label for="font-size">
+                    Text size:
+                </label>
+                <input type="number" id="font-size" name="font_size_in_rem" value="{{ instance.font_size_in_rem }}">
+            </div>
+            <div class="form-group">
+                <label for="font-color">Text color:</label>
+                <input type="text" id="font-color" name="font_color" maxlength="6" value="{{ instance.font_color }}">
+            </div>
         </div>
-        <div class="form-group">
-            <label for="y">Y Position:</label>
-            <input type="number" id="y" name="y" value="{{ instance.y }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+        <div class="row-flex flex-apart-aligned">
+            <div class="form-group">
+                <label for="top-x">Top x:</label>
+                <input type="number" id="top-x" name="top_left_x" value="{{ instance.top_left_x }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+            </div>
+            <div class="form-group">
+                <label for="top-y">Top y:</label>
+                <input type="number" id="top-y" name="top_left_y" value="{{ instance.top_left_y }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+            </div>
+        </div>
+        <div class="row-flex flex-apart-aligned">
+            <div class="form-group">
+                <label for="bottom-x">Bottom x:</label>
+                <input type="number" id="bottom-x" name="bottom_right_x" value="{{ instance.bottom_right_x }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+            </div>
+            <div class="form-group">
+                <label for="bottom-y">Bottom y:</label>
+                <input type="number" id="bottom-y" name="bottom_right_y" value="{{ instance.bottom_right_y }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+            </div>
         </div>
         {% elif item_type == 'blank' %}
         <div class="form-group">

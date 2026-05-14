@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 
 from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
@@ -985,7 +986,7 @@ class BlankAnnotation(BaseAnnotation):
 class PauseAnnotation(BaseAnnotation):
     """Pause annotation - point in time, not a range."""
 
-    message = models.TextField(max_length=255, blank=True)
+    message = models.TextField(max_length=255, blank=True, default="")
 
     def calculate_position(self):
         """Override: pause is a point marker, not a range."""
@@ -1018,12 +1019,42 @@ class PauseAnnotation(BaseAnnotation):
         return obj
 
 
+def validate_font_color(hexcode):
+    # font color must be at least 3 characters or 6 characters.
+    font_color_length = len(hexcode)
+    if font_color_length != 3 and font_color_length != 6:
+        raise ValidationError(
+            f"font_color must be 3 or 6 characters. {hexcode} was provided which has {font_color_length} characters."
+        )
+    # check that each character is [0-9], [a-f], or [A-F]
+    pattern = "[0-9a-fA-F]"
+    for char in hexcode:
+        if re.search(pattern, char) is None:
+            raise ValidationError(
+                "font_color must only include valid hexadecimal characters: 0-9, a-f or A-F"
+            )
+
+
 class CommentAnnotation(BaseAnnotation):
     """Comment annotation with text and position."""
 
-    text = models.TextField(default="Your comment here")
-    x = models.FloatField(default=50.0)
-    y = models.FloatField(default=50.0)
+    text = models.TextField(default="This is where your comment will show")
+    top_left_x = models.FloatField(default=0.0)
+    top_left_y = models.FloatField(default=0.0)
+    bottom_right_x = models.FloatField(default=100.0)
+    bottom_right_y = models.FloatField(default=10.0)
+    font_size_in_rem = models.FloatField(default=1)
+    font_color = models.CharField(
+        max_length=6, default="ffffff", validators=[validate_font_color]
+    )
+
+    @property
+    def height(self):
+        return (self.bottom_right_y - self.top_left_y) + "%"
+
+    @property
+    def width(self):
+        return (self.bottom_right_x - self.top_left_x) + "%"
 
     def to_player_json(self):
         """Override: include text and coordinates."""
@@ -1031,8 +1062,12 @@ class CommentAnnotation(BaseAnnotation):
         data.update(
             {
                 "text": self.text,
-                "x": self.x,
-                "y": self.y,
+                "top_left_x": self.top_left_x,
+                "top_left_y": self.top_left_y,
+                "bottom_right_x": self.bottom_right_x,
+                "bottom_right_y": self.bottom_right_y,
+                "font_size_in_rem": self.font_size_in_rem,
+                "font_color": self.font_color,
             }
         )
         return data
@@ -1040,19 +1075,27 @@ class CommentAnnotation(BaseAnnotation):
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
         new_annotation.text = self.text
-        new_annotation.x = self.x
-        new_annotation.y = self.y
+        new_annotation.top_left_x = self.top_left_x
+        new_annotation.top_left_y = self.top_left_y
+        new_annotation.bottom_right_x = self.bottom_right_x
+        new_annotation.bottom_right_y = self.bottom_right_y
+        new_annotation.font_size_in_rem = self.font_size_in_rem
+        new_annotation.font_color = self.font_color
         new_annotation.save()
         return new_annotation
 
     @classmethod
     def from_import(cls, imported_data, track):
-        obj = super().from_import(imported_data, track)
-        obj.text = imported_data.get("text", "Your comment here")
-        obj.x = imported_data.get("x", 50.0)
-        obj.y = imported_data.get("y", 50.0)
-        obj.save()
-        return obj
+        new_annotation = super().from_import(imported_data, track)
+        new_annotation.text = imported_data.get("text", "Your comment here")
+        new_annotation.top_left_x = imported_data.get("top_left_x", 50.0)
+        new_annotation.top_left_y = imported_data.get("top_left_y", 50.0)
+        new_annotation.bottom_right_x = imported_data.get("bottom_right_x", 60.0)
+        new_annotation.bottom_right_y = imported_data.get("bottom_right_y", 60.0)
+        new_annotation.font_size_in_rem = imported_data.get("font_size_in_rem", 1.0)
+        new_annotation.font_color = imported_data.get("font_color", "abcdef")
+        new_annotation.save()
+        return new_annotation
 
 
 class BlurAnnotation(BaseAnnotation):

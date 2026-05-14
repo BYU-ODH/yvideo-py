@@ -646,14 +646,18 @@ button:hover {
     align-items: center;
     justify-content: flex-start;
     gap: 1rem;
+    box-shadow: 0 4px 6px -4px rgba(0, 0, 0, 0.2);
 }
 
 .navbar a {
     display: flex;
     align-items: center;
     text-decoration: none;
-    color: var(--medium-blue);
-    /* margin-left: 2.4rem; */
+    color: black;
+}
+
+.navbar a:hover {
+    text-decoration: underline;
 }
 
 .navbar h1 {
@@ -781,7 +785,7 @@ button:hover {
 
 .annotation-player-container {
     width: 100%;
-    height: calc(100vh-var(--header-height)-16px);
+    height: calc(100vh - var(--header-height) - 16px);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -799,24 +803,25 @@ button:hover {
 
 /* LANDING PAGE */
 .collection-header {
-    display: inline-grid;
     grid-template-columns: 1fr 75px 25px;
     align-items: center;
     cursor: pointer;
 }
 
-.collections-header {
-    border-bottom: 1px solid var(--grey);
-}
-
 .collections-list-content {
-    padding: 0 2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+    gap: 30px;
 }
 
+.landing-page-collection-list {
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 clamp(16px, 5vw, 80px);
+}
 .landing-page-collection {
-    border: 1px solid lightgrey;
-    border-radius: 1rem;
-    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: rgb(185, 184, 184) 0px 1px 3px;
 }
 
 .landing-page-collection-contents {
@@ -831,8 +836,51 @@ button:hover {
     padding: 0 1rem;
 }
 
-.yearterm-courses-list, .yearterm-course-collections-list {
-    padding: 0 2rem;
+h4.collection-header-name {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    margin: 1rem 0 0.5rem 0;
+}
+
+p.tile-subtitle {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    margin: 0.5rem 0 0.5rem 0;
+}
+
+.tile-image {
+    width: 100%;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+.search-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 300px;
+    max-width: 300px;
+    background-color: #e0e0e0;
+    border-radius: 30px;
+    padding: 0.3rem 0.75rem;
+}
+
+.collections-search {
+    flex: 1;
+    width: 100%;
+    padding: 10px 10px;
+    border: none;
+    font-size: 0.9rem;
+    background-color: transparent;
+}
+
+.search-icon {
+    position: relative;
+    width: 1.25rem;
+    height: 1.25rem;
+    opacity: 0.6;
+    cursor: pointer;
 }
 
 .course-header {
@@ -848,26 +896,6 @@ button:hover {
     margin: 0;
     font-size: 1.2rem;
     font-weight: normal;
-}
-
-.collection-section {
-    padding: 0 1rem 0 1rem;
-}
-
-.collection-status {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    font-size: 1.5em;
-    padding: 0;
-    margin-bottom: -1rem;
-}
-
-.collection-list {
-    display: flex;
-    flex-direction: column;
-    row-gap: 1rem;
-    padding: 1rem;
 }
 
 /* Right side (main content) */
@@ -892,6 +920,10 @@ button:hover {
 }
 
 .collection-status {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: -1rem;
     font-size: 1em;
     padding: 0;
 }
@@ -1031,11 +1063,6 @@ button:hover {
     justify-content: center;
 }
 
-.content-title {
-    font-weight: bold;
-    margin: 0;
-}
-
 .content-actions {
     display: flex;
     flex-direction: row;
@@ -1096,6 +1123,8 @@ button:hover {
     flex-direction: column;
     transition: height 0.25s ease-in-out;
     overflow: hidden;
+    row-gap: 1rem;
+    padding: 1rem;
 }
 
 .collection-item {
@@ -1126,6 +1155,7 @@ button:hover {
 }
 
 .content-title {
+    font-weight: bold;
     margin: 0;
 }
 
@@ -1496,4 +1526,38 @@ button:hover {
     height: 100%;
     width: 100%;
     object-fit: cover;
+}
+
+
+/* Video Page */
+.collection-video-page {
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 clamp(16px, 5vw, 80px);
+}
+
+.collection-video-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+    gap: 30px;
+}
+
+.collection-video-tile {
+    border-radius: 12px;
+    box-shadow: rgb(185, 184, 184) 0px 1px 3px;
+}
+
+h4.video-title {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    margin: 1rem 0 1rem 0;
+}
+
+.video-search {
+    flex: 1;
+    width: 100%;
+    padding: 10px 10px;
+    border: none;
+    font-size: 0.9rem;
+    background-color: transparent;
 }

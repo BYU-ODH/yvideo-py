@@ -244,8 +244,12 @@ class CommentAnnotationFactory(factory.django.DjangoModelFactory):
     end_time = 18.0
     description = "Comment overlay"
     text = "Demo comment"
-    x = 50.0
-    y = 50.0
+    top_left_x = 0.0
+    top_left_y = 0.0
+    bottom_right_x = 100.0
+    bottom_right_y = 10.0
+    font_size_in_rem = 1.0
+    font_color = "ffffff"
 
 
 class SubtitleFactory(factory.django.DjangoModelFactory):

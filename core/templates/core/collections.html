@@ -5,14 +5,21 @@
         {% if user.privilege_level == 2 or user.privilege_level == 0 %}
         <div class="landing-page-collection-list column-flex">
             <header class="collections-header row-flex flex-apart-aligned">
-                <h1>My Collections</h1>
-                <a href="{% url 'manage_collections' %}">
-                    <button class="large-button">Manage Collections</button>
-                </a>
+                <h2>My Collections</h2>
+                <div class="search-wrapper">
+                    <input
+                        type="text"
+                        class="collections-search"
+                        placeholder="Search"
+                        aria-label="Search collections"
+                    >
+                    <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
+                </div>
             </header>
-            <div class="collections-list-content column-flex">
+
+            <div class="collections-list-content">
                 {% for collection in owned_collections %}
-                    {% include "partials/landing_page_collection.html" with collection=collection %}
+                    {% include "partials/landing_page_collection.html" %}
                 {% empty %}
                     <p>No Collections</p>
                 {% endfor %}
@@ -20,22 +27,22 @@
         </div>
         {% endif %}
 
-        <div class="landing-page-collection-list column-flex">
-            <header class="collections-header">
-                <h1>My Assigned Collections</h1>
+        <div class="landing-page-collection-list">
+            <header class="collections-header row-flex flex-apart-aligned">
+                <h2>Class Collections</h2>
             </header>
             <div class="yearterm-courses-list">
                 {% for yearterm in assigned_courses_by_yearterm %}
-                    <h2 class="yearterm-courses-header">{{ yearterm.yearterm_display }}</h2>
+                    <h3 class="yearterm-courses-header">{{ yearterm.yearterm_display }}</h3>
                     <div class="yearterm-course-collections-list">
                         {% for course in yearterm.collections_by_course %}
                             <div class="course-header row-flex clickable" onclick="handleAccordian(this)">
                                 <p>{{ course.course_name }}</p>
                                 <img src="/static/img/arrow.svg" class="arrow">
                             </div>
-                            <div class="collections-list-content course-collections-list column-flex accordian-folded">
+                            <div class="collections-list-content course-collections-list accordian-folded">
                                 {% for collection in course.collections %}
-                                    {% include "partials/landing_page_collection.html" with collection=collection %}
+                                    {% include "partials/landing_page_collection.html" %}
                                 {% empty %}
                                     <p>No collections for {{course.course_name}}</p>
                                 {% endfor %}
@@ -50,4 +57,21 @@
             </div>
         </div>
     </main>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".search-wrapper").forEach(wrapper => {
+        const input = wrapper.querySelector(".collections-search");
+
+        input.addEventListener("input", () => {
+            const searchText = input.value.toLowerCase();
+            wrapper.closest(".landing-page-collection-list")
+                .querySelectorAll(".landing-page-collection")
+                .forEach(tile => {
+                    const name = tile.querySelector(".collection-header-name")?.innerText.toLowerCase();
+                    tile.style.display = name?.includes(searchText) ? "" : "none";
+                });
+        });
+    });
+});
+</script>
 {% endblock %}

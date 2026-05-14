@@ -391,7 +391,14 @@ export class AnnotationPlayer {
         message: anno.message || "",
         details: anno.details || {},
         positions: anno.positions || [],
-        id: anno.id
+        id: anno.id,
+        top_left_x: anno.top_left_x,
+        top_left_y: anno.top_left_y,
+        bottom_right_x: anno.bottom_right_x,
+        bottom_right_y: anno.bottom_right_y,
+        font_color: anno.font_color,
+        font_size_in_rem: anno.font_size_in_rem,
+        text: anno.text,
       });
     }
     return annotations;
@@ -660,9 +667,10 @@ export class AnnotationPlayer {
       let aEnd = a["end"];
       let aType = a["type"];
       let aPositions = a["positions"];
+      const isActiveNow = time >= aStart && time < aEnd
       switch (aType) {
         case "skip":
-          if (time >= aStart && time < aEnd) {
+          if (isActiveNow) {
             if (a["message"]) {
               this.pause(a["message"]);
             } else {
@@ -692,7 +700,7 @@ export class AnnotationPlayer {
         case "mute":
         case "mutePlugin":
           if (this.currently.muting === -1 || this.currently.muting === i) {
-            if (time >= aStart && time < aEnd) {
+            if (isActiveNow) {
               isMuteAnnotationActive = true;
               if (!vMuted) {
                 this.currently.muting = i;
@@ -708,7 +716,7 @@ export class AnnotationPlayer {
           break;
         case "blank":
           if (this.currently.blanking === -1 || this.currently.blanking === i) {
-            if (time >= aStart && time < aEnd) {
+            if (isActiveNow) {
               if (!vBlanked) {
                 this.currently.blanking = i;
                 this.blank();
@@ -723,7 +731,7 @@ export class AnnotationPlayer {
           break;
         case "blur":
           if (this.currently.blurring === -1 || this.currently.blurring === i) {
-            if (time >= aStart && time < aEnd) {
+            if (isActiveNow) {
               if (!vBlurred) {
                 this.currently.blurring = i;
                 this.blur();
@@ -737,7 +745,7 @@ export class AnnotationPlayer {
           }
           break;
         case "censor":
-          if (time >= aStart && time < aEnd) {
+          if (isActiveNow) {
             function determineWhichBlurPositionToShow(positions) {
               let desiredPosition = positions[0];
               for (let i = 1; i < positions.length; i++) {
@@ -790,6 +798,32 @@ export class AnnotationPlayer {
             }
           }
           break;
+        case "comment":
+          if (isActiveNow) {
+            let commentTextBox = this.annotationBox.querySelector("#comment-text-box-" + a.id);
+            if (!commentTextBox) {
+              commentTextBox = document.createElement("div");
+              commentTextBox.dataset["setup"] = "false";
+              const commentPara = document.createElement('p');
+              commentPara.innerText = a.text;
+              commentTextBox.appendChild(commentPara);
+              commentTextBox.id = "comment-text-box-" + a.id;
+              commentTextBox.classList.add("comment-text-box");
+              commentTextBox.style.top = a.top_left_y + '%';
+              commentTextBox.style.left = a.top_left_x + '%';
+              commentTextBox.style.width = (a.bottom_right_x - a.top_left_x) + '%';
+              commentTextBox.style.height = (a.bottom_right_y - a.top_left_y) + '%';
+              commentTextBox.style.fontSize = a.font_size_in_rem + 'rem';
+              commentTextBox.style.color = "#" + a.font_color;
+              this.annotationBox.appendChild(commentTextBox);
+            }
+          }
+          else {
+            const commentTextBox = this.annotationBox.querySelector("#comment-text-box-" + a.id);
+            if (commentTextBox) {
+              commentTextBox.remove();
+            }
+          }
       }
     }
     this.isMuteAnnotationActive = isMuteAnnotationActive;

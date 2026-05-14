@@ -4,6 +4,7 @@ from functools import cmp_to_key
 import json
 import unittest
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 # from django.urls import reverse
@@ -11,7 +12,6 @@ from core.utils import VTTCue
 from core.utils import build_cues_from_vtt_file_string
 from core.utils import build_vtt_file_string_from_cues
 from core.utils import nudge_cue_times
-from core.utils import seconds2hms
 
 from . import api
 from .factories import AnnotationSetFactory
@@ -29,6 +29,13 @@ from .models import BlurAnnotation
 from .models import BlurAnnotationPosition
 from .models import PauseAnnotation
 from .models import SkipAnnotation
+from .models import validate_font_color
+
+# from .models import Resource
+# from .models import Track
+# from .models import User
+#
+from .utils import seconds2hms
 
 
 class ApiTests(TestCase):
@@ -249,6 +256,67 @@ class SubtitlesTests(TestCase):
                 self.assertAlmostEqual(
                     cue_copy.end_time + forward_nudge, test_cue.end_time
                 )
+
+
+class FontColorValidationTests(TestCase):
+    def setUp(self):
+        self.invalid_hexcodes = [
+            "G12B34",
+            "Z99999",
+            "FF@000",
+            "123L56",
+            "??FF00",
+            "FF00",
+            "ABC12",
+            "#ABC12",
+            "A1",
+            "A",
+            "CC00FF1",
+        ]
+        self.valid_hexcodes = [
+            "FFFFFF",
+            "000000",
+            "FF0000",
+            "00FF00",
+            "0000FF",
+            "FFFF00",
+            "FFA500",
+            "800080",
+            "FFC0CB",
+            "FFF",
+            "000",
+            "F00",
+            "0F0",
+            "00F",
+            "CCC",
+            "abc123",
+            "def456",
+            "a1b2c3",
+            "d4e5f6",
+            "abcdef",
+            "f0e1d2",
+            "c3b2a1",
+            "af0123",
+            "be4567",
+            "cf8901",
+            "ace",
+            "bdf",
+            "fba",
+            "ead",
+            "cba",
+        ]
+
+    def test_invalid_hexcodes(self):
+        for code in self.invalid_hexcodes:
+            with self.assertRaises(ValidationError):
+                validate_font_color(code)
+
+    def test_valid_hexcodes(self):
+        for code in self.valid_hexcodes:
+            try:
+                validate_font_color(code)
+            except:
+                self.fail("Failed to validate valid hexcode")
 
 
 # class TrackViewTests(TestCase):
@@ -532,8 +600,12 @@ class AnnotationSetCreateForContentTests(TestCase):
             end_time=5.0,
             description="opening comment",
             text="Observe the framing",
-            x=20.0,
-            y=30.0,
+            top_left_x=20.0,
+            top_left_y=30.0,
+            bottom_right_x=20.0,
+            bottom_right_y=30.0,
+            font_size_in_rem=1.0,
+            font_color="abcdef",
         )
         self.blank_annotation = BlankAnnotationFactory(
             track=full_coverage_track,
@@ -618,8 +690,12 @@ class AnnotationSetCreateForContentTests(TestCase):
             end_time=40.0,
             description="closing comment",
             text="Note the composition",
-            x=40.0,
-            y=60.0,
+            top_left_x=20.0,
+            top_left_y=30.0,
+            bottom_right_x=20.0,
+            bottom_right_y=30.0,
+            font_size_in_rem=1.0,
+            font_color="abcdef",
         )
         distributed_blur = BlurAnnotation.objects.create(
             track=self.tracks[4],
@@ -698,8 +774,27 @@ class AnnotationSetCreateForContentTests(TestCase):
                 self.assertTrue(orig_annotation["type"] == new_annotation["type"])
             elif orig_type == "comment":
                 self.assertTrue(orig_annotation["text"] == new_annotation["text"])
-                self.assertTrue(orig_annotation["x"] == new_annotation["x"])
-                self.assertTrue(orig_annotation["y"] == new_annotation["y"])
+                self.assertTrue(
+                    orig_annotation["top_left_x"] == new_annotation["top_left_x"]
+                )
+                self.assertTrue(
+                    orig_annotation["top_left_y"] == new_annotation["top_left_y"]
+                )
+                self.assertTrue(
+                    orig_annotation["bottom_right_x"]
+                    == new_annotation["bottom_right_x"]
+                )
+                self.assertTrue(
+                    orig_annotation["bottom_right_y"]
+                    == new_annotation["bottom_right_y"]
+                )
+                self.assertTrue(
+                    orig_annotation["font_size_in_rem"]
+                    == new_annotation["font_size_in_rem"]
+                )
+                self.assertTrue(
+                    orig_annotation["font_color"] == new_annotation["font_color"]
+                )
             elif orig_type == "censor":
                 self.assertTrue(
                     len(orig_annotation["positions"])

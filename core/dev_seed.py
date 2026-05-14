@@ -310,8 +310,12 @@ def create_demo_data():
         end_time=15.0,
         description="Prompt students to compare the birds' motion.",
         text="Notice how the group gathers before the turn.",
-        x=42.0,
-        y=28.0,
+        top_left_x=42.0,
+        top_left_y=28.0,
+        bottom_right_x=20.0,
+        bottom_right_y=10.0,
+        font_size_in_rem=2.0,
+        font_color="aaaaaa",
     )
     CommentAnnotationFactory(
         track=birds_track,
@@ -320,8 +324,12 @@ def create_demo_data():
         end_time=19.5,
         description="Call out the wing movement overlap on the same track.",
         text="Compare the spacing between the front and rear birds.",
-        x=56.0,
-        y=36.0,
+        top_left_x=32.0,
+        top_left_y=18.0,
+        bottom_right_x=25.0,
+        bottom_right_y=15.0,
+        font_size_in_rem=1.5,
+        font_color="bbbbbb",
     )
     CommentAnnotationFactory(
         track=birds_track,
@@ -330,8 +338,12 @@ def create_demo_data():
         end_time=22.5,
         description="Keep one more overlapping comment active later in the clip.",
         text="The final turn stays visible long enough to test overlap rendering.",
-        x=50.0,
-        y=50.0,
+        top_left_x=37.0,
+        top_left_y=23.0,
+        bottom_right_x=22.0,
+        bottom_right_y=18.0,
+        font_size_in_rem=1.0,
+        font_color="cccccc",
     )
     MuteAnnotationFactory(
         track=grid_track,
@@ -355,8 +367,12 @@ def create_demo_data():
         end_time=9.0,
         description="Call out the grid region students should focus on.",
         text="Watch how the pattern shifts across the center cells.",
-        x=50.0,
-        y=50.0,
+        top_left_x=50.0,
+        top_left_y=50.0,
+        bottom_right_x=25.0,
+        bottom_right_y=20.0,
+        font_size_in_rem=2.5,
+        font_color="dddddd",
     )
 
     birds_content = ContentFactory(
