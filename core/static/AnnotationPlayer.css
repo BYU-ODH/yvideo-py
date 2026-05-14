@@ -2,7 +2,6 @@
 .annotation-player-container {
   position: relative;
   width: 100%;
-  height: 100%;
   overflow: hidden;
   display: flex;
   transition: none;
@@ -15,6 +14,12 @@
   justify-content: center;
   transition: margin-right 0.3s ease;
   min-width: 0;
+  flex: 1;
+}
+
+.video-title {
+    padding: 0 2rem;
+    font-size: 1rem;
 }
 
 .video-wrapper.no-transition {
