@@ -92,4 +92,8 @@
     .collections-list-content, .collection-video-list {
         grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
     }
+
+    .video-wrapper {
+        width: 100%;
+    }
 }
