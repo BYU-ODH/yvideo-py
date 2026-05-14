@@ -162,9 +162,9 @@ class LanguageAdmin(VersionAdmin):
 
 
 class AnnotationAdmin(VersionAdmin):
-    list_display = ("name", "owner", "track__annotation_set", "track", "created_at")
+    list_display = ("name", "track__annotation_set", "track", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "owner__name", "owner__netid", "resource__name")
+    search_fields = ("name", "resource__name")
 
 
 @admin.register(CommentAnnotation)

@@ -216,9 +216,6 @@ class MuteAnnotationFactory(factory.django.DjangoModelFactory):
         model = MuteAnnotation
 
     track = factory.SubFactory(TrackFactory)
-    owner = factory.LazyAttribute(
-        lambda annotation: annotation.track.annotation_set.owner
-    )
     name = factory.Sequence(lambda n: f"Mute {n}")
     start_time = 5.0
     end_time = 12.0
@@ -230,9 +227,6 @@ class BlankAnnotationFactory(factory.django.DjangoModelFactory):
         model = BlankAnnotation
 
     track = factory.SubFactory(TrackFactory)
-    owner = factory.LazyAttribute(
-        lambda annotation: annotation.track.annotation_set.owner
-    )
     name = factory.Sequence(lambda n: f"Blank {n}")
     start_time = 15.0
     end_time = 20.0
@@ -245,9 +239,6 @@ class CommentAnnotationFactory(factory.django.DjangoModelFactory):
         model = CommentAnnotation
 
     track = factory.SubFactory(TrackFactory)
-    owner = factory.LazyAttribute(
-        lambda annotation: annotation.track.annotation_set.owner
-    )
     name = factory.Sequence(lambda n: f"Comment {n}")
     start_time = 10.0
     end_time = 18.0

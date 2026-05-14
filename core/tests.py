@@ -1,7 +1,7 @@
 # Create your tests here.
 import copy
-
-# import json
+from functools import cmp_to_key
+import json
 import unittest
 
 from django.core.exceptions import ValidationError
@@ -12,12 +12,25 @@ from core.utils import VTTCue
 from core.utils import build_cues_from_vtt_file_string
 from core.utils import build_vtt_file_string_from_cues
 from core.utils import nudge_cue_times
-from core.utils import seconds2hms
 
 from . import api
+from .factories import AnnotationSetFactory
+from .factories import BlankAnnotationFactory
+from .factories import CollectionFactory
+from .factories import CommentAnnotationFactory
+from .factories import ContentFactory
+from .factories import MuteAnnotationFactory
+from .factories import ResourceFactory
+from .factories import ResourceFileFactory
+from .factories import TrackFactory
+from .factories import UserFactory
+from .models import AnnotationSet
+from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
+from .models import PauseAnnotation
+from .models import SkipAnnotation
 from .models import validate_font_color
 
-# from .models import AnnotationSet
 # from .models import Resource
 # from .models import Track
 # from .models import User
@@ -540,3 +553,299 @@ class FontColorValidationTests(TestCase):
 #             reverse("delete_track", kwargs={"track_id": 99999})
 #         )
 #         self.assertEqual(response.status_code, 400)
+
+
+# The tests in AnnotationSetCreateForContentTests were created by Claude and reviewed by BDR 4/24/2026
+# Except then it I realized the tests were bad and I had to refactor them. AI did write the test setup though. BDR 4/30/2026
+class AnnotationSetCreateForContentTests(TestCase):
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.resource = ResourceFactory()
+        self.resource_file = ResourceFileFactory(resource=self.resource)
+        self.collection = CollectionFactory(owner=self.owner)
+        self.content = ContentFactory(
+            collection=self.collection,
+            resource_file=self.resource_file,
+        )
+
+        self.original_set = AnnotationSetFactory(
+            name="Original Set",
+            resource=self.resource,
+            owner=self.owner,
+        )
+        self.tracks = [
+            TrackFactory(
+                annotation_set=self.original_set,
+                name=f"Track {i + 1}",
+                stack_position=i,
+            )
+            for i in range(5)
+        ]
+
+        # Track 0 holds an example of every annotation subclass so per-track
+        # copy/serialization paths are exercised for all types on a single track.
+        full_coverage_track = self.tracks[0]
+
+        self.mute_annotation = MuteAnnotationFactory(
+            track=full_coverage_track,
+            name="Mute 1",
+            start_time=0.0,
+            end_time=2.0,
+            description="mute opening",
+        )
+        self.comment_annotation = CommentAnnotationFactory(
+            track=full_coverage_track,
+            name="Comment 1",
+            start_time=3.0,
+            end_time=5.0,
+            description="opening comment",
+            text="Observe the framing",
+            top_left_x=20.0,
+            top_left_y=30.0,
+            bottom_right_x=20.0,
+            bottom_right_y=30.0,
+            font_size_in_rem=1.0,
+            font_color="abcdef",
+        )
+        self.blank_annotation = BlankAnnotationFactory(
+            track=full_coverage_track,
+            name="Blank 1",
+            start_time=6.0,
+            end_time=8.0,
+            description="blank interlude",
+            type="k",
+        )
+        self.skip_annotation = SkipAnnotation.objects.create(
+            track=full_coverage_track,
+            name="Skip 1",
+            start_time=9.0,
+            end_time=12.0,
+            description="skip intro",
+            message="Skipping introduction",
+        )
+        self.pause_annotation = PauseAnnotation.objects.create(
+            track=full_coverage_track,
+            name="Pause 1",
+            start_time=13.0,
+            end_time=13.0,
+            description="pause for prompt",
+            message="Discuss what you saw",
+        )
+        self.blur_annotation = BlurAnnotation.objects.create(
+            track=full_coverage_track,
+            name="Blur 1",
+            start_time=15.0,
+            end_time=20.0,
+            description="blur face on screen",
+        )
+        for time, x, y in [(15.0, 10.0, 20.0), (17.5, 15.0, 25.0), (20.0, 20.0, 30.0)]:
+            BlurAnnotationPosition.objects.create(
+                blur_annotation=self.blur_annotation,
+                time=time,
+                x=x,
+                y=y,
+                width=100.0,
+                height=80.0,
+                blur_amount=60,
+                type="blur",
+            )
+
+        # Tracks 1-4 collectively cover every annotation type at least once so
+        # distributed-across-tracks copy/serialization paths are also exercised.
+        MuteAnnotationFactory(
+            track=self.tracks[1],
+            name="Mute 2",
+            start_time=22.0,
+            end_time=26.0,
+            description="mute second section",
+        )
+        BlankAnnotationFactory(
+            track=self.tracks[2],
+            name="Blank 2",
+            start_time=27.0,
+            end_time=30.0,
+            description="blank second section",
+            type="#",
+        )
+        SkipAnnotation.objects.create(
+            track=self.tracks[2],
+            name="Skip 2",
+            start_time=31.0,
+            end_time=34.0,
+            description="skip interlude",
+            message="Skipping interlude",
+        )
+        PauseAnnotation.objects.create(
+            track=self.tracks[3],
+            name="Pause 2",
+            start_time=35.0,
+            end_time=35.0,
+            description="pause for reflection",
+            message="Reflect before continuing",
+        )
+        CommentAnnotationFactory(
+            track=self.tracks[3],
+            name="Comment 2",
+            start_time=36.0,
+            end_time=40.0,
+            description="closing comment",
+            text="Note the composition",
+            top_left_x=20.0,
+            top_left_y=30.0,
+            bottom_right_x=20.0,
+            bottom_right_y=30.0,
+            font_size_in_rem=1.0,
+            font_color="abcdef",
+        )
+        distributed_blur = BlurAnnotation.objects.create(
+            track=self.tracks[4],
+            name="Blur 2",
+            start_time=42.0,
+            end_time=48.0,
+            description="blur logo",
+        )
+        for time, x, y in [(42.0, 5.0, 10.0), (45.0, 6.0, 11.0), (48.0, 7.0, 12.0)]:
+            BlurAnnotationPosition.objects.create(
+                blur_annotation=distributed_blur,
+                time=time,
+                x=x,
+                y=y,
+                width=50.0,
+                height=50.0,
+                blur_amount=55,
+                type="blur",
+            )
+
+    def _assert_annotation_set_json_is_correct(self, original_set_json, new_set_json):
+        self.assertTrue("tracks" in original_set_json and "tracks" in new_set_json)
+        self.assertTrue(len(original_set_json["tracks"]) == len(new_set_json["tracks"]))
+
+        # check that the tracks are equivalent except for id values, indicating successful copy
+        for i in range(0, len(original_set_json["tracks"])):
+            orig_track = original_set_json["tracks"][i]
+            new_track = new_set_json["tracks"][i]
+            self.assertTrue(orig_track["name"] == new_track["name"])
+            self.assertTrue(orig_track["stack_position"] == new_track["stack_position"])
+            self.assertTrue(orig_track["id"] != new_track["id"])
+
+        # check that the annotations are equivalent except for ids and each maps to a real track
+        self.assertTrue(
+            "annotations" in original_set_json and "annotations" in new_set_json
+        )
+        self.assertTrue(
+            len(original_set_json["annotations"]) == len(new_set_json["annotations"])
+        )
+
+        def sort_annotations(a, b):
+            a_name = a["name"]
+            b_name = b["name"]
+            if a_name < b_name:
+                return -1
+            elif a_name > b_name:
+                return 1
+            else:
+                return 0
+
+        orig_annotations = original_set_json["annotations"]
+        orig_annotations.sort(key=cmp_to_key(sort_annotations))
+        new_annotations = new_set_json["annotations"]
+        new_annotations.sort(key=cmp_to_key(sort_annotations))
+        for i in range(0, len(orig_annotations)):
+            # check inherited BaseAnnotation attributes
+            orig_annotation = orig_annotations[i]
+            new_annotation = new_annotations[i]
+            self.assertTrue(orig_annotation["name"] == new_annotation["name"])
+            self.assertTrue(
+                orig_annotation["track_name"] == new_annotation["track_name"]
+            )
+            self.assertTrue(orig_annotation["start"] == new_annotation["start"])
+            self.assertTrue(orig_annotation["end"] == new_annotation["end"])
+            self.assertTrue(
+                orig_annotation["description"] == new_annotation["description"]
+            )
+            self.assertTrue(new_annotation["active"])
+            orig_type = orig_annotation["type"]
+            self.assertTrue(orig_type == new_annotation["type"])
+
+            # check for annotation type specific attributes
+            if orig_type == "skip" or orig_type == "pause":
+                self.assertTrue(orig_annotation["message"] == new_annotation["message"])
+            elif orig_type == "blank":
+                self.assertTrue(orig_annotation["type"] == new_annotation["type"])
+            elif orig_type == "comment":
+                self.assertTrue(orig_annotation["text"] == new_annotation["text"])
+                self.assertTrue(
+                    orig_annotation["top_left_x"] == new_annotation["top_left_x"]
+                )
+                self.assertTrue(
+                    orig_annotation["top_left_y"] == new_annotation["top_left_y"]
+                )
+                self.assertTrue(
+                    orig_annotation["bottom_right_x"]
+                    == new_annotation["bottom_right_x"]
+                )
+                self.assertTrue(
+                    orig_annotation["bottom_right_y"]
+                    == new_annotation["bottom_right_y"]
+                )
+                self.assertTrue(
+                    orig_annotation["font_size_in_rem"]
+                    == new_annotation["font_size_in_rem"]
+                )
+                self.assertTrue(
+                    orig_annotation["font_color"] == new_annotation["font_color"]
+                )
+            elif orig_type == "censor":
+                self.assertTrue(
+                    len(orig_annotation["positions"])
+                    == len(new_annotation["positions"])
+                )
+                # check that the positions are correct
+                for j in range(0, len(orig_annotation["positions"])):
+                    orig_position = orig_annotation["positions"][j]
+                    new_position = new_annotation["positions"][j]
+                    self.assertTrue(orig_position["id"] != new_position["id"])
+                    self.assertTrue(orig_position["time"] == new_position["time"])
+                    self.assertTrue(orig_position["x"] == new_position["x"])
+                    self.assertTrue(orig_position["y"] == new_position["y"])
+                    self.assertTrue(orig_position["width"] == new_position["width"])
+                    self.assertTrue(orig_position["height"] == new_position["height"])
+                    self.assertTrue(
+                        orig_position["blur_amount"] == new_position["blur_amount"]
+                    )
+                    self.assertTrue(orig_position["type"] == new_position["type"])
+
+    def test_create_for_content_with_annotations_json(self):
+        original_set_json = self.original_set.to_player_json()
+        annotation_set_json = json.dumps(original_set_json)
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            set_name="Copied From JSON",
+            annotation_set_json=annotation_set_json,
+        )
+
+        self.assertIsNotNone(new_set)
+
+        # compare to_player_json output of both sets
+        new_set_json = new_set.to_player_json()
+        self._assert_annotation_set_json_is_correct(original_set_json, new_set_json)
+
+    def test_create_for_content_with_annotation_set_id_to_copy(self):
+        original_json = self.original_set.to_player_json()
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            set_name="Copied From Existing Set",
+            annotation_set_id_to_copy=self.original_set.pk,
+        )
+
+        self.assertIsNotNone(new_set)
+        self.assertEqual(new_set.resource, self.resource)
+        self.assertEqual(new_set.owner, self.owner)
+
+        self._assert_annotation_set_json_is_correct(
+            original_json, new_set.to_player_json()
+        )
