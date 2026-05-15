@@ -59,7 +59,7 @@ export class Editor {
         this.createtimelineScrubber();
         this.attachTimelineListeners();
         this.attachVideoListeners();
-        this.setupTrackWatchersForAllTracks();
+        this.setupTracks();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
@@ -87,22 +87,42 @@ export class Editor {
       this.tracks = tracks;
     }
 
+    startResize(trackItem, handle, e) {
+        const isLeft = handle.classList.contains('resize-handle-left');
+        const itemContainer = trackItem.closest('.track-row-annotations-container');
+        const rect = itemContainer.getBoundingClientRect();
+        const containerWidth = itemContainer.scrollWidth || rect.width;
+        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
+        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
+
+        this.dragState = {
+            type: 'resize',
+            item: trackItem,
+            container: itemContainer,
+            handle,
+            isLeft,
+            startX: e.clientX,
+            startLeft: itemLeft * 100,
+            startWidth: itemWidth * 100,
+            containerWidth,
+            hasMoved: false,
+            originalLeft: itemLeft,
+            originalWidth: itemWidth
+        };
+
+        // Reset deltas
+        trackItem.dataset.deltaLeft = '0';
+        trackItem.dataset.deltaWidth = '0';
+
+        document.body.classList.add('resizing', 'resizing-item');
+
+        // Seek video to the handle position being dragged
+        this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
+    }
+
     handleMouseDown(e) {
         const trackItem = e.target.closest('.track-item');
         if (!trackItem) return;
-
-        // Always trigger the form load first, regardless of where clicked
-        const contentArea = trackItem.querySelector('.track-item-content');
-        if (contentArea) {
-            // Use htmx to trigger the GET request to load the form if available,
-            // otherwise dispatch a DOM event so other code can listen for it.
-            if (window.htmx && typeof window.htmx.trigger === 'function') {
-                window.htmx.trigger(contentArea, 'track-item-click');
-            } else {
-                const evt = new CustomEvent('track-item-click', { bubbles: true, cancelable: true });
-                contentArea.dispatchEvent(evt);
-            }
-        }
 
         const resizeHandle = e.target.closest('.resize-handle');
 
@@ -110,9 +130,6 @@ export class Editor {
             this.startResize(trackItem, resizeHandle, e);
             e.preventDefault();
             e.stopPropagation();
-        } else if (!e.target.closest('.resize-handle')) {
-            this.startDrag(trackItem, e);
-            e.preventDefault();
         }
     }
 
@@ -153,39 +170,6 @@ export class Editor {
 
         trackItem.classList.add('dragging');
         document.body.classList.add('dragging', 'dragging-item');
-    }
-
-    startResize(trackItem, handle, e) {
-        const isLeft = handle.classList.contains('resize-handle-left');
-        const itemContainer = trackItem.closest('.track-row-annotations-container');
-        const rect = itemContainer.getBoundingClientRect();
-        const containerWidth = itemContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
-
-        this.dragState = {
-            type: 'resize',
-            item: trackItem,
-            container: itemContainer,
-            handle,
-            isLeft,
-            startX: e.clientX,
-            startLeft: itemLeft * 100,
-            startWidth: itemWidth * 100,
-            containerWidth,
-            hasMoved: false,
-            originalLeft: itemLeft,
-            originalWidth: itemWidth
-        };
-
-        // Reset deltas
-        trackItem.dataset.deltaLeft = '0';
-        trackItem.dataset.deltaWidth = '0';
-
-        document.body.classList.add('resizing', 'resizing-item');
-
-        // Seek video to the handle position being dragged
-        this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
     }
 
     handleMouseMove(e) {
@@ -338,6 +322,69 @@ export class Editor {
             document.addEventListener('click', preventNextClick, true);
         }
         // If !hasMoved, don't prevent - let the click bubble to HTMX
+    }
+
+    setUpItemElevationOnMousedown(item) {
+      item.addEventListener("mousedown", () => {
+        const parent = item.closest(".track-row-annotations-container");
+        for (let sibling of parent.querySelectorAll(".track-item")) {
+          if (sibling != item) {
+            sibling.classList.remove("elevated");
+          } else {
+            sibling.classList.add("elevated");
+          }
+        }
+      });
+    }
+
+    setUpItemClickListeners(element) {
+      const annotationType = element.dataset["annotationType"];
+      const annotationId = element.dataset["annotationId"];
+      element.addEventListener("click", async (e) => {
+        e.preventDefault();
+        this.getItemFormDetails(annotationType, annotationId, this.contentId);
+        this.markItemAsActive(annotationType, annotationId);
+      });
+
+      // set up censor position locator listeners
+      if (annotationType == "censor") {
+        const positionLocators = element.querySelectorAll(".censor-position-locator");
+        for (let positionLocator of positionLocators) {
+          positionLocator.addEventListener("click", (e) => {
+            // allow propagation only if the patent item is not active
+            const parentItem = element.closest(".track-item");
+            if (parentItem.className.includes("active-track-item")) {
+              e.stopPropagation();
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+              return;
+            }
+            // Wait a moment, to allow html to be loaded into the DOM
+            setTimeout(() => {
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+            }, 50);
+          })
+        }
+      }
+    }
+
+    setupItemDragListeners(item) {
+      // setup the data stored in the drag event
+      item.addEventListener("dragstart", (event) => {
+        event.dataTransfer.setData("text/html", event.target.outerHTML);
+        event.dataTransfer.setData("text/plain", "trackItem");
+      });
+    }
+
+    setupItems() {
+      const itemsToSetUp = document.querySelectorAll(".track-item[data-setup='false']");
+      for (let item of itemsToSetUp) {
+        this.setUpItemElevationOnMousedown(item);
+        this.setUpItemClickListeners(item);
+        this.setupItemDragListeners(item);
+        item.dataset["setup"] = "true";
+      }
     }
 
     listenForItemUpdateFormSubmission() {
@@ -848,10 +895,8 @@ export class Editor {
       if (autoUpdateItem) {
         const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
         targetItem.outerHTML = itemHtml;
-        // You must get the new element before making the style changes that occur while placing the track item.
-        const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
+
         this.placeTrackItems();
-        this.setUpItemClickListeners(newTargetItem);
       }
 
       if (autoUpdateForm) {
@@ -1253,44 +1298,7 @@ export class Editor {
       }
     }
 
-    setUpItemClickListeners(element) {
-      const annotationType = element.dataset["annotationType"];
-      const annotationId = element.dataset["annotationId"];
-      element.addEventListener("click", async (e) => {
-        e.preventDefault();
-        this.getItemFormDetails(annotationType, annotationId, this.contentId);
-        this.markItemAsActive(annotationType, annotationId);
-      });
-
-      // set up censor position locator listeners
-      if (annotationType == "censor") {
-        const positionLocators = element.querySelectorAll(".censor-position-locator");
-        for (let positionLocator of positionLocators) {
-          positionLocator.addEventListener("click", (e) => {
-            // allow propagation only if the patent item is not active
-            const parentItem = element.closest(".track-item");
-            if (parentItem.className.includes("active-track-item")) {
-              e.stopPropagation();
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
-              return;
-            }
-            // Wait a moment, to allow html to be loaded into the DOM
-            setTimeout(() => {
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
-            }, 50);
-          })
-        }
-      }
-    }
-
-    setUpClickListenersForAllPanelAndTrackItems() {
-      const trackItems = document.getElementsByClassName("track-item");
-      for (let trackItem of trackItems) {
-        this.setUpItemClickListeners(trackItem);
-      }
-
+    setUpPanelItemClickListeners() {
       const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
         this.setUpItemClickListeners(panelItem);
@@ -1345,11 +1353,32 @@ export class Editor {
     }
 
     /* TRACK EVENT WATCHERS AND HANDLERS */
-    setupTrackWatchersForAllTracks() {
+    setupTracks() {
       const trackRows = document.getElementsByClassName("track-row");
       for (let trackRow of trackRows) {
         this.setupTrackWatchers(trackRow);
+        this.setupTrackDragListeners(trackRow);
       }
+    }
+
+    setupTrackDragListeners(track) {
+      // set up dragover behavior
+      track.addEventListener("dragover", (event) => {
+        event.preventDefault();
+      });
+
+      // set up drop behavior, should reject anything that isn't a trackItem
+      track.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const plainTextInfo = event.dataTransfer.getData("text");
+        if (!plainTextInfo || plainTextInfo != "trackItem") {
+          return;
+        }
+        // const trackItemHTML = event.dataTransfer.getData("text/html");
+        // add item to track
+
+        // remove item from old track
+      });
     }
 
     // use this method to apply all relevant watchers (event listeners) to
@@ -1792,24 +1821,8 @@ export class Editor {
             }
         });
       this.adjustScrubberHeight();
-      this.setUpClickListenersForAllPanelAndTrackItems();
-      this.setUpItemElevationOnClick();
-    }
-
-    setUpItemElevationOnClick() {
-      const itemsToSetUp = document.querySelectorAll(".track-item[data-setup='false']");
-      for (let item of itemsToSetUp) {
-        item.addEventListener("mousedown", () => {
-          const parent = item.closest(".track-row-annotations-container");
-          for (let sibling of parent.querySelectorAll(".track-item")) {
-            if (sibling != item) {
-              sibling.classList.remove("elevated");
-            } else {
-              sibling.classList.add("elevated");
-            }
-          }
-        });
-      }
+      this.setupItems();
+      this.setUpPanelItemClickListeners();
     }
 
     handleTrackItemPlacementAfterEvent(e) {
@@ -1868,7 +1881,6 @@ export class Editor {
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);
-              this.setUpItemClickListeners(newNode);
               this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
