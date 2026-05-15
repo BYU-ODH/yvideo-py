@@ -1,4 +1,4 @@
-import { formatSecondsToString } from "./utils.js";
+import { formatSecondsToString, createElementFromHTML } from "./utils.js";
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -372,6 +372,7 @@ export class Editor {
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
+        item.dataset["isDragging"] = "true";
         event.dataTransfer.setData("text/html", event.target.outerHTML);
         event.dataTransfer.setData("text/plain", "trackItem");
       });
@@ -1357,27 +1358,37 @@ export class Editor {
       const trackRows = document.getElementsByClassName("track-row");
       for (let trackRow of trackRows) {
         this.setupTrackWatchers(trackRow);
-        this.setupTrackDragListeners(trackRow);
+      }
+
+      const trackRowAnnotationContainers = document.getElementsByClassName("track-row-annotations-container");
+      for (let annotationContainer of trackRowAnnotationContainers) {
+        this.setupTrackDragListeners(annotationContainer);
       }
     }
 
-    setupTrackDragListeners(track) {
+    setupTrackDragListeners(annotationContainer) {
       // set up dragover behavior
-      track.addEventListener("dragover", (event) => {
+      annotationContainer.addEventListener("dragover", (event) => {
         event.preventDefault();
       });
 
       // set up drop behavior, should reject anything that isn't a trackItem
-      track.addEventListener("drop", (event) => {
+      annotationContainer.addEventListener("drop", (event) => {
         event.preventDefault();
         const plainTextInfo = event.dataTransfer.getData("text");
         if (!plainTextInfo || plainTextInfo != "trackItem") {
           return;
         }
-        // const trackItemHTML = event.dataTransfer.getData("text/html");
-        // add item to track
-
+        const trackItemHTML = event.dataTransfer.getData("text/html");
         // remove item from old track
+        const itemToDelete = annotationContainer.querySelector(".track-item[data-is-dragging='true']");
+        itemToDelete.remove();
+
+        // add item to track
+        // the second child of the new element has to be used because the dataTransfer API
+        // adds some meta information about the html as the root node in the transfered HTML
+        const replacementItem = createElementFromHTML(trackItemHTML, 1);
+        annotationContainer.appendChild(replacementItem);
       });
     }
 
@@ -1450,9 +1461,7 @@ export class Editor {
       // place new tracks in appropriate positions
       const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
       for (let newTrackHTML of newTracksHTML) {
-        const trackTemplate = document.createElement("template");
-        trackTemplate.innerHTML = newTrackHTML;
-        const trackParentNode = trackTemplate.content.childNodes[0];
+        const trackParentNode = createElementFromHTML(newTrackHTML);
         this.setupTrackWatchers(trackParentNode);
         this.timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
       }
@@ -1875,9 +1884,7 @@ export class Editor {
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
-              const newElement = document.createElement("template");
-              newElement.innerHTML = newTrackItemHtml;
-              const newNode = newElement.content.firstChild;
+              const newNode = createElementFromHTML(newTrackItemHtml);
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);

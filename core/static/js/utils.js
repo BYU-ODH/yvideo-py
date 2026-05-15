@@ -18,3 +18,9 @@ export function formatSecondsToString(timeInSeconds, shouldGiveTimestamp=false) 
 
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}${decimal}`;
 }
+
+export function createElementFromHTML(html, nodeIndex=0) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  return template.content.children[nodeIndex];
+}
