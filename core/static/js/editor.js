@@ -372,9 +372,8 @@ export class Editor {
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
-        item.dataset["isDragging"] = "true";
-        event.dataTransfer.setData("text/html", event.target.outerHTML);
-        event.dataTransfer.setData("text/plain", "trackItem");
+        event.dataTransfer.setData("text/html", item.outerHTML);
+        event.dataTransfer.setData("text/plain", item.id);
       });
     }
 
@@ -848,7 +847,7 @@ export class Editor {
       itemFormObserver.observe(itemForm, { childList: true });
     }
 
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -858,6 +857,7 @@ export class Editor {
           "description": description,
           "start_time": startTime,
           "end_time": endTime,
+          "track_id": trackId,
         });
         contentType = "application/json";
       } else {
@@ -1373,23 +1373,43 @@ export class Editor {
       });
 
       // set up drop behavior, should reject anything that isn't a trackItem
-      annotationContainer.addEventListener("drop", (event) => {
+      const itemIdRegEx = new RegExp("[a-z]+-[0-9]+");
+      annotationContainer.addEventListener("drop", async (event) => {
         event.preventDefault();
-        const plainTextInfo = event.dataTransfer.getData("text");
-        if (!plainTextInfo || plainTextInfo != "trackItem") {
+        const itemId = event.dataTransfer.getData("text");
+        if (!itemId || !itemIdRegEx.test(itemId)) {
           return;
         }
-        const trackItemHTML = event.dataTransfer.getData("text/html");
-        // remove item from old track
-        const itemToDelete = this.timelineWrapper.querySelector(".track-item[data-is-dragging='true']");
-        itemToDelete.remove();
+        const originalItem = document.getElementById(itemId);
 
-        // add item to track
+        // build new item, and check if we need to move it to a different track
+        const trackItemHTML = event.dataTransfer.getData("text/html");
         // the second child of the new element has to be used because the dataTransfer API
         // adds some meta information about the html as the root node in the transfered HTML
         const replacementItem = createElementFromHTML(trackItemHTML, 1);
-        annotationContainer.appendChild(replacementItem);
-        this.placeTrackItems();
+        const trackRowParent = event.target.closest(".track-row");
+        const trackId = trackRowParent.dataset["trackId"];
+        const originalTrackId = originalItem.dataset["originalTrackId"];
+        const annotationType = originalItem.dataset["annotationType"];
+        const annotationId = originalItem.dataset["annotationId"];
+        const originalStartTime = originalItem.dataset["start"];
+        const originalEndTime = originalItem.dataset["end"];
+        let success = false;
+        if (trackId != originalTrackId) {
+          // transfer item to new track
+
+          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
+          replacementItem.dataset["originalTrackId"] = trackId;
+        } else {
+          // move item to new position within same track
+        }
+
+        if (success) {
+          replacementItem.dataset["setup"] = "false";
+          originalItem.remove();
+          annotationContainer.appendChild(replacementItem);
+          this.placeTrackItems();
+        }
       });
     }
 
