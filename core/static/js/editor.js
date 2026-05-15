@@ -1381,7 +1381,7 @@ export class Editor {
         }
         const trackItemHTML = event.dataTransfer.getData("text/html");
         // remove item from old track
-        const itemToDelete = annotationContainer.querySelector(".track-item[data-is-dragging='true']");
+        const itemToDelete = this.timelineWrapper.querySelector(".track-item[data-is-dragging='true']");
         itemToDelete.remove();
 
         // add item to track
@@ -1389,6 +1389,7 @@ export class Editor {
         // adds some meta information about the html as the root node in the transfered HTML
         const replacementItem = createElementFromHTML(trackItemHTML, 1);
         annotationContainer.appendChild(replacementItem);
+        this.placeTrackItems();
       });
     }
 
