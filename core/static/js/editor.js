@@ -1361,7 +1361,7 @@ export class Editor {
 
       annotationContainer.addEventListener("dragleave", (event) => {
         console.log(event);
-        // check if executing on self
+        // check if executing on self or on this annotationContainer
         const fromItem = event.fromElement.closest(".track-item");
         if (fromItem?.id == this.itemBeingDragged.id || event.fromElement == annotationContainer) {
           return;
