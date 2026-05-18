@@ -172,8 +172,8 @@ journalctl --user -u yvideo-build.service -f
 ```bash
 sudo -iu yvideo
 cd /srv/yvideo/app
-bash deploy/manage.sh showmigrations
-bash deploy/manage.sh shell
+bash deploy/manage.sh showmigrations  # list migration status (applied vs pending)
+bash deploy/manage.sh shell           # open an interactive Django shell in the container
 ```
 
 ## Key configuration notes
