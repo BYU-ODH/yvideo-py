@@ -5,7 +5,7 @@ Description=Build local Podman image for @APP_NAME@
 File=@REPO_ROOT@/Dockerfile
 SetWorkingDirectory=@REPO_ROOT@
 ImageTag=@BUILD_IMAGE_TAG@
-IgnoreFile=@REPO_ROOT@/.dockerignore
+IgnoreFile=@REPO_ROOT@/.containerignore
 Pull=always
 
 [Service]

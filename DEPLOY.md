@@ -30,7 +30,7 @@ All other requests are proxied to the Podman container. See
 | File | Purpose |
 |---|---|
 | `Dockerfile` | Builds the app image for Podman (Python 3.13, system deps for SAML, uv, gunicorn) |
-| `.dockerignore` | Explicit build-context ignore file used by the Quadlet build unit |
+| `.containerignore` | Explicit build-context ignore file used by the Quadlet build unit |
 | `.env_template` | Template for the per-environment `.env` used by the deploy scripts to pin the owning Unix user, `APP_NAME`, port, and Gunicorn tuning |
 | `deploy/quadlet.build.in` | Template for the per-environment Quadlet build unit |
 | `deploy/quadlet.container.in` | Template for the per-environment Quadlet container unit |
