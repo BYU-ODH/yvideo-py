@@ -36,18 +36,10 @@ require_non_root_user() {
     fi
 }
 
-validate_user_name() {
+validate_user_or_app_name() {
     case "$1" in
         "" | *[!a-z0-9_-]*)
             die "DEPLOY_USER must contain only lowercase letters, numbers, underscores, and dashes"
-            ;;
-    esac
-}
-
-validate_app_name() {
-    case "$1" in
-        "" | *[!a-z0-9-]*)
-            die "APP_NAME must contain only lowercase letters, numbers, and dashes"
             ;;
     esac
 }
@@ -94,8 +86,8 @@ load_deploy_env() {
     WORKERS="${WORKERS:-2}"
     THREADS="${THREADS:-2}"
 
-    validate_user_name "$DEPLOY_USER"
-    validate_app_name "$APP_NAME"
+    validate_user_or_app_name "$DEPLOY_USER"
+    validate_user_or_app_name "$APP_NAME"
     validate_port "$HOST_PORT"
     validate_positive_int "$WORKERS" "WORKERS"
     validate_positive_int "$THREADS" "THREADS"
