@@ -370,10 +370,25 @@ export class Editor {
       }
     }
 
+    blockTrackItemPointerEvents() {
+      const containers = document.getElementsByClassName("track-row-annotations-container");
+      for (let container of containers) {
+        container.classList.add("annotations-container-no-child-pointer-events");
+      }
+    }
+
+    allowTrackItemPointerEvents() {
+      const containers = document.getElementsByClassName("annotations-container-no-child-pointer-events");
+      for (let container of containers) {
+        container.classList.remove("annotations-container-no-child-pointer-events");
+      }
+    }
+
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
         this.itemBeingDragged = item;
+        this.blockTrackItemPointerEvents();
         event.dataTransfer.setData("text/html", item.outerHTML);
         event.dataTransfer.setData("text/plain", item.id);
         item.classList.add("is-dragging");
@@ -382,6 +397,7 @@ export class Editor {
       item.addEventListener("dragend", () => {
         this.itemBeingDragged = null;
         item.classList.remove("is-dragging");
+        this.allowTrackItemPointerEvents();
       })
     }
 
@@ -1409,6 +1425,7 @@ export class Editor {
       annotationContainer.addEventListener("drop", async (event) => {
         event.preventDefault();
         this.itemBeingDragged = null;
+        this.allowTrackItemPointerEvents();
         projectionEl.style.visibility = "hidden";
         const itemId = event.dataTransfer.getData("text");
         if (!itemId || !itemIdRegEx.test(itemId)) {
