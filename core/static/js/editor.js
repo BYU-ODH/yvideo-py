@@ -32,6 +32,7 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.selectedSubtitleTrackId = null;
+        this.itemBeingDragged = null;
 
         this.init();
     }
@@ -372,9 +373,15 @@ export class Editor {
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
+        this.itemBeingDragged = item;
         event.dataTransfer.setData("text/html", item.outerHTML);
         event.dataTransfer.setData("text/plain", item.id);
+        item.classList.add("is-dragging");
       });
+
+      item.addEventListener("dragend", () => {
+        item.classList.remove("is-dragging");
+      })
     }
 
     setupItems() {
@@ -1368,13 +1375,34 @@ export class Editor {
 
     setupTrackDragListeners(annotationContainer) {
       // set up dragover behavior
+      const timelineRow = annotationContainer.closest(".timeline-row");
+      const thisContainerTrackId = timelineRow.dataset["trackId"];
+      const projectionEl = document.createElement("div");
+      projectionEl.style.visibility = "hidden";
+      annotationContainer.appendChild(projectionEl);
+      annotationContainer.addEventListener("dragenter", () => {
+        projectionEl.style.visibility = "visible";
+      });
+
       annotationContainer.addEventListener("dragover", (event) => {
         event.preventDefault();
+        const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
+        if (itemOriginalTrackId == thisContainerTrackId) {
+          // show the projection moving in concert with the mouse
+        }
+        else {
+          // show the projection statically placed with same position as itemBeingDragged.
+        }
+      });
+
+      annotationContainer.addEventListener("dragleave", () => {
+        projectionEl.style.visibility = "hidden";
       });
 
       // set up drop behavior, should reject anything that isn't a trackItem
       const itemIdRegEx = new RegExp("[a-z]+-[0-9]+");
       annotationContainer.addEventListener("drop", async (event) => {
+        this.itemBeingDragged = null;
         event.preventDefault();
         const itemId = event.dataTransfer.getData("text");
         if (!itemId || !itemIdRegEx.test(itemId)) {
@@ -1407,6 +1435,7 @@ export class Editor {
         if (success) {
           replacementItem.dataset["setup"] = "false";
           originalItem.remove();
+          replacementItem.classList.remove("is-dragging");
           annotationContainer.appendChild(replacementItem);
           this.placeTrackItems();
         }

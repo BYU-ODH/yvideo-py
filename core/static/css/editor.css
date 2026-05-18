@@ -1298,3 +1298,7 @@ body.resizing-item {
 .layer-content::-webkit-scrollbar {
     display: none;
 }
+
+.track-item.is-dragging {
+    opacity: 0.33;
+}
