@@ -146,33 +146,6 @@ export class Editor {
       return (endTime - startTime) / this.duration;
     }
 
-    startDrag(trackItem, e) {
-        const itemContainer = trackItem.closest('.track-row-annotations-container');
-        const rect = itemContainer.getBoundingClientRect();
-        const containerWidth = itemContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
-
-        this.dragState = {
-            type: 'drag',
-            item: trackItem,
-            container: itemContainer,
-            startX: e.clientX,
-            startLeft: itemLeft * 100,
-            containerWidth,
-            hasMoved: false,
-            originalLeft: itemLeft,
-            originalWidth: itemWidth
-        };
-
-        // Reset deltas
-        trackItem.dataset.deltaLeft = '0';
-        trackItem.dataset.deltaWidth = '0';
-
-        trackItem.classList.add('dragging');
-        document.body.classList.add('dragging', 'dragging-item');
-    }
-
     handleMouseMove(e) {
         if (!this.dragState) return;
 
@@ -188,57 +161,12 @@ export class Editor {
 
         // Only update position if we've started moving
         if (this.dragState.hasMoved) {
-            if (this.dragState.type === 'drag') {
-                this.updateDragPosition(e);
-            } else if (this.dragState.type === 'resize') {
+            if (this.dragState.type === 'resize') {
                 this.updateResizePosition(e);
             }
         }
 
         e.preventDefault();
-    }
-
-    updateDragPosition(e) {
-        const deltaX = e.clientX - this.dragState.startX;
-        // Don't account for zoom in percent calculation - container width is already adjusted
-        const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
-        let newLeft = this.dragState.startLeft + deltaPercent;
-
-        // Special handling for pause items (width is fixed, only left moves)
-        if (this.dragState.item.dataset.itemType === "pause") {
-            const minWidthPercent = 0.5;
-            newLeft = Math.max(0, Math.min(newLeft, 100 - minWidthPercent));
-
-            this.dragState.item.style.left = `${newLeft}%`;
-
-            const deltaLeft = newLeft - this.dragState.originalLeft;
-            this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
-
-            this.seekToHandlePosition(true, newLeft, minWidthPercent);
-        } else {
-            let width = parseFloat(this.dragState.item.style.width);
-            if (width === '' || width === undefined || isNaN(width)) {
-              const itemRect = this.dragState.item.getBoundingClientRect();
-              width = itemRect.width / this.dragState.containerWidth * 100;
-              this.dragState.item.style.width = `${width}%`;
-            }
-            newLeft = Math.max(0, Math.min(newLeft, 100 - width));
-
-            this.dragState.item.style.left = `${newLeft}%`;
-
-            const deltaFromOriginal = newLeft - this.dragState.originalLeft;
-            this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
-
-            const video = document.querySelector('.annotation-player-container video');
-            if (video) {
-                const targetTime = (newLeft / 100) * this.duration;
-                video.currentTime = targetTime;
-
-                if (window.videoPlayer && window.videoPlayer.skipTo) {
-                    window.videoPlayer.skipTo(targetTime);
-                }
-            }
-        }
     }
 
     updateResizePosition(e) {
@@ -305,8 +233,7 @@ export class Editor {
         const state = this.dragState;
         this.dragState = null;
 
-        state.item.classList.remove('dragging');
-        document.body.classList.remove('dragging', 'dragging-item', 'resizing', 'resizing-item');
+        document.body.classList.remove('resizing', 'resizing-item');
 
         if (state.hasMoved) {
             this.triggerSave(state);
@@ -1418,17 +1345,27 @@ export class Editor {
           return;
         }
         const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
+        projectionEl.style.width = this.itemBeingDragged.style.width;
         if (itemOriginalTrackId == thisContainerTrackId) {
           // show the projection moving in concert with the mouse
+          const containerDim = annotationContainer.getBoundingClientRect();
+          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          this.video.currentTime = this.video.duration * newLeftRatio;
+          projectionEl.style.left = (newLeftRatio * 100) + '%';
         }
         else {
           // show the projection statically placed with same position as itemBeingDragged.
-          projectionEl.style.width = this.itemBeingDragged.style.width;
           projectionEl.style.left = this.itemBeingDragged.style.left;
         }
       });
 
-      annotationContainer.addEventListener("dragleave", () => {
+      annotationContainer.addEventListener("dragleave", (event) => {
+        console.log(event);
+        // check if executing on self
+        const fromItem = event.fromElement.closest(".track-item");
+        if (fromItem?.id == this.itemBeingDragged.id || event.fromElement == annotationContainer) {
+          return;
+        }
         projectionEl.style.visibility = "hidden";
       });
 
