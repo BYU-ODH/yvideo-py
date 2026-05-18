@@ -380,6 +380,7 @@ export class Editor {
       });
 
       item.addEventListener("dragend", () => {
+        this.itemBeingDragged = null;
         item.classList.remove("is-dragging");
       })
     }
@@ -1378,6 +1379,7 @@ export class Editor {
       const timelineRow = annotationContainer.closest(".timeline-row");
       const thisContainerTrackId = timelineRow.dataset["trackId"];
       const projectionEl = document.createElement("div");
+      projectionEl.classList.add("track-item-projection");
       projectionEl.style.visibility = "hidden";
       annotationContainer.appendChild(projectionEl);
       annotationContainer.addEventListener("dragenter", () => {
@@ -1392,6 +1394,9 @@ export class Editor {
         }
         else {
           // show the projection statically placed with same position as itemBeingDragged.
+          projectionEl.style.width = this.itemBeingDragged.style.width;
+          projectionEl.style.left = this.itemBeingDragged.style.left;
+          projectionEl.style.top = this.itemBeingDragged.style.top;
         }
       });
 
@@ -1402,8 +1407,9 @@ export class Editor {
       // set up drop behavior, should reject anything that isn't a trackItem
       const itemIdRegEx = new RegExp("[a-z]+-[0-9]+");
       annotationContainer.addEventListener("drop", async (event) => {
-        this.itemBeingDragged = null;
         event.preventDefault();
+        this.itemBeingDragged = null;
+        projectionEl.style.visibility = "hidden";
         const itemId = event.dataTransfer.getData("text");
         if (!itemId || !itemIdRegEx.test(itemId)) {
           return;
