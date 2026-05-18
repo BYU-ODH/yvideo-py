@@ -47,12 +47,12 @@ validate_user_or_app_name() {
 validate_port() {
     case "$1" in
         "" | *[!0-9]*)
-            die "HOST_PORT must be an integer between 1 and 65535"
+            die "HOST_PORT must be an integer between 5000 and 65535"
             ;;
     esac
 
-    if [ "$1" -lt 1 ] || [ "$1" -gt 65535 ]; then
-        die "HOST_PORT must be an integer between 1 and 65535"
+    if [ "$1" -lt 5000 ] || [ "$1" -gt 65535 ]; then
+        die "HOST_PORT must be an integer between 5000 and 65535"
     fi
 }
 
