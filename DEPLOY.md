@@ -181,7 +181,7 @@ bash deploy/manage.sh shell           # open an interactive Django shell in the 
 - **Dedicated Unix user**: The application runs under a dedicated Unix user (e.g. `yvideo`) with its own home directory, Quadlet directory, and Podman storage. The scripts enforce this with `DEPLOY_USER` and a checkout ownership check.
 - **Rootless services**: The deployment scripts refuse to run as `root`. All Quadlets install into `~/.config/containers/systemd/` for the application user.
 - **SQLite database**: Stored in `data/db.sqlite3` with WAL/SHM files alongside it. The `data/` bind mount preserves all of them across rebuilds.
-- **Static files**: `manage.py collectstatic` writes to `staticfiles/` on the host. Apache serves this directory directly at `/static/`.
+- **Static files**: `manage.py collectstatic` writes to `STATIC_ROOT` (as set in `settings.py`) on the host. Apache serves this directory directly at `/static/`.
 - **Media files**: User uploads go to `media/`, also served directly by Apache at `/media/`.
 - **Apache file access**: Apache must be able to traverse the checkout path and read `staticfiles/` and `media/`. Set ownership, group membership, or ACLs accordingly.
 - **SAML config**: Bind-mounted read-only into the container. Configure SP entity ID, ACS URL, and certificates in `yvideo/saml_config/`.
