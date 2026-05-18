@@ -9,7 +9,7 @@ Three environments run on a single server behind Apache reverse proxies:
 | prod | `yvideo-prod` | example.com | 8003 | `/srv/yvideo-prod/app/` | `yvideo-prod` |
 
 Each environment is an independent git clone owned by its own dedicated
-Unix account. That user owns the checkout, the bind-mounted data
+Unix user. That user owns the checkout, the bind-mounted data
 directories, the Podman image storage, and the `systemd --user` services
 for that one instance.
 
@@ -47,7 +47,7 @@ Repeat for each environment (`dev`, `staging`, `prod`).
 
 ### 1. Host prerequisites
 
-Install Podman and create a dedicated Unix account for each deployed
+Install Podman and create a dedicated Unix user for each deployed
 instance. A clean pattern is one home directory per instance under `/srv`:
 
 ```bash
@@ -91,7 +91,7 @@ Edit `.env` and set at least:
 
 The deployment scripts enforce `DEPLOY_USER` at runtime. If someone runs
 `deploy.sh`, `install_quadlet.sh`, or `manage.sh` from the wrong Unix
-account, the script exits instead of touching the wrong instance.
+user, the script exits instead of touching the wrong instance.
 
 `APP_NAME` becomes all of the following:
 
