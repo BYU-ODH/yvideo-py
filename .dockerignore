@@ -1,3 +1,5 @@
+# Podman Quadlet builds point `IgnoreFile=` here, so this remains the
+# authoritative build-context ignore list for deployment builds.
 .git/
 .venv/
 IC_player/

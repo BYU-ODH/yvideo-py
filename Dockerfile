@@ -1,4 +1,4 @@
-FROM python:3.13-slim-bookworm
+FROM docker.io/library/python:3.13-slim-bookworm
 
 # System dependencies required by python3-saml (libxmlsec1)
 RUN apt-get update \
@@ -25,4 +25,4 @@ COPY . .
 
 EXPOSE 8000
 
-ENTRYPOINT ["deploy/entrypoint.sh"]
+ENTRYPOINT ["/app/deploy/entrypoint.sh"]
