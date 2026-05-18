@@ -1039,6 +1039,7 @@ of the page */
 .track-item-projection {
     background-color: lightgrey;
     pointer-events: none;
+    top: 5px;
 }
 
 .track-item {

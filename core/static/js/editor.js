@@ -384,6 +384,14 @@ export class Editor {
       }
     }
 
+    resetTrackItemProjectionsStyle() {
+      const projections = this.timelineWrapper.querySelectorAll(".track-item-projection");
+      for (let projection of projections) {
+        projection.style.width = "";
+        projection.style.left = "";
+      }
+    }
+
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
@@ -398,6 +406,7 @@ export class Editor {
         this.itemBeingDragged = null;
         item.classList.remove("is-dragging");
         this.allowTrackItemPointerEvents();
+        this.resetTrackItemProjectionsStyle();
       })
     }
 
@@ -1404,6 +1413,10 @@ export class Editor {
 
       annotationContainer.addEventListener("dragover", (event) => {
         event.preventDefault();
+        if (!this.itemBeingDragged) {
+          console.error("No item is being dragged!");
+          return;
+        }
         const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
         if (itemOriginalTrackId == thisContainerTrackId) {
           // show the projection moving in concert with the mouse
@@ -1412,7 +1425,6 @@ export class Editor {
           // show the projection statically placed with same position as itemBeingDragged.
           projectionEl.style.width = this.itemBeingDragged.style.width;
           projectionEl.style.left = this.itemBeingDragged.style.left;
-          projectionEl.style.top = this.itemBeingDragged.style.top;
         }
       });
 
@@ -1426,6 +1438,7 @@ export class Editor {
         event.preventDefault();
         this.itemBeingDragged = null;
         this.allowTrackItemPointerEvents();
+        this.resetTrackItemProjectionsStyle();
         projectionEl.style.visibility = "hidden";
         const itemId = event.dataTransfer.getData("text");
         if (!itemId || !itemIdRegEx.test(itemId)) {
