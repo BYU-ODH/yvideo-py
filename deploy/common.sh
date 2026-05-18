@@ -38,8 +38,8 @@ require_non_root_user() {
 
 validate_user_or_app_name() {
     case "$1" in
-        "" | *[!a-z0-9_-]*)
-            die "DEPLOY_USER must contain only lowercase letters, numbers, underscores, and dashes"
+        "" | *[!a-z0-9-]*)
+            die "DEPLOY_USER must contain only lowercase letters, numbers, and hyphens"
             ;;
     esac
 }

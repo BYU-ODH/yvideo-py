@@ -84,7 +84,7 @@ cp .env_template .env
 Edit `.env` and set at least:
 
 - `DEPLOY_USER=yvideo-prod`
-- `APP_NAME=yvideo-prod`
+- `APP_NAME=$DEPLOY_USER`
 - `HOST_PORT=8003`
 - `WORKERS=2`
 - `THREADS=2`
