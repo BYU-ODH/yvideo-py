@@ -305,7 +305,7 @@ export class Editor {
     }
 
     allowTrackItemPointerEvents() {
-      const containers = document.getElementsByClassName("annotations-container-no-child-pointer-events");
+      const containers = document.getElementsByClassName("track-row-annotations-container");
       for (let container of containers) {
         container.classList.remove("annotations-container-no-child-pointer-events");
       }
@@ -323,6 +323,7 @@ export class Editor {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
         this.itemBeingDragged = item;
+        this.resetTrackItemProjectionsStyle();
         this.blockTrackItemPointerEvents();
         event.dataTransfer.setData("text/html", item.outerHTML);
         event.dataTransfer.setData("text/plain", item.id);
@@ -333,7 +334,6 @@ export class Editor {
         this.itemBeingDragged = null;
         item.classList.remove("is-dragging");
         this.allowTrackItemPointerEvents();
-        this.resetTrackItemProjectionsStyle();
       })
     }
 
@@ -1360,10 +1360,9 @@ export class Editor {
       });
 
       annotationContainer.addEventListener("dragleave", (event) => {
-        console.log(event);
         // check if executing on self or on this annotationContainer
-        const fromItem = event.fromElement.closest(".track-item");
-        if (fromItem?.id == this.itemBeingDragged.id || event.fromElement == annotationContainer) {
+        const fromItem = event.fromElement?.closest(".track-item");
+        if (fromItem?.id == this.itemBeingDragged.id || event?.fromElement == annotationContainer) {
           return;
         }
         projectionEl.style.visibility = "hidden";
@@ -1374,8 +1373,6 @@ export class Editor {
       annotationContainer.addEventListener("drop", async (event) => {
         event.preventDefault();
         this.itemBeingDragged = null;
-        this.allowTrackItemPointerEvents();
-        this.resetTrackItemProjectionsStyle();
         projectionEl.style.visibility = "hidden";
         const itemId = event.dataTransfer.getData("text");
         if (!itemId || !itemIdRegEx.test(itemId)) {
@@ -1393,21 +1390,34 @@ export class Editor {
         const originalTrackId = originalItem.dataset["originalTrackId"];
         const annotationType = originalItem.dataset["annotationType"];
         const annotationId = originalItem.dataset["annotationId"];
-        const originalStartTime = originalItem.dataset["start"];
-        const originalEndTime = originalItem.dataset["end"];
+        const originalStartTime = parseFloat(originalItem.dataset["start"]);
+        const originalEndTime = parseFloat(originalItem.dataset["end"]);
         let success = false;
         if (trackId != originalTrackId) {
           // transfer item to new track
 
           success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
-          replacementItem.dataset["originalTrackId"] = trackId;
+          if (success) {
+            replacementItem.dataset["originalTrackId"] = trackId;
+          }
         } else {
           // move item to new position within same track
+          const containerDim = annotationContainer.getBoundingClientRect();
+          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          const startTime = this.video.duration * newLeftRatio;
+          const endTime = originalEndTime - originalStartTime + startTime;
+          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
+          if (success) {
+            replacementItem.dataset["start"] = startTime;
+            replacementItem.dataset["end"] = endTime;
+            replacementItem.style.left = newLeftRatio * 100 + '%';
+          }
         }
 
         if (success) {
           replacementItem.dataset["setup"] = "false";
           originalItem.remove();
+          console.log(originalItem);
           replacementItem.classList.remove("is-dragging");
           annotationContainer.appendChild(replacementItem);
           this.placeTrackItems();
