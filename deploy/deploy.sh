@@ -1,11 +1,4 @@
 #!/bin/bash
-# >>> fetch-runner-guard:BEGIN user=yvideo-py
-if [ "$(whoami)" != "yvideo-py" ] || [ "$(id -u)" -eq 0 ]; then
-    printf 'fetch-runner-guard: refusing to run as %s (uid %s); required: yvideo-py, non-root\n' "$(whoami)" "$(id -u)" >&2
-    exit 1
-fi
-# <<< fetch-runner-guard:END
-
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
@@ -15,10 +8,12 @@ fi
 
 expected_branch="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
+source "$script_dir/common.sh"
 
-source "$script_dir/require_user.sh"
-auto_deploy_require_repo_uid "$repo_root"
+require_non_root_user
+repo_root="$(repo_root)"
+load_deploy_env
+require_deploy_user_context
 
 cd "$repo_root"
 
@@ -35,9 +30,10 @@ echo "Deploying $expected_branch at $(date)"
 git fetch origin
 git reset --hard "origin/$expected_branch"
 
-docker compose build --pull
-docker compose up -d
+bash "$script_dir/install_quadlet.sh"
+systemctl --user start "$(build_service_name)"
+systemctl --user restart "$(container_service_name)"
 
-docker image prune -f
+podman image prune -f
 
 echo "Deploy complete"
