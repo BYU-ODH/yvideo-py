@@ -327,6 +327,9 @@ export class Editor {
         this.blockTrackItemPointerEvents();
         event.dataTransfer.setData("text/html", item.outerHTML);
         event.dataTransfer.setData("text/plain", item.id);
+        const img = new Image()
+        img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+        event.dataTransfer.setDragImage(img, 0, 0);
         item.classList.add("is-dragging");
       });
 
