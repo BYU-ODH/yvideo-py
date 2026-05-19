@@ -57,7 +57,7 @@ usable from `localhost` or `127.0.0.1`.
 
 ### Deployment
 
-See [DEPLOY.md](DEPLOY.md) for production deployment with Docker and Apache.
+See [DEPLOY.md](DEPLOY.md) for production deployment with Podman Quadlets and Apache.
 
 ### Running the Development Server
 
