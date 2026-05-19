@@ -835,6 +835,10 @@ of the page */
     width: 100%;
 }
 
+.annotations-container-no-child-pointer-events .track-item {
+    pointer-events: none;
+}
+
 .track-rename-wrapper {
     display: none;
     flex-direction: column
@@ -1027,12 +1031,20 @@ of the page */
     background-color: var(--clip-type-color);
 }
 
-.track-item {
+.track-item, .track-item-projection {
     position: absolute;
     height: 30px;
     border-radius: 4px;
+}
+
+.track-item-projection {
+    background-color: lightgrey;
+    pointer-events: none;
+    top: 5px;
+}
+
+.track-item {
     cursor: pointer;
-    transition: background 0.2s, box-shadow 0.2s;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -1075,7 +1087,6 @@ of the page */
     flex-shrink: 0;
     cursor: ew-resize;
     transition: background 0.2s;
-    pointer-events: auto;
 }
 
 .resize-handle:hover {
@@ -1119,6 +1130,11 @@ of the page */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.track-item.is-dragging {
+    opacity: 0.33;
+    pointer-events: auto;
 }
 
 /* Styles for zoom slider. */

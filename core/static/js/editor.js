@@ -1,4 +1,4 @@
-import { formatSecondsToString } from "./utils.js";
+import { formatSecondsToString, createElementFromHTMLString } from "./utils.js";
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -32,6 +32,8 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.selectedSubtitleTrackId = null;
+        this.itemBeingDragged = null;
+        this.dragTimeStart = null;
 
         this.init();
     }
@@ -59,7 +61,7 @@ export class Editor {
         this.createtimelineScrubber();
         this.attachTimelineListeners();
         this.attachVideoListeners();
-        this.setupTrackWatchersForAllTracks();
+        this.setupTracks();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
@@ -85,74 +87,6 @@ export class Editor {
           container.addEventListener('mousedown', this.handleMouseDown.bind(this));
       });
       this.tracks = tracks;
-    }
-
-    handleMouseDown(e) {
-        const trackItem = e.target.closest('.track-item');
-        if (!trackItem) return;
-
-        // Always trigger the form load first, regardless of where clicked
-        const contentArea = trackItem.querySelector('.track-item-content');
-        if (contentArea) {
-            // Use htmx to trigger the GET request to load the form if available,
-            // otherwise dispatch a DOM event so other code can listen for it.
-            if (window.htmx && typeof window.htmx.trigger === 'function') {
-                window.htmx.trigger(contentArea, 'track-item-click');
-            } else {
-                const evt = new CustomEvent('track-item-click', { bubbles: true, cancelable: true });
-                contentArea.dispatchEvent(evt);
-            }
-        }
-
-        const resizeHandle = e.target.closest('.resize-handle');
-
-        if (resizeHandle) {
-            this.startResize(trackItem, resizeHandle, e);
-            e.preventDefault();
-            e.stopPropagation();
-        } else if (!e.target.closest('.resize-handle')) {
-            this.startDrag(trackItem, e);
-            e.preventDefault();
-        }
-    }
-
-    calculateItemLeftAsDecimal(item) {
-      const startTime = parseFloat(item.dataset["start"]);
-      return startTime / this.duration;
-
-    }
-
-    calculateItemWidthAsDecimal(item) {
-      const startTime = parseFloat(item.dataset["start"]);
-      const endTime = parseFloat(item.dataset["end"]);
-      return (endTime - startTime) / this.duration;
-    }
-
-    startDrag(trackItem, e) {
-        const itemContainer = trackItem.closest('.track-row-annotations-container');
-        const rect = itemContainer.getBoundingClientRect();
-        const containerWidth = itemContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
-
-        this.dragState = {
-            type: 'drag',
-            item: trackItem,
-            container: itemContainer,
-            startX: e.clientX,
-            startLeft: itemLeft * 100,
-            containerWidth,
-            hasMoved: false,
-            originalLeft: itemLeft,
-            originalWidth: itemWidth
-        };
-
-        // Reset deltas
-        trackItem.dataset.deltaLeft = '0';
-        trackItem.dataset.deltaWidth = '0';
-
-        trackItem.classList.add('dragging');
-        document.body.classList.add('dragging', 'dragging-item');
     }
 
     startResize(trackItem, handle, e) {
@@ -188,6 +122,31 @@ export class Editor {
         this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
     }
 
+    handleMouseDown(e) {
+        const trackItem = e.target.closest('.track-item');
+        if (!trackItem) return;
+
+        const resizeHandle = e.target.closest('.resize-handle');
+
+        if (resizeHandle) {
+            this.startResize(trackItem, resizeHandle, e);
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }
+
+    calculateItemLeftAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      return startTime / this.duration;
+
+    }
+
+    calculateItemWidthAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      const endTime = parseFloat(item.dataset["end"]);
+      return (endTime - startTime) / this.duration;
+    }
+
     handleMouseMove(e) {
         if (!this.dragState) return;
 
@@ -203,57 +162,12 @@ export class Editor {
 
         // Only update position if we've started moving
         if (this.dragState.hasMoved) {
-            if (this.dragState.type === 'drag') {
-                this.updateDragPosition(e);
-            } else if (this.dragState.type === 'resize') {
+            if (this.dragState.type === 'resize') {
                 this.updateResizePosition(e);
             }
         }
 
         e.preventDefault();
-    }
-
-    updateDragPosition(e) {
-        const deltaX = e.clientX - this.dragState.startX;
-        // Don't account for zoom in percent calculation - container width is already adjusted
-        const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
-        let newLeft = this.dragState.startLeft + deltaPercent;
-
-        // Special handling for pause items (width is fixed, only left moves)
-        if (this.dragState.item.dataset.itemType === "pause") {
-            const minWidthPercent = 0.5;
-            newLeft = Math.max(0, Math.min(newLeft, 100 - minWidthPercent));
-
-            this.dragState.item.style.left = `${newLeft}%`;
-
-            const deltaLeft = newLeft - this.dragState.originalLeft;
-            this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
-
-            this.seekToHandlePosition(true, newLeft, minWidthPercent);
-        } else {
-            let width = parseFloat(this.dragState.item.style.width);
-            if (width === '' || width === undefined || isNaN(width)) {
-              const itemRect = this.dragState.item.getBoundingClientRect();
-              width = itemRect.width / this.dragState.containerWidth * 100;
-              this.dragState.item.style.width = `${width}%`;
-            }
-            newLeft = Math.max(0, Math.min(newLeft, 100 - width));
-
-            this.dragState.item.style.left = `${newLeft}%`;
-
-            const deltaFromOriginal = newLeft - this.dragState.originalLeft;
-            this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
-
-            const video = document.querySelector('.annotation-player-container video');
-            if (video) {
-                const targetTime = (newLeft / 100) * this.duration;
-                video.currentTime = targetTime;
-
-                if (window.videoPlayer && window.videoPlayer.skipTo) {
-                    window.videoPlayer.skipTo(targetTime);
-                }
-            }
-        }
     }
 
     updateResizePosition(e) {
@@ -320,8 +234,7 @@ export class Editor {
         const state = this.dragState;
         this.dragState = null;
 
-        state.item.classList.remove('dragging');
-        document.body.classList.remove('dragging', 'dragging-item', 'resizing', 'resizing-item');
+        document.body.classList.remove('resizing', 'resizing-item');
 
         if (state.hasMoved) {
             this.triggerSave(state);
@@ -338,6 +251,104 @@ export class Editor {
             document.addEventListener('click', preventNextClick, true);
         }
         // If !hasMoved, don't prevent - let the click bubble to HTMX
+    }
+
+    setUpItemElevationOnMousedown(item) {
+      item.addEventListener("mousedown", () => {
+        const parent = item.closest(".track-row-annotations-container");
+        for (let sibling of parent.querySelectorAll(".track-item")) {
+          if (sibling != item) {
+            sibling.classList.remove("elevated");
+          } else {
+            sibling.classList.add("elevated");
+          }
+        }
+      });
+    }
+
+    setUpItemClickListeners(element) {
+      const annotationType = element.dataset["annotationType"];
+      const annotationId = element.dataset["annotationId"];
+      element.addEventListener("click", async (e) => {
+        e.preventDefault();
+        this.getItemFormDetails(annotationType, annotationId, this.contentId);
+        this.markItemAsActive(annotationType, annotationId);
+      });
+
+      // set up censor position locator listeners
+      if (annotationType == "censor") {
+        const positionLocators = element.querySelectorAll(".censor-position-locator");
+        for (let positionLocator of positionLocators) {
+          positionLocator.addEventListener("click", (e) => {
+            // allow propagation only if the parent item is not active
+            const parentItem = element.closest(".track-item");
+            if (parentItem.className.includes("active-track-item")) {
+              e.stopPropagation();
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+              return;
+            }
+            this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+            this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+          })
+        }
+      }
+    }
+
+    blockTrackItemPointerEvents() {
+      const containers = document.getElementsByClassName("track-row-annotations-container");
+      for (let container of containers) {
+        container.classList.add("annotations-container-no-child-pointer-events");
+      }
+    }
+
+    allowTrackItemPointerEvents() {
+      const containers = document.getElementsByClassName("track-row-annotations-container");
+      for (let container of containers) {
+        container.classList.remove("annotations-container-no-child-pointer-events");
+      }
+    }
+
+    resetTrackItemProjectionsStyle() {
+      const projections = this.timelineWrapper.querySelectorAll(".track-item-projection");
+      for (let projection of projections) {
+        projection.style.width = "";
+        projection.style.left = "";
+        projection.style.top = "5px";
+      }
+    }
+
+    setupItemDragListeners(item) {
+      // setup the data stored in the drag event
+      item.addEventListener("dragstart", (event) => {
+        this.itemBeingDragged = item;
+        this.dragTimeStart = Date.now();
+        this.resetTrackItemProjectionsStyle();
+        this.blockTrackItemPointerEvents();
+        event.dataTransfer.setData("text/html", item.outerHTML);
+        event.dataTransfer.setData("text/plain", item.id);
+        const img = new Image()
+        img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+        event.dataTransfer.setDragImage(img, 0, 0);
+        item.classList.add("is-dragging");
+      });
+
+      item.addEventListener("dragend", () => {
+        this.itemBeingDragged = null;
+        this.dragTimeStart = null;
+        item.classList.remove("is-dragging");
+        this.allowTrackItemPointerEvents();
+      })
+    }
+
+    setupItems() {
+      const itemsToSetUp = document.querySelectorAll(".track-item[data-setup='false']");
+      for (let item of itemsToSetUp) {
+        this.setUpItemElevationOnMousedown(item);
+        this.setUpItemClickListeners(item);
+        this.setupItemDragListeners(item);
+        item.dataset["setup"] = "true";
+      }
     }
 
     listenForItemUpdateFormSubmission() {
@@ -800,7 +811,7 @@ export class Editor {
       itemFormObserver.observe(itemForm, { childList: true });
     }
 
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -810,6 +821,7 @@ export class Editor {
           "description": description,
           "start_time": startTime,
           "end_time": endTime,
+          "track_id": trackId,
         });
         contentType = "application/json";
       } else {
@@ -848,10 +860,8 @@ export class Editor {
       if (autoUpdateItem) {
         const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
         targetItem.outerHTML = itemHtml;
-        // You must get the new element before making the style changes that occur while placing the track item.
-        const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
+
         this.placeTrackItems();
-        this.setUpItemClickListeners(newTargetItem);
       }
 
       if (autoUpdateForm) {
@@ -1253,44 +1263,7 @@ export class Editor {
       }
     }
 
-    setUpItemClickListeners(element) {
-      const annotationType = element.dataset["annotationType"];
-      const annotationId = element.dataset["annotationId"];
-      element.addEventListener("click", async (e) => {
-        e.preventDefault();
-        this.getItemFormDetails(annotationType, annotationId, this.contentId);
-        this.markItemAsActive(annotationType, annotationId);
-      });
-
-      // set up censor position locator listeners
-      if (annotationType == "censor") {
-        const positionLocators = element.querySelectorAll(".censor-position-locator");
-        for (let positionLocator of positionLocators) {
-          positionLocator.addEventListener("click", (e) => {
-            // allow propagation only if the patent item is not active
-            const parentItem = element.closest(".track-item");
-            if (parentItem.className.includes("active-track-item")) {
-              e.stopPropagation();
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
-              return;
-            }
-            // Wait a moment, to allow html to be loaded into the DOM
-            setTimeout(() => {
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
-            }, 50);
-          })
-        }
-      }
-    }
-
-    setUpClickListenersForAllPanelAndTrackItems() {
-      const trackItems = document.getElementsByClassName("track-item");
-      for (let trackItem of trackItems) {
-        this.setUpItemClickListeners(trackItem);
-      }
-
+    setUpPanelItemClickListeners() {
       const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
         this.setUpItemClickListeners(panelItem);
@@ -1345,11 +1318,141 @@ export class Editor {
     }
 
     /* TRACK EVENT WATCHERS AND HANDLERS */
-    setupTrackWatchersForAllTracks() {
+    setupTracks() {
       const trackRows = document.getElementsByClassName("track-row");
       for (let trackRow of trackRows) {
         this.setupTrackWatchers(trackRow);
       }
+
+      const trackRowAnnotationContainers = document.getElementsByClassName("track-row-annotations-container");
+      for (let annotationContainer of trackRowAnnotationContainers) {
+        this.setupTrackDragListeners(annotationContainer);
+      }
+    }
+
+    setupTrackDragListeners(annotationContainer) {
+      // set up dragover behavior
+      const timelineRow = annotationContainer.closest(".timeline-row");
+      const thisContainerTrackId = timelineRow.dataset["trackId"];
+      const projectionEl = document.createElement("div");
+      projectionEl.classList.add("track-item-projection");
+      projectionEl.style.visibility = "hidden";
+      annotationContainer.appendChild(projectionEl);
+      annotationContainer.addEventListener("dragenter", () => {
+        projectionEl.style.visibility = "visible";
+      });
+
+      annotationContainer.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        if (!this.itemBeingDragged) {
+          console.error("No item is being dragged!");
+          return;
+        }
+        const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
+        projectionEl.style.width = this.itemBeingDragged.style.width;
+        if (itemOriginalTrackId == thisContainerTrackId) {
+          // show the projection moving in concert with the mouse
+          const containerDim = annotationContainer.getBoundingClientRect();
+          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          this.video.currentTime = this.video.duration * newLeftRatio;
+          projectionEl.style.left = (newLeftRatio * 100) + '%';
+          projectionEl.style.top = this.itemBeingDragged.style.top;
+        }
+        else {
+          // show the projection statically placed with same position as itemBeingDragged.
+          this.video.currentTime = this.itemBeingDragged.dataset["start"];
+          projectionEl.style.left = this.itemBeingDragged.style.left;
+        }
+      });
+
+      annotationContainer.addEventListener("dragleave", (event) => {
+        // check if executing on self or on this annotationContainer
+        const fromItem = event.fromElement?.closest(".track-item");
+        if (fromItem?.id == this.itemBeingDragged.id || event?.fromElement == annotationContainer) {
+          return;
+        }
+        projectionEl.style.visibility = "hidden";
+      });
+
+      // set up drop behavior, should reject anything that isn't a trackItem
+      const itemIdRegEx = new RegExp("[a-z]+-[0-9]+");
+      annotationContainer.addEventListener("drop", async (event) => {
+        event.preventDefault();
+        this.itemBeingDragged = null;
+        projectionEl.style.visibility = "hidden";
+        // check if it has been longer than 50ms since drag started
+        if ((Date.now() - this.dragTimeStart) <= 100) {
+          return;
+        }
+        const itemId = event.dataTransfer.getData("text");
+        if (!itemId || !itemIdRegEx.test(itemId)) {
+          return;
+        }
+        const originalItem = document.getElementById(itemId);
+
+        // build new item, and check if we need to move it to a different track
+        const trackItemHTML = event.dataTransfer.getData("text/html");
+        // the second child of the new element has to be used because the dataTransfer API
+        // adds some meta information about the html as the root node in the transfered HTML
+        const replacementItem = createElementFromHTMLString(trackItemHTML, 1);
+        const trackRowParent = event.target.closest(".track-row");
+        const trackId = trackRowParent.dataset["trackId"];
+        const originalTrackId = originalItem.dataset["originalTrackId"];
+        const annotationType = originalItem.dataset["annotationType"];
+        const annotationId = originalItem.dataset["annotationId"];
+        const originalStartTime = parseFloat(originalItem.dataset["start"]);
+        let originalEndTime;
+        if (originalItem.dataset["end"]) {
+          originalEndTime = parseFloat(originalItem.dataset["end"]);
+        }
+        let success = false;
+        if (trackId != originalTrackId) {
+          // transfer item to new track
+
+          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
+          if (success) {
+            replacementItem.dataset["originalTrackId"] = trackId;
+          }
+        } else {
+          // move item to new position within same track
+          const containerDim = annotationContainer.getBoundingClientRect();
+          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          const startTime = this.video.duration * newLeftRatio;
+          let endTime;
+          if (originalEndTime) {
+            endTime = originalEndTime - originalStartTime + startTime;
+          }
+          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
+          if (success) {
+            replacementItem.dataset["start"] = startTime;
+            if (endTime) {
+              replacementItem.dataset["end"] = endTime;
+            }
+            replacementItem.style.left = newLeftRatio * 100 + '%';
+            if (annotationType == "censor") {
+              const censorPositions = replacementItem.querySelectorAll(".censor-position-locator");
+              const positionsToDelete = [];
+              for (let position of censorPositions) {
+                if (position.dataset["positionTime"] < startTime) {
+                  positionsToDelete.push(position);
+                }
+              }
+
+              for (let i = positionsToDelete.length - 1; i > -1; i--) {
+                positionsToDelete[i].remove();
+              }
+            }
+          }
+        }
+
+        if (success) {
+          replacementItem.dataset["setup"] = "false";
+          originalItem.remove();
+          replacementItem.classList.remove("is-dragging");
+          annotationContainer.appendChild(replacementItem);
+          this.placeTrackItems();
+        }
+      });
     }
 
     // use this method to apply all relevant watchers (event listeners) to
@@ -1421,9 +1524,7 @@ export class Editor {
       // place new tracks in appropriate positions
       const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
       for (let newTrackHTML of newTracksHTML) {
-        const trackTemplate = document.createElement("template");
-        trackTemplate.innerHTML = newTrackHTML;
-        const trackParentNode = trackTemplate.content.childNodes[0];
+        const trackParentNode = createElementFromHTMLString(newTrackHTML);
         this.setupTrackWatchers(trackParentNode);
         this.timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
       }
@@ -1792,24 +1893,8 @@ export class Editor {
             }
         });
       this.adjustScrubberHeight();
-      this.setUpClickListenersForAllPanelAndTrackItems();
-      this.setUpItemElevationOnClick();
-    }
-
-    setUpItemElevationOnClick() {
-      const itemsToSetUp = document.querySelectorAll(".track-item[data-setup='false']");
-      for (let item of itemsToSetUp) {
-        item.addEventListener("mousedown", () => {
-          const parent = item.closest(".track-row-annotations-container");
-          for (let sibling of parent.querySelectorAll(".track-item")) {
-            if (sibling != item) {
-              sibling.classList.remove("elevated");
-            } else {
-              sibling.classList.add("elevated");
-            }
-          }
-        });
-      }
+      this.setupItems();
+      this.setUpPanelItemClickListeners();
     }
 
     handleTrackItemPlacementAfterEvent(e) {
@@ -1862,13 +1947,10 @@ export class Editor {
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
-              const newElement = document.createElement("template");
-              newElement.innerHTML = newTrackItemHtml;
-              const newNode = newElement.content.firstChild;
+              const newNode = createElementFromHTMLString(newTrackItemHtml);
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);
-              this.setUpItemClickListeners(newNode);
               this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);
             }

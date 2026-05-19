@@ -797,6 +797,19 @@ def update_annotation(request, annotation_type, annotation_id):
         if "annotation_name" in json_data:
             fields_to_update["name"] = json_data["annotation_name"]
 
+        if "track_id" in json_data and json_data["track_id"] is not None:
+            try:
+                new_track = Track.objects.get(pk=json_data["track_id"])
+                fields_to_update["track"] = new_track
+            except Track.DoesNotExist:
+                logger.error(
+                    "Could not transfer annotation to track because it does not exist"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to update annotation's parent track. Exception: {e}"
+                )
+
         if "description" in json_data:
             fields_to_update["description"] = json_data["description"]
 

@@ -1132,7 +1132,7 @@ class BlurAnnotation(BaseAnnotation):
                 {
                     "id": position.pk,
                     "time": position.time,
-                    "is_not_start": position.time != 0,
+                    "is_not_start": position.time != self.start_time,
                     "relative_location": round(
                         (relative_time / normalized_duration) * 100, 2
                     ),
