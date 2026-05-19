@@ -1,4 +1,4 @@
-import { formatSecondsToString, createElementFromHTML } from "./utils.js";
+import { formatSecondsToString, createElementFromHTMLString } from "./utils.js";
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -33,6 +33,7 @@ export class Editor {
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.selectedSubtitleTrackId = null;
         this.itemBeingDragged = null;
+        this.dragTimeStart = null;
 
         this.init();
     }
@@ -279,7 +280,7 @@ export class Editor {
         const positionLocators = element.querySelectorAll(".censor-position-locator");
         for (let positionLocator of positionLocators) {
           positionLocator.addEventListener("click", (e) => {
-            // allow propagation only if the patent item is not active
+            // allow propagation only if the parent item is not active
             const parentItem = element.closest(".track-item");
             if (parentItem.className.includes("active-track-item")) {
               e.stopPropagation();
@@ -287,11 +288,8 @@ export class Editor {
               this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
               return;
             }
-            // Wait a moment, to allow html to be loaded into the DOM
-            setTimeout(() => {
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
-            }, 50);
+            this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+            this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
           })
         }
       }
@@ -316,6 +314,7 @@ export class Editor {
       for (let projection of projections) {
         projection.style.width = "";
         projection.style.left = "";
+        projection.style.top = "5px";
       }
     }
 
@@ -323,6 +322,7 @@ export class Editor {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
         this.itemBeingDragged = item;
+        this.dragTimeStart = Date.now();
         this.resetTrackItemProjectionsStyle();
         this.blockTrackItemPointerEvents();
         event.dataTransfer.setData("text/html", item.outerHTML);
@@ -335,6 +335,7 @@ export class Editor {
 
       item.addEventListener("dragend", () => {
         this.itemBeingDragged = null;
+        this.dragTimeStart = null;
         item.classList.remove("is-dragging");
         this.allowTrackItemPointerEvents();
       })
@@ -1355,6 +1356,7 @@ export class Editor {
           const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
           this.video.currentTime = this.video.duration * newLeftRatio;
           projectionEl.style.left = (newLeftRatio * 100) + '%';
+          projectionEl.style.top = this.itemBeingDragged.style.top;
         }
         else {
           // show the projection statically placed with same position as itemBeingDragged.
@@ -1378,6 +1380,10 @@ export class Editor {
         event.preventDefault();
         this.itemBeingDragged = null;
         projectionEl.style.visibility = "hidden";
+        // check if it has been longer than 50ms since drag started
+        if ((Date.now() - this.dragTimeStart) <= 100) {
+          return;
+        }
         const itemId = event.dataTransfer.getData("text");
         if (!itemId || !itemIdRegEx.test(itemId)) {
           return;
@@ -1388,7 +1394,7 @@ export class Editor {
         const trackItemHTML = event.dataTransfer.getData("text/html");
         // the second child of the new element has to be used because the dataTransfer API
         // adds some meta information about the html as the root node in the transfered HTML
-        const replacementItem = createElementFromHTML(trackItemHTML, 1);
+        const replacementItem = createElementFromHTMLString(trackItemHTML, 1);
         const trackRowParent = event.target.closest(".track-row");
         const trackId = trackRowParent.dataset["trackId"];
         const originalTrackId = originalItem.dataset["originalTrackId"];
@@ -1518,7 +1524,7 @@ export class Editor {
       // place new tracks in appropriate positions
       const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
       for (let newTrackHTML of newTracksHTML) {
-        const trackParentNode = createElementFromHTML(newTrackHTML);
+        const trackParentNode = createElementFromHTMLString(newTrackHTML);
         this.setupTrackWatchers(trackParentNode);
         this.timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
       }
@@ -1941,7 +1947,7 @@ export class Editor {
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
-              const newNode = createElementFromHTML(newTrackItemHtml);
+              const newNode = createElementFromHTMLString(newTrackItemHtml);
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);
