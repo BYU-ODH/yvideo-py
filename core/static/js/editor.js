@@ -1419,6 +1419,19 @@ export class Editor {
               replacementItem.dataset["end"] = endTime;
             }
             replacementItem.style.left = newLeftRatio * 100 + '%';
+            if (annotationType == "censor") {
+              const censorPositions = replacementItem.querySelectorAll(".censor-position-locator");
+              const positionsToDelete = [];
+              for (let position of censorPositions) {
+                if (position.dataset["positionTime"] < startTime) {
+                  positionsToDelete.push(position);
+                }
+              }
+
+              for (let i = positionsToDelete.length - 1; i > -1; i--) {
+                positionsToDelete[i].remove();
+              }
+            }
           }
         }
 
