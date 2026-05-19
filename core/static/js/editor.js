@@ -1358,6 +1358,7 @@ export class Editor {
         }
         else {
           // show the projection statically placed with same position as itemBeingDragged.
+          this.video.currentTime = this.itemBeingDragged.dataset["start"];
           projectionEl.style.left = this.itemBeingDragged.style.left;
         }
       });
