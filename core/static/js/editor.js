@@ -1391,7 +1391,10 @@ export class Editor {
         const annotationType = originalItem.dataset["annotationType"];
         const annotationId = originalItem.dataset["annotationId"];
         const originalStartTime = parseFloat(originalItem.dataset["start"]);
-        const originalEndTime = parseFloat(originalItem.dataset["end"]);
+        let originalEndTime;
+        if (originalItem.dataset["end"]) {
+          originalEndTime = parseFloat(originalItem.dataset["end"]);
+        }
         let success = false;
         if (trackId != originalTrackId) {
           // transfer item to new track
@@ -1405,11 +1408,16 @@ export class Editor {
           const containerDim = annotationContainer.getBoundingClientRect();
           const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
           const startTime = this.video.duration * newLeftRatio;
-          const endTime = originalEndTime - originalStartTime + startTime;
+          let endTime;
+          if (originalEndTime) {
+            endTime = originalEndTime - originalStartTime + startTime;
+          }
           success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
           if (success) {
             replacementItem.dataset["start"] = startTime;
-            replacementItem.dataset["end"] = endTime;
+            if (endTime) {
+              replacementItem.dataset["end"] = endTime;
+            }
             replacementItem.style.left = newLeftRatio * 100 + '%';
           }
         }
