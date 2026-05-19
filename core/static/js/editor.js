@@ -1425,7 +1425,6 @@ export class Editor {
         if (success) {
           replacementItem.dataset["setup"] = "false";
           originalItem.remove();
-          console.log(originalItem);
           replacementItem.classList.remove("is-dragging");
           annotationContainer.appendChild(replacementItem);
           this.placeTrackItems();
