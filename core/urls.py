@@ -270,4 +270,9 @@ urlpatterns = [
         views.request_content,
         name="request_content",
     ),
+    path(
+        "collections/<int:collection_id>/videos/add/",
+        views.add_new_video,
+        name="add_new_video",
+    ),
 ]

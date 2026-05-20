@@ -15,6 +15,9 @@
                 <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
             </div>
         </header>
+        <a href="{% url 'add_new_video' collection.id %}" class="add-video-button">
+            + Add New Video
+        </a>
         <div class="collection-video-list">
             {% for content in contents %}
                 <div class="collection-video tile">
