@@ -30,7 +30,6 @@ from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import ResourceContentIntakeRequestForm
-from .forms import SubtitleForm
 from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Clip
@@ -1183,191 +1182,20 @@ def subtitle_editor(request, content_id):
     )
 
 
-@require_GET
-def get_editable_subtitles(request, subtitle_id):
-    try:
-        subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
-        cues = generate_vtt_cues_from_file_path(subtitle_obj.subtitles_file.path)
-        return HttpResponse(render_to_string("partials/vtt_cues.html", {"cues": cues}))
-
-    except Exception as e:
-        logger.error(f"Error generating html cues from file path. Exception: {e}")
-        return HttpResponseServerError()
-
-
-@require_POST
-def create_subtitle(request):
-    form = SubtitleForm(request.POST, request.FILES)
-    if form.is_valid():
-        data = form.cleaned_data
-        uploaded_file = request.FILES["subtitles_file"]
-        if uploaded_file is None:
-            logger.error("No subtitle file provided.")
-            return HttpResponseBadRequest()
-
-        # automatically convert .srt files to .vtt
-        uploaded_file_content = convert_srt_content_to_vtt(
-            uploaded_file.read().decode("utf-8")
-        )
-
-        # create new subtitle object
-        try:
-            new_subtitle = Subtitle.objects.create(
-                resource=data["resource"],
-                owner=data["owner"],
-                language=data["language"],
-                name=data["name"],
-                subtitles_file=ContentFile(
-                    content=uploaded_file_content, name=uploaded_file.name
-                ),
-                is_original=data["is_original"],
-            )
-        except Exception as e:
-            logger.error(
-                f"Error creating Subtitles object. data: {data}. Exception: {e}"
-            )
-            return HttpResponseServerError()
-    else:
-        return HttpResponseBadRequest()
-
-    return render(
-        request, "partials/subtitle_track.html", {"subtitle_track": new_subtitle}
-    )
-
-
-@require_POST
-def update_subtitle_metadata(request):
-    form = SubtitleForm(request.POST, request.FILES)
-    if form.is_valid():
-        data = form.cleaned_data
-
-        uploaded_file = request.FILES["subtitles_file"]
-
-        if uploaded_file is not None:
-            uploaded_file_content = convert_srt_content_to_vtt(
-                uploaded_file.read().decode("utf-8")
-            )
-            uploaded_file_name = uploaded_file.name
-
-        try:
-            if "subtitle_id" in request.POST:
-                subtitle_obj = get_object_or_404(
-                    Subtitle, id=request.POST.get("subtitle_id")
-                )
-            else:
-                return HttpResponseBadRequest()
-
-            if "language" in data:
-                subtitle_obj.language = data["language"]
-            if "name" in data:
-                subtitle_obj.name = data["name"]
-            if uploaded_file is not None:
-                subtitle_obj.subtitles_file = ContentFile(
-                    content=uploaded_file_content, name=uploaded_file_name
-                )
-            if "is_original" in data:
-                subtitle_obj.is_original = data["is_original"]
-            if "words" in request.POST:
-                subtitle_obj.words = data["words"]
-            subtitle_obj.save()
-
-            # remove temp file when main file is updated
-            # this is not included where subtitles_file is set because we want
-            # to ensure we don't over write the temp file unless the main file
-            # is successfully updated.
-            if new_file_exists:
-                subtitle_obj.subtitles_temp_file = None
-                subtitle_obj.save()
-
-            return render(
-                request,
-                "partials/subtitle_track.html",
-                {"subtitle_track": subtitle_obj},
-            )
-        except Exception as e:
-            logger.error(
-                f"Error while updating subtitle object with id: {request.POST.get('subtitle_id')}. Exception: {e}"
-            )
-            return HttpResponseServerError()
-    else:
-        return HttpResponseBadRequest()
-
-
-@require_POST
-def update_subtitle_content(request):
-    try:
-        # build VTTCue list
-        request_data = json.loads(request.body)
-        subtitle_id = request_data["subtitle_id"]
-        dict_cue_list = json.loads(request_data["cues"])
-        cues_list: list[VTTCue] = []
-        for dict_cue in dict_cue_list:
-            new_cue = VTTCue()
-            new_cue.from_json_dict(dict_cue)
-            cues_list.append(new_cue)
-
-        # change timing of cues if applicable
-        seconds_nudge = request_data["seconds_nudge"]
-        nudge_excluded_cues = request_data["nudge_excluded_cues"]
-        if seconds_nudge:
-            nudge_cue_times(cues_list, nudge_excluded_cues, seconds_nudge)
-
-        # build and save new vtt file
-        new_vtt_string = build_vtt_file_string_from_cues(cues_list)
-        subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
-        is_autosave = request_data["is_autosave"]
-
-        # something is giong on here where part of the path name is being duplicated
-        # files are saved as media/filename where in this case, filename is something like
-        # "resource name/subtitles/original filename"
-        # but the model is set to attach the current filename in place of "original filename"
-        # so we end up with "resource name/subtitles/resource name/subtitles/.../intended filename"
-        if is_autosave:
-            with subtitle_obj.subtitles_temp_file.open("w") as f:
-                f.write(new_vtt_string)
-        else:
-            with subtitle_obj.subtitles_file.open("w") as f:
-                f.write(new_vtt_string)
-        subtitle_obj.save()
-        return HttpResponse("", status=200)
-
-    except Exception as e:
-        logger.error(f"Error while updating subtitle content: {e}")
-        return HttpResponseServerError()
-
-
-@require_http_methods(["DELETE"])
-def delete_subtitle(request, subtitle_id):
-    subtitle_obj = get_object_or_404(Subtitle, id=subtitle_id)
-    try:
-        subtitle_obj.delete()
-        return HttpResponse("", status=200)
-    except Exception as e:
-        logger.error(
-            f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
-        )
-        return HttpResponseServerError()
-
-
 def request_content(request, resource_id):
     resource = get_object_or_404(Resource, id=resource_id)
 
-
-def content_intake_form(request):
     if request.method == "POST":
         form = ResourceContentIntakeRequestForm(request.POST)
         if form.is_valid():
             content_request = form.save(commit=False)
+            content_request.resource = resource
 
             if request.user.is_authenticated:
                 content_request.owner = request.user
 
-            try:
-                content_request.save()
-                return redirect("manage_collections")
-            except Exception as e:
-                logger.error(f"Failed to save content intake form. Exception: {e}")
-                return HttpResponseServerError()
+            content_request.save()
+            return redirect("request_content", resource_id=resource.id)
     else:
         form = ResourceContentIntakeRequestForm()
 
@@ -1376,6 +1204,7 @@ def content_intake_form(request):
         "partials/resource_content_intake_request.html",
         {
             "form": form,
+            "resource": resource,
         },
     )
 
@@ -1432,4 +1261,40 @@ def collection_video(request, pk):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to retrieve collection video. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def add_new_video(request, collection_id):
+    try:
+        collection = Collection.objects.get(pk=collection_id)
+
+        if request.method == "POST":
+            form = ResourceContentIntakeRequestForm(request.POST)
+
+            if form.is_valid():
+                content = form.save(commit=False)
+                content.collection = collection
+                content.save()
+
+                return redirect("view_collection", pk=collection.id)
+        else:
+            form = ResourceContentIntakeRequestForm()
+
+        return render(
+            request,
+            "partials/add_new_video.html",
+            {
+                "form": form,
+                "collection": collection,
+            },
+        )
+
+    except Collection.DoesNotExist:
+        logger.error(
+            f"Failed to add new video because collection does not exist. Collection ID: {collection_id}"
+        )
+        return HttpResponseBadRequest()
+
+    except Exception as e:
+        logger.error(f"Failed to add new video. Exception: {e}")
         return HttpResponseServerError()

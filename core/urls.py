@@ -9,7 +9,9 @@ app_name = "core"
 urlpatterns = [
     path("", views.index, name="index"),
     path(
-        "content-intake-request", views.content_intake_form, name="content_intake_form"
+        "content-intake-request/<int:collection_id>/",
+        views.add_new_video,
+        name="add_new_video",
     ),
     path("collections/", views.collections, name="collections"),
     path(
