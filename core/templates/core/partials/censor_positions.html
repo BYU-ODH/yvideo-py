@@ -1,27 +1,38 @@
 <div id="censor-positions-wrapper">
-    <h4>Positions</h4>
+    <h4>Blur Points</h4>
     <div id="positions-list">
+        <div class="position-headers">
+            <div></div>
+            <p>Time (s)</p>
+            <p>Size (%)</p>
+            <div></div>
+            <div></div>
+        </div>
     {% for position in item_positions %}
-        <h5>Position {{forloop.counter}}</h5>
         <div class="position-entry" data-position-id="{{position.pk}}">
+            <p class="position-counter">
+                {{forloop.counter}}.
+            </p>
+            <div class="position-input-group">
+                {% if forloop.counter == 1 %}
+                <input class="position-time-input" name="position-time" type="text" value="--" disabled aria-label="position time in seconds">
+                {% else %}
+                <input class="position-time-input" name="position-time" type="text" value="{{position.time}}" aria-label="position time in seconds">
+                {% endif %}
+            </div>
+            <div class="position-input-group">
+                <label for="position-width">W</label>
+                <input class="position-width-input" name="position-width" type="text" value="{{position.width}}" aria-label="position width as a percentage of the video window">
+            </div>
+            <div class="position-input-group">
+                <label for="position-height">H</label>
+                <input class="position-height-input" name="position-height" type="text" value="{{position.height}}" aria-label="position height as a percentage of the video window">
+            </div>
             {% if forloop.counter != 1 %}
-            <div class="position-input-group">
-                <label for="position-time">Time (s):</label>
-                <input class="position-time-input" name="position-time" type="text" value="{{position.time}}">
-            </div>
+            <button class="censor-position-delete-button">
+                <img></img>
+            </button>
             {% endif %}
-            <div class="position-input-group">
-                <label for="position-width">Width (%):</label>
-                <input class="position-width-input" name="position-width" type="text" value="{{position.width}}">
-            </div>
-            <div class="position-input-group">
-                <label for="position-height">Height (%):</label>
-                <input class="position-height-input" name="position-height" type="text" value="{{position.height}}">
-            </div>
-            {% if position.time > 0 %}
-            <button class="censor-position-delete-button red-button">Delete</button>
-            {% endif %}
-            <button class="censor-position-seek-button blue-button">Seek to Time</button>
         </div>
     {% endfor %}
     </div>

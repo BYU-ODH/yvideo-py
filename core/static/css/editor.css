@@ -520,12 +520,6 @@
     background-color: var(--dark-mode-background-medium);
 }
 
-@media screen and (max-width: 1367px) {
-    .detail-form-section {
-        width: 250px;
-    }
-}
-
 .detail-form {
     padding: 1rem;
     height: 100%;
@@ -699,8 +693,36 @@
 }
 
 /* censor-positions */
+#positions-list p {
+    margin: 0;
+}
+
+.position-headers, .position-entry {
+    display: grid;
+    grid-template-columns: minmax(0, 0.5fr) minmax(0, 2.5fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 0.5fr);
+    column-gap: 0.25rem;
+    padding: 6px;
+    align-items: center;
+}
+
+.position-entry {
+    border-radius: 8px;
+}
+
 .active-position-entry {
     background-color: var(--pause-type-color-very-transparent);
+}
+
+.position-input-group {
+    display: flex;
+    flex-direction: row;
+    column-gap: 4px;
+    align-items: center;
+}
+
+.position-input-group input {
+    min-width: 0;
+    flex: 1;
 }
 
 .active-censor-position {
