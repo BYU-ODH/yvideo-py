@@ -17,20 +17,18 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.urls import include
 from django.urls import path
 
 from core.urls import urlpatterns as core_urlpatterns
 from yvideo.views import dev_quick_login
-from yvideo.views import metadata
-from yvideo.views import saml_login
 
 urlpatterns = core_urlpatterns
 
 urlpatterns.extend(
     [
-        path("login/", saml_login, name="login"),
+        path("oidc/", include("mozilla_django_oidc.urls")),
         path("login/dev/quick/", dev_quick_login, name="dev_quick_login"),
-        path("metadata/", metadata, name="metadata"),
         path("admin/", admin.site.urls),
     ]
 )

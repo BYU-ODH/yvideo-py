@@ -31,3 +31,17 @@ API_STUDENT_ENROLLMENTS_URL = ""
 # If any of those are not true, you should keep this setting set to its default None and find another way of determining HTTPS, perhaps via custom middleware.
 # SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # CSRF_TRUSTED_ORIGINS = ["https://example.com"]
+
+# OIDC (open Id Connect) based SSO (Single sign on) settings
+OIDC_RP_CLIENT_ID = ""
+OIDC_RP_CLIENT_SECRET = ""
+OIDC_RP_SIGN_ALGO = ""
+OIDC_OP_AUTHORIZATION_ENDPOINT = ""
+OIDC_OP_TOKEN_ENDPOINT = ""
+OIDC_OP_USER_ENDPOINT = ""
+OIDC_OP_JWKS_ENDPOINT = ""
+LOGIN_REDIRECT_URL = ""
+LOGOUT_REDIRECT_URL = ""
+OIDC_USE_PKCE = ""
+OIDC_PKCE_CODE_CHALLENGE_METHOD = ""
+OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = ""

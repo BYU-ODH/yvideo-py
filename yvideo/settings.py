@@ -50,13 +50,14 @@ LOGIN_URL = "login/?sso"
 AUTH_USER_MODEL = "core.User"
 
 AUTHENTICATION_BACKENDS = [
-    "yvideo.customAuth.CustomAuth",
+    "yvideo.odhOIDCAuthenticationBackend.OIDCUserAuth",
     "django.contrib.auth.backends.ModelBackend",
 ]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
+    "mozilla_django_oidc",  # must load after auth
     "django.contrib.contenttypes",
     "django.contrib.messages",
     "django.contrib.sessions",
@@ -75,6 +76,7 @@ MIDDLEWARE = [
     "core.middleware.SpoofUserMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mozilla_django_oidc.middleware.SessionRefresh",
 ]
 
 ROOT_URLCONF = "yvideo.urls"
@@ -147,6 +149,21 @@ USE_I18N = True
 
 USE_TZ = True
 
+# OIDC Settings
+OIDC_RP_CLIENT_ID = secret_settings.OIDC_RP_CLIENT_ID
+OIDC_RP_CLIENT_SECRET = secret_settings.OIDC_RP_CLIENT_SECRET
+OIDC_RP_SIGN_ALGO = secret_settings.OIDC_RP_SIGN_ALGO
+OIDC_OP_AUTHORIZATION_ENDPOINT = secret_settings.OIDC_OP_AUTHORIZATION_ENDPOINT
+OIDC_OP_TOKEN_ENDPOINT = secret_settings.OIDC_OP_TOKEN_ENDPOINT
+OIDC_OP_USER_ENDPOINT = secret_settings.OIDC_OP_USER_ENDPOINT
+OIDC_OP_JWKS_ENDPOINT = secret_settings.OIDC_OP_JWKS_ENDPOINT
+LOGIN_REDIRECT_URL = secret_settings.LOGIN_REDIRECT_URL
+LOGOUT_REDIRECT_URL = secret_settings.LOGOUT_REDIRECT_URL
+OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = (
+    secret_settings.OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS
+)  # 12 hours in seconds
+OIDC_USE_PKCE = secret_settings.OIDC_USE_PKCE
+OIDC_PKCE_CODE_CHALLENGE_METHOD = secret_settings.OIDC_PKCE_CODE_CHALLENGE_METHOD
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
