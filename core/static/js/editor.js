@@ -972,13 +972,18 @@ export class Editor {
         let time = 0;
         if (timeInput) {
           time = timeInput.value;
+          if (isNaN(Number(time))) {
+            const form = clickEvent.target.closest("#annotation-update-form");
+            const annotationStartInput = form.querySelector("#start_time");
+            time = annotationStartInput.value;
+          }
         }
         this.video.currentTime = time;
         this.markCensorPositionAsActive(parent.dataset["positionId"]);
       }
-      const buttons = document.getElementsByClassName("censor-position-seek-button");
-      for (let button of buttons) {
-        button.addEventListener("click", handler);
+      const positionEntries = document.getElementsByClassName("position-entry");
+      for (let positionEntry of positionEntries) {
+        positionEntry.addEventListener("click", handler);
       }
     }
 
