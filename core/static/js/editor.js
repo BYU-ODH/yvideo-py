@@ -448,7 +448,7 @@ export class Editor {
       return positions;
     }
 
-    placeNewCensorPositionHtml(censor_parent_id, html) {
+    placeNewCensorPositionHtml(censor_parent_id, itemAndPositionsHtml) {
       const annotationUpdateForm = document.getElementById("existing-item-form");
       const currentFormId = annotationUpdateForm.dataset["annotationId"];
       const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
@@ -456,7 +456,11 @@ export class Editor {
       if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
         return;
       }
-      censorPositionWrapperEl.outerHTML = html;
+      censorPositionWrapperEl.outerHTML = itemAndPositionsHtml["censorPositions"];
+
+      const trackItemToUpdate = this.timelineWrapper.querySelector(`.track-item[data-annotation-id='${censor_parent_id}']`);
+      trackItemToUpdate.outerHTML = itemAndPositionsHtml["trackItem"];
+      this.placeTrackItems();
       this.setUpCensorPositionDeleteListeners(censor_parent_id)
       this.setupCensorPositionSeekListeners();
       return;
@@ -471,9 +475,9 @@ export class Editor {
         headers: {"X-CSRFToken": this.getCSRFToken(), "Content-Type": "application/json"},
         body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
-      if (response.status == 201) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentCensorId, responseHtml)
+      if (response.ok) {
+        const responseHtmlMap = await response.json();
+        this.placeNewCensorPositionHtml(parentCensorId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else if (!response.ok) {
@@ -490,9 +494,9 @@ export class Editor {
         },
         body: JSON.stringify({position_id: positionId, time, x, y, width, height})
       });
-      if (response.status == 201) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml)
+      if (response.ok) {
+        const responseHtmlMap = await response.json();
+        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else {
