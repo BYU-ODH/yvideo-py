@@ -735,8 +735,7 @@ def delete_censor_position(request, position_id):
     if not blur_annotation_parent:
         return HttpResponse(status=205)
     else:
-        censor_position_html = generate_censor_positions_html(blur_annotation_parent.pk)
-        return HttpResponse(censor_position_html, status=200)
+        return HttpResponse()
 
 
 def generate_annotation_updated_html(

@@ -506,9 +506,10 @@ export class Editor {
         headers: {"X-CSRFToken": this.getCSRFToken()}
       });
       if (response.status == 200) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml);
-        window.dispatchEvent(this.annotationUpdatedEvent);
+        const censorPositionLocatorToDelete = document.querySelector(`.censor-position-locator[data-position-id='${positionId}']`);
+        const censorPositionEntryToDelete = document.querySelector(`.position-entry[data-position-id='${positionId}']`);
+        censorPositionLocatorToDelete.remove();
+        censorPositionEntryToDelete.remove();
       }
       else if (!response.ok) {
         console.error("Failed to delete censor position");
