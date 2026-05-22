@@ -23,7 +23,7 @@ container_service_name() {
 }
 
 build_image_tag() {
-    printf 'localhost/%s:latest\n' "$APP_NAME"
+    printf 'localhost/%s:latest' "$APP_NAME"
 }
 
 require_non_root_user() {
