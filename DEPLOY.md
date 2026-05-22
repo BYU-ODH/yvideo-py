@@ -7,7 +7,7 @@ container, with data and static files bind-mounted from the host.
 ## Architecture
 
 ```txt
-Apache (443, TLS) ──→ 127.0.0.1:8000 → yvideo.service (user yvideo)
+Apache (443, TLS) ──→ 127.0.0.1:HOST_PORT → <app>.service (user <deploy-user>)
 ```
 
 Apache serves `/static/` and `/media/` directly from the host filesystem.
@@ -19,9 +19,8 @@ All other requests are proxied to the Podman container. See
 | File | Purpose |
 |---|---|
 | `Dockerfile` | Builds the app image for Podman (Python 3.13, uv, gunicorn) |
-| `.containerignore` | Explicit build-context ignore file used by the Quadlet build unit |
+| `.containerignore` | Explicit build-context ignore file used by `podman build` |
 | `.env_template` | Template for the `.env` file used by deploy scripts to configure the Unix user, port, and Gunicorn tuning |
-| `deploy/quadlet.build.in` | Template for the Quadlet build unit |
 | `deploy/quadlet.container.in` | Template for the Quadlet container unit |
 | `deploy/common.sh` | Shared helpers for loading `.env`, validating values, and locating Quadlet paths |
 | `deploy/install_quadlet.sh` | Renders and installs Quadlet units into the user Quadlet directory |
@@ -39,12 +38,17 @@ Install Podman and create a dedicated Unix user for the application:
 ```bash
 sudo useradd \
   --create-home \
-  --home-dir /srv/yvideo \
+  --home-dir /home/yvideo-dev \
   --shell /bin/bash \
-  yvideo
+  yvideo-dev
 
-sudo loginctl enable-linger yvideo
+sudo loginctl enable-linger yvideo-dev
 ```
+
+The deploy user's home directory lives under `/home/` so that Podman's
+rootless storage and the systemd user runtime sit on the user partition
+in a conventional location. The application checkout lives separately
+under `/srv/`, owned by the same user.
 
 `enable-linger` keeps `systemd --user` running after the SSH session ends.
 The dedicated Unix user isolates the application's Podman storage and Quadlet
@@ -52,10 +56,14 @@ units from other system services.
 
 ### 2. Clone the repo
 
+Create `/srv/<deploy-user>/` (owned by the deploy user) and clone the
+repository into `/srv/<deploy-user>/<repo-name>`:
+
 ```bash
-sudo -iu yvideo
-git clone git@github.com:BYU-ODH/yvideo-py.git /srv/yvideo/app
-cd /srv/yvideo/app
+sudo install -d -o yvideo-dev -g yvideo-dev /srv/yvideo-dev
+sudo -iu yvideo-dev
+git clone git@github.com:BYU-ODH/yvideo-py.git /srv/yvideo-dev/yvideo-py
+cd /srv/yvideo-dev/yvideo-py
 git checkout main
 ```
 
@@ -63,13 +71,17 @@ git checkout main
 
 ```bash
 cp .env_template .env
+chmod 600 .env
 ```
+
+`chmod 600` ensures the file (which can hold tuning values referenced by
+other services) is readable only by the deploy user.
 
 Edit `.env` and set at least:
 
-- `DEPLOY_USER=yvideo`
-- `APP_NAME=yvideo`
-- `HOST_PORT=8000`
+- `DEPLOY_USER=yvideo-dev`
+- `APP_NAME=yvideo-dev`
+- `HOST_PORT=8001`
 - `WORKERS=2`
 - `THREADS=2`
 
@@ -79,43 +91,66 @@ user, the script exits instead of touching the wrong instance.
 
 `APP_NAME` becomes all of the following:
 
-- The systemd user service name: `yvideo.service`
-- The Podman container name: `yvideo`
-- The local image tag: `localhost/yvideo:latest`
+- The systemd user service name: `yvideo-dev.service`
+- The Podman container name: `yvideo-dev`
+- The local image tag: `localhost/yvideo-dev:latest`
 
 ### 4. Create `secret_settings.py`
 
 ```bash
 cp yvideo/secret_settings_template.py yvideo/secret_settings.py
+chmod 600 yvideo/secret_settings.py
 ```
+
+`chmod 600` ensures secrets (`SECRET_KEY`, OIDC client secret, API
+credentials) are readable only by the deploy user — never world-readable
+on the host, even though the file is also bind-mounted read-only into
+the container.
 
 Edit `secret_settings.py`. At minimum set:
 
 - `DEBUG = False`
 - `ALLOWED_HOSTS = ["example.com"]` (use your actual domain)
 - `SECRET_KEY = "<unique random value>"`
-- `SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")`
-- `CSRF_TRUSTED_ORIGINS = ["https://example.com"]`
+- `SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")` — tells
+  Django that requests are HTTPS when Apache forwards them over plain
+  HTTP to gunicorn. Apache must set `X-Forwarded-Proto: https` (see the
+  example vhost) and must strip any incoming copy of that header from
+  client requests so it can't be spoofed.
+- `CSRF_TRUSTED_ORIGINS = ["https://example.com"]` — list of origins
+  Django will accept CSRF tokens from. Required when behind a TLS proxy,
+  because Django sees the request scheme as `http` until
+  `SECURE_PROXY_SSL_HEADER` is honored, and CSRF checks compare against
+  the public origin.
 - `API_CLIENT_ID`, `API_CLIENT_SECRET`, and all `API_*_URL` values
+- All `OIDC_*` values from your identity provider
 
-### 5. Render and install the Quadlets
+### 5. Protect the SQLite database files
+
+The SQLite database lives at `data/db.sqlite3` (with `-wal` / `-shm`
+sidecars). Once it exists, lock it down:
+
+```bash
+chmod 600 data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm 2>/dev/null || true
+```
+
+The deploy entrypoint also enforces these permissions on every start.
+
+### 6. Render and install the container Quadlet
 
 ```bash
 bash deploy/install_quadlet.sh
-systemctl --user start yvideo-build.service
-systemctl --user start yvideo.service
+systemctl --user start yvideo-dev.service
 ```
 
 `install_quadlet.sh` creates or updates:
 
-- `~/.config/containers/systemd/yvideo.build`
-- `~/.config/containers/systemd/yvideo.container`
+- `~/.config/containers/systemd/yvideo-dev.container`
 
-Start `yvideo-build.service` whenever you want to rebuild the local
-image from the checkout. The build unit uses `Pull=always`, so deploy-time
-rebuilds also pick up newer base-image layers.
+The deploy script builds the image directly with `podman build`
+(`.build` Quadlet units require Podman 5.0+; we target older hosts).
 
-### 6. Seed demo data when needed
+### 7. Seed demo data when needed
 
 Only do this once when initially setting up the instance. The SQLite database
 lives on the host bind mount and persists across deploys.
@@ -131,8 +166,8 @@ want to update. For `dev`, you can switch to any branch first, but
 `staging` and `prod` should always deploy from their respective branches.
 
 ```bash
-sudo -iu yvideo
-cd /srv/yvideo/app
+sudo -iu yvideo-dev
+cd /srv/yvideo-dev/yvideo-py
 git fetch origin
 git checkout my-branch
 bash deploy/deploy.sh my-branch
@@ -143,33 +178,33 @@ bash deploy/deploy.sh my-branch
 1. Verifies that the checked-out local branch matches the required `<branch>` argument and exits if it does not.
 2. Runs `git fetch origin`.
 3. Runs `git reset --hard origin/<branch>` so the checkout exactly matches the remote branch.
-4. Renders and installs fresh Quadlet unit files from `.env`.
-5. Runs `systemctl --user start yvideo-build.service`, which rebuilds the local image with `Pull=always` so base-image updates are picked up.
-6. Runs `systemctl --user restart yvideo.service`.
+4. Renders and installs the fresh Quadlet container unit from `.env`.
+5. Runs `podman build` to rebuild the local image from the checkout (pulling a fresh base image).
+6. Runs `systemctl --user restart <app-name>.service`.
 7. Runs `podman image prune -f` to clean up unused images.
 
 ## Viewing logs and status
 
 ```bash
-sudo -iu yvideo
-cd /srv/yvideo/app
-systemctl --user status yvideo.service
-journalctl --user -u yvideo.service -f
-journalctl --user -u yvideo-build.service -f
+sudo -iu yvideo-dev
+cd /srv/yvideo-dev/yvideo-py
+systemctl --user status yvideo-dev.service
+journalctl --user -u yvideo-dev.service -f
 ```
 
 ## Running management commands
 
 ```bash
-sudo -iu yvideo
-cd /srv/yvideo/app
+sudo -iu yvideo-dev
+cd /srv/yvideo-dev/yvideo-py
 bash deploy/manage.sh showmigrations  # list migration status (applied vs pending)
 bash deploy/manage.sh shell           # open an interactive Django shell in the container
 ```
 
 ## Key configuration notes
 
-- **Dedicated Unix user**: The application runs under a dedicated Unix user (e.g. `yvideo`) with its own home directory, Quadlet directory, and Podman storage. The scripts enforce this with `DEPLOY_USER` and a checkout ownership check.
+- **Dedicated Unix user**: The application runs under a dedicated Unix user (e.g. `yvideo-dev`) with its home directory at `/home/<user>/` and its checkout at `/srv/<user>/<repo-name>/`. The scripts enforce this with `DEPLOY_USER` and a checkout ownership check.
+- **Restrictive file permissions**: `.env`, `yvideo/secret_settings.py`, and the SQLite database files are kept at `chmod 600` so secrets and the database are readable only by the deploy user. The deploy entrypoint reapplies `600` to the database files on each container start.
 - **Rootless services**: The deployment scripts refuse to run as `root`. All Quadlets install into `~/.config/containers/systemd/` for the application user.
 - **SQLite database**: Stored in `data/db.sqlite3` with WAL/SHM files alongside it. The `data/` bind mount preserves all of them across rebuilds.
 - **Static files**: `manage.py collectstatic` writes to `STATIC_ROOT` (as set in `settings.py`) on the host. Apache serves this directory directly at `/static/`.

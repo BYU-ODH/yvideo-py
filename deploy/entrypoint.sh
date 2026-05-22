@@ -14,6 +14,12 @@ mkdir -p /app/data /app/media /app/staticfiles /app/var
 uv run python manage.py migrate --noinput
 uv run python manage.py collectstatic --noinput
 
+# Restrict the SQLite database files to the deploy user only. The bind mount
+# means these chmods land on the host files too.
+for db_file in /app/data/db.sqlite3 /app/data/db.sqlite3-wal /app/data/db.sqlite3-shm; do
+    [ -e "$db_file" ] && chmod 600 "$db_file"
+done
+
 exec uv run gunicorn yvideo.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers "$WORKERS" \

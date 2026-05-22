@@ -29,6 +29,9 @@ if [ ! -f "$root/yvideo/secret_settings.py" ]; then
     die "missing $root/yvideo/secret_settings.py"
 fi
 
+# Enforce restrictive perms on sensitive files so they are never world-readable.
+chmod 600 "$root/.env" "$root/yvideo/secret_settings.py"
+
 mkdir -p \
     "$root/data" \
     "$root/media" \
