@@ -22,10 +22,6 @@ container_service_name() {
     printf '%s.service\n' "$APP_NAME"
 }
 
-build_service_name() {
-    printf '%s-build.service\n' "$APP_NAME"
-}
-
 build_image_tag() {
     printf 'localhost/%s:latest\n' "$APP_NAME"
 }
