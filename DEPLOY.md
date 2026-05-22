@@ -187,7 +187,6 @@ bash deploy/deploy.sh my-branch
 
 ```bash
 sudo -iu yvideo-dev
-cd /srv/yvideo-dev/yvideo-py
 systemctl --user status yvideo-dev.service
 journalctl --user -u yvideo-dev.service -f
 ```
