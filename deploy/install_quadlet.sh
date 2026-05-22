@@ -29,10 +29,6 @@ if [ ! -f "$root/yvideo/secret_settings.py" ]; then
     die "missing $root/yvideo/secret_settings.py"
 fi
 
-if [ ! -d "$root/yvideo/saml_config" ]; then
-    die "missing $root/yvideo/saml_config"
-fi
-
 mkdir -p \
     "$root/data" \
     "$root/media" \
