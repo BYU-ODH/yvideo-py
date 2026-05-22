@@ -54,7 +54,6 @@ export class Editor {
         });
         this.placeTrackItems();
         document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
-        this.watchForItemFormChanges();
 
         this.renderTickMarksAndLabels();
         this.attachZoomListener();
@@ -425,6 +424,12 @@ export class Editor {
         e.preventDefault();
         await this.deleteItem(annotationType, annotationId);
       });
+    }
+
+    setUpItemForm() {
+      this.listenForItemUpdateFormSubmission();
+      this.setUpItemFormDeleteButton();
+      this.changeAnnotationInFocus();
     }
 
     getCensorPositions() {
@@ -800,22 +805,6 @@ export class Editor {
       }
     }
 
-    handleItemFormChanges(mutationList) {
-      for (let mutation of mutationList) {
-        if (mutation.type == "childList") {
-          this.listenForItemUpdateFormSubmission();
-          this.setUpItemFormDeleteButton();
-          this.changeAnnotationInFocus();
-        }
-      }
-    }
-
-    watchForItemFormChanges() {
-      const itemFormObserver = new MutationObserver(this.handleItemFormChanges.bind(this))
-      const itemForm = document.getElementById("detail-form");
-      itemFormObserver.observe(itemForm, { childList: true });
-    }
-
     async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
 
       let requestBody, contentType;
@@ -997,10 +986,10 @@ export class Editor {
       for (let button of buttons) {
         const buttonParent = button.parentElement;
         const positionId = buttonParent.dataset["positionId"];
-        async function deleteCensor() {
-          await this.deleteCensorPosition(parentAnnotationId, positionId)
-        }
-        button.addEventListener("click", deleteCensor.bind(this))
+
+        button.addEventListener("click", async () => {
+          await this.deleteCensorPosition(parentAnnotationId, positionId);
+        });
       }
     }
 
@@ -1198,6 +1187,7 @@ export class Editor {
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
+      this.setUpItemForm();
       if (annotationType == "censor") {
         this.setUpCensorPositionDeleteListeners(annotationId);
         this.setupCensorPositionSeekListeners();
