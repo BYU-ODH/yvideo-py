@@ -41,8 +41,6 @@ mkdir -p \
 
 render_quadlet_template "$root/deploy/quadlet.container.in" "$dest_dir/$APP_NAME.container"
 
-rm -f "$dest_dir/$APP_NAME.build"
-
 if [ "$reload_systemd" -eq 1 ]; then
     systemctl --user daemon-reload
 fi
