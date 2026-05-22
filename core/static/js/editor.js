@@ -359,6 +359,11 @@ export class Editor {
       const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
+        // we don't want to submit the form when a censor position is deleted.
+        // That change is handled in a different way.
+        if (e.submitter.classList.contains("censor-position-delete-button")) {
+          return;
+        }
         this.updateAnnotation({annotationType, annotationId})
       })
     }
