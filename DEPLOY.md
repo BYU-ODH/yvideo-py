@@ -18,7 +18,7 @@ All other requests are proxied to the Podman container. See
 
 | File | Purpose |
 |---|---|
-| `Dockerfile` | Builds the app image for Podman (Python 3.13, system deps for SAML, uv, gunicorn) |
+| `Dockerfile` | Builds the app image for Podman (Python 3.13, uv, gunicorn) |
 | `.containerignore` | Explicit build-context ignore file used by the Quadlet build unit |
 | `.env_template` | Template for the `.env` file used by deploy scripts to configure the Unix user, port, and Gunicorn tuning |
 | `deploy/quadlet.build.in` | Template for the Quadlet build unit |
@@ -98,16 +98,7 @@ Edit `secret_settings.py`. At minimum set:
 - `CSRF_TRUSTED_ORIGINS = ["https://example.com"]`
 - `API_CLIENT_ID`, `API_CLIENT_SECRET`, and all `API_*_URL` values
 
-### 5. Set up SAML config
-
-Place your SAML SP/IdP settings and certificates in:
-
-- `yvideo/saml_config/settings.json`
-- `yvideo/saml_config/advanced_settings.json`
-- `yvideo/saml_config/certs/sp.cert`
-- `yvideo/saml_config/certs/sp.key`
-
-### 6. Render and install the Quadlets
+### 5. Render and install the Quadlets
 
 ```bash
 bash deploy/install_quadlet.sh
@@ -124,7 +115,7 @@ Start `yvideo-build.service` whenever you want to rebuild the local
 image from the checkout. The build unit uses `Pull=always`, so deploy-time
 rebuilds also pick up newer base-image layers.
 
-### 7. Seed demo data when needed
+### 6. Seed demo data when needed
 
 Only do this once when initially setting up the instance. The SQLite database
 lives on the host bind mount and persists across deploys.
@@ -184,6 +175,5 @@ bash deploy/manage.sh shell           # open an interactive Django shell in the 
 - **Static files**: `manage.py collectstatic` writes to `STATIC_ROOT` (as set in `settings.py`) on the host. Apache serves this directory directly at `/static/`.
 - **Media files**: User uploads go to `media/`, also served directly by Apache at `/media/`.
 - **Apache file access**: Apache must be able to traverse the checkout path and read `staticfiles/` and `media/`. Set ownership, group membership, or ACLs accordingly.
-- **SAML config**: Bind-mounted read-only into the container. Configure SP entity ID, ACS URL, and certificates in `yvideo/saml_config/`.
 - **Gunicorn**: Runs with `--preload` so the legacy dump scheduler starts once in the master process. Set `WORKERS` and `THREADS` in `.env`; tune `WORKERS` based on available CPU cores, and only increase `THREADS` if requests spend significant time waiting on the DB or other I/O.
 - **SELinux hosts**: The container Quadlet sets `SecurityLabelDisable=true` so the app and Apache can share the same host directories without relabeling them for container-only access.
