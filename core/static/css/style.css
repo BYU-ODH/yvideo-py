@@ -57,6 +57,7 @@ button:hover {
 .blue-button, .white-button-with-border, .red-button, .cancel-button {
     border-radius: 20px;
     padding: 10px 20px;
+    text-decoration: none;
 }
 
 .blue-button {
