@@ -42,6 +42,6 @@ OIDC_OP_USER_ENDPOINT = ""
 OIDC_OP_JWKS_ENDPOINT = ""
 LOGIN_REDIRECT_URL = ""
 LOGOUT_REDIRECT_URL = ""
-OIDC_USE_PKCE = False  # typically true for dev/stage and false for production. check with credential provider
+OIDC_USE_PKCE = False  # typically True for dev/stage and False for production. check with credential provider
 OIDC_PKCE_CODE_CHALLENGE_METHOD = ""
 OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
