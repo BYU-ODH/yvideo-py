@@ -264,13 +264,13 @@ button:hover {
     border-radius: 25%;
     padding: 10px 10px;
     background-color: inherit;
-    border: none;
+    border: 1px solid #00000000;
 }
 
 .open-multi-select-button:hover {
-    background-color: var(--dark-mode-very-light-gray);
     box-shadow: 0px 3px 6px #00000075;
     cursor: pointer;
+    border: 1px solid white;
 }
 
 /* Video Overlay and Blank Screen */
