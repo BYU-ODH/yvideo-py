@@ -42,7 +42,7 @@ ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
 SECURE_PROXY_SSL_HEADER = getattr(secret_settings, "SECURE_PROXY_SSL_HEADER", None)
 CSRF_TRUSTED_ORIGINS = getattr(secret_settings, "CSRF_TRUSTED_ORIGINS", [])
 
-LOGIN_URL = "login/?sso"
+LOGIN_URL = "oidc_authentication_init"
 
 # Application definition
 AUTH_USER_MODEL = "core.User"
