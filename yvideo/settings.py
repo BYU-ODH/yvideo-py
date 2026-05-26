@@ -42,8 +42,6 @@ ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
 SECURE_PROXY_SSL_HEADER = getattr(secret_settings, "SECURE_PROXY_SSL_HEADER", None)
 CSRF_TRUSTED_ORIGINS = getattr(secret_settings, "CSRF_TRUSTED_ORIGINS", [])
 
-SAML_FOLDER = str(BASE_DIR / "yvideo" / "saml_config")
-
 LOGIN_URL = "login/?sso"
 
 # Application definition

@@ -29,6 +29,9 @@ if [ ! -f "$root/yvideo/secret_settings.py" ]; then
     die "missing $root/yvideo/secret_settings.py"
 fi
 
+# Enforce restrictive perms on sensitive files so they are never world-readable.
+chmod 600 "$root/.env" "$root/yvideo/secret_settings.py"
+
 mkdir -p \
     "$root/data" \
     "$root/media" \
@@ -36,12 +39,10 @@ mkdir -p \
     "$root/var" \
     "$dest_dir"
 
-render_quadlet_template "$root/deploy/quadlet.build.in" "$dest_dir/$APP_NAME.build"
 render_quadlet_template "$root/deploy/quadlet.container.in" "$dest_dir/$APP_NAME.container"
 
 if [ "$reload_systemd" -eq 1 ]; then
     systemctl --user daemon-reload
 fi
 
-printf 'Installed %s\n' "$dest_dir/$APP_NAME.build"
 printf 'Installed %s\n' "$dest_dir/$APP_NAME.container"
