@@ -21,7 +21,7 @@
     --mute-type-color-transparent: #EBBF8175;
     --mute-type-color-very-transparent: #EBBF8150;
     --censor-type-color: #826AB4;
-    --censor-type-color-transparent: #826AB475;
+    --censor-type-color-transparent: #826AB480;
     --censor-type-color-very-transparent: #826AB450;
     --comment-type-color: #449964;
     --comment-type-color-transparent: #44996475;
@@ -520,12 +520,6 @@
     background-color: var(--dark-mode-background-medium);
 }
 
-@media screen and (max-width: 1367px) {
-    .detail-form-section {
-        width: 250px;
-    }
-}
-
 .detail-form {
     padding: 1rem;
     height: 100%;
@@ -699,8 +693,59 @@
 }
 
 /* censor-positions */
+#positions-list p {
+    margin: 0;
+}
+
+.position-headers, .position-entry {
+    display: grid;
+    grid-template-columns: minmax(0, 0.5fr) minmax(0, 2.5fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 0.5fr);
+    column-gap: 0.25rem;
+    padding: 6px;
+    align-items: center;
+}
+
+.position-entry {
+    border-radius: 8px;
+}
+
+.position-input-group {
+    display: flex;
+    flex-direction: row;
+    column-gap: 4px;
+    align-items: center;
+}
+
+.position-input-group input {
+    min-width: 0;
+    flex: 1;
+}
+
+.censor-position-delete-button {
+    padding: 0;
+    margin: 0;
+    background-color: #ffffff00;
+    border: none;
+    display: none;
+}
+
+.censor-position-delete-button img {
+    height: 100%;
+    width: 100%;
+    padding: 3px;
+}
+
+.censor-position-delete-button img:hover {
+    background-color: #ffffff40;
+    border-radius: 4px;
+}
+
 .active-position-entry {
-    background-color: var(--pause-type-color-very-transparent);
+    background-color: var(--censor-type-color-transparent);
+}
+
+.active-position-entry .censor-position-delete-button {
+    display: block;
 }
 
 .active-censor-position {

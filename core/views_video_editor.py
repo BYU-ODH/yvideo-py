@@ -586,7 +586,7 @@ def get_list_of_blur_annotation_positions(blur_annotation_parent):
     return censor_positions
 
 
-def generate_censor_positions_html(parent_annotation_id):
+def generate_censor_item_and_positions_html(parent_annotation_id):
     try:
         parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
     except Exception as e:
@@ -600,7 +600,10 @@ def generate_censor_positions_html(parent_annotation_id):
         censor_positions_html = render_to_string(
             "partials/censor_positions.html", {"item_positions": censor_positions}
         )
-        return censor_positions_html
+        track_item_html = render_to_string(
+            "partials/item.html", {"item": parent_annotation}
+        )
+        return {"censorPositions": censor_positions_html, "trackItem": track_item_html}
 
     except Exception as e:
         logger.error(f"Failed to generate censor_postion html. Exception: {e}")
@@ -666,10 +669,12 @@ def create_censor_position(request):
         logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
         return HttpResponseServerError()
 
-    censor_position_html = generate_censor_positions_html(parent_annotation_id)
-    if censor_position_html is False:
+    item_and_position_html = generate_censor_item_and_positions_html(
+        parent_annotation_id
+    )
+    if item_and_position_html is False:
         return HttpResponseServerError()
-    return HttpResponse(censor_position_html, status=201)
+    return JsonResponse(item_and_position_html)
 
 
 @require_POST
@@ -698,12 +703,12 @@ def update_censor_position(request):
             this_blur_position.height = position_height
             this_blur_position.width = position_width
             this_blur_position.save()
-            censor_position_html = generate_censor_positions_html(
+            item_and_positions_html = generate_censor_item_and_positions_html(
                 this_blur_position.blur_annotation.pk
             )
-            if censor_position_html is False:
+            if item_and_positions_html is False:
                 return HttpResponseServerError()
-            return HttpResponse(censor_position_html, status=201)
+            return JsonResponse(item_and_positions_html)
         except Exception as e:
             logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
             return HttpResponseServerError()
@@ -735,8 +740,7 @@ def delete_censor_position(request, position_id):
     if not blur_annotation_parent:
         return HttpResponse(status=205)
     else:
-        censor_position_html = generate_censor_positions_html(blur_annotation_parent.pk)
-        return HttpResponse(censor_position_html, status=200)
+        return HttpResponse()
 
 
 def generate_annotation_updated_html(
