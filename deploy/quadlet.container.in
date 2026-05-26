@@ -11,7 +11,6 @@ Volume=@REPO_ROOT@/staticfiles:/app/staticfiles
 Volume=@REPO_ROOT@/var:/app/var
 Volume=@REPO_ROOT@/demo_media:/app/demo_media:ro
 Volume=@REPO_ROOT@/yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
-Volume=@REPO_ROOT@/yvideo/saml_config:/app/yvideo/saml_config:ro
 Environment=YVIDEO_DB_DIR=/app/data
 Environment=WORKERS=@WORKERS@
 Environment=THREADS=@THREADS@
