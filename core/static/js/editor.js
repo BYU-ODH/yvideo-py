@@ -54,7 +54,6 @@ export class Editor {
         });
         this.placeTrackItems();
         document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
-        this.watchForItemFormChanges();
 
         this.renderTickMarksAndLabels();
         this.attachZoomListener();
@@ -360,6 +359,11 @@ export class Editor {
       const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
+        // we don't want to submit the form when a censor position is deleted.
+        // That change is handled in a different way.
+        if (e.submitter.classList.contains("censor-position-delete-button")) {
+          return;
+        }
         this.updateAnnotation({annotationType, annotationId})
       })
     }
@@ -427,6 +431,12 @@ export class Editor {
       });
     }
 
+    setUpItemForm() {
+      this.listenForItemUpdateFormSubmission();
+      this.setUpItemFormDeleteButton();
+      this.changeAnnotationInFocus();
+    }
+
     getCensorPositions() {
       if (this.typeOfAnnotationInFocus != "censor") {
         return;
@@ -448,7 +458,7 @@ export class Editor {
       return positions;
     }
 
-    placeNewCensorPositionHtml(censor_parent_id, html) {
+    placeNewCensorPositionHtml(censor_parent_id, itemAndPositionsHtml) {
       const annotationUpdateForm = document.getElementById("existing-item-form");
       const currentFormId = annotationUpdateForm.dataset["annotationId"];
       const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
@@ -456,7 +466,11 @@ export class Editor {
       if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
         return;
       }
-      censorPositionWrapperEl.outerHTML = html;
+      censorPositionWrapperEl.outerHTML = itemAndPositionsHtml["censorPositions"];
+
+      const trackItemToUpdate = this.timelineWrapper.querySelector(`.track-item[data-annotation-id='${censor_parent_id}']`);
+      trackItemToUpdate.outerHTML = itemAndPositionsHtml["trackItem"];
+      this.placeTrackItems();
       this.setUpCensorPositionDeleteListeners(censor_parent_id)
       this.setupCensorPositionSeekListeners();
       return;
@@ -471,9 +485,9 @@ export class Editor {
         headers: {"X-CSRFToken": this.getCSRFToken(), "Content-Type": "application/json"},
         body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
-      if (response.status == 201) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentCensorId, responseHtml)
+      if (response.ok) {
+        const responseHtmlMap = await response.json();
+        this.placeNewCensorPositionHtml(parentCensorId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else if (!response.ok) {
@@ -490,9 +504,9 @@ export class Editor {
         },
         body: JSON.stringify({position_id: positionId, time, x, y, width, height})
       });
-      if (response.status == 201) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml)
+      if (response.ok) {
+        const responseHtmlMap = await response.json();
+        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else {
@@ -506,9 +520,10 @@ export class Editor {
         headers: {"X-CSRFToken": this.getCSRFToken()}
       });
       if (response.status == 200) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml);
-        window.dispatchEvent(this.annotationUpdatedEvent);
+        const censorPositionLocatorToDelete = document.querySelector(`.censor-position-locator[data-position-id='${positionId}']`);
+        const censorPositionEntryToDelete = document.querySelector(`.position-entry[data-position-id='${positionId}']`);
+        censorPositionLocatorToDelete.remove();
+        censorPositionEntryToDelete.remove();
       }
       else if (!response.ok) {
         console.error("Failed to delete censor position");
@@ -795,22 +810,6 @@ export class Editor {
       }
     }
 
-    handleItemFormChanges(mutationList) {
-      for (let mutation of mutationList) {
-        if (mutation.type == "childList") {
-          this.listenForItemUpdateFormSubmission();
-          this.setUpItemFormDeleteButton();
-          this.changeAnnotationInFocus();
-        }
-      }
-    }
-
-    watchForItemFormChanges() {
-      const itemFormObserver = new MutationObserver(this.handleItemFormChanges.bind(this))
-      const itemForm = document.getElementById("detail-form");
-      itemFormObserver.observe(itemForm, { childList: true });
-    }
-
     async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
 
       let requestBody, contentType;
@@ -972,13 +971,18 @@ export class Editor {
         let time = 0;
         if (timeInput) {
           time = timeInput.value;
+          if (isNaN(Number(time))) {
+            const form = clickEvent.target.closest("#annotation-update-form");
+            const annotationStartInput = form.querySelector("#start_time");
+            time = annotationStartInput.value;
+          }
         }
         this.video.currentTime = time;
         this.markCensorPositionAsActive(parent.dataset["positionId"]);
       }
-      const buttons = document.getElementsByClassName("censor-position-seek-button");
-      for (let button of buttons) {
-        button.addEventListener("click", handler);
+      const positionEntries = document.getElementsByClassName("position-entry");
+      for (let positionEntry of positionEntries) {
+        positionEntry.addEventListener("click", handler);
       }
     }
 
@@ -987,10 +991,10 @@ export class Editor {
       for (let button of buttons) {
         const buttonParent = button.parentElement;
         const positionId = buttonParent.dataset["positionId"];
-        async function deleteCensor() {
-          await this.deleteCensorPosition(parentAnnotationId, positionId)
-        }
-        button.addEventListener("click", deleteCensor.bind(this))
+
+        button.addEventListener("click", async () => {
+          await this.deleteCensorPosition(parentAnnotationId, positionId);
+        });
       }
     }
 
@@ -1188,6 +1192,7 @@ export class Editor {
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
+      this.setUpItemForm();
       if (annotationType == "censor") {
         this.setUpCensorPositionDeleteListeners(annotationId);
         this.setupCensorPositionSeekListeners();
