@@ -5,7 +5,6 @@ import mimetypes
 import os
 import re
 
-from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import connection
@@ -20,6 +19,7 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
@@ -55,7 +55,9 @@ def admin_or_superuser_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if not getattr(request, "can_spoof", False):
-            return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+            return redirect_to_login(
+                request.get_full_path(), reverse("oidc_authentication_init")
+            )
         return view_func(request, *args, **kwargs)
 
     return _wrapped
