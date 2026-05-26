@@ -25,4 +25,3 @@ __pycache__/
 # Per-environment config (bind-mounted at runtime)
 .env
 yvideo/secret_settings.py
-yvideo/saml_config/certs/

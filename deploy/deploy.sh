@@ -31,7 +31,7 @@ git fetch origin
 git reset --hard "origin/$expected_branch"
 
 bash "$script_dir/install_quadlet.sh"
-systemctl --user start "$(build_service_name)"
+podman build -t "$(build_image_tag)" -f "$repo_root/Dockerfile" "$repo_root"
 systemctl --user restart "$(container_service_name)"
 
 podman image prune -f
