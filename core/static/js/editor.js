@@ -2090,6 +2090,8 @@ export class Editor {
       }
 
       const newWidth = `${100 * this.zoomLevel}%`;
+      const zoomSliderWidth = `${100 / this.zoomLevel}%`;
+      document.documentElement.style.setProperty("--zoom-thumb-width", zoomSliderWidth);
       const tickMarksContainer = document.getElementById("tick-marks-container");
       if (tickMarksContainer) {
         tickMarksContainer.style.width = newWidth;

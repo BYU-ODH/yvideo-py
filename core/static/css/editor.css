@@ -37,7 +37,7 @@
     --dark-mode-border-color: #5a5a5a;
     --dark-mode-text-color: #dedede;
     --dark-mode-text-color-muted: #848484;
-
+    --zoom-thumb-width: 100%;
 }
 
 /* Editor Container */
@@ -1166,7 +1166,7 @@ of the page */
 #timeline-scroll-input::-webkit-slider-thumb {
   -webkit-appearance: none;
   height: 12px;
-  width: 90px;
+  width: var(--zoom-thumb-width);
   border-radius: 12px;
   background: var(--dark-mode-text-color);
   cursor: pointer;
@@ -1176,7 +1176,7 @@ of the page */
 #timeline-scroll-input::-moz-range-thumb {
     -webkit-appearance: none;
     height: 12px;
-    width: 90px;
+    width: var(--zoom-thumb-width);
     border-radius: 12px;
     background: var(--dark-mode-text-color);
     cursor: pointer;
