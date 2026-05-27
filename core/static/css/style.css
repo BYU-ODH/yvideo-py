@@ -858,24 +858,6 @@ p.tile-subtitle {
     padding: 0.3rem 0.75rem;
 }
 
-.add-video-button {
-    display: flex;
-    flex-direction: row;
-    width: 179px;
-    max-width: 179px;
-    height: 40px;
-    background-color: #3B85A1;
-    border-radius: 30px;
-    cursor: pointer;
-    margin-left: auto;
-    color: white;
-    font-size: 1rem;
-    font-weight: 500;
-    border: none;
-    justify-content: center;
-    align-items: center;
-}
-
 .collections-search {
     flex: 1;
     width: 100%;
@@ -1572,49 +1554,32 @@ h4.video-title {
     background-color: transparent;
 }
 
-/* modal */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.45);
-    z-index: 1000;
-    align-items: center;
+
+.add-new-video-modal::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.add-new-video-modal form {
+    display: flex;
     justify-content: center;
 }
 
-.modal-overlay.active {
-    display: flex;
-}
-
 .modal {
-    /* background: #fff; */
+    width: 90vw;
+    height: 80vh;
+    background: white;
+    max-width: none;
     border-radius: 12px;
-    width: 100%;
-    max-width: 100%;
-    margin: 0;
-    overflow: hidden;
 }
 
 .modal-header {
-    background-color: #9CD6ED;
-    padding: 1.25rem;
+    background: #9CD6ED;
+    padding: 1rem;
     text-align: center;
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: black;
+    border-radius: 12px 12px 0 0;
 }
 
 .modal-body {
     padding: 2rem;
     text-align: center;
-}
-
-.modal-body p {
-    font-weight: 600;
-    color: #1a1a1a;
 }
