@@ -36,13 +36,14 @@ SECRET_KEY = secret_settings.SECRET_KEY
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = secret_settings.DEBUG
 DEV_QUICK_LOGIN_ENABLED = getattr(secret_settings, "DEV_QUICK_LOGIN_ENABLED", False)
+DEV_QUICK_LOGIN_HOSTS = getattr(secret_settings, "DEV_QUICK_LOGIN_HOSTS", tuple())
 
 ALLOWED_HOSTS = secret_settings.ALLOWED_HOSTS
 
 SECURE_PROXY_SSL_HEADER = getattr(secret_settings, "SECURE_PROXY_SSL_HEADER", None)
 CSRF_TRUSTED_ORIGINS = getattr(secret_settings, "CSRF_TRUSTED_ORIGINS", [])
 
-LOGIN_URL = "login/?sso"
+LOGIN_URL = "oidc_authentication_init"
 
 # Application definition
 AUTH_USER_MODEL = "core.User"
