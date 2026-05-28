@@ -11,6 +11,7 @@
     --red: #ce0000;
     --header-height: 69px;
     --primary-blue: #3b85a1;
+    --dark-primary-blue: #2e677c;
 }
 
 * {
@@ -68,8 +69,7 @@ button:hover {
 }
 
 .blue-button:hover {
-    background-color: white;
-    color: var(--primary-blue);
+    background-color: var(--dark-primary-blue);
 }
 
 .white-button-with-border {
@@ -795,11 +795,15 @@ button:hover {
     font-size: 2em;
 }
 
-/* LANDING PAGE */
+/* COLLECTION PAGE */
 .collection-header {
     grid-template-columns: 1fr 75px 25px;
     align-items: center;
     cursor: pointer;
+}
+
+#add-new-collection-button {
+    align-self: flex-end;
 }
 
 .collections-list-content {
@@ -1556,21 +1560,20 @@ h4.video-title {
     background-color: transparent;
 }
 
-.modal {
+.user-view-modal {
     background: white;
     border-radius: 12px;
-    width: fit-content;
-    max-width: min(480px, 90vw);
+    padding: 0;
 }
 
-.modal-header {
+.user-view-modal-header {
     background: #9CD6ED;
     padding: 1rem;
     text-align: center;
     border-radius: 12px 12px 0 0;
 }
 
-.modal-body {
+.user-view-modal-body {
     padding: 2rem;
     text-align: center;
 }
