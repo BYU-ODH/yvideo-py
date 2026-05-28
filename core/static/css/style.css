@@ -60,6 +60,7 @@ button:hover {
 }
 
 .blue-button {
+    align-self: flex-end;
     background-color: var(--primary-blue);
     color: white;
     border: none;
@@ -1554,22 +1555,11 @@ h4.video-title {
     background-color: transparent;
 }
 
-
-.add-new-video-modal::backdrop {
-    background: rgba(0, 0, 0, 0.45);
-}
-
-.add-new-video-modal form {
-    display: flex;
-    justify-content: center;
-}
-
 .modal {
-    width: 90vw;
-    height: 80vh;
     background: white;
-    max-width: none;
     border-radius: 12px;
+    width: fit-content;
+    max-width: min(480px, 90vw);
 }
 
 .modal-header {
