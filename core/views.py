@@ -12,6 +12,7 @@ from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
+from django.http import HttpResponseRedirect
 from django.http import HttpResponseServerError
 from django.http import JsonResponse
 from django.http import QueryDict
@@ -87,6 +88,8 @@ def display_yearterm(yearterm):
 
 
 def index(request):
+    if request.user.is_authenticated and request.user.privilege_level == 2:
+        return HttpResponseRedirect(reverse("collections"))
     return render(request, "index.html", {})
 
 
