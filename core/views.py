@@ -1264,39 +1264,3 @@ def collection_video(request, pk):
     except Exception as e:
         logger.error(f"Failed to retrieve collection video. Exception: {e}")
         return HttpResponseServerError()
-
-
-def add_new_video(request, collection_id):
-    try:
-        collection = Collection.objects.get(pk=collection_id)
-
-        if request.method == "POST":
-            form = ResourceContentIntakeRequestForm(request.POST)
-
-            if form.is_valid():
-                content = form.save(commit=False)
-                content.collection = collection
-                content.save()
-
-                return redirect("view_collection", pk=collection.id)
-        else:
-            form = ResourceContentIntakeRequestForm()
-
-        return render(
-            request,
-            "partials/add_new_video.html",
-            {
-                "form": form,
-                "collection": collection,
-            },
-        )
-
-    except Collection.DoesNotExist:
-        logger.error(
-            f"Failed to add new video because collection does not exist. Collection ID: {collection_id}"
-        )
-        return HttpResponseBadRequest()
-
-    except Exception as e:
-        logger.error(f"Failed to add new video. Exception: {e}")
-        return HttpResponseServerError()

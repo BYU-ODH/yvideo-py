@@ -8,11 +8,6 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.index, name="index"),
-    path(
-        "content-intake-request/<int:collection_id>/",
-        views.add_new_video,
-        name="add_new_video",
-    ),
     path("collections/", views.collections, name="collections"),
     path(
         "collections/<int:pk>/videos/", views.collection_video, name="collection_video"
@@ -269,5 +264,10 @@ urlpatterns = [
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",
         views_video_editor.load_annotation_form,
         name="load_annotation_form",
+    ),
+    path(
+        "content-intake-request/<int:resource_id>/",
+        views.request_content,
+        name="request_content",
     ),
 ]
