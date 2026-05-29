@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<main class="main-content">
+    <div class="collection-video-page column-flex">
+        <header class="video-title row-flex flex-apart-aligned">
+            <h2>Viewing collection: {{ collection.name }}</h2>
+        </header>
+        <div id="collection-videos-content">
+            <div id="collection-videos-header" class="column-flex">
+                <div class="search-wrapper">
+                    <input
+                        type="text"
+                        id="video-search"
+                        class="list-search-input"
+                        placeholder="Search"
+                        aria-label="Search videos"
+                    >
+                    <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
+                </div>
+                <dialog id="add-video-dialog" class="user-view-modal">
+                    <div class="user-view-modal-header">
+                        <h3>Add a New Video</h3>
+                    </div>
+
+                    <div class="user-view-modal-body">
+                        <p>Choose a library below to pick from:</p>
+                        <button type="button" command="close" commandfor="add-video-dialog">Close</button>
+                    </div>
+                </dialog>
+                <button
+                    class="blue-button"
+                    commandfor="add-video-dialog"
+                    command="show-modal">
+                    + Add New Video
+                </button>
+            </div>
+            <div id="collection-video-list">
+                {% for content in contents %}
+                    <div class="collection-video tile">
+                        <a href="{% url 'player' content.id %}" class="collection-video-tile">
+                            <div class="tile-image">
+                                <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
+                            </div>
+                            <div class="tile-body">
+                                <h4 class="video-title">{{ content.title  }}</h4>
+                            </div>
+                        </a>
+                    </div>
+                {% empty %}
+                    <p>There are no videos assigned to this collection</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</main>
+<script type="module" src="{% static 'js/collectionInfo.js' %}"></script>
+{% endblock %}

@@ -1,21 +1,16 @@
 import { getCSRFToken } from "./utils.js";
 
 function setupCollectionSearch() {
-  const searchElements = document.querySelectorAll(".collections-search");
-  for (let searchElement of searchElements) {
-    searchElement.addEventListener("input", () => {
-      const searchText = searchElement.value.toLowerCase();
-      const landingPageList = searchElement.closest(".landing-page-collection-list");
-      const collections = landingPageList.querySelectorAll(".landing-page-collection");
-      for (let collection of collections) {
-        const name = collection.querySelector(".collection-header-name")?.innerText.toLowerCase();
-        if (name === undefined) {
-          continue;
-        }
-        collection.style.display = name.includes(searchText) ? "" : "none";
-      }
-    });
-  }
+  const collectionSearch = document.getElementById("collections-search");
+  collectionSearch.addEventListener("input", () => {
+    const searchText = collectionSearch.value.toLowerCase();
+    const landingPageList = collectionSearch.closest(".landing-page-collection-list");
+    const collections = landingPageList.querySelectorAll(".landing-page-collection");
+    for (let collection of collections) {
+      const name = collection.querySelector(".collection-header-name")?.innerText.toLowerCase() || "";
+      collection.style.display = name.includes(searchText) ? "" : "none";
+    }
+  });
 }
 
 function setupNewCollectionSubmit() {

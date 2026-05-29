@@ -1207,16 +1207,16 @@ def add_collection_member(request, collection_id):
     return HttpResponseBadRequest()
 
 
-def collection_video(request, pk):
+def collection_info(request, collection_id):
     try:
-        collection = Collection.objects.get(pk=pk)
+        collection = Collection.objects.get(pk=collection_id)
         published_contents = Content.objects.filter(
             collection=collection, published=True
         )
 
         return render(
             request,
-            "partials/collection_video_page.html",
+            "collection_info.html",
             {
                 "collection": collection,
                 "contents": published_contents,
@@ -1224,7 +1224,7 @@ def collection_video(request, pk):
         )
     except Collection.DoesNotExist:
         logger.error(
-            f"Failed to retrieve collection video because collection does not exist. Collection ID: {pk}"
+            f"Failed to retrieve collection video because collection does not exist. Collection ID: {collection_id}"
         )
         return HttpResponseBadRequest()
     except Exception as e:

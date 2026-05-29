@@ -10,7 +10,9 @@ urlpatterns = [
     path("", views.index, name="index"),
     path("collections/", views.collections, name="collections"),
     path(
-        "collections/<int:pk>/videos/", views.collection_video, name="collection_video"
+        "collections/<int:collection_id>/",
+        views.collection_info,
+        name="collection_info",
     ),
     path("collections/create/", views.create_collection, name="create_collection"),
     path("collections/view/<int:pk>/", views.view_collection, name="view_collection"),

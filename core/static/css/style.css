@@ -864,15 +864,6 @@ p.tile-subtitle {
     padding: 0.3rem 0.75rem;
 }
 
-.collections-search {
-    flex: 1;
-    width: 100%;
-    padding: 10px 10px;
-    border: none;
-    font-size: 0.9rem;
-    background-color: transparent;
-}
-
 .search-icon {
     position: relative;
     width: 1.25rem;
@@ -1525,7 +1516,11 @@ p.tile-subtitle {
     padding: 0 clamp(16px, 5vw, 80px);
 }
 
-.collection-video-list {
+#collection-videos-header {
+    align-items: flex-end;
+}
+
+#collection-video-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
@@ -1542,7 +1537,7 @@ h4.video-title {
     margin: 1rem 0 1rem 0;
 }
 
-.video-search {
+.list-search-input {
     flex: 1;
     width: 100%;
     padding: 10px 10px;
