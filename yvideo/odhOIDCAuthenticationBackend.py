@@ -1,4 +1,4 @@
-from mozilla_django_odic.auth import OIDCAuthenticationBackend
+from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 
 from core.models import User
 
