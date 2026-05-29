@@ -17,20 +17,42 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.contrib.auth.decorators import login_not_required
+from django.urls import include
 from django.urls import path
+from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
+from mozilla_django_oidc.views import OIDCAuthenticationRequestView
+from mozilla_django_oidc.views import OIDCLogoutView
 
 from core.urls import urlpatterns as core_urlpatterns
 from yvideo.views import dev_quick_login
-from yvideo.views import metadata
-from yvideo.views import saml_login
+
+# The login + callback views run while the user is still unauthenticated, so
+# they must be exempt from LoginRequiredMiddleware; otherwise it redirects
+# /oidc/authenticate/ to itself in an infinite loop. We wrap the view classes
+# directly (rather than include() the package urlconf) to apply the exemption,
+# keeping names flat so reverse("oidc_authentication_init") works. If you set
+# OIDC_CALLBACK_CLASS / OIDC_AUTHENTICATE_CLASS, use those classes here instead.
+oidc_urlpatterns = [
+    path(
+        "callback/",
+        login_not_required(OIDCAuthenticationCallbackView.as_view()),
+        name="oidc_authentication_callback",
+    ),
+    path(
+        "authenticate/",
+        login_not_required(OIDCAuthenticationRequestView.as_view()),
+        name="oidc_authentication_init",
+    ),
+    path("logout/", OIDCLogoutView.as_view(), name="oidc_logout"),
+]
 
 urlpatterns = core_urlpatterns
 
 urlpatterns.extend(
     [
-        path("login/", saml_login, name="login"),
+        path("oidc/", include(oidc_urlpatterns)),
         path("login/dev/quick/", dev_quick_login, name="dev_quick_login"),
-        path("metadata/", metadata, name="metadata"),
         path("admin/", admin.site.urls),
     ]
 )

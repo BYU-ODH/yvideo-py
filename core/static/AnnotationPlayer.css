@@ -1,13 +1,7 @@
-:root {
-    --position-point-size: 15px;
-    --position-point-offset: calc(var(--position-point-size) / 2);
-}
-
 /* Container */
 .annotation-player-container {
   position: relative;
   width: 100%;
-  height: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -23,6 +17,12 @@
   justify-content: center;
   transition: margin-right 0.3s ease;
   min-width: 0;
+  flex: 1;
+}
+
+.video-title {
+    padding: 0 2rem;
+    font-size: 1rem;
 }
 
 .video-wrapper.no-transition {
@@ -164,54 +164,7 @@
     z-index: 1;
 }
 
-.censor-position-adjustment-point {
-    border-radius: 50%;
-    height: var(--position-point-size);
-    width: var(--position-point-size);
-    display: none;
-    background-color: rgba(255, 255, 255, 0);
-    position: absolute;
-    box-sizing: border-box;
-    border: 1px solid red;
-}
-
-.top-left-point {
-    top: calc(0% - var(--position-point-offset));
-    left: calc(0% - var(--position-point-offset));
-}
-
-.top-right-point {
-    top: calc(0% - var(--position-point-offset));
-    left: calc(100% - var(--position-point-offset));
-}
-
-.bottom-left-point {
-    top: calc(100% - var(--position-point-offset));
-    left: calc(0% - var(--position-point-offset));
-}
-
-.bottom-right-point {
-    top: calc(100% - var(--position-point-offset));
-    left: calc(100% - var(--position-point-offset));
-}
-
-.censor-position-adjustment-point:hover {
-    background-color: rgba(255, 255, 255, 0.33);
-}
-
-.censor-position-adjustment-point .dragging {
-    background-color: rgba(255, 255, 255, 0.66);
-}
-
-.top-left-point:hover, .bottom-right-point:hover {
-    cursor: nwse-resize;
-}
-
-.top-right-point:hover, .bottom-left-point:hover {
-    cursor: nesw-resize;
-}
-
-.annotation-box-censor-editor .censor-position-adjustment-point {
+.annotation-box-censor-editor {
     display: block;
 }
 
@@ -816,6 +769,11 @@
   .subtitle-sidebar-resize-handle {
     display: none;
   }
+}
+
+/* styles for comment type annotations */
+.comment-text-box {
+    position: absolute;
 }
 
 @media screen and (max-width: 320px) {

@@ -1,3 +1,5 @@
+# Podman Quadlet builds point `IgnoreFile=` here, so this remains the
+# authoritative build-context ignore list for deployment builds.
 .git/
 .venv/
 IC_player/
@@ -23,4 +25,3 @@ __pycache__/
 # Per-environment config (bind-mounted at runtime)
 .env
 yvideo/secret_settings.py
-yvideo/saml_config/certs/

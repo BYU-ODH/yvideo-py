@@ -111,7 +111,6 @@ class DemoSeedDataTests(TestCase):
             CommentAnnotation.objects.filter(
                 active=True,
                 track=birds_track,
-                owner=admin_user,
             ).count(),
             3,
         )

@@ -1,0 +1,26 @@
+[Unit]
+Description=Run yvideo for @APP_NAME@
+
+[Container]
+ContainerName=@APP_NAME@
+Image=@BUILD_IMAGE_TAG@
+PublishPort=127.0.0.1:@HOST_PORT@:8000
+Volume=@REPO_ROOT@/data:/app/data
+Volume=@REPO_ROOT@/media:/app/media
+Volume=@REPO_ROOT@/staticfiles:/app/staticfiles
+Volume=@REPO_ROOT@/var:/app/var
+Volume=@REPO_ROOT@/demo_media:/app/demo_media:ro
+Volume=@REPO_ROOT@/yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
+Environment=YVIDEO_DB_DIR=/app/data
+Environment=WORKERS=@WORKERS@
+Environment=THREADS=@THREADS@
+LogDriver=journald
+Pull=never
+SecurityLabelDisable=true
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

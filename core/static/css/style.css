@@ -37,19 +37,40 @@ body {
     flex-direction: column;
 }
 
-.blue-button, .white-button-with-border, .red-button {
+dialog {
+    position: relative;
+    border-radius: 20px;
+    background-color: var(--dark-mode-background-medium);
+    color: var(--dark-mode-text-color);
+    border: 3px solid var(--dark-mode-border-color);
+}
+
+dialog input, dialog select, dialog textarea {
+    background-color: var(--dark-mode-background-light);
+    color: var(--dark-mode-text-color);
+    border-radius: 4px;
+    border: none;
+    padding: 8px;
+}
+
+button:hover {
+    cursor: pointer;
+}
+
+.blue-button, .white-button-with-border, .red-button, .cancel-button {
     border-radius: 20px;
     padding: 10px 20px;
+    text-decoration: none;
 }
 
 .blue-button {
+    align-self: flex-end;
     background-color: var(--primary-blue);
     color: white;
     border: none;
 }
 
 .blue-button:hover {
-    cursor: pointer;
     background-color: white;
     color: var(--primary-blue);
 }
@@ -61,14 +82,12 @@ body {
 }
 
 .white-button-with-border:hover {
-    cursor: pointer;
     background-color: var(--primary-blue);
     color: white;
     border: 2px solid white;
 }
 
 .large-button {
-    cursor: pointer;
     color: white;
     background-color: var(--medium-blue);
     padding: 0.8rem 1.5rem;
@@ -82,11 +101,8 @@ body {
 }
 
 .cancel-button {
-    cursor: pointer;
     color: white;
     background-color: var(--light-grey);
-    padding: 0.5rem 1rem;
-    border-radius: 1rem;
     border: none;
 }
 
@@ -109,7 +125,6 @@ body {
 }
 
 .red-button {
-    cursor: pointer;
     color: white;
     background-color: var(--light-red);
     border-radius: 1rem;
@@ -118,6 +133,10 @@ body {
 
 .red-button:hover {
     background-color: var(--red);
+}
+
+.invalid-input {
+    border: 2px solid var(--red) !important;
 }
 
 .clickable:hover {
@@ -175,7 +194,7 @@ body {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .invisible {
@@ -214,11 +233,6 @@ body {
     height: 100%;
 }
 
-dialog {
-    position: relative;
-    border-radius: 20px;
-}
-
 .dialog-content {
     position: relative;
     display: flex;
@@ -231,6 +245,50 @@ dialog {
     top: 0.5rem;
     right: 0.5rem;
     font-size: 1rem;
+    padding: 0.2rem 1rem;
+}
+
+.multi-select-menu {
+    position: absolute;
+    display: none;
+    flex-direction: column;
+    z-index: 4;
+}
+
+.visible-multi-select-menu {
+    display: flex;
+}
+
+.multi-select-menu-button {
+    font-size: 1rem;
+    white-space: nowrap;
+    padding: 5px;
+    transition: 0.5s ease all;
+}
+
+.multi-select-menu-button:hover {
+    transform: translateX(5px);
+    cursor: pointer;
+}
+
+.multi-select-menu-bumped-up {
+    bottom: 0px;
+}
+
+.open-multi-select-button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-radius: 25%;
+    padding: 10px 10px;
+    background-color: inherit;
+    border: 1px solid #00000000;
+}
+
+.open-multi-select-button:hover {
+    box-shadow: 0px 3px 6px #00000075;
+    cursor: pointer;
+    border: 1px solid white;
 }
 
 /* Video Overlay and Blank Screen */
@@ -1580,4 +1638,23 @@ h4.video-title {
     border: none;
     font-size: 0.9rem;
     background-color: transparent;
+}
+
+.modal {
+    background: white;
+    border-radius: 12px;
+    width: fit-content;
+    max-width: min(480px, 90vw);
+}
+
+.modal-header {
+    background: #9CD6ED;
+    padding: 1rem;
+    text-align: center;
+    border-radius: 12px 12px 0 0;
+}
+
+.modal-body {
+    padding: 2rem;
+    text-align: center;
 }

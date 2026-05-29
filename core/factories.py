@@ -216,9 +216,6 @@ class MuteAnnotationFactory(factory.django.DjangoModelFactory):
         model = MuteAnnotation
 
     track = factory.SubFactory(TrackFactory)
-    owner = factory.LazyAttribute(
-        lambda annotation: annotation.track.annotation_set.owner
-    )
     name = factory.Sequence(lambda n: f"Mute {n}")
     start_time = 5.0
     end_time = 12.0
@@ -230,9 +227,6 @@ class BlankAnnotationFactory(factory.django.DjangoModelFactory):
         model = BlankAnnotation
 
     track = factory.SubFactory(TrackFactory)
-    owner = factory.LazyAttribute(
-        lambda annotation: annotation.track.annotation_set.owner
-    )
     name = factory.Sequence(lambda n: f"Blank {n}")
     start_time = 15.0
     end_time = 20.0
@@ -245,16 +239,17 @@ class CommentAnnotationFactory(factory.django.DjangoModelFactory):
         model = CommentAnnotation
 
     track = factory.SubFactory(TrackFactory)
-    owner = factory.LazyAttribute(
-        lambda annotation: annotation.track.annotation_set.owner
-    )
     name = factory.Sequence(lambda n: f"Comment {n}")
     start_time = 10.0
     end_time = 18.0
     description = "Comment overlay"
     text = "Demo comment"
-    x = 50.0
-    y = 50.0
+    top_left_x = 0.0
+    top_left_y = 0.0
+    bottom_right_x = 100.0
+    bottom_right_y = 10.0
+    font_size_in_rem = 1.0
+    font_color = "ffffff"
 
 
 class SubtitleFactory(factory.django.DjangoModelFactory):

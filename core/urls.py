@@ -163,9 +163,44 @@ urlpatterns = [
         name="search_for_editor",
     ),
     path(
+        "annotation-set/create",
+        views_video_editor.create_annotation_set,
+        name="create_annotation_set",
+    ),
+    path(
+        "annotation-set/delete/<int:annotation_set_id>",
+        views_video_editor.delete_annotation_set,
+        name="delete_annotation_set",
+    ),
+    path(
+        "annotation-set/export/<int:annotation_set_id>",
+        views_video_editor.export_annotation_set,
+        name="export_annotation_set",
+    ),
+    path(
         "annotation-panel/<int:annotation_set_id>",
         views_video_editor.build_annotation_panel,
         name="get_annotation_panel",
+    ),
+    path(
+        "annotation-options-modal/create",
+        views_video_editor.display_annotation_set_create_option,
+        name="display_annotation_set_create_option",
+    ),
+    path(
+        "annotation-options-modal/import",
+        views_video_editor.display_annotation_set_import_option,
+        name="display_annotation_set_import_option",
+    ),
+    path(
+        "annotation-options-modal/copy-from-set/<int:content_id>",
+        views_video_editor.display_copy_from_annotation_set_option,
+        name="display_copy_from_annotation_set_option",
+    ),
+    path(
+        "annotation-options-modal/use-existing/<int:content_id>",
+        views_video_editor.display_use_existing_annotation_set_option,
+        name="display_use_existing_annotation_set_option",
     ),
     # Undo/Redo (per-annotation)
     path(
