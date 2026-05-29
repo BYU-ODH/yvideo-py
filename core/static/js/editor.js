@@ -1,4 +1,4 @@
-import { formatSecondsToString, createElementFromHTMLString } from "./utils.js";
+import { formatSecondsToString, createElementFromHTMLString, getCSRFToken } from "./utils.js";
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -74,10 +74,6 @@ export class Editor {
         this.watchAndHandleEditorPanelSwitch();
         this.watchAndHandleSubtitleTrackChange();
         this.handleNoAnnotationSet();
-    }
-
-    getCSRFToken() {
-      return document.querySelector('[name=csrfmiddlewaretoken]').value;
     }
 
     updateTracks() {
@@ -371,7 +367,7 @@ export class Editor {
     async deleteItem(annotationType, annotationId) {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
-        headers: {"X-CSRFToken": this.getCSRFToken()}
+        headers: {"X-CSRFToken": getCSRFToken()}
       });
 
       if (!response.ok) {
@@ -482,7 +478,7 @@ export class Editor {
       }
       const response = await fetch("/annotations/censor-position/create", {
         method: "POST",
-        headers: {"X-CSRFToken": this.getCSRFToken(), "Content-Type": "application/json"},
+        headers: {"X-CSRFToken": getCSRFToken(), "Content-Type": "application/json"},
         body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
       if (response.ok) {
@@ -499,7 +495,7 @@ export class Editor {
       const response = await fetch("/annotations/censor-position/update", {
         method: "POST",
         headers: {
-          "X-CSRFToken": this.getCSRFToken(),
+          "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({position_id: positionId, time, x, y, width, height})
@@ -517,7 +513,7 @@ export class Editor {
     async deleteCensorPosition(parentAnnotationId, positionId) {
       const response = await fetch(`/annotations/censor-position/delete/${positionId}`, {
         method: "DELETE",
-        headers: {"X-CSRFToken": this.getCSRFToken()}
+        headers: {"X-CSRFToken": getCSRFToken()}
       });
       if (response.status == 200) {
         const censorPositionLocatorToDelete = document.querySelector(`.censor-position-locator[data-position-id='${positionId}']`);
@@ -839,7 +835,7 @@ export class Editor {
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
         method: "POST",
         headers: {
-          "X-CSRFToken": this.getCSRFToken(),
+          "X-CSRFToken": getCSRFToken(),
           "Content-Type": contentType,
         },
         body: requestBody
@@ -1558,7 +1554,7 @@ export class Editor {
         const newTrackName = e.target.value.trim();
         const response = await fetch("/track/update", {
           method: "post",
-          headers: {"X-CSRFToken": this.getCSRFToken()},
+          headers: {"X-CSRFToken": getCSRFToken()},
           body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
         });
         if (!response.ok) {
@@ -1624,7 +1620,7 @@ export class Editor {
       const trackDeleteResponse = await fetch(`/track/delete/${trackId}`, {
         method: "delete",
         headers: {
-          "X-CSRFToken": this.getCSRFToken(),
+          "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         }
       });
@@ -1685,7 +1681,7 @@ export class Editor {
         {
           method: "post",
           headers: {
-            "X-CSRFToken": this.getCSRFToken(),
+            "X-CSRFToken": getCSRFToken(),
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
@@ -1743,7 +1739,7 @@ export class Editor {
         const newTrackResponse = await fetch("/track/create", {
           method: "post",
           headers: {
-            "X-CSRFToken": this.getCSRFToken(),
+            "X-CSRFToken": getCSRFToken(),
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
@@ -1936,7 +1932,7 @@ export class Editor {
               {
                 method: "POST",
                 headers: {
-                  "X-CSRFToken": this.getCSRFToken(),
+                  "X-CSRFToken": getCSRFToken(),
                   "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
@@ -2315,7 +2311,7 @@ export class Editor {
       const createResponse = await fetch("/annotation-set/create", {
         method: "POST",
         headers: {
-          "X-CSRFToken": this.getCSRFToken(),
+          "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -2385,7 +2381,7 @@ export class Editor {
         const contentSetAssignmentResponse = await fetch("/select-annotation-set", {
           method: "POST",
           headers: {
-            "X-CSRFToken": this.getCSRFToken(),
+            "X-CSRFToken": getCSRFToken(),
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
@@ -2519,7 +2515,7 @@ export class Editor {
         const deleteResponse = await fetch(`/annotation-set/delete/${annotationSetId}`, {
           method: "DELETE",
           headers: {
-            "X-CSRFToken": this.getCSRFToken()
+            "X-CSRFToken": getCSRFToken()
           }
         });
         if (!deleteResponse.ok) {
@@ -2564,7 +2560,7 @@ export class Editor {
             method: "POST",
             body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
             headers: {
-              "X-CSRFToken": this.getCSRFToken(),
+              "X-CSRFToken": getCSRFToken(),
               "Content-Type": "application/json"
             },
             mode: "same-origin"
@@ -2589,7 +2585,7 @@ export class Editor {
         const nameChangeResponse = await fetch("/annotation-set/update-name/", {
             method: "POST",
             headers: {
-              "X-CSRFToken": this.getCSRFToken(),
+              "X-CSRFToken": getCSRFToken(),
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -2644,7 +2640,7 @@ export class Editor {
       const removalResponse = await fetch(`/annotation-set/${annotationSetId}/remove-editor/${editorId}/`, {
         method: "DELETE",
         headers: {
-          "X-CSRFToken": this.getCSRFToken()
+          "X-CSRFToken": getCSRFToken()
         }
       });
       if (!removalResponse.ok) {
@@ -2675,7 +2671,7 @@ export class Editor {
       const selectedEditorsResponse = await fetch("/annotation-set/add-editor", {
         method: "POST",
         headers: {
-          "X-CSRFToken": this.getCSRFToken(),
+          "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -2734,7 +2730,7 @@ export class Editor {
           const searchResponse = await fetch("/annotation-set/search-for-editor", {
             method: "POST",
             headers: {
-              "X-CSRFToken": this.getCSRFToken(),
+              "X-CSRFToken": getCSRFToken(),
               "Content-Type": "application/json"
             },
             body: JSON.stringify({search_string: searchString})
@@ -2826,7 +2822,7 @@ export class Editor {
       const updateResponse = await fetch("/subtitles/update-subtitle-cues", {
         method: "POST",
         headers: {
-          "X-CSRFToken": this.getCSRFToken(),
+          "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({

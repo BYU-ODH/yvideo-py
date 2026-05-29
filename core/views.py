@@ -26,7 +26,6 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .forms import ClipForm
-from .forms import CollectionForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
@@ -316,57 +315,21 @@ def get_collection_types(user):
     return {"archived": archived, "published": published, "unpublished": unpublished}
 
 
-def manage_collections(request):
-    collections = get_collection_types(request.user)
-
-    return render(
-        request,
-        "manage_collections.html",
-        {
-            "published": collections["published"],
-            "unpublished": collections["unpublished"],
-            "archived": collections["archived"],
-            "user": request.user,
-            "form": CollectionForm(),
-        },
-    )
-
-
 def create_collection(request):
-    form = CollectionForm(request.POST, initial={"user": request.user})
-
-    if form.is_valid():
+    data = json.loads(request.body)
+    if data and "name" in data:
         try:
-            collection = form.save(commit=False)
-            collection.owner = request.user
-            collection.published = False
-            collection.archived = False
-            collection.public = False
-            collection.save()
-
-            collections = get_collection_types(request.user)
-
-            response = render(
-                request,
-                "partials/collection_lists.html",
-                {
-                    "published": collections["published"],
-                    "unpublished": collections["unpublished"],
-                    "archived": collections["archived"],
-                },
-            )
-
+            Collection.objects.create(name=data["name"], owner=request.user)
+            return HttpResponse()
         except Exception as e:
             logger.error(
-                f"An error occured when the user: {request.user} attempted to create a collection -> {e}"
+                f"An error occured when the user: {request.user} attempted to create a collection. Exception: {e}"
             )
 
-            response = HttpResponseServerError()
+            return HttpResponseServerError()
 
     else:
-        response = HttpResponseBadRequest()
-
-    return response
+        return HttpResponseBadRequest()
 
 
 def view_collection(request, pk):

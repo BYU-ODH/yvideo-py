@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
     <main class="main-content">
@@ -17,18 +18,21 @@
                 </div>
             </header>
             <dialog id="add-new-collection-dialog" class="user-view-modal">
+                <button class="close-dialog-button" command="close" commandfor="add-new-collection-dialog">
+                    Close
+                </button>
                 <div class="user-view-modal-header">
                     <h3>Create New Collection</h3>
                 </div>
-                <div class="user-view-modal-body">
+                <form id="new-collection-form" class="user-view-modal-body column-flex">
                     <div class="form-input-group">
                         <label for="new-collection-name-input">Collection name</label>
                         <input id="new-collection-name-input" type="text" name="name">
                     </div>
-                    <button command="close" commandfor="add-new-collection-dialog">
-                        Close
+                    <button id="create-new-collection-submit" class="blue-button" type="submit">
+                        Submit
                     </button>
-                </div>
+                </form>
             </dialog>
             <button id="add-new-collection-button" class="blue-button" command="show-modal" commandfor="add-new-collection-dialog">
                 + Add New Collection
@@ -73,21 +77,5 @@
             </div>
         </div>
     </main>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll(".search-wrapper").forEach(wrapper => {
-        const input = wrapper.querySelector(".collections-search");
-
-        input.addEventListener("input", () => {
-            const searchText = input.value.toLowerCase();
-            wrapper.closest(".landing-page-collection-list")
-                .querySelectorAll(".landing-page-collection")
-                .forEach(tile => {
-                    const name = tile.querySelector(".collection-header-name")?.innerText.toLowerCase();
-                    tile.style.display = name?.includes(searchText) ? "" : "none";
-                });
-        });
-    });
-});
-</script>
+<script type="module" src="{% static 'js/collections.js' %}"></script>
 {% endblock %}

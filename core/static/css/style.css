@@ -226,7 +226,7 @@ button:hover {
 .close-dialog-button {
     position: absolute;
     top: 0.5rem;
-    right: 0.5rem;
+    left: 0.5rem;
     font-size: 1rem;
     padding: 0.2rem 1rem;
 }
@@ -1099,15 +1099,6 @@ p.tile-subtitle {
     justify-content: space-between;
 }
 
-.create-new-collections-input {
-    border-top: none;
-    border-right: none;
-    border-left: none;
-    border-image: initial;
-    border-bottom: 1px solid rgb(204, 204, 204);
-    width: 100%;
-}
-
 .create-button {
     font-size: 0.8rem;
     color: var(--medium-blue);
@@ -1567,6 +1558,10 @@ h4.video-title {
     box-shadow: 3px 6px 10px #00000050;
 }
 
+.user-view-modal input, .user-view-modal textarea, .user-view-modal select {
+    border: 2px solid var(--primary-blue);
+}
+
 .user-view-modal-header {
     background: #9CD6ED;
     padding: 1rem;
@@ -1576,5 +1571,4 @@ h4.video-title {
 
 .user-view-modal-body {
     padding: 2rem;
-    text-align: center;
 }

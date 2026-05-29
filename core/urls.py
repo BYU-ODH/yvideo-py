@@ -12,7 +12,6 @@ urlpatterns = [
     path(
         "collections/<int:pk>/videos/", views.collection_video, name="collection_video"
     ),
-    path("manage-collections/", views.manage_collections, name="manage_collections"),
     path("collections/create/", views.create_collection, name="create_collection"),
     path("collections/view/<int:pk>/", views.view_collection, name="view_collection"),
     path(
