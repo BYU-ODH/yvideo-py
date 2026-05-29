@@ -19,6 +19,9 @@ deploy/auto-deploy/jobs.toml
 # Until then, just keep replacing 0001 when models change
 *migrations
 
+# BDR notes to self about the task at hand
+task_notes
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
