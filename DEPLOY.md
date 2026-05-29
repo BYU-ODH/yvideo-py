@@ -26,7 +26,8 @@ All other requests are proxied to the Podman container. See
 | `deploy/install_quadlet.sh` | Renders and installs Quadlet units into the user Quadlet directory |
 | `deploy/manage.sh` | Runs Django management commands inside the running container |
 | `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
-| `deploy/deploy.sh` | Verifies the expected branch, hard-resets to origin, refreshes Quadlets, and restarts the service |
+| `deploy/deploy_template.sh` | Template for `deploy/deploy.sh`; copy and set `DEPLOY_USER` to the deploy user |
+| `deploy/deploy.sh` | (Created from the template.) Verifies the expected branch, hard-resets to origin, refreshes Quadlets, and restarts the service |
 | `deploy/apache-vhost-example.conf` | Example Apache reverse proxy config |
 
 ## Initial server setup
@@ -150,7 +151,19 @@ systemctl --user start yvideo-dev.service
 The deploy script builds the image directly with `podman build`
 (`.build` Quadlet units require Podman 5.0+; we target older hosts).
 
-### 7. Seed demo data when needed
+### 7. Create `deploy/deploy.sh` from the template
+
+Copy the deploy template and set the `DEPLOY_USER` value in the
+fetch-runner guard at the top of the file so the script refuses to
+run as any other Unix user:
+
+```bash
+cp deploy/deploy_template.sh deploy/deploy.sh
+chmod +x deploy/deploy.sh
+# edit deploy/deploy.sh and set DEPLOY_USER=yvideo-dev (or your deploy user)
+```
+
+### 8. Seed demo data when needed
 
 Only do this once when initially setting up the instance. The SQLite database
 lives on the host bind mount and persists across deploys.
