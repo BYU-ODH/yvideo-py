@@ -4,8 +4,6 @@
     --light-grey: #969b9c;
     --grey: #7c8383;
     --light-blue: #9cd6ed;
-    --action-blue: #3b85a1;
-    --action-blue-transparent: #3b85a199;
     --medium-blue: #0582ca;
     --deep-blue: #002e5d;
     --yellow: #ffbf00;
@@ -108,20 +106,6 @@ button:hover {
 
 .cancel-button:hover {
     background-color: var(--grey);
-}
-
-.action-blue-button {
-    background-color: var(--action-blue);
-    border: none;
-    color: white;
-    border-radius: 4px;
-    font-size: 1rem;
-}
-
-.action-blue-button:hover {
-    cursor: pointer;
-    background-color: var(--action-blue-transparent);
-    color: var(--deep-blue);
 }
 
 .red-button {
@@ -1525,13 +1509,6 @@ p.tile-subtitle {
     display: flex;
     flex-direction: column;
     row-gap: 0.75rem;
-}
-
-#content-intake-form-wrapper .action-blue-button {
-    margin-top: 3rem;
-    align-self: center;
-    width: 9rem;
-    height: 2.5rem;
 }
 
 #content-intake-policy-compliance-label {

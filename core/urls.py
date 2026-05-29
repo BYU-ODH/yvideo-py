@@ -266,7 +266,7 @@ urlpatterns = [
         name="load_annotation_form",
     ),
     path(
-        "content-intake-request/<int:resource_id>/",
+        "content-intake-request/",
         views.request_content,
         name="request_content",
     ),

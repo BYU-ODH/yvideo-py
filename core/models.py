@@ -1404,23 +1404,13 @@ def get_date_5_days_from_now():
 
 
 class ResourceContentIntakeRequest(models.Model):
-    USER_TYPE_CHOICES = {
-        "faculty": "Faculty",
-        "student": "Student",
-        "not_affiliated": "Non-BYU",
-    }
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
-    # Patron information
-    patron_name = models.CharField(default="")
-    patron_netid = models.CharField(default="")
-    patron_email = models.CharField(default="")
     date_needed = models.DateTimeField(default=get_date_5_days_from_now)
-    patron_phone_number = models.CharField(default="")
-    user_type = models.CharField(choices=USER_TYPE_CHOICES, default="not_affiliated")
 
     # Resource-specific fields
-    resource_title = models.CharField(default="")
-    resource_collection = models.CharField(default="")
     audio_language = models.CharField(default="")
     subtitle_language = models.CharField(default="")
 
@@ -1444,4 +1434,4 @@ class ResourceContentIntakeRequest(models.Model):
     acknowledged_compliance = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Content request for {self.resource_title} by {self.patron_name} ({self.patron_netid}) due by {self.date_needed}"
+        return f"Content request for {self.resource_title} by {self.owner} ({self.owner.netid}) due by {self.date_needed}"
