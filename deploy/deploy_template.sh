@@ -1,4 +1,13 @@
 #!/bin/bash
+
+# >>> fetch-runner-guard:BEGIN
+DEPLOY_USER=deploy-user
+if [ "$(whoami)" != "$DEPLOY_USER" ] || [ "$(id -u)" -eq 0 ]; then
+    printf 'fetch-runner-guard: refusing to run as %s (uid %s); required: %s, non-root\n' "$(whoami)" "$(id -u)" "$DEPLOY_USER" >&2
+    exit 1
+fi
+# <<< fetch-runner-guard:END
+
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
