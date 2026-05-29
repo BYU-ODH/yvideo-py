@@ -9,6 +9,11 @@
             <div class="breadcrumbs">
                 <span class="breadcrumb-item">Home</span>
             </div>
+            <div class="breadcrumbs">
+                <a href="{% url 'collections' %}" class="breadcrumb-item">
+                    Collections
+                </a>
+            </div>
         </div>
 
         {% if request.is_spoofing %}

@@ -1804,7 +1804,9 @@ class LegacyMigrationTests(TestCase):
     def test_instructor_request_view_creates_queued_preflight_job(self):
         instructor = UserFactory(instructor=True)
         client = Client()
-        client.force_login(instructor)
+        client.force_login(
+            instructor, backend="django.contrib.auth.backends.ModelBackend"
+        )
 
         response = client.post(
             reverse("create_legacy_migration_request"),
@@ -1830,7 +1832,9 @@ class LegacyMigrationTests(TestCase):
     def test_legacy_migration_views_return_404_when_feature_disabled(self):
         instructor = UserFactory(instructor=True)
         client = Client()
-        client.force_login(instructor)
+        client.force_login(
+            instructor, backend="django.contrib.auth.backends.ModelBackend"
+        )
 
         response = client.get(reverse("legacy_migration_requests"))
 
@@ -1840,7 +1844,9 @@ class LegacyMigrationTests(TestCase):
     def test_manage_collections_hides_legacy_migration_link_when_feature_disabled(self):
         instructor = UserFactory(instructor=True)
         client = Client()
-        client.force_login(instructor)
+        client.force_login(
+            instructor, backend="django.contrib.auth.backends.ModelBackend"
+        )
 
         response = client.get(reverse("manage_collections"))
 
@@ -1856,7 +1862,9 @@ class LegacyMigrationTests(TestCase):
             legacy_reference=str(uuid.uuid4()),
         )
         client = Client()
-        client.force_login(admin_user)
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
 
         with (
             mock.patch("core.admin.LegacyMigrationService") as service_class,
@@ -1922,7 +1930,9 @@ class LegacyMigrationTests(TestCase):
             legacy_reference=str(uuid.uuid4()),
         )
         client = Client()
-        client.force_login(admin_user)
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
 
         with (
             mock.patch("core.admin.LegacyMigrationService") as service_class,

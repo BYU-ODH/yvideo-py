@@ -1,4 +1,4 @@
-import { formatSecondsToString } from "./utils.js";
+import { formatSecondsToString, createElementFromHTMLString } from "./utils.js";
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -32,6 +32,8 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.selectedSubtitleTrackId = null;
+        this.itemBeingDragged = null;
+        this.dragTimeStart = null;
 
         this.init();
     }
@@ -52,23 +54,26 @@ export class Editor {
         });
         this.placeTrackItems();
         document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
-        this.watchForItemFormChanges();
 
         this.renderTickMarksAndLabels();
         this.attachZoomListener();
         this.createtimelineScrubber();
         this.attachTimelineListeners();
         this.attachVideoListeners();
-        this.setupTrackWatchersForAllTracks();
+        this.setupTracks();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
-        this.setupAnnotationSelectorFunctions();
+        this.watchAndHandleAnnotationSetMenuOpen();
         this.watchForAnnotationSetNameChangeAndHandleIt();
+        this.watchAndHandleAnnotationSetDelete();
+        this.setupAnnotationSetOptionsModal();
+        this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
         this.watchAndHandleSubtitleTrackChange();
+        this.handleNoAnnotationSet();
     }
 
     getCSRFToken() {
@@ -81,74 +86,6 @@ export class Editor {
           container.addEventListener('mousedown', this.handleMouseDown.bind(this));
       });
       this.tracks = tracks;
-    }
-
-    handleMouseDown(e) {
-        const trackItem = e.target.closest('.track-item');
-        if (!trackItem) return;
-
-        // Always trigger the form load first, regardless of where clicked
-        const contentArea = trackItem.querySelector('.track-item-content');
-        if (contentArea) {
-            // Use htmx to trigger the GET request to load the form if available,
-            // otherwise dispatch a DOM event so other code can listen for it.
-            if (window.htmx && typeof window.htmx.trigger === 'function') {
-                window.htmx.trigger(contentArea, 'track-item-click');
-            } else {
-                const evt = new CustomEvent('track-item-click', { bubbles: true, cancelable: true });
-                contentArea.dispatchEvent(evt);
-            }
-        }
-
-        const resizeHandle = e.target.closest('.resize-handle');
-
-        if (resizeHandle) {
-            this.startResize(trackItem, resizeHandle, e);
-            e.preventDefault();
-            e.stopPropagation();
-        } else if (!e.target.closest('.resize-handle')) {
-            this.startDrag(trackItem, e);
-            e.preventDefault();
-        }
-    }
-
-    calculateItemLeftAsDecimal(item) {
-      const startTime = parseFloat(item.dataset["start"]);
-      return startTime / this.duration;
-
-    }
-
-    calculateItemWidthAsDecimal(item) {
-      const startTime = parseFloat(item.dataset["start"]);
-      const endTime = parseFloat(item.dataset["end"]);
-      return (endTime - startTime) / this.duration;
-    }
-
-    startDrag(trackItem, e) {
-        const itemContainer = trackItem.closest('.track-row-annotations-container');
-        const rect = itemContainer.getBoundingClientRect();
-        const containerWidth = itemContainer.scrollWidth || rect.width;
-        const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
-        const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
-
-        this.dragState = {
-            type: 'drag',
-            item: trackItem,
-            container: itemContainer,
-            startX: e.clientX,
-            startLeft: itemLeft * 100,
-            containerWidth,
-            hasMoved: false,
-            originalLeft: itemLeft,
-            originalWidth: itemWidth
-        };
-
-        // Reset deltas
-        trackItem.dataset.deltaLeft = '0';
-        trackItem.dataset.deltaWidth = '0';
-
-        trackItem.classList.add('dragging');
-        document.body.classList.add('dragging', 'dragging-item');
     }
 
     startResize(trackItem, handle, e) {
@@ -184,6 +121,31 @@ export class Editor {
         this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
     }
 
+    handleMouseDown(e) {
+        const trackItem = e.target.closest('.track-item');
+        if (!trackItem) return;
+
+        const resizeHandle = e.target.closest('.resize-handle');
+
+        if (resizeHandle) {
+            this.startResize(trackItem, resizeHandle, e);
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }
+
+    calculateItemLeftAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      return startTime / this.duration;
+
+    }
+
+    calculateItemWidthAsDecimal(item) {
+      const startTime = parseFloat(item.dataset["start"]);
+      const endTime = parseFloat(item.dataset["end"]);
+      return (endTime - startTime) / this.duration;
+    }
+
     handleMouseMove(e) {
         if (!this.dragState) return;
 
@@ -199,57 +161,12 @@ export class Editor {
 
         // Only update position if we've started moving
         if (this.dragState.hasMoved) {
-            if (this.dragState.type === 'drag') {
-                this.updateDragPosition(e);
-            } else if (this.dragState.type === 'resize') {
+            if (this.dragState.type === 'resize') {
                 this.updateResizePosition(e);
             }
         }
 
         e.preventDefault();
-    }
-
-    updateDragPosition(e) {
-        const deltaX = e.clientX - this.dragState.startX;
-        // Don't account for zoom in percent calculation - container width is already adjusted
-        const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
-        let newLeft = this.dragState.startLeft + deltaPercent;
-
-        // Special handling for pause items (width is fixed, only left moves)
-        if (this.dragState.item.dataset.itemType === "pause") {
-            const minWidthPercent = 0.5;
-            newLeft = Math.max(0, Math.min(newLeft, 100 - minWidthPercent));
-
-            this.dragState.item.style.left = `${newLeft}%`;
-
-            const deltaLeft = newLeft - this.dragState.originalLeft;
-            this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
-
-            this.seekToHandlePosition(true, newLeft, minWidthPercent);
-        } else {
-            let width = parseFloat(this.dragState.item.style.width);
-            if (width === '' || width === undefined || isNaN(width)) {
-              const itemRect = this.dragState.item.getBoundingClientRect();
-              width = itemRect.width / this.dragState.containerWidth * 100;
-              this.dragState.item.style.width = `${width}%`;
-            }
-            newLeft = Math.max(0, Math.min(newLeft, 100 - width));
-
-            this.dragState.item.style.left = `${newLeft}%`;
-
-            const deltaFromOriginal = newLeft - this.dragState.originalLeft;
-            this.dragState.item.dataset.deltaLeft = deltaFromOriginal.toFixed(2);
-
-            const video = document.querySelector('.annotation-player-container video');
-            if (video) {
-                const targetTime = (newLeft / 100) * this.duration;
-                video.currentTime = targetTime;
-
-                if (window.videoPlayer && window.videoPlayer.skipTo) {
-                    window.videoPlayer.skipTo(targetTime);
-                }
-            }
-        }
     }
 
     updateResizePosition(e) {
@@ -316,8 +233,7 @@ export class Editor {
         const state = this.dragState;
         this.dragState = null;
 
-        state.item.classList.remove('dragging');
-        document.body.classList.remove('dragging', 'dragging-item', 'resizing', 'resizing-item');
+        document.body.classList.remove('resizing', 'resizing-item');
 
         if (state.hasMoved) {
             this.triggerSave(state);
@@ -336,6 +252,104 @@ export class Editor {
         // If !hasMoved, don't prevent - let the click bubble to HTMX
     }
 
+    setUpItemElevationOnMousedown(item) {
+      item.addEventListener("mousedown", () => {
+        const parent = item.closest(".track-row-annotations-container");
+        for (let sibling of parent.querySelectorAll(".track-item")) {
+          if (sibling != item) {
+            sibling.classList.remove("elevated");
+          } else {
+            sibling.classList.add("elevated");
+          }
+        }
+      });
+    }
+
+    setUpItemClickListeners(element) {
+      const annotationType = element.dataset["annotationType"];
+      const annotationId = element.dataset["annotationId"];
+      element.addEventListener("click", async (e) => {
+        e.preventDefault();
+        this.getItemFormDetails(annotationType, annotationId, this.contentId);
+        this.markItemAsActive(annotationType, annotationId);
+      });
+
+      // set up censor position locator listeners
+      if (annotationType == "censor") {
+        const positionLocators = element.querySelectorAll(".censor-position-locator");
+        for (let positionLocator of positionLocators) {
+          positionLocator.addEventListener("click", (e) => {
+            // allow propagation only if the parent item is not active
+            const parentItem = element.closest(".track-item");
+            if (parentItem.className.includes("active-track-item")) {
+              e.stopPropagation();
+              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+              return;
+            }
+            this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
+            this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+          })
+        }
+      }
+    }
+
+    blockTrackItemPointerEvents() {
+      const containers = document.getElementsByClassName("track-row-annotations-container");
+      for (let container of containers) {
+        container.classList.add("annotations-container-no-child-pointer-events");
+      }
+    }
+
+    allowTrackItemPointerEvents() {
+      const containers = document.getElementsByClassName("track-row-annotations-container");
+      for (let container of containers) {
+        container.classList.remove("annotations-container-no-child-pointer-events");
+      }
+    }
+
+    resetTrackItemProjectionsStyle() {
+      const projections = this.timelineWrapper.querySelectorAll(".track-item-projection");
+      for (let projection of projections) {
+        projection.style.width = "";
+        projection.style.left = "";
+        projection.style.top = "5px";
+      }
+    }
+
+    setupItemDragListeners(item) {
+      // setup the data stored in the drag event
+      item.addEventListener("dragstart", (event) => {
+        this.itemBeingDragged = item;
+        this.dragTimeStart = Date.now();
+        this.resetTrackItemProjectionsStyle();
+        this.blockTrackItemPointerEvents();
+        event.dataTransfer.setData("text/html", item.outerHTML);
+        event.dataTransfer.setData("text/plain", item.id);
+        const img = new Image()
+        img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+        event.dataTransfer.setDragImage(img, 0, 0);
+        item.classList.add("is-dragging");
+      });
+
+      item.addEventListener("dragend", () => {
+        this.itemBeingDragged = null;
+        this.dragTimeStart = null;
+        item.classList.remove("is-dragging");
+        this.allowTrackItemPointerEvents();
+      })
+    }
+
+    setupItems() {
+      const itemsToSetUp = document.querySelectorAll(".track-item[data-setup='false']");
+      for (let item of itemsToSetUp) {
+        this.setUpItemElevationOnMousedown(item);
+        this.setUpItemClickListeners(item);
+        this.setupItemDragListeners(item);
+        item.dataset["setup"] = "true";
+      }
+    }
+
     listenForItemUpdateFormSubmission() {
       const itemForm = document.getElementById("annotation-update-form");
       if (!itemForm) {
@@ -345,7 +359,12 @@ export class Editor {
       const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        this.updateAnnotation(annotationType, annotationId)
+        // we don't want to submit the form when a censor position is deleted.
+        // That change is handled in a different way.
+        if (e.submitter.classList.contains("censor-position-delete-button")) {
+          return;
+        }
+        this.updateAnnotation({annotationType, annotationId})
       })
     }
 
@@ -412,6 +431,12 @@ export class Editor {
       });
     }
 
+    setUpItemForm() {
+      this.listenForItemUpdateFormSubmission();
+      this.setUpItemFormDeleteButton();
+      this.changeAnnotationInFocus();
+    }
+
     getCensorPositions() {
       if (this.typeOfAnnotationInFocus != "censor") {
         return;
@@ -433,7 +458,7 @@ export class Editor {
       return positions;
     }
 
-    placeNewCensorPositionHtml(censor_parent_id, html) {
+    placeNewCensorPositionHtml(censor_parent_id, itemAndPositionsHtml) {
       const annotationUpdateForm = document.getElementById("existing-item-form");
       const currentFormId = annotationUpdateForm.dataset["annotationId"];
       const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
@@ -441,7 +466,11 @@ export class Editor {
       if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
         return;
       }
-      censorPositionWrapperEl.outerHTML = html;
+      censorPositionWrapperEl.outerHTML = itemAndPositionsHtml["censorPositions"];
+
+      const trackItemToUpdate = this.timelineWrapper.querySelector(`.track-item[data-annotation-id='${censor_parent_id}']`);
+      trackItemToUpdate.outerHTML = itemAndPositionsHtml["trackItem"];
+      this.placeTrackItems();
       this.setUpCensorPositionDeleteListeners(censor_parent_id)
       this.setupCensorPositionSeekListeners();
       return;
@@ -456,9 +485,9 @@ export class Editor {
         headers: {"X-CSRFToken": this.getCSRFToken(), "Content-Type": "application/json"},
         body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
       });
-      if (response.status == 201) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentCensorId, responseHtml)
+      if (response.ok) {
+        const responseHtmlMap = await response.json();
+        this.placeNewCensorPositionHtml(parentCensorId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else if (!response.ok) {
@@ -475,9 +504,9 @@ export class Editor {
         },
         body: JSON.stringify({position_id: positionId, time, x, y, width, height})
       });
-      if (response.status == 201) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml)
+      if (response.ok) {
+        const responseHtmlMap = await response.json();
+        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else {
@@ -491,9 +520,10 @@ export class Editor {
         headers: {"X-CSRFToken": this.getCSRFToken()}
       });
       if (response.status == 200) {
-        const responseHtml = await response.text();
-        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtml);
-        window.dispatchEvent(this.annotationUpdatedEvent);
+        const censorPositionLocatorToDelete = document.querySelector(`.censor-position-locator[data-position-id='${positionId}']`);
+        const censorPositionEntryToDelete = document.querySelector(`.position-entry[data-position-id='${positionId}']`);
+        censorPositionLocatorToDelete.remove();
+        censorPositionEntryToDelete.remove();
       }
       else if (!response.ok) {
         console.error("Failed to delete censor position");
@@ -531,6 +561,67 @@ export class Editor {
       }
     }
 
+    buildMoveHandler(elementToMove) {
+      let lastEventClientX;
+      let lastEventClientY;
+      return (event) => {
+        if (lastEventClientX !== undefined && lastEventClientY !== undefined) {
+          // look at difference in last event's position vs this events position
+          const xChange = event.clientX - lastEventClientX;
+          const yChange = event.clientY - lastEventClientY;
+          const referenceRect = elementToMove.parentElement.getBoundingClientRect();
+          const xPercentChange = xChange / referenceRect.width * 100;
+          const yPercentChange = yChange / referenceRect.height * 100;
+
+          const elementLeft = parseFloat(elementToMove.style.left);
+          const elementTop = parseFloat(elementToMove.style.top);
+
+          const newLeft = (elementLeft + xPercentChange) + '%';
+          const newTop = (elementTop + yPercentChange) + '%';
+
+          elementToMove.style.left = newLeft;
+          elementToMove.style.top = newTop;
+        }
+        lastEventClientX = event.clientX;
+        lastEventClientY = event.clientY;
+      }
+    }
+
+    buildResizePointMoveHandler(minHeightPercent = 4, minWidthPercent = 3) {
+      return (event) => {
+        event.stopPropagation();
+        const annotationBox = event.target.closest(".annotation-box");
+        const boxRect = annotationBox.getBoundingClientRect();
+        const parentEl = event.target.parentElement;
+        const newX = (event.clientX - boxRect.left) / boxRect.width * 100;
+        const newY = (event.clientY - boxRect.top) / boxRect.height * 100;
+        const curLeft = parseFloat(parentEl.style.left);
+        const curTop = parseFloat(parentEl.style.top);
+        const curWidth = parseFloat(parentEl.style.width);
+        const curHeight = parseFloat(parentEl.style.height);
+        const fixedRight = curLeft + curWidth;
+        const fixedBottom = curTop + curHeight;
+        const movesLeft = event.target.classList.contains("resize-point-left");
+        const movesTop = event.target.classList.contains("resize-point-top");
+
+        if (movesLeft) {
+          const newLeft = Math.max(0, Math.min(newX, fixedRight - minWidthPercent));
+          parentEl.style.left = `${newLeft}%`;
+          parentEl.style.width = `${fixedRight - newLeft}%`;
+        } else {
+          parentEl.style.width = `${Math.max(minWidthPercent, Math.min(newX - curLeft, 100 - curLeft))}%`;
+        }
+
+        if (movesTop) {
+          const newTop = Math.max(0, Math.min(newY, fixedBottom - minHeightPercent));
+          parentEl.style.top = `${newTop}%`;
+          parentEl.style.height = `${fixedBottom - newTop}%`;
+        } else {
+          parentEl.style.height = `${Math.max(minHeightPercent, Math.min(newY - curTop, 100 - curTop))}%`;
+        }
+      }
+    }
+
     handleCensorPointerDown(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -539,25 +630,18 @@ export class Editor {
       const censorTopStart = censorEl.style.top;
       const censorPointerId = e.pointerId;
       censorEl.setPointerCapture(censorPointerId);
-      const annotationBox = document.getElementById("annotation-box");
+      const annotationBox = censorEl.closest("#annotation-box");
       const boxRect = annotationBox.getBoundingClientRect();
       const widthPercent = parseFloat(censorEl.style.width);
       const heightPercent = parseFloat(censorEl.style.height);
 
-      function handleCensorMove(event) {
-        const xPercent = (event.clientX - boxRect.left) / boxRect.width * 100;
-        const yPercent = (event.clientY - boxRect.top) / boxRect.height * 100;
-        censorEl.style.left = `${Math.max(0, Math.min(100 - widthPercent, xPercent - widthPercent / 2))}%`;
-        censorEl.style.top = `${Math.max(0, Math.min(100 - heightPercent, yPercent - heightPercent / 2))}%`;
-      }
-
       async function onPointerUp(upEvent) {
-        handleCensorMove(upEvent);
         const positionEl = upEvent.target;
+        const positionRect = positionEl.getBoundingClientRect();
         const censorPositionId = positionEl.dataset["censorPositionId"];
         const parentCensorId = positionEl.dataset["censorPositionParentId"];
-        const newX = ((upEvent.clientX - boxRect.left) / boxRect.width * 100) - widthPercent / 2;
-        const newY = ((upEvent.clientY - boxRect.top) / boxRect.height * 100) - heightPercent / 2;
+        const newX = ((positionRect.left - boxRect.left) / boxRect.width) * 100;
+        const newY = ((positionRect.top - boxRect.top) / boxRect.height) * 100;
         await this.updateCensorPosition(censorPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentCensorId);
         handleCleanup();
       }
@@ -580,6 +664,7 @@ export class Editor {
 
       const pointerUpCallback = onPointerUp.bind(this);
 
+      const handleCensorMove = this.buildMoveHandler(censorEl);
       function handleCleanup() {
         censorEl.releasePointerCapture(censorPointerId);
         censorEl.removeEventListener('pointermove', handleCensorMove);
@@ -588,10 +673,10 @@ export class Editor {
         document.removeEventListener("keyup", handleEscKeyPress);
       }
 
-      censorEl.addEventListener('pointermove', handleCensorMove);
-      censorEl.addEventListener('pointerup', pointerUpCallback);
-      censorEl.addEventListener('pointercancel', handleMoveCancel);
       document.addEventListener("keyup", handleEscKeyPress);
+      censorEl.addEventListener('pointercancel', handleMoveCancel);
+      censorEl.addEventListener('pointerup', pointerUpCallback);
+      censorEl.addEventListener('pointermove', handleCensorMove);
     }
 
 
@@ -603,119 +688,87 @@ export class Editor {
       for (let position of censorPositions) {
         if (position.dataset["censorPositionParentId"] == this.annotationIdInFocus) {
           this.activeCensorPosition = position;
-          this.activeCensorPosition.classList.toggle("active-censor-position");
+          this.activeCensorPosition.classList.add("active-censor-position");
           break;
+        } else {
+          position.classList.remove("active-censor-position");
         }
       }
+
+      // build resize points on corners
       if (this.activeCensorPosition) {
-        function buildSizeEditPoints(censorPositionElement, editor) {
-          const MIN_SIZE = 3; // minimum percent size
-          const annotationBox = document.getElementById("annotation-box");
-          const cornerData = [
-            { cls: "top-left-point",     movesLeft: true,  movesTop: true  },
-            { cls: "top-right-point",    movesLeft: false, movesTop: true  },
-            { cls: "bottom-left-point",  movesLeft: true,  movesTop: false },
-            { cls: "bottom-right-point", movesLeft: false, movesTop: false },
-          ];
+        const cornerData = ["resize-point-top resize-point-left", "resize-point-top", "resize-point-left", ""];
 
-          for (const { cls, movesLeft, movesTop } of cornerData) {
-            const point = document.createElement("div");
-            point.className = `censor-position-adjustment-point ${cls}`;
+        for (const cssClass of cornerData) {
+          const point = document.createElement("div");
+          point.className = `censor-position-adjustment-point ${cssClass} resize-point`;
 
-            point.addEventListener("pointerdown", function(ptrDownEvent) {
-              ptrDownEvent.stopPropagation();
-              ptrDownEvent.preventDefault();
-              point.setPointerCapture(ptrDownEvent.pointerId);
+          point.addEventListener("pointerdown", (ptrDownEvent) => {
+            ptrDownEvent.stopPropagation();
+            ptrDownEvent.preventDefault();
+            point.setPointerCapture(ptrDownEvent.pointerId);
 
-              const boxRect = annotationBox.getBoundingClientRect();
-              const startLeft = censorPositionElement.style.left;
-              const startTop = censorPositionElement.style.top;
-              const startWidth = censorPositionElement.style.width;
-              const startHeight = censorPositionElement.style.height;
-              let resizeCancelled = false;
+            const startLeft = this.activeCensorPosition.style.left;
+            const startTop = this.activeCensorPosition.style.top;
+            const startWidth = this.activeCensorPosition.style.width;
+            const startHeight = this.activeCensorPosition.style.height;
+            let resizeCancelled = false;
 
-              function onMove(ptrMoveEvent) {
-                const newX = (ptrMoveEvent.clientX - boxRect.left) / boxRect.width * 100;
-                const newY = (ptrMoveEvent.clientY - boxRect.top) / boxRect.height * 100;
-                const curLeft = parseFloat(censorPositionElement.style.left);
-                const curTop = parseFloat(censorPositionElement.style.top);
-                const curWidth = parseFloat(censorPositionElement.style.width);
-                const curHeight = parseFloat(censorPositionElement.style.height);
-                const fixedRight = curLeft + curWidth;
-                const fixedBottom = curTop + curHeight;
+            const onMove = this.buildResizePointMoveHandler();
 
-                if (movesLeft) {
-                  const newLeft = Math.max(0, Math.min(newX, fixedRight - MIN_SIZE));
-                  censorPositionElement.style.left = `${newLeft}%`;
-                  censorPositionElement.style.width = `${fixedRight - newLeft}%`;
-                } else {
-                  censorPositionElement.style.width = `${Math.max(MIN_SIZE, Math.min(newX - curLeft, 100 - curLeft))}%`;
-                }
+            function handleCleanup() {
+              point.releasePointerCapture(ptrDownEvent.pointerId);
+              point.removeEventListener("pointermove", onMove);
+              point.removeEventListener("pointerup", onPointerUp);
+              point.removeEventListener("pointercancel", onCancel);
+              document.removeEventListener("keyup", handleEscKeyPress);
+            }
 
-                if (movesTop) {
-                  const newTop = Math.max(0, Math.min(newY, fixedBottom - MIN_SIZE));
-                  censorPositionElement.style.top = `${newTop}%`;
-                  censorPositionElement.style.height = `${fixedBottom - newTop}%`;
-                } else {
-                  censorPositionElement.style.height = `${Math.max(MIN_SIZE, Math.min(newY - curTop, 100 - curTop))}%`;
-                }
+            async function onPointerUp() {
+              handleCleanup();
+              if (resizeCancelled) return;
+
+              const newLeft = parseFloat(this.activeCensorPosition.style.left);
+              const newTop = parseFloat(this.activeCensorPosition.style.top);
+              const newWidth = parseFloat(this.activeCensorPosition.style.width);
+              const newHeight = parseFloat(this.activeCensorPosition.style.height);
+              const positionId = this.activeCensorPosition.dataset["censorPositionId"];
+              const parentId = this.activeCensorPosition.dataset["censorPositionParentId"];
+              await this.updateCensorPosition(positionId, this.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
+            }
+
+            function onCancel() {
+              this.activeCensorPosition.style.left = startLeft;
+              this.activeCensorPosition.style.top = startTop;
+              this.activeCensorPosition.style.width = startWidth;
+              this.activeCensorPosition.style.height = startHeight;
+              handleCleanup();
+            }
+
+            function handleEscKeyPress(keyupEvent) {
+              if (keyupEvent.defaultPrevented) {
+                return;
               }
-
-              function handleCleanup() {
-                point.releasePointerCapture(ptrDownEvent.pointerId);
+              if (keyupEvent.key === "Escape") {
+                resizeCancelled = true;
+                this.activeCensorPosition.style.left = startLeft;
+                this.activeCensorPosition.style.top = startTop;
+                this.activeCensorPosition.style.width = startWidth;
+                this.activeCensorPosition.style.height = startHeight;
                 point.removeEventListener("pointermove", onMove);
-                point.removeEventListener("pointerup", onPointerUp);
-                point.removeEventListener("pointercancel", onCancel);
                 document.removeEventListener("keyup", handleEscKeyPress);
               }
+            }
 
-              async function onPointerUp() {
-                handleCleanup();
-                if (resizeCancelled) return;
+            document.addEventListener("keyup", handleEscKeyPress.bind(this));
+            point.addEventListener("pointercancel", onCancel.bind(this));
+            point.addEventListener("pointerup", onPointerUp.bind(this));
+            point.addEventListener("pointermove", onMove);
+          });
 
-                const newLeft = parseFloat(censorPositionElement.style.left);
-                const newTop = parseFloat(censorPositionElement.style.top);
-                const newWidth = parseFloat(censorPositionElement.style.width);
-                const newHeight = parseFloat(censorPositionElement.style.height);
-                const positionId = censorPositionElement.dataset["censorPositionId"];
-                const parentId = censorPositionElement.dataset["censorPositionParentId"];
-                await editor.updateCensorPosition(positionId, editor.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
-              }
-
-              function onCancel() {
-                censorPositionElement.style.left = startLeft;
-                censorPositionElement.style.top = startTop;
-                censorPositionElement.style.width = startWidth;
-                censorPositionElement.style.height = startHeight;
-                handleCleanup();
-              }
-
-              function handleEscKeyPress(keyupEvent) {
-                if (keyupEvent.defaultPrevented) {
-                  return;
-                }
-                if (keyupEvent.key === "Escape") {
-                  resizeCancelled = true;
-                  censorPositionElement.style.left = startLeft;
-                  censorPositionElement.style.top = startTop;
-                  censorPositionElement.style.width = startWidth;
-                  censorPositionElement.style.height = startHeight;
-                  point.removeEventListener("pointermove", onMove);
-                  document.removeEventListener("keyup", handleEscKeyPress);
-                }
-              }
-
-              point.addEventListener("pointermove", onMove);
-              point.addEventListener("pointerup", onPointerUp);
-              point.addEventListener("pointercancel", onCancel);
-              document.addEventListener("keyup", handleEscKeyPress);
-            });
-
-            censorPositionElement.appendChild(point);
-          }
+          this.activeCensorPosition.appendChild(point);
         }
 
-        buildSizeEditPoints(this.activeCensorPosition, this);
         this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown.bind(this));
       }
     }
@@ -757,23 +810,7 @@ export class Editor {
       }
     }
 
-    handleItemFormChanges(mutationList) {
-      for (let mutation of mutationList) {
-        if (mutation.type == "childList") {
-          this.listenForItemUpdateFormSubmission();
-          this.setUpItemFormDeleteButton();
-          this.changeAnnotationInFocus();
-        }
-      }
-    }
-
-    watchForItemFormChanges() {
-      const itemFormObserver = new MutationObserver(this.handleItemFormChanges.bind(this))
-      const itemForm = document.getElementById("detail-form");
-      itemFormObserver.observe(itemForm, { childList: true });
-    }
-
-    async updateAnnotation(annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, isFromItem=false) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -783,6 +820,7 @@ export class Editor {
           "description": description,
           "start_time": startTime,
           "end_time": endTime,
+          "track_id": trackId,
         });
         contentType = "application/json";
       } else {
@@ -812,21 +850,25 @@ export class Editor {
         return false;
       }
 
+
       const responseData = await response.json();
 
       const itemHtml = responseData["item_html"];
       const formHtml = responseData["form_html"];
 
-      const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      targetItem.outerHTML = itemHtml;
-      // You must get the new element before making the style changes that occur while placing the track item.
-      const newTargetItem = document.getElementById(`${annotationType}-${annotationId}`);
-      this.placeTrackItems();
+      if (autoUpdateItem) {
+        const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
+        targetItem.outerHTML = itemHtml;
 
-      const targetForm = document.getElementById("detail-form");
-      targetForm.innerHTML = formHtml;
-      this.setUpItemClickListeners(newTargetItem);
-      window.dispatchEvent(this.annotationUpdatedEvent);
+        this.placeTrackItems();
+      }
+
+      if (autoUpdateForm) {
+        const targetForm = document.getElementById("detail-form");
+        targetForm.innerHTML = formHtml;
+        window.dispatchEvent(this.annotationUpdatedEvent);
+      }
+      return true;
     }
 
     triggerSave(state) {
@@ -866,7 +908,7 @@ export class Editor {
           return;
         }
         const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
-        this.updateAnnotation(annotationType, annotationId, undefined, undefined, newStartTime, newEndTime, true);
+        this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
     }
 
     setTimeFromVideo(fieldName) {
@@ -929,13 +971,18 @@ export class Editor {
         let time = 0;
         if (timeInput) {
           time = timeInput.value;
+          if (isNaN(Number(time))) {
+            const form = clickEvent.target.closest("#annotation-update-form");
+            const annotationStartInput = form.querySelector("#start_time");
+            time = annotationStartInput.value;
+          }
         }
         this.video.currentTime = time;
         this.markCensorPositionAsActive(parent.dataset["positionId"]);
       }
-      const buttons = document.getElementsByClassName("censor-position-seek-button");
-      for (let button of buttons) {
-        button.addEventListener("click", handler);
+      const positionEntries = document.getElementsByClassName("position-entry");
+      for (let positionEntry of positionEntries) {
+        positionEntry.addEventListener("click", handler);
       }
     }
 
@@ -944,10 +991,198 @@ export class Editor {
       for (let button of buttons) {
         const buttonParent = button.parentElement;
         const positionId = buttonParent.dataset["positionId"];
-        async function deleteCensor() {
-          await this.deleteCensorPosition(parentAnnotationId, positionId)
+
+        button.addEventListener("click", async () => {
+          await this.deleteCensorPosition(parentAnnotationId, positionId);
+        });
+      }
+    }
+
+    setUpCommentChangeListeners(formElement) {
+      // You may wonder why commentTextBox is declared in both event listeners instead of
+      // outside them. This is because the box often does not generate quickly enough for
+      // it to be defined before we query for it in the outer function. If you wait to get
+      // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
+      const itemForm = formElement.querySelector("#existing-item-form");
+      const annotationId = itemForm.dataset["annotationId"];
+      const fontSizeInput = formElement.querySelector("#font-size");
+      function getCommentBoxOrWriteError() {
+        const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
+        if (!commentTextBox) {
+          console.error("could not find comment text box with annotation id: " + annotationId);
+          return undefined;
         }
-        button.addEventListener("click", deleteCensor.bind(this))
+        return commentTextBox;
+      }
+      const update = async () => {
+        await this.updateAnnotation({annotationType: "comment", annotationId, autoUpdateForm: false})
+      }
+
+      // handle font size change
+      fontSizeInput.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        const newFontSize = fontSizeInput.value;
+        if (newFontSize != undefined && newFontSize != '') {
+          commentTextBox.style.fontSize = newFontSize + 'rem';
+          update();
+        }
+      });
+
+      // handle font color change
+      const fontColorInput = itemForm.querySelector("#font-color");
+      fontColorInput.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        const newFontColor = fontColorInput.value;
+        const newLength = newFontColor.length;
+        if (newLength != 3 && newLength != 6) {
+          return;
+        }
+        else {
+          commentTextBox.style.color = "#" + fontColorInput.value;
+          update();
+        }
+      });
+
+      // handle top left x change
+      const topX = itemForm.querySelector("#top-x");
+      topX.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.left = parseFloat(topX.value) + '%';
+        update();
+      });
+
+      // handle top left y change
+      const topY = itemForm.querySelector("#top-y");
+      topY.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.top = parseFloat(topY.value) + '%';
+        update();
+      });
+
+      // handle bottom right x change
+      const bottomX = itemForm.querySelector("#bottom-x");
+      bottomX.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.width = (parseFloat(bottomX.value) - parseFloat(commentTextBox.style.left)) + '%';
+        update();
+      });
+
+      // handle bottom right y change
+      const bottomY = itemForm.querySelector("#bottom-y");
+      bottomY.addEventListener("input", () => {
+        const commentTextBox = getCommentBoxOrWriteError();
+        if (!commentTextBox) return;
+
+        commentTextBox.style.height = (parseFloat(bottomY.value) - parseFloat(commentTextBox.style.top)) + '%';
+        update();
+      });
+    }
+
+    cleanUpActiveCommentBoxes() {
+      const commentBoxes = document.getElementsByClassName("comment-text-box");
+      for (let box of commentBoxes) {
+        box.classList.remove("comment-text-box-editor-active");
+        const sizeControls = box.querySelectorAll(".comment-text-box-size-control");
+        for (let control of sizeControls) {
+          control.remove();
+        }
+      }
+    }
+
+    updateCommentBoxPositionAndSize(annotationId) {
+      // validate that the box exists and we are editing the correct one
+      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      const updateForm = document.getElementById("annotation-update-form");
+      if (!commentBox || !updateForm || updateForm.dataset["annotationId"] != annotationId) return;
+
+      // update the form and save
+      const boxTop = parseFloat(commentBox.style.top);
+      const boxLeft = parseFloat(commentBox.style.left);
+
+      const formTopX = updateForm.querySelector("#top-x");
+      const formTopY = updateForm.querySelector("#top-y");
+      const formBottomX = updateForm.querySelector("#bottom-x");
+      const formBottomY = updateForm.querySelector("#bottom-y");
+      if (!formTopX || !formTopY || !formBottomX || !formBottomY) {
+        console.error("Failed to get all comment form elements to update");
+        return;
+      }
+
+      // save original values in case update request goes wrong
+
+      formTopX.value = boxLeft;
+      formTopY.value = boxTop;
+      formBottomX.value = boxLeft + parseFloat(commentBox.style.width);
+      formBottomY.value = boxTop + parseFloat(commentBox.style.height);
+
+      this.updateAnnotation({annotationType:"comment", annotationId, autoUpdateItem: false});
+    }
+
+    presentCommentBoxPositionAndSizeControls(annotationId) {
+      this.cleanUpActiveCommentBoxes();
+      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      if (!commentBox) {
+        return;
+      }
+      commentBox.classList.add("comment-text-box-editor-active");
+      if (!commentBox) {
+        console.log("No comment text box found for annotation id: " + annotationId);
+        return;
+      }
+
+      // set up commentBoxDrag
+      if (commentBox.dataset["setup"] == "false") {
+        commentBox.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          commentBox.setPointerCapture(event.pointerId);
+          const moveHandler = this.buildMoveHandler(commentBox);
+          commentBox.addEventListener("pointermove", moveHandler);
+          commentBox.addEventListener("pointerup", (event) => {
+            this.updateCommentBoxPositionAndSize(annotationId);
+            event.target.removeEventListener("pointermove", moveHandler);
+          }, {once: true});
+        });
+        commentBox.dataset["setup"] = "true";
+      }
+
+      // set up controls
+      const topControlClass = "resize-point-top";
+      const leftControlClass = "resize-point-left";
+      for (let i = 0; i < 4; i++) {
+        // the box will have 4 controls, one in each corner. The top two (from left to right) are
+        // i = 0 and i = 1. The bottom two (from left to right) are i = 2 and i = 3
+        const isTop = i < 2;
+        const isLeft = !(i % 2);
+        const newDragControl = document.createElement("div");
+        commentBox.appendChild(newDragControl);
+        newDragControl.classList.add("comment-text-box-size-control");
+        newDragControl.classList.add("resize-point");
+        if (isTop) {
+          newDragControl.classList.add(topControlClass);
+        }
+        if (isLeft) {
+          newDragControl.classList.add(leftControlClass);
+        }
+        const moveHandler = this.buildResizePointMoveHandler();
+        newDragControl.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          newDragControl.setPointerCapture(event.pointerId);
+          newDragControl.addEventListener("pointermove", moveHandler);
+          newDragControl.addEventListener("pointerup", () => {
+            this.updateCommentBoxPositionAndSize(annotationId);
+            newDragControl.removeEventListener("pointermove", moveHandler)
+          }, {once: true})
+        });
       }
     }
 
@@ -957,8 +1192,15 @@ export class Editor {
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
-      this.setUpCensorPositionDeleteListeners(annotationId);
-      this.setupCensorPositionSeekListeners();
+      this.setUpItemForm();
+      if (annotationType == "censor") {
+        this.setUpCensorPositionDeleteListeners(annotationId);
+        this.setupCensorPositionSeekListeners();
+      }
+      else if (annotationType == "comment") {
+        this.setUpCommentChangeListeners(detailForm);
+        this.presentCommentBoxPositionAndSizeControls(annotationId);
+      }
     }
 
     markItemAsActive(annotationType, annotationId) {
@@ -1026,44 +1268,7 @@ export class Editor {
       }
     }
 
-    setUpItemClickListeners(element) {
-      const annotationType = element.dataset["annotationType"];
-      const annotationId = element.dataset["annotationId"];
-      element.addEventListener("click", async (e) => {
-        e.preventDefault();
-        this.getItemFormDetails(annotationType, annotationId, this.contentId);
-        this.markItemAsActive(annotationType, annotationId);
-      });
-
-      // set up censor position locator listeners
-      if (annotationType == "censor") {
-        const positionLocators = element.querySelectorAll(".censor-position-locator");
-        for (let positionLocator of positionLocators) {
-          positionLocator.addEventListener("click", (e) => {
-            // allow propagation only if the patent item is not active
-            const parentItem = element.closest(".track-item");
-            if (parentItem.className.includes("active-track-item")) {
-              e.stopPropagation();
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
-              return;
-            }
-            // Wait a moment, to allow html to be loaded into the DOM
-            setTimeout(() => {
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
-            }, 50);
-          })
-        }
-      }
-    }
-
-    setUpClickListenersForAllPanelAndTrackItems() {
-      const trackItems = document.getElementsByClassName("track-item");
-      for (let trackItem of trackItems) {
-        this.setUpItemClickListeners(trackItem);
-      }
-
+    setUpPanelItemClickListeners() {
       const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
         this.setUpItemClickListeners(panelItem);
@@ -1118,17 +1323,147 @@ export class Editor {
     }
 
     /* TRACK EVENT WATCHERS AND HANDLERS */
-    setupTrackWatchersForAllTracks() {
+    setupTracks() {
       const trackRows = document.getElementsByClassName("track-row");
       for (let trackRow of trackRows) {
         this.setupTrackWatchers(trackRow);
       }
+
+      const trackRowAnnotationContainers = document.getElementsByClassName("track-row-annotations-container");
+      for (let annotationContainer of trackRowAnnotationContainers) {
+        this.setupTrackDragListeners(annotationContainer);
+      }
+    }
+
+    setupTrackDragListeners(annotationContainer) {
+      // set up dragover behavior
+      const timelineRow = annotationContainer.closest(".timeline-row");
+      const thisContainerTrackId = timelineRow.dataset["trackId"];
+      const projectionEl = document.createElement("div");
+      projectionEl.classList.add("track-item-projection");
+      projectionEl.style.visibility = "hidden";
+      annotationContainer.appendChild(projectionEl);
+      annotationContainer.addEventListener("dragenter", () => {
+        projectionEl.style.visibility = "visible";
+      });
+
+      annotationContainer.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        if (!this.itemBeingDragged) {
+          console.error("No item is being dragged!");
+          return;
+        }
+        const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
+        projectionEl.style.width = this.itemBeingDragged.style.width;
+        if (itemOriginalTrackId == thisContainerTrackId) {
+          // show the projection moving in concert with the mouse
+          const containerDim = annotationContainer.getBoundingClientRect();
+          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          this.video.currentTime = this.video.duration * newLeftRatio;
+          projectionEl.style.left = (newLeftRatio * 100) + '%';
+          projectionEl.style.top = this.itemBeingDragged.style.top;
+        }
+        else {
+          // show the projection statically placed with same position as itemBeingDragged.
+          this.video.currentTime = this.itemBeingDragged.dataset["start"];
+          projectionEl.style.left = this.itemBeingDragged.style.left;
+        }
+      });
+
+      annotationContainer.addEventListener("dragleave", (event) => {
+        // check if executing on self or on this annotationContainer
+        const fromItem = event.fromElement?.closest(".track-item");
+        if (fromItem?.id == this.itemBeingDragged.id || event?.fromElement == annotationContainer) {
+          return;
+        }
+        projectionEl.style.visibility = "hidden";
+      });
+
+      // set up drop behavior, should reject anything that isn't a trackItem
+      const itemIdRegEx = new RegExp("[a-z]+-[0-9]+");
+      annotationContainer.addEventListener("drop", async (event) => {
+        event.preventDefault();
+        this.itemBeingDragged = null;
+        projectionEl.style.visibility = "hidden";
+        // check if it has been longer than 50ms since drag started
+        if ((Date.now() - this.dragTimeStart) <= 100) {
+          return;
+        }
+        const itemId = event.dataTransfer.getData("text");
+        if (!itemId || !itemIdRegEx.test(itemId)) {
+          return;
+        }
+        const originalItem = document.getElementById(itemId);
+
+        // build new item, and check if we need to move it to a different track
+        const trackItemHTML = event.dataTransfer.getData("text/html");
+        // the second child of the new element has to be used because the dataTransfer API
+        // adds some meta information about the html as the root node in the transfered HTML
+        const replacementItem = createElementFromHTMLString(trackItemHTML, 1);
+        const trackRowParent = event.target.closest(".track-row");
+        const trackId = trackRowParent.dataset["trackId"];
+        const originalTrackId = originalItem.dataset["originalTrackId"];
+        const annotationType = originalItem.dataset["annotationType"];
+        const annotationId = originalItem.dataset["annotationId"];
+        const originalStartTime = parseFloat(originalItem.dataset["start"]);
+        let originalEndTime;
+        if (originalItem.dataset["end"]) {
+          originalEndTime = parseFloat(originalItem.dataset["end"]);
+        }
+        let success = false;
+        if (trackId != originalTrackId) {
+          // transfer item to new track
+
+          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
+          if (success) {
+            replacementItem.dataset["originalTrackId"] = trackId;
+          }
+        } else {
+          // move item to new position within same track
+          const containerDim = annotationContainer.getBoundingClientRect();
+          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          const startTime = this.video.duration * newLeftRatio;
+          let endTime;
+          if (originalEndTime) {
+            endTime = originalEndTime - originalStartTime + startTime;
+          }
+          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
+          if (success) {
+            replacementItem.dataset["start"] = startTime;
+            if (endTime) {
+              replacementItem.dataset["end"] = endTime;
+            }
+            replacementItem.style.left = newLeftRatio * 100 + '%';
+            if (annotationType == "censor") {
+              const censorPositions = replacementItem.querySelectorAll(".censor-position-locator");
+              const positionsToDelete = [];
+              for (let position of censorPositions) {
+                if (position.dataset["positionTime"] < startTime) {
+                  positionsToDelete.push(position);
+                }
+              }
+
+              for (let i = positionsToDelete.length - 1; i > -1; i--) {
+                positionsToDelete[i].remove();
+              }
+            }
+          }
+        }
+
+        if (success) {
+          replacementItem.dataset["setup"] = "false";
+          originalItem.remove();
+          replacementItem.classList.remove("is-dragging");
+          annotationContainer.appendChild(replacementItem);
+          this.placeTrackItems();
+        }
+      });
     }
 
     // use this method to apply all relevant watchers (event listeners) to
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
-      this.watchForTrackMenuOpen(trackRootElement);
+      this.watchForMultiSelectMenuOpen(trackRootElement);
       this.watchForDisplayTrackRename(trackRootElement);
       this.watchForTrackRename(trackRootElement);
       this.watchForTrackMovement(trackRootElement);
@@ -1136,10 +1471,10 @@ export class Editor {
     }
 
     /* track options menu */
-    handleTrackOpenMenuClick(e) {
+    handleMultiSelectMenuOpen(e) {
       e.stopPropagation();
       // we don't want more than one track menu visible at one time
-      const visibleMenuCSSClass = "visible-timeline-track-menu";
+      const visibleMenuCSSClass = "visible-multi-select-menu";
       const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
       for (let menu of allVisibleTrackMenus) {
         menu.classList.remove(visibleMenuCSSClass);
@@ -1147,37 +1482,37 @@ export class Editor {
 
       // get track menu and position it properly
       const wrapperDim = this.timelineWrapper.getBoundingClientRect();
-      const trackMenuWrapper = e.target.closest(".timeline-track-edit-wrapper");
-      const trackOptionsMenu = trackMenuWrapper.querySelector(".timeline-track-menu");
+      const trackMenuWrapper = e.target.closest(".multi-select-menu-parent");
+      const trackOptionsMenu = trackMenuWrapper.querySelector(".multi-select-menu");
       trackOptionsMenu.style.visibility = "hidden";
       trackOptionsMenu.classList.add(visibleMenuCSSClass);
       const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
       if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
-        trackOptionsMenu.classList.add("track-menu-bumped-up");
+        trackOptionsMenu.classList.add("multi-select-menu-bumped-up");
       }
 
       // now we are safe to make the track menu visible
       trackOptionsMenu.style.visibility = "";
     }
 
-    watchForTrackMenuOpen(trackRootElement) {
-      const menuButton = trackRootElement.querySelector(".editor-menu-button");
+    watchForMultiSelectMenuOpen(multiSelectMenuWrapper) {
+      const menuButton = multiSelectMenuWrapper.querySelector(".open-multi-select-button");
       if (menuButton) {
-        menuButton.addEventListener("click", this.handleTrackOpenMenuClick.bind(this));
+        menuButton.addEventListener("click", this.handleMultiSelectMenuOpen.bind(this));
       }
       else {
-        console.error("No menu button found for track");
+        console.error("No menu button element found");
       }
     }
 
     watchForClickOutsideOfTrackMenu() {
       const editorContainer = document.getElementById("editor-container");
       editorContainer.addEventListener("click", (e) => {
-        const visibleTrackMenus = document.getElementsByClassName("visible-timeline-track-menu");
+        const visibleTrackMenus = document.getElementsByClassName("visible-multi-select-menu");
         for (let menu of visibleTrackMenus) {
           const menuDim = menu.getBoundingClientRect();
           if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
-            menu.classList.remove("visible-timeline-track-menu");
+            menu.classList.remove("visible-multi-select-menu");
           }
         }
       });
@@ -1194,9 +1529,7 @@ export class Editor {
       // place new tracks in appropriate positions
       const timelineZoomRow = document.getElementById("timeline-new-track-and-zoom-row");
       for (let newTrackHTML of newTracksHTML) {
-        const trackTemplate = document.createElement("template");
-        trackTemplate.innerHTML = newTrackHTML;
-        const trackParentNode = trackTemplate.content.childNodes[0];
+        const trackParentNode = createElementFromHTMLString(newTrackHTML);
         this.setupTrackWatchers(trackParentNode);
         this.timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
       }
@@ -1565,7 +1898,8 @@ export class Editor {
             }
         });
       this.adjustScrubberHeight();
-      this.setUpClickListenersForAllPanelAndTrackItems();
+      this.setupItems();
+      this.setUpPanelItemClickListeners();
     }
 
     handleTrackItemPlacementAfterEvent(e) {
@@ -1618,13 +1952,10 @@ export class Editor {
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
-              const newElement = document.createElement("template");
-              newElement.innerHTML = newTrackItemHtml;
-              const newNode = newElement.content.firstChild;
+              const newNode = createElementFromHTMLString(newTrackItemHtml);
               newNode.dataset["start"] = startTime;
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);
-              this.setUpItemClickListeners(newNode);
               this.placeTrackItems();
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
@@ -1764,6 +2095,8 @@ export class Editor {
       }
 
       const newWidth = `${100 * this.zoomLevel}%`;
+      const zoomSliderWidth = `${100 / this.zoomLevel}%`;
+      document.documentElement.style.setProperty("--zoom-thumb-width", zoomSliderWidth);
       const tickMarksContainer = document.getElementById("tick-marks-container");
       if (tickMarksContainer) {
         tickMarksContainer.style.width = newWidth;
@@ -1973,16 +2306,250 @@ export class Editor {
         });
     }
 
+    watchAndHandleAnnotationSetMenuOpen() {
+      const annotationSetMenuWrapper = document.getElementById("annotation-panel-header");
+      this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
+    }
+
+    async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
+      const createResponse = await fetch("/annotation-set/create", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": this.getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          content_id: this.contentId,
+          name: setName,
+          annotation_set_id_to_copy: annotationSetId,
+          annotation_set_json: annotationSetJson
+        })
+      });
+
+      if (!createResponse.ok) {
+        console.error("Failed to create new annotation set");
+        return;
+      }
+      window.location.reload();
+    }
+
+    toggleAnnotationSetOptionSelectorAndContent() {
+      // hide the options selector and show the selected option content
+      // or do the opposite if the options selector should be shown
+      const selectOptionContent = document.getElementById("annotation-set-modal-base-content");
+      const optionContentContainer = document.getElementById("annotation-set-modal-option-display");
+      if (selectOptionContent.className.includes("hidden")) {
+        optionContentContainer.classList.add("hidden");
+        selectOptionContent.classList.remove("hidden");
+      } else {
+        selectOptionContent.classList.add("hidden");
+        optionContentContainer.classList.remove("hidden");
+      }
+    }
+
+    async setupAndDisplayAnnotationSetOption(url) {
+      const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-display");
+      const contentResponse = await fetch(url);
+      if (!contentResponse.ok) {
+        console.error("Failed to get new content for annotation set options modal");
+        return false;
+      }
+      const newHTML = await contentResponse.text();
+      annotationSetOptionsModalContent.innerHTML = newHTML;
+
+      // set up back button
+      const backButton = document.getElementById("annotation-set-modal-back");
+      backButton.addEventListener("click", () => {
+        this.toggleAnnotationSetOptionSelectorAndContent();
+      });
+
+      this.toggleAnnotationSetOptionSelectorAndContent();
+      return true;
+    }
+
+    async setupAnnotationSetUseExistingModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/use-existing/${this.contentId}`);
+      if (!result) {
+        return;
+      }
+      const confirmButton = document.getElementById("annotation-set-use-existing-button");
+      confirmButton.addEventListener("click", async (event) => {
+        const parent = event.target.closest("#annotation-set-use-existing-option");
+        const setSelector = parent.querySelector(".annotation-set-selector");
+        if (setSelector.value == undefined || setSelector.value == "") {
+          setSelector.classList.add("invalid-input");
+          return;
+        } else {
+          setSelector.classList.remove("invalid-input");
+        }
+        const contentSetAssignmentResponse = await fetch("/select-annotation-set", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            "content_id": this.contentId,
+            "annotation_set_id": setSelector.value
+          })
+        });
+        if (!contentSetAssignmentResponse.ok) {
+          console.error("Failed to set annotation set for this content");
+          return;
+        }
+        window.location.reload();
+      });
+    }
+
+    async setupAnnotationSetCopyModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/copy-from-set/${this.contentId}`);
+      if (!result) {
+        return;
+      }
+      const createButton = document.getElementById("annotation-set-copy-from-button");
+      createButton.addEventListener("click", (event) => {
+        const parent = event.target.closest("#annotation-set-modal-copy-from-set");
+        const nameInput = parent.querySelector("#copy-from-annotation-set-name");
+        let isInvalid = false;
+        if (!nameInput.value) {
+          isInvalid = true;
+          nameInput.classList.add("invalid-input");
+        } else {
+          nameInput.classList.remove("invalid-input");
+        }
+        const setSelection = parent.querySelector(".annotation-set-selector");
+        if (setSelection.value == undefined || setSelection.value == '') {
+          isInvalid = true;
+          setSelection.classList.add("invalid-input");
+        } else {
+          setSelection.classList.remove("invalid-input");
+        }
+        if (isInvalid) return;
+        this.handleAnnotationSetCreation(nameInput.value, setSelection.value);
+      });
+    }
+
+    async setupAnnotationSetImportModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption("/annotation-options-modal/import");
+      if (!result) {
+        return;
+      }
+      const createButton = document.getElementById("create-annotation-set-from-import-button");
+      createButton.addEventListener("click", async (event) => {
+        const parent = event.target.closest("#import-create-annotation-set");
+        let isInvalid = false;
+        const nameInput = parent.querySelector("#new-annotation-set-name");
+        if (!nameInput.value) {
+          isInvalid = true;
+          nameInput.classList.add("invalid-input");
+        } else {
+          nameInput.classList.remove("invalid-input");
+        }
+        const fileInput = parent.querySelector("#annotation-set-import-file-input");
+        if (fileInput.files.length <= 0) {
+          isInvalid = true;
+          fileInput.classList.add("invalid-input");
+        } else {
+          fileInput.classList.remove("invalid-input");
+        }
+        if (isInvalid) return;
+        const jsonFile = await fileInput.files[0].text();
+        try {
+          JSON.parse(jsonFile);
+        } catch {
+          console.error("Invalid JSON provided");
+          return;
+        }
+
+        this.handleAnnotationSetCreation(nameInput.value, undefined, jsonFile);
+      });
+    }
+
+    async setupAnnotationSetCreationModal() {
+      const result = await this.setupAndDisplayAnnotationSetOption("/annotation-options-modal/create");
+      if (!result) {
+        return;
+      }
+      const createAnnotationSetButton = document.getElementById("annotation-set-create-button");
+      createAnnotationSetButton.addEventListener("click", (event) => {
+        const parent = event.target.closest("#annotation-set-create-new-content");
+        const setName = parent.querySelector("#create-annotation-set-name");
+        if (!setName.value) {
+          setName.classList.add("invalid-input");
+          return;
+        } else {
+          setName.classList.remove("invalid-input");
+        }
+        this.handleAnnotationSetCreation(setName.value);
+      });
+    }
+
+    setupAnnotationSetOptionsModal() {
+      const viewExistingButton = document.getElementById("annotation-set-view-existing");
+      if (viewExistingButton) {
+        viewExistingButton.addEventListener("click", this.setupAnnotationSetUseExistingModal.bind(this));
+      }
+
+      const viewCopyButton = document.getElementById("annotation-set-view-copy");
+      if (viewCopyButton) {
+        viewCopyButton.addEventListener("click", this.setupAnnotationSetCopyModal.bind(this));
+      }
+
+      const viewImportButton = document.getElementById("annotation-set-view-import");
+      viewImportButton.addEventListener("click", this.setupAnnotationSetImportModal.bind(this));
+
+      const viewCreateButton = document.getElementById("annotation-set-view-create");
+      viewCreateButton.addEventListener("click", this.setupAnnotationSetCreationModal.bind(this));
+    }
+
+
+
+    watchAndHandleAnnotationSetDelete() {
+      const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
+      if (!deleteAnnotationSetButton) {
+        console.error("Failed to get annotation set delete button");
+        return;
+      }
+
+      deleteAnnotationSetButton.addEventListener("click", async () => {
+        const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
+        if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
+          return;
+        }
+        const deleteResponse = await fetch(`/annotation-set/delete/${annotationSetId}`, {
+          method: "DELETE",
+          headers: {
+            "X-CSRFToken": this.getCSRFToken()
+          }
+        });
+        if (!deleteResponse.ok) {
+          console.error("Failed to delete annotation set");
+          return;
+        }
+
+        window.location.reload();
+      });
+    }
+
+    watchAndHandleAnnotationSetExport() {
+      const exportAnnotationSetModal = document.getElementById("export-annotation-set");
+      const exportButton = document.getElementById("annotation-set-export-button");
+      exportButton.addEventListener("click", async () => {
+        const exportLink = document.getElementById("export-annotation-set-link");
+        const setSelector = exportAnnotationSetModal.querySelector(".annotation-set-selector");
+        const annotationSetId = setSelector.value;
+        if (isNaN(Number(annotationSetId)) || annotationSetId == '' || annotationSetId == undefined) {
+          // prevent any non-number value from being injected into link
+          return;
+        }
+        exportLink.href = `/annotation-set/export/${Number(annotationSetId)}`;
+        exportLink.click();
+      });
+    }
+
     async handleAnnotationSetChange(event) {
         event.stopPropagation();
-        let annotationSetId;
-        const selectorOptions = event.target.children;
-        for (let option of selectorOptions) {
-            if (option.selected) {
-                annotationSetId = Number(option.value);
-                break;
-            }
-        }
+        let annotationSetId = event.target.value;
 
         if (isNaN(annotationSetId) || annotationSetId === undefined) {
             console.error("Selected value was not defined!");
@@ -2008,16 +2575,6 @@ export class Editor {
         }
         // rebuild the page with the new annotation set
         window.location.reload();
-    }
-
-    setupAnnotationSelectorFunctions() {
-        const setSelector = document.getElementById("annotation-set-selector");
-        if (!setSelector) {
-            console.error("Annotation set selector cannot be found!");
-            return;
-        }
-
-        setSelector.addEventListener("change", this.handleAnnotationSetChange.bind(this));
     }
 
     watchForAnnotationSetNameChangeAndHandleIt() {
@@ -2057,6 +2614,22 @@ export class Editor {
         }
       })
       annotationNameSubmitButton.addEventListener("click", handleNameChange);
+    }
+
+    handleNoAnnotationSet() {
+      // This is designed to run only when the editor loads to encourage a user to select,
+      // create, or import an annotation set
+      const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
+      if (annotationSetId === '' || annotationSetId === undefined) {
+        // prevent user from leaving modal if they need to pick an annotation set
+        const optionsModal = document.getElementById("annotation-set-options-modal");
+        const exitButton = optionsModal.querySelector(".close-dialog-button");
+        exitButton.remove();
+
+        // open the annotation set options modal
+        const annotationSetOptionsButton = document.getElementById("open-annotation-set-options-modal");
+        annotationSetOptionsButton.click();
+      }
     }
 
     async handleRemoveEditor(e) {

@@ -1,5 +1,8 @@
 <div class="track-item elevated {{ item.annotation_type }}-type-track-item"
      id="{{ item.annotation_type }}-{{ item.id }}"
+     draggable="true"
+     data-setup="false"
+     data-original-track-id="{{item.track.id}}"
      data-annotation-id="{{ item.id }}"
      data-annotation-type="{{ item.annotation_type }}"
      data-start="{{ item.start_time }}"
@@ -7,20 +10,10 @@
      data-label="{{ item.name }}"
      data-delta-left="0"
      data-delta-width="0"
-     tabindex="0"
-     onmousedown="elevateFromSiblings(this)">
+     tabindex="0">
 
     {% if item.annotation_type != "pause" %}
-    <div class="resize-handle resize-handle-left"
-        hx-post="{% url 'update_annotation' item.annotation_type item.id %}"
-        hx-trigger="click"
-        hx-vals='js:{
-        delta_left: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaLeft,
-        delta_width: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaWidth,
-        name: document.querySelector("#item-form-{{ item.id }} [name=name]")?.value || "{{ item.name }}"
-        }'
-        hx-target="#{{ item.annotation_type }}-{{ item.id }}"
-        hx-swap="outerHTML">
+    <div class="resize-handle resize-handle-left">
         <div class="resize-handle-indicator indicator-left"></div>
     </div>
     {% endif %}
@@ -38,16 +31,7 @@
     </div>
 
     {% if item.annotation_type != "pause" %}
-    <div class="resize-handle resize-handle-right"
-        hx-post="{% url 'update_annotation' item.annotation_type item.id %}"
-        hx-trigger="click"
-        hx-vals='js:{
-        delta_left: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaLeft,
-        delta_width: document.getElementById("{{ item.annotation_type }}-{{ item.id }}").dataset.deltaWidth,
-        name: document.querySelector("#item-form-{{ item.id }} [name=name]")?.value || "{{ item.name }}"
-        }'
-        hx-target="#{{ item.annotation_type }}-{{ item.id }}"
-        hx-swap="outerHTML">
+    <div class="resize-handle resize-handle-right">
         <div class="resize-handle-indicator indicator-right"></div>
     </div>
      {% endif %}

@@ -1067,7 +1067,6 @@ class LegacyMigrationService:
             start_time = float(legacy_event.get("start", 0) or 0)
             end_time = float(legacy_event.get("end", start_time) or start_time)
             common_kwargs = {
-                "owner": self._get_target_owner(request_obj),
                 "track": track,
                 "name": legacy_event.get("title")
                 or legacy_event.get("label")
@@ -1095,8 +1094,8 @@ class LegacyMigrationService:
                 position = legacy_event.get("position") or {}
                 annotation = model_class.objects.create(
                     text=legacy_event.get("comment") or legacy_event.get("text") or "",
-                    x=float(position.get("x", 0) or 0),
-                    y=float(position.get("y", 0) or 0),
+                    top_left_x=float(position.get("x", 0) or 0),
+                    top_left_y=float(position.get("y", 0) or 0),
                     **common_kwargs,
                 )
             elif model_class is BlankAnnotation:
