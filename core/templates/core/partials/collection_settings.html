@@ -1,33 +1,44 @@
-<div class="collection-settings">
-    <form class="collection-settings-form"
-        hx-trigger="submit"
-        hx-post="{% url 'update_collection_settings' %}"
-        hx-target="#sorted-collections"
-        hx-swap="outerHTML"
-    >
-        {% csrf_token %}
+<div id="collection-settings">
+    <div class="column-flex">
+        <h3>Settings</h3>
+        <form class="column-flex">
+            {% csrf_token %}
 
-        {{ form.non_field_errors }}
-        {{ form.id }}
-        <div class="collection-form-group">
-            {{ form.name.as_field_group }}
+            {{ form.non_field_errors }}
+            {{ form.id }}
+            <div class="collection-form-group">
+                {{ form.name.as_field_group }}
+            </div>
+            <div class="collection-form-group">
+                {{ form.published.as_field_group }}
+            </div>
+            <div class="collection-form-group">
+                {{ form.archived.as_field_group }}
+            </div>
+            <div class="row-flex">
+                <button id="collection-settings-submit" class="blue-button" type="submit">
+                    Submit
+                </button>
+                <button id="collection-settings-cancel" class="cancel-button">
+                    Reset
+                </button>
+            </div>
+        </form>
+    </div>
+    <dialog id="collection-delete-modal" class="user-view-modal">
+        <h3 class="user-view-modal-header">
+            Delete this collection?
+        </h3>
+        <div class="user-view-modal-body row-flex flex-apart-aligned">
+            <button id="collection-confirm-delete" class="blue-button">
+                Yes
+            </button>
+            <button class="cancel-button" command="close" commandfor="collection-delete-modal">
+                No
+            </button>
         </div>
-        <div class="collection-form-group">
-            {{ form.published.as_field_group }}
-        </div>
-        <div class="collection-form-group">
-            {{ form.archived.as_field_group }}
-        </div>
-        <div class="row-flex">
-            <input class="blue-button position-flex-start" type="submit"/>
-            <button class="cancel-button position-flex-start" onclick="emptyParentInnerHTML(this, '#collection-settings-form-wrapper')">Cancel</button>
-        </div>
-    </form>
-    <button class="red-button position-flex-start"
-        hx-target="#collections-detail"
-        hx-swap="innerHTML"
-        hx-delete="{% url 'delete_collection' collection.id %}"
-        hx-confirm="Are you sure you want to delete this collection?"
-        hx-headers="js:{'x-csrftoken': document.querySelector('[name=csrfmiddlewaretoken]').value}"
-    >Delete</button>
+    </dialog>
+    <button id="collection-settings-delete" class="red-button position-flex-start" command="show-modal" commandfor="collection-delete-modal">
+        Delete Collection
+    </button>
 </div>

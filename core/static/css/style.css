@@ -953,20 +953,21 @@ p.tile-subtitle {
     transform: rotate(180deg);
 }
 
-.collection-settings {
+#collection-settings {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    margin-top: 1rem;
-    padding: 2rem;
+    padding: 1rem;
     border-radius: 1rem;
     border: 1px solid #00000025;
 }
 
-.collection-settings-form {
-    display: flex;
-    flex-direction: column;
-    row-gap: 1rem;
+#collection-settings h3 {
+    margin: 0;
+}
+
+#collection-settings form {
+    align-items: flex-start;
 }
 
 .arrow-icon {

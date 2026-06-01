@@ -1220,6 +1220,7 @@ def collection_info(request, collection_id):
             {
                 "collection": collection,
                 "contents": published_contents,
+                "form": CollectionSettingsForm(instance=collection),
             },
         )
     except Collection.DoesNotExist:
