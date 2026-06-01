@@ -1190,9 +1190,7 @@ def request_content(request):
         form = ResourceContentIntakeRequestForm(request.POST)
         if form.is_valid():
             content_request = form.save(commit=False)
-
             content_request.owner = request.user
-
             content_request.save()
             return redirect("request_content")
     else:
