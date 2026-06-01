@@ -200,6 +200,14 @@ bash deploy/manage.sh seed_demo_data
 
 ## How deploys happen
 
+**All deployments come from a git branch on `origin`.** The deploy
+process hard-resets the checkout to `origin/<branch>` on every run, so
+any uncommitted edits to tracked files and any local-only commits are
+destroyed. Untracked files and files in `.gitignore` (including
+database, secrets, env, etc.) persist. To ship a change, push it to the
+branch this deployment tracks — never edit tracked files directly on the
+server.
+
 Once the timer is installed, deploys are automatic:
 
 1. Every minute, `<app>-deploy.timer` triggers `<app>-deploy.service`.
@@ -250,22 +258,39 @@ git checkout other-branch
 systemctl --user start yvideo-dev-deploy.service
 ```
 
-### Manually deploying without the timer
+### Hotfixing a pinned deployment
 
-If you want to bypass the timer entirely (e.g. testing a local change
-with no remote counterpart), check out or hard-reset to the desired
-ref yourself and run `deploy.sh` directly:
+When `BRANCH` is pinned (e.g. `BRANCH=main` on prod), `git checkout`
+won't redirect the timer — the next tick resets back to `origin/main`.
+To ship a hotfix without merging it into the tracked branch yet, push
+a hotfix branch to `origin` and temporarily repoint `BRANCH` in `.env`.
+`.env` is re-read on every poll, so no service restart is needed.
+
+```bash
+# 1. On your laptop: push the hotfix branch to origin.
+git push origin hotfix-urgent-thing
+
+# 2. On the server: point the timer at the hotfix branch.
+sudo -iu yvideo-dev
+cd /srv/yvideo-dev/yvideo-py
+sed -i 's/^BRANCH=.*/BRANCH=hotfix-urgent-thing/' .env
+systemctl --user start yvideo-dev-deploy.service  # deploy now
+```
+
+Once the fix has been merged back into the normal release branch and
+that branch contains everything the hotfix had, restore the original
+`BRANCH` value so the deployment goes back to tracking the release
+branch:
 
 ```bash
 sudo -iu yvideo-dev
 cd /srv/yvideo-dev/yvideo-py
-git fetch origin
-git reset --hard origin/my-branch
-bash deploy/deploy.sh
+sed -i 's/^BRANCH=.*/BRANCH=main/' .env
+systemctl --user start yvideo-dev-deploy.service
 ```
 
-`deploy.sh` does not do any git work — it just rebuilds and restarts.
-Whatever is checked out is what gets deployed.
+Leaving a deployment pointed at a hotfix branch indefinitely is a
+footgun — future merges to `main` won't deploy until you switch back.
 
 ## Viewing logs and status
 
