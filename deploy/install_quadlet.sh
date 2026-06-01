@@ -39,7 +39,7 @@ mkdir -p \
     "$root/var" \
     "$dest_dir"
 
-render_quadlet_template "$root/deploy/quadlet.container.in" "$dest_dir/$APP_NAME.container"
+render_template "$root/deploy/quadlet.container.in" "$dest_dir/$APP_NAME.container"
 
 if [ "$reload_systemd" -eq 1 ]; then
     systemctl --user daemon-reload
