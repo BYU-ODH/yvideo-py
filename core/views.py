@@ -1191,8 +1191,7 @@ def request_content(request):
         if form.is_valid():
             content_request = form.save(commit=False)
 
-            if request.user.is_authenticated:
-                content_request.owner = request.user
+            content_request.owner = request.user
 
             content_request.save()
             return redirect("request_content")
