@@ -439,16 +439,10 @@ def display_collection_contents(request, collection_id):
 
 @require_http_methods(["DELETE"])
 def delete_collection(request, collection_id):
-    collection = get_object_or_404(Collection, pk=collection_id)
     try:
+        collection = Collection.objects.get(pk=collection_id)
         collection.delete()
-        collections = get_collection_types(request.user)
-        context = {
-            "published": collections["published"],
-            "unpublished": collections["unpublished"],
-            "archived": collections["archived"],
-        }
-        return render(request, "partials/finish_collection_deletion.html", context)
+        return HttpResponse()
     except Exception as e:
         logger.error(
             f"An error occured while deleting the collection with id: {collection_id}. Exception: {e}"

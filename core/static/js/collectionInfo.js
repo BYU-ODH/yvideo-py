@@ -1,4 +1,4 @@
-// import { getCSRFToken } from "./utils.js";
+import { getCSRFToken } from "./utils.js";
 
 function setupVideoSearch() {
   const searchInput = document.getElementById("video-search");
@@ -14,8 +14,29 @@ function setupVideoSearch() {
   });
 }
 
+function setupDeleteCollection() {
+  const deleteButton = document.getElementById("collection-confirm-delete");
+  const collectionForm = document.getElementById("collection-settings-form");
+  deleteButton.addEventListener("click", async () => {
+    const idInput = collectionForm.querySelector("input[name='id']");
+    const idValue = idInput.value;
+    const deleteResponse = await fetch(`/collections/delete/${idValue}/`, {
+      method: "DELETE",
+      headers: {
+        "X-CSRFToken": getCSRFToken()
+      }
+    });
+    if (!deleteResponse.ok) {
+      console.error("Failed to delete collection");
+    } else {
+      window.location.replace("/collections/");
+    }
+  });
+}
+
 function initialize() {
   setupVideoSearch();
+  setupDeleteCollection();
 }
 
 initialize();
