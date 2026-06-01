@@ -27,7 +27,7 @@ All other requests are proxied to the Podman container. See
 | `deploy/manage.sh` | Runs Django management commands inside the running container |
 | `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
 | `deploy/deploy_template.sh` | Template for `deploy/deploy.sh`; copy and set `DEPLOY_USER` to the deploy user |
-| `deploy/deploy.sh` | (Created from the template.) Hard-resets the checkout to `origin/<branch>` (defaulting to the currently checked-out branch, or `--branch <name>` to switch first), refreshes Quadlets, and restarts the service |
+| `deploy/deploy.sh` | (Created from the template.) Verifies the expected branch (or `--current-branch` to use whatever is checked out), hard-resets to origin, refreshes Quadlets, and restarts the service |
 | `deploy/apache-vhost-example.conf` | Example Apache reverse proxy config |
 
 ## Initial server setup
@@ -178,23 +178,25 @@ SSH into the server and run the deploy script in the environment you
 want to update. For `dev`, you can switch to any branch first, but
 `staging` and `prod` should always deploy from their respective branches.
 
-By default `deploy.sh` deploys whatever branch is currently checked out:
+Pass the expected branch name (must match the checked-out branch):
 
 ```bash
 sudo -iu yvideo-dev
 cd /srv/yvideo-dev/yvideo-py
-bash deploy/deploy.sh
+git fetch origin
+git checkout my-branch
+bash deploy/deploy.sh my-branch
 ```
 
-To force a switch to a different branch before deploying, pass `--branch`:
+Or pass `--current-branch` to deploy whatever is currently checked out:
 
 ```bash
-bash deploy/deploy.sh --branch my-branch
+bash deploy/deploy.sh --current-branch
 ```
 
 ### What `deploy.sh` does
 
-1. Determines the target branch: with `--branch <name>`, runs `git fetch origin` and `git checkout -B <name> origin/<name>`; otherwise uses the currently checked-out branch (and exits if HEAD is detached) and runs `git fetch origin`.
+1. Resolves the target branch: with `<branch>`, verifies the local branch matches and runs `git fetch origin <branch>`; with `--current-branch`, uses the currently checked-out branch (exits if HEAD is detached) and runs `git fetch` with no branch argument.
 2. Runs `git reset --hard origin/<branch>` so the checkout exactly matches the remote branch.
 3. Renders and installs the fresh Quadlet container unit from `.env`.
 4. Runs `podman build` to rebuild the local image from the checkout (pulling a fresh base image).
