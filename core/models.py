@@ -1434,4 +1434,4 @@ class ResourceContentIntakeRequest(models.Model):
     acknowledged_compliance = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Content request for {self.resource_title} by {self.owner} ({self.owner.netid}) due by {self.date_needed}"
+        return f"Content request for {self.resource_title} by {self.owner} due by {self.date_needed}"
