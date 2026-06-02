@@ -2,7 +2,6 @@ data/
 media/
 secret_settings.py
 scripts/dump_legacy_to_sqlite_settings.py
-deploy/deploy.sh
 *settings.json
 *advanced_settings.json
 *sp.cert

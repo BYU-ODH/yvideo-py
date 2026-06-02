@@ -1191,20 +1191,15 @@ def subtitle_editor(request, content_id):
     )
 
 
-def request_content(request, resource_id):
-    resource = get_object_or_404(Resource, id=resource_id)
+def request_content(request):
 
     if request.method == "POST":
         form = ResourceContentIntakeRequestForm(request.POST)
         if form.is_valid():
             content_request = form.save(commit=False)
-            content_request.resource = resource
-
-            if request.user.is_authenticated:
-                content_request.owner = request.user
-
+            content_request.owner = request.user
             content_request.save()
-            return redirect("request_content", resource_id=resource.id)
+            return redirect("request_content")
     else:
         form = ResourceContentIntakeRequestForm()
 
@@ -1213,7 +1208,6 @@ def request_content(request, resource_id):
         "partials/resource_content_intake_request.html",
         {
             "form": form,
-            "resource": resource,
         },
     )
 
