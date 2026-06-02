@@ -1568,3 +1568,16 @@ h4.video-title {
 .user-view-modal-body {
     padding: 2rem;
 }
+
+button.disabled {
+    cursor: not-allowed;
+    color: #434343;
+    background-color: #e0e0e040;
+/* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
+reports that it is supported by all browsers:
+https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
+/* eslint-disable-next-line css/use-baseline */
+    &:hover {
+        background-color: #e0e0e040;
+    }
+}

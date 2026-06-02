@@ -386,10 +386,14 @@ def view_collection(request, pk):
 
 
 def display_collection_settings(request, collection_id):
-    collection = get_object_or_404(Collection, pk=collection_id)
-    form = CollectionSettingsForm(instance=collection)
-    context = {"collection": collection, "form": form}
-    return render(request, "partials/collection_settings.html", context)
+    try:
+        collection = Collection.objects.get(pk=collection_id)
+        form = CollectionSettingsForm(instance=collection)
+        context = {"collection": collection, "form": form}
+        return render(request, "partials/collection_settings.html", context)
+    except Exception as e:
+        logger.error(f"Failed to render collection settings. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST

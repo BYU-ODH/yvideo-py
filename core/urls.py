@@ -27,7 +27,7 @@ urlpatterns = [
         name="display_collection_contents",
     ),
     path(
-        "collection/display-settings/<int:collection_id>/",
+        "display-collection-settings/<int:collection_id>/",
         views.display_collection_settings,
         name="display_collection_settings",
     ),
