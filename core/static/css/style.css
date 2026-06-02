@@ -62,7 +62,6 @@ button:hover {
 }
 
 .blue-button {
-    align-self: flex-end;
     background-color: var(--primary-blue);
     color: white;
     border: none;
