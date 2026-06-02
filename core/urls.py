@@ -20,7 +20,6 @@ urlpatterns = [
         views.delete_collection,
         name="delete_collection",
     ),
-    path("collections/view/<int:pk>/", views.view_collection, name="view_collection"),
     path(
         "display-collection-contents/<int:collection_id>/",
         views.display_collection_contents,
@@ -32,7 +31,7 @@ urlpatterns = [
         name="display_collection_settings",
     ),
     path(
-        "collection/update",
+        "collection-settings/update/",
         views.update_collection_settings,
         name="update_collection_settings",
     ),

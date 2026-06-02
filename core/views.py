@@ -15,7 +15,6 @@ from django.http import HttpResponseBadRequest
 from django.http import HttpResponseRedirect
 from django.http import HttpResponseServerError
 from django.http import JsonResponse
-from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
@@ -332,57 +331,30 @@ def create_collection(request):
         return HttpResponseBadRequest()
 
 
-def view_collection(request, pk):
-    user = request.user
+def collection_info(request, collection_id):
+    try:
+        collection = Collection.objects.get(pk=collection_id)
+        published_contents = Content.objects.filter(
+            collection=collection, published=True
+        )
 
-    if request.method == "GET":
-        collection_pk = pk
-        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
-        contents = Content.objects.filter(collection=collection)
-        context = {
-            "collection": collection,
-            "contents": contents,
-        }
-        return render(request, "partials/view_collection.html", context)
-    elif request.method == "PUT":
-        collection_pk = pk
-        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
-
-        data = QueryDict(request.body).dict()
-        content_pk = data.get("content_id")
-
-        if not content_pk:
-            logger.error("No content_id provided in PUT request")
-            return HttpResponse("Content ID is required", 400)
-
-        updated_content = get_object_or_404(Content, pk=content_pk)
-        form = UpdateContentForm(data, instance=updated_content)
-
-        if form.is_valid():
-            try:
-                form.save()
-                return render(
-                    request,
-                    "partials/content_display.html",
-                    {"content": updated_content},
-                )
-            except Exception as e:
-                logger.warning(
-                    f"An error occured when the user: {collection.owner} attempted to update the content: {updated_content.title} -> {e}"
-                )
-                response = render(
-                    request,
-                    "partials/edit_content.html",
-                    {"content": updated_content, "form": form},
-                )
-                return response
-        else:
-            response = render(
-                request,
-                "partials/edit_content.html",
-                {"content": updated_content, "form": form},
-            )
-            return response
+        return render(
+            request,
+            "collection_info.html",
+            {
+                "collection": collection,
+                "contents": published_contents,
+                "form": CollectionSettingsForm(instance=collection),
+            },
+        )
+    except Collection.DoesNotExist:
+        logger.error(
+            f"Failed to retrieve collection video because collection does not exist. Collection ID: {collection_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to retrieve collection video. Exception: {e}")
+        return HttpResponseServerError()
 
 
 def display_collection_settings(request, collection_id):
@@ -400,11 +372,11 @@ def display_collection_settings(request, collection_id):
 def update_collection_settings(request):
     form = CollectionSettingsForm(request.POST)
     if form.is_valid():
-        collection = get_object_or_404(Collection, pk=form.cleaned_data["id"])
-        collection.name = form.cleaned_data["name"]
-        collection.published = form.cleaned_data["published"]
-        collection.archived = form.cleaned_data["archived"]
         try:
+            collection = Collection.objects.get(pk=form.cleaned_data["id"])
+            collection.name = form.cleaned_data["name"]
+            collection.published = form.cleaned_data["published"]
+            collection.archived = form.cleaned_data["archived"]
             collection.save()
             collection_types = get_collection_types(request.user)
             context = {
@@ -413,7 +385,7 @@ def update_collection_settings(request):
                 "unpublished": collection_types["unpublished"],
                 "archived": collection_types["archived"],
             }
-            return render(request, "partials/finish_collection_settings.html", context)
+            return collection_info(request, collection.id)
         except Exception as e:
             logger.error(
                 f"An error occured while attempting to update collection settings. {e}"
@@ -1203,29 +1175,3 @@ def add_collection_member(request, collection_id):
         return redirect("view_collection", pk=collection.id)
 
     return HttpResponseBadRequest()
-
-
-def collection_info(request, collection_id):
-    try:
-        collection = Collection.objects.get(pk=collection_id)
-        published_contents = Content.objects.filter(
-            collection=collection, published=True
-        )
-
-        return render(
-            request,
-            "collection_info.html",
-            {
-                "collection": collection,
-                "contents": published_contents,
-                "form": CollectionSettingsForm(instance=collection),
-            },
-        )
-    except Collection.DoesNotExist:
-        logger.error(
-            f"Failed to retrieve collection video because collection does not exist. Collection ID: {collection_id}"
-        )
-        return HttpResponseBadRequest()
-    except Exception as e:
-        logger.error(f"Failed to retrieve collection video. Exception: {e}")
-        return HttpResponseServerError()

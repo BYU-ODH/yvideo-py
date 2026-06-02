@@ -48,10 +48,6 @@ function setupDeleteCollection() {
   });
 }
 
-// function setupUpdateCollectionSettings() {
-
-// }
-
 function setupResetCollectionSettings() {
   const resetButton = document.getElementById("collection-settings-reset");
 
