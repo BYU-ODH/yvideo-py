@@ -22,6 +22,8 @@ fi
 
 git fetch --quiet origin "$branch"
 
+# rev-parse gives the full commit hash for HEAD and origin/branch, so this checks if
+# the currently checked-out commit is the same as the latest commit on origin/branch.
 if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$branch")" ]; then
     exit 0
 fi
