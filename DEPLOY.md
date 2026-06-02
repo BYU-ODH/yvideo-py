@@ -4,10 +4,16 @@ Each server runs a single instance of the application behind an Apache
 reverse proxy. The application runs as a dedicated Unix user in a Podman
 container, with data and static files bind-mounted from the host.
 
+Deploys are pull-based: a per-user systemd timer polls the configured
+branch every minute, and when origin advances, the deploy user fetches,
+hard-resets the checkout, and rebuilds.
+
 ## Architecture
 
 ```txt
 Apache (443, TLS) ──→ 127.0.0.1:HOST_PORT → <app>.service (user <deploy-user>)
+
+<deploy-user>-deploy.timer → <deploy-user>-deploy.service → poll-and-deploy.sh → deploy.sh
 ```
 
 Apache serves `/static/` and `/media/` directly from the host filesystem.
@@ -20,14 +26,17 @@ All other requests are proxied to the Podman container. See
 |---|---|
 | `Dockerfile` | Builds the app image for Podman (Python 3.13, uv, gunicorn) |
 | `.containerignore` | Explicit build-context ignore file used by `podman build` |
-| `.env_template` | Template for the `.env` file used by deploy scripts to configure the Unix user, port, and Gunicorn tuning |
+| `.env_template` | Template for the `.env` file used by deploy scripts to configure the Unix user, port, branch, and Gunicorn tuning |
 | `deploy/quadlet.container.in` | Template for the Quadlet container unit |
-| `deploy/common.sh` | Shared helpers for loading `.env`, validating values, and locating Quadlet paths |
-| `deploy/install_quadlet.sh` | Renders and installs Quadlet units into the user Quadlet directory |
+| `deploy/deploy.service.in` | Template for the user-level `oneshot` service that runs `poll-and-deploy.sh` |
+| `deploy/deploy.timer.in` | Template for the user-level timer that fires the deploy service every minute |
+| `deploy/common.sh` | Shared helpers for loading `.env`, validating values, and locating Quadlet and user-systemd paths |
+| `deploy/install_quadlet.sh` | Renders and installs the Quadlet container unit (run on each deploy) |
+| `deploy/install_deploy_timer.sh` | Renders and installs the deploy service+timer into `~/.config/systemd/user/` (run once at initial setup) |
 | `deploy/manage.sh` | Runs Django management commands inside the running container |
 | `deploy/entrypoint.sh` | Container entrypoint: runs migrate, collectstatic, starts gunicorn |
-| `deploy/deploy_template.sh` | Template for `deploy/deploy.sh`; copy and set `DEPLOY_USER` to the deploy user |
-| `deploy/deploy.sh` | (Created from the template.) Verifies the expected branch, hard-resets to origin, refreshes Quadlets, and restarts the service |
+| `deploy/poll-and-deploy.sh` | Fetches `origin/$BRANCH` and, if it advanced, hard-resets and execs `deploy.sh` |
+| `deploy/deploy.sh` | Refreshes the Quadlet, rebuilds the image, and restarts the container service |
 | `deploy/apache-vhost-example.conf` | Example Apache reverse proxy config |
 
 ## Initial server setup
@@ -51,9 +60,9 @@ rootless storage and the systemd user runtime sit on the user partition
 in a conventional location. The application checkout lives separately
 under `/srv/`, owned by the same user.
 
-`enable-linger` keeps `systemd --user` running after the SSH session ends.
-The dedicated Unix user isolates the application's Podman storage and Quadlet
-units from other system services.
+`enable-linger` keeps `systemd --user` running after the SSH session
+ends — this is required because the deploy timer runs entirely inside
+the user manager.
 
 ### 2. Clone the repo
 
@@ -83,18 +92,30 @@ Edit `.env` and set at least:
 - `DEPLOY_USER=yvideo-dev`
 - `APP_NAME=yvideo-dev`
 - `HOST_PORT=8001`
+- `BRANCH=main` to pin (typical for prod/staging), or leave blank to track whatever branch is currently checked out (typical for dev — `git checkout other-branch` and the next poll redeploys)
 - `WORKERS=2`
 - `THREADS=2`
 
 The deployment scripts enforce `DEPLOY_USER` at runtime. If someone runs
-`deploy.sh`, `install_quadlet.sh`, or `manage.sh` from the wrong Unix
-user, the script exits instead of touching the wrong instance.
+`deploy.sh`, `install_quadlet.sh`, `install_deploy_timer.sh`, or
+`manage.sh` from the wrong Unix user, the script exits instead of
+touching the wrong instance.
 
 `APP_NAME` becomes all of the following:
 
-- The systemd user service name: `yvideo-dev.service`
+- The container systemd user service name: `yvideo-dev.service`
+- The deploy timer/service: `yvideo-dev-deploy.timer` / `yvideo-dev-deploy.service`
 - The Podman container name: `yvideo-dev`
 - The local image tag: `localhost/yvideo-dev:latest`
+
+`BRANCH` controls what the deploy timer tracks:
+
+- **Set** (e.g. `BRANCH=main`) — the timer pins this deployment to that
+  branch. Switching the checkout to another branch locally will not
+  redirect the timer; the next poll will reset back to `origin/$BRANCH`.
+- **Blank/unset** — the timer follows whatever branch is currently
+  checked out. Run `git checkout other-branch` and the next poll will
+  fetch `origin/other-branch` and deploy it. Useful on dev boxes.
 
 ### 4. Create `secret_settings.py`
 
@@ -137,7 +158,7 @@ chmod 600 data/db.sqlite3 data/db.sqlite3-wal data/db.sqlite3-shm 2>/dev/null ||
 
 The deploy entrypoint also enforces these permissions on every start.
 
-### 6. Render and install the container Quadlet
+### 6. Install the container Quadlet and start the service
 
 ```bash
 bash deploy/install_quadlet.sh
@@ -151,17 +172,22 @@ systemctl --user start yvideo-dev.service
 The deploy script builds the image directly with `podman build`
 (`.build` Quadlet units require Podman 5.0+; we target older hosts).
 
-### 7. Create `deploy/deploy.sh` from the template
-
-Copy the deploy template and set the `DEPLOY_USER` value in the
-fetch-runner guard at the top of the file so the script refuses to
-run as any other Unix user:
+### 7. Install the deploy timer
 
 ```bash
-cp deploy/deploy_template.sh deploy/deploy.sh
-chmod +x deploy/deploy.sh
-# edit deploy/deploy.sh and set DEPLOY_USER=yvideo-dev (or your deploy user)
+bash deploy/install_deploy_timer.sh
 ```
+
+This renders and installs:
+
+- `~/.config/systemd/user/yvideo-dev-deploy.service` — a oneshot service
+  that runs `deploy/poll-and-deploy.sh`.
+- `~/.config/systemd/user/yvideo-dev-deploy.timer` — fires the service
+  30s after boot and every 60s thereafter.
+
+The installer also runs `systemctl --user daemon-reload` and
+`systemctl --user enable --now <app>-deploy.timer`, so the timer is
+active immediately and persists across reboots (because of `linger`).
 
 ### 8. Seed demo data when needed
 
@@ -172,29 +198,99 @@ lives on the host bind mount and persists across deploys.
 bash deploy/manage.sh seed_demo_data
 ```
 
-## Manually deploying updates
+## How deploys happen
 
-SSH into the server and run the deploy script in the environment you
-want to update. For `dev`, you can switch to any branch first, but
-`staging` and `prod` should always deploy from their respective branches.
+**All deployments come from a git branch on `origin`.** The deploy
+process hard-resets the checkout to `origin/<branch>` on every run, so
+any uncommitted edits to tracked files and any local-only commits are
+destroyed. Untracked files and files in `.gitignore` (including
+database, secrets, env, etc.) persist. To ship a change, push it to the
+branch this deployment tracks — never edit tracked files directly on the
+server.
+
+Once the timer is installed, deploys are automatic:
+
+1. Every minute, `<app>-deploy.timer` triggers `<app>-deploy.service`.
+2. That service runs `deploy/poll-and-deploy.sh` as the deploy user
+   inside the user systemd manager — no namespace hardening, full
+   access to `~/.config/`, `/run/user/$UID`, and the rootless Podman
+   storage.
+3. `poll-and-deploy.sh` resolves the target branch: `$BRANCH` from
+   `.env` if set, otherwise the currently checked-out branch (errors if
+   `BRANCH` is unset and HEAD is detached). It then runs
+   `git fetch --quiet origin <branch>`. If `HEAD` already matches
+   `origin/<branch>`, it exits without doing anything.
+4. Otherwise it `git reset --hard origin/<branch>` and execs
+   `deploy/deploy.sh`.
+5. `deploy.sh` runs `install_quadlet.sh`, `podman build`,
+   `systemctl --user restart <app>.service`, and `podman image prune -f`.
+
+To push a new release: merge to the configured `BRANCH` on GitHub. The
+next timer tick picks it up.
+
+### Watching deploys
+
+```bash
+sudo -iu yvideo-dev
+systemctl --user status yvideo-dev-deploy.timer
+journalctl --user -u yvideo-dev-deploy.service -f
+```
+
+### Forcing a deploy now
+
+```bash
+sudo -iu yvideo-dev
+systemctl --user start yvideo-dev-deploy.service
+```
+
+### Switching branches on a dev deployment
+
+If `BRANCH` is left blank in `.env`, the timer follows the currently
+checked-out branch. To redirect the deployment to a different branch:
 
 ```bash
 sudo -iu yvideo-dev
 cd /srv/yvideo-dev/yvideo-py
 git fetch origin
-git checkout my-branch
-bash deploy/deploy.sh my-branch
+git checkout other-branch
+# next timer tick (≤60s) will fetch origin/other-branch and deploy it,
+# or force it now:
+systemctl --user start yvideo-dev-deploy.service
 ```
 
-### What `deploy.sh` does
+### Hotfixing a pinned deployment
 
-1. Verifies that the checked-out local branch matches the required `<branch>` argument and exits if it does not.
-2. Runs `git fetch origin`.
-3. Runs `git reset --hard origin/<branch>` so the checkout exactly matches the remote branch.
-4. Renders and installs the fresh Quadlet container unit from `.env`.
-5. Runs `podman build` to rebuild the local image from the checkout (pulling a fresh base image).
-6. Runs `systemctl --user restart <app-name>.service`.
-7. Runs `podman image prune -f` to clean up unused images.
+When `BRANCH` is pinned (e.g. `BRANCH=main` on prod), `git checkout`
+won't redirect the timer — the next tick resets back to `origin/main`.
+To ship a hotfix without merging it into the tracked branch yet, push
+a hotfix branch to `origin` and temporarily repoint `BRANCH` in `.env`.
+`.env` is re-read on every poll, so no service restart is needed.
+
+```bash
+# 1. On your laptop: push the hotfix branch to origin.
+git push origin hotfix-urgent-thing
+
+# 2. On the server: point the timer at the hotfix branch.
+sudo -iu yvideo-dev
+cd /srv/yvideo-dev/yvideo-py
+sed -i 's/^BRANCH=.*/BRANCH=hotfix-urgent-thing/' .env
+systemctl --user start yvideo-dev-deploy.service  # deploy now
+```
+
+Once the fix has been merged back into the normal release branch and
+that branch contains everything the hotfix had, restore the original
+`BRANCH` value so the deployment goes back to tracking the release
+branch:
+
+```bash
+sudo -iu yvideo-dev
+cd /srv/yvideo-dev/yvideo-py
+sed -i 's/^BRANCH=.*/BRANCH=main/' .env
+systemctl --user start yvideo-dev-deploy.service
+```
+
+Leaving a deployment pointed at a hotfix branch indefinitely is a
+footgun — future merges to `main` won't deploy until you switch back.
 
 ## Viewing logs and status
 
@@ -216,8 +312,9 @@ bash deploy/manage.sh shell           # open an interactive Django shell in the 
 ## Key configuration notes
 
 - **Dedicated Unix user**: The application runs under a dedicated Unix user (e.g. `yvideo-dev`) with its home directory at `/home/<user>/` and its checkout at `/srv/<user>/<repo-name>/`. The scripts enforce this with `DEPLOY_USER` and a checkout ownership check.
+- **Pull-based deploys**: The deploy timer runs entirely inside the deploy user's own `systemd --user` instance, so there is no external runner with a hardened mount namespace fighting Podman, Quadlet, or rootless container storage. `loginctl enable-linger <user>` is required for the timer to fire when no one is logged in.
 - **Restrictive file permissions**: `.env`, `yvideo/secret_settings.py`, and the SQLite database files are kept at `chmod 600` so secrets and the database are readable only by the deploy user. The deploy entrypoint reapplies `600` to the database files on each container start.
-- **Rootless services**: The deployment scripts refuse to run as `root`. All Quadlets install into `~/.config/containers/systemd/` for the application user.
+- **Rootless services**: The deployment scripts refuse to run as `root`. All Quadlets install into `~/.config/containers/systemd/` and the deploy timer into `~/.config/systemd/user/` for the application user.
 - **SQLite database**: Stored in `data/db.sqlite3` with WAL/SHM files alongside it. The `data/` bind mount preserves all of them across rebuilds.
 - **Static files**: `manage.py collectstatic` writes to `STATIC_ROOT` (as set in `settings.py`) on the host. Apache serves this directory directly at `/static/`.
 - **Media files**: User uploads go to `media/`, also served directly by Apache at `/media/`.
