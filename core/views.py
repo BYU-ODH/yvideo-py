@@ -334,16 +334,14 @@ def create_collection(request):
 def collection_info(request, collection_id):
     try:
         collection = Collection.objects.get(pk=collection_id)
-        published_contents = Content.objects.filter(
-            collection=collection, published=True
-        )
+        contents = Content.objects.filter(collection=collection)
 
         return render(
             request,
             "collection_info.html",
             {
                 "collection": collection,
-                "contents": published_contents,
+                "contents": contents,
                 "form": CollectionSettingsForm(instance=collection),
             },
         )
@@ -402,22 +400,12 @@ def get_collection_contents(collection):
     return {"published": published, "unpublished": unpublished}
 
 
-def display_collection_contents(request, collection_id):
-    collection = get_object_or_404(Collection, pk=collection_id)
-    contents = get_collection_contents(collection)
-    context = {
-        "collection": collection,
-        "published_contents": contents["published"],
-        "unpublished_contents": contents["unpublished"],
-    }
-    return render(request, "partials/collection_contents_display.html", context)
-
-
 @require_http_methods(["DELETE"])
 def delete_collection(request, collection_id):
     try:
         collection = Collection.objects.get(pk=collection_id)
-        collection.delete()
+        if request.user.is_admin or request.user == collection.owner:
+            collection.delete()
         return HttpResponse()
     except Exception as e:
         logger.error(
@@ -444,12 +432,12 @@ def display_create_content(request, collection_id):
 
 @require_POST
 def create_content(request):
-    collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
     form = ContentForm(request.POST)
 
     if form.is_valid():
         data = form.cleaned_data
         try:
+            collection = Collection.objects.get(pk=request.POST["collection_id"])
             Content.objects.create(
                 collection=collection,
                 title=data["title"],
@@ -465,20 +453,7 @@ def create_content(request):
             )
             return HttpResponseServerError()
 
-        try:
-            contents = get_collection_contents(collection)
-        except Exception as e:
-            logger.error(
-                f"An error occured while trying to gather collection contents after content creation. Exception: {e}"
-            )
-            return HttpResponseServerError()
-
-        context = {
-            "collection": collection,
-            "published_contents": contents["published"],
-            "unpublished_contents": contents["unpublished"],
-        }
-        return render(request, "partials/collection_contents_display.html", context)
+        return collection_info(request, collection.id)
     else:
         return HttpResponseBadRequest()
 

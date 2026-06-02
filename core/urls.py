@@ -21,11 +21,6 @@ urlpatterns = [
         name="delete_collection",
     ),
     path(
-        "display-collection-contents/<int:collection_id>/",
-        views.display_collection_contents,
-        name="display_collection_contents",
-    ),
-    path(
         "display-collection-settings/<int:collection_id>/",
         views.display_collection_settings,
         name="display_collection_settings",
