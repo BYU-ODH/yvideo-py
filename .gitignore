@@ -2,9 +2,6 @@ data/
 media/
 secret_settings.py
 scripts/dump_legacy_to_sqlite_settings.py
-db-languages.txt
-deploy/auto-deploy/jobs.toml
-.auto-deploy-required-user
 *settings.json
 *advanced_settings.json
 *sp.cert

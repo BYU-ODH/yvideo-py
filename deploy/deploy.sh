@@ -1,34 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-if [ "$#" -ne 1 ]; then
-    printf 'Usage: %s <branch>\n' "$0" >&2
-    exit 1
-fi
-
-expected_branch="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/common.sh"
 
 require_non_root_user
-repo_root="$(repo_root)"
 load_deploy_env
 require_deploy_user_context
 
+repo_root="$(repo_root)"
 cd "$repo_root"
 
-local_branch="$(git branch --show-current)"
-local_branch_display="${local_branch:-DETACHED_HEAD}"
-
-if [ "$local_branch" != "$expected_branch" ]; then
-    printf 'Refusing to deploy: expected branch "%s" but local branch is "%s"\n' "$expected_branch" "$local_branch_display" >&2
-    exit 1
-fi
-
-echo "Deploying $expected_branch at $(date)"
-
-git fetch origin
-git reset --hard "origin/$expected_branch"
+echo "Deploying $(git rev-parse --short HEAD) at $(date)"
 
 bash "$script_dir/install_quadlet.sh"
 podman build -t "$(build_image_tag)" -f "$repo_root/Dockerfile" "$repo_root"

@@ -18,8 +18,20 @@ quadlet_dir() {
     printf '%s\n' "${QUADLET_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd}"
 }
 
+user_systemd_dir() {
+    printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+}
+
 container_service_name() {
     printf '%s.service\n' "$APP_NAME"
+}
+
+deploy_service_name() {
+    printf '%s-deploy.service\n' "$APP_NAME"
+}
+
+deploy_timer_name() {
+    printf '%s-deploy.timer\n' "$APP_NAME"
 }
 
 build_image_tag() {
@@ -79,6 +91,7 @@ load_deploy_env() {
     : "${APP_NAME:?APP_NAME is required in $env_file}"
     : "${HOST_PORT:?HOST_PORT is required in $env_file}"
 
+    BRANCH="${BRANCH:-}"
     WORKERS="${WORKERS:-2}"
     THREADS="${THREADS:-2}"
 
@@ -91,6 +104,7 @@ load_deploy_env() {
     export DEPLOY_USER
     export APP_NAME
     export HOST_PORT
+    export BRANCH
     export WORKERS
     export THREADS
 }
@@ -114,7 +128,7 @@ escape_sed_replacement() {
     printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'
 }
 
-render_quadlet_template() {
+render_template() {
     local template="$1"
     local output="$2"
     local root

@@ -1,0 +1,7 @@
+[Unit]
+Description=Poll origin and deploy @APP_NAME@ if there is a new commit
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO_ROOT@
+ExecStart=@REPO_ROOT@/deploy/poll-and-deploy.sh
