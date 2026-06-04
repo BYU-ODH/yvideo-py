@@ -573,6 +573,27 @@ def render_content_settings_form(request, content_id):
         return HttpResponseServerError()
 
 
+def remove_content_from_collection(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        if request.user.is_admin or request.user == content.collection.owner:
+            collection_id = content.collection.pk
+            content.collection = None
+            content.save()
+            return HttpResponse(collection_id)
+        else:
+            return HttpResponse(status=401)
+
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to remove content from collection because the content doesn't exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to remove content from collection. Exception: {e}")
+        return HttpResponseServerError()
+
+
 @require_POST
 def update_content(request):
     form = ContentSettingsForm(request.POST)

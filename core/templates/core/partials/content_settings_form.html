@@ -1,3 +1,5 @@
+{% load static %}
+
 <form method="post" action="/content/update/">
     {% csrf_token  %}
 
@@ -27,8 +29,11 @@
                 {{ form.words.as_field_group }}
             </div>
         </div>
-        <div class="content-form-group">
-            {{ form.description.as_field_group }}
+        <div id="content-settings-description-wrapper" class="content-form-group column-flex">
+            <label for="{{ form.description.id_for_label }}">
+                Description:
+            </label>
+            {{ form.description }}
         </div>
     </div>
 
@@ -43,3 +48,4 @@
         </div>
     </div>
 </form>
+<script type="module" src="{% static 'js/updateContentSettings.js' %}"></script>

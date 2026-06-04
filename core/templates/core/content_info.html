@@ -21,25 +21,25 @@
         <div class="row-flex flex-apart-aligned">
             <h3>Settings</h3>
             {% if user.is_admin or user == content.collection.owner %}
+            <dialog id="content-remove-modal" class="user-view-modal">
+                <h3 class="user-view-modal-header">
+                    Remove this video from the collection?
+                </h3>
+                <div class="user-view-modal-body row-flex flex-apart-aligned">
+                    <button id="content-confirm-remove" class="blue-button">
+                        Yes
+                    </button>
+                    <button class="cancel-button" command="close" commandfor="content-remove-modal">
+                        No
+                    </button>
+                </div>
+            </dialog>
             <button  type="button" id="content-details-delete-button" class="red-button" command="show-modal" commandfor="content-remove-modal">
                 Remove from collection
             </button>
             {% endif %}
         </div>
         {% include 'partials/content_settings_form.html' %}
-        <dialog id="content-remove-modal" class="user-view-modal">
-            <h3 class="user-view-modal-header">
-                Remove this video from the collection?
-            </h3>
-            <div class="user-view-modal-body row-flex flex-apart-aligned">
-                <button id="content-confirm-remove" class="blue-button">
-                    Yes
-                </button>
-                <button class="cancel-button" command="close" commandfor="content-remove-modal">
-                    No
-                </button>
-            </div>
-        </dialog>
     </div>
 </main>
 <script type="module" src="{% static 'js/contentInfo.js' %}"></script>

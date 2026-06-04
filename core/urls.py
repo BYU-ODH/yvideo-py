@@ -68,6 +68,11 @@ urlpatterns = [
     ),
     path("content/update/", views.update_content, name="update_content"),
     path(
+        "content/remove-from-collection/<int:content_id>/",
+        views.remove_content_from_collection,
+        name="remove_content_from_collection",
+    ),
+    path(
         "content/delete/<int:content_id>", views.delete_content, name="delete_content"
     ),
     path(
