@@ -57,6 +57,7 @@ class ContentSettingsForm(forms.ModelForm):
     class Meta:
         model = Content
         fields = [
+            "id",
             "title",
             "description",
             "allow_definitions",
@@ -65,6 +66,8 @@ class ContentSettingsForm(forms.ModelForm):
             "published",
             "words",
         ]
+
+        id = forms.CharField(widget=forms.HiddenInput)
 
 
 class UpdateContentForm(forms.ModelForm):

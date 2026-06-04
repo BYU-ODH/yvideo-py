@@ -542,9 +542,6 @@ def display_content_info(request, content_id):
             "content": content,
             "content_id": content.pk,
             "resource_file_key_id": resource_file_key.pk,
-            "form": form,
-            "word_form": word_form,
-            "words": words,
         }
         return render(request, "content_info.html", context)
     except Content.DoesNotExist:
@@ -596,38 +593,36 @@ def remove_content_from_collection(request, content_id):
 
 @require_POST
 def update_content(request):
-    form = ContentSettingsForm(request.POST)
-    if form.is_valid():
-        content = Content.objects.get(pk=form.cleaned_data["id"])
-        content.title = form.cleaned_data["title"]
-        content.description = form.cleaned_data["description"]
-        if "allow_definitions" in form.cleaned_data:
-            content.allow_definitions = form.cleaned_data["allow_definitions"]
-        if "allow_notes" in form.cleaned_data:
-            content.allow_notes = form.cleaned_data["allow_notes"]
-        if "allow_captions" in form.cleaned_data:
-            content.allow_captions = form.cleaned_data["allow_captions"]
-        if "published" in form.cleaned_data:
-            content.published = form.cleaned_data["published"]
-        try:
-            content.save()
-            contents = get_collection_contents(content.collection)
-            context = {
-                "collection": content.collection,
-                "published_contents": contents["published"],
-                "unpublished_contents": contents["unpublished"],
-            }
-            return render(request, "partials/collection_contents_display.html", context)
-        except Content.DoesNotExist:
-            logger.error(
-                "Failed to update content because the content object does not exist"
-            )
-            return HttpResponseBadRequest()
-        except Exception as e:
-            logger.error(f"An error occured while updating content. Exception: {e}")
-            return HttpResponseServerError()
-    else:
+    try:
+        data = json.loads(request.body)
+        content = Content.objects.get(pk=data["id"])
+        content.title = data["title"]
+        content.description = data["description"]
+        if "allow_definitions" in data:
+            content.allow_definitions = data["allow_definitions"]
+        if "allow_notes" in data:
+            content.allow_notes = data["allow_notes"]
+        if "allow_captions" in data:
+            content.allow_captions = data["allow_captions"]
+        if "published" in data:
+            content.published = data["published"]
+
+        content.save()
+        contents = get_collection_contents(content.collection)
+        context = {
+            "collection": content.collection,
+            "published_contents": contents["published"],
+            "unpublished_contents": contents["unpublished"],
+        }
+        return render(request, f"content/display-settings/{content.pk}/", context)
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to update content because the content object does not exist"
+        )
         return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"An error occured while updating content. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST

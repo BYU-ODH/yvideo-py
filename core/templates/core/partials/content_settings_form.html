@@ -1,54 +1,53 @@
 {% load static %}
 
-<form id="content-settings-form" method="post" action="/content/update/">
-    {% csrf_token  %}
-
-    {{ form.non_field_errors }}
-    {{ form.id }}
-
+<div id="content-settings-form" class="column-flex" method="post" action="/content/update/">
+    <input id="content-id-input" hidden disabled value="{{ content.id }}">
     <div class="row-flex">
         <div class="column-flex">
             <div class="content-form-group">
-                {{ form.title.as_field_group}}
+                <label for="title">Title</label>
+                <input id="title" type="text" value="{{ content.title }}">
             </div>
             <div class="content-form-group">
-                {{ form.published.as_field_group }}
+                <label for="published">Published</label>
+                <input id="published" type="checkbox" value="{{ content.published }}">
             </div>
             <div class="row-flex">
                 <div class="content-form-group">
-                    {{ form.allow_definitions.as_field_group }}
+                    <label for="allow-definitions">Allow definitions</label>
+                    <input id="allow-definitions" type="checkbox" value="{{ content.allow_definitions }}">
                 </div>
                 <div class="content-form-group">
-                    {{ form.allow_notes.as_field_group }}
+                    <label for="allow-notes">Allow notes</label>
+                    <input id="allow-notes" type="checkbox" value="{{ content.allow_notes }}">
                 </div>
                 <div class="content-form-group">
-                    {{ form.allow_captions.as_field_group }}
+                    <label for="allow-captions">Allow captions</label>
+                    <input id="allow-captions" type="checkbox" value="{{ content.allow_captions }}">
                 </div>
             </div>
             <div class="content-form-group column-flex">
-                <label for="{{ form.words.id_for_label }}">
-                    Important words:
+                <label for="words">
+                    Important words
                 </label>
-                {{ form.words }}
+                <textarea id="words" value="{{ content.words }}"></textarea>
             </div>
         </div>
         <div id="content-settings-description-wrapper" class="content-form-group column-flex">
-            <label for="{{ form.description.id_for_label }}">
-                Description:
-            </label>
-            {{ form.description }}
+            <label for="description">Description</label>
+            <textarea id="description" value="{{ content.description }}"></textarea>
         </div>
     </div>
 
     <div class="row-flex flex-apart-aligned">
         <div class="row-flex">
-            <button type="submit" class="blue-button">
+            <button id="content-settings-submit-button" class="blue-button">
                 Submit
             </button>
-            <button id="content-settings-reset-button" type="button" class="cancel-button">
+            <button id="content-settings-reset-button" class="cancel-button">
                 Reset
             </button>
         </div>
     </div>
-</form>
+</div>
 <script type="module" src="{% static 'js/updateContentSettings.js' %}"></script>
