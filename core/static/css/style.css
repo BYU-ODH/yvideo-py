@@ -1585,15 +1585,32 @@ p.tile-subtitle {
     align-items: flex-end;
 }
 
-#collection-video-list {
+#collection-video-list, #resource-detail-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
 }
 
-.collection-video-tile {
+.collection-video-tile, .resource-details {
     border-radius: 12px;
     box-shadow: rgb(185, 184, 184) 0px 1px 3px;
+}
+
+.resource-details h3, .resource-details p {
+    margin: 0;
+}
+
+.resource-details {
+    padding: 1rem;
+    transition: 0.15s linear box-shadow;
+    /* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
+    reports that it is supported by all browsers:
+    https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
+    /* eslint-disable-next-line css/use-baseline */
+    &:hover {
+        box-shadow: rgb(185, 184, 184) 2px 4px 6px;
+        cursor: pointer;
+    }
 }
 
 h4.video-title {

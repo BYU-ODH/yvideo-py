@@ -39,6 +39,7 @@ from .models import Content
 from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import Resource
+from .models import ResourceFile
 from .models import ResourceFileKey
 from .models import SkipAnnotation
 from .models import Subtitle
@@ -432,41 +433,81 @@ def display_create_content(request, collection_id):
 
 @require_POST
 def create_content(request):
-    form = ContentForm(request.POST)
-
-    if form.is_valid():
-        data = form.cleaned_data
-        try:
-            collection = Collection.objects.get(pk=request.POST["collection_id"])
-            Content.objects.create(
-                collection=collection,
-                title=data["title"],
-                description=data["description"],
-                allow_definitions=data["allow_definitions"],
-                allow_notes=data["allow_notes"],
-                allow_captions=data["allow_captions"],
-                resource_file=data["resource_file"],
-            )
-        except Exception as e:
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "collection_id" not in parsed_data
+            or "title" not in parsed_data
+            or "resource_file_id" not in parsed_data
+        ):
             logger.error(
-                f"An error occured while creating a new Content. Exception: {e}"
+                f"Failed to create new content beacuse of invalid data provided. Exception: {e}"
             )
-            return HttpResponseServerError()
+            return HttpResponseBadRequest()
 
-        return collection_info(request, collection.id)
-    else:
+        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        resource_file = ResourceFile.objects.get(pk=parsed_data["resource_file_id"])
+        Content.objects.create(
+            collection=collection,
+            title=parsed_data["title"],
+            resource_file=resource_file,
+        )
+        return HttpResponse()
+    except ResourceFile.DoesNotExist:
+        logger.error("Failed to create new content due to missing ResourceFile")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"An error occured while creating a new Content. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def display_create_from_resource(request, collection_id):
+    if collection_id is None:
+        return HttpResponseBadRequest()
+    try:
+        Collection.objects.get(pk=collection_id)
+    except Exception as e:
+        logger.error(
+            f"Failed to display resources to create a content for the given collection. Exception: {e}"
+        )
         return HttpResponseBadRequest()
 
+    try:
+        resources = Resource.objects.all()
+        return render(
+            request,
+            "create_from_resource.html",
+            {"resources": resources, "collection_id": collection_id},
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to display resources to create content from. Exception: {e}"
+        )
+        return HttpResponseServerError()
 
-def display_resources_files(request):
-    resource_id = request.GET.get("resource_id")
-    resource = get_object_or_404(Resource, id=resource_id)
-    resource_files = (
-        resource.resource_files.all()
-    )  # uses related_name="resource_files" in File model
-    return render(
-        request, "partials/select_file.html", {"resource_files": resource_files}
-    )
+
+def render_create_from_resource_form(request):
+    try:
+        parsed_data = json.loads(request.body)
+        if "resource_id" not in parsed_data or "collection_id" not in parsed_data:
+            return HttpResponseBadRequest()
+
+        resource_id = parsed_data["resource_id"]
+        resource = Resource.objects.get(pk=resource_id)
+
+        context = {
+            "collection_id": parsed_data["collection_id"],
+            "options": resource.resource_files.all(),
+        }
+        return render(request, "partials/create_from_resource_form.html", context)
+    except Resource.DoesNotExist:
+        logger.error(
+            "Failed to render the create from resource form because no Resource matches the provided resource_id"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to render the create from resource form. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_http_methods(["DELETE"])

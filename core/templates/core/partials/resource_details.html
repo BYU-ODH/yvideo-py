@@ -1,0 +1,11 @@
+<div class="resource-details" data-resource-id="{{resource.pk}}">
+    <div class="resource-detail-heading">
+        <h3>{{ resource.name }}</h3>
+    </div>
+    <div>
+        <p>Number of versions: {{ resource.resource_files.count }}</p>
+        {% if resource.notes %}
+            <p>Notes: {{ resource.notes }}</p>
+        {% endif %}
+    </div>
+</div>

@@ -40,11 +40,21 @@ urlpatterns = [
         views.display_create_content,
         name="display_create_content",
     ),
-    path("content/create", views.create_content, name="create_content"),
+    path("content/create/", views.create_content, name="create_content"),
     path(
-        "display-resources-files/",
-        views.display_resources_files,
-        name="display_resources_files",
+        "content-intake-request/",
+        views.request_content,
+        name="request_content",
+    ),
+    path(
+        "create-from-resource/<int:collection_id>",
+        views.display_create_from_resource,
+        name="display_create_from_resource",
+    ),
+    path(
+        "create-from-resource-form/",
+        views.render_create_from_resource_form,
+        name="render_create_from_resource_form",
     ),
     path(
         "content/display-settings/<int:content_id>/",
@@ -264,10 +274,5 @@ urlpatterns = [
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",
         views_video_editor.load_annotation_form,
         name="load_annotation_form",
-    ),
-    path(
-        "content-intake-request/",
-        views.request_content,
-        name="request_content",
     ),
 ]
