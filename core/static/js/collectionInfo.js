@@ -16,6 +16,9 @@ function setupVideoSearch() {
 
 function getCollectionIdValue() {
   const collectionForm = document.getElementById("collection-settings-form");
+  if (!collectionForm) {
+    return;
+  }
   const idInput = collectionForm.querySelector("input[name='id']");
   const idValue = idInput?.value;
   if (idValue === undefined) {
@@ -27,6 +30,9 @@ function getCollectionIdValue() {
 
 function setupDeleteCollection() {
   const deleteButton = document.getElementById("collection-confirm-delete");
+  if (!deleteButton) {
+    return;
+  }
   const idValue = getCollectionIdValue();
   deleteButton.addEventListener("click", async () => {
     if (idValue === undefined) {
@@ -50,7 +56,9 @@ function setupDeleteCollection() {
 
 function setupResetCollectionSettings() {
   const resetButton = document.getElementById("collection-settings-reset");
-
+  if (!resetButton) {
+    return;
+  }
   resetButton.addEventListener("click", async (event) => {
     event.preventDefault();
     const collectionId = getCollectionIdValue();

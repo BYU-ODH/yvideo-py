@@ -50,7 +50,11 @@
                 {% for content in contents %}
                     {% if content.published == True or content.published == False and collection.owner == user or user.is_admin %}
                     <div class="collection-video tile">
+                        {% if user.is_admin or collection.owner == user %}
+                        <a href="{% url 'display_content_info' content.id %}" class="collection-video-tile">
+                        {% else %}
                         <a href="{% url 'player' content.id %}" class="collection-video-tile">
+                        {% endif %}
                             <div class="tile-image">
                                 <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
                             </div>
