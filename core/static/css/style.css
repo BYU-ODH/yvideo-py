@@ -957,20 +957,28 @@ p.tile-subtitle {
     transform: rotate(180deg);
 }
 
-#collection-settings {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
+#collection-settings, #content-settings {
     padding: 1rem;
     border-radius: 1rem;
     border: 1px solid #00000025;
 }
 
-#collection-settings h3 {
+#collection-settings {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+#content-settings {
+    display: flex;
+    flex-direction: column;
+}
+
+#collection-settings h3, #content-settings h3 {
     margin: 0;
 }
 
-#collection-settings form {
+#collection-settings form, #content-settings form {
     align-items: flex-start;
 }
 

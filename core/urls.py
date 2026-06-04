@@ -58,10 +58,15 @@ urlpatterns = [
     ),
     path(
         "content/display-settings/<int:content_id>/",
-        views.display_content_settings,
-        name="display_content_settings",
+        views.display_content_info,
+        name="display_content_info",
     ),
-    path("content/update", views.update_content, name="update_content"),
+    path(
+        "content/render-settings-form/<int:content_id>/",
+        views.render_content_settings_form,
+        name="render_content_settings_form",
+    ),
+    path("content/update/", views.update_content, name="update_content"),
     path(
         "content/delete/<int:content_id>", views.delete_content, name="delete_content"
     ),

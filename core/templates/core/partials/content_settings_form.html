@@ -1,0 +1,45 @@
+<form method="post" action="/content/update/">
+    {% csrf_token  %}
+
+    {{ form.non_field_errors }}
+    {{ form.id }}
+
+    <div class="row-flex">
+        <div class="column-flex">
+            <div class="content-form-group">
+                {{ form.title.as_field_group}}
+            </div>
+            <div class="content-form-group">
+                {{ form.published.as_field_group }}
+            </div>
+            <div class="row-flex">
+                <div class="content-form-group">
+                    {{ form.allow_definitions.as_field_group }}
+                </div>
+                <div class="content-form-group">
+                    {{ form.allow_notes.as_field_group }}
+                </div>
+                <div class="content-form-group">
+                    {{ form.allow_captions.as_field_group }}
+                </div>
+            </div>
+            <div class="content-form-group">
+                {{ form.words.as_field_group }}
+            </div>
+        </div>
+        <div class="content-form-group">
+            {{ form.description.as_field_group }}
+        </div>
+    </div>
+
+    <div class="row-flex flex-apart-aligned">
+        <div class="row-flex">
+            <button type="submit" class="blue-button">
+                Submit
+            </button>
+            <button type="button" class="cancel-button">
+                Reset
+            </button>
+        </div>
+    </div>
+</form>

@@ -27,6 +27,7 @@ from django.views.decorators.http import require_POST
 from .forms import ClipForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
+from .forms import ContentSettingsForm
 from .forms import ImportantWordForm
 from .forms import ResourceContentIntakeRequestForm
 from .forms import UpdateContentForm
@@ -530,11 +531,53 @@ def delete_content(request, content_id):
     return HttpResponseBadRequest()
 
 
+def display_content_info(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        resource_file_key = request.user.get_resource_filekey(content)
+        form = UpdateContentForm(instance=content)
+        word_form = ImportantWordForm()
+        words = ImportantWord.objects.filter(content=content)
+        context = {
+            "content": content,
+            "content_id": content.pk,
+            "resource_file_key_id": resource_file_key.pk,
+            "form": form,
+            "word_form": word_form,
+            "words": words,
+        }
+        return render(request, "content_info.html", context)
+    except Content.DoesNotExist:
+        logger.error(
+            f"Failed to display content settings because of missing content object. Id provided: {content_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to display content settings. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def render_content_settings_form(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        form = ContentSettingsForm(instance=content)
+        context = {"content": content, "form": form}
+        return render(request, "partials/content_settings_form.html", context)
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to render content settings form beacuse the requested content does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to render content settings form. Exception: {e}")
+        return HttpResponseServerError()
+
+
 @require_POST
 def update_content(request):
-    form = UpdateContentForm(request.POST)
+    form = ContentSettingsForm(request.POST)
     if form.is_valid():
-        content = get_object_or_404(Content, pk=form.cleaned_data["id"])
+        content = Content.objects.get(pk=form.cleaned_data["id"])
         content.title = form.cleaned_data["title"]
         content.description = form.cleaned_data["description"]
         if "allow_definitions" in form.cleaned_data:
@@ -554,20 +597,16 @@ def update_content(request):
                 "unpublished_contents": contents["unpublished"],
             }
             return render(request, "partials/collection_contents_display.html", context)
+        except Content.DoesNotExist:
+            logger.error(
+                "Failed to update content because the content object does not exist"
+            )
+            return HttpResponseBadRequest()
         except Exception as e:
             logger.error(f"An error occured while updating content. Exception: {e}")
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
-
-
-def display_content_settings(request, content_id):
-    content = get_object_or_404(Content, pk=content_id)
-    form = UpdateContentForm(instance=content)
-    word_form = ImportantWordForm()
-    words = ImportantWord.objects.filter(content=content)
-    context = {"content": content, "form": form, "word_form": word_form, "words": words}
-    return render(request, "partials/content_settings.html", context)
 
 
 @require_POST
