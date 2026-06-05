@@ -157,6 +157,10 @@ a.blue-button {
     align-items: center;
 }
 
+.flex-apart {
+    justify-content: space-between;
+}
+
 .column-flex {
     display: flex;
     flex-direction: column;
@@ -984,6 +988,12 @@ p.tile-subtitle {
 
 #collection-settings form, #content-settings form {
     align-items: flex-start;
+}
+
+/* collection course assignment form */
+#assign-course-wrapper h4 {
+    margin: 0;
+    margin-top: 1rem;
 }
 
 .arrow-icon {

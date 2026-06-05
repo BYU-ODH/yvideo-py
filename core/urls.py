@@ -14,6 +14,11 @@ urlpatterns = [
         views.collection_info,
         name="collection_info",
     ),
+    path(
+        "collections/render-course-assignment/",
+        views.render_course_assignment,
+        name="render_course_assignment",
+    ),
     path("collections/create/", views.create_collection, name="create_collection"),
     path(
         "collections/delete/<int:collection_id>/",

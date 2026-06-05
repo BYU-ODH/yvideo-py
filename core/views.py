@@ -1,3 +1,4 @@
+from datetime import datetime
 from functools import wraps
 import json
 import logging
@@ -332,10 +333,61 @@ def create_collection(request):
         return HttpResponseBadRequest()
 
 
+def get_semester_and_year_options():
+    # we need a list of years for the year selector when assigning collection to course
+    today = datetime.now()
+    start_year = today.year - 5
+    year_options = [
+        {"value": x, "current": x == today.year}
+        for x in range(start_year, (start_year + 10))
+    ]
+
+    # we need to make a guess about what semester it is to help the user
+    month = today.month
+    semester = None
+    if month < 5:
+        semester = 1  # winter
+    elif month == 5:
+        semester = 3  # spring
+    elif month == 6 or month == 7:
+        semester = 4  # summer
+    else:
+        semester = 5  # fall
+
+    return {
+        "year_options": year_options,
+        "semester": semester,
+        "yearterm": f"{today.year}{semester}",
+    }
+
+
+def get_assigned_courses(collection, yearterm):
+    courses = collection.courses.filter(yearterm=yearterm)
+    # aggregate the section numbers under the course title (course.dept course.catalog_number)
+    assigned_courses_map = {}
+    for course in courses:
+        course_map_key = f"{course.dept} {course.catalog_number}"
+        if course_map_key not in assigned_courses_map:
+            assigned_courses_map[course_map_key] = []
+        if course.section_number not in assigned_courses_map[course_map_key]:
+            assigned_courses_map[course_map_key].append(course.section_number)
+
+    # prepare assigned course information for easy integration into the course_assignment.html template
+    assigned_courses = [
+        {"title": title, "section_list": ", ".join(sections)}
+        for title, sections in assigned_courses_map.items()
+    ]
+    return assigned_courses
+
+
 def collection_info(request, collection_id):
     try:
         collection = Collection.objects.get(pk=collection_id)
         contents = Content.objects.filter(collection=collection)
+        year_and_semester = get_semester_and_year_options()
+        assigned_courses = get_assigned_courses(
+            collection, year_and_semester["yearterm"]
+        )
 
         return render(
             request,
@@ -344,6 +396,9 @@ def collection_info(request, collection_id):
                 "collection": collection,
                 "contents": contents,
                 "form": CollectionSettingsForm(instance=collection),
+                "year_options": year_and_semester["year_options"],
+                "semester": year_and_semester["semester"],
+                "assigned_courses": assigned_courses,
             },
         )
     except Collection.DoesNotExist:
@@ -360,10 +415,48 @@ def display_collection_settings(request, collection_id):
     try:
         collection = Collection.objects.get(pk=collection_id)
         form = CollectionSettingsForm(instance=collection)
-        context = {"collection": collection, "form": form}
+        year_and_semester = get_semester_and_year_options()
+
+        context = {
+            "collection": collection,
+            "form": form,
+            "semester": year_and_semester["semester"],
+            "year_options": year_and_semester["year_options"],
+        }
         return render(request, "partials/collection_settings.html", context)
     except Exception as e:
         logger.error(f"Failed to render collection settings. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def render_course_assignment(request):
+    try:
+        parsed_data = json.loads(request.body)
+        collection_id = parsed_data["collection_id"]
+        collection = Collection.objects.get(pk=collection_id)
+        semester = parsed_data["semester"]
+        year = parsed_data["year"]
+
+        # perform some minimal sanitation since we are passing this value into the db
+        if len(semester) > 1 or len(year) > 4:
+            return HttpResponseBadRequest()
+
+        yearterm = f"{year}{semester}"
+        assigned_courses = get_assigned_courses(collection, yearterm)
+
+        return render(
+            request,
+            "partials/course_assignment.html",
+            {"assigned_courses": assigned_courses},
+        )
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to render course assignment information because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to render course assignment information. Exception: {e}")
         return HttpResponseServerError()
 
 

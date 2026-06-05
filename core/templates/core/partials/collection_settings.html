@@ -38,7 +38,41 @@
             </button>
         </div>
     </dialog>
-    <button id="collection-settings-delete" class="red-button position-flex-start" command="show-modal" commandfor="collection-delete-modal">
-        Delete Collection
-    </button>
+    <dialog id="collection-course-assignments-modal" class="user-view-modal">
+        <h3 class="user-view-modal-header">
+            Edit Course Assignments
+        </h3>
+        <div class="user-view-modal-body column-flex">
+            <div class="row-flex">
+                <div class="column-flex">
+                    <label for="semester-selector">Semester</label>
+                    <select id="semester-selector">
+                        <option {% if semester == 5 %}selected{% endif %} value="5">Fall</option>
+                        <option {% if semester == 1 %}selected{% endif %} value="1">Winter</option>
+                        <option {% if semester == 3 %}selected{% endif %} value="3">Spring</option>
+                        <option {% if semester == 4 %}selected{% endif %} value="4">Summer</option>
+                    </select>
+                </div>
+                <div class="column-flex">
+                    <label>Year</label>
+                    <select id="year-selector">
+                        {% for year_option in year_options %}
+                            <option {% if year_option.current %}selected{% endif %} value="{{ year_option.value }}">{{ year_option.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div id="course-assignment-container">
+                {% include 'partials/course_assignment.html' %}
+            </div>
+        </div>
+    </dialog>
+    <div class="column-flex flex-apart">
+        <button id="collection-settings-delete" class="red-button" command="show-modal" commandfor="collection-delete-modal">
+            Delete Collection
+        </button>
+        <button id="collection-edit-course-assignment-button" class="blue-button" command="show-modal" commandfor="collection-course-assignments-modal">
+            Edit Course Assignments
+        </button>
+    </div>
 </div>
