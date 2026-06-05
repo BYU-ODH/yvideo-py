@@ -11,16 +11,13 @@
         <h2>Content Details</h2>
         <h3>{{content.collection.name}}: {{ content.title }}</h3>
     </div>
-    <div id="content-details-video-player">
-        {% include 'partials/player-wrapper.html' %}
-    </div>
+    {% if user.is_admin or user == content.collection.owner %}
     <a class="white-button-with-border position-flex-start" href="/video-editor/{{ content.id }}/">
         Edit Video
     </a>
     <div id="content-settings">
         <div class="row-flex flex-apart-aligned">
             <h3>Settings</h3>
-            {% if user.is_admin or user == content.collection.owner %}
             <dialog id="content-remove-modal" class="user-view-modal">
                 <h3 class="user-view-modal-header">
                     Remove this video from the collection?
@@ -37,9 +34,12 @@
             <button  type="button" id="content-details-delete-button" class="red-button" command="show-modal" commandfor="content-remove-modal">
                 Remove from collection
             </button>
-            {% endif %}
         </div>
         {% include 'partials/content_settings_form.html' %}
+    </div>
+    {% endif %}
+    <div id="content-details-video-player">
+        {% include 'partials/player-wrapper.html' %}
     </div>
 </main>
 <script type="module" src="{% static 'js/contentInfo.js' %}"></script>
