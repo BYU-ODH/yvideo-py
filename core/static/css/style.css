@@ -969,6 +969,10 @@ p.tile-subtitle {
     justify-content: space-between;
 }
 
+#content-details-header h3 {
+    margin: 0;
+}
+
 #content-settings {
     display: flex;
     flex-direction: column;

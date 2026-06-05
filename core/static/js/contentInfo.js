@@ -1,6 +1,6 @@
 function setupRemoveFromCollection() {
   const confirmRemoveButton = document.getElementById("content-confirm-remove");
-  const contentIdInput = document.querySelector("input[name='id']");
+  const contentIdInput = document.getElementById("content-id-input");
   if (!confirmRemoveButton || !contentIdInput) {
     console.error("confirmRemoveButton and/or contentIdInput were undefined");
     return;

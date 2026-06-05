@@ -53,23 +53,6 @@ class ContentForm(forms.ModelForm):
         ]
 
 
-class ContentSettingsForm(forms.ModelForm):
-    class Meta:
-        model = Content
-        fields = [
-            "id",
-            "title",
-            "description",
-            "allow_definitions",
-            "allow_notes",
-            "allow_captions",
-            "published",
-            "words",
-        ]
-
-        id = forms.CharField(widget=forms.HiddenInput)
-
-
 class UpdateContentForm(forms.ModelForm):
     confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
 

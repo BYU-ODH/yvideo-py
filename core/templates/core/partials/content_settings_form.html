@@ -10,32 +10,32 @@
             </div>
             <div class="content-form-group">
                 <label for="published">Published</label>
-                <input id="published" type="checkbox" value="{{ content.published }}">
+                <input id="published" type="checkbox" {% if content.published %}checked{% endif %}>
             </div>
             <div class="row-flex">
                 <div class="content-form-group">
                     <label for="allow-definitions">Allow definitions</label>
-                    <input id="allow-definitions" type="checkbox" value="{{ content.allow_definitions }}">
+                    <input id="allow-definitions" type="checkbox" {% if content.allow_definitions %}checked{% endif %}>
                 </div>
                 <div class="content-form-group">
                     <label for="allow-notes">Allow notes</label>
-                    <input id="allow-notes" type="checkbox" value="{{ content.allow_notes }}">
+                    <input id="allow-notes" type="checkbox" {% if content.allow_notes %}checked{% endif %}>
                 </div>
                 <div class="content-form-group">
                     <label for="allow-captions">Allow captions</label>
-                    <input id="allow-captions" type="checkbox" value="{{ content.allow_captions }}">
+                    <input id="allow-captions" type="checkbox" {% if content.allow_captions %}checked{% endif %}>
                 </div>
             </div>
             <div class="content-form-group column-flex">
                 <label for="words">
                     Important words
                 </label>
-                <textarea id="words" value="{{ content.words }}"></textarea>
+                <textarea id="words">{{ content.words }}</textarea>
             </div>
         </div>
         <div id="content-settings-description-wrapper" class="content-form-group column-flex">
             <label for="description">Description</label>
-            <textarea id="description" value="{{ content.description }}"></textarea>
+            <textarea id="description">{{ content.description }}</textarea>
         </div>
     </div>
 

@@ -27,7 +27,6 @@ from django.views.decorators.http import require_POST
 from .forms import ClipForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
-from .forms import ContentSettingsForm
 from .forms import ImportantWordForm
 from .forms import ResourceContentIntakeRequestForm
 from .forms import UpdateContentForm
@@ -557,8 +556,7 @@ def display_content_info(request, content_id):
 def render_content_settings_form(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
-        form = ContentSettingsForm(instance=content)
-        context = {"content": content, "form": form}
+        context = {"content": content}
         return render(request, "partials/content_settings_form.html", context)
     except Content.DoesNotExist:
         logger.error(
@@ -598,23 +596,15 @@ def update_content(request):
         content = Content.objects.get(pk=data["id"])
         content.title = data["title"]
         content.description = data["description"]
-        if "allow_definitions" in data:
-            content.allow_definitions = data["allow_definitions"]
-        if "allow_notes" in data:
-            content.allow_notes = data["allow_notes"]
-        if "allow_captions" in data:
-            content.allow_captions = data["allow_captions"]
-        if "published" in data:
-            content.published = data["published"]
+        content.words = data["words"]
+        content.allow_definitions = data["allow_definitions"]
+        content.allow_notes = data["allow_notes"]
+        content.allow_captions = data["allow_captions"]
+        content.published = data["published"]
 
         content.save()
-        contents = get_collection_contents(content.collection)
-        context = {
-            "collection": content.collection,
-            "published_contents": contents["published"],
-            "unpublished_contents": contents["unpublished"],
-        }
-        return render(request, f"content/display-settings/{content.pk}/", context)
+        context = {"content": content}
+        return HttpResponse()
     except Content.DoesNotExist:
         logger.error(
             "Failed to update content because the content object does not exist"
