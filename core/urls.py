@@ -26,6 +26,11 @@ urlpatterns = [
         name="delete_collection",
     ),
     path(
+        "collections/assign-course/",
+        views.assign_collection_to_course,
+        name="assign_collection_to_course",
+    ),
+    path(
         "display-collection-settings/<int:collection_id>/",
         views.display_collection_settings,
         name="display_collection_settings",

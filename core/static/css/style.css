@@ -192,6 +192,10 @@ a.blue-button {
     visibility: hidden;
 }
 
+.muted-text {
+    opacity: 0.6;
+}
+
 .absolute {
     position: absolute;
 }
@@ -994,6 +998,38 @@ p.tile-subtitle {
 #assign-course-wrapper h4 {
     margin: 0;
     margin-top: 1rem;
+}
+
+.assigned-course {
+    display: grid;
+    grid-template-columns: 6rem 8rem;
+    align-items: center;
+}
+
+.assigned-course p {
+    margin: 0;
+}
+
+.new-course-assignment-detail {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.25rem;
+}
+
+.new-course-assignment-detail input[type='text'] {
+    width: 6rem;
+}
+
+.course-item, #update-sections-button {
+    margin-top: 0.5rem;
+}
+
+#assign-course-wrapper p {
+    margin: 0;
+}
+
+.assigned-course input[type='text'] {
+    height: 2rem;
 }
 
 .arrow-icon {

@@ -37,6 +37,7 @@ from .models import Collection
 from .models import CollectionRole
 from .models import CollectionUserAccess
 from .models import Content
+from .models import Course
 from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import Resource
@@ -457,6 +458,64 @@ def render_course_assignment(request):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to render course assignment information. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def assign_collection_to_course(request):
+    # first check if the course already exists. if so, add the collection to that course.
+    # otherwise, create the course and then add the collection
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "dept" not in parsed_data
+            or "catalog_number" not in parsed_data
+            or "sections" not in parsed_data
+            or "year" not in parsed_data
+            or "semester" not in parsed_data
+            or "collection_id" not in parsed_data
+        ):
+            logger.error(
+                "Failed to assign course to collection because of insufficient data provided"
+            )
+            return HttpResponseBadRequest()
+        collection_id = parsed_data["collection_id"]
+        collection = Collection.objects.get(pk=collection_id)
+
+        dept = parsed_data["dept"]
+        catalog_number = parsed_data["catalog_number"]
+        section_numbers = parsed_data["sections"]
+        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
+        for section_number in section_numbers:
+            existing_course_filter = Course.objects.filter(
+                dept=dept,
+                catalog_number=catalog_number,
+                section_number=section_number,
+                yearterm=yearterm,
+            )
+            if existing_course_filter.count() < 1:
+                existing_course = Course.objects.create(
+                    dept=dept,
+                    catalog_number=catalog_number,
+                    section_number=section_number,
+                    yearterm=yearterm,
+                )
+            else:
+                if existing_course_filter.count() > 1:
+                    logger.error(
+                        f"More than one course was returned when assigning a collection ({collection}) to a course. Assigning to the first result"
+                    )
+                existing_course = existing_course_filter.first()
+            collection.courses.add(existing_course)
+            collection.save()
+        return render_course_assignment(request)
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to assign course to collection because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to assign course to collection. Exception: {e}")
         return HttpResponseServerError()
 
 
