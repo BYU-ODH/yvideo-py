@@ -153,6 +153,10 @@ function setupRemoveCourseButtons() {
     const year = getYear();
     const collectionId = getCollectionIdValue();
 
+    // initially this event was defined on the assignedCourseEl's removal button
+    // however the querySelector call had some issue. Instead, we put the event
+    // on the parent and check if the target is the button or the image inside
+    // the button. If so, we execute the script.
     assignedCourseEl.addEventListener("click", async (event) => {
       if (!event.target.closest(".remove-course-assignment-button")) {
         return;
