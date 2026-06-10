@@ -1253,15 +1253,35 @@ class Course(models.Model):
             )
         ],
     )
+
+    yearterm = models.CharField(max_length=5, blank=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("dept", "catalog_number", "section_number")
-        ordering = ["dept", "catalog_number", "section_number"]
+        unique_together = ("dept", "catalog_number", "section_number", "yearterm")
+        ordering = ["dept", "catalog_number", "section_number", "yearterm"]
+
+    def display_yearterm(self):
+        if self.yearterm is None:
+            return ""
+        year_str = self.yearterm[:4]
+        term_str = self.yearterm[4:]
+        term_map = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
+        try:
+            term_name = term_map[term_str]
+        except KeyError:
+            logger.error(
+                f"UserCourse has a missing or invalid yearterm. UserCourseId: {self.pk}, yearterm: {self.yearterm}"
+            )
+        except Exception:
+            logger.error(
+                f"An error has occurred while displaying the yearterm for the following UserCousreId: {self.pk}"
+            )
+        return f"{term_name} {year_str}"
 
     def __str__(self):
-        return f"{self.dept} {self.catalog_number}-{self.section_number}"
+        return f"{self.dept} {self.catalog_number}-{self.section_number} ({self.display_yearterm()})"
 
 
 class UserCourses(models.Model):

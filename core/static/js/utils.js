@@ -24,3 +24,7 @@ export function createElementFromHTMLString(html, nodeIndex=0) {
   template.innerHTML = html.trim();
   return template.content.children[nodeIndex];
 }
+
+export function getCSRFToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
