@@ -14,16 +14,24 @@ function getCollectionIdValue() {
   return idValue;
 }
 
+function getYear() {
+  const yearSelector = document.getElementById("year-selector");
+  return yearSelector.value;
+}
+
+function getSemester() {
+  const semesterSelector = document.getElementById("semester-selector");
+  return semesterSelector.value;
+}
+
 function cleanSectionsInput(sectionsStr) {
   const sectionRegex = /[1-9]{1}[0-9]{0,2}/g;
   return sectionsStr.match(sectionRegex);
 }
 
 function setupAssignCourseButton() {
-  const semesterSelector = document.getElementById("semester-selector");
-  const semester = semesterSelector.value;
-  const yearSelector = document.getElementById("year-selector");
-  const year = yearSelector.value;
+  const semester = getSemester();
+  const year = getYear();
   if (semester === undefined || year === undefined) {
     console.error("Failed to assign course to collection because semester and or year are undefined");
     return;
@@ -34,10 +42,28 @@ function setupAssignCourseButton() {
   // get all section numbers from string. The must not start with 0 and be 1 - 3
   // total number characters
   const sectionsInput = document.getElementById("sections");
-  const sections = cleanSectionsInput(sectionsInput.value);
 
   const assignCourseButton = document.getElementById("assign-course-button");
   assignCourseButton.addEventListener("click", async () => {
+    const dept = departmentInput.value.toUpperCase();
+    let invalid = false;
+    if (dept == "") {
+      departmentInput.classList.add("invalid-input");
+      invalid = true;
+    }
+    const catalogNumber = catalogNumInput.value.toUpperCase();
+    if (catalogNumber == "") {
+      catalogNumInput.classList.add("invalid-input");
+      invalid = true;
+    }
+    const sections = cleanSectionsInput(sectionsInput.value);
+    if (!sections) {
+      sectionsInput.classList.add("invalid-input");
+      invalid = true;
+    }
+    if (invalid) {
+      return;
+    }
     const assignmentResponse = await fetch("/collections/assign-course/", {
       method: "POST",
       headers: {
@@ -45,8 +71,8 @@ function setupAssignCourseButton() {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "dept": departmentInput.value.toUpperCase(),
-        "catalog_number": catalogNumInput.value,
+        "dept": dept,
+        "catalog_number": catalogNumber,
         "sections": sections,
         "semester": semester,
         "year": year,
@@ -59,10 +85,13 @@ function setupAssignCourseButton() {
       return;
     }
 
+    departmentInput.classList.remove("invalid-input");
+    catalogNumInput.classList.remove("invalid-input");
+    sectionsInput.classList.remove("invalid-input");
     const newHTML = await assignmentResponse.text();
     const courseAssignmentContainer = document.getElementById("course-assignment-container");
     courseAssignmentContainer.innerHTML = newHTML;
-    setupAssignCourseButton();
+    initialize();
   });
 }
 
@@ -82,10 +111,8 @@ function setupSubmitSectionButtons() {
       }
     });
     submitButton.addEventListener("click", async () => {
-      const semesterSelector = document.getElementById("semester-selector");
-      const semester = semesterSelector.value;
-      const yearSelector = document.getElementById("year-selector");
-      const year = yearSelector.value;
+      const semester = getSemester();
+      const year = getYear();
       if (year === undefined || semester === undefined) {
         console.error("Failed to update sections because year and/or semseter are undefined");
         return;
@@ -117,9 +144,48 @@ function setupSubmitSectionButtons() {
   }
 }
 
+function setupRemoveCourseButtons() {
+  const assignedCourseEls = document.getElementsByClassName("assigned-course");
+  for (let assignedCourseEl of assignedCourseEls) {
+    const dept = assignedCourseEl.dataset["dept"];
+    const catalogNumber = assignedCourseEl.dataset["catalogNumber"];
+    const semester = getSemester();
+    const year = getYear();
+    const collectionId = getCollectionIdValue();
+
+    assignedCourseEl.addEventListener("click", async (event) => {
+      if (!event.target.closest(".remove-course-assignment-button")) {
+        return;
+      }
+      const removeRequest = await fetch("/collections/course/unassign/", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          dept: dept,
+          catalog_number: catalogNumber,
+          semester: semester,
+          year: year,
+          collection_id: collectionId
+        })
+      });
+
+      if (!removeRequest.ok) {
+        console.error("Failed to remove collection from course");
+        return;
+      }
+
+      assignedCourseEl.remove();
+    });
+  }
+}
+
 function initialize() {
   setupAssignCourseButton();
   setupSubmitSectionButtons();
+  setupRemoveCourseButtons();
 }
 
 initialize();

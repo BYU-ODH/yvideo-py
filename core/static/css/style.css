@@ -1002,12 +1002,30 @@ p.tile-subtitle {
 
 .assigned-course {
     display: grid;
-    grid-template-columns: 6rem 8rem;
+    grid-template-columns: 6rem 1fr;
     align-items: center;
 }
 
 .assigned-course p {
     margin: 0;
+}
+
+.remove-course-assignment-button {
+    margin-left: auto;
+    margin-right: 1rem;
+    border: none;
+    background-color: inherit;
+    border-radius: 50%;
+    padding: 0.45rem 0.5rem;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.remove-course-assignment-button:hover {
+    background-color: var(--selectable-grey);
+    box-shadow: 2px 3px 6px #00000075;
 }
 
 .new-course-assignment-detail {

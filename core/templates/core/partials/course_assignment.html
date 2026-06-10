@@ -10,9 +10,12 @@
         {% for assigned_course in assigned_courses %}
         <div class="assigned-course course-item" data-dept="{{ assigned_course.dept }}" data-catalog-number="{{ assigned_course.catalog_number }}">
             <p>{{ assigned_course.dept }} {{ assigned_course.catalog_number }}</p>
-            <div class="row-flex flex-aligned-apart">
+            <div class="assigned-course-right row-flex">
                 <input class="section-input" type="text" value="{{assigned_course.section_list}}">
                 <button class="section-save-button blue-button hidden">Save</button>
+                <button class="remove-course-assignment-button">
+                    <img src="{% static 'img/trash.svg' %}">
+                </button>
             </div>
         </div>
         {% empty %}

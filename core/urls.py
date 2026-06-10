@@ -36,6 +36,11 @@ urlpatterns = [
         name="update_collection_course_sections",
     ),
     path(
+        "collections/course/unassign/",
+        views.unassign_collection_from_course,
+        name="unassign_collection_from_course",
+    ),
+    path(
         "display-collection-settings/<int:collection_id>/",
         views.display_collection_settings,
         name="display_collection_settings",

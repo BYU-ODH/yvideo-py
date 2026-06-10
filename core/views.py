@@ -597,6 +597,40 @@ def update_collection_course_sections(request):
         return HttpResponseServerError()
 
 
+def unassign_collection_from_course(request):
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "dept" not in parsed_data
+            or "catalog_number" not in parsed_data
+            or "semester" not in parsed_data
+            or "year" not in parsed_data
+            or "collection_id" not in parsed_data
+        ):
+            logger.error(
+                "Failed to remove collection from course because of insufficient data"
+            )
+            return HttpResponseBadRequest()
+
+        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        courses = collection.courses.all().filter(
+            dept=parsed_data["dept"],
+            catalog_number=parsed_data["catalog_number"],
+            yearterm=f"{parsed_data['year']}{parsed_data['semester']}",
+        )
+        collection.courses.remove(*courses)
+        return HttpResponse()
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to remove collection assigned to course because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to remove collection assigned to course. Exception: {e}")
+        return HttpResponseServerError()
+
+
 @require_POST
 def update_collection_settings(request):
     form = CollectionSettingsForm(request.POST)
