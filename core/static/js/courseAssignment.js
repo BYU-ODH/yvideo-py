@@ -15,12 +15,12 @@ function getCollectionIdValue() {
 }
 
 function getYear() {
-  const yearSelect = document.getElementById("year-selector");
+  const yearSelect = document.getElementById("year-select");
   return yearSelect.value;
 }
 
 function getSemester() {
-  const semesterSelect = document.getElementById("semester-selector");
+  const semesterSelect = document.getElementById("semester-select");
   return semesterSelect.value;
 }
 
@@ -34,8 +34,6 @@ function cleanSectionsInput(sectionsStr) {
 function setupSemesterSelectionHandlers() {
   // update the assigned courses displayed whenever the user changes
   // the selected year or semester
-  const semesterSelector = document.getElementById("semester-selector");
-  const yearSelector = document.getElementById("year-selector");
   const handler = async () => {
     const renderResponse = await fetch("/collections/render-course-assignment/", {
       method: "POST",
@@ -44,8 +42,8 @@ function setupSemesterSelectionHandlers() {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "semester": semesterSelector.value,
-        "year": yearSelector.value,
+        "semester": getSemester(),
+        "year": getYear(),
         "collection_id": getCollectionIdValue()
       })
     });
@@ -60,8 +58,10 @@ function setupSemesterSelectionHandlers() {
     initialize();
   }
 
-  semesterSelector.addEventListener("change", handler);
-  yearSelector.addEventListener("change", handler);
+  const semesterSelect = document.getElementById("semester-select");
+  semesterSelect.addEventListener("change", handler);
+  const yearSelect = document.getElementById("year-select");
+  yearSelect.addEventListener("change", handler);
 }
 
 function setupAssignCourseButton() {

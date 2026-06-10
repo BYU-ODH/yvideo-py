@@ -45,8 +45,8 @@
         <div class="user-view-modal-body column-flex">
             <div class="row-flex">
                 <div class="column-flex">
-                    <label for="semester-selector">Semester</label>
-                    <select id="semester-selector">
+                    <label for="semester-select">Semester</label>
+                    <select id="semester-select">
                         <option {% if semester == 5 %}selected{% endif %} value="5">Fall</option>
                         <option {% if semester == 1 %}selected{% endif %} value="1">Winter</option>
                         <option {% if semester == 3 %}selected{% endif %} value="3">Spring</option>
@@ -54,8 +54,8 @@
                     </select>
                 </div>
                 <div class="column-flex">
-                    <label>Year</label>
-                    <select id="year-selector">
+                    <label for="year-select">Year</label>
+                    <select id="year-select">
                         {% for year_option in year_options %}
                             <option {% if year_option.current %}selected{% endif %} value="{{ year_option.value }}">{{ year_option.value }}</option>
                         {% endfor %}
