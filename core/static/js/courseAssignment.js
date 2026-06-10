@@ -31,6 +31,39 @@ function cleanSectionsInput(sectionsStr) {
   return sectionsStr.match(sectionRegex);
 }
 
+function setupSemesterSelectionHandlers() {
+  // update the assigned courses displayed whenever the user changes
+  // the selected year or semester
+  const semesterSelector = document.getElementById("semester-selector");
+  const yearSelector = document.getElementById("year-selector");
+  const handler = async () => {
+    const renderResponse = await fetch("/collections/render-course-assignment/", {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": getCSRFToken(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        "semester": semesterSelector.value,
+        "year": yearSelector.value,
+        "collection_id": getCollectionIdValue()
+      })
+    });
+    if (!renderResponse.ok) {
+      console.error("Failed to render assigned courses html");
+      return;
+    }
+
+    const newHTML = await renderResponse.text();
+    const courseAssignmentContainer = document.getElementById("course-assignment-container");
+    courseAssignmentContainer.innerHTML = newHTML;
+    initialize();
+  }
+
+  semesterSelector.addEventListener("change", handler);
+  yearSelector.addEventListener("change", handler);
+}
+
 function setupAssignCourseButton() {
   const semester = getSemester();
   const year = getYear();
@@ -186,7 +219,10 @@ function setupRemoveCourseButtons() {
   }
 }
 
+
+
 function initialize() {
+  setupSemesterSelectionHandlers();
   setupAssignCourseButton();
   setupSubmitSectionButtons();
   setupRemoveCourseButtons();
