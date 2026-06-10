@@ -2,8 +2,7 @@ import { getCSRFToken } from "./utils.js";
 
 function setupVideoSearch() {
   const searchInput = document.getElementById("video-search");
-  const parent = searchInput.closest("#collection-videos-content");
-  const videoList = parent.querySelector("#collection-video-list");
+  const videoList = document.getElementById("collection-video-list");
   searchInput.addEventListener("input", () => {
     const searchText = searchInput.value.toLowerCase();
     const videos = videoList.querySelectorAll(".collection-video");
