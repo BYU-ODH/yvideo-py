@@ -1032,6 +1032,23 @@ p.tile-subtitle {
     height: 2rem;
 }
 
+#assigned-course-items {
+    max-height: 12rem;
+    overflow-y: auto;
+}
+
+.assigned-course-edit-sections, .assigned-course-delete {
+    border: none;
+    background-color: inherit;
+    height: 1rem;
+    width: 1rem;
+    display: flex;
+}
+
+.section-save-button {
+    height: 2rem;
+}
+
 .arrow-icon {
     height: 1rem;
     width: 1rem;

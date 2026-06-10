@@ -6,16 +6,19 @@
         <p>Sections</p>
     </div>
     {% endif %}
-    {% for assigned_course in assigned_courses %}
-    <div class="assigned-course course-item">
-        <p>{{ assigned_course.title }}</p>
-        <div>
-            <p>{% if assigned_course.section_list == '' %}None assigned{% else %}{{assigned_course.section_list}}{% endif %}</p>
+    <div id="assigned-course-items">
+        {% for assigned_course in assigned_courses %}
+        <div class="assigned-course course-item" data-dept="{{ assigned_course.dept }}" data-catalog-number="{{ assigned_course.catalog_number }}">
+            <p>{{ assigned_course.dept }} {{ assigned_course.catalog_number }}</p>
+            <div class="row-flex flex-aligned-apart">
+                <input class="section-input" type="text" value="{{assigned_course.section_list}}">
+                <button class="section-save-button blue-button hidden">Save</button>
+            </div>
         </div>
+        {% empty %}
+        <p>No assigned courses</p>
+        {% endfor %}
     </div>
-    {% empty %}
-    <p>No assigned courses</p>
-    {% endfor %}
 </div>
 <div id="assign-course-wrapper" class="column-flex">
     <h4>Add Course</h4>

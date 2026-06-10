@@ -14,6 +14,11 @@ function getCollectionIdValue() {
   return idValue;
 }
 
+function cleanSectionsInput(sectionsStr) {
+  const sectionRegex = /[1-9]{1}[0-9]{0,2}/g;
+  return sectionsStr.match(sectionRegex);
+}
+
 function setupAssignCourseButton() {
   const semesterSelector = document.getElementById("semester-selector");
   const semester = semesterSelector.value;
@@ -28,8 +33,8 @@ function setupAssignCourseButton() {
   const catalogNumInput = document.getElementById("catalog-number");
   // get all section numbers from string. The must not start with 0 and be 1 - 3
   // total number characters
-  const sectionRegex = /[1-9]{1}[0-9]{0,2}/g;
   const sectionsInput = document.getElementById("sections");
+  const sections = cleanSectionsInput(sectionsInput.value);
 
   const assignCourseButton = document.getElementById("assign-course-button");
   assignCourseButton.addEventListener("click", async () => {
@@ -42,7 +47,7 @@ function setupAssignCourseButton() {
       body: JSON.stringify({
         "dept": departmentInput.value.toUpperCase(),
         "catalog_number": catalogNumInput.value,
-        "sections": sectionsInput.value.match(sectionRegex),
+        "sections": sections,
         "semester": semester,
         "year": year,
         "collection_id": getCollectionIdValue()
@@ -61,8 +66,60 @@ function setupAssignCourseButton() {
   });
 }
 
+function setupSubmitSectionButtons() {
+  const courseItems = document.getElementsByClassName("course-item");
+  for (let item of courseItems) {
+    const sectionInput = item.querySelector(".section-input");
+    let originalInput = sectionInput.value;
+    const dept = item.dataset["dept"];
+    const catalogNumber = item.dataset["catalogNumber"];
+    const submitButton = item.querySelector(".section-save-button");
+    sectionInput.addEventListener("input", (event) => {
+      if (event.target.value != originalInput) {
+        submitButton.classList.remove("hidden");
+      } else {
+        submitButton.classList.add("hidden");
+      }
+    });
+    submitButton.addEventListener("click", async () => {
+      const semesterSelector = document.getElementById("semester-selector");
+      const semester = semesterSelector.value;
+      const yearSelector = document.getElementById("year-selector");
+      const year = yearSelector.value;
+      if (year === undefined || semester === undefined) {
+        console.error("Failed to update sections because year and/or semseter are undefined");
+        return;
+      }
+      const saveResponse = await fetch("/collections/course/update-sections/", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          "collection_id": getCollectionIdValue(),
+          "sections": cleanSectionsInput(sectionInput.value),
+          "dept": dept,
+          "catalog_number": catalogNumber,
+          "semester": semester,
+          "year": year
+        })
+      });
+
+      if (!saveResponse.ok) {
+        console.error("Failed to update sections because of a bad request");
+        return;
+      }
+
+      originalInput = sectionInput.value;
+      submitButton.classList.add("hidden");
+    });
+  }
+}
+
 function initialize() {
   setupAssignCourseButton();
+  setupSubmitSectionButtons();
 }
 
 initialize();

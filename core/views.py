@@ -369,15 +369,30 @@ def get_assigned_courses(collection, yearterm):
     for course in courses:
         course_map_key = f"{course.dept} {course.catalog_number}"
         if course_map_key not in assigned_courses_map:
-            assigned_courses_map[course_map_key] = []
-        if course.section_number not in assigned_courses_map[course_map_key]:
-            assigned_courses_map[course_map_key].append(course.section_number)
+            assigned_courses_map[course_map_key] = {
+                "sections": [],
+                "dept": course.dept,
+                "catalog_number": course.catalog_number,
+            }
+        if (
+            course.section_number
+            not in assigned_courses_map[course_map_key]["sections"]
+        ):
+            assigned_courses_map[course_map_key]["sections"].append(
+                course.section_number
+            )
 
     # prepare assigned course information for easy integration into the course_assignment.html template
-    assigned_courses = [
-        {"title": title, "section_list": ", ".join(sections)}
-        for title, sections in assigned_courses_map.items()
-    ]
+
+    assigned_courses = []
+    for title, course_info in assigned_courses_map.items():
+        assigned_courses.append(
+            {
+                "dept": course_info["dept"],
+                "catalog_number": course_info["catalog_number"],
+                "section_list": ", ".join(course_info["sections"]),
+            }
+        )
     return assigned_courses
 
 
@@ -404,11 +419,11 @@ def collection_info(request, collection_id):
         )
     except Collection.DoesNotExist:
         logger.error(
-            f"Failed to retrieve collection video because collection does not exist. Collection ID: {collection_id}"
+            f"Failed to retrieve collection info because collection does not exist. Collection ID: {collection_id}"
         )
         return HttpResponseBadRequest()
     except Exception as e:
-        logger.error(f"Failed to retrieve collection video. Exception: {e}")
+        logger.error(f"Failed to retrieve collection info. Exception: {e}")
         return HttpResponseServerError()
 
 
@@ -516,6 +531,69 @@ def assign_collection_to_course(request):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to assign course to collection. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def update_collection_course_sections(request):
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "collection_id" not in parsed_data
+            or "sections" not in parsed_data
+            or "dept" not in parsed_data
+            or "catalog_number" not in parsed_data
+            or "semester" not in parsed_data
+            or "year" not in parsed_data
+        ):
+            logger.error(
+                "Failed to update course sections because of insufficient data provided"
+            )
+            return HttpResponseBadRequest()
+        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        new_sections_list = parsed_data["sections"]
+        dept = parsed_data["dept"]
+        catalog_number = parsed_data["catalog_number"]
+        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
+        courses = Course.objects.filter(
+            dept=dept, catalog_number=catalog_number, yearterm=yearterm
+        )
+
+        # it is possible a course with a provided section_number doesn't exist yet. if that is true,
+        # create it
+        existing_section_numbers = []
+        for course in courses:
+            existing_section_numbers.append(course.section_number)
+        for new_section_number in new_sections_list:
+            if new_section_number not in existing_section_numbers:
+                Course.objects.create(
+                    dept=dept,
+                    catalog_number=catalog_number,
+                    yearterm=yearterm,
+                    section_number=new_section_number,
+                )
+
+        # Associate the provided sections with the collection.
+        # We could go through and figure out exactly which should be removed and which should be added,
+        # but it is probably more robust to simply remove all associations for this dept, catalog_number, and yearterm
+        # and then add all the sections provided by the user.
+        collection.courses.remove(*courses)
+        new_courses = Course.objects.filter(
+            dept=dept,
+            catalog_number=catalog_number,
+            yearterm=yearterm,
+            section_number__in=new_sections_list,
+        )
+        collection.courses.add(*new_courses)
+
+        return HttpResponse()
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to update course sections because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to update course sections. Exception: {e}")
         return HttpResponseServerError()
 
 
