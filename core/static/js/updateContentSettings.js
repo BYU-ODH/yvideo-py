@@ -1,0 +1,66 @@
+import { getCSRFToken } from "./utils.js"
+
+function setupSubmit() {
+  const submitButton = document.getElementById("content-settings-submit-button");
+  submitButton.addEventListener("click", async () => {
+    const idInput = document.getElementById("content-id-input");
+    const titleInput = document.getElementById("title");
+    const publishedInput = document.getElementById("published");
+    const allowDefsInput = document.getElementById("allow-definitions");
+    const allowNotesInput = document.getElementById("allow-notes");
+    const allowCaptsInput = document.getElementById("allow-captions");
+    const wordsInput = document.getElementById("words");
+    const descriptionInput = document.getElementById("description");
+    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, wordsInput, descriptionInput].some(el => el === undefined);
+    if (isUndefined) {
+      console.log("at least one content settings form input is undefined.");
+      return;
+    }
+    await fetch("/content/update/", {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": getCSRFToken(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        "id": idInput.value,
+        "title": titleInput.value,
+        "published": publishedInput.checked,
+        "allow_definitions": allowDefsInput.checked,
+        "allow_notes": allowNotesInput.checked,
+        "allow_captions": allowCaptsInput.checked,
+        "words": wordsInput.value,
+        "description": descriptionInput.value,
+      })
+    });
+    window.location.reload();
+  });
+}
+
+function setupReset() {
+  const resetButton = document.getElementById("content-settings-reset-button");
+  const contentIdInput = document.getElementById("content-id-input");
+  if (!resetButton || !contentIdInput) {
+    console.error("resetButton or contentIdInput are not defined");
+    return;
+  }
+  resetButton.addEventListener("click", async () => {
+    const contentId = contentIdInput.value;
+    const resetResponse = await fetch(`/content/render-settings-form/${contentId}/`);
+    if (!resetResponse.ok) {
+      console.error("Failed to reset content settings form");
+      return;
+    }
+
+    const newFormHTML = await resetResponse.text();
+    const oldForm = document.getElementById("content-settings-form");
+    oldForm.outerHTML = newFormHTML;
+  });
+}
+
+function initialize() {
+  setupReset();
+  setupSubmit();
+}
+
+initialize();

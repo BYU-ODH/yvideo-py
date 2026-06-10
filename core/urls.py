@@ -26,23 +26,43 @@ urlpatterns = [
     ),
     path("collections/", views.collections, name="collections"),
     path(
-        "collections/<int:pk>/videos/", views.collection_video, name="collection_video"
+        "collections/<int:collection_id>/",
+        views.collection_info,
+        name="collection_info",
     ),
-    path("manage-collections/", views.manage_collections, name="manage_collections"),
+    path(
+        "collections/render-course-assignment/",
+        views.render_course_assignment,
+        name="render_course_assignment",
+    ),
     path("collections/create/", views.create_collection, name="create_collection"),
-    path("collections/view/<int:pk>/", views.view_collection, name="view_collection"),
     path(
-        "display-collection-contents/<int:collection_id>/",
-        views.display_collection_contents,
-        name="display_collection_contents",
+        "collections/delete/<int:collection_id>/",
+        views.delete_collection,
+        name="delete_collection",
     ),
     path(
-        "collection/display-settings/<int:collection_id>/",
+        "collections/assign-course/",
+        views.assign_collection_to_course,
+        name="assign_collection_to_course",
+    ),
+    path(
+        "collections/course/update-sections/",
+        views.update_collection_course_sections,
+        name="update_collection_course_sections",
+    ),
+    path(
+        "collections/course/unassign/",
+        views.unassign_collection_from_course,
+        name="unassign_collection_from_course",
+    ),
+    path(
+        "display-collection-settings/<int:collection_id>/",
         views.display_collection_settings,
         name="display_collection_settings",
     ),
     path(
-        "collection/update",
+        "collection-settings/update/",
         views.update_collection_settings,
         name="update_collection_settings",
     ),
@@ -56,18 +76,38 @@ urlpatterns = [
         views.display_create_content,
         name="display_create_content",
     ),
-    path("content/create", views.create_content, name="create_content"),
+    path("content/create/", views.create_content, name="create_content"),
     path(
-        "display-resources-files/",
-        views.display_resources_files,
-        name="display_resources_files",
+        "content-intake-request/",
+        views.request_content,
+        name="request_content",
+    ),
+    path(
+        "create-from-resource/<int:collection_id>",
+        views.display_create_from_resource,
+        name="display_create_from_resource",
+    ),
+    path(
+        "create-from-resource-form/",
+        views.render_create_from_resource_form,
+        name="render_create_from_resource_form",
     ),
     path(
         "content/display-settings/<int:content_id>/",
-        views.display_content_settings,
-        name="display_content_settings",
+        views.display_content_info,
+        name="display_content_info",
     ),
-    path("content/update", views.update_content, name="update_content"),
+    path(
+        "content/render-settings-form/<int:content_id>/",
+        views.render_content_settings_form,
+        name="render_content_settings_form",
+    ),
+    path("content/update/", views.update_content, name="update_content"),
+    path(
+        "content/remove-from-collection/<int:content_id>/",
+        views.remove_content_from_collection,
+        name="remove_content_from_collection",
+    ),
     path(
         "content/delete/<int:content_id>", views.delete_content, name="delete_content"
     ),
@@ -280,10 +320,5 @@ urlpatterns = [
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",
         views_video_editor.load_annotation_form,
         name="load_annotation_form",
-    ),
-    path(
-        "content-intake-request/",
-        views.request_content,
-        name="request_content",
     ),
 ]

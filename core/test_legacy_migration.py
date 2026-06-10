@@ -1841,14 +1841,14 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     @override_settings(LEGACY_MIGRATION_ENABLED=False)
-    def test_manage_collections_hides_legacy_migration_link_when_feature_disabled(self):
+    def test_collections_hides_legacy_migration_link_when_feature_disabled(self):
         instructor = UserFactory(instructor=True)
         client = Client()
         client.force_login(
             instructor, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        response = client.get(reverse("manage_collections"))
+        response = client.get(reverse("collections"))
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Migrate from legacy")

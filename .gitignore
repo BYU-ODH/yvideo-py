@@ -16,6 +16,9 @@ scripts/dump_legacy_to_sqlite_settings.py
 # Until then, just keep replacing 0001 when models change
 core/migrations/*.py
 
+# BDR notes to self about the task at hand
+task_notes
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
