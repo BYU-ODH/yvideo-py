@@ -25,6 +25,8 @@ function getSemester() {
 }
 
 function cleanSectionsInput(sectionsStr) {
+  // get all section numbers from string. The must not start with 0 and be 1 - 3
+  // total number characters
   const sectionRegex = /[1-9]{1}[0-9]{0,2}/g;
   return sectionsStr.match(sectionRegex);
 }
@@ -39,8 +41,6 @@ function setupAssignCourseButton() {
 
   const departmentInput = document.getElementById("department");
   const catalogNumInput = document.getElementById("catalog-number");
-  // get all section numbers from string. The must not start with 0 and be 1 - 3
-  // total number characters
   const sectionsInput = document.getElementById("sections");
 
   const assignCourseButton = document.getElementById("assign-course-button");
