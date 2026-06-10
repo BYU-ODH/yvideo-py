@@ -15,13 +15,13 @@ function getCollectionIdValue() {
 }
 
 function getYear() {
-  const yearSelector = document.getElementById("year-selector");
-  return yearSelector.value;
+  const yearSelect = document.getElementById("year-selector");
+  return yearSelect.value;
 }
 
 function getSemester() {
-  const semesterSelector = document.getElementById("semester-selector");
-  return semesterSelector.value;
+  const semesterSelect = document.getElementById("semester-selector");
+  return semesterSelect.value;
 }
 
 function cleanSectionsInput(sectionsStr) {
