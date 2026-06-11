@@ -126,7 +126,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         if not byu_id:
             return User.objects.none()
         try:
-            user = User.objects.get(byu_id=byu_id)
+            user = User.objects.get(username=byu_id)
             return [user]
         except User.DoesNotExist:
             return User.objects.none()
