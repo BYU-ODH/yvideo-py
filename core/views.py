@@ -974,7 +974,7 @@ def add_annotation(request, content_id, annotation_type):
             "id": annotation.id,
             "name": annotation.name,
             "type": annotation.annotation_type,
-            "owner": annotation.owner.netid,
+            "owner": annotation.owner.username,
             "start_time": annotation.start_time,
             "end_time": annotation.end_time,
             "description": annotation.description,
@@ -1014,7 +1014,7 @@ def spoof_user_search(request):
         (
             Q(first_name__icontains=query)
             | Q(last_name__icontains=query)
-            | Q(netid__icontains=query)
+            | Q(username__icontains=query)
         )
         & ~Q(id=request.user.id)
     ).order_by("last_name")[:25]
@@ -1475,10 +1475,10 @@ def add_collection_member(request, collection_id):
 
     if request.method == "POST":
         # Get form data
-        netid = request.POST.get("netid", "").strip()
+        username = request.POST.get("netid", "").strip()
         role = request.POST.get("role", "").strip()
 
-        user = get_object_or_404(User, netid=netid)
+        user = get_object_or_404(User, username=username)
 
         if role == "TA":
             collection_role = CollectionRole.TA

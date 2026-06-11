@@ -47,9 +47,9 @@ class DemoSeedDataTests(TestCase):
         seed_demo_data()
 
     def test_seed_creates_expected_accounts_and_access(self):
-        admin_user = User.objects.get(netid=DEMO_ADMIN_NETID)
+        admin_user = User.objects.get(username=DEMO_ADMIN_NETID)
         birds_content = Content.objects.get(title="Birds Overview")
-        alice = User.objects.get(netid="studali")
+        alice = User.objects.get(username="studali")
         admin_owned_collections = Collection.objects.filter(owner=admin_user)
 
         self.assertTrue(admin_user.is_superuser)
@@ -86,7 +86,7 @@ class DemoSeedDataTests(TestCase):
         self.assertTrue(alice.can_view_content(birds_content))
 
     def test_seed_creates_track_based_editor_data_for_fixture_covered_models(self):
-        admin_user = User.objects.get(netid=DEMO_ADMIN_NETID)
+        admin_user = User.objects.get(username=DEMO_ADMIN_NETID)
         birds_annotation_set = AnnotationSet.objects.get(
             name="Professor Ada Birds Annotations"
         )
@@ -126,7 +126,7 @@ class DemoSeedDataTests(TestCase):
             {"#", "k"},
         )
         self.assertEqual(
-            set(birds_annotation_set.editors.values_list("netid", flat=True)),
+            set(birds_annotation_set.editors.values_list("username", flat=True)),
             {DEMO_ADMIN_NETID, "caseyta"},
         )
         self.assertFalse(grid_annotation_set.editors.exists())
@@ -167,7 +167,7 @@ class DemoSeedDataTests(TestCase):
         self.assertEqual(response.headers["Location"], "/")
         self.assertEqual(
             client.session["_auth_user_id"],
-            str(User.objects.get(netid=DEMO_ADMIN_NETID).pk),
+            str(User.objects.get(username=DEMO_ADMIN_NETID).pk),
         )
 
     def test_dev_quick_login_is_disabled_without_flag(self):

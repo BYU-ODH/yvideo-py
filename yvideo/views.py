@@ -26,7 +26,7 @@ def dev_quick_login(request):
 
     try:
         admin_user = User.objects.get(
-            netid=DEMO_ADMIN_NETID,
+            username=DEMO_ADMIN_NETID,
             is_active=True,
             is_staff=True,
             is_superuser=True,

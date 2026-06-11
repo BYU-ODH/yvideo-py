@@ -1,7 +1,7 @@
 <div id="editor-search-results">
     {% for editor_result in editor_results %}
     <div class="editor-search-result" data-editor-id="{{editor_result.id}}">
-        {{editor_result.last_name}}, {{editor_result.first_name}} ({{editor_result.netid}})
+        {{editor_result.last_name}}, {{editor_result.first_name}} ({{editor_result.username}})
     </div>
     {% endfor %}
 </div>

@@ -33,7 +33,7 @@ from .utils import convert_srt_content_to_vtt
 @admin.register(User)
 class UserAdmin(VersionAdmin):
     list_display = (
-        "netid",
+        "username",
         "first_name",
         "last_name",
         "email",
@@ -41,7 +41,7 @@ class UserAdmin(VersionAdmin):
         "date_joined",
     )
     list_filter = ("privilege_level", "date_joined")
-    search_fields = ("netid", "first_name", "last_name")
+    search_fields = ("username", "first_name", "last_name")
 
 
 @admin.register(Resource)
@@ -49,7 +49,7 @@ class ResourceAdmin(VersionAdmin):
     list_display = (
         "name",
         "media_type",
-        "requester_netid",
+        "requester_username",
         "copyrighted",
         "views",
         "created_at",
@@ -63,9 +63,9 @@ class ResourceAdmin(VersionAdmin):
         # This only works if the user exists. We cannot build users based off of netid, so
         # without BYUID, there is no way to create a non-existant user if the requester is
         # not already in the system.
-        requester_netid = obj.requester_netid
+        requester_username = obj.requester_username
         try:
-            user = User.objects.get(netid=requester_netid)
+            user = User.objects.get(username=requester_username)
         except Exception:
             return
         ResourceAccess.objects.create(user=user, resource=obj)
@@ -75,7 +75,7 @@ class ResourceAdmin(VersionAdmin):
 class CollectionAdmin(VersionAdmin):
     list_display = ("name", "owner", "published", "archived", "public", "created_at")
     list_filter = ("published", "archived", "public", "created_at")
-    search_fields = ("name", "owner__name", "owner__netid")
+    search_fields = ("name", "owner__name", "owner__username")
 
 
 @admin.register(ResourceFile)
@@ -249,21 +249,21 @@ class EmailAdmin(VersionAdmin):
 class ResourceAccessAdmin(VersionAdmin):
     list_display = ("user", "resource", "last_verified", "created_at")
     list_filter = ("last_verified", "created_at")
-    search_fields = ("user__netid", "resource__name")
+    search_fields = ("user__username", "resource__name")
 
 
 @admin.register(CollectionUserAccess)
 class CollectionUserAccessAdmin(VersionAdmin):
     list_display = ("user", "collection", "collection_role", "created_at")
     list_filter = ("collection_role", "created_at")
-    search_fields = ("user__netid", "collection__name")
+    search_fields = ("user__username", "collection__name")
 
 
 @admin.register(ResourceFileKey)
 class ResourceFileKeyAdmin(VersionAdmin):
     list_display = ("user", "resource_file", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("user__netid", "resource_file__resource__name")
+    search_fields = ("user__username", "resource_file__resource__name")
 
 
 @admin.register(ImportantWord)
@@ -276,7 +276,7 @@ class ImportantWordAdmin(VersionAdmin):
 class AnnotationSetAdmin(VersionAdmin):
     list_display = ("name", "owner", "resource", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "owner__netid", "resource__name")
+    search_fields = ("name", "owner__username", "resource__name")
 
 
 @admin.register(Track)
@@ -285,11 +285,11 @@ class TrackAdmin(VersionAdmin):
         "annotation_set__resource__name",
         "annotation_set__name",
         "name",
-        "annotation_set__owner__netid",
+        "annotation_set__owner__username",
     )
     search_fields = (
         "annotation_set__name",
-        "annotation_set__owner__netid",
+        "annotation_set__owner__username",
         "annotation_set__resource__name",
     )
 

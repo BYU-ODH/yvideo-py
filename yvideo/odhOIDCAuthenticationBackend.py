@@ -71,7 +71,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 # return user
 
                 user = User.objects.create(
-                    netid=netid,
+                    username=netid,
                     byu_id=byu_id,
                     privilege_level=PrivilegeLevel.INSTRUCTOR,
                     first_name=worker_summary["first_name"],
@@ -89,7 +89,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         if student_summary is not None:
             print("User is a student")
             user = User.objects.create(
-                netid=student_summary["net_id"],
+                username=student_summary["net_id"],
                 byu_id=byu_id,
                 first_name=student_summary["first_name"],
                 last_name=student_summary["last_name"],
@@ -106,7 +106,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     )
                     return
                 user = User.objects.create(
-                    netid=build_random_netid(),
+                    username=build_random_netid(),
                     byu_id=byu_id,
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],

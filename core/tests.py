@@ -322,7 +322,7 @@ class FontColorValidationTests(TestCase):
 # class TrackViewTests(TestCase):
 #     def setUp(self):
 #         self.user = User.objects.create_user(
-#             netid="testuser",
+#             username="testuser",
 #             password="testpass",
 #             first_name="Test",
 #             last_name="User",
@@ -330,7 +330,7 @@ class FontColorValidationTests(TestCase):
 #         self.resource = Resource.objects.create(
 #             name="Test Resource",
 #             media_type=Resource.MediaType.VIDEO,
-#             requester_netid="testuser",
+#             requester_username="testuser",
 #         )
 #         self.annotation_set = AnnotationSet.objects.create(
 #             name="Test Set",
