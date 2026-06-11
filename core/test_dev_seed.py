@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
 
-from core.dev_features import DEMO_ADMIN_NETID
+from core.dev_features import DEMO_ADMIN_USERNAME
 from core.dev_seed import seed_demo_data
 from core.models import AnnotationSet
 from core.models import BlankAnnotation
@@ -47,7 +47,7 @@ class DemoSeedDataTests(TestCase):
         seed_demo_data()
 
     def test_seed_creates_expected_accounts_and_access(self):
-        admin_user = User.objects.get(username=DEMO_ADMIN_NETID)
+        admin_user = User.objects.get(username=DEMO_ADMIN_USERNAME)
         birds_content = Content.objects.get(title="Birds Overview")
         alice = User.objects.get(username="studali")
         admin_owned_collections = Collection.objects.filter(owner=admin_user)
@@ -86,7 +86,7 @@ class DemoSeedDataTests(TestCase):
         self.assertTrue(alice.can_view_content(birds_content))
 
     def test_seed_creates_track_based_editor_data_for_fixture_covered_models(self):
-        admin_user = User.objects.get(username=DEMO_ADMIN_NETID)
+        admin_user = User.objects.get(username=DEMO_ADMIN_USERNAME)
         birds_annotation_set = AnnotationSet.objects.get(
             name="Professor Ada Birds Annotations"
         )
@@ -127,7 +127,7 @@ class DemoSeedDataTests(TestCase):
         )
         self.assertEqual(
             set(birds_annotation_set.editors.values_list("username", flat=True)),
-            {DEMO_ADMIN_NETID, "caseyta"},
+            {DEMO_ADMIN_USERNAME, "caseyta"},
         )
         self.assertFalse(grid_annotation_set.editors.exists())
         self.assertTrue(
@@ -167,7 +167,7 @@ class DemoSeedDataTests(TestCase):
         self.assertEqual(response.headers["Location"], "/")
         self.assertEqual(
             client.session["_auth_user_id"],
-            str(User.objects.get(username=DEMO_ADMIN_NETID).pk),
+            str(User.objects.get(username=DEMO_ADMIN_USERNAME).pk),
         )
 
     def test_dev_quick_login_is_disabled_without_flag(self):

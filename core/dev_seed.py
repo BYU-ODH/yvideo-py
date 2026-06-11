@@ -5,8 +5,8 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import transaction
 
-from .dev_features import DEMO_ADMIN_NETID
 from .dev_features import DEMO_ADMIN_PASSWORD
+from .dev_features import DEMO_ADMIN_USERNAME
 from .factories import AnnotationSetFactory
 from .factories import BlankAnnotationFactory
 from .factories import ClipFactory
@@ -34,8 +34,8 @@ from .models import User
 
 DEMO_MEDIA_DIR = Path(settings.BASE_DIR) / "demo_media"
 DEMO_YEARTERM = "20261"
-DEMO_USER_NETIDS = {
-    DEMO_ADMIN_NETID,
+DEMO_ADMIN_USERNAMES = {
+    DEMO_ADMIN_USERNAME,
     "profada",
     "profben",
     "caseyta",
@@ -66,7 +66,7 @@ def seed_demo_data():
 
 
 def purge_demo_data():
-    User.objects.filter(username__in=DEMO_USER_NETIDS).delete()
+    User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).delete()
     Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).delete()
 
     for dept, catalog_number, section_number in DEMO_COURSES:
@@ -83,7 +83,8 @@ def create_demo_data():
 
     admin = UserFactory(
         admin=True,
-        username=DEMO_ADMIN_NETID,
+        username=DEMO_ADMIN_USERNAME,
+        netid=DEMO_ADMIN_USERNAME,
         first_name="Local",
         last_name="Admin",
         email="devadmin@example.test",
@@ -92,6 +93,7 @@ def create_demo_data():
     professor_ada = UserFactory(
         instructor=True,
         username="profada",
+        netid="profada",
         first_name="Ada",
         last_name="Professor",
         email="profada@example.test",
@@ -100,6 +102,7 @@ def create_demo_data():
     professor_ben = UserFactory(
         instructor=True,
         username="profben",
+        netid="profben",
         first_name="Ben",
         last_name="Professor",
         email="profben@example.test",
@@ -108,6 +111,7 @@ def create_demo_data():
     teaching_assistant = UserFactory(
         lab_assistant=True,
         username="caseyta",
+        netid="caseyta",
         first_name="Casey",
         last_name="TA",
         email="caseyta@example.test",
@@ -116,6 +120,7 @@ def create_demo_data():
     lab_assistant = UserFactory(
         lab_assistant=True,
         username="labdemo",
+        netid="labdemo",
         first_name="Jordan",
         last_name="Lab",
         email="labdemo@example.test",
@@ -124,6 +129,7 @@ def create_demo_data():
     student_alice = UserFactory(
         student=True,
         username="studali",
+        netid="studali",
         first_name="Alice",
         last_name="Student",
         email="studali@example.test",
@@ -132,6 +138,7 @@ def create_demo_data():
     student_bob = UserFactory(
         student=True,
         username="studbob",
+        netid="studbob",
         first_name="Bob",
         last_name="Student",
         email="studbob@example.test",
@@ -140,6 +147,7 @@ def create_demo_data():
     student_ivy = UserFactory(
         student=True,
         username="studivy",
+        netid="studivy",
         first_name="Ivy",
         last_name="Student",
         email="studivy@example.test",
@@ -440,15 +448,15 @@ def create_demo_data():
     ResourceFileKeyFactory(user=admin, resource_file=birds_file)
 
     return {
-        "users": User.objects.filter(username__in=DEMO_USER_NETIDS).count(),
+        "users": User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).count(),
         "resources": Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).count(),
         "collections": Collection.objects.filter(
-            owner__username__in=DEMO_USER_NETIDS
+            owner__username__in=DEMO_ADMIN_USERNAMES
         ).count(),
         "contents": Content.objects.filter(
-            collection__owner__username__in=DEMO_USER_NETIDS
+            collection__owner__username__in=DEMO_ADMIN_USERNAMES
         ).count(),
-        "seeded_admin_netid": DEMO_ADMIN_NETID,
+        "seeded_admin_netid": DEMO_ADMIN_USERNAME,
         "seeded_admin_password": DEMO_ADMIN_PASSWORD,
         "sample_content_title": birds_content.title,
     }

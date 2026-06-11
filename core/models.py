@@ -48,7 +48,7 @@ class Resource(models.Model):
 
     name = models.CharField(max_length=255, unique=True)
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
-    requester_username = models.CharField(max_length=8)
+    requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
     physical_copy_exists = models.BooleanField(default=False)
     views = models.IntegerField(default=0)
@@ -64,7 +64,7 @@ class CustomUserManager(BaseUserManager):
     def create_user(
         self,
         username,
-        byu_id=None,
+        netid=None,
         privilege_level=PrivilegeLevel.STUDENT,
         password=None,
         privilege_level_override=None,
@@ -90,8 +90,8 @@ class CustomUserManager(BaseUserManager):
 
 
 class User(AbstractUser):
-    # username will use netid
-    byu_id = models.CharField(max_length=9, blank=True, null=True)
+    # username will be byu_id
+    netid = models.CharField(max_length=8, blank=True, null=True)
     REQUIRED_FIELDS = []
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
@@ -110,12 +110,12 @@ class User(AbstractUser):
     objects = CustomUserManager()
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} | {self.username}"
+        return f"{self.first_name} {self.last_name} | {self.netid} {self.username}"
 
     def to_dict(self):
         return {
-            "netid": self.username,
-            "byuid": self.byu_id,
+            "netid": self.netid,
+            "byuid": self.username,
             "first_name": self.first_name,
             "last_name": self.last_name,
         }
@@ -165,7 +165,9 @@ class ResourceAccess(models.Model):  # "through" model
         unique_together = ("user", "resource")
 
     def __str__(self):
-        return f"{self.user.username} | {self.resource.name} | {self.id}"
+        return (
+            f"{self.user.netid} {self.user.username} | {self.resource.name} | {self.id}"
+        )
 
 
 class Collection(models.Model):
@@ -208,7 +210,7 @@ class CollectionUserAccess(models.Model):  # "through" model
         unique_together = ("user", "collection")
 
     def __str__(self):
-        return f"{self.user.username} | {self.collection.name}"
+        return f"{self.user.netid} {self.user.username} | {self.collection.name}"
 
 
 def validate_media_file(file):
@@ -1410,7 +1412,7 @@ class Email(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.sender.username} | {self.subject} | {self.pk}"
+        return f"{self.sender.netid} | {self.subject} | {self.pk}"
 
 
 class AuthToken(models.Model):

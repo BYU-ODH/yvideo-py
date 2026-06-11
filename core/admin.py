@@ -34,6 +34,7 @@ from .utils import convert_srt_content_to_vtt
 class UserAdmin(VersionAdmin):
     list_display = (
         "username",
+        "netid",
         "first_name",
         "last_name",
         "email",
@@ -41,7 +42,7 @@ class UserAdmin(VersionAdmin):
         "date_joined",
     )
     list_filter = ("privilege_level", "date_joined")
-    search_fields = ("username", "first_name", "last_name")
+    search_fields = ("username", "netid", "first_name", "last_name")
 
 
 @admin.register(Resource)
@@ -75,7 +76,7 @@ class ResourceAdmin(VersionAdmin):
 class CollectionAdmin(VersionAdmin):
     list_display = ("name", "owner", "published", "archived", "public", "created_at")
     list_filter = ("published", "archived", "public", "created_at")
-    search_fields = ("name", "owner__name", "owner__username")
+    search_fields = ("name", "owner__name", "owner__netid", "owner__username")
 
 
 @admin.register(ResourceFile)
@@ -249,21 +250,21 @@ class EmailAdmin(VersionAdmin):
 class ResourceAccessAdmin(VersionAdmin):
     list_display = ("user", "resource", "last_verified", "created_at")
     list_filter = ("last_verified", "created_at")
-    search_fields = ("user__username", "resource__name")
+    search_fields = ("user__netid", "user__username", "resource__name")
 
 
 @admin.register(CollectionUserAccess)
 class CollectionUserAccessAdmin(VersionAdmin):
     list_display = ("user", "collection", "collection_role", "created_at")
     list_filter = ("collection_role", "created_at")
-    search_fields = ("user__username", "collection__name")
+    search_fields = ("user__netid", "user__username", "collection__name")
 
 
 @admin.register(ResourceFileKey)
 class ResourceFileKeyAdmin(VersionAdmin):
     list_display = ("user", "resource_file", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("user__username", "resource_file__resource__name")
+    search_fields = ("user__netid", "user__username", "resource_file__resource__name")
 
 
 @admin.register(ImportantWord)
@@ -276,7 +277,7 @@ class ImportantWordAdmin(VersionAdmin):
 class AnnotationSetAdmin(VersionAdmin):
     list_display = ("name", "owner", "resource", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "owner__username", "resource__name")
+    search_fields = ("name", "owner__netid", "owner__username", "resource__name")
 
 
 @admin.register(Track)
@@ -285,10 +286,12 @@ class TrackAdmin(VersionAdmin):
         "annotation_set__resource__name",
         "annotation_set__name",
         "name",
+        "annotation_set__owner__netid",
         "annotation_set__owner__username",
     )
     search_fields = (
         "annotation_set__name",
+        "annotation_set__owner__netid",
         "annotation_set__owner__username",
         "annotation_set__resource__name",
     )

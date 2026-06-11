@@ -1475,10 +1475,10 @@ def add_collection_member(request, collection_id):
 
     if request.method == "POST":
         # Get form data
-        username = request.POST.get("netid", "").strip()
+        netid = request.POST.get("netid", "").strip()
         role = request.POST.get("role", "").strip()
 
-        user = get_object_or_404(User, username=username)
+        user = get_object_or_404(User, netid=netid)
 
         if role == "TA":
             collection_role = CollectionRole.TA

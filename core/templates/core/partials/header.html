@@ -24,7 +24,7 @@
                         <span class="spoof-warning-as">{{ request.original_user.username }} as</span>
                         <span class="spoof-warning-target">
                             {{ request.user.first_name }} {{ request.user.last_name }}
-                            <span class="spoof-warning-netid">({{ request.user.username }})</span>
+                            <span class="spoof-warning-netid">({{ request.user.netid }})</span>
                         </span>
                     </span>
                 </span>
@@ -65,7 +65,7 @@
         </div>
 
         <aside class="sidebar">
-            <h4> {{ user.username }} </h4>
+            <h4> {{ user.netid }} </h4>
             <hr>
             {% if user.is_admin %}
                 <a href="{% url 'admin:index' %}">Admin Dashboard</a>
