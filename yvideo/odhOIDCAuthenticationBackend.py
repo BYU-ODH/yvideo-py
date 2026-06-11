@@ -1,8 +1,34 @@
+import random
+
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 
 from core.api import Api
 from core.models import PrivilegeLevel
 from core.models import User
+
+
+def build_random_netid():
+    # this is only for dev purposes. this will be removed in the future
+    char_list = [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+    ]
+    new_id = random.choices(char_list, k=8)
+    return "".join(new_id)
 
 
 class OIDCUserAuth(OIDCAuthenticationBackend):
@@ -23,7 +49,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         if worker_id:
             worker_summary = api.get_worker_summary(worker_id, byu_id)
             if worker_summary["is_faculty"]:
-                netid = "rencherb"
+                netid = build_random_netid()
                 # Only activate the following lines after we get access to this API - BDR 6/11/2026
                 # netid = api.get_net_id_from_worker_id(self, worker_id)
                 # user.netid = netid
@@ -60,9 +86,8 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 worker_summary = api.get_worker_summary(worker_id, byu_id)
                 if worker_summary is None:
                     return
-                netid = "rencherb"  # stopgap, remove this when we have access to the appropriate api
                 user = User.objects.create(
-                    netid=netid,
+                    netid=build_random_netid(),
                     byu_id=byu_id,
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
