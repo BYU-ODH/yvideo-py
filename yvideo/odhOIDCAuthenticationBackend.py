@@ -79,7 +79,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 )
                 return user
             else:
-                print("No worker_summary provided")
+                print("User is not faculty")
                 # this could be a current student who has a job at BYU, so user the student_summary instead.
                 # One problem with this: ODH staff members (or student employees) that need access to this service
                 # will not be automatically configured unless we do more to determine who they are with the provided

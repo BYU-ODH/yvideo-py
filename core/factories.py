@@ -33,7 +33,6 @@ class UserFactory(factory.django.DjangoModelFactory):
         model = User
 
     netid = factory.Sequence(lambda n: f"usr{n:05d}")
-    username = factory.SelfAttribute("netid")
     first_name = factory.Sequence(lambda n: f"User{n}")
     last_name = "Account"
     email = factory.LazyAttribute(lambda user: f"{user.netid}@example.test")

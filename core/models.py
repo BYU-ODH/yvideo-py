@@ -90,6 +90,7 @@ class CustomUserManager(BaseUserManager):
 
 
 class User(AbstractUser):
+    username = None
     netid = models.CharField(max_length=8, unique=True)
     byu_id = models.CharField(max_length=9, blank=True, null=True)
     USERNAME_FIELD = "netid"
