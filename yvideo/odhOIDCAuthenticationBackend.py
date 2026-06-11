@@ -54,6 +54,22 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 last_name=student_summary["last_name"],
             )
             return user
+        else:
+            # this is likely an odh staff member or a user who has a byu_id but is otherwise unaffiliated with the university
+            if worker_id:
+                worker_summary = api.get_worker_summary(worker_id, byu_id)
+                if worker_summary is None:
+                    return
+                netid = "rencherb"  # stopgap, remove this when we have access to the appropriate api
+                user = User.objects.create(
+                    netid=netid,
+                    byu_id=byu_id,
+                    first_name=worker_summary["first_name"],
+                    last_name=worker_summary["last_name"],
+                )
+                return user
+
+        return
 
     def update_user(self, user, claims):
         # for now, we don't do anything to update the user
