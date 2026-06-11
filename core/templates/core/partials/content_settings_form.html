@@ -1,0 +1,53 @@
+{% load static %}
+
+<div id="content-settings-form" class="column-flex" method="post" action="/content/update/">
+    <input id="content-id-input" hidden disabled value="{{ content.id }}">
+    <div class="row-flex">
+        <div class="column-flex">
+            <div class="content-form-group">
+                <label for="title">Title</label>
+                <input id="title" type="text" value="{{ content.title }}">
+            </div>
+            <div class="content-form-group">
+                <label for="published">Published</label>
+                <input id="published" type="checkbox" {% if content.published %}checked{% endif %}>
+            </div>
+            <div class="row-flex">
+                <div class="content-form-group">
+                    <label for="allow-definitions">Allow definitions</label>
+                    <input id="allow-definitions" type="checkbox" {% if content.allow_definitions %}checked{% endif %}>
+                </div>
+                <div class="content-form-group">
+                    <label for="allow-notes">Allow notes</label>
+                    <input id="allow-notes" type="checkbox" {% if content.allow_notes %}checked{% endif %}>
+                </div>
+                <div class="content-form-group">
+                    <label for="allow-captions">Allow captions</label>
+                    <input id="allow-captions" type="checkbox" {% if content.allow_captions %}checked{% endif %}>
+                </div>
+            </div>
+            <div class="content-form-group column-flex">
+                <label for="words">
+                    Important words
+                </label>
+                <textarea id="words">{{ content.words }}</textarea>
+            </div>
+        </div>
+        <div id="content-settings-description-wrapper" class="content-form-group column-flex">
+            <label for="description">Description</label>
+            <textarea id="description">{{ content.description }}</textarea>
+        </div>
+    </div>
+
+    <div class="row-flex flex-apart-aligned">
+        <div class="row-flex">
+            <button id="content-settings-submit-button" class="blue-button">
+                Submit
+            </button>
+            <button id="content-settings-reset-button" class="cancel-button">
+                Reset
+            </button>
+        </div>
+    </div>
+</div>
+<script type="module" src="{% static 'js/updateContentSettings.js' %}"></script>

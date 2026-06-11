@@ -1,3 +1,4 @@
+from datetime import datetime
 from functools import wraps
 import json
 import logging
@@ -12,9 +13,9 @@ from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
+from django.http import HttpResponseRedirect
 from django.http import HttpResponseServerError
 from django.http import JsonResponse
-from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
@@ -25,7 +26,6 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .forms import ClipForm
-from .forms import CollectionForm
 from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
@@ -37,9 +37,11 @@ from .models import Collection
 from .models import CollectionRole
 from .models import CollectionUserAccess
 from .models import Content
+from .models import Course
 from .models import ImportantWord
 from .models import MuteAnnotation
 from .models import Resource
+from .models import ResourceFile
 from .models import ResourceFileKey
 from .models import SkipAnnotation
 from .models import Subtitle
@@ -87,6 +89,8 @@ def display_yearterm(yearterm):
 
 
 def index(request):
+    if request.user.is_authenticated and request.user.privilege_level == 2:
+        return HttpResponseRedirect(reverse("collections"))
     return render(request, "index.html", {})
 
 
@@ -313,128 +317,329 @@ def get_collection_types(user):
     return {"archived": archived, "published": published, "unpublished": unpublished}
 
 
-def manage_collections(request):
-    collections = get_collection_types(request.user)
-
-    return render(
-        request,
-        "manage_collections.html",
-        {
-            "published": collections["published"],
-            "unpublished": collections["unpublished"],
-            "archived": collections["archived"],
-            "user": request.user,
-            "form": CollectionForm(),
-        },
-    )
-
-
 def create_collection(request):
-    form = CollectionForm(request.POST, initial={"user": request.user})
-
-    if form.is_valid():
+    data = json.loads(request.body)
+    if data and "name" in data:
         try:
-            collection = form.save(commit=False)
-            collection.owner = request.user
-            collection.published = False
-            collection.archived = False
-            collection.public = False
-            collection.save()
-
-            collections = get_collection_types(request.user)
-
-            response = render(
-                request,
-                "partials/collection_lists.html",
-                {
-                    "published": collections["published"],
-                    "unpublished": collections["unpublished"],
-                    "archived": collections["archived"],
-                },
-            )
-
+            Collection.objects.create(name=data["name"], owner=request.user)
+            return HttpResponse()
         except Exception as e:
             logger.error(
-                f"An error occured when the user: {request.user} attempted to create a collection -> {e}"
+                f"An error occured when the user: {request.user} attempted to create a collection. Exception: {e}"
             )
 
-            response = HttpResponseServerError()
+            return HttpResponseServerError()
 
     else:
-        response = HttpResponseBadRequest()
-
-    return response
+        return HttpResponseBadRequest()
 
 
-def view_collection(request, pk):
-    user = request.user
+def get_semester_and_year_options():
+    # we need a list of years for the year selector when assigning collection to course
+    today = datetime.now()
+    start_year = today.year - 5
+    year_options = [
+        {"value": x, "current": x == today.year}
+        for x in range(start_year, (start_year + 10))
+    ]
 
-    if request.method == "GET":
-        collection_pk = pk
-        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
-        contents = Content.objects.filter(collection=collection)
-        context = {
-            "collection": collection,
-            "contents": contents,
-        }
-        return render(request, "partials/view_collection.html", context)
-    elif request.method == "PUT":
-        collection_pk = pk
-        collection = get_object_or_404(Collection, owner=user, pk=collection_pk)
+    # we need to make a guess about what semester it is to help the user
+    month = today.month
+    semester = None
+    if month < 5:
+        semester = 1  # winter
+    elif month == 5:
+        semester = 3  # spring
+    elif month == 6 or month == 7:
+        semester = 4  # summer
+    else:
+        semester = 5  # fall
 
-        data = QueryDict(request.body).dict()
-        content_pk = data.get("content_id")
+    return {
+        "year_options": year_options,
+        "semester": semester,
+        "yearterm": f"{today.year}{semester}",
+    }
 
-        if not content_pk:
-            logger.error("No content_id provided in PUT request")
-            return HttpResponse("Content ID is required", 400)
 
-        updated_content = get_object_or_404(Content, pk=content_pk)
-        form = UpdateContentForm(data, instance=updated_content)
-
-        if form.is_valid():
-            try:
-                form.save()
-                return render(
-                    request,
-                    "partials/content_display.html",
-                    {"content": updated_content},
-                )
-            except Exception as e:
-                logger.warning(
-                    f"An error occured when the user: {collection.owner} attempted to update the content: {updated_content.title} -> {e}"
-                )
-                response = render(
-                    request,
-                    "partials/edit_content.html",
-                    {"content": updated_content, "form": form},
-                )
-                return response
-        else:
-            response = render(
-                request,
-                "partials/edit_content.html",
-                {"content": updated_content, "form": form},
+def get_assigned_courses(collection, yearterm):
+    courses = collection.courses.filter(yearterm=yearterm)
+    # aggregate the section numbers under the course title (course.dept course.catalog_number)
+    assigned_courses_map = {}
+    for course in courses:
+        course_map_key = f"{course.dept} {course.catalog_number}"
+        if course_map_key not in assigned_courses_map:
+            assigned_courses_map[course_map_key] = {
+                "sections": [],
+                "dept": course.dept,
+                "catalog_number": course.catalog_number,
+            }
+        if (
+            course.section_number
+            not in assigned_courses_map[course_map_key]["sections"]
+        ):
+            assigned_courses_map[course_map_key]["sections"].append(
+                course.section_number
             )
-            return response
+
+    # prepare assigned course information for easy integration into the course_assignment.html template
+
+    assigned_courses = []
+    for title, course_info in assigned_courses_map.items():
+        assigned_courses.append(
+            {
+                "dept": course_info["dept"],
+                "catalog_number": course_info["catalog_number"],
+                "section_list": ", ".join(course_info["sections"]),
+            }
+        )
+    return assigned_courses
+
+
+def collection_info(request, collection_id):
+    try:
+        collection = Collection.objects.get(pk=collection_id)
+        contents = Content.objects.filter(collection=collection)
+        year_and_semester = get_semester_and_year_options()
+        assigned_courses = get_assigned_courses(
+            collection, year_and_semester["yearterm"]
+        )
+
+        return render(
+            request,
+            "collection_info.html",
+            {
+                "collection": collection,
+                "contents": contents,
+                "form": CollectionSettingsForm(instance=collection),
+                "year_options": year_and_semester["year_options"],
+                "semester": year_and_semester["semester"],
+                "assigned_courses": assigned_courses,
+            },
+        )
+    except Collection.DoesNotExist:
+        logger.error(
+            f"Failed to retrieve collection info because collection does not exist. Collection ID: {collection_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to retrieve collection info. Exception: {e}")
+        return HttpResponseServerError()
 
 
 def display_collection_settings(request, collection_id):
-    collection = get_object_or_404(Collection, pk=collection_id)
-    form = CollectionSettingsForm(instance=collection)
-    context = {"collection": collection, "form": form}
-    return render(request, "partials/collection_settings.html", context)
+    try:
+        collection = Collection.objects.get(pk=collection_id)
+        form = CollectionSettingsForm(instance=collection)
+        year_and_semester = get_semester_and_year_options()
+
+        context = {
+            "collection": collection,
+            "form": form,
+            "semester": year_and_semester["semester"],
+            "year_options": year_and_semester["year_options"],
+        }
+        return render(request, "partials/collection_settings.html", context)
+    except Exception as e:
+        logger.error(f"Failed to render collection settings. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def render_course_assignment(request):
+    try:
+        parsed_data = json.loads(request.body)
+        collection_id = parsed_data["collection_id"]
+        collection = Collection.objects.get(pk=collection_id)
+        semester = parsed_data["semester"]
+        year = parsed_data["year"]
+
+        # perform some minimal sanitation since we are passing this value into the db
+        if len(semester) > 1 or len(year) > 4:
+            return HttpResponseBadRequest()
+
+        yearterm = f"{year}{semester}"
+        assigned_courses = get_assigned_courses(collection, yearterm)
+
+        return render(
+            request,
+            "partials/course_assignment.html",
+            {"assigned_courses": assigned_courses},
+        )
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to render course assignment information because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to render course assignment information. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def assign_collection_to_course(request):
+    # first check if the course already exists. if so, add the collection to that course.
+    # otherwise, create the course and then add the collection
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "dept" not in parsed_data
+            or "catalog_number" not in parsed_data
+            or "sections" not in parsed_data
+            or "year" not in parsed_data
+            or "semester" not in parsed_data
+            or "collection_id" not in parsed_data
+        ):
+            logger.error(
+                "Failed to assign course to collection because of insufficient data provided"
+            )
+            return HttpResponseBadRequest()
+        collection_id = parsed_data["collection_id"]
+        collection = Collection.objects.get(pk=collection_id)
+
+        dept = parsed_data["dept"]
+        catalog_number = parsed_data["catalog_number"]
+        section_numbers = parsed_data["sections"]
+        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
+        for section_number in section_numbers:
+            existing_course_filter = Course.objects.filter(
+                dept=dept,
+                catalog_number=catalog_number,
+                section_number=section_number,
+                yearterm=yearterm,
+            )
+            if existing_course_filter.count() < 1:
+                existing_course = Course.objects.create(
+                    dept=dept,
+                    catalog_number=catalog_number,
+                    section_number=section_number,
+                    yearterm=yearterm,
+                )
+            else:
+                if existing_course_filter.count() > 1:
+                    logger.error(
+                        f"More than one course was returned when assigning a collection ({collection}) to a course. Assigning to the first result"
+                    )
+                existing_course = existing_course_filter.first()
+            collection.courses.add(existing_course)
+            collection.save()
+        return render_course_assignment(request)
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to assign course to collection because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to assign course to collection. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def update_collection_course_sections(request):
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "collection_id" not in parsed_data
+            or "sections" not in parsed_data
+            or "dept" not in parsed_data
+            or "catalog_number" not in parsed_data
+            or "semester" not in parsed_data
+            or "year" not in parsed_data
+        ):
+            logger.error(
+                "Failed to update course sections because of insufficient data provided"
+            )
+            return HttpResponseBadRequest()
+        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        new_sections_list = parsed_data["sections"]
+        dept = parsed_data["dept"]
+        catalog_number = parsed_data["catalog_number"]
+        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
+        courses = Course.objects.filter(
+            dept=dept, catalog_number=catalog_number, yearterm=yearterm
+        )
+
+        # it is possible a course with a provided section_number doesn't exist yet. if that is true,
+        # create it
+        existing_section_numbers = []
+        for course in courses:
+            existing_section_numbers.append(course.section_number)
+        for new_section_number in new_sections_list:
+            if new_section_number not in existing_section_numbers:
+                Course.objects.create(
+                    dept=dept,
+                    catalog_number=catalog_number,
+                    yearterm=yearterm,
+                    section_number=new_section_number,
+                )
+
+        # Associate the provided sections with the collection.
+        # We could go through and figure out exactly which should be removed and which should be added,
+        # but it is probably more robust to simply remove all associations for this dept, catalog_number, and yearterm
+        # and then add all the sections provided by the user.
+        collection.courses.remove(*courses)
+        new_courses = Course.objects.filter(
+            dept=dept,
+            catalog_number=catalog_number,
+            yearterm=yearterm,
+            section_number__in=new_sections_list,
+        )
+        collection.courses.add(*new_courses)
+
+        return HttpResponse()
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to update course sections because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to update course sections. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def unassign_collection_from_course(request):
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "dept" not in parsed_data
+            or "catalog_number" not in parsed_data
+            or "semester" not in parsed_data
+            or "year" not in parsed_data
+            or "collection_id" not in parsed_data
+        ):
+            logger.error(
+                "Failed to remove collection from course because of insufficient data"
+            )
+            return HttpResponseBadRequest()
+
+        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        courses = collection.courses.all().filter(
+            dept=parsed_data["dept"],
+            catalog_number=parsed_data["catalog_number"],
+            yearterm=f"{parsed_data['year']}{parsed_data['semester']}",
+        )
+        collection.courses.remove(*courses)
+        return HttpResponse()
+
+    except Collection.DoesNotExist:
+        logger.error(
+            "Failed to remove collection assigned to course because the collection does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to remove collection assigned to course. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST
 def update_collection_settings(request):
     form = CollectionSettingsForm(request.POST)
     if form.is_valid():
-        collection = get_object_or_404(Collection, pk=form.cleaned_data["id"])
-        collection.name = form.cleaned_data["name"]
-        collection.published = form.cleaned_data["published"]
-        collection.archived = form.cleaned_data["archived"]
         try:
+            collection = Collection.objects.get(pk=form.cleaned_data["id"])
+            collection.name = form.cleaned_data["name"]
+            collection.published = form.cleaned_data["published"]
+            collection.archived = form.cleaned_data["archived"]
             collection.save()
             collection_types = get_collection_types(request.user)
             context = {
@@ -443,7 +648,7 @@ def update_collection_settings(request):
                 "unpublished": collection_types["unpublished"],
                 "archived": collection_types["archived"],
             }
-            return render(request, "partials/finish_collection_settings.html", context)
+            return collection_info(request, collection.id)
         except Exception as e:
             logger.error(
                 f"An error occured while attempting to update collection settings. {e}"
@@ -460,29 +665,13 @@ def get_collection_contents(collection):
     return {"published": published, "unpublished": unpublished}
 
 
-def display_collection_contents(request, collection_id):
-    collection = get_object_or_404(Collection, pk=collection_id)
-    contents = get_collection_contents(collection)
-    context = {
-        "collection": collection,
-        "published_contents": contents["published"],
-        "unpublished_contents": contents["unpublished"],
-    }
-    return render(request, "partials/collection_contents_display.html", context)
-
-
 @require_http_methods(["DELETE"])
 def delete_collection(request, collection_id):
-    collection = get_object_or_404(Collection, pk=collection_id)
     try:
-        collection.delete()
-        collections = get_collection_types(request.user)
-        context = {
-            "published": collections["published"],
-            "unpublished": collections["unpublished"],
-            "archived": collections["archived"],
-        }
-        return render(request, "partials/finish_collection_deletion.html", context)
+        collection = Collection.objects.get(pk=collection_id)
+        if request.user.is_admin or request.user == collection.owner:
+            collection.delete()
+        return HttpResponse()
     except Exception as e:
         logger.error(
             f"An error occured while deleting the collection with id: {collection_id}. Exception: {e}"
@@ -508,54 +697,81 @@ def display_create_content(request, collection_id):
 
 @require_POST
 def create_content(request):
-    collection = get_object_or_404(Collection, pk=request.POST["collection_id"])
-    form = ContentForm(request.POST)
-
-    if form.is_valid():
-        data = form.cleaned_data
-        try:
-            Content.objects.create(
-                collection=collection,
-                title=data["title"],
-                description=data["description"],
-                allow_definitions=data["allow_definitions"],
-                allow_notes=data["allow_notes"],
-                allow_captions=data["allow_captions"],
-                resource_file=data["resource_file"],
-            )
-        except Exception as e:
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "collection_id" not in parsed_data
+            or "title" not in parsed_data
+            or "resource_file_id" not in parsed_data
+        ):
             logger.error(
-                f"An error occured while creating a new Content. Exception: {e}"
+                f"Failed to create new content beacuse of invalid data provided. Exception: {e}"
             )
-            return HttpResponseServerError()
+            return HttpResponseBadRequest()
 
-        try:
-            contents = get_collection_contents(collection)
-        except Exception as e:
-            logger.error(
-                f"An error occured while trying to gather collection contents after content creation. Exception: {e}"
-            )
-            return HttpResponseServerError()
+        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        resource_file = ResourceFile.objects.get(pk=parsed_data["resource_file_id"])
+        Content.objects.create(
+            collection=collection,
+            title=parsed_data["title"],
+            resource_file=resource_file,
+        )
+        return HttpResponse()
+    except ResourceFile.DoesNotExist:
+        logger.error("Failed to create new content due to missing ResourceFile")
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"An error occured while creating a new Content. Exception: {e}")
+        return HttpResponseServerError()
 
-        context = {
-            "collection": collection,
-            "published_contents": contents["published"],
-            "unpublished_contents": contents["unpublished"],
-        }
-        return render(request, "partials/collection_contents_display.html", context)
-    else:
+
+def display_create_from_resource(request, collection_id):
+    if collection_id is None:
+        return HttpResponseBadRequest()
+    try:
+        Collection.objects.get(pk=collection_id)
+    except Exception as e:
+        logger.error(
+            f"Failed to display resources to create a content for the given collection. Exception: {e}"
+        )
         return HttpResponseBadRequest()
 
+    try:
+        resources = Resource.objects.all()
+        return render(
+            request,
+            "create_from_resource.html",
+            {"resources": resources, "collection_id": collection_id},
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to display resources to create content from. Exception: {e}"
+        )
+        return HttpResponseServerError()
 
-def display_resources_files(request):
-    resource_id = request.GET.get("resource_id")
-    resource = get_object_or_404(Resource, id=resource_id)
-    resource_files = (
-        resource.resource_files.all()
-    )  # uses related_name="resource_files" in File model
-    return render(
-        request, "partials/select_file.html", {"resource_files": resource_files}
-    )
+
+def render_create_from_resource_form(request):
+    try:
+        parsed_data = json.loads(request.body)
+        if "resource_id" not in parsed_data or "collection_id" not in parsed_data:
+            return HttpResponseBadRequest()
+
+        resource_id = parsed_data["resource_id"]
+        resource = Resource.objects.get(pk=resource_id)
+
+        context = {
+            "collection_id": parsed_data["collection_id"],
+            "options": resource.resource_files.all(),
+        }
+        return render(request, "partials/create_from_resource_form.html", context)
+    except Resource.DoesNotExist:
+        logger.error(
+            "Failed to render the create from resource form because no Resource matches the provided resource_id"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to render the create from resource form. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_http_methods(["DELETE"])
@@ -578,44 +794,89 @@ def delete_content(request, content_id):
     return HttpResponseBadRequest()
 
 
+def display_content_info(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        resource_file_key = request.user.get_resource_filekey(content)
+        form = UpdateContentForm(instance=content)
+        word_form = ImportantWordForm()
+        words = ImportantWord.objects.filter(content=content)
+        context = {
+            "content": content,
+            "content_id": content.pk,
+            "resource_file_key_id": resource_file_key.pk,
+        }
+        return render(request, "content_info.html", context)
+    except Content.DoesNotExist:
+        logger.error(
+            f"Failed to display content settings because of missing content object. Id provided: {content_id}"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to display content settings. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def render_content_settings_form(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        context = {"content": content}
+        return render(request, "partials/content_settings_form.html", context)
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to render content settings form beacuse the requested content does not exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to render content settings form. Exception: {e}")
+        return HttpResponseServerError()
+
+
+def remove_content_from_collection(request, content_id):
+    try:
+        content = Content.objects.get(pk=content_id)
+        if request.user.is_admin or request.user == content.collection.owner:
+            collection_id = content.collection.pk
+            content.collection = None
+            content.save()
+            return HttpResponse(collection_id)
+        else:
+            return HttpResponse(status=401)
+
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to remove content from collection because the content doesn't exist"
+        )
+        return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to remove content from collection. Exception: {e}")
+        return HttpResponseServerError()
+
+
 @require_POST
 def update_content(request):
-    form = UpdateContentForm(request.POST)
-    if form.is_valid():
-        content = get_object_or_404(Content, pk=form.cleaned_data["id"])
-        content.title = form.cleaned_data["title"]
-        content.description = form.cleaned_data["description"]
-        if "allow_definitions" in form.cleaned_data:
-            content.allow_definitions = form.cleaned_data["allow_definitions"]
-        if "allow_notes" in form.cleaned_data:
-            content.allow_notes = form.cleaned_data["allow_notes"]
-        if "allow_captions" in form.cleaned_data:
-            content.allow_captions = form.cleaned_data["allow_captions"]
-        if "published" in form.cleaned_data:
-            content.published = form.cleaned_data["published"]
-        try:
-            content.save()
-            contents = get_collection_contents(content.collection)
-            context = {
-                "collection": content.collection,
-                "published_contents": contents["published"],
-                "unpublished_contents": contents["unpublished"],
-            }
-            return render(request, "partials/collection_contents_display.html", context)
-        except Exception as e:
-            logger.error(f"An error occured while updating content. Exception: {e}")
-            return HttpResponseServerError()
-    else:
+    try:
+        data = json.loads(request.body)
+        content = Content.objects.get(pk=data["id"])
+        content.title = data["title"]
+        content.description = data["description"]
+        content.words = data["words"]
+        content.allow_definitions = data["allow_definitions"]
+        content.allow_notes = data["allow_notes"]
+        content.allow_captions = data["allow_captions"]
+        content.published = data["published"]
+
+        content.save()
+        context = {"content": content}
+        return HttpResponse()
+    except Content.DoesNotExist:
+        logger.error(
+            "Failed to update content because the content object does not exist"
+        )
         return HttpResponseBadRequest()
-
-
-def display_content_settings(request, content_id):
-    content = get_object_or_404(Content, pk=content_id)
-    form = UpdateContentForm(instance=content)
-    word_form = ImportantWordForm()
-    words = ImportantWord.objects.filter(content=content)
-    context = {"content": content, "form": form, "word_form": word_form, "words": words}
-    return render(request, "partials/content_settings.html", context)
+    except Exception as e:
+        logger.error(f"An error occured while updating content. Exception: {e}")
+        return HttpResponseServerError()
 
 
 @require_POST
@@ -1233,28 +1494,3 @@ def add_collection_member(request, collection_id):
         return redirect("view_collection", pk=collection.id)
 
     return HttpResponseBadRequest()
-
-
-def collection_video(request, pk):
-    try:
-        collection = Collection.objects.get(pk=pk)
-        published_contents = Content.objects.filter(
-            collection=collection, published=True
-        )
-
-        return render(
-            request,
-            "partials/collection_video_page.html",
-            {
-                "collection": collection,
-                "contents": published_contents,
-            },
-        )
-    except Collection.DoesNotExist:
-        logger.error(
-            f"Failed to retrieve collection video because collection does not exist. Collection ID: {pk}"
-        )
-        return HttpResponseBadRequest()
-    except Exception as e:
-        logger.error(f"Failed to retrieve collection video. Exception: {e}")
-        return HttpResponseServerError()
