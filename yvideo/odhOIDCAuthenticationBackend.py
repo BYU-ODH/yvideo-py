@@ -33,12 +33,24 @@ def build_random_netid():
 
 class OIDCUserAuth(OIDCAuthenticationBackend):
     def verify_claims(self, claims):
-        if "byu_id" in claims or "netid" in claims:
+        if "byu_id" in claims:
+            api = Api()
+            worker_id = api.get_worker_id_from_byu_id(claims.get("byu_id"))
+            student_summary = api.get_student_summary(claims.get("byu_id"))
+            if worker_id is None and student_summary is None:
+                print(
+                    f"Login rejected because the user is not affiliated as an employee or student. Rejected BYU-ID: {claims.get('byu_id')}"
+                )
+                return False
             return True
+        else:
+            print("Login rejected. No BYU-ID provided")
+            return False
 
     def create_user(self, claims):
         byu_id = claims.get("byu_id")
         if byu_id is None:
+            print("Failed to create a user, no BYU-ID provided")
             return
 
         # figure out if this is a student or faculty
@@ -49,7 +61,9 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         if worker_id:
             worker_summary = api.get_worker_summary(worker_id, byu_id)
             if worker_summary["is_faculty"]:
+                print("User is faculty")
                 netid = build_random_netid()
+                print(f"New bogus netid for user is: {netid} for byu-id: {byu_id}")
                 # Only activate the following lines after we get access to this API - BDR 6/11/2026
                 # netid = api.get_net_id_from_worker_id(self, worker_id)
                 # user.netid = netid
@@ -65,14 +79,15 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 )
                 return user
             else:
+                print("No worker_summary provided")
                 # this could be a current student who has a job at BYU, so user the student_summary instead.
                 # One problem with this: ODH staff members (or student employees) that need access to this service
                 # will not be automatically configured unless we do more to determine who they are with the provided
                 # data. Instead, they will have to be manually configured. We will likely want to change this.
-                pass
 
         student_summary = api.get_student_summary(byu_id)
         if student_summary is not None:
+            print("User is a student")
             user = User.objects.create(
                 netid=student_summary["net_id"],
                 byu_id=byu_id,
@@ -82,9 +97,13 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
             return user
         else:
             # this is likely an odh staff member or a user who has a byu_id but is otherwise unaffiliated with the university
+            print("User did not match a student or faculty member")
             if worker_id:
                 worker_summary = api.get_worker_summary(worker_id, byu_id)
                 if worker_summary is None:
+                    print(
+                        "User did not match student, faculty member, or other employee type. Refusing to create a user"
+                    )
                     return
                 user = User.objects.create(
                     netid=build_random_netid(),
@@ -94,7 +113,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 )
                 return user
 
-        return
+        print("Unknown entity with byu_id, refusing to create a user")
 
     def update_user(self, user, claims):
         # for now, we don't do anything to update the user
