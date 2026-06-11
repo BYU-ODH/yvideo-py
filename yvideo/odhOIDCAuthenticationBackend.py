@@ -67,7 +67,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 # Only activate the following lines after we get access to this API - BDR 6/11/2026
                 # netid = api.get_net_id_from_worker_id(self, worker_id)
                 # user.netid = netid
-                # user.byu_id = byu_id
+                # user.username = byu_id
                 # return user
 
                 user = User.objects.create(
