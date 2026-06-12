@@ -36,13 +36,13 @@ DEMO_MEDIA_DIR = Path(settings.BASE_DIR) / "demo_media"
 DEMO_YEARTERM = "20261"
 DEMO_ADMIN_USERNAMES = {
     DEMO_ADMIN_USERNAME,
-    "profada",
-    "profben",
-    "caseyta",
-    "labdemo",
-    "studali",
-    "studbob",
-    "studivy",
+    "111223333",
+    "111224444",
+    "111225555",
+    "111226666",
+    "111227777",
+    "111228888",
+    "111229999",
 }
 DEMO_RESOURCE_NAMES = {"Birds", "Grid", "Grid Overlay"}
 DEMO_COURSES = [
@@ -92,7 +92,7 @@ def create_demo_data():
     )
     professor_ada = UserFactory(
         instructor=True,
-        username="profada",
+        username="111223333",
         netid="profada",
         first_name="Ada",
         last_name="Professor",
@@ -101,7 +101,7 @@ def create_demo_data():
     )
     professor_ben = UserFactory(
         instructor=True,
-        username="profben",
+        username="111224444",
         netid="profben",
         first_name="Ben",
         last_name="Professor",
@@ -110,7 +110,7 @@ def create_demo_data():
     )
     teaching_assistant = UserFactory(
         lab_assistant=True,
-        username="caseyta",
+        username="111225555",
         netid="caseyta",
         first_name="Casey",
         last_name="TA",
@@ -119,7 +119,7 @@ def create_demo_data():
     )
     lab_assistant = UserFactory(
         lab_assistant=True,
-        username="labdemo",
+        username="111226666",
         netid="labdemo",
         first_name="Jordan",
         last_name="Lab",
@@ -128,7 +128,7 @@ def create_demo_data():
     )
     student_alice = UserFactory(
         student=True,
-        username="studali",
+        username="111227777",
         netid="studali",
         first_name="Alice",
         last_name="Student",
@@ -137,7 +137,7 @@ def create_demo_data():
     )
     student_bob = UserFactory(
         student=True,
-        username="studbob",
+        username="111228888",
         netid="studbob",
         first_name="Bob",
         last_name="Student",
@@ -146,7 +146,7 @@ def create_demo_data():
     )
     student_ivy = UserFactory(
         student=True,
-        username="studivy",
+        username="111229999",
         netid="studivy",
         first_name="Ivy",
         last_name="Student",
