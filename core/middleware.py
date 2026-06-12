@@ -27,8 +27,8 @@ class SpoofUserMiddleware:
                 request.original_user = original_user
                 logger.info(
                     f"Admin/Superuser {original_user.first_name} {original_user.last_name} "
-                    f"({original_user.netid}) spoofing as {spoofed_user.first_name} "
-                    f"{spoofed_user.last_name} ({spoofed_user.netid})"
+                    f"({original_user.netid} {original_user.username}) spoofing as {spoofed_user.first_name} "
+                    f"{spoofed_user.last_name} ({spoofed_user.netid} {spoofed_user.username})"
                 )
             except User.DoesNotExist:
                 logger.warning(
