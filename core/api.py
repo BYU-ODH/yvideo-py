@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from datetime import timedelta
+import logging
 
 from django.utils import timezone
 import requests
@@ -22,6 +23,7 @@ from .models import AuthToken
 
 class Api:
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
         auth_tokens = AuthToken.objects.all()
         auth_tokens_count = len(list(auth_tokens))
 
@@ -119,13 +121,44 @@ class Api:
         url = secret_settings.API_WORKER_ID_IAM_URL + "?byu_id=" + byu_id
         headers = {"Authorization": self.build_auth_header()}
         worker_id_request = requests.get(url, headers=headers)
+        if worker_id_request.status_code != 200:
+            self.logger.error(
+                "Failed to get workerid from byuid because the API responded with an error"
+            )
+            return None
+
         worker_id_json_response = worker_id_request.json()
         response_data = worker_id_json_response["data"]
         worker_id = None
         if len(response_data) > 0:
             worker_id = response_data[0]["worker_id"]
+        else:
+            self.logger.error(
+                "Failed to get workerid from byuid because the API did not return a workerid"
+            )
 
         return worker_id
+
+    def get_net_id_from_worker_id(self, worker_id):
+        url = secret_settings.API_NET_ID_IAM_URL + "?worker_id=" + worker_id
+        headers = {"Authorization": self.build_auth_header()}
+        net_id_request = requests.get(url, headers=headers)
+        if net_id_request.status_code != 200:
+            self.logger.error(
+                "Failed to get netid from worker id because the API responded with an error"
+            )
+            return None
+
+        response_data = net_id_json_response["data"]
+        net_id = None
+        if len(response_data) > 0:
+            net_id = response_data[0]["net_id"]
+        else:
+            self.logger.error(
+                "Failed to get netid because the API did not return a netid"
+            )
+
+        return net_id
 
     # byu_id is passed into this so we can record it later. byu_id does not return in the response.
     def get_worker_summary(self, worker_id, byu_id):
