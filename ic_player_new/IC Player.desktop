@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=BYU International Cinema Player
+Comment=Sets up IC player and makes it accessible in the browser
+Exec=/home/ben/ic_player.sh
+Icon=/home/ben/logo.svg
+Terminal=False
