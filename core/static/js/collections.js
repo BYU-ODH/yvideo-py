@@ -2,6 +2,9 @@ import { getCSRFToken } from "./utils.js";
 
 function setupCollectionSearch() {
   const collectionSearch = document.getElementById("collections-search");
+  if (!collectionSearch) {
+    return;
+  }
   collectionSearch.addEventListener("input", () => {
     const searchText = collectionSearch.value.toLowerCase();
     const landingPageList = collectionSearch.closest(".landing-page-collection-list");
