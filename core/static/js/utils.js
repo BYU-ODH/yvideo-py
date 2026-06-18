@@ -26,5 +26,13 @@ export function createElementFromHTMLString(html, nodeIndex=0) {
 }
 
 export function getCSRFToken() {
-  return document.querySelector('[name=csrfmiddlewaretoken]').value;
+  const cookieValue = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("csrftoken="))
+      ?.split("=")[1];
+  if (!cookieValue) {
+    console.error("Unable to get csrftoken from cookie");
+    return;
+  }
+  return cookieValue;
 }
