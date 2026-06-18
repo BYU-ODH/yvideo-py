@@ -17,7 +17,6 @@
   justify-content: center;
   transition: margin-right 0.3s ease;
   min-width: 0;
-  flex: 1;
 }
 
 .video-title {
