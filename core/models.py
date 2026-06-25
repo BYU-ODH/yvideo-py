@@ -48,7 +48,7 @@ class Resource(models.Model):
 
     name = models.CharField(max_length=255, unique=True)
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
-    requester_netid = models.CharField(max_length=8)
+    requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
     physical_copy_exists = models.BooleanField(default=False)
     views = models.IntegerField(default=0)
@@ -63,15 +63,15 @@ class Resource(models.Model):
 class CustomUserManager(BaseUserManager):
     def create_user(
         self,
-        netid,
-        byu_id=None,
+        username,
+        netid=None,
         privilege_level=PrivilegeLevel.STUDENT,
         password=None,
         privilege_level_override=None,
         **extra_fields,
     ):
         user = self.model(
-            netid=netid,
+            username=username,
             privilege_level=privilege_level,
             privilege_level_override=privilege_level_override,
             **extra_fields,
@@ -80,19 +80,18 @@ class CustomUserManager(BaseUserManager):
         user.save()
         return user
 
-    def create_superuser(self, netid, password=None, **extra_fields):
+    def create_superuser(self, username, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
         extra_fields.setdefault("privilege_level", PrivilegeLevel.ADMIN)
 
-        return self.create_user(netid=netid, password=password, **extra_fields)
+        return self.create_user(username=username, password=password, **extra_fields)
 
 
 class User(AbstractUser):
-    netid = models.CharField(max_length=8, unique=True)
-    byu_id = models.CharField(max_length=9, blank=True, null=True)
-    USERNAME_FIELD = "netid"
+    # username will be byu_id
+    netid = models.CharField(max_length=8, blank=True, null=True)
     REQUIRED_FIELDS = []
     privilege_level = models.IntegerField(
         choices=PrivilegeLevel.choices, default=PrivilegeLevel.STUDENT
@@ -111,12 +110,12 @@ class User(AbstractUser):
     objects = CustomUserManager()
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} | {self.netid}"
+        return f"{self.first_name} {self.last_name} | {self.netid} {self.username}"
 
     def to_dict(self):
         return {
             "netid": self.netid,
-            "byuid": self.byu_id,
+            "byuid": self.username,
             "first_name": self.first_name,
             "last_name": self.last_name,
         }
@@ -172,7 +171,9 @@ class ResourceAccess(models.Model):  # "through" model
         unique_together = ("user", "resource")
 
     def __str__(self):
-        return f"{self.user.netid} | {self.resource.name} | {self.id}"
+        return (
+            f"{self.user.netid} {self.user.username} | {self.resource.name} | {self.id}"
+        )
 
 
 class Collection(models.Model):
@@ -215,7 +216,7 @@ class CollectionUserAccess(models.Model):  # "through" model
         unique_together = ("user", "collection")
 
     def __str__(self):
-        return f"{self.user.netid} | {self.collection.name}"
+        return f"{self.user.netid} {self.user.username} | {self.collection.name}"
 
 
 def validate_media_file(file):

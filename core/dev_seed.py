@@ -5,8 +5,8 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import transaction
 
-from .dev_features import DEMO_ADMIN_NETID
 from .dev_features import DEMO_ADMIN_PASSWORD
+from .dev_features import DEMO_ADMIN_USERNAME
 from .factories import AnnotationSetFactory
 from .factories import BlankAnnotationFactory
 from .factories import ClipFactory
@@ -34,16 +34,16 @@ from .models import User
 
 DEMO_MEDIA_DIR = Path(settings.BASE_DIR) / "demo_media"
 DEMO_YEARTERM = "20261"
-DEMO_USER_NETIDS = {
-    DEMO_ADMIN_NETID,
-    "profada",
-    "profben",
-    "rjr45",
-    "caseyta",
-    "labdemo",
-    "studali",
-    "studbob",
-    "studivy",
+DEMO_ADMIN_USERNAMES = {
+    DEMO_ADMIN_USERNAME,
+    "111223333",
+    "111224444",
+    "111220000",
+    "111225555",
+    "111226666",
+    "111227777",
+    "111228888",
+    "111229999",
 }
 DEMO_RESOURCE_NAMES = {"Birds", "Grid", "Grid Overlay"}
 DEMO_COURSES = [
@@ -67,7 +67,7 @@ def seed_demo_data():
 
 
 def purge_demo_data():
-    User.objects.filter(netid__in=DEMO_USER_NETIDS).delete()
+    User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).delete()
     Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).delete()
 
     for dept, catalog_number, section_number in DEMO_COURSES:
@@ -84,7 +84,8 @@ def create_demo_data():
 
     admin = UserFactory(
         admin=True,
-        netid=DEMO_ADMIN_NETID,
+        username=DEMO_ADMIN_USERNAME,
+        netid=DEMO_ADMIN_USERNAME,
         first_name="Local",
         last_name="Admin",
         email="devadmin@example.test",
@@ -92,6 +93,7 @@ def create_demo_data():
     )
     professor_ada = UserFactory(
         instructor=True,
+        username="111223333",
         netid="profada",
         first_name="Ada",
         last_name="Professor",
@@ -100,6 +102,7 @@ def create_demo_data():
     )
     professor_ben = UserFactory(
         instructor=True,
+        username="111224444",
         netid="profben",
         first_name="Ben",
         last_name="Professor",
@@ -108,6 +111,7 @@ def create_demo_data():
     )
     UserFactory(
         instructor=True,
+        username="111220000",
         netid="rjr45",
         first_name="Rob",
         last_name="Reynolds",
@@ -116,6 +120,7 @@ def create_demo_data():
     )
     teaching_assistant = UserFactory(
         lab_assistant=True,
+        username="111225555",
         netid="caseyta",
         first_name="Casey",
         last_name="TA",
@@ -124,6 +129,7 @@ def create_demo_data():
     )
     lab_assistant = UserFactory(
         lab_assistant=True,
+        username="111226666",
         netid="labdemo",
         first_name="Jordan",
         last_name="Lab",
@@ -132,6 +138,7 @@ def create_demo_data():
     )
     student_alice = UserFactory(
         student=True,
+        username="111227777",
         netid="studali",
         first_name="Alice",
         last_name="Student",
@@ -140,6 +147,7 @@ def create_demo_data():
     )
     student_bob = UserFactory(
         student=True,
+        username="111228888",
         netid="studbob",
         first_name="Bob",
         last_name="Student",
@@ -148,6 +156,7 @@ def create_demo_data():
     )
     student_ivy = UserFactory(
         student=True,
+        username="111229999",
         netid="studivy",
         first_name="Ivy",
         last_name="Student",
@@ -174,11 +183,15 @@ def create_demo_data():
     ]:
         UserCourseFactory(user=user, course=course, yearterm=DEMO_YEARTERM)
 
-    birds_resource = ResourceFactory(name="Birds", requester_netid=professor_ada.netid)
-    grid_resource = ResourceFactory(name="Grid", requester_netid=professor_ben.netid)
+    birds_resource = ResourceFactory(
+        name="Birds", requester_username=professor_ada.username
+    )
+    grid_resource = ResourceFactory(
+        name="Grid", requester_username=professor_ben.username
+    )
     overlay_resource = ResourceFactory(
         name="Grid Overlay",
-        requester_netid=professor_ben.netid,
+        requester_username=professor_ben.username,
         copyrighted=True,
     )
 
@@ -445,15 +458,15 @@ def create_demo_data():
     ResourceFileKeyFactory(user=admin, resource_file=birds_file)
 
     return {
-        "users": User.objects.filter(netid__in=DEMO_USER_NETIDS).count(),
+        "users": User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).count(),
         "resources": Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).count(),
         "collections": Collection.objects.filter(
-            owner__netid__in=DEMO_USER_NETIDS
+            owner__username__in=DEMO_ADMIN_USERNAMES
         ).count(),
         "contents": Content.objects.filter(
-            collection__owner__netid__in=DEMO_USER_NETIDS
+            collection__owner__username__in=DEMO_ADMIN_USERNAMES
         ).count(),
-        "seeded_admin_netid": DEMO_ADMIN_NETID,
+        "seeded_admin_netid": DEMO_ADMIN_USERNAME,
         "seeded_admin_password": DEMO_ADMIN_PASSWORD,
         "sample_content_title": birds_content.title,
     }

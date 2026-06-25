@@ -33,11 +33,10 @@ class UserFactory(factory.django.DjangoModelFactory):
         model = User
         skip_postgeneration_save = True
 
-    netid = factory.Sequence(lambda n: f"usr{n:05d}")
-    username = factory.SelfAttribute("netid")
+    username = factory.Sequence(lambda n: f"usr{n:05d}")
     first_name = factory.Sequence(lambda n: f"User{n}")
     last_name = "Account"
-    email = factory.LazyAttribute(lambda user: f"{user.netid}@example.test")
+    email = factory.LazyAttribute(lambda user: f"{user.username}@example.test")
     privilege_level = PrivilegeLevel.STUDENT
     is_active = True
     is_staff = False
@@ -89,7 +88,7 @@ class ResourceFactory(factory.django.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: f"Demo Resource {n}")
     media_type = Resource.MediaType.VIDEO
-    requester_netid = factory.Sequence(lambda n: f"req{n:05d}"[:8])
+    requester_username = factory.Sequence(lambda n: f"req{n:05d}"[:8])
     copyrighted = False
     physical_copy_exists = False
     notes = ""

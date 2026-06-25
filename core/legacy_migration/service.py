@@ -120,7 +120,7 @@ class LegacyMigrationService:
         payload_netid = (created_user_payload.get("netid") or "").strip()
 
         if payload_byu_id:
-            user = User.objects.filter(byu_id=payload_byu_id).first()
+            user = User.objects.filter(username=payload_byu_id).first()
             if user:
                 return user
         if payload_netid:
@@ -133,7 +133,7 @@ class LegacyMigrationService:
         email = legacy_user_dict.get("legacy_email", "").strip().lower()
 
         if byu_id:
-            user = User.objects.filter(byu_id=byu_id).first()
+            user = User.objects.filter(username=byu_id).first()
             if user:
                 return user, LegacyMigrationUserResolutionStatus.AUTO
 
@@ -833,7 +833,7 @@ class LegacyMigrationService:
             name=migration_resource.target_resource_name
             or migration_resource.legacy_name,
             media_type=map_legacy_media_type(migration_resource.legacy_media_type),
-            requester_netid=owner.netid,
+            requester_username=owner.username,
             copyrighted=bool(snapshot_resource.get("copyrighted", True)),
             physical_copy_exists=bool(
                 snapshot_resource.get("physical_copy_exists", False)

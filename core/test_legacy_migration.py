@@ -279,10 +279,10 @@ class LegacyMigrationTests(TestCase):
         self.create_legacy_schema()
         language = LanguageFactory(language="English", lang_tag="en")
 
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
-        ta_user = UserFactory(netid="caseyta", byu_id="987654321", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
+        ta_user = UserFactory(netid="caseyta", username="987654321", instructor=True)
         current_resource = ResourceFactory(
-            name="Legacy Birds", requester_netid=owner.netid
+            name="Legacy Birds", requester_username=owner.username
         )
         shared_path = self.write_media_file("legacy/shared-birds.mp4")
         current_resource_file = ResourceFile(
@@ -522,13 +522,15 @@ class LegacyMigrationTests(TestCase):
         self.create_legacy_schema()
         LanguageFactory(language="English", lang_tag="en")
 
-        target_owner = UserFactory(netid="profben", byu_id="111111111", instructor=True)
+        target_owner = UserFactory(
+            netid="profben", username="111111111", instructor=True
+        )
         collection_ta = UserFactory(
-            netid="caseyta", byu_id="222222222", instructor=True
+            netid="caseyta", username="222222222", instructor=True
         )
         resource_guest = UserFactory(
             netid="resourceg",
-            byu_id="333333333",
+            username="333333333",
             instructor=True,
         )
 
@@ -844,10 +846,10 @@ class LegacyMigrationTests(TestCase):
     def test_preflight_auto_reuses_same_checksum_match(self):
         self.create_legacy_schema()
 
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
         current_resource = ResourceFactory(
             name="Current Checksum Resource",
-            requester_netid=owner.netid,
+            requester_username=owner.username,
         )
         current_file_path = self.write_media_file(
             "current/existing-audio.mp3",
@@ -998,10 +1000,10 @@ class LegacyMigrationTests(TestCase):
     ):
         self.create_legacy_schema()
 
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
         current_video_resource = ResourceFactory(
             name="Existing Video Resource",
-            requester_netid=owner.netid,
+            requester_username=owner.username,
         )
         current_video_file = ResourceFile(
             resource=current_video_resource,
@@ -1014,7 +1016,7 @@ class LegacyMigrationTests(TestCase):
 
         current_audio_resource = ResourceFactory(
             name="Existing Audio Resource",
-            requester_netid=owner.netid,
+            requester_username=owner.username,
         )
         current_audio_file = ResourceFile(
             resource=current_audio_resource,
@@ -1178,10 +1180,10 @@ class LegacyMigrationTests(TestCase):
     def test_sync_request_issues_defaults_resource_reuse_target_from_file_reuse(self):
         self.create_legacy_schema()
 
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
         current_resource = ResourceFactory(
             name="Existing Lecture Resource",
-            requester_netid=owner.netid,
+            requester_username=owner.username,
         )
         current_resource_file = ResourceFile(
             resource=current_resource,
@@ -1374,10 +1376,10 @@ class LegacyMigrationTests(TestCase):
         self.create_legacy_schema()
         LanguageFactory(language="English", lang_tag="en")
 
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
         existing_resource = ResourceFactory(
             name="Existing Reused Resource",
-            requester_netid=owner.netid,
+            requester_username=owner.username,
         )
 
         legacy_collection_id = str(uuid.uuid4())
@@ -1501,7 +1503,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_preflight_backfills_target_collection_name_for_existing_target_owner(self):
         self.create_legacy_schema()
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
 
         legacy_collection_id = str(uuid.uuid4())
         legacy_owner_id = str(uuid.uuid4())
@@ -1544,7 +1546,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_preflight_keeps_collection_access_rows_without_matching_legacy_user(self):
         self.create_legacy_schema()
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
 
         legacy_collection_id = str(uuid.uuid4())
         legacy_owner_id = str(uuid.uuid4())
@@ -1615,16 +1617,16 @@ class LegacyMigrationTests(TestCase):
 
     def test_admin_snapshot_previews_show_courses_and_collection_access(self):
         self.create_legacy_schema()
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
         legacy_ta_byu_id = "987654321"
         ta_user = UserFactory(
             netid="caseyta",
-            byu_id=legacy_ta_byu_id,
+            username=legacy_ta_byu_id,
             instructor=True,
         )
         resource_guest = UserFactory(
             netid="resourceg",
-            byu_id="333333333",
+            username="333333333",
             instructor=True,
         )
 
@@ -1988,7 +1990,7 @@ class LegacyMigrationTests(TestCase):
 
     @override_settings(LEGACY_MIGRATION_CREATE_MISSING_USERS=True)
     def test_upsert_user_resolution_handles_missing_autocreate_user(self):
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
         migration_request = LegacyMigrationRequest.objects.create(
             requested_by=owner,
             target_owner=owner,
@@ -2025,10 +2027,10 @@ class LegacyMigrationTests(TestCase):
 
     @override_settings(LEGACY_MIGRATION_CREATE_MISSING_USERS=True)
     def test_upsert_user_resolution_resolves_serialized_autocreate_user(self):
-        owner = UserFactory(netid="profada", byu_id="123456789", instructor=True)
+        owner = UserFactory(netid="profada", username="123456789", instructor=True)
         created_user = UserFactory(
             netid="rjr45",
-            byu_id="555555555",
+            username="555555555",
             first_name="Rob",
             last_name="Reynolds",
             instructor=True,

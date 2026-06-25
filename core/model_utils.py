@@ -100,7 +100,7 @@ def update_user_enrollment(user):
         "result_message": "Failed to update user enrollment",
     }
     # don't bother if we don't have a netid for the user
-    if user.netid is None:
+    if user.username is None:
         update_result["result_message"] = "Unknown user"
         return update_result
     # get the current yearterm
@@ -111,7 +111,9 @@ def update_user_enrollment(user):
     current_yearterm = current_yearterm_lookup["yearterm"]
     next_yearterm = api.calculate_next_year_term(current_yearterm)
 
-    current_user_enrollments = api.get_student_enrollments(user.netid, current_yearterm)
+    current_user_enrollments = api.get_student_enrollments(
+        user.username, current_yearterm
+    )
 
     updated_current_sem_correctly = True
     if current_user_enrollments is None:
@@ -128,7 +130,9 @@ def update_user_enrollment(user):
 
     updated_next_sem_correctly = True
     if current_yearterm_lookup["is_two_weeks_from_end"]:
-        next_yearterm_courses = api.get_student_enrollments(user.netid, next_yearterm)
+        next_yearterm_courses = api.get_student_enrollments(
+            user.username, next_yearterm
+        )
 
         if next_yearterm_courses is None:
             updated_next_sem_correctly = False
@@ -175,7 +179,7 @@ def create_or_update_user(byu_id):
     }
     # check if user already exists, if they do, return it
     try:
-        user = User.objects.get(byu_id=byu_id)
+        user = User.objects.get(username=byu_id)
         result["user"] = user.to_dict()
         update_result = update_user_enrollment(user)
         result["enrollment_update_message"] = update_result["result_message"]
@@ -203,7 +207,7 @@ def create_or_update_user(byu_id):
     privilege_level = 2 if summary["is_faculty"] else 3
     user = User.objects.create(
         netid=netid,
-        byu_id=byu_id,
+        username=byu_id,
         privilege_level=privilege_level,
         first_name=summary["first_name"],
         last_name=summary["last_name"],

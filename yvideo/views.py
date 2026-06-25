@@ -5,7 +5,7 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from core.dev_features import DEMO_ADMIN_NETID
+from core.dev_features import DEMO_ADMIN_USERNAME
 from core.dev_features import is_dev_quick_login_enabled
 from core.dev_features import is_local_dev_host
 from core.models import User
@@ -26,7 +26,7 @@ def dev_quick_login(request):
 
     try:
         admin_user = User.objects.get(
-            netid=DEMO_ADMIN_NETID,
+            username=DEMO_ADMIN_USERNAME,
             is_active=True,
             is_staff=True,
             is_superuser=True,

@@ -435,7 +435,7 @@ def search_for_editor(request):
             (
                 Q(first_name__icontains=query)
                 | Q(last_name__icontains=query)
-                | Q(netid__icontains=query)
+                | Q(username__icontains=query)
             )
             & ~Q(id=request.user.id)
         ).order_by("last_name")[:25]
