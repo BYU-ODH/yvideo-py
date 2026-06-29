@@ -21,7 +21,6 @@ except ImportError:  # pragma: no cover - fallback only matters if dependency is
 
     fuzz = _FuzzFallback()
 
-from ..model_utils import create_or_update_user
 from ..models import AnnotationSet
 from ..models import BlankAnnotation
 from ..models import BlurAnnotation
@@ -149,11 +148,16 @@ class LegacyMigrationService:
 
         if byu_id and getattr(settings, "LEGACY_MIGRATION_CREATE_MISSING_USERS", False):
             try:
+                from yvideo.odhOIDCAuthenticationBackend import OIDCUserAuth
+
+                from ..model_utils import update_user_enrollment
+
                 created_user = self._coerce_created_user_result(
-                    create_or_update_user(byu_id),
+                    OIDCUserAuth().create_user({"byu_id": byu_id}),
                     byu_id,
                 )
                 if created_user:
+                    update_user_enrollment(created_user)
                     return created_user, LegacyMigrationUserResolutionStatus.AUTO
             except Exception:
                 logger.exception("Failed to auto-create user for legacy migration.")

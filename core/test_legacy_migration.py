@@ -2000,12 +2000,8 @@ class LegacyMigrationTests(TestCase):
         service = self.build_service()
 
         with mock.patch(
-            "core.legacy_migration.service.create_or_update_user",
-            return_value={
-                "is_new_user_created": False,
-                "user": None,
-                "enrollment_update_message": "Course enrollment was not updated",
-            },
+            "yvideo.odhOIDCAuthenticationBackend.OIDCUserAuth.create_user",
+            return_value=None,
         ):
             resolution = service._upsert_user_resolution(
                 migration_request,
@@ -2043,13 +2039,12 @@ class LegacyMigrationTests(TestCase):
         )
         service = self.build_service()
 
-        with mock.patch(
-            "core.legacy_migration.service.create_or_update_user",
-            return_value={
-                "is_new_user_created": False,
-                "user": created_user.to_dict(),
-                "enrollment_update_message": "",
-            },
+        with (
+            mock.patch(
+                "yvideo.odhOIDCAuthenticationBackend.OIDCUserAuth.create_user",
+                return_value=created_user,
+            ),
+            mock.patch("core.model_utils.update_user_enrollment"),
         ):
             resolution = service._upsert_user_resolution(
                 migration_request,
