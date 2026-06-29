@@ -8,6 +8,9 @@ SECRET_KEY = "dev-only-insecure-secret-key"
 TIME_ZONE = "America/Denver"
 API_CLIENT_ID = ""
 API_CLIENT_SECRET = ""
+
+ADMIN_BYUID_WHITELIST = []
+
 # For URLs that contain query string variables that differ based on logged in user,
 # provide the entire url up to the '?', exclusive.
 # example: api.example.com/v1/?some_variable=some_value should be recorded here as:
