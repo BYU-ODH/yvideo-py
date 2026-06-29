@@ -172,6 +172,8 @@ class Api:
             "last_name": "",
             "email": "",
             "is_faculty": False,
+            "is_student": False,
+            "is_odh_employee": False,
             "worker_id": worker_id,
             "byu_id": byu_id,
         }
@@ -193,6 +195,8 @@ class Api:
             parsed_summary["email"] = data["work_email_address"]
             faculty_keyword = "faculty"
             for position in worker_positions:
+                if position["is_active_position"] == False:
+                    continue
                 position_code = position[
                     "employee_or_contingent_worker_type_reference_id"
                 ]
@@ -204,6 +208,14 @@ class Api:
                     or faculty_keyword in position_title
                 ):
                     parsed_summary["is_faculty"] = True
+                elif position_code == "STD":
+                    parsed_summary["is_student"] = True
+
+                if (
+                    position["supervisory_org_parent"]
+                    == "Humanities, Dean's - Office of Digital Humanities"
+                ):
+                    parsed_summary["is_odh_employee"] = True
 
             return parsed_summary
         else:
