@@ -4,7 +4,6 @@ from django.utils import timezone
 
 from .api import Api
 from .models import Course
-from .models import User
 from .models import UserCourses
 
 logger = logging.getLogger(__name__)
@@ -164,56 +163,3 @@ def update_user_enrollment(user):
     update_result["is_next_sem_updated"] = updated_next_sem_correctly
     update_result["result_message"] = result_message
     return update_result
-
-
-def create_or_update_user(byu_id):
-    """
-    Checks if a user tied to the provided byu_id already exists. If not,
-    creates a new user. The returned object provides the user and
-    whether the user is newly created.
-    """
-    result = {
-        "is_new_user_created": False,
-        "user": None,
-        "enrollment_update_message": "Course enrollment was not updated",
-    }
-    # check if user already exists, if they do, return it
-    try:
-        user = User.objects.get(byu_id=byu_id)
-        result["user"] = user.to_dict()
-        update_result = update_user_enrollment(user)
-        result["enrollment_update_message"] = update_result["result_message"]
-        return result
-    except User.DoesNotExist:
-        # pass because we want the function to continue on to create a new user
-        pass
-
-    # We must determine if the user is a worker, or a student and call the correct summary
-    api = Api()
-    worker_id = api.get_worker_id_from_byu_id(byu_id)
-    summary = None
-    if worker_id is not None:
-        summary = api.get_worker_summary(worker_id, byu_id)
-
-    # this is a separate if because the summary from get_worker_summary may also return None
-    # this happens if the person we think is a worker, is actually NOT a worker
-    if summary is None:
-        summary = api.get_student_summary(byu_id)
-
-    if summary is None:
-        # something went wrong, we have no data, abandon user creation
-        return result
-    netid = summary["netid"] if "netid" in summary else ""
-    privilege_level = 2 if summary["is_faculty"] else 3
-    user = User.objects.create(
-        netid=netid,
-        byu_id=byu_id,
-        privilege_level=privilege_level,
-        first_name=summary["first_name"],
-        last_name=summary["last_name"],
-    )
-    result["user"] = user.to_dict()
-    result["is_new_user_created"] = True
-    update_result = update_user_enrollment(user)
-    result["enrollment_update_message"] = update_result["result_message"]
-    return result
