@@ -5,6 +5,8 @@ from core.model_utils import update_user_enrollment
 from core.models import PrivilegeLevel
 from core.models import User
 
+from . import secret_settings
+
 
 class OIDCUserAuth(OIDCAuthenticationBackend):
     def verify_claims(self, claims):
@@ -33,6 +35,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         # because faculty members may well have been students, we need to check for faculty status first
         # so that they are not accidentally assigned as students
         worker_id = api.get_worker_id_from_byu_id(byu_id)
+        is_admin = byu_id in secret_settings.ADMIN_BYUID_WHITELIST
         if worker_id:
             # by default, we give the least privileges to users. If a user should have admin
             # privileges, they should be manually elevated
@@ -41,10 +44,12 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 user = User.objects.create(
                     username=byu_id,
                     netid=api.get_net_id_from_worker_id(self, worker_id),
-                    privilege_level=PrivilegeLevel.INSTRUCTOR,
+                    privilege_level=PrivilegeLevel.ADMIN
+                    if is_admin
+                    else PrivilegeLevel.INSTRUCTOR,
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
-                    is_staff=worker_summary["is_odh_employee"],
+                    is_staff=worker_summary["is_odh_employee"] or is_admin,
                 )
                 return user
             elif (
@@ -56,8 +61,10 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     netid=api.get_net_id_from_worker_id(self, worker_id),
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
-                    is_staff=True,
-                    privilege_level=PrivilegeLevel.LAB_ASSISTANT,
+                    is_staff=is_admin,
+                    privilege_level=PrivilegeLevel.ADMIN
+                    if is_admin
+                    else PrivilegeLevel.STUDENT,
                 )
                 return user
 
