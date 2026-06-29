@@ -62,9 +62,9 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
                     is_staff=is_admin,
-                    privilege_level=PrivilegeLevel.ADMIN
-                    if is_admin
-                    else PrivilegeLevel.STUDENT,
+                    privilege_level=(
+                        PrivilegeLevel.ADMIN if is_admin else PrivilegeLevel.STUDENT
+                    ),
                 )
                 return user
 
