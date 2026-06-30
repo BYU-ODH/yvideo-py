@@ -203,7 +203,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  outline: none;  /* eslint-disable-line css/use-baseline */
+  outline: none;
   width: 48px;
   height: 48px;
 }
@@ -489,7 +489,7 @@
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.2s ease;
-  outline: none;  /* eslint-disable-line css/use-baseline */
+  outline: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
