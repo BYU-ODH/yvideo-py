@@ -960,16 +960,13 @@ export class AnnotationPlayer {
       (a, b) => parseFloat(a) - parseFloat(b),
     );
     for (let i = 0; i < timeKeys.length; i++) {
-      let t1 = null,
-        t2 = null;
-      if (timeKeys[i + 1]) {
-        t1 = timeKeys[i];
-        t2 = timeKeys[i + 1];
-        annotation.details["intPositions"][t1] = position[t1];
-      } else {
+      if (!timeKeys[i + 1]) {
         annotation.details["intPositions"][timeKeys[i]] = position[timeKeys[i]];
         break;
       }
+      let t1 = timeKeys[i];
+      let t2 = timeKeys[i + 1];
+      annotation.details["intPositions"][t1] = position[t1];
       let maxTimeInterval = 1 / 30;
       let tdiff = parseFloat(t2) - parseFloat(t1);
       let incr = Math.floor(tdiff / maxTimeInterval);
@@ -991,12 +988,10 @@ export class AnnotationPlayer {
         let tmid = parseFloat(t1) + j * maxTimeInterval;
         let xmid = position[t1][0] + j * xincr;
         let ymid = position[t1][1] + j * yincr;
-        let wmid = null,
-          hmid = null;
         if (wincr && hincr) {
-          wmid = position[t1][2] + j * wincr;
+          let wmid = position[t1][2] + j * wincr;
           if (xmid + wmid > 100) wmid = 100 - xmid;
-          hmid = position[t1][3] + j * hincr;
+          let hmid = position[t1][3] + j * hincr;
           if (ymid + hmid > 100) hmid = 100 - ymid;
           annotation.details["intPositions"][tmid] = [xmid, ymid, wmid, hmid];
         } else {
