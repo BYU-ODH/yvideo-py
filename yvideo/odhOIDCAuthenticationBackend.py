@@ -35,7 +35,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         # because faculty members may well have been students, we need to check for faculty status first
         # so that they are not accidentally assigned as students
         worker_id = api.get_worker_id_from_byu_id(byu_id)
-        is_admin = byu_id in secret_settings.ADMIN_BYUID_WHITELIST
+        is_admin = byu_id in getattr(secret_settings, "ADMIN_BYUID_WHITELIST", [])
         if worker_id:
             # by default, we give the least privileges to users. If a user should have admin
             # privileges, they should be manually elevated
@@ -43,7 +43,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
             if worker_summary["is_faculty"]:
                 user = User.objects.create(
                     username=byu_id,
-                    netid=api.get_net_id_from_worker_id(self, worker_id),
+                    netid=api.get_net_id_from_worker_id(worker_id),
                     privilege_level=PrivilegeLevel.ADMIN
                     if is_admin
                     else PrivilegeLevel.INSTRUCTOR,
@@ -58,7 +58,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
             ):
                 user = User.objects.create(
                     username=byu_id,
-                    netid=api.get_net_id_from_worker_id(self, worker_id),
+                    netid=api.get_net_id_from_worker_id(worker_id),
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
                     is_staff=is_admin,

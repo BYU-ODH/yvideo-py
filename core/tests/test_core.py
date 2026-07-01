@@ -7,35 +7,28 @@ import unittest
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-# from django.urls import reverse
-from core.utils import VTTCue
-from core.utils import build_cues_from_vtt_file_string
-from core.utils import build_vtt_file_string_from_cues
-from core.utils import nudge_cue_times
-
-from . import api
-from .factories import AnnotationSetFactory
-from .factories import BlankAnnotationFactory
-from .factories import CollectionFactory
-from .factories import CommentAnnotationFactory
-from .factories import ContentFactory
-from .factories import MuteAnnotationFactory
-from .factories import ResourceFactory
-from .factories import ResourceFileFactory
-from .factories import TrackFactory
-from .factories import UserFactory
-from .models import AnnotationSet
-from .models import BlurAnnotation
-from .models import BlurAnnotationPosition
-from .models import PauseAnnotation
-from .models import SkipAnnotation
-from .models import validate_font_color
-
-# from .models import Resource
-# from .models import Track
-# from .models import User
-#
-from .utils import seconds2hms
+from .. import api
+from ..factories import AnnotationSetFactory
+from ..factories import BlankAnnotationFactory
+from ..factories import CollectionFactory
+from ..factories import CommentAnnotationFactory
+from ..factories import ContentFactory
+from ..factories import MuteAnnotationFactory
+from ..factories import ResourceFactory
+from ..factories import ResourceFileFactory
+from ..factories import TrackFactory
+from ..factories import UserFactory
+from ..models import AnnotationSet
+from ..models import BlurAnnotation
+from ..models import BlurAnnotationPosition
+from ..models import PauseAnnotation
+from ..models import SkipAnnotation
+from ..models import validate_font_color
+from ..utils import VTTCue
+from ..utils import build_cues_from_vtt_file_string
+from ..utils import build_vtt_file_string_from_cues
+from ..utils import nudge_cue_times
+from ..utils import seconds2hms
 
 
 class ApiTests(TestCase):

@@ -149,6 +149,7 @@ class Api:
             )
             return None
 
+        net_id_json_response = net_id_request.json()
         response_data = net_id_json_response["data"]
         net_id = None
         if len(response_data) > 0:
