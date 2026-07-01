@@ -1406,7 +1406,7 @@ export class Editor {
         if (originalItem.dataset["end"]) {
           originalEndTime = parseFloat(originalItem.dataset["end"]);
         }
-        let success = false;
+        let success;
         if (trackId != originalTrackId) {
           // transfer item to new track
 

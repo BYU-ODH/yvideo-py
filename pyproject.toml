@@ -5,23 +5,23 @@ description = "Copyright-safe course-based media sharing"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "django-reversion>=6.1.0,<7",
-    "django>=5.2.13,<5.3",
-    "gunicorn>=25.3,<26",
-    "requests>=2.33,<2.34",
-    "xxhash>=3.6,<4",
+    "django-reversion>=6.3.0,<7",
+    "django>=5.2.15,<5.3",
+    "gunicorn>=26.0.0,<27",
+    "requests>=2.34.2,<2.35",
+    "xxhash>=3.8.0,<4",
     "mozilla-django-oidc >=5.0.2,<6"
 ]
 
 [dependency-groups]
 dev = [
     "factory-boy==3.3.3",
-    "playwright==1.55.0",
-    "pre-commit==4.5.1",
-    "pytest==9.0.2",
+    "playwright==1.61.0",
+    "pre-commit==4.6.0",
+    "pytest==9.1.1",
     "pytest-django==4.12.0",
-    "pytest-playwright==0.7.2",
-    "ruff==0.15.7",
+    "pytest-playwright==0.8.0",
+    "ruff==0.15.20",
 ]
 
 [tool.ruff]
