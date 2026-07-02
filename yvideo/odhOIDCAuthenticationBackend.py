@@ -5,7 +5,16 @@ from core.model_utils import update_user_enrollment
 from core.models import PrivilegeLevel
 from core.models import User
 
-from . import secret_settings
+try:
+    from . import secret_settings
+except ImportError:
+    import warnings
+
+    warnings.warn(
+        "secret_settings.py not found; falling back to secret_settings_template.py",
+        stacklevel=1,
+    )
+    from . import secret_settings_template as secret_settings
 
 
 class OIDCUserAuth(OIDCAuthenticationBackend):
@@ -52,10 +61,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     is_staff=worker_summary["is_odh_employee"] or is_admin,
                 )
                 return user
-            elif (
-                worker_summary["is_student"] == False
-                and worker_summary["is_odh_employee"]
-            ):
+            elif not worker_summary["is_student"] and worker_summary["is_odh_employee"]:
                 user = User.objects.create(
                     username=byu_id,
                     netid=api.get_net_id_from_worker_id(worker_id),

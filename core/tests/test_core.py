@@ -308,7 +308,7 @@ class FontColorValidationTests(TestCase):
         for code in self.valid_hexcodes:
             try:
                 validate_font_color(code)
-            except:
+            except Exception:
                 self.fail("Failed to validate valid hexcode")
 
 
