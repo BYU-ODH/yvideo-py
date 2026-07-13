@@ -30,7 +30,6 @@ from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import ResourceContentIntakeRequestForm
-from .forms import UpdateContentForm
 from .models import BlankAnnotation
 from .models import Clip
 from .models import Collection
@@ -641,13 +640,6 @@ def update_collection_settings(request):
             collection.published = form.cleaned_data["published"]
             collection.archived = form.cleaned_data["archived"]
             collection.save()
-            collection_types = get_collection_types(request.user)
-            context = {
-                "collection": collection,
-                "published": collection_types["published"],
-                "unpublished": collection_types["unpublished"],
-                "archived": collection_types["archived"],
-            }
             return collection_info(request, collection.id)
         except Exception as e:
             logger.error(
@@ -705,7 +697,7 @@ def create_content(request):
             or "resource_file_id" not in parsed_data
         ):
             logger.error(
-                f"Failed to create new content beacuse of invalid data provided. Exception: {e}"
+                "Failed to create new content beacuse of invalid data provided."
             )
             return HttpResponseBadRequest()
 
@@ -798,9 +790,6 @@ def display_content_info(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
         resource_file_key = request.user.get_resource_filekey(content)
-        form = UpdateContentForm(instance=content)
-        word_form = ImportantWordForm()
-        words = ImportantWord.objects.filter(content=content)
         context = {
             "content": content,
             "content_id": content.pk,
@@ -867,7 +856,6 @@ def update_content(request):
         content.published = data["published"]
 
         content.save()
-        context = {"content": content}
         return HttpResponse()
     except Content.DoesNotExist:
         logger.error(

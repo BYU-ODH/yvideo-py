@@ -4,6 +4,7 @@ import logging
 from urllib.parse import quote
 
 from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
@@ -18,6 +19,7 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
+from .forms import SubtitleForm
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -72,7 +74,7 @@ def get_annotation_groups(annotations):
         }
         groups[type_name] = new_group
 
-    if type(annotations) == list:
+    if isinstance(annotations, list):
         for annotation in annotations:
             groups[annotation.annotation_type]["instances"].append(annotation)
 
@@ -310,6 +312,23 @@ def select_annotation_set(request):
         return HttpResponseServerError()
 
 
+def build_timeline_layers_html(request, content, annotation_set):
+    """Render the timeline track layers for an annotation set.
+
+    Used to refresh the timeline (HTMX target ``#annotation-timeline``) after an
+    undo/redo operation."""
+    tracks = annotation_set.get_tracks() if annotation_set is not None else []
+    return render_to_string(
+        "core/partials/timeline_base.html",
+        {
+            "tracks": tracks,
+            "annotation_set": annotation_set,
+            "content": content,
+        },
+        request,
+    )
+
+
 @require_POST
 @login_required
 def undo_annotation(request, content_id):
@@ -334,9 +353,7 @@ def undo_annotation(request, content_id):
         return HttpResponse("Nothing to undo for this annotation", status=400)
 
     # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(
-        request, content, annotation_set, True
-    )
+    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
     if timeline_layers_html:
         return HttpResponse(timeline_layers_html)
     else:
@@ -367,9 +384,7 @@ def redo_annotation(request, content_id):
         return HttpResponse("Nothing to redo for this annotation", status=400)
 
     # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(
-        request, content, annotation_set, True
-    )
+    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
     if timeline_layers_html:
         return HttpResponse(timeline_layers_html)
     else:
@@ -518,12 +533,6 @@ def create_annotation(request, annotation_type, track_id):
         BlurAnnotationPosition.objects.create(
             blur_annotation=annotation, time=0, x=50, y=50, width=4, height=3
         )
-
-    # Calculate position
-    position = {
-        "start": start_time,
-        "end": end_time,
-    }
 
     # Render item using shared partial
     track_item_html = render_to_string(
@@ -1282,7 +1291,7 @@ def create_track(request):
         if "track_name" in parsed_body:
             track["name"] = parsed_body["track_name"]
 
-        new_track = Track.objects.create(**track)
+        Track.objects.create(**track)
 
         return convertTracksToHTML(annotation_set, request)
     except Exception as e:

@@ -149,6 +149,7 @@ class Api:
             )
             return None
 
+        net_id_json_response = net_id_request.json()
         response_data = net_id_json_response["data"]
         net_id = None
         if len(response_data) > 0:
@@ -195,7 +196,7 @@ class Api:
             parsed_summary["email"] = data["work_email_address"]
             faculty_keyword = "faculty"
             for position in worker_positions:
-                if position["is_active_position"] == False:
+                if not position["is_active_position"]:
                     continue
                 position_code = position[
                     "employee_or_contingent_worker_type_reference_id"
