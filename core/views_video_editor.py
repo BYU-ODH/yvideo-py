@@ -324,6 +324,23 @@ def select_annotation_set(request):
         return HttpResponseServerError()
 
 
+def build_timeline_layers_html(request, content, annotation_set):
+    """Render the timeline track layers for an annotation set.
+
+    Used to refresh the timeline (HTMX target ``#annotation-timeline``) after an
+    undo/redo operation."""
+    tracks = annotation_set.get_tracks() if annotation_set is not None else []
+    return render_to_string(
+        "core/partials/timeline_base.html",
+        {
+            "tracks": tracks,
+            "annotation_set": annotation_set,
+            "content": content,
+        },
+        request,
+    )
+
+
 @require_POST
 @login_required
 def undo_annotation(request, content_id):
@@ -347,7 +364,12 @@ def undo_annotation(request, content_id):
     if not prev_version:
         return HttpResponse("Nothing to undo for this annotation", status=400)
 
-    return convertTracksToHTML(annotation_set, request)
+    # Prepare layers for timeline rendering
+    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
+    if timeline_layers_html:
+        return HttpResponse(timeline_layers_html)
+    else:
+        return HttpResponseServerError()
 
 
 @require_POST
@@ -373,7 +395,12 @@ def redo_annotation(request, content_id):
     if not next_version:
         return HttpResponse("Nothing to redo for this annotation", status=400)
 
-    return convertTracksToHTML(annotation_set, request)
+    # Prepare layers for timeline rendering
+    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
+    if timeline_layers_html:
+        return HttpResponse(timeline_layers_html)
+    else:
+        return HttpResponseServerError()
 
 
 @require_POST

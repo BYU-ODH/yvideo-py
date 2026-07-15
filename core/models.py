@@ -468,7 +468,7 @@ class AnnotationSet(models.Model):
             annotation_set.editors.add(*instructors_and_tas)
 
             # create new annotations if provided (if importing from json, for example)
-            if annotation_set_json is not None and type(annotation_set_json) == str:
+            if annotation_set_json is not None and isinstance(annotation_set_json, str):
                 annotation_types = {
                     "SkipAnnotation": SkipAnnotation,
                     "MuteAnnotation": MuteAnnotation,
@@ -1036,7 +1036,7 @@ class PauseAnnotation(BaseAnnotation):
     def to_player_json(self):
         """pause needs a start time even though it doesnt have an end time. This is because
         of how the AnnotationPlayer parses annotations for Y-video"""
-        t = float(self.start_time or 0)
+        # TODO need to handle null end_time?
         data = super().to_player_json()
         data["message"] = self.message
         return data
