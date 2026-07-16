@@ -3,6 +3,8 @@
     --selectable-grey: #eeeeee;
     --light-grey: #969b9c;
     --grey: #7c8383;
+    --dark-grey: #5f6567;
+    --darker-grey: #4b5052;
     --light-blue: #9cd6ed;
     --medium-blue: #0582ca;
     --deep-blue: #002e5d;
@@ -10,7 +12,7 @@
     --light-yellow: #ffc;
     --light-red: #f34a3f;
     --red: #ce0000;
-    --dark-grey: #5f6567;
+    --dark-red: #990000;
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
@@ -109,7 +111,7 @@ a.blue-button {
 }
 
 .cancel-button:hover {
-    background-color: #4b5052;
+    background-color: var(--darker-grey);
 }
 
 .red-button {
@@ -120,7 +122,7 @@ a.blue-button {
 }
 
 .red-button:hover {
-    background-color: #990000;
+    background-color: var(--dark-red);
 }
 
 .invalid-input {
