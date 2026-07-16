@@ -176,7 +176,7 @@ export class AnnotationPlayer {
             <button class="play-pause-btn" aria-label="Play/Pause"></button>
             <div class="volume-controls">
               <button class="volume-btn" aria-label="Mute/Unmute"></button>
-              <input type="range" class="volume-slider" min="0" max="1" step="0.1" value="1">
+              <input type="range" class="volume-slider" min="0" max="1" step="0.1" value="1" aria-label="Volume">
             </div>
             <div class="play-time">0:00 / 0:00</div>
           </div>
