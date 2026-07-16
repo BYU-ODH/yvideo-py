@@ -3,6 +3,8 @@
     --selectable-grey: #eeeeee;
     --light-grey: #969b9c;
     --grey: #7c8383;
+    --dark-grey: #5f6567;
+    --darker-grey: #4b5052;
     --light-blue: #9cd6ed;
     --medium-blue: #0582ca;
     --deep-blue: #002e5d;
@@ -10,6 +12,7 @@
     --light-yellow: #ffc;
     --light-red: #f34a3f;
     --red: #ce0000;
+    --dark-red: #990000;
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
@@ -63,13 +66,13 @@ button:hover {
 }
 
 .blue-button {
-    background-color: var(--primary-blue);
+    background-color: var(--dark-primary-blue);
     color: white;
     border: none;
 }
 
 .blue-button:hover {
-    background-color: var(--dark-primary-blue);
+    background-color: var(--deep-blue);
 }
 
 a.blue-button {
@@ -78,8 +81,8 @@ a.blue-button {
 
 .white-button-with-border {
     background-color: white;
-    color: var(--primary-blue);
-    border: 2px solid var(--primary-blue);
+    color: var(--dark-primary-blue);
+    border: 2px solid var(--dark-primary-blue);
 }
 
 .white-button-with-border:hover {
@@ -103,23 +106,23 @@ a.blue-button {
 
 .cancel-button {
     color: white;
-    background-color: var(--light-grey);
+    background-color: var(--dark-grey);
     border: none;
 }
 
 .cancel-button:hover {
-    background-color: var(--grey);
+    background-color: var(--darker-grey);
 }
 
 .red-button {
     color: white;
-    background-color: var(--light-red);
+    background-color: var(--red);
     border-radius: 1rem;
     border: none;
 }
 
 .red-button:hover {
-    background-color: var(--red);
+    background-color: var(--dark-red);
 }
 
 .invalid-input {
@@ -760,9 +763,10 @@ a.blue-button {
     border-top: 1px solid rgb(196, 196, 196);
 }
 
-.sidebar h4 {
+.sidebar h2 {
     margin-top: 1rem;
     margin-bottom: 0;
+    font-size: 1rem;
 }
 
 .main-content {
@@ -846,10 +850,11 @@ a.blue-button {
     padding: 0 1rem;
 }
 
-h4.collection-header-name {
+.collection-header-name {
     padding-left: 1.25rem;
     padding-right: 1.25rem;
     margin: 1rem 0 0.5rem 0;
+    font-size: 1rem;
 }
 
 p.tile-subtitle {
@@ -1513,7 +1518,7 @@ p.tile-subtitle {
 }
 
 #index-page-content-wrapper {
-    background-color: var(--primary-blue);
+    background-color: var(--dark-primary-blue);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1599,6 +1604,11 @@ h4.video-title {
     padding-left: 1.25rem;
     padding-right: 1.25rem;
     margin: 1rem 0 1rem 0;
+}
+
+.player-page .video-title h2 {
+    font-size: 1rem;
+    margin: 1rem 0;
 }
 
 .list-search-input {

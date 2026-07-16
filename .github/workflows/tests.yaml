@@ -52,4 +52,32 @@ jobs:
       run: uv run python -m playwright install --with-deps chromium
 
     - name: Run e2e tests
-      run: uv run pytest tests/e2e --browser chromium
+      run: uv run pytest tests/e2e --ignore=tests/e2e/test_a11y.py --browser chromium  # a11y tests run in their own job
+
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6  # python version taken from `.python-version` file in project root
+
+    - name: Install Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+
+    - name: Install npm dependencies
+      run: npm ci  # provides axe-core for the accessibility tests
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+
+    - name: Install python dependencies
+      run: uv sync --dev
+
+    - name: Install Playwright browser
+      run: uv run python -m playwright install --with-deps chromium
+
+    - name: Run accessibility tests
+      run: uv run pytest tests/e2e/test_a11y.py --browser chromium

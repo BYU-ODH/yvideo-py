@@ -10,9 +10,11 @@
 {% endblock %}
 
 {% block content %}
-    {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
+    <div class="player-page">
+        {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
 
-    <div class="video-title">
-        <h4>{{ content.title }}</h4>
+        <div class="video-title">
+            <h2>{{ content.title }}</h2>
+        </div>
     </div>
 {% endblock %}

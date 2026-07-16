@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block content %}
-    <main class="main-content">
+    <div class="main-content">
         {% if user.privilege_level == 2 or user.privilege_level == 0 %}
         <div class="landing-page-collection-list column-flex">
             <header class="collections-header row-flex flex-apart-aligned">
@@ -77,6 +77,6 @@
                 {% endfor %}
             </div>
         </div>
-    </main>
+    </div>
 <script type="module" src="{% static 'js/collections.js' %}"></script>
 {% endblock %}

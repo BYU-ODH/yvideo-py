@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block content %}
-<main class="main-content column-flex">
+<div class="main-content column-flex">
     <div id="content-details-header">
         <h2>Content Details</h2>
         <h3>{{content.collection.name}}: {{ content.title }}</h3>
@@ -41,6 +41,6 @@
     <div id="content-details-video-player">
         {% include 'partials/player-wrapper.html' %}
     </div>
-</main>
+</div>
 <script type="module" src="{% static 'js/contentInfo.js' %}"></script>
 {% endblock %}

@@ -1,0 +1,80 @@
+from pathlib import Path
+
+from playwright.sync_api import Page
+import pytest
+
+from core.models import Collection
+from core.models import Content
+
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.django_db(transaction=True),
+]
+
+# axe-core is pinned in package.json and installed via `npm ci`. Injecting it
+# ourselves (rather than via a wrapper package) lets us control the axe-core
+# version directly.
+AXE_MIN_JS = (
+    Path(__file__).resolve().parents[2] / "node_modules" / "axe-core" / "axe.min.js"
+)
+
+# The full-page views (those that extend base.html and render a complete
+# document) are the meaningful axe targets. Everything else in urls.py is an
+# HTMX fragment or a POST/redirect action endpoint. Names map to functions that
+# build the URL path from the deterministic demo seed data.
+FULL_PAGE_VIEWS = [
+    "index",
+    "collections",
+    "collection_info",
+    "content_info",
+    "player",
+    "create_from_resource",
+]
+
+
+def _resolve_path(view_name: str) -> str:
+    if view_name == "index":
+        return "/"
+    if view_name == "collections":
+        return "/collections/"
+
+    # Owned by the demo admin (the account dev-quick-login authenticates as), so
+    # every view-permission check passes.
+    collection = Collection.objects.get(name="Local Admin / Demo Review Shelf")
+    content = Content.objects.get(title="Birds Overview")
+
+    return {
+        "collection_info": f"/collections/{collection.id}/",
+        "content_info": f"/content/display-settings/{content.id}/",
+        "player": f"/player/{content.id}/",
+        "create_from_resource": f"/create-from-resource/{collection.id}",
+    }[view_name]
+
+
+def _run_axe(page: Page) -> dict:
+    page.add_script_tag(content=AXE_MIN_JS.read_text(encoding="utf-8"))
+    return page.evaluate("async () => await axe.run()")
+
+
+def _format_violations(violations: list[dict]) -> str:
+    lines = [f"{len(violations)} accessibility violation(s) found:"]
+    for v in violations:
+        targets = ", ".join(t for node in v["nodes"] for t in node["target"])
+        lines.append(f"  [{v['impact']}] {v['id']}: {v['help']} ({v['helpUrl']})")
+        lines.append(f"    affected: {targets}")
+    return "\n".join(lines)
+
+
+@pytest.mark.parametrize("view_name", FULL_PAGE_VIEWS)
+def test_full_page_view_has_no_a11y_violations(
+    view_name: str, page: Page, live_server, seeded_demo_data
+):
+    # Authenticate as the demo admin, then navigate to the page under test.
+    page.goto(f"{live_server.url}/login/dev/quick/")
+    response = page.goto(f"{live_server.url}{_resolve_path(view_name)}")
+    assert response is not None and response.ok, f"{view_name} did not load"
+
+    results = _run_axe(page)
+
+    violations = results["violations"]
+    assert not violations, _format_violations(violations)
