@@ -78,8 +78,8 @@ a.blue-button {
 
 .white-button-with-border {
     background-color: white;
-    color: var(--primary-blue);
-    border: 2px solid var(--primary-blue);
+    color: var(--dark-primary-blue);
+    border: 2px solid var(--dark-primary-blue);
 }
 
 .white-button-with-border:hover {
@@ -760,9 +760,10 @@ a.blue-button {
     border-top: 1px solid rgb(196, 196, 196);
 }
 
-.sidebar h4 {
+.sidebar h2 {
     margin-top: 1rem;
     margin-bottom: 0;
+    font-size: 1rem;
 }
 
 .main-content {
@@ -1513,7 +1514,7 @@ p.tile-subtitle {
 }
 
 #index-page-content-wrapper {
-    background-color: var(--primary-blue);
+    background-color: var(--dark-primary-blue);
     display: flex;
     flex-direction: column;
     align-items: center;
