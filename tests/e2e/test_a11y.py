@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from playwright.sync_api import Page
-from playwright.sync_api import expect
 import pytest
+
+from core.models import Collection
+from core.models import Content
 
 pytestmark = [
     pytest.mark.e2e,
@@ -15,6 +17,38 @@ pytestmark = [
 AXE_MIN_JS = (
     Path(__file__).resolve().parents[2] / "node_modules" / "axe-core" / "axe.min.js"
 )
+
+# The full-page views (those that extend base.html and render a complete
+# document) are the meaningful axe targets. Everything else in urls.py is an
+# HTMX fragment or a POST/redirect action endpoint. Names map to functions that
+# build the URL path from the deterministic demo seed data.
+FULL_PAGE_VIEWS = [
+    "index",
+    "collections",
+    "collection_info",
+    "content_info",
+    "player",
+    "create_from_resource",
+]
+
+
+def _resolve_path(view_name: str) -> str:
+    if view_name == "index":
+        return "/"
+    if view_name == "collections":
+        return "/collections/"
+
+    # Owned by the demo admin (the account dev-quick-login authenticates as), so
+    # every view-permission check passes.
+    collection = Collection.objects.get(name="Local Admin / Demo Review Shelf")
+    content = Content.objects.get(title="Birds Overview")
+
+    return {
+        "collection_info": f"/collections/{collection.id}/",
+        "content_info": f"/content/display-settings/{content.id}/",
+        "player": f"/player/{content.id}/",
+        "create_from_resource": f"/create-from-resource/{collection.id}",
+    }[view_name]
 
 
 def _run_axe(page: Page) -> dict:
@@ -31,10 +65,14 @@ def _format_violations(violations: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def test_index_page_has_no_a11y_violations(page: Page, live_server, seeded_demo_data):
+@pytest.mark.parametrize("view_name", FULL_PAGE_VIEWS)
+def test_full_page_view_has_no_a11y_violations(
+    view_name: str, page: Page, live_server, seeded_demo_data
+):
+    # Authenticate as the demo admin, then navigate to the page under test.
     page.goto(f"{live_server.url}/login/dev/quick/")
-    expect(page).to_have_url(f"{live_server.url}/")
-    expect(page.locator("#index-page-title h1")).to_be_visible()
+    response = page.goto(f"{live_server.url}{_resolve_path(view_name)}")
+    assert response is not None and response.ok, f"{view_name} did not load"
 
     results = _run_axe(page)
 
