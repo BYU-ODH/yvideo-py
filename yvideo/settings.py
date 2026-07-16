@@ -177,3 +177,44 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
+
+# Logging
+# https://docs.djangoproject.com/en/5.1/topics/logging/
+#
+# Send logs to stderr so Gunicorn's --error-logfile captures them and they land
+# in journald/`podman logs`. Unlike Django's default config, the console handler
+# here has no `require_debug_true` filter, so `django.request` errors (the 500
+# tracebacks) are recorded even when DEBUG is False.
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{asctime} [{levelname}] {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        "mozilla_django_oidc": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
