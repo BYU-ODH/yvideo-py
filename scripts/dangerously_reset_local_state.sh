@@ -88,6 +88,12 @@ db_dir="$(dirname "$db_path")"
 if [[ ! -f "$db_path" ]]; then
     echo "WARNING: No database file found at '$db_path'." >&2
     echo "         You are likely pointed at the wrong directory; nothing would be deleted there." >&2
+    echo "         If you're on a deployed instance, YVIDEO_DB_DIR is defined inside the" >&2
+    echo "         container, not on the host. Get a shell in the container and run this" >&2
+    echo "         script there:" >&2
+    echo "             podman ls" >&2
+    echo "             podman exec -it <container_name> /bin/bash" >&2
+    echo "             bash scripts/dangerously_reset_local_state.sh" >&2
     if [[ "$force" == true ]]; then
         echo "Aborting instead of reporting a false success. Re-run with --db-dir=DIR if this path is wrong." >&2
         exit 1
