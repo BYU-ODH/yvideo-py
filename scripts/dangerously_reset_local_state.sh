@@ -10,14 +10,15 @@ Deletes development state:
 - SQLite database files
 - generated media under media/
 
-Run from the project root. The database location is resolved in this order:
---db-dir, then $YVIDEO_DB_DIR (e.g. /app/data inside a deployed container),
-then the project root. This matches the location settings.py uses.
+Unless --db-dir is given, the database location is read directly from Django
+(settings.DATABASES['default']['NAME']) so this script can never disagree with
+the app about where the database lives.
 
 Options:
   --force         Skip the confirmation prompt.
   --bootstrap     Run migrate and seed_demo_data after cleanup.
-  --db-dir=DIR    Directory holding the SQLite database files.
+  --db-dir=DIR    Directory holding the SQLite database files. Overrides the
+                  path reported by Django.
   -h, --help      Show this help text.
 EOF
 }
@@ -63,13 +64,38 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# Resolve the database directory: --db-dir wins, then YVIDEO_DB_DIR (e.g.
-# /app/data inside a deployed container), otherwise the project root. This
-# matches the location settings.py uses.
-db_dir="${db_dir_arg:-${YVIDEO_DB_DIR:-.}}"
+# Resolve the database path. --db-dir is an explicit override; otherwise ask
+# Django where the database actually lives so this script can never target a
+# different location than the running app.
+if [[ -n "$db_dir_arg" ]]; then
+    db_path="$db_dir_arg/db.sqlite3"
+else
+    if ! db_path="$(uv run manage.py shell -c \
+        "from django.conf import settings; print(settings.DATABASES['default']['NAME'])" \
+        2>/dev/null | tail -n1)"; then
+        echo "Failed to read the database path from Django. Pass --db-dir=DIR to override." >&2
+        exit 1
+    fi
+    if [[ -z "$db_path" ]]; then
+        echo "Django reported an empty database path. Pass --db-dir=DIR to override." >&2
+        exit 1
+    fi
+fi
+db_dir="$(dirname "$db_path")"
+
+# If the resolved database doesn't exist, we're almost certainly pointed at the
+# wrong place; deleting here would silently no-op and falsely report success.
+if [[ ! -f "$db_path" ]]; then
+    echo "WARNING: No database file found at '$db_path'." >&2
+    echo "         You are likely pointed at the wrong directory; nothing would be deleted there." >&2
+    if [[ "$force" == true ]]; then
+        echo "Aborting instead of reporting a false success. Re-run with --db-dir=DIR if this path is wrong." >&2
+        exit 1
+    fi
+fi
 
 if [[ "$force" != true ]]; then
-    read -r -p "Delete db in '$db_dir' and generated media? [y/N] " confirm
+    read -r -p "Delete db at '$db_path' and generated media? [y/N] " confirm
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
         echo "Aborted."
         exit 0
@@ -77,10 +103,10 @@ if [[ "$force" != true ]]; then
 fi
 
 rm -f \
-    "$db_dir/db.sqlite3" \
-    "$db_dir/db.sqlite3-journal" \
-    "$db_dir/db.sqlite3-shm" \
-    "$db_dir/db.sqlite3-wal" \
+    "$db_path" \
+    "$db_path-journal" \
+    "$db_path-shm" \
+    "$db_path-wal" \
     "$db_dir/default"
 rm -rf media/*
 
