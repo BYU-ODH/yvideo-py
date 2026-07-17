@@ -1,7 +1,6 @@
 from django.urls import path
 
 from . import views
-from . import views_clip_editor
 from . import views_video_editor
 
 app_name = "core"
@@ -109,11 +108,6 @@ urlpatterns = [
         "player-data/<int:content_id>/", views.get_player_data, name="get_player_data"
     ),
     path("player/<int:content_id>/", views.player, name="player"),
-    path(
-        "clip-editor/<int:content_id>/",
-        views_clip_editor.clip_editor,
-        name="clip_editor",
-    ),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),
     path("player/<int:content_id>", views.player, name="player"),
     path(
@@ -137,22 +131,22 @@ urlpatterns = [
     ),
     path(
         "clips/<str:item_type>/<int:clip_id>/edit/",
-        views_clip_editor.load_clip_form,
+        views_video_editor.load_clip_form,
         name="load_clip_form",
     ),
     path(
         "clips/<str:item_type>/<int:clip_id>/update/",
-        views_clip_editor.update_clip,
+        views_video_editor.update_clip,
         name="update_clip",
     ),
     path(
         "clips/<str:item_type>/<int:clip_id>/delete/",
-        views_clip_editor.delete_clip,
+        views_video_editor.delete_clip,
         name="delete_clip",
     ),
     path(
         "clips/<str:annotation_type>/create/content/<int:content_id>/",
-        views_clip_editor.create_clip,
+        views_video_editor.create_clip,
         name="create_clip",
     ),
     # Video editor page
