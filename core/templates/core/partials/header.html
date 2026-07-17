@@ -65,30 +65,16 @@
         </div>
 
         <aside class="sidebar">
+            <button id="sidebar-close">X</button>
             <h2> {{ user.netid }} </h2>
-            <hr>
             {% if user.is_admin %}
                 <a href="{% url 'admin:index' %}">Admin Dashboard</a>
             {% endif %}
-            {# Add other role-specific links as needed #}
-            <a href="#">Lab Assistant Dashboard</a>
-            <a href="#">Manage Resource</a>
-            {% comment %} TODO: Uncomment when logout functionality is implemented
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit">Sign Out</button>
-            </form>
-            {% endcomment %}
 
             <h2>Collections</h2>
-            <hr>
-            <a href="{% url 'index' %}">Collections</a>
-            <a href="#">Manage Collections</a>
-            <a href="#">Manage Public Collections</a>
+            <a href="{% url 'collections' %}">Collections</a>
 
             <h2>Connect With Us</h2>
-            <hr>
-            <a href="#">Contact Us</a>
             <a href="https://privacy.byu.edu" target="_blank" rel="noopener noreferrer">Privacy Notice</a>
             <a href="https://infosec.byu.edu/cookie-prefs" target="_blank" rel="noopener noreferrer">Cookie Preferences</a>
         </aside>
@@ -101,7 +87,12 @@
     const sidebar = document.querySelector('.sidebar');
 
     toggleButton.addEventListener('click', () => {
-      sidebar.classList.toggle('show');
+      sidebar.classList.add('show');
+    });
+
+    const sidebarCloseButton = document.getElementById("sidebar-close");
+    sidebarCloseButton.addEventListener("click", () => {
+      sidebar.classList.remove('show');
     });
 
     // Spoofing logic
