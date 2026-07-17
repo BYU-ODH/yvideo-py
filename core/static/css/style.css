@@ -16,6 +16,7 @@
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
+    --side-bar-width: 15rem;
 }
 
 * {
@@ -737,9 +738,9 @@ a.blue-button {
 
 .sidebar {
     position: fixed;
-    left: calc(100% - 15rem);
+    left: calc(100% - var(--side-bar-width));
     top: 0rem;
-    width: 15rem;
+    width: var(--side-bar-width);
     background-color: white;
     padding: 1rem;
     transform: translateX(1000%);
