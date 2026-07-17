@@ -740,7 +740,6 @@ a.blue-button {
     left: calc(100% - 15rem);
     top: 0rem;
     width: 15rem;
-    height: 100vh;
     background-color: white;
     padding: 1rem;
     transform: translateX(1000%);
