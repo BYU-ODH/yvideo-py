@@ -1,4 +1,9 @@
-import { formatSecondsToString, createElementFromHTMLString, getCSRFToken } from "./utils.js";
+import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback } from "./utils.js";
+
+// Clicking or dragging inside these regions seeks the video: the ticks/scrubber
+// row and every track row's right-hand (scrollable) area. Clicks on a
+// `.track-item-content` are excluded so they can still select the annotation.
+const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -21,12 +26,12 @@ export class Editor {
         this.annotationIdInFocus = null;
         this.activeCensorPosition = null;
         this.tickMarksContainer = document.querySelector('#tick-marks-container');
-        this.timelineTicks = document.querySelector('.timeline-ticks');
-        this.timelineTicksContent = document.querySelector('.timeline-ticks-content');
+        this.timelineTicksContent = document.getElementById('timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
         this.zoomSliderInput = document.getElementById('timeline-scroll-input');
         this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
+        this.scrubberBounds = null;
         this.timelineScrubber = null;
         this.isDragging = false;
         this.wasPlayingBeforeDrag = false;
@@ -2056,32 +2061,57 @@ export class Editor {
         }
     }
 
+    // Recompute cached timeline geometry, then position the scrubber. This reads
+    // layout (getBoundingClientRect/scrollLeft), so it is only called on the
+    // events that can change the geometry (zoom, scroll, seek, resize, and the
+    // periodic timeupdate) — never per animation frame.
     adjustScrubberPosition() {
-      /* The scrubber is bound between 0% and 100%, it never goes off the page,
-     so we need to position it based on the current time of the video and how far zoomed
-    the page timeline is. We can think of the currently displayed time as a window on slider.*/
-      const totalTimeline = document.getElementById("tick-marks-container");
-      const totalScrollableWidth = totalTimeline.getBoundingClientRect().width;
-      const visibleTimeline = document.getElementById("timeline-ticks-content");
-      const timeWindowWidth = visibleTimeline.getBoundingClientRect().width;
-      const currentPositionLeft = visibleTimeline.scrollLeft;
-      const currentPositionRight = currentPositionLeft + timeWindowWidth;
+      this.refreshScrubberBounds();
+      this.paintScrubber();
+    }
 
-      const timeAtLeftEnd = this.video.duration * (currentPositionLeft / totalScrollableWidth);
-      const timeAtRightEnd = this.video.duration * (currentPositionRight / totalScrollableWidth);
+    /* The scrubber is bound between the left and right edges of the visible
+    window; it never goes off the page. Its position depends on the current time
+    and how far the timeline is zoomed/scrolled. We can think of the currently
+    displayed time as a window on the full timeline. These bounds only change on
+    zoom/scroll/resize, so we cache them and let paintScrubber() interpolate. */
+    refreshScrubberBounds() {
+      const totalTimeline = this.tickMarksContainer;
+      const visibleTimeline = this.timelineTicksContent;
+      if (!totalTimeline || !visibleTimeline) return;
+
+      const totalScrollableWidth = totalTimeline.getBoundingClientRect().width;
+      const windowWidth = visibleTimeline.getBoundingClientRect().width;
+      const scrollLeft = visibleTimeline.scrollLeft;
+
+      this.scrubberBounds = {
+        windowWidth,
+        leftTime: this.video.duration * (scrollLeft / totalScrollableWidth),
+        rightTime: this.video.duration * ((scrollLeft + windowWidth) / totalScrollableWidth),
+      };
+    }
+
+    // Position the scrubber from the cached bounds and the current time. Uses a
+    // composited transform and performs no layout reads, so it is cheap enough
+    // to run every animation frame during playback.
+    paintScrubber() {
+      const bounds = this.scrubberBounds;
+      if (!bounds || !this.editorScrubber) return;
+
+      const { windowWidth, leftTime, rightTime } = bounds;
+      const span = rightTime - leftTime;
       const currentTime = this.video.currentTime;
-      if (currentTime <= timeAtLeftEnd) {
-        this.editorScrubber.style.left = "0%";
+
+      let ratio;
+      if (span <= 0 || currentTime <= leftTime) {
+        ratio = 0;
+      } else if (currentTime >= rightTime) {
+        ratio = 1;
+      } else {
+        ratio = (currentTime - leftTime) / span;
       }
-      else if (currentTime >= timeAtRightEnd) {
-        this.editorScrubber.style.left = "100%";
-      }
-      else {
-        const normalizedTime = currentTime - timeAtLeftEnd;
-        const normalizedEndTime = timeAtRightEnd - timeAtLeftEnd;
-        const scrubberPos = normalizedTime / normalizedEndTime * 100;
-        this.editorScrubber.style.left = `${scrubberPos}%`;
-      }
+
+      this.editorScrubber.style.transform = `translateX(${ratio * windowWidth}px)`;
     }
 
     handleZoom() {
@@ -2107,6 +2137,8 @@ export class Editor {
       const parentWidth = tickMarkContainerParent.getBoundingClientRect().width;
       this.scrollTracksToPoint((trackWidth * locationRatio) - parentWidth / 2);
       this.renderTickMarksAndLabels();
+      // Zoom changes the visible time window, so recompute the scrubber bounds.
+      this.adjustScrubberPosition();
     }
 
     attachZoomListener() {
@@ -2175,6 +2207,8 @@ export class Editor {
         }
     }
 
+    // Position the hover scrubber (the preview line) under the cursor. `left` is
+    // a percentage of the ticks row, which spans the same width as the viewport.
     updatetimelineScrubber(e) {
         if (!this.timelineScrubber) return;
 
@@ -2185,40 +2219,40 @@ export class Editor {
         this.timelineScrubber.style.left = `${percent}%`;
     }
 
-    // timeline listeners and attachement
-    updateTimelineDragPosition(e) {
-        if (!this.isDragging) return;
+    // Convert a viewport x-coordinate into a video time, accounting for the
+    // current zoom (the scaled full-timeline width) and horizontal scroll.
+    timeFromClientX(clientX) {
+        const totalWidth = this.tickMarksContainer.getBoundingClientRect().width;
+        if (!totalWidth) return 0;
+        const viewport = this.timelineTicksContent.getBoundingClientRect();
+        const xInContent = (clientX - viewport.left) + this.timelineTicksContent.scrollLeft;
+        const ratio = Math.max(0, Math.min(1, xInContent / totalWidth));
+        return ratio * this.video.duration;
+    }
 
-        const rect = this.timelineTicks.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        const targetTime = percent * this.duration;
-
-        // Seek the video
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            video.currentTime = targetTime;
-        }
-
+    seekVideoTo(time) {
+        this.video.currentTime = time;
         // Also update via the player API if available
         if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
+            window.videoPlayer.skipTo(time);
         }
+    }
 
-        e.preventDefault();
+    // Whether an event target is somewhere a click should seek: inside a seek
+    // region but not on an annotation's content (which selects the annotation).
+    isSeekTarget(target) {
+        if (!target.closest(SEEK_REGION_SELECTOR)) return false;
+        if (target.closest('.track-item-content')) return false;
+        return true;
     }
 
     startTimelineDrag(e) {
         this.isDragging = true;
-        this.timelineTicks.classList.add('dragging');
 
-        // Get video and check if it was playing
-        const video = document.querySelector('.annotation-player-container video');
-        if (video) {
-            this.wasPlayingBeforeDrag = !video.paused;
-            if (this.wasPlayingBeforeDrag) {
-                video.pause();
-            }
+        // Pause during the scrub, remembering whether to resume afterwards.
+        this.wasPlayingBeforeDrag = !this.video.paused;
+        if (this.wasPlayingBeforeDrag) {
+            this.video.pause();
         }
 
         // Hide hover scrubber during drag
@@ -2227,56 +2261,54 @@ export class Editor {
         }
 
         // Seek to initial position
-        this.updateTimelineDragPosition(e);
+        this.seekVideoTo(this.timeFromClientX(e.clientX));
 
         e.preventDefault();
     }
 
     endTimelineDrag() {
         this.isDragging = false;
-        this.timelineTicks.classList.remove('dragging');
 
         // Resume playback if it was playing before
-        const video = document.querySelector('.annotation-player-container video');
-        if (video && this.wasPlayingBeforeDrag) {
-            video.play();
+        if (this.wasPlayingBeforeDrag) {
+            this.video.play();
         }
 
         this.wasPlayingBeforeDrag = false;
     }
 
     attachTimelineListeners() {
-        if (!this.timelineTicks) return;
+        if (!this.timelineWrapper) return;
 
-        this.timelineTicks.addEventListener('mousemove', (e) => {
-            if (!this.isDragging) {
-                this.updatetimelineScrubber(e);
-                // Ensure hover scrubber is visible on mousemove
-                if (this.timelineScrubber) {
-                    this.timelineScrubber.style.opacity = '1';
-                }
+        // Track the cursor and show the hover scrubber across the seek regions.
+        this.timelineWrapper.addEventListener('mousemove', (e) => {
+            if (this.isDragging) return;
+            if (!this.isSeekTarget(e.target)) {
+                if (this.timelineScrubber) this.timelineScrubber.style.opacity = '0';
+                return;
             }
+            this.updatetimelineScrubber(e);
+            if (this.timelineScrubber) this.timelineScrubber.style.opacity = '1';
         });
 
-        this.timelineTicks.addEventListener('mouseleave', () => {
+        this.timelineWrapper.addEventListener('mouseleave', () => {
             if (this.timelineScrubber && !this.isDragging) {
                 this.timelineScrubber.style.opacity = '0';
             }
         });
 
-        this.timelineTicks.addEventListener('mouseenter', () => {
-            if (this.timelineScrubber && !this.isDragging) {
-                this.timelineScrubber.style.opacity = '1';
-            }
-        });
-
-        this.timelineTicks.addEventListener('mousedown', (e) => {
+        // Begin scrubbing on a left mousedown inside a seek region. Resize handles
+        // stop propagation before this fires, so they still resize rather than seek.
+        this.timelineWrapper.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            if (!this.isSeekTarget(e.target)) return;
             this.startTimelineDrag(e);
         });
 
         document.addEventListener('mousemove', (e) => {
             if (this.isDragging) {
-                this.updateTimelineDragPosition(e);
+                this.seekVideoTo(this.timeFromClientX(e.clientX));
+                e.preventDefault();
             }
         });
 
@@ -2287,19 +2319,16 @@ export class Editor {
         });
     }
 
-    updateEditorScrubberPosition(currentTime) {
-        if (this.duration <= 0) return;
-
-        const percent = (currentTime / this.duration) * 100;
-        if (this.scrubber) {
-            this.scrubber.style.setProperty('--scrubber-position', `${percent}%`);
-        }
-    }
-
     attachVideoListeners() {
-        this.video.addEventListener('timeupdate', () => {
-          this.adjustScrubberPosition();
-        });
+        // timeupdate fires only a few times a second, so it drives the periodic
+        // geometry refresh and keeps the scrubber correct while paused/seeking.
+        this.video.addEventListener('timeupdate', () => this.adjustScrubberPosition());
+        this.video.addEventListener('seeked', () => this.adjustScrubberPosition());
+        window.addEventListener('resize', () => this.adjustScrubberPosition());
+        this.adjustScrubberPosition();
+        // During playback, interpolate every animation frame for smooth motion
+        // (shared mechanism with AnnotationPlayer's progress scrubber).
+        animateDuringPlayback(this.video, () => this.paintScrubber());
     }
 
     watchAndHandleAnnotationSetMenuOpen() {

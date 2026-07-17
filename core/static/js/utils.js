@@ -25,6 +25,49 @@ export function createElementFromHTMLString(html, nodeIndex=0) {
   return template.content.children[nodeIndex];
 }
 
+// Calls `onFrame` on every animation frame while `video` is playing, so UI
+// bound to playback (scrubbers, progress bars) moves smoothly instead of
+// lurching between the infrequent `timeupdate` events. `onFrame` also runs once
+// when playback stops, to settle on the exact final position. Returns a cleanup
+// function that detaches the listeners and cancels any pending frame.
+export function animateDuringPlayback(video, onFrame) {
+  let rafId = null;
+
+  const step = () => {
+    onFrame();
+    rafId = requestAnimationFrame(step);
+  };
+  const start = () => {
+    if (rafId === null) {
+      rafId = requestAnimationFrame(step);
+    }
+  };
+  const stop = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    onFrame();
+  };
+
+  video.addEventListener("play", start);
+  video.addEventListener("pause", stop);
+  video.addEventListener("ended", stop);
+  if (!video.paused) {
+    start();
+  }
+
+  return () => {
+    video.removeEventListener("play", start);
+    video.removeEventListener("pause", stop);
+    video.removeEventListener("ended", stop);
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  };
+}
+
 export function getCSRFToken() {
   const cookieValue = document.cookie
       .split("; ")
