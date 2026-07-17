@@ -734,18 +734,18 @@ a.blue-button {
     right: 25px;
     background-color: black;
     border-radius: 2px;
-    transition: 0.3s ease;
+    transition: 0.1s ease;
 }
 
 .sidebar {
     position: fixed;
-    left: calc(100% - 20rem);
-    top: 30px;
-    width: 250px;
+    left: calc(100% - 15rem);
+    top: 0rem;
+    width: 15rem;
     height: 100vh;
     background-color: white;
     padding: 1rem;
-    transition: transform 0.3s ease;
+    transition: transform 0.1s linear;
     transform: translateX(1000%);
     z-index: 1000;
 }
