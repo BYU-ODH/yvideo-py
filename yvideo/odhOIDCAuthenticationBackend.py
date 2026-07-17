@@ -59,6 +59,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
                     is_staff=worker_summary["is_odh_employee"] or is_admin,
+                    is_superuser=is_admin,
                 )
                 return user
             elif not worker_summary["is_student"] and worker_summary["is_odh_employee"]:
@@ -68,6 +69,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
                     is_staff=is_admin,
+                    is_superuser=is_admin,
                     privilege_level=(
                         PrivilegeLevel.ADMIN if is_admin else PrivilegeLevel.STUDENT
                     ),
@@ -85,6 +87,18 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
             return user
 
     def update_user(self, user, claims):
+        is_admin = claims.get("byu_id") in getattr(
+            secret_settings, "ADMIN_BYUID_WHITELIST", []
+        )
+        if is_admin and not (
+            user.is_staff
+            and user.is_superuser
+            and user.privilege_level == PrivilegeLevel.ADMIN
+        ):
+            user.privilege_level = PrivilegeLevel.ADMIN
+            user.is_staff = True
+            user.is_superuser = True
+            user.save()
         if user.privilege_level == PrivilegeLevel.STUDENT:
             update_user_enrollment(user)
         return user

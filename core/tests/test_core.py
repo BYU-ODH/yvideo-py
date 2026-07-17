@@ -1,5 +1,6 @@
 # Create your tests here.
 import copy
+from datetime import date
 from functools import cmp_to_key
 import json
 import unittest
@@ -13,10 +14,12 @@ from ..factories import BlankAnnotationFactory
 from ..factories import CollectionFactory
 from ..factories import CommentAnnotationFactory
 from ..factories import ContentFactory
+from ..factories import CourseFactory
 from ..factories import MuteAnnotationFactory
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import TrackFactory
+from ..factories import UserCourseFactory
 from ..factories import UserFactory
 from ..models import AnnotationSet
 from ..models import BlurAnnotation
@@ -27,6 +30,7 @@ from ..models import validate_font_color
 from ..utils import VTTCue
 from ..utils import build_cues_from_vtt_file_string
 from ..utils import build_vtt_file_string_from_cues
+from ..utils import estimate_current_yearterm
 from ..utils import nudge_cue_times
 from ..utils import seconds2hms
 
@@ -57,6 +61,59 @@ class ApiTests(TestCase):
         self.assertEqual(spring_to_summer, "20264")
         summer_to_fall = new_api.calculate_next_year_term("20264")
         self.assertEqual(summer_to_fall, "20265")
+
+
+class EstimateCurrentYeartermTests(TestCase):
+    """Boundaries approximate the BYU academic calendar; see utils.py."""
+
+    def test_term_boundaries(self):
+        cases = [
+            (date(2026, 1, 1), "20261"),  # winter break -> Winter
+            (date(2026, 2, 14), "20261"),  # mid Winter semester
+            (date(2026, 4, 21), "20261"),  # last day counted as Winter
+            (date(2026, 4, 22), "20263"),  # first day counted as Spring
+            (date(2026, 5, 15), "20263"),  # mid Spring term
+            (date(2026, 6, 18), "20263"),  # last day counted as Spring
+            (date(2026, 6, 19), "20264"),  # first day counted as Summer
+            (date(2026, 7, 17), "20264"),  # mid Summer term
+            (date(2026, 8, 21), "20264"),  # last day counted as Summer
+            (date(2026, 8, 22), "20265"),  # first day counted as Fall
+            (date(2026, 10, 31), "20265"),  # mid Fall semester
+            (date(2026, 12, 31), "20265"),  # winter break stays Fall
+            (date(2027, 1, 1), "20271"),  # year rolls over at Jan 1
+        ]
+        for today, expected in cases:
+            with self.subTest(today=today):
+                self.assertEqual(estimate_current_yearterm(today), expected)
+
+    def test_defaults_to_current_date(self):
+        yearterm = estimate_current_yearterm()
+        self.assertRegex(yearterm, r"^\d{4}[1345]$")
+
+    def test_course_factory_uses_estimate(self):
+        course = CourseFactory()
+        self.assertEqual(course.yearterm, estimate_current_yearterm())
+
+
+class DisplayYeartermTests(TestCase):
+    def test_course_valid_yearterm(self):
+        course = CourseFactory(yearterm="20261")
+        self.assertEqual(course.display_yearterm(), "Winter 2026")
+        self.assertIn("Winter 2026", str(course))
+
+    def test_course_invalid_term_returns_raw_yearterm(self):
+        course = CourseFactory(yearterm="20269")
+        self.assertEqual(course.display_yearterm(), "20269")
+
+    def test_course_empty_yearterm_does_not_raise(self):
+        course = CourseFactory(yearterm="")
+        self.assertEqual(course.display_yearterm(), "")
+        str(course)  # must not raise UnboundLocalError
+
+    def test_user_course_invalid_term_returns_raw_yearterm(self):
+        user_course = UserCourseFactory(yearterm="20262")
+        self.assertEqual(user_course.display_yearterm(), "20262")
+        str(user_course)  # must not raise UnboundLocalError
 
 
 class Seconds2HMSTests(TestCase):
