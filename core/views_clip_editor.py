@@ -75,7 +75,7 @@ def clip_editor(request, content_id):
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
-        "content_source_url": content.url if content.is_url_only() else None,
+        "content_source_url": request.user.get_content_source_url(content),
         "allow_events": True,
         "layers": layers_dict,  # For timeline_base.html label column
         "layers_list": layers_list,  # For timeline_layers.html content

@@ -15,6 +15,7 @@ from .models import LegacyMigrationStatus
 from .models import LegacyMigrationUserResolution
 from .models import LegacyMigrationUserResolutionStatus
 from .models import LegacySourceMap
+from .service import LegacyMigrationJobCanceled
 from .service import LegacyMigrationService
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "LegacyMigrationIssue",
     "LegacyMigrationIssueSeverity",
     "LegacyMigrationJob",
+    "LegacyMigrationJobCanceled",
     "LegacyMigrationJobStatus",
     "LegacyMigrationJobType",
     "LegacyMigrationKind",

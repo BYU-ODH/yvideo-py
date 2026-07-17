@@ -120,7 +120,7 @@ def player(request, content_id):
     """Render the video player page."""
     content = get_object_or_404(Content, id=content_id)
     resource_file_key = request.user.get_resource_filekey(content)
-    content_source_url = content.url if content.is_url_only() else None
+    content_source_url = request.user.get_content_source_url(content)
     if not resource_file_key and not content_source_url:
         return HttpResponse(
             "User does not have permission to view this content", status=403
@@ -1059,7 +1059,7 @@ def clip_editor(request, content_id):
     context = {
         "content": content,
         "file_key": file_key.id if file_key else None,
-        "content_source_url": content.url if content.is_url_only() else None,
+        "content_source_url": request.user.get_content_source_url(content),
         "allow_events": True,
         "events": json.dumps([]),
         "subtitles": json.dumps(subtitles_data),
@@ -1430,7 +1430,7 @@ def subtitle_editor(request, content_id):
             "content": content,
             "subtitle_tracks": subtitle_options,
             "file_key": file_key.id if file_key else None,
-            "content_source_url": content.url if content.is_url_only() else None,
+            "content_source_url": request.user.get_content_source_url(content),
             "events": player_json["annotations"],
             "subtitles": player_json["subtitleTracks"],
             "clips": player_json["clips"],

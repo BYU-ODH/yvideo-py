@@ -42,7 +42,7 @@ Run:
 uv run python manage.py migrate
 ```
 
-This must include `core.0002_content_resource_and_more`, which creates the legacy migration tables.
+The `core` migration creates the legacy migration tables.
 
 You can verify with:
 
@@ -54,7 +54,6 @@ You should see:
 
 ```text
 [X] 0001_initial
-[X] 0002_content_resource_and_more
 ```
 
 ### 2. Legacy migration is enabled
@@ -152,6 +151,29 @@ If you want to disable that scheduler, set:
 ```python
 LEGACY_MIGRATION_AUTO_DUMP_ENABLED = False
 ```
+
+### Which process runs the scheduler
+
+The scheduler only starts in processes it can positively identify as a
+long-running app server:
+
+- `manage.py runserver` (the main process, not the autoreloader parent)
+- A process whose executable is a recognized app server: `gunicorn`, `uwsgi`,
+  `uvicorn`, `daphne`, `hypercorn`, or `mod_wsgi-express`
+
+Any other process that loads Django (one-off scripts, shells, cron jobs,
+management commands) will not start it. If your server is not on the list
+(for example mod_wsgi embedded in Apache), opt in explicitly by setting this
+environment variable in the server's environment:
+
+```bash
+LEGACY_MIGRATION_AUTO_DUMP_PROCESS=1
+```
+
+When the server runs multiple worker processes, a lock file next to the
+SQLite snapshot (`scheduler.lock`) ensures only one worker per host runs the
+scheduler. The dump script also holds its own lock, so overlapping dumps are
+never possible.
 
 ## Starting the Worker
 
@@ -322,6 +344,15 @@ Common blocking issues include:
 - conflicting reuse choices
 - similar resource names that require review
 
+Common warnings include:
+
+- `duplicate_file_in_request`: two or more legacy files in this request are
+  identical. The file is imported once and shared by every resource that
+  references it.
+- `unknown_collection_role`: a legacy collection access row has an
+  `account_role` value that does not map to a current collection role. That
+  row is skipped during import.
+
 Warnings do not block approval. Blocking issues do.
 
 ### Step 4. Save your edits and refresh issues
@@ -413,6 +444,14 @@ When a file is imported:
 4. If hard-linking is not possible, the app falls back to a local copy.
 5. If the legacy media root is configured as `host:/path`, the app copies the file with `scp`.
 
+Two safety rules apply during import:
+
+- File contents are stored once. If an imported file's checksum matches a
+  file that already exists (including one imported moments earlier by the
+  same request), the existing file is reused instead of creating a duplicate.
+- Imports never overwrite media that belongs to another resource file. If the
+  destination path is already taken, the imported file gets a suffixed name.
+
 This is why the file review step is important.
 
 ## Verifying the Imported Collection
@@ -451,6 +490,11 @@ If a queued or running job should be stopped:
 
 - Select the request in admin
 - Run `Cancel queued/running jobs`
+
+Queued jobs are canceled immediately and will never start. A running import
+notices the cancellation at its next phase boundary (for example between
+`files` and `contents`) and stops there; work already completed in earlier
+phases is kept and will be reused if the request is retried later.
 
 ## Common Problems
 

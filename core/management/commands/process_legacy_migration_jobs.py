@@ -1,9 +1,12 @@
+import logging
 import time
 
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 
 from core.legacy_migration import LegacyMigrationService
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -31,7 +34,14 @@ class Command(BaseCommand):
             try:
                 job = service.run_next_job()
             except Exception as exc:
-                raise CommandError(str(exc)) from exc
+                if once:
+                    raise CommandError(str(exc)) from exc
+                # The failed job is already marked failed; keep the worker
+                # alive so queued jobs behind it still get processed.
+                logger.exception("Legacy migration job failed; continuing.")
+                self.stderr.write(self.style.ERROR(f"Job failed: {exc}"))
+                time.sleep(sleep_seconds)
+                continue
 
             if once:
                 if job:

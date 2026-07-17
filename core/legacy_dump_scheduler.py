@@ -13,10 +13,50 @@ from time import monotonic
 from django.conf import settings
 from django.utils import timezone
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX platforms
+    fcntl = None
+
 logger = logging.getLogger(__name__)
 
 _scheduler_lock = Lock()
 _scheduler_started = False
+_scheduler_lock_file = None  # held open for the life of the process
+
+# Long-running app servers that should host the scheduler. Anything else that
+# happens to call django.setup() (one-off scripts, shells, cron jobs) must not.
+SERVER_PROCESS_NAMES = {
+    "daphne",
+    "gunicorn",
+    "hypercorn",
+    "mod_wsgi-express",
+    "uvicorn",
+    "uwsgi",
+}
+
+SCHEDULER_PROCESS_ENV_VAR = "LEGACY_MIGRATION_AUTO_DUMP_PROCESS"
+
+
+def _is_server_process():
+    """Fail closed: only processes we can positively identify as a
+    long-running app server may host the scheduler. Other servers (e.g.
+    mod_wsgi embedded in Apache) opt in with LEGACY_MIGRATION_AUTO_DUMP_PROCESS=1.
+    """
+    if os.environ.get(SCHEDULER_PROCESS_ENV_VAR, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return True
+
+    argv = sys.argv
+    argv0 = Path(argv[0]).name if argv and argv[0] else ""
+    if argv0 == "manage.py":
+        command = argv[1] if len(argv) > 1 else ""
+        return command == "runserver" and os.environ.get("RUN_MAIN") == "true"
+    return argv0 in SERVER_PROCESS_NAMES
 
 
 def should_start_legacy_dump_scheduler():
@@ -26,15 +66,29 @@ def should_start_legacy_dump_scheduler():
         return False
     if "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv):
         return False
+    return _is_server_process()
 
-    argv = sys.argv
-    if argv and Path(argv[0]).name == "manage.py":
-        command = argv[1] if len(argv) > 1 else ""
-        if command == "runserver":
-            return os.environ.get("RUN_MAIN") == "true"
-        return False
 
-    return True
+def acquire_scheduler_host_lock():
+    """Hold an exclusive lock file for the life of this process so that at
+    most one process per host runs the scheduler (e.g. one gunicorn worker).
+    Returns the open lock file, or None if another process holds it."""
+    if fcntl is None:
+        return open(os.devnull, "w")
+
+    sqlite_path = getattr(settings, "LEGACY_MIGRATION_SQLITE_PATH", None)
+    if sqlite_path:
+        lock_dir = Path(sqlite_path).parent
+    else:
+        lock_dir = Path(settings.BASE_DIR) / "var" / "legacy_migration"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_file = open(lock_dir / "scheduler.lock", "w")
+    try:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock_file.close()
+        return None
+    return lock_file
 
 
 def seconds_until_next_run():
@@ -110,7 +164,7 @@ class LegacyDumpScheduler(Thread):
 
 
 def start_legacy_dump_scheduler():
-    global _scheduler_started
+    global _scheduler_started, _scheduler_lock_file
 
     if not should_start_legacy_dump_scheduler():
         return
@@ -118,5 +172,13 @@ def start_legacy_dump_scheduler():
     with _scheduler_lock:
         if _scheduler_started:
             return
+        host_lock = acquire_scheduler_host_lock()
+        if host_lock is None:
+            logger.info(
+                "Legacy dump scheduler is already running in another process "
+                "on this host; not starting a second one."
+            )
+            return
+        _scheduler_lock_file = host_lock
         LegacyDumpScheduler().start()
         _scheduler_started = True

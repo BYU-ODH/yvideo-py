@@ -1,3 +1,5 @@
+from collections import Counter
+import datetime
 import json
 import logging
 import os
@@ -6,6 +8,7 @@ import shutil
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
 
@@ -45,6 +48,7 @@ from ..models import User
 from .catalog import LegacyCatalogClient
 from .file_index import ChecksumCache
 from .file_index import CurrentFileIndex
+from .file_index import compute_checksum
 from .models import LegacyMigrationFileAction
 from .models import LegacyMigrationFileDecision
 from .models import LegacyMigrationIssue
@@ -76,13 +80,25 @@ from .remote_files import scp_remote_legacy_file
 logger = logging.getLogger(__name__)
 
 
+class LegacyMigrationJobCanceled(Exception):
+    """Raised inside a running job when it was canceled from the admin."""
+
+
 class LegacyMigrationService:
     def __init__(self, catalog_client=None, require_catalog=True):
         self.catalog_client = catalog_client
         if self.catalog_client is None and require_catalog:
             self.catalog_client = LegacyCatalogClient()
         self.checksum_cache = ChecksumCache()
-        self.current_file_index = CurrentFileIndex(self.checksum_cache)
+        self._current_file_index = None
+
+    @property
+    def current_file_index(self):
+        # Built lazily: loading the index stats every current media file, which
+        # only preflight needs. Admin saves construct this service too.
+        if self._current_file_index is None:
+            self._current_file_index = CurrentFileIndex(self.checksum_cache)
+        return self._current_file_index
 
     def _get_catalog_client(self):
         if self.catalog_client is None:
@@ -267,8 +283,6 @@ class LegacyMigrationService:
         return request_obj
 
     def _get_legacy_file_info(self, file_row):
-        import datetime
-
         absolute_path = resolve_legacy_file_path(file_row["filepath"])
         file_info = LegacyFileInfo(
             absolute_path=absolute_path,
@@ -307,24 +321,63 @@ class LegacyMigrationService:
             )
         return file_info
 
-    def preflight_request(self, request_obj):
-        with transaction.atomic():
-            migration_kind, legacy_identifier = parse_legacy_reference(
-                request_obj.legacy_reference,
-                requested_kind=request_obj.migration_kind,
+    def _inspect_snapshot_files(self, snapshot):
+        """Stat legacy files and compute candidate matches for every file in
+        the snapshot. This is the slow part of preflight (local/remote stat
+        calls plus checksums), so it runs before any database transaction."""
+        inspections = {}
+        for resource_payload in snapshot.get("resources", []):
+            for file_row in resource_payload.get("files", []):
+                file_info = self._get_legacy_file_info(file_row)
+                inspections[file_row["id"]] = {
+                    "file_info": file_info,
+                    "candidate_matches": self.current_file_index.find_candidates(
+                        file_info
+                    ),
+                    "checksum": "",
+                }
+
+        size_counts = Counter(
+            entry["file_info"].size_bytes
+            for entry in inspections.values()
+            if entry["file_info"].size_bytes is not None
+        )
+        for entry in inspections.values():
+            file_info = entry["file_info"]
+            if file_info.size_bytes is None:
+                continue
+            has_checksum_candidate = any(
+                candidate["match_reason"] == "same_checksum"
+                for candidate in entry["candidate_matches"]
             )
+            # Only checksum files that could be duplicates (of a current file
+            # or of another file in this request) to avoid hashing everything.
+            if has_checksum_candidate or size_counts[file_info.size_bytes] > 1:
+                entry["checksum"] = self.checksum_cache.get_or_compute_legacy_checksum(
+                    file_info
+                )
+        return inspections
+
+    def preflight_request(self, request_obj):
+        migration_kind, legacy_identifier = parse_legacy_reference(
+            request_obj.legacy_reference,
+            requested_kind=request_obj.migration_kind,
+        )
+
+        if migration_kind == LegacyMigrationKind.COLLECTION:
+            snapshot = self._get_catalog_client().build_collection_snapshot(
+                legacy_identifier
+            )
+        else:
+            snapshot = self._get_catalog_client().build_resource_snapshot(
+                legacy_identifier
+            )
+
+        file_inspections = self._inspect_snapshot_files(snapshot)
+
+        with transaction.atomic():
             request_obj.migration_kind = migration_kind
             request_obj.legacy_identifier = legacy_identifier
-
-            if migration_kind == LegacyMigrationKind.COLLECTION:
-                snapshot = self._get_catalog_client().build_collection_snapshot(
-                    legacy_identifier
-                )
-            else:
-                snapshot = self._get_catalog_client().build_resource_snapshot(
-                    legacy_identifier
-                )
-
             request_obj.raw_snapshot = make_json_safe(snapshot)
             request_obj.preflight_completed_at = timezone.now()
             request_obj.status = LegacyMigrationStatus.NEEDS_REVIEW
@@ -395,10 +448,9 @@ class LegacyMigrationService:
 
                 pending_file_decisions = []
                 for file_row in resource_payload.get("files", []):
-                    file_info = self._get_legacy_file_info(file_row)
-                    candidate_matches = self.current_file_index.find_candidates(
-                        file_info
-                    )
+                    inspection = file_inspections[file_row["id"]]
+                    file_info = inspection["file_info"]
+                    candidate_matches = inspection["candidate_matches"]
                     auto_reuse_defaults = self._auto_reuse_checksum_match(
                         candidate_matches
                     )
@@ -416,6 +468,7 @@ class LegacyMigrationService:
                             "inode": file_info.inode,
                             "mtime_at": file_info.mtime_at,
                             "atime_at": file_info.atime_at,
+                            "checksum": inspection["checksum"],
                             "metadata": {
                                 "legacy_metadata": file_row["metadata"] or "",
                                 "absolute_path": file_info.absolute_path,
@@ -444,6 +497,32 @@ class LegacyMigrationService:
             request_obj.save(update_fields=["status", "updated_at"])
             return request_obj
 
+    def _resolve_collection_role(self, raw_role):
+        try:
+            return CollectionRole(int(raw_role))
+        except (TypeError, ValueError):
+            return None
+
+    def _duplicate_import_groups(self, file_decisions):
+        """Group to-be-imported decisions that point at identical file content,
+        using data recorded during preflight (no file I/O here)."""
+        groups = {}
+        for file_decision in file_decisions:
+            if not file_decision.migration_resource.include:
+                continue
+            if file_decision.action != LegacyMigrationFileAction.IMPORT:
+                continue
+            if file_decision.checksum:
+                key = ("checksum", file_decision.checksum)
+            elif file_decision.device is not None and file_decision.inode is not None:
+                key = ("inode", file_decision.device, file_decision.inode)
+            elif file_decision.metadata.get("realpath"):
+                key = ("realpath", file_decision.metadata["realpath"])
+            else:
+                continue
+            groups.setdefault(key, []).append(file_decision)
+        return [group for group in groups.values() if len(group) > 1]
+
     def sync_request_issues(self, request_obj):
         self.sync_resource_reuse_targets(request_obj)
         request_obj.issues.all().delete()
@@ -465,18 +544,31 @@ class LegacyMigrationService:
             request_obj.migration_kind == LegacyMigrationKind.COLLECTION
             and request_obj.target_owner
             and request_obj.target_collection_name
-            and Collection.objects.filter(
+        ):
+            conflict_qs = Collection.objects.filter(
                 owner=request_obj.target_owner,
                 name=request_obj.target_collection_name,
-            ).exists()
-        ):
-            LegacyMigrationIssue.objects.create(
-                request=request_obj,
-                severity=LegacyMigrationIssueSeverity.BLOCKING,
-                code="collection_name_conflict",
-                message="The target owner already has a collection with the selected name.",
-                details={"target_collection_name": request_obj.target_collection_name},
             )
+            # A collection created by an earlier (possibly failed) run of this
+            # same request is not a conflict; excluding it keeps retries viable.
+            snapshot_collection = request_obj.raw_snapshot.get("collection") or {}
+            legacy_collection_id = snapshot_collection.get("legacy_collection_id")
+            if legacy_collection_id:
+                mapped_collection = self._get_source_map_target(
+                    "collection", legacy_collection_id, Collection
+                )
+                if mapped_collection:
+                    conflict_qs = conflict_qs.exclude(pk=mapped_collection.pk)
+            if conflict_qs.exists():
+                LegacyMigrationIssue.objects.create(
+                    request=request_obj,
+                    severity=LegacyMigrationIssueSeverity.BLOCKING,
+                    code="collection_name_conflict",
+                    message="The target owner already has a collection with the selected name.",
+                    details={
+                        "target_collection_name": request_obj.target_collection_name
+                    },
+                )
 
         for migration_resource in request_obj.migration_resources.all():
             if not migration_resource.include:
@@ -523,10 +615,13 @@ class LegacyMigrationService:
                     details={"resource_ids": sorted(reuse_resource_ids)},
                 )
 
-        for file_decision in request_obj.file_decisions.select_related(
-            "migration_resource",
-            "selected_existing_resource_file__resource",
-        ):
+        file_decisions = list(
+            request_obj.file_decisions.select_related(
+                "migration_resource",
+                "selected_existing_resource_file__resource",
+            )
+        )
+        for file_decision in file_decisions:
             if not file_decision.migration_resource.include:
                 continue
             if file_decision.size_bytes is None:
@@ -603,6 +698,42 @@ class LegacyMigrationService:
                         ),
                     )
 
+        for duplicate_group in self._duplicate_import_groups(file_decisions):
+            LegacyMigrationIssue.objects.create(
+                request=request_obj,
+                migration_resource=duplicate_group[0].migration_resource,
+                file_decision=duplicate_group[0],
+                severity=LegacyMigrationIssueSeverity.WARNING,
+                code="duplicate_file_in_request",
+                message=(
+                    "These legacy files are identical. The file will be imported "
+                    "once and shared by every resource that references it."
+                ),
+                details={
+                    "legacy_file_ids": [
+                        decision.legacy_file_id for decision in duplicate_group
+                    ],
+                    "paths": [decision.legacy_path for decision in duplicate_group],
+                },
+            )
+
+        for access_row in request_obj.raw_snapshot.get("collection_access", []):
+            if self._resolve_collection_role(access_row.get("account_role")) is None:
+                LegacyMigrationIssue.objects.create(
+                    request=request_obj,
+                    severity=LegacyMigrationIssueSeverity.WARNING,
+                    code="unknown_collection_role",
+                    message=(
+                        "A legacy collection access row has an unrecognized "
+                        f"account_role ({access_row.get('account_role')!r}) and "
+                        "will be skipped during import."
+                    ),
+                    details={
+                        "username": access_row.get("username") or "",
+                        "account_role": access_row.get("account_role"),
+                    },
+                )
+
         contents = request_obj.raw_snapshot.get("contents", [])
         for content_row in contents:
             if not self._content_is_included(request_obj, content_row):
@@ -665,16 +796,31 @@ class LegacyMigrationService:
         request_obj.save(update_fields=["status", "updated_at"])
         return request_obj.queue_job(job_type)
 
-    def run_next_job(self):
-        job = (
-            LegacyMigrationJob.objects.filter(status=LegacyMigrationJobStatus.QUEUED)
-            .order_by("created_at")
-            .first()
+    def _claim_job(self, job):
+        """Atomically claim a queued job. Returns False if another worker
+        claimed it (or it was canceled) after we fetched it."""
+        return (
+            LegacyMigrationJob.objects.filter(
+                pk=job.pk, status=LegacyMigrationJobStatus.QUEUED
+            ).update(status=LegacyMigrationJobStatus.RUNNING)
+            == 1
         )
-        if not job:
-            return None
-        self.run_job(job)
-        return job
+
+    def run_next_job(self):
+        while True:
+            job = (
+                LegacyMigrationJob.objects.filter(
+                    status=LegacyMigrationJobStatus.QUEUED
+                )
+                .order_by("created_at")
+                .first()
+            )
+            if not job:
+                return None
+            if not self._claim_job(job):
+                continue
+            self.run_job(job)
+            return job
 
     def run_job(self, job):
         job.status = LegacyMigrationJobStatus.RUNNING
@@ -705,6 +851,12 @@ class LegacyMigrationService:
             job.status = LegacyMigrationJobStatus.COMPLETED
             job.finished_at = timezone.now()
             job.save(update_fields=["status", "finished_at", "updated_at"])
+        except LegacyMigrationJobCanceled:
+            job.status = LegacyMigrationJobStatus.CANCELED
+            job.finished_at = timezone.now()
+            job.save(update_fields=["status", "finished_at", "updated_at"])
+            request_obj.status = LegacyMigrationStatus.CANCELED
+            request_obj.save(update_fields=["status", "updated_at"])
         except Exception as exc:
             logger.exception("Legacy migration job failed.")
             job.status = LegacyMigrationJobStatus.FAILED
@@ -723,6 +875,15 @@ class LegacyMigrationService:
             raise
 
     def _log_job_phase(self, job, phase_name):
+        current_status = (
+            LegacyMigrationJob.objects.filter(pk=job.pk)
+            .values_list("status", flat=True)
+            .first()
+        )
+        if current_status == LegacyMigrationJobStatus.CANCELED:
+            raise LegacyMigrationJobCanceled(
+                f"Job {job.pk} was canceled; stopping before phase '{phase_name}'."
+            )
         job.current_phase = phase_name
         log_entries = list(job.log)
         log_entries.append(
@@ -897,9 +1058,15 @@ class LegacyMigrationService:
         extension = get_legacy_file_extension(source_path)
         relative_name = f"{resource.name}/{version}{extension}"
         destination = Path(settings.MEDIA_ROOT) / relative_name
-        destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
-            destination.unlink()
+            if ResourceFile.objects.filter(file=relative_name).exists():
+                # The path belongs to another resource file; never clobber it.
+                relative_name = default_storage.get_available_name(relative_name)
+                destination = Path(settings.MEDIA_ROOT) / relative_name
+            else:
+                # Stale leftover from an earlier failed import attempt.
+                destination.unlink()
+        destination.parent.mkdir(parents=True, exist_ok=True)
         if is_remote_legacy_path(source_path):
             scp_remote_legacy_file(source_path, destination)
             return relative_name
@@ -941,10 +1108,28 @@ class LegacyMigrationService:
             target_resource,
             file_decision.target_version or file_decision.legacy_version,
         )
+
+        # ResourceFile.checksum is unique, so importing bytes that already
+        # exist (e.g. the same legacy file shared by two resources in this
+        # request) must reuse the existing row instead of crashing on save.
+        checksum = compute_checksum(Path(settings.MEDIA_ROOT) / relative_name)
+        existing_file = ResourceFile.objects.filter(checksum=checksum).first()
+        if existing_file:
+            (Path(settings.MEDIA_ROOT) / relative_name).unlink(missing_ok=True)
+            self._upsert_source_map(
+                request_obj,
+                "file",
+                file_decision.legacy_file_id,
+                existing_file,
+            )
+            return existing_file
+
         resource_file = ResourceFile(
             resource=target_resource,
             version=file_decision.target_version or file_decision.legacy_version,
             full_video=True,
+            checksum=checksum,
+            checksum_at=timezone.now(),
             notes=json.dumps(
                 {
                     "legacy_file_id": file_decision.legacy_file_id,
@@ -1053,21 +1238,19 @@ class LegacyMigrationService:
             )
 
         tracks_by_layer = {}
-        for legacy_event in legacy_annotations:
-            layer_number = int(legacy_event.get("layer", 0) or 0)
-            if layer_number not in tracks_by_layer:
-                tracks_by_layer[layer_number] = Track.objects.create(
-                    annotation_set=annotation_set,
-                    name=f"Imported Layer {layer_number}",
-                    stack_position=layer_number,
-                )
-
         for index, legacy_event in enumerate(legacy_annotations):
             model_class = self._annotation_model_for_type(legacy_event.get("type"))
             if not model_class:
                 continue
             layer_number = int(legacy_event.get("layer", 0) or 0)
-            track = tracks_by_layer[layer_number]
+            track = tracks_by_layer.get(layer_number)
+            if track is None:
+                track = Track.objects.create(
+                    annotation_set=annotation_set,
+                    name=f"Imported Layer {layer_number}",
+                    stack_position=layer_number,
+                )
+                tracks_by_layer[layer_number] = track
             start_time = float(legacy_event.get("start", 0) or 0)
             end_time = float(legacy_event.get("end", start_time) or start_time)
             common_kwargs = {
@@ -1089,10 +1272,10 @@ class LegacyMigrationService:
                     **common_kwargs,
                 )
             elif model_class is PauseAnnotation:
+                # Pause is a point marker: its end time equals its start time.
                 annotation = model_class.objects.create(
                     message=legacy_event.get("message", ""),
-                    end_time=start_time,
-                    **common_kwargs,
+                    **{**common_kwargs, "end_time": start_time},
                 )
             elif model_class is CommentAnnotation:
                 position = legacy_event.get("position") or {}
@@ -1223,6 +1406,17 @@ class LegacyMigrationService:
                         }
                     )
                 ).first()
+                collection_role = self._resolve_collection_role(
+                    access_row["account_role"]
+                )
+                if collection_role is None:
+                    logger.warning(
+                        "Skipping legacy collection access for %s: unknown "
+                        "account_role %r.",
+                        access_row.get("username") or "unknown user",
+                        access_row.get("account_role"),
+                    )
+                    continue
                 if (
                     resolution
                     and resolution.matched_user
@@ -1232,7 +1426,7 @@ class LegacyMigrationService:
                     CollectionUserAccess.objects.get_or_create(
                         user=resolution.matched_user,
                         collection=collection,
-                        defaults={"collection_role": int(access_row["account_role"])},
+                        defaults={"collection_role": collection_role},
                     )
 
         for resource in imported_resources:

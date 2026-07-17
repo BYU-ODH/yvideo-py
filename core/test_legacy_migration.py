@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 from unittest import mock
 import uuid
@@ -22,10 +23,12 @@ from django.test import override_settings
 from django.urls import reverse
 import xxhash
 
+from . import legacy_dump_scheduler
 from .admin import LegacyMigrationFileDecisionForm
 from .admin import LegacyMigrationRequestAdmin
 from .admin import LegacyMigrationResourceInline
 from .factories import CollectionFactory
+from .factories import ContentFactory
 from .factories import LanguageFactory
 from .factories import ResourceFactory
 from .factories import UserFactory
@@ -33,22 +36,29 @@ from .legacy_migration import ChecksumCache
 from .legacy_migration import LegacyCatalogClient
 from .legacy_migration import LegacyMigrationFileAction
 from .legacy_migration import LegacyMigrationFileDecision
+from .legacy_migration import LegacyMigrationIssueSeverity
 from .legacy_migration import LegacyMigrationJob
+from .legacy_migration import LegacyMigrationJobCanceled
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationResource
 from .legacy_migration import LegacyMigrationService
 from .legacy_migration import LegacyMigrationStatus
 from .legacy_migration import LegacyMigrationUserResolutionStatus
+from .legacy_migration import LegacySourceMap
 from .legacy_migration.parsers import LegacyFileInfo
+from .models import BlankAnnotation
 from .models import BlurAnnotation
 from .models import BlurAnnotationPosition
 from .models import Collection
 from .models import CollectionRole
 from .models import CollectionUserAccess
 from .models import Content
+from .models import MuteAnnotation
+from .models import PauseAnnotation
 from .models import Resource
 from .models import ResourceAccess
 from .models import ResourceFile
+from .models import SkipAnnotation
 from .models import Subtitle
 
 
@@ -2246,7 +2256,7 @@ class LegacyMigrationTests(TestCase):
     def test_import_file_to_storage_uses_scp_for_remote_source(self):
         service = self.build_service()
         resource = ResourceFactory(name="Imported Lecture")
-        source_path = "yvideo:/opt/media/y-video/legacy/imported.mp4"
+        source_path = "yvideo:/opt/media/y-video/legacy dir/imported.mp4"
 
         with mock.patch(
             "core.legacy_migration.remote_files.subprocess.run"
@@ -2261,8 +2271,425 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(relative_name, "Imported Lecture/english.mp4")
         self.assertTrue(destination.parent.exists())
         run_mock.assert_called_once_with(
-            ["scp", "-p", "-oBatchMode=yes", source_path, str(destination)],
+            [
+                "scp",
+                "-p",
+                "-oBatchMode=yes",
+                "yvideo:'/opt/media/y-video/legacy dir/imported.mp4'",
+                str(destination),
+            ],
             capture_output=True,
             text=True,
             check=True,
         )
+
+    def test_import_annotations_handles_all_legacy_types(self):
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        content = ContentFactory()
+        legacy_annotations = [
+            {"type": "Pause", "layer": 0, "start": 5, "message": "stop here"},
+            {"type": "Skip", "layer": 0, "start": 1, "end": 2},
+            {"type": "Mute", "layer": 1, "start": 3, "end": 4},
+            {"type": "Blank", "layer": 1, "start": 6, "end": 7},
+            {"type": "Mystery", "layer": 9, "start": 0, "end": 1},
+        ]
+
+        annotation_set = service._import_annotations(
+            migration_request, content, legacy_annotations
+        )
+
+        pause = PauseAnnotation.objects.get(track__annotation_set=annotation_set)
+        self.assertEqual(pause.start_time, 5.0)
+        self.assertEqual(pause.end_time, 5.0)
+        self.assertEqual(pause.message, "stop here")
+        self.assertEqual(
+            SkipAnnotation.objects.filter(track__annotation_set=annotation_set).count(),
+            1,
+        )
+        self.assertEqual(
+            MuteAnnotation.objects.filter(track__annotation_set=annotation_set).count(),
+            1,
+        )
+        self.assertEqual(
+            BlankAnnotation.objects.filter(
+                track__annotation_set=annotation_set
+            ).count(),
+            1,
+        )
+        # The unrecognized "Mystery" event must not leave an empty track behind.
+        self.assertEqual(annotation_set.tracks.count(), 2)
+
+    def test_sync_issues_allows_retry_when_collection_was_created_by_this_request(
+        self,
+    ):
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        legacy_collection_id = str(uuid.uuid4())
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+            target_collection_name="Imported Shelf",
+            raw_snapshot={
+                "collection": {
+                    "legacy_collection_id": legacy_collection_id,
+                    "name": "Imported Shelf",
+                },
+            },
+        )
+        collection = CollectionFactory(owner=owner, name="Imported Shelf")
+
+        service.sync_request_issues(migration_request)
+        self.assertTrue(
+            migration_request.issues.filter(code="collection_name_conflict").exists()
+        )
+
+        LegacySourceMap.objects.create(
+            source_type="collection",
+            source_id=legacy_collection_id,
+            request=migration_request,
+            target_model="Collection",
+            target_id=collection.pk,
+        )
+        service.sync_request_issues(migration_request)
+        self.assertFalse(
+            migration_request.issues.filter(code="collection_name_conflict").exists()
+        )
+
+    def test_sync_issues_warns_on_unknown_collection_role(self):
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+            raw_snapshot={
+                "collection_access": [
+                    {
+                        "legacy_user_id": "",
+                        "username": "mystery",
+                        "byu_person_id": "",
+                        "email": "",
+                        "account_role": 99,
+                        "collection_id": "c1",
+                    }
+                ],
+            },
+        )
+
+        service.sync_request_issues(migration_request)
+
+        issue = migration_request.issues.get(code="unknown_collection_role")
+        self.assertEqual(issue.severity, LegacyMigrationIssueSeverity.WARNING)
+        self.assertEqual(issue.details["username"], "mystery")
+
+    def test_claim_job_is_atomic(self):
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        job = migration_request.queue_job("import")
+
+        self.assertTrue(service._claim_job(job))
+        self.assertFalse(service._claim_job(job))
+
+    def test_running_import_stops_at_phase_boundary_when_canceled(self):
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        job = migration_request.queue_job("import")
+        LegacyMigrationJob.objects.filter(pk=job.pk).update(status="canceled")
+
+        with self.assertRaises(LegacyMigrationJobCanceled):
+            service._log_job_phase(job, "files")
+
+    def test_run_job_marks_request_canceled_when_import_is_canceled(self):
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        job = migration_request.queue_job("import")
+
+        with mock.patch.object(
+            LegacyMigrationService,
+            "import_request",
+            side_effect=LegacyMigrationJobCanceled("canceled"),
+        ):
+            service.run_job(job)
+
+        job.refresh_from_db()
+        migration_request.refresh_from_db()
+        self.assertEqual(job.status, "canceled")
+        self.assertEqual(migration_request.status, LegacyMigrationStatus.CANCELED)
+
+    def test_import_file_to_storage_does_not_clobber_referenced_media(self):
+        service = LegacyMigrationService(require_catalog=False)
+        resource = ResourceFactory(name="Shared Name")
+        existing_path = self.write_media_file(
+            "Shared Name/english.mp4", payload=b"existing-bytes"
+        )
+        existing_file = ResourceFile(
+            resource=resource, version="english", full_video=True
+        )
+        existing_file.file.name = "Shared Name/english.mp4"
+        existing_file.save()
+        source_path = self.write_media_file(
+            "legacy/new-video.mp4", payload=b"new-bytes"
+        )
+
+        relative_name = service._import_file_to_storage(
+            str(source_path), resource, "english"
+        )
+
+        self.assertNotEqual(relative_name, "Shared Name/english.mp4")
+        self.assertEqual(existing_path.read_bytes(), b"existing-bytes")
+        self.assertEqual(
+            (Path(settings.MEDIA_ROOT) / relative_name).read_bytes(), b"new-bytes"
+        )
+
+    def test_import_file_to_storage_replaces_stale_partial_copy(self):
+        service = LegacyMigrationService(require_catalog=False)
+        resource = ResourceFactory(name="Stale Name")
+        self.write_media_file("Stale Name/english.mp4", payload=b"stale-bytes")
+        source_path = self.write_media_file("legacy/fresh.mp4", payload=b"fresh-bytes")
+
+        relative_name = service._import_file_to_storage(
+            str(source_path), resource, "english"
+        )
+
+        self.assertEqual(relative_name, "Stale Name/english.mp4")
+        self.assertEqual(
+            (Path(settings.MEDIA_ROOT) / relative_name).read_bytes(), b"fresh-bytes"
+        )
+
+    def test_import_shares_identical_files_within_request(self):
+        self.create_legacy_schema()
+        target_owner = UserFactory(
+            netid="profdup", username="444444444", instructor=True
+        )
+
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        resource_a_id = str(uuid.uuid4())
+        resource_b_id = str(uuid.uuid4())
+        self.write_media_file("legacy/dup-a.mp4", payload=b"identical-bytes")
+        self.write_media_file("legacy/dup-b.mp4", payload=b"identical-bytes")
+
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profdup",
+                "byu_person_id": "444444444",
+                "email": "profdup@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Duplicate Files Shelf",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 1,
+            },
+        )
+        for resource_id, resource_name, file_path in (
+            (resource_a_id, "Duplicate Alpha", "legacy/dup-a.mp4"),
+            (resource_b_id, "Duplicate Beta", "legacy/dup-b.mp4"),
+        ):
+            self.insert_legacy_row(
+                "resources",
+                {
+                    "id": resource_id,
+                    "deleted": None,
+                    "resource_name": resource_name,
+                    "resource_type": "video",
+                    "requester_email": "profdup@example.test",
+                    "copyrighted": 1,
+                    "physical_copy_exists": 0,
+                    "full_video": 1,
+                    "published": 1,
+                    "views": 0,
+                    "metadata": "",
+                },
+            )
+            self.insert_legacy_row(
+                "files",
+                {
+                    "id": str(uuid.uuid4()),
+                    "deleted": None,
+                    "resource_id": resource_id,
+                    "filepath": file_path,
+                    "file_version": "english",
+                    "metadata": "",
+                    "created": "2026-01-01 00:00:00",
+                    "updated": "2026-01-01 00:00:00",
+                },
+            )
+            self.insert_legacy_row(
+                "contents",
+                {
+                    "id": str(uuid.uuid4()),
+                    "deleted": None,
+                    "created": "2026-01-01 00:00:00",
+                    "collection_id": legacy_collection_id,
+                    "resource_id": resource_id,
+                    "title": f"Content for {resource_name}",
+                    "content_type": "video",
+                    "url": "",
+                    "description": "",
+                    "tags": "",
+                    "annotations": "[]",
+                    "thumbnail": "",
+                    "allow_definitions": 1,
+                    "allow_notes": 1,
+                    "allow_captions": 1,
+                    "views": 0,
+                    "file_version": "english",
+                    "published": 1,
+                    "words": "",
+                    "clips": "[]",
+                },
+            )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=target_owner,
+            target_owner=target_owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+        service = self.build_service()
+        service.preflight_request(migration_request)
+        migration_request.refresh_from_db()
+
+        checksums = set(
+            migration_request.file_decisions.values_list("checksum", flat=True)
+        )
+        self.assertEqual(len(checksums), 1)
+        self.assertNotIn("", checksums)
+        duplicate_issue = migration_request.issues.get(code="duplicate_file_in_request")
+        self.assertEqual(duplicate_issue.severity, LegacyMigrationIssueSeverity.WARNING)
+        self.assertFalse(migration_request.has_blocking_issues())
+
+        job = service.approve_and_queue_import(migration_request)
+        service.run_job(job)
+        migration_request.refresh_from_db()
+
+        self.assertEqual(migration_request.status, LegacyMigrationStatus.COMPLETED)
+        self.assertEqual(ResourceFile.objects.count(), 1)
+        shared_file = ResourceFile.objects.get()
+        contents = Content.objects.filter(collection__name="Duplicate Files Shelf")
+        self.assertEqual(contents.count(), 2)
+        for content in contents:
+            self.assertEqual(content.resource_file, shared_file)
+        # The duplicate copy was cleaned up after the reuse was detected.
+        self.assertFalse(
+            (Path(settings.MEDIA_ROOT) / "Duplicate Beta" / "english.mp4").exists()
+        )
+
+    def test_player_url_only_content_requires_view_permission(self):
+        owner = UserFactory(instructor=True)
+        other_user = UserFactory(instructor=True)
+        collection = CollectionFactory(owner=owner, published=False)
+        content = Content.objects.create(
+            collection=collection,
+            title="URL Only Lecture",
+            url="https://example.com/lecture.mp4",
+        )
+
+        client = Client()
+        client.force_login(
+            other_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+        response = client.get(reverse("player", args=[content.pk]))
+        self.assertEqual(response.status_code, 403)
+
+        client.force_login(owner, backend="django.contrib.auth.backends.ModelBackend")
+        response = client.get(reverse("player", args=[content.pk]))
+        self.assertEqual(response.status_code, 200)
+
+
+class LegacyDumpSchedulerGuardTests(TestCase):
+    def _is_server_process(self, argv, env):
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.dict(os.environ, env, clear=False),
+        ):
+            for key in (
+                "RUN_MAIN",
+                legacy_dump_scheduler.SCHEDULER_PROCESS_ENV_VAR,
+            ):
+                if key not in env:
+                    os.environ.pop(key, None)
+            return legacy_dump_scheduler._is_server_process()
+
+    def test_server_process_detection(self):
+        cases = [
+            (["manage.py", "migrate"], {}, False),
+            (["manage.py", "runserver"], {}, False),
+            (["manage.py", "runserver"], {"RUN_MAIN": "true"}, True),
+            (["/usr/local/bin/gunicorn", "yvideo.wsgi"], {}, True),
+            (["/usr/bin/uwsgi", "--ini", "app.ini"], {}, True),
+            (["/usr/bin/celery", "worker"], {}, False),
+            (["some_script.py"], {}, False),
+            (["python"], {}, False),
+            (
+                ["some_script.py"],
+                {legacy_dump_scheduler.SCHEDULER_PROCESS_ENV_VAR: "1"},
+                True,
+            ),
+        ]
+        for argv, env, expected in cases:
+            with self.subTest(argv=argv, env=env):
+                self.assertEqual(self._is_server_process(argv, env), expected)
+
+    @override_settings(
+        LEGACY_MIGRATION_ENABLED=True, LEGACY_MIGRATION_AUTO_DUMP_ENABLED=True
+    )
+    def test_should_start_refuses_under_pytest_even_for_server_argv(self):
+        with (
+            mock.patch.object(sys, "argv", ["/usr/local/bin/gunicorn"]),
+            mock.patch.dict(sys.modules, {"pytest": mock.Mock()}),
+        ):
+            self.assertFalse(legacy_dump_scheduler.should_start_legacy_dump_scheduler())
+
+    def test_host_lock_is_exclusive_per_host(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with override_settings(
+                LEGACY_MIGRATION_SQLITE_PATH=Path(tmp_dir) / "legacy_dump.sqlite3"
+            ):
+                first = legacy_dump_scheduler.acquire_scheduler_host_lock()
+                self.assertIsNotNone(first)
+                second = legacy_dump_scheduler.acquire_scheduler_host_lock()
+                self.assertIsNone(second)
+                first.close()
+                third = legacy_dump_scheduler.acquire_scheduler_host_lock()
+                self.assertIsNotNone(third)
+                third.close()

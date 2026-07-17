@@ -2,7 +2,6 @@ import uuid
 
 from django.conf import settings
 from django.db import models
-from django.utils import timezone
 
 
 class LegacyMigrationKind(models.TextChoices):
@@ -286,15 +285,6 @@ class LegacyMigrationIssue(models.Model):
     code = models.CharField(max_length=100)
     message = models.TextField()
     details = models.JSONField(default=dict, blank=True)
-    resolved_at = models.DateTimeField(null=True, blank=True)
-    resolved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="legacy_migration_issues_resolved",
-        null=True,
-        blank=True,
-    )
-    resolution_notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -302,12 +292,6 @@ class LegacyMigrationIssue(models.Model):
 
     def __str__(self):
         return f"{self.severity}: {self.code}"
-
-    def mark_resolved(self, user=None, notes=""):
-        self.resolved_at = timezone.now()
-        self.resolved_by = user
-        self.resolution_notes = notes
-        self.save(update_fields=["resolved_at", "resolved_by", "resolution_notes"])
 
 
 class LegacyMigrationJob(models.Model):

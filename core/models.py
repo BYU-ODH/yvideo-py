@@ -144,6 +144,13 @@ class User(AbstractUser):
             # TODO Check course enrollment
         return False
 
+    def get_content_source_url(self, content):
+        """URL for URL-only content, gated by the same permission check that
+        protects file-backed content."""
+        if content.is_url_only() and self.can_view_content(content):
+            return content.url
+        return None
+
     def get_resource_filekey(self, content):
         """Get or create a FileKey for the given content."""
         if self.can_view_content(content) and content.resource_file:

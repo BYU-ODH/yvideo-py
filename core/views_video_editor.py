@@ -65,7 +65,7 @@ def build_player_wrapper_context(request, content):
     return {
         "content_id": content.pk,
         "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
-        "content_source_url": content.url if content.is_url_only() else None,
+        "content_source_url": request.user.get_content_source_url(content),
     }
 
 
@@ -205,7 +205,7 @@ def video_editor(request, content_id):
             "content": content,
             "content_id": content_id,
             "file_key": file_key.id if file_key else None,
-            "content_source_url": content.url if content.is_url_only() else None,
+            "content_source_url": request.user.get_content_source_url(content),
             "allow_events": True,
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,

@@ -208,7 +208,15 @@ def compute_remote_checksum(resolved_path):
 
 
 def scp_remote_legacy_file(resolved_path, destination):
-    command_args = ["scp", "-p", "-oBatchMode=yes", resolved_path, str(destination)]
+    remote_path = parse_remote_legacy_path(resolved_path)
+    if not remote_path:
+        raise ValueError(f"{resolved_path} is not a remote legacy path.")
+
+    host, path_value = remote_path
+    # The remote side of scp interprets the path through a shell, so quote it
+    # the same way inspect_remote_legacy_file does.
+    remote_spec = f"{host}:{shlex.quote(path_value)}"
+    command_args = ["scp", "-p", "-oBatchMode=yes", remote_spec, str(destination)]
     try:
         subprocess.run(
             command_args,
