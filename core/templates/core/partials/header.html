@@ -65,6 +65,7 @@
         </div>
 
         <aside class="sidebar">
+            <button id="sidebar-close">X</button>
             <h2> {{ user.netid }} </h2>
             {% if user.is_admin %}
                 <a href="{% url 'admin:index' %}">Admin Dashboard</a>
@@ -98,7 +99,12 @@
     const sidebar = document.querySelector('.sidebar');
 
     toggleButton.addEventListener('click', () => {
-      sidebar.classList.toggle('show');
+      sidebar.classList.add('show');
+    });
+
+    const sidebarCloseButton = document.getElementById("sidebar-close");
+    sidebarCloseButton.addEventListener("click", () => {
+      sidebar.classList.remove('show');
     });
 
     // Spoofing logic

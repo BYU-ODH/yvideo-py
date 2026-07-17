@@ -724,7 +724,6 @@ a.blue-button {
     right: 0;
     flex-shrink: 0;
     z-index: 1001;
-    transition: right 0.3s ease;
 }
 
 .sidebar-toggle span {
@@ -734,7 +733,6 @@ a.blue-button {
     right: 25px;
     background-color: black;
     border-radius: 2px;
-    transition: 0.1s ease;
 }
 
 .sidebar {
@@ -745,7 +743,6 @@ a.blue-button {
     height: 100vh;
     background-color: white;
     padding: 1rem;
-    transition: transform 0.1s linear;
     transform: translateX(1000%);
     z-index: 1000;
 }
@@ -758,6 +755,12 @@ a.blue-button {
     margin-top: 1rem;
     border-bottom: 1px solid black;
     font-size: 1rem;
+}
+
+#sidebar-close {
+    position: absolute;
+    right: 1rem;
+    top: 1rem;
 }
 
 .main-content {
