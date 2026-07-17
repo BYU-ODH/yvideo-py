@@ -72,7 +72,7 @@ repository into `/srv/<deploy-user>/<repo-name>`:
 ```bash
 sudo install -d -o yvideo-dev -g yvideo-dev /srv/yvideo-dev
 sudo -iu yvideo-dev
-git clone git@github.com:BYU-ODH/yvideo-py.git /srv/yvideo-dev/yvideo-py
+git clone https://github.com/BYU-ODH/yvideo-py.git /srv/yvideo-dev/yvideo-py
 cd /srv/yvideo-dev/yvideo-py
 git checkout main
 ```
