@@ -32,10 +32,6 @@
   margin-right: 320px;
 }
 
-.hidden {
-  display: none;
-}
-
 .inactive {
   opacity: 0.5;
   pointer-events: none;
@@ -301,28 +297,37 @@
   transition: width 0.1s linear;
 }
 
+/* The progress fill and dot are positioned from a single `--played` (0..1)
+   custom property that AnnotationPlayer sets every animation frame during
+   playback (see updateScrubber/animateDuringPlayback). There is deliberately no
+   CSS transition: the per-frame updates already produce smooth linear motion,
+   whereas a transition makes the scrubber lag behind and keep gliding for the
+   transition duration after playback pauses. The fill uses a compositor-only
+   scaleX so it never triggers layout. */
 .scrubber-progress {
   position: absolute;
   left: 0;
   top: 0;
+  width: 100%;
   height: 100%;
   background: #0582ca;
   border-radius: 3px;
   pointer-events: none;
-  transition: width 0.1s linear;
+  transform: scaleX(var(--played, 0));
+  transform-origin: left center;
   z-index: 2;
 }
 
 .scrubber-dot {
   position: absolute;
   top: 50%;
+  left: calc(var(--played, 0) * 100%);
   transform: translate(-50%, -50%);
   width: 12px;
   height: 12px;
   background: #0582ca;
   border-radius: 50%;
   pointer-events: none;
-  transition: left 0.1s linear;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   z-index: 2;
 }
@@ -446,20 +451,7 @@
   padding: 6px;
 }
 
-/* Menu Modal (for speed/caption selection) */
-.menu-modal {
-  position: absolute;
-  right: 16px;
-  bottom: 70px;
-  min-width: 150px;
-  background: rgba(40, 40, 40, 0.95);
-  color: white;
-  border-radius: 8px;
-  padding: 8px 0;
-  z-index: 25;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-}
-
+/* Speed / caption selection menus */
 .captions-menu {
   min-width: 180px;
   max-width: 300px;
@@ -467,37 +459,6 @@
 
 .speed-menu {
   min-width: 80px;
-}
-
-.menu-modal h3 {
-  padding: 8px 12px;
-  margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
-.menu-modal button,
-.menu-modal input {
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: white;
-  padding: 10px 12px;
-  text-align: left;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s ease;
-  outline: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.menu-modal button:hover,
-.menu-modal input:hover {
-  background-color: rgba(5, 130, 202, 0.8);
 }
 
 /* Highlight for active playback speed option */

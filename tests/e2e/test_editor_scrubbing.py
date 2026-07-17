@@ -174,3 +174,43 @@ def test_player_progress_scrubber_moves_smoothly_during_playback(
     assert result["advanced"] > 0.2, "video did not actually play"
     # Frame-driven scaleX fill produces many distinct positions, not a lurch.
     assert result["distinct"] > 10
+
+
+def test_player_scrubber_stops_immediately_on_pause(
+    page, live_server, seeded_demo_data
+):
+    # Regression: the dot/fill are positioned from --played with no CSS
+    # transition, so they must freeze the instant playback pauses rather than
+    # gliding to catch up (which a transition on `left`/`width` would cause).
+    _open_editor(page, live_server)
+
+    result = page.evaluate(
+        """async () => {
+            const video = document.querySelector('.annotation-player-container video');
+            const progress = document.querySelector('.scrubber-progress');
+            const dot = document.querySelector('.scrubber-dot');
+            video.muted = true;
+            video.currentTime = 0;
+            await video.play();
+            await new Promise(r => setTimeout(r, 500));
+            video.pause();
+            // Sample the rendered position across ~400ms after pausing.
+            const positions = new Set();
+            const t0 = performance.now();
+            await new Promise((resolve) => {
+                const tick = () => {
+                    positions.add(
+                        getComputedStyle(progress).transform + '|' + getComputedStyle(dot).left
+                    );
+                    if (performance.now() - t0 > 400) resolve();
+                    else requestAnimationFrame(tick);
+                };
+                requestAnimationFrame(tick);
+            });
+            return { distinctAfterPause: positions.size, paused: video.paused };
+        }"""
+    )
+
+    assert result["paused"]
+    # A single frozen position after pause; >1 means it kept moving (a transition).
+    assert result["distinctAfterPause"] == 1
