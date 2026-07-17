@@ -754,18 +754,9 @@ a.blue-button {
     transform: translateX(0);
 }
 
-.sidebar hr {
-    margin: 1rem 0px;
-    border-right: none;
-    border-bottom: none;
-    border-left: none;
-    border-image: initial;
-    border-top: 1px solid rgb(196, 196, 196);
-}
-
 .sidebar h2 {
     margin-top: 1rem;
-    margin-bottom: 0;
+    border-bottom: 1px solid black;
     font-size: 1rem;
 }
 

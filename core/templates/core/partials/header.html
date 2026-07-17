@@ -66,7 +66,6 @@
 
         <aside class="sidebar">
             <h2> {{ user.netid }} </h2>
-            <hr>
             {% if user.is_admin %}
                 <a href="{% url 'admin:index' %}">Admin Dashboard</a>
             {% endif %}
@@ -81,13 +80,11 @@
             {% endcomment %}
 
             <h2>Collections</h2>
-            <hr>
             <a href="{% url 'index' %}">Collections</a>
             <a href="#">Manage Collections</a>
             <a href="#">Manage Public Collections</a>
 
             <h2>Connect With Us</h2>
-            <hr>
             <a href="#">Contact Us</a>
             <a href="https://privacy.byu.edu" target="_blank" rel="noopener noreferrer">Privacy Notice</a>
             <a href="https://infosec.byu.edu/cookie-prefs" target="_blank" rel="noopener noreferrer">Cookie Preferences</a>
