@@ -1,5 +1,5 @@
 import { SubtitleSidebar } from "./SubtitleSidebar.js";
-import { formatSecondsToString } from "./utils.js";
+import { formatSecondsToString, animateDuringPlayback } from "./utils.js";
 
 export class AnnotationPlayer {
   constructor(options = {}) {
@@ -1037,12 +1037,23 @@ export class AnnotationPlayer {
     this.controls.playTime.textContent = `${currentTimeStr} / ${durationStr}`;
   }
 
-  updateScrubber(played) {
-    if (this.controls.scrubberProgress) {
-      this.controls.scrubberProgress.style.width = `${played * 100}%`;
+  // Paint only the scrubber position. Called every animation frame during
+  // playback (via animateDuringPlayback) for smooth motion; the heavier work
+  // (time display, buffered bar, annotations) stays on the less-frequent
+  // timeupdate handler and the annotation loop.
+  paintProgress() {
+    if (this.videoElem.duration > 0) {
+      this.updateScrubber(this.videoElem.currentTime / this.videoElem.duration);
     }
-    if (this.controls.scrubberDot) {
-      this.controls.scrubberDot.style.left = `calc(${played * 100}% - 7px)`;
+  }
+
+  updateScrubber(played) {
+    // Set a single custom property on the scrubber; the progress fill and dot
+    // both read it in CSS (via transform/left), so no per-frame layout reads
+    // are needed here.
+    if (this.controls.scrubber) {
+      const clamped = Math.max(0, Math.min(1, played));
+      this.controls.scrubber.style.setProperty("--played", clamped);
     }
   }
 
@@ -1530,6 +1541,9 @@ export class AnnotationPlayer {
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.onProgress());
+    // Move the scrubber every animation frame while playing so it glides
+    // instead of lurching between timeupdate events (shared with the editor).
+    animateDuringPlayback(this.videoElem, () => this.paintProgress());
 
     this.videoElem.addEventListener('play', () => {
       this.paused = false;
