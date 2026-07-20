@@ -218,7 +218,7 @@ class Api:
                     parsed_summary["is_student"] = True
 
                 if (
-                    position["supervisory_org_parent"]
+                    position["supervisory_org"]
                     == "Humanities, Dean's - Office of Digital Humanities"
                 ):
                     parsed_summary["is_odh_employee"] = True

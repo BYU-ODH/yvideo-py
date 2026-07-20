@@ -133,7 +133,7 @@ def update_user_details(user):
         user.last_name = worker_summary["last_name"]
         worker_netid = api.get_net_id_from_worker_id(worker_id)
         if worker_netid:
-            user.net_id = worker_netid
+            user.netid = worker_netid
 
         if user.username in ADMIN_BYUID_WHITELIST:
             user.privilege_level = PrivilegeLevel.ADMIN
