@@ -84,7 +84,12 @@ def display_yearterm(yearterm):
     term_decoder = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
     year_string = yearterm[0:4]
     term_string = yearterm[4:]
-    return f"{term_decoder[term_string]} {year_string}"
+    try:
+        term_name = term_decoder[term_string]
+    except KeyError:
+        logger.error(f"Invalid yearterm: {yearterm}")
+        return yearterm
+    return f"{term_name} {year_string}"
 
 
 def index(request):
@@ -137,7 +142,7 @@ def player(request, content_id):
 def stream_file(request, resource_file_key_id):
     """Stream file content with support for HTTP Range requests (partial content)."""
     try:
-        # Get the FileKey object
+        # Get the ResourceFileKey object
         resource_file_key_obj = get_object_or_404(
             ResourceFileKey, id=resource_file_key_id
         )

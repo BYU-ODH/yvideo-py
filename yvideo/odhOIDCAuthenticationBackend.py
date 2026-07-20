@@ -44,7 +44,9 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         # because faculty members may well have been students, we need to check for faculty status first
         # so that they are not accidentally assigned as students
         worker_id = api.get_worker_id_from_byu_id(byu_id)
-        is_admin = byu_id in getattr(secret_settings, "ADMIN_BYUID_WHITELIST", [])
+        is_whitelist_admin = byu_id in getattr(
+            secret_settings, "ADMIN_BYUID_WHITELIST", []
+        )
         if worker_id:
             # by default, we give the least privileges to users. If a user should have admin
             # privileges, they should be manually elevated
@@ -53,12 +55,15 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 user = User.objects.create(
                     username=byu_id,
                     netid=api.get_net_id_from_worker_id(worker_id),
-                    privilege_level=PrivilegeLevel.ADMIN
-                    if is_admin
-                    else PrivilegeLevel.INSTRUCTOR,
+                    privilege_level=(
+                        PrivilegeLevel.ADMIN
+                        if is_whitelist_admin
+                        else PrivilegeLevel.INSTRUCTOR
+                    ),
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
-                    is_staff=worker_summary["is_odh_employee"] or is_admin,
+                    is_staff=worker_summary["is_odh_employee"] or is_whitelist_admin,
+                    is_superuser=is_whitelist_admin,
                 )
                 return user
             elif not worker_summary["is_student"] and worker_summary["is_odh_employee"]:
@@ -67,9 +72,12 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     netid=api.get_net_id_from_worker_id(worker_id),
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
-                    is_staff=is_admin,
+                    is_staff=is_whitelist_admin,
+                    is_superuser=is_whitelist_admin,
                     privilege_level=(
-                        PrivilegeLevel.ADMIN if is_admin else PrivilegeLevel.STUDENT
+                        PrivilegeLevel.ADMIN
+                        if is_whitelist_admin
+                        else PrivilegeLevel.STUDENT
                     ),
                 )
                 return user
@@ -85,6 +93,18 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
             return user
 
     def update_user(self, user, claims):
+        is_whitelist_admin = claims.get("byu_id") in getattr(
+            secret_settings, "ADMIN_BYUID_WHITELIST", []
+        )
+        if is_whitelist_admin and not (
+            user.is_staff
+            and user.is_superuser
+            and user.privilege_level == PrivilegeLevel.ADMIN
+        ):
+            user.privilege_level = PrivilegeLevel.ADMIN
+            user.is_staff = True
+            user.is_superuser = True
+            user.save()
         if user.privilege_level == PrivilegeLevel.STUDENT:
             update_user_enrollment(user)
         return user

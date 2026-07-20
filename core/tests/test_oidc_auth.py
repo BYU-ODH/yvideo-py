@@ -62,6 +62,7 @@ class CreateUserTests(TestCase):
 
         self.assertEqual(user.privilege_level, PrivilegeLevel.ADMIN)
         self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
 
     @patch("yvideo.odhOIDCAuthenticationBackend.Api")
     def test_missing_admin_whitelist_does_not_raise(self, MockApi):
@@ -107,3 +108,41 @@ class CreateUserTests(TestCase):
 
         self.assertIsNone(user)
         MockApi.assert_not_called()
+
+
+class UpdateUserTests(TestCase):
+    """Covers the path exercised when an existing user logs in."""
+
+    def test_whitelisted_existing_user_is_elevated(self):
+        user = User.objects.create_user(
+            username="byu-admin", privilege_level=PrivilegeLevel.INSTRUCTOR
+        )
+
+        with patch.object(
+            oidc_module,
+            "secret_settings",
+            SimpleNamespace(ADMIN_BYUID_WHITELIST=["byu-admin"]),
+        ):
+            OIDCUserAuth().update_user(user, {"byu_id": "byu-admin"})
+
+        user.refresh_from_db()
+        self.assertEqual(user.privilege_level, PrivilegeLevel.ADMIN)
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+
+    def test_non_whitelisted_existing_user_is_not_elevated(self):
+        user = User.objects.create_user(
+            username="byu-1", privilege_level=PrivilegeLevel.INSTRUCTOR
+        )
+
+        with patch.object(
+            oidc_module,
+            "secret_settings",
+            SimpleNamespace(ADMIN_BYUID_WHITELIST=["byu-admin"]),
+        ):
+            OIDCUserAuth().update_user(user, {"byu_id": "byu-1"})
+
+        user.refresh_from_db()
+        self.assertEqual(user.privilege_level, PrivilegeLevel.INSTRUCTOR)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
