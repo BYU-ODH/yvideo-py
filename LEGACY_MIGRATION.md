@@ -9,10 +9,10 @@ It is written for the current implementation in this repository.
 The migration workflow has three parts:
 
 1. A migration request is created.
-2. A preflight job reads the local legacy SQLite snapshot and legacy media filesystem and prepares a reviewable migration plan.
+2. A preflight job refreshes the local legacy SQLite snapshot (by running `scripts/dump_legacy_to_sqlite.py`), reads that snapshot and the legacy media filesystem, and prepares a reviewable migration plan.
 3. An administrator reviews the plan in Django admin, resolves any issues, approves it, and then runs the migration worker to perform the import.
 
-The legacy PostgreSQL database is used only by the dump script as a source of data. The Django app reads the generated SQLite snapshot. Imported records are written into the new application's database and media storage.
+The legacy PostgreSQL database is only ever read by the dump script, which the app runs itself before every preflight. The Django app reads the freshly generated SQLite snapshot. Imported records are written into the new application's database and media storage.
 
 ## What Gets Migrated for a Collection
 
@@ -118,17 +118,7 @@ LEGACY_MIGRATION_MEDIA_ROOT = "yvideo:/opt/media/y-video/"
 Preflight will inspect remote files over `ssh`, and imports will copy them
 locally with `scp`.
 
-### 5. Create the initial SQLite snapshot
-
-Run:
-
-```bash
-uv run scripts/dump_legacy_to_sqlite.py
-```
-
-Do this once before using preflight for the first time.
-
-### 6. Optional: allow automatic creation of missing users
+### 5. Optional: allow automatic creation of missing users
 
 If you want the app to try to create missing users from BYU IDs during preflight, set:
 
@@ -138,42 +128,19 @@ LEGACY_MIGRATION_CREATE_MISSING_USERS = True
 
 If this is `False`, unresolved users must be mapped manually in Django admin before approval.
 
-## Automatic Daily Snapshot Refresh
+## The Snapshot Is Always Fresh
 
-While the Django server is running, it launches the dump script as a subprocess every day at 3:00 AM local server time:
+There is no separate snapshot-refresh step to remember, and no background
+scheduler. Every time preflight runs, the app first runs
+`scripts/dump_legacy_to_sqlite.py` itself, synchronously, and only then reads
+the snapshot. The dump normally takes a couple of seconds. This means:
 
-```bash
-uv run scripts/dump_legacy_to_sqlite.py
-```
-
-If you want to disable that scheduler, set:
-
-```python
-LEGACY_MIGRATION_AUTO_DUMP_ENABLED = False
-```
-
-### Which process runs the scheduler
-
-The scheduler only starts in processes it can positively identify as a
-long-running app server:
-
-- `manage.py runserver` (the main process, not the autoreloader parent)
-- A process whose executable is a recognized app server: `gunicorn`, `uwsgi`,
-  `uvicorn`, `daphne`, `hypercorn`, or `mod_wsgi-express`
-
-Any other process that loads Django (one-off scripts, shells, cron jobs,
-management commands) will not start it. If your server is not on the list
-(for example mod_wsgi embedded in Apache), opt in explicitly by setting this
-environment variable in the server's environment:
-
-```bash
-LEGACY_MIGRATION_AUTO_DUMP_PROCESS=1
-```
-
-When the server runs multiple worker processes, a lock file next to the
-SQLite snapshot (`scheduler.lock`) ensures only one worker per host runs the
-scheduler. The dump script also holds its own lock, so overlapping dumps are
-never possible.
+- Preflight always sees current legacy data. It is not possible for the
+  snapshot to go stale between migrations.
+- Running preflight for a request always takes a few seconds longer than
+  just the preflight logic itself, since it includes a fresh dump.
+- You never need to run `scripts/dump_legacy_to_sqlite.py` by hand. It's only
+  useful for troubleshooting (see below).
 
 ## Starting the Worker
 
@@ -514,9 +481,19 @@ uv run python manage.py migrate
 
 `LEGACY_MIGRATION_MEDIA_ROOT` is wrong, the file is missing on disk, or the app user cannot read it.
 
-### Preflight says the legacy SQLite dump does not exist yet
+### Preflight fails with "Legacy dump failed" or "Legacy dump subprocess failed to start"
 
-Run:
+Preflight tried to run `scripts/dump_legacy_to_sqlite.py` itself before
+reading anything, and the dump script failed. The rest of the error message
+is the dump script's own output. Common causes:
+
+- `scripts/dump_legacy_to_sqlite_settings.py` doesn't exist yet (see setup
+  step 3 above)
+- The legacy PostgreSQL credentials in that file are wrong or unreachable
+- Another dump was already running at the same moment (the dump script
+  refuses to run twice at once); just retry preflight
+
+You can also run the script by hand to see the same failure directly:
 
 ```bash
 uv run scripts/dump_legacy_to_sqlite.py

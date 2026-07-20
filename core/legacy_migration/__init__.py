@@ -1,4 +1,5 @@
 from .catalog import LegacyCatalogClient
+from .dump import run_legacy_dump
 from .file_index import ChecksumCache
 from .file_index import CurrentFileIndex
 from .models import LegacyMigrationFileAction
@@ -38,4 +39,5 @@ __all__ = [
     "LegacyMigrationUserResolution",
     "LegacyMigrationUserResolutionStatus",
     "LegacySourceMap",
+    "run_legacy_dump",
 ]

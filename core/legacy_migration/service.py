@@ -46,6 +46,7 @@ from ..models import Subtitle
 from ..models import Track
 from ..models import User
 from .catalog import LegacyCatalogClient
+from .dump import run_legacy_dump
 from .file_index import ChecksumCache
 from .file_index import CurrentFileIndex
 from .file_index import compute_checksum
@@ -88,7 +89,7 @@ class LegacyMigrationService:
     def __init__(self, catalog_client=None, require_catalog=True):
         self.catalog_client = catalog_client
         if self.catalog_client is None and require_catalog:
-            self.catalog_client = LegacyCatalogClient()
+            self.catalog_client = self._build_catalog_client()
         self.checksum_cache = ChecksumCache()
         self._current_file_index = None
 
@@ -102,8 +103,14 @@ class LegacyMigrationService:
 
     def _get_catalog_client(self):
         if self.catalog_client is None:
-            self.catalog_client = LegacyCatalogClient()
+            self.catalog_client = self._build_catalog_client()
         return self.catalog_client
+
+    def _build_catalog_client(self):
+        # Always re-dump before reading the legacy catalog, so preflight can
+        # never see stale data. The dump only takes a couple of seconds.
+        run_legacy_dump()
+        return LegacyCatalogClient()
 
     def _migration_resource_is_included(self, request_obj, legacy_resource_id):
         migration_resource = request_obj.migration_resources.filter(

@@ -141,12 +141,6 @@ LEGACY_MIGRATION_SQLITE_PATH = _resolve_repo_path(
 LEGACY_MIGRATION_CREATE_MISSING_USERS = getattr(
     secret_settings, "LEGACY_MIGRATION_CREATE_MISSING_USERS", False
 )
-LEGACY_MIGRATION_AUTO_DUMP_ENABLED = getattr(
-    secret_settings, "LEGACY_MIGRATION_AUTO_DUMP_ENABLED", True
-)
-LEGACY_MIGRATION_AUTO_DUMP_HOUR = getattr(
-    secret_settings, "LEGACY_MIGRATION_AUTO_DUMP_HOUR", 3
-)
 LEGACY_MIGRATION_DUMP_SCRIPT = str(
     _resolve_repo_path(
         getattr(

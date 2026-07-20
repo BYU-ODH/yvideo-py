@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 from unittest import mock
 import uuid
@@ -23,7 +22,6 @@ from django.test import override_settings
 from django.urls import reverse
 import xxhash
 
-from . import legacy_dump_scheduler
 from .admin import LegacyMigrationFileDecisionForm
 from .admin import LegacyMigrationRequestAdmin
 from .admin import LegacyMigrationResourceInline
@@ -45,6 +43,7 @@ from .legacy_migration import LegacyMigrationService
 from .legacy_migration import LegacyMigrationStatus
 from .legacy_migration import LegacyMigrationUserResolutionStatus
 from .legacy_migration import LegacySourceMap
+from .legacy_migration import dump as legacy_dump
 from .legacy_migration.parsers import LegacyFileInfo
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -2635,61 +2634,102 @@ class LegacyMigrationTests(TestCase):
         response = client.get(reverse("player", args=[content.pk]))
         self.assertEqual(response.status_code, 200)
 
+    def test_build_catalog_client_always_refreshes_snapshot_first(self):
+        service = LegacyMigrationService(require_catalog=False)
+        call_order = []
 
-class LegacyDumpSchedulerGuardTests(TestCase):
-    def _is_server_process(self, argv, env):
         with (
-            mock.patch.object(sys, "argv", argv),
-            mock.patch.dict(os.environ, env, clear=False),
+            mock.patch(
+                "core.legacy_migration.service.run_legacy_dump",
+                side_effect=lambda: call_order.append("dump"),
+            ) as dump_mock,
+            mock.patch(
+                "core.legacy_migration.service.LegacyCatalogClient",
+                side_effect=lambda: call_order.append("catalog_client") or mock.Mock(),
+            ) as catalog_client_cls,
         ):
-            for key in (
-                "RUN_MAIN",
-                legacy_dump_scheduler.SCHEDULER_PROCESS_ENV_VAR,
-            ):
-                if key not in env:
-                    os.environ.pop(key, None)
-            return legacy_dump_scheduler._is_server_process()
+            service._build_catalog_client()
 
-    def test_server_process_detection(self):
-        cases = [
-            (["manage.py", "migrate"], {}, False),
-            (["manage.py", "runserver"], {}, False),
-            (["manage.py", "runserver"], {"RUN_MAIN": "true"}, True),
-            (["/usr/local/bin/gunicorn", "yvideo.wsgi"], {}, True),
-            (["/usr/bin/uwsgi", "--ini", "app.ini"], {}, True),
-            (["/usr/bin/celery", "worker"], {}, False),
-            (["some_script.py"], {}, False),
-            (["python"], {}, False),
-            (
-                ["some_script.py"],
-                {legacy_dump_scheduler.SCHEDULER_PROCESS_ENV_VAR: "1"},
-                True,
+        # Unconditional: this must run every time, even if a snapshot from a
+        # previous preflight already exists, so preflight never reads stale data.
+        dump_mock.assert_called_once()
+        catalog_client_cls.assert_called_once()
+        self.assertEqual(call_order, ["dump", "catalog_client"])
+
+    def test_build_catalog_client_propagates_dump_failure(self):
+        service = LegacyMigrationService(require_catalog=False)
+
+        with (
+            mock.patch(
+                "core.legacy_migration.service.run_legacy_dump",
+                side_effect=RuntimeError("dump exploded"),
             ),
-        ]
-        for argv, env, expected in cases:
-            with self.subTest(argv=argv, env=env):
-                self.assertEqual(self._is_server_process(argv, env), expected)
-
-    @override_settings(
-        LEGACY_MIGRATION_ENABLED=True, LEGACY_MIGRATION_AUTO_DUMP_ENABLED=True
-    )
-    def test_should_start_refuses_under_pytest_even_for_server_argv(self):
-        with (
-            mock.patch.object(sys, "argv", ["/usr/local/bin/gunicorn"]),
-            mock.patch.dict(sys.modules, {"pytest": mock.Mock()}),
+            self.assertRaisesMessage(RuntimeError, "dump exploded"),
         ):
-            self.assertFalse(legacy_dump_scheduler.should_start_legacy_dump_scheduler())
+            service._build_catalog_client()
 
-    def test_host_lock_is_exclusive_per_host(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            with override_settings(
-                LEGACY_MIGRATION_SQLITE_PATH=Path(tmp_dir) / "legacy_dump.sqlite3"
-            ):
-                first = legacy_dump_scheduler.acquire_scheduler_host_lock()
-                self.assertIsNotNone(first)
-                second = legacy_dump_scheduler.acquire_scheduler_host_lock()
-                self.assertIsNone(second)
-                first.close()
-                third = legacy_dump_scheduler.acquire_scheduler_host_lock()
-                self.assertIsNotNone(third)
-                third.close()
+    def test_default_service_construction_refreshes_snapshot_first(self):
+        # This is the exact construction path the admin "Run preflight now"
+        # action uses (LegacyMigrationService() with no arguments).
+        with mock.patch.object(
+            LegacyMigrationService, "_build_catalog_client"
+        ) as build_mock:
+            service = LegacyMigrationService()
+
+        build_mock.assert_called_once()
+        self.assertIs(service.catalog_client, build_mock.return_value)
+
+
+class LegacyDumpTests(TestCase):
+    def test_run_legacy_dump_returns_on_success(self):
+        with (
+            mock.patch.object(
+                legacy_dump,
+                "build_dump_command",
+                return_value=["uv", "run", "scripts/dump_legacy_to_sqlite.py"],
+            ),
+            mock.patch.object(
+                legacy_dump.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout="ok", stderr=""
+                ),
+            ),
+        ):
+            duration = legacy_dump.run_legacy_dump()
+        self.assertGreaterEqual(duration, 0)
+
+    def test_run_legacy_dump_raises_on_nonzero_exit(self):
+        with (
+            mock.patch.object(
+                legacy_dump,
+                "build_dump_command",
+                return_value=["uv", "run", "scripts/dump_legacy_to_sqlite.py"],
+            ),
+            mock.patch.object(
+                legacy_dump.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(
+                    args=[],
+                    returncode=1,
+                    stdout="",
+                    stderr="Legacy dump is already running in another process.",
+                ),
+            ),
+            self.assertRaisesMessage(
+                RuntimeError,
+                "Legacy dump is already running in another process.",
+            ),
+        ):
+            legacy_dump.run_legacy_dump()
+
+    def test_run_legacy_dump_wraps_missing_script(self):
+        with (
+            mock.patch.object(
+                legacy_dump,
+                "build_dump_command",
+                side_effect=FileNotFoundError("Legacy dump script was not found: x"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            legacy_dump.run_legacy_dump()
