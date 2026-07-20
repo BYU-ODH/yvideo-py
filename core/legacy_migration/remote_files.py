@@ -1,3 +1,8 @@
+# This module shells out to `ssh`/`scp`, which requires `openssh-client` in
+# the Dockerfile and the deploy user's ~/.ssh mounted into the container
+# (see deploy/quadlet.container.in). Both are LEGACY MIGRATION ONLY — when
+# this package is removed, delete them too. See REMOVAL.md in this
+# directory for the full checklist.
 import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
