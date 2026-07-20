@@ -2095,10 +2095,9 @@ export class Editor {
     // composited transform and performs no layout reads, so it is cheap enough
     // to run every animation frame during playback.
     paintScrubber() {
-      const bounds = this.scrubberBounds;
-      if (!bounds || !this.editorScrubber) return;
+      if (!this.scrubberBounds || !this.editorScrubber) return;
 
-      const { windowWidth, leftTime, rightTime } = bounds;
+      const { windowWidth, leftTime, rightTime } = this.scrubberBounds;
       const span = rightTime - leftTime;
       const currentTime = this.video.currentTime;
 

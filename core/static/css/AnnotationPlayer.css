@@ -297,8 +297,8 @@
   transition: width 0.1s linear;
 }
 
-/* The progress fill and dot are positioned from a single `--played` (0..1)
-   custom property that AnnotationPlayer sets every animation frame during
+/* .scrubber-progress and .scrubber-dot are positioned from a single `--played` (0..1)
+   custom property that AnnotationPlayer.js sets every animation frame during
    playback (see updateScrubber/animateDuringPlayback). There is deliberately no
    CSS transition: the per-frame updates already produce smooth linear motion,
    whereas a transition makes the scrubber lag behind and keep gliding for the

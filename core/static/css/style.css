@@ -464,9 +464,6 @@ a.blue-button {
     fill: white;
 }
 
-/* NOTE: .play-time and the player's menus (.speed-menu/.clips-menu/
-   .captions-menu) are styled in AnnotationPlayer.css. The former .menu-modal
-   rules here were dead (no element uses that class in the current player). */
 .subtitles-off-button {
     position: relative;
     width: 100%;
@@ -480,10 +477,6 @@ a.blue-button {
     color: white;
     cursor: pointer;
 }
-
-/* The player scrubber (.scrubber, .scrubber-progress, .scrubber-dot) is styled
-   in AnnotationPlayer.css, the authoritative player stylesheet loaded after this
-   one wherever the player renders. */
 
 /* Skip Events on Timeline */
 .skip-event {

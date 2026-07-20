@@ -24,7 +24,7 @@ def _open_editor(page, live_server):
             return video && !isNaN(video.duration) && video.duration > 0
                 && ticks && ticks.children.length > 0;
         }""",
-        timeout=30000,
+        timeout=1000,
     )
     return content
 
@@ -54,7 +54,7 @@ def test_clicking_ticks_row_seeks_to_that_time(page, live_server, seeded_demo_da
     duration = _duration(page)
     expected = duration * 0.75
     # Generous tolerance: click precision + video keyframe snapping.
-    assert _current_time(page) == pytest.approx(expected, abs=duration * 0.1)
+    assert _current_time(page) == pytest.approx(expected, abs=duration * 0.02)
 
 
 def test_clicking_empty_track_row_seeks(page, live_server, seeded_demo_data):
