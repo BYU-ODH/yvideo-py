@@ -1020,9 +1020,11 @@ of the page */
 }
 
 /* Editor Scrubber */
+/* Positioned with a compositor-only translateX (set from JS) rather than `left`
+   so it can be animated every frame during playback without triggering layout. */
 #editor-scrubber {
     position: absolute;
-    left: var(--scrubber-position, 0%);
+    left: 0;
     top: 0;
     width: 2px;
     height: 100%;
