@@ -139,7 +139,7 @@ class User(AbstractUser):
         return False
 
     def get_resource_filekey(self, content):
-        """Get or create a FileKey for the given content."""
+        """Get or create a ResourceFileKey for the given content."""
         if self.can_view_content(content):
             resource_file_key = ResourceFileKey.objects.filter(
                 resource_file=content.resource_file, user=self
@@ -1264,7 +1264,7 @@ class Course(models.Model):
         ordering = ["dept", "catalog_number", "section_number", "yearterm"]
 
     def display_yearterm(self):
-        if self.yearterm is None:
+        if not self.yearterm:
             return ""
         year_str = self.yearterm[:4]
         term_str = self.yearterm[4:]
@@ -1273,12 +1273,9 @@ class Course(models.Model):
             term_name = term_map[term_str]
         except KeyError:
             logger.error(
-                f"UserCourse has a missing or invalid yearterm. UserCourseId: {self.pk}, yearterm: {self.yearterm}"
+                f"Course has a missing or invalid yearterm. Course id: {self.pk}, yearterm: {self.yearterm}"
             )
-        except Exception:
-            logger.error(
-                f"An error has occurred while displaying the yearterm for the following UserCousreId: {self.pk}"
-            )
+            return self.yearterm
         return f"{term_name} {year_str}"
 
     def __str__(self):
@@ -1293,7 +1290,7 @@ class UserCourses(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def display_yearterm(self):
-        if self.yearterm is None:
+        if not self.yearterm:
             return ""
         year_str = self.yearterm[:4]
         term_str = self.yearterm[4:]
@@ -1302,12 +1299,9 @@ class UserCourses(models.Model):
             term_name = term_map[term_str]
         except KeyError:
             logger.error(
-                f"UserCourse has a missing or invalid yearterm. UserCourseId: {self.pk}, yearterm: {self.yearterm}"
+                f"UserCourses has a missing or invalid yearterm. UserCourses id: {self.pk}, yearterm: {self.yearterm}"
             )
-        except Exception:
-            logger.error(
-                f"An error has occurred while displaying the yearterm for the following UserCousreId: {self.pk}"
-            )
+            return self.yearterm
         return f"{term_name} {year_str}"
 
     def __str__(self):
