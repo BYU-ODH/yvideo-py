@@ -22,10 +22,8 @@
         <span class="track-item-label">{{ item.name }}</span>
         {% if item.annotation_type == "censor" %}
         {% for position_locator in item.get_position_locators %}
-            {% if position_locator.is_not_start %}
-                <div class="censor-position-locator" data-position-id="{{position_locator.id}}" data-position-time="{{position_locator.time}}">
-                </div>
-            {% endif %}
+            <div class="censor-position-locator" data-position-id="{{position_locator.id}}" data-position-time="{{position_locator.time}}">
+            </div>
         {% endfor %}
         {% endif %}
     </div>
