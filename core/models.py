@@ -1128,14 +1128,12 @@ class BlurAnnotation(BaseAnnotation):
         normalized_duration = self.end_time - self.start_time
         if normalized_duration <= 0:
             return locators
-        for position_index in range(0, len(positions)):
-            position = positions[position_index]
+        for position in positions[1:]:
             relative_time = position.time - self.start_time
             locators.append(
                 {
                     "id": position.pk,
                     "time": position.time,
-                    "is_not_start": position_index > 0,
                     "relative_location": round(
                         (relative_time / normalized_duration) * 100, 2
                     ),
