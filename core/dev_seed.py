@@ -31,9 +31,9 @@ from .models import Course
 from .models import Resource
 from .models import ResourceFile
 from .models import User
+from .utils import estimate_current_yearterm
 
 DEMO_MEDIA_DIR = Path(settings.BASE_DIR) / "demo_media"
-DEMO_YEARTERM = "20261"
 DEMO_ADMIN_USERNAMES = {
     DEMO_ADMIN_USERNAME,
     "111223333",
@@ -79,6 +79,9 @@ def purge_demo_data():
 
 
 def create_demo_data():
+    # compute once so every demo course and enrollment shares the same term
+    demo_yearterm = estimate_current_yearterm()
+
     english = LanguageFactory(language="English", lang_tag="en")
     spanish = LanguageFactory(language="Spanish", lang_tag="es")
 
@@ -168,11 +171,13 @@ def create_demo_data():
         dept="BIO",
         catalog_number="205",
         section_number="001",
+        yearterm=demo_yearterm,
     )
     film_course = CourseFactory(
         dept="FILM",
         catalog_number="330",
         section_number="001",
+        yearterm=demo_yearterm,
     )
 
     for user, course in [
@@ -181,7 +186,7 @@ def create_demo_data():
         (student_bob, film_course),
         (student_ivy, film_course),
     ]:
-        UserCourseFactory(user=user, course=course, yearterm=DEMO_YEARTERM)
+        UserCourseFactory(user=user, course=course, yearterm=demo_yearterm)
 
     birds_resource = ResourceFactory(
         name="Birds", requester_username=professor_ada.username

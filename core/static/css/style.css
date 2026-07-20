@@ -465,68 +465,6 @@ a.blue-button {
     fill: white;
 }
 
-.play-time {
-    color: #aaaaaa;
-    margin: 1rem;
-}
-
-.play-time.active {
-    color: white;
-}
-
-/* Menu Modals */
-.menu-modal {
-    position: absolute;
-    right: 10px;
-    bottom: 60px;
-    width: 150px;
-    height: auto;
-    background-color: rgba(71, 71, 71, 0.8);
-    color: white;
-    display: flex;
-    flex-direction: column;
-    border: 2px solid rgb(71, 71, 71);
-    padding-bottom: 2px;
-    border-radius: 8px;
-}
-
-.menu-modal h3 {
-    display: flex;
-    padding: 2px 2px 2px 5px;
-    margin-bottom: 2px;
-    font-weight: 500;
-    border-bottom: 2px solid white;
-    height: 25px;
-    font-size: 1.55rem;
-    text-align: left;
-    align-items: center;
-}
-
-.menu-modal input {
-    position: relative;
-    width: 100%;
-    height: 30px;
-    font-size: 1.4rem;
-    font-weight: 500;
-    margin: 2px 0px 2px 0px;
-    text-align: left;
-    border: none;
-    background: transparent;
-    color: white;
-    cursor: pointer;
-}
-
-.menu-modal input:hover,
-.menu-modal .subtitles-off-button:hover {
-    background-color: rgba(5, 130, 202, 1);
-    color: white;
-}
-
-.menu-modal .active-value {
-    background: url("img/player-check.svg") center no-repeat;
-    background-position: calc(100% - 10px) center;
-}
-
 .subtitles-off-button {
     position: relative;
     width: 100%;
@@ -539,35 +477,6 @@ a.blue-button {
     background: transparent;
     color: white;
     cursor: pointer;
-}
-
-/* Scrubber/Timeline */
-.scrubber {
-    grid-area: scrubber;
-    position: relative;
-    height: 0.5rem;
-    background: rgba(255, 255, 255, 0.3);
-    cursor: pointer;
-}
-
-.scrubber-progress {
-    height: 100%;
-    background: var(--red);
-    width: 0%;
-    transition: width 0.3s ease-out;
-}
-
-.scrubber-dot {
-    position: absolute;
-    top: -2px;
-    left: 0%;
-    width: 6px;
-    height: 6px;
-    background: var(--red);
-    border-radius: 50%;
-    transform: translateX(-50%);
-    transition: left 0.3s ease-out;
-    will-change: left;
 }
 
 /* Skip Events on Timeline */

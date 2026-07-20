@@ -23,6 +23,7 @@ from .models import Subtitle
 from .models import Track
 from .models import User
 from .models import UserCourses
+from .utils import estimate_current_yearterm
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMO_MEDIA_DIR = REPO_ROOT / "demo_media"
@@ -71,6 +72,7 @@ class CourseFactory(factory.django.DjangoModelFactory):
     dept = factory.Iterator(["BIO", "FILM", "SPAN", "UNIV"])
     catalog_number = factory.Sequence(lambda n: f"{100 + n:03d}")
     section_number = factory.Sequence(lambda n: f"{(n % 30) + 1:03d}")
+    yearterm = factory.LazyFunction(estimate_current_yearterm)
 
 
 class UserCourseFactory(factory.django.DjangoModelFactory):
@@ -79,7 +81,7 @@ class UserCourseFactory(factory.django.DjangoModelFactory):
 
     user = factory.SubFactory(UserFactory)
     course = factory.SubFactory(CourseFactory)
-    yearterm = "20261"
+    yearterm = factory.LazyFunction(estimate_current_yearterm)
 
 
 class ResourceFactory(factory.django.DjangoModelFactory):
