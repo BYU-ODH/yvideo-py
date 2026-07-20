@@ -4,7 +4,13 @@ from django.utils import timezone
 
 from .api import Api
 from .models import Course
+from .models import PrivilegeLevel
 from .models import UserCourses
+
+try:
+    from yvideo.secret_settings import ADMIN_BYUID_WHITELIST
+except ImportError:
+    ADMIN_BYUID_WHITELIST = []
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +88,67 @@ def create_user_course_association(user, course, yearterm):
         )
         return False
     return True
+
+
+def update_user_details(user):
+    """
+    Check if this user is a student or is an employee/faculty member. Update
+    the faculty status as necessary. Update this user's first and last names
+    if applicable. Also update netid in case something happened to our record
+    of it's value (always assume the API's value is correct)
+    """
+    api = Api()
+
+    def update_student_details(byu_id):
+        student_summary = api.get_student_summary(byu_id)
+        if student_summary is None:
+            # this is a non-student user, do nothing
+            return
+        user.first_name = student_summary["first_name"]
+        user.last_name = student_summary["last_name"]
+        user.netid = student_summary["net_id"]
+        user.privilege_level = PrivilegeLevel.STUDENT
+        try:
+            user.save()
+            return
+        except Exception as e:
+            logger.error(f"Failed to update student user data. Exception: {e}")
+            return
+
+    worker_id = api.get_worker_id_from_byu_id(user.username)
+    if worker_id is None:
+        # an error occurred, so don't update anything since the API may be down.
+        # In other words, we can't tell if we should run worker_summary or student_summary
+        return
+    elif worker_id == False:
+        # this must be a non-employee student or is a non-student user
+        return update_student_details(user.username)
+    else:
+        # this must be a student employee, staff, or faculty member
+        worker_summary = api.get_worker_summary(worker_id, user.username)
+        if worker_summary["is_student"]:
+            # this is a student after all
+            return update_student_details(user.username)
+        user.first_name = worker_summary["first_name"]
+        user.last_name = worker_summary["last_name"]
+        worker_netid = api.get_net_id_from_worker_id(worker_id)
+        if worker_netid:
+            user.net_id = worker_netid
+
+        if user.username in ADMIN_BYUID_WHITELIST:
+            user.privilege_level = PrivilegeLevel.ADMIN
+        elif not worker_summary["is_active"]:
+            user.privilege_level = PrivilegeLevel.STUDENT
+        elif worker_summary["is_faculty"]:
+            user.privilege_level = PrivilegeLevel.INSTRUCTOR
+        elif worker_summary["is_odh_employee"]:
+            user.privilege_level = PrivilegeLevel.LAB_ASSISTANT
+
+        try:
+            user.save()
+        except Exception as e:
+            logger.error(f"Failed to update worker user data. Exception: {e}")
+            return
 
 
 def update_user_enrollment(user):

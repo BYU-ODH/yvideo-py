@@ -1,6 +1,7 @@
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 
 from core.api import Api
+from core.model_utils import update_user_details
 from core.model_utils import update_user_enrollment
 from core.models import PrivilegeLevel
 from core.models import User
@@ -85,6 +86,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
             return user
 
     def update_user(self, user, claims):
+        update_user_details(user)
         if user.privilege_level == PrivilegeLevel.STUDENT:
             update_user_enrollment(user)
         return user

@@ -129,13 +129,14 @@ class Api:
 
         worker_id_json_response = worker_id_request.json()
         response_data = worker_id_json_response["data"]
-        worker_id = None
+        worker_id = False
         if len(response_data) > 0:
             worker_id = response_data[0]["worker_id"]
         else:
             self.logger.error(
                 "Failed to get workerid from byuid because the API did not return a workerid"
             )
+            return None
 
         return worker_id
 
@@ -177,6 +178,8 @@ class Api:
             "is_odh_employee": False,
             "worker_id": worker_id,
             "byu_id": byu_id,
+            "is_active": False,
+            "is_retired": False,
         }
         if response_data:
             data = response_data[0]
@@ -194,6 +197,8 @@ class Api:
                 last_name = data["last_name"]
             parsed_summary["last_name"] = last_name
             parsed_summary["email"] = data["work_email_address"]
+            parsed_summary["is_active"] = data["is_active"]
+            parsed_summary["is_retired"] = data["is_retired"]
             faculty_keyword = "faculty"
             for position in worker_positions:
                 if not position["is_active_position"]:
