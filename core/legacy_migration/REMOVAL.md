@@ -19,11 +19,12 @@ has no other purpose. Remove all of it in the same change:
    is done.
 4. **`DEPLOY.md`** — remove the "Legacy migration SSH access" bullet under
    "Key configuration notes".
-5. **`Dockerfile`** comment about `uv` — the comment justifying keeping
-   `uv` in the final image mentions "the legacy dump scheduler". `uv` must
-   stay regardless (gunicorn and `manage.py` run through it), but update or
-   drop that comment since its stated reason will no longer exist.
-6. Check for any cron/systemd timers or management-command invocations
+5. **`gunicorn.conf.py` and `deploy/entrypoint.sh`** — remove the migration
+   worker hooks and stop passing the Gunicorn config if it has no other
+   settings left.
+6. **`yvideo/settings.py` and `yvideo/secret_settings_template.py`** — remove
+   `LEGACY_MIGRATION_WORKER_LOCK_PATH`.
+7. Check for any cron/systemd timers or management-command invocations
    (e.g. `core/management/commands/process_legacy_migration_jobs.py`) that
    schedule legacy migration work, and remove those triggers too.
 

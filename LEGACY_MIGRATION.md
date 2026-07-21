@@ -10,7 +10,7 @@ The migration workflow has three parts:
 
 1. A migration request is created.
 2. A preflight job refreshes the local legacy SQLite snapshot (by running `scripts/dump_legacy_to_sqlite.py`), reads that snapshot and the legacy media filesystem, and prepares a reviewable migration plan.
-3. An administrator reviews the plan in Django admin, resolves any issues, approves it, and then runs the migration worker to perform the import.
+3. An administrator reviews the plan in Django admin, resolves any issues, and approves it; the Gunicorn-managed migration worker then performs the import.
 
 The legacy PostgreSQL database is only ever read by the dump script, which the app runs itself before every preflight. The Django app reads the freshly generated SQLite snapshot. Imported records are written into the new application's database and media storage.
 
@@ -130,8 +130,8 @@ If this is `False`, unresolved users must be mapped manually in Django admin bef
 
 ## The Snapshot Is Always Fresh
 
-There is no separate snapshot-refresh step to remember, and no background
-scheduler. Every time preflight runs, the app first runs
+There is no separate snapshot-refresh step to remember, and no snapshot
+scheduler. Every time the migration job worker runs preflight, the app first runs
 `scripts/dump_legacy_to_sqlite.py` itself, synchronously, and only then reads
 the snapshot. The dump normally takes a couple of seconds. This means:
 
@@ -142,9 +142,19 @@ the snapshot. The dump normally takes a couple of seconds. This means:
 - You never need to run `scripts/dump_legacy_to_sqlite.py` by hand. It's only
   useful for troubleshooting (see below).
 
-## Starting the Worker
+## Migration Job Worker
 
-Queued jobs do not run by themselves. A worker must be running.
+In production, Gunicorn starts one continuous migration job worker subprocess
+when `LEGACY_MIGRATION_ENABLED` is `True`. It polls for queued jobs every five
+seconds, so no separate worker command is normally required.
+
+The worker holds an exclusive lock at
+`LEGACY_MIGRATION_WORKER_LOCK_PATH`. This keeps Gunicorn re-execs from running
+two migration jobs concurrently. A replacement worker waits for the old worker
+to release the lock. After it acquires the lock, it returns any jobs left in
+`running` to the queue and records a recovery event in each job's log.
+
+For local development or troubleshooting, process one job manually with:
 
 For one job at a time:
 
@@ -152,13 +162,14 @@ For one job at a time:
 uv run python manage.py process_legacy_migration_jobs --once
 ```
 
-For continuous processing:
+Or run a continuous worker outside Gunicorn with:
 
 ```bash
 uv run python manage.py process_legacy_migration_jobs
 ```
 
-In production, run the loop mode under a service manager such as `systemd`.
+`--once` exits with an error instead of waiting if a continuous worker already
+holds the lock.
 
 ## How a Collection Migration Is Requested
 
@@ -346,21 +357,11 @@ This changes the request to `approved`, creates an import job, and then moves th
 
 At this point the request is approved, but the actual import still has not run until the worker processes the queued job.
 
-### Step 6. Start the import worker
+### Step 6. Let the import worker process the job
 
-Run either:
-
-```bash
-uv run python manage.py process_legacy_migration_jobs --once
-```
-
-or:
-
-```bash
-uv run python manage.py process_legacy_migration_jobs
-```
-
-The worker processes queued preflight and import jobs in creation order.
+The Gunicorn-managed worker processes queued preflight and import jobs in
+creation order. It normally claims the job within five seconds. In local
+development without Gunicorn, use the manual command described above.
 
 ### Step 7. Watch the request until it finishes
 
@@ -505,7 +506,9 @@ The new database does not have a matching `Language` row for the legacy subtitle
 
 ### Import does not start after approval
 
-The request is only queued. Start the worker:
+The Gunicorn-managed worker may not be running. Check the application journal
+for `Legacy migration job worker` messages. For local development, process one
+job manually:
 
 ```bash
 uv run python manage.py process_legacy_migration_jobs --once
@@ -519,6 +522,6 @@ Map them manually in `LegacyMigrationUserResolution`, then run `Refresh issues a
 
 - Use read-only credentials in `scripts/dump_legacy_to_sqlite_settings.py`.
 - Mount the legacy media directory read-only.
-- Run `process_legacy_migration_jobs` under a service manager.
+- Monitor the Gunicorn and migration-worker messages in the application journal.
 - Restrict migration approval to trusted admins.
 - Test the workflow on a non-production copy of the legacy data before first real use.

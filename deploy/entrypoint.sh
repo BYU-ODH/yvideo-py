@@ -21,6 +21,7 @@ for db_file in /app/data/db.sqlite3 /app/data/db.sqlite3-wal /app/data/db.sqlite
 done
 
 exec uv run gunicorn yvideo.wsgi:application \
+    --config /app/gunicorn.conf.py \
     --bind 0.0.0.0:8000 \
     --workers "$WORKERS" \
     --threads "$THREADS" \

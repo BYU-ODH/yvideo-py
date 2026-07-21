@@ -1,0 +1,17 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block submit_buttons_bottom %}
+{{ block.super }}
+{% if change %}
+<div class="submit-row">
+  <input type="submit" value="{% translate 'Run preflight' %}" name="_run_preflight">
+  <input type="submit" value="{% translate 'Refresh issues' %}" name="_refresh_issues">
+  <input type="submit" value="{% translate 'Approve and queue import' %}" name="_approve_and_queue"
+         onclick="return confirm('{% translate 'Approve and queue this request for import?' %}');">
+  <input type="submit" value="{% translate 'Retry latest failed job' %}" name="_retry_latest_failed_job">
+  <input type="submit" value="{% translate 'Cancel queued/running jobs' %}" name="_cancel_jobs"
+         onclick="return confirm('{% translate 'Cancel all queued/running jobs for this request?' %}');">
+</div>
+{% endif %}
+{% endblock %}

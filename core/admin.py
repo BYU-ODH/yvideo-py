@@ -6,6 +6,7 @@ from django.contrib import admin
 from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.forms.models import BaseInlineFormSet
+from django.http import HttpResponseRedirect
 from django.urls import NoReverseMatch
 from django.urls import reverse
 from django.utils.html import format_html
@@ -861,23 +862,90 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                 level=messages.SUCCESS,
             )
 
+    def _run_preflight(self, request, migration_request):
+        """Preflight a single request. Returns True on success, False on failure."""
+        try:
+            LegacyMigrationService().preflight_request(migration_request)
+        except Exception as exc:
+            migration_request.status = LegacyMigrationStatus.PREFLIGHT_FAILED
+            migration_request.latest_job_error = str(exc)
+            migration_request.save(
+                update_fields=["status", "latest_job_error", "updated_at"]
+            )
+            self._report_action_error(request, migration_request, "Preflight", exc)
+            return False
+        return True
+
+    def _refresh_issues(self, request, migration_request):
+        """Refresh issues for a single request. Returns True on success, False on failure."""
+        service = LegacyMigrationService(require_catalog=False)
+        try:
+            service.sync_request_issues(migration_request)
+        except Exception as exc:
+            self._report_action_error(request, migration_request, "Issue refresh", exc)
+            return False
+        return True
+
+    def _approve_and_queue(self, request, migration_request):
+        """Approve and queue a single request. Returns True on success, False on failure."""
+        service = LegacyMigrationService(require_catalog=False)
+        try:
+            service.approve_and_queue_import(migration_request)
+        except Exception as exc:
+            migration_request.latest_job_error = str(exc)
+            migration_request.save(update_fields=["latest_job_error", "updated_at"])
+            self._report_action_error(request, migration_request, "Approval", exc)
+            return False
+        return True
+
+    def _retry_latest_failed_job(self, request, migration_request):
+        """Retry the latest failed job for a single request.
+
+        Returns True on success, False on failure, None if there is no
+        failed job to retry.
+        """
+        try:
+            latest_failed_job = (
+                migration_request.jobs.filter(status="failed")
+                .order_by("-created_at")
+                .first()
+            )
+            if not latest_failed_job:
+                return None
+            migration_request.queue_job(latest_failed_job.job_type)
+            migration_request.status = LegacyMigrationStatus.QUEUED
+            migration_request.save(update_fields=["status", "updated_at"])
+        except Exception as exc:
+            migration_request.latest_job_error = str(exc)
+            migration_request.save(update_fields=["latest_job_error", "updated_at"])
+            self._report_action_error(request, migration_request, "Retry", exc)
+            return False
+        return True
+
+    def _cancel_jobs(self, request, migration_request):
+        """Cancel queued/running jobs for a single request. Returns True on success, False on failure."""
+        try:
+            migration_request.jobs.filter(status__in=("queued", "running")).update(
+                status="canceled"
+            )
+            migration_request.status = LegacyMigrationStatus.CANCELED
+            migration_request.save(update_fields=["status", "updated_at"])
+        except Exception as exc:
+            migration_request.latest_job_error = str(exc)
+            migration_request.save(update_fields=["latest_job_error", "updated_at"])
+            self._report_action_error(request, migration_request, "Cancel", exc)
+            return False
+        return True
+
     @admin.action(description="Run preflight now")
     def run_preflight_action(self, request, queryset):
         processed = 0
         failed = 0
         for migration_request in queryset:
-            try:
-                LegacyMigrationService().preflight_request(migration_request)
-            except Exception as exc:
-                failed += 1
-                migration_request.status = LegacyMigrationStatus.PREFLIGHT_FAILED
-                migration_request.latest_job_error = str(exc)
-                migration_request.save(
-                    update_fields=["status", "latest_job_error", "updated_at"]
-                )
-                self._report_action_error(request, migration_request, "Preflight", exc)
-            else:
+            if self._run_preflight(request, migration_request):
                 processed += 1
+            else:
+                failed += 1
         self._report_action_summary(
             request,
             "Preflight",
@@ -888,19 +956,13 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
 
     @admin.action(description="Refresh issues after user/file edits")
     def refresh_issues_action(self, request, queryset):
-        service = LegacyMigrationService(require_catalog=False)
         processed = 0
         failed = 0
         for migration_request in queryset:
-            try:
-                service.sync_request_issues(migration_request)
-            except Exception as exc:
-                failed += 1
-                self._report_action_error(
-                    request, migration_request, "Issue refresh", exc
-                )
-            else:
+            if self._refresh_issues(request, migration_request):
                 processed += 1
+            else:
+                failed += 1
         self._report_action_summary(
             request,
             "Issue refresh",
@@ -911,19 +973,13 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
 
     @admin.action(description="Approve and queue import")
     def approve_and_queue_action(self, request, queryset):
-        service = LegacyMigrationService(require_catalog=False)
         processed = 0
         failed = 0
         for migration_request in queryset:
-            try:
-                service.approve_and_queue_import(migration_request)
-            except Exception as exc:
-                failed += 1
-                migration_request.latest_job_error = str(exc)
-                migration_request.save(update_fields=["latest_job_error", "updated_at"])
-                self._report_action_error(request, migration_request, "Approval", exc)
-            else:
+            if self._approve_and_queue(request, migration_request):
                 processed += 1
+            else:
+                failed += 1
         self._report_action_summary(
             request,
             "Approval",
@@ -937,23 +993,11 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
         processed = 0
         failed = 0
         for migration_request in queryset:
-            try:
-                latest_failed_job = (
-                    migration_request.jobs.filter(status="failed")
-                    .order_by("-created_at")
-                    .first()
-                )
-                if not latest_failed_job:
-                    continue
-                migration_request.queue_job(latest_failed_job.job_type)
-                migration_request.status = LegacyMigrationStatus.QUEUED
-                migration_request.save(update_fields=["status", "updated_at"])
+            result = self._retry_latest_failed_job(request, migration_request)
+            if result is True:
                 processed += 1
-            except Exception as exc:
+            elif result is False:
                 failed += 1
-                migration_request.latest_job_error = str(exc)
-                migration_request.save(update_fields=["latest_job_error", "updated_at"])
-                self._report_action_error(request, migration_request, "Retry", exc)
         self._report_action_summary(
             request,
             "Retry",
@@ -967,18 +1011,10 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
         processed = 0
         failed = 0
         for migration_request in queryset:
-            try:
-                migration_request.jobs.filter(status__in=("queued", "running")).update(
-                    status="canceled"
-                )
-                migration_request.status = LegacyMigrationStatus.CANCELED
-                migration_request.save(update_fields=["status", "updated_at"])
+            if self._cancel_jobs(request, migration_request):
                 processed += 1
-            except Exception as exc:
+            else:
                 failed += 1
-                migration_request.latest_job_error = str(exc)
-                migration_request.save(update_fields=["latest_job_error", "updated_at"])
-                self._report_action_error(request, migration_request, "Cancel", exc)
         self._report_action_summary(
             request,
             "Cancel",
@@ -986,3 +1022,78 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
             failed,
             f"Canceled jobs for {processed} request(s).",
         )
+
+    # Change-form buttons below reuse the same per-object helpers as the
+    # bulk actions above, so behavior stays identical whether triggered from
+    # the changelist dropdown or from the change form for a single request.
+    _CHANGE_FORM_BUTTON_HANDLER_NAMES = (
+        "_run_preflight",
+        "_refresh_issues",
+        "_approve_and_queue",
+        "_retry_latest_failed_job",
+        "_cancel_jobs",
+    )
+
+    def response_change(self, request, obj):
+        for post_key in self._CHANGE_FORM_BUTTON_HANDLER_NAMES:
+            if post_key in request.POST:
+                handler = getattr(self, f"_handle{post_key}_button")
+                handler(request, obj)
+                return HttpResponseRedirect(request.path)
+        return super().response_change(request, obj)
+
+    def _handle_run_preflight_button(self, request, migration_request):
+        if self._run_preflight(request, migration_request):
+            self.message_user(
+                request,
+                f"Ran preflight for request {migration_request.request_uuid}.",
+                level=messages.SUCCESS,
+            )
+
+    def _handle_refresh_issues_button(self, request, migration_request):
+        if self._refresh_issues(request, migration_request):
+            self.message_user(
+                request,
+                f"Refreshed issues for request {migration_request.request_uuid}.",
+                level=messages.SUCCESS,
+            )
+
+    def _handle_approve_and_queue_button(self, request, migration_request):
+        if self._approve_and_queue(request, migration_request):
+            self.message_user(
+                request,
+                (
+                    f"Approved and queued request {migration_request.request_uuid} "
+                    "for import."
+                ),
+                level=messages.SUCCESS,
+            )
+
+    def _handle_retry_latest_failed_job_button(self, request, migration_request):
+        result = self._retry_latest_failed_job(request, migration_request)
+        if result is True:
+            self.message_user(
+                request,
+                f"Queued a retry for request {migration_request.request_uuid}.",
+                level=messages.SUCCESS,
+            )
+        elif result is None:
+            self.message_user(
+                request,
+                (
+                    f"No failed job to retry for request "
+                    f"{migration_request.request_uuid}."
+                ),
+                level=messages.INFO,
+            )
+
+    def _handle_cancel_jobs_button(self, request, migration_request):
+        if self._cancel_jobs(request, migration_request):
+            self.message_user(
+                request,
+                (
+                    "Canceled queued/running jobs for request "
+                    f"{migration_request.request_uuid}."
+                ),
+                level=messages.SUCCESS,
+            )

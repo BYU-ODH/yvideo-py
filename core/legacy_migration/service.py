@@ -813,6 +813,79 @@ class LegacyMigrationService:
             == 1
         )
 
+    def recover_running_jobs(self):
+        """Return jobs interrupted by a previous worker to the queue.
+
+        The worker process holds a singleton process lock before calling this,
+        so every running job belongs to a worker that is no longer alive.
+        """
+        recovered_jobs = []
+        recovery_timestamp = timezone.now()
+
+        with transaction.atomic():
+            running_jobs = list(
+                LegacyMigrationJob.objects.select_related("request")
+                .filter(status=LegacyMigrationJobStatus.RUNNING)
+                .order_by("created_at")
+            )
+            for job in running_jobs:
+                previous_phase = job.current_phase
+                log_entries = list(job.log)
+                log_entries.append(
+                    {
+                        "event": "recovered",
+                        "previous_phase": previous_phase,
+                        "timestamp": recovery_timestamp.isoformat(),
+                    }
+                )
+                job.status = LegacyMigrationJobStatus.QUEUED
+                job.started_at = None
+                job.current_phase = ""
+                job.log = log_entries
+                job.save(
+                    update_fields=[
+                        "status",
+                        "started_at",
+                        "current_phase",
+                        "log",
+                        "updated_at",
+                    ]
+                )
+
+                request_obj = job.request
+                request_obj.status = (
+                    LegacyMigrationStatus.SUBMITTED
+                    if job.job_type == LegacyMigrationJobType.PREFLIGHT
+                    else LegacyMigrationStatus.QUEUED
+                )
+                request_obj.save(update_fields=["status", "updated_at"])
+                recovered_jobs.append(
+                    {
+                        "job_id": job.pk,
+                        "job_type": job.job_type,
+                        "request_uuid": str(request_obj.request_uuid),
+                        "attempts": job.attempts,
+                        "previous_phase": previous_phase,
+                    }
+                )
+
+        for recovered_job in recovered_jobs:
+            logger.warning(
+                "Recovered interrupted legacy migration job %(job_id)s "
+                "(%(job_type)s) for request %(request_uuid)s; attempts=%(attempts)s, "
+                "previous_phase=%(previous_phase)r. Returned job to queue.",
+                recovered_job,
+            )
+        if recovered_jobs:
+            logger.warning(
+                "Recovered %s interrupted legacy migration job(s).",
+                len(recovered_jobs),
+            )
+        else:
+            logger.info("No interrupted legacy migration jobs required recovery.")
+
+        return len(recovered_jobs)
+
     def run_next_job(self):
         while True:
             job = (
@@ -837,6 +910,13 @@ class LegacyMigrationService:
         request_obj = job.request
         request_obj.status = LegacyMigrationStatus.RUNNING
         request_obj.save(update_fields=["status", "updated_at"])
+        logger.info(
+            "Starting legacy migration job %s (%s) for request %s; attempt=%s.",
+            job.pk,
+            job.job_type,
+            request_obj.request_uuid,
+            job.attempts,
+        )
 
         try:
             if job.job_type == LegacyMigrationJobType.PREFLIGHT:
@@ -858,14 +938,31 @@ class LegacyMigrationService:
             job.status = LegacyMigrationJobStatus.COMPLETED
             job.finished_at = timezone.now()
             job.save(update_fields=["status", "finished_at", "updated_at"])
+            logger.info(
+                "Completed legacy migration job %s (%s) for request %s.",
+                job.pk,
+                job.job_type,
+                request_obj.request_uuid,
+            )
         except LegacyMigrationJobCanceled:
             job.status = LegacyMigrationJobStatus.CANCELED
             job.finished_at = timezone.now()
             job.save(update_fields=["status", "finished_at", "updated_at"])
             request_obj.status = LegacyMigrationStatus.CANCELED
             request_obj.save(update_fields=["status", "updated_at"])
+            logger.warning(
+                "Canceled legacy migration job %s (%s) for request %s.",
+                job.pk,
+                job.job_type,
+                request_obj.request_uuid,
+            )
         except Exception as exc:
-            logger.exception("Legacy migration job failed.")
+            logger.exception(
+                "Legacy migration job %s (%s) for request %s failed.",
+                job.pk,
+                job.job_type,
+                request_obj.request_uuid,
+            )
             job.status = LegacyMigrationJobStatus.FAILED
             job.last_error = str(exc)
             job.finished_at = timezone.now()

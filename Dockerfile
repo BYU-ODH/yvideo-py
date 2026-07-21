@@ -1,10 +1,7 @@
 FROM docker.io/library/python:3.13-slim-bookworm
 
-# uv must remain in the final image: the legacy dump scheduler
-# invokes `uv run scripts/dump_legacy_to_sqlite.py` via subprocess.
-# NOTE: uv itself must stay regardless (gunicorn/manage.py run through it),
-# but when legacy_migration is removed, update this comment — its stated
-# reason will no longer exist. See core/legacy_migration/REMOVAL.md.
+# uv must remain in the final image because Gunicorn and management commands
+# run through it.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /app

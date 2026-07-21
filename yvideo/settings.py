@@ -150,6 +150,13 @@ LEGACY_MIGRATION_DUMP_SCRIPT = str(
         )
     )
 )
+LEGACY_MIGRATION_WORKER_LOCK_PATH = _resolve_repo_path(
+    getattr(
+        secret_settings,
+        "LEGACY_MIGRATION_WORKER_LOCK_PATH",
+        "var/legacy_migration/job_worker.lock",
+    )
+)
 
 if LEGACY_MIGRATION_SQLITE_PATH:
     DATABASES[LEGACY_MIGRATION_DB_ALIAS] = {

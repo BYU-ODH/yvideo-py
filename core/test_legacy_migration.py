@@ -1997,6 +1997,420 @@ class LegacyMigrationTests(TestCase):
             "legacy database unavailable",
         )
 
+    def _change_form_post_data(self, migration_request, **extra):
+        data = {
+            "requested_by": migration_request.requested_by_id,
+            "target_owner": migration_request.target_owner_id,
+            "migration_kind": migration_request.migration_kind,
+            "legacy_reference": migration_request.legacy_reference,
+            "status": migration_request.status,
+        }
+        for prefix in (
+            "migration_resources",
+            "file_decisions",
+            "user_resolutions",
+            "issues",
+            "jobs",
+            "source_maps",
+        ):
+            data[f"{prefix}-TOTAL_FORMS"] = "0"
+            data[f"{prefix}-INITIAL_FORMS"] = "0"
+            data[f"{prefix}-MIN_NUM_FORMS"] = "0"
+            data[f"{prefix}-MAX_NUM_FORMS"] = "1000"
+        data.update(extra)
+        return data
+
+    def test_change_form_shows_action_buttons_only_when_editing(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        change_response = client.get(
+            reverse(
+                "admin:core_legacymigrationrequest_change", args=[migration_request.pk]
+            )
+        )
+        for button_name in (
+            "_run_preflight",
+            "_refresh_issues",
+            "_approve_and_queue",
+            "_retry_latest_failed_job",
+            "_cancel_jobs",
+        ):
+            self.assertIn(f'name="{button_name}"'.encode(), change_response.content)
+
+        add_response = client.get(reverse("admin:core_legacymigrationrequest_add"))
+        self.assertNotIn(b'name="_run_preflight"', add_response.content)
+
+    def test_change_form_run_preflight_button_runs_preflight(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+            response = client.post(
+                reverse(
+                    "admin:core_legacymigrationrequest_change",
+                    args=[migration_request.pk],
+                ),
+                data=self._change_form_post_data(
+                    migration_request, _run_preflight="Run preflight"
+                ),
+                follow=True,
+            )
+
+        service_class.return_value.preflight_request.assert_called_once_with(
+            migration_request
+        )
+        self.assertEqual(response.status_code, 200)
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == f"Ran preflight for request {migration_request.request_uuid}."
+                and message.level == messages.SUCCESS
+                for message in admin_messages
+            )
+        )
+
+    def test_change_form_run_preflight_button_reports_error(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+            service_class.return_value.preflight_request.side_effect = OperationalError(
+                "legacy database unavailable"
+            )
+            response = client.post(
+                reverse(
+                    "admin:core_legacymigrationrequest_change",
+                    args=[migration_request.pk],
+                ),
+                data=self._change_form_post_data(
+                    migration_request, _run_preflight="Run preflight"
+                ),
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == (
+                    f"Preflight failed for request {migration_request.request_uuid}: "
+                    "legacy database unavailable"
+                )
+                and message.level == messages.ERROR
+                for message in admin_messages
+            )
+        )
+        migration_request.refresh_from_db()
+        self.assertEqual(
+            migration_request.status, LegacyMigrationStatus.PREFLIGHT_FAILED
+        )
+
+    def test_change_form_refresh_issues_button(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+            response = client.post(
+                reverse(
+                    "admin:core_legacymigrationrequest_change",
+                    args=[migration_request.pk],
+                ),
+                data=self._change_form_post_data(
+                    migration_request, _refresh_issues="Refresh issues"
+                ),
+                follow=True,
+            )
+
+        # save_related() already calls sync_request_issues() on every save
+        # (see LegacyMigrationRequestAdmin.save_related), so the button's own
+        # call is the second one, not the only one.
+        self.assertEqual(service_class.return_value.sync_request_issues.call_count, 2)
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == f"Refreshed issues for request {migration_request.request_uuid}."
+                and message.level == messages.SUCCESS
+                for message in admin_messages
+            )
+        )
+
+    def test_change_form_approve_and_queue_button_success(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+            response = client.post(
+                reverse(
+                    "admin:core_legacymigrationrequest_change",
+                    args=[migration_request.pk],
+                ),
+                data=self._change_form_post_data(
+                    migration_request, _approve_and_queue="Approve and queue import"
+                ),
+                follow=True,
+            )
+
+        service_class.return_value.approve_and_queue_import.assert_called_once_with(
+            migration_request
+        )
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == (
+                    f"Approved and queued request {migration_request.request_uuid} "
+                    "for import."
+                )
+                and message.level == messages.SUCCESS
+                for message in admin_messages
+            )
+        )
+
+    def test_change_form_approve_and_queue_button_reports_blocking_issues(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+            service_class.return_value.approve_and_queue_import.side_effect = (
+                ValueError("The migration request still has blocking issues.")
+            )
+            response = client.post(
+                reverse(
+                    "admin:core_legacymigrationrequest_change",
+                    args=[migration_request.pk],
+                ),
+                data=self._change_form_post_data(
+                    migration_request, _approve_and_queue="Approve and queue import"
+                ),
+                follow=True,
+            )
+
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == (
+                    f"Approval failed for request {migration_request.request_uuid}: "
+                    "The migration request still has blocking issues."
+                )
+                and message.level == messages.ERROR
+                for message in admin_messages
+            )
+        )
+
+    def test_change_form_retry_latest_failed_job_button_no_failed_job(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = client.post(
+            reverse(
+                "admin:core_legacymigrationrequest_change",
+                args=[migration_request.pk],
+            ),
+            data=self._change_form_post_data(
+                migration_request,
+                _retry_latest_failed_job="Retry latest failed job",
+            ),
+            follow=True,
+        )
+
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == (
+                    "No failed job to retry for request "
+                    f"{migration_request.request_uuid}."
+                )
+                and message.level == messages.INFO
+                for message in admin_messages
+            )
+        )
+
+    def test_change_form_retry_latest_failed_job_button_success(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        migration_request.jobs.create(job_type="import", status="failed")
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = client.post(
+            reverse(
+                "admin:core_legacymigrationrequest_change",
+                args=[migration_request.pk],
+            ),
+            data=self._change_form_post_data(
+                migration_request,
+                _retry_latest_failed_job="Retry latest failed job",
+            ),
+            follow=True,
+        )
+
+        migration_request.refresh_from_db()
+        self.assertEqual(migration_request.status, LegacyMigrationStatus.QUEUED)
+        self.assertEqual(migration_request.jobs.filter(status="queued").count(), 1)
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == f"Queued a retry for request {migration_request.request_uuid}."
+                and message.level == messages.SUCCESS
+                for message in admin_messages
+            )
+        )
+
+    def test_change_form_cancel_jobs_button(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        migration_request.jobs.create(job_type="import", status="queued")
+        migration_request.jobs.create(job_type="import", status="running")
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = client.post(
+            reverse(
+                "admin:core_legacymigrationrequest_change",
+                args=[migration_request.pk],
+            ),
+            data=self._change_form_post_data(
+                migration_request, _cancel_jobs="Cancel queued/running jobs"
+            ),
+            follow=True,
+        )
+
+        migration_request.refresh_from_db()
+        self.assertEqual(migration_request.status, LegacyMigrationStatus.CANCELED)
+        self.assertEqual(migration_request.jobs.filter(status="canceled").count(), 2)
+        admin_messages = list(get_messages(response.wsgi_request))
+        self.assertTrue(
+            any(
+                message.message
+                == (
+                    "Canceled queued/running jobs for request "
+                    f"{migration_request.request_uuid}."
+                )
+                and message.level == messages.SUCCESS
+                for message in admin_messages
+            )
+        )
+
+    def test_change_form_plain_save_does_not_trigger_actions(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+            response = client.post(
+                reverse(
+                    "admin:core_legacymigrationrequest_change",
+                    args=[migration_request.pk],
+                ),
+                data=self._change_form_post_data(
+                    migration_request, _continue="Save and continue editing"
+                ),
+                follow=True,
+            )
+
+        service_class.return_value.preflight_request.assert_not_called()
+        service_class.return_value.approve_and_queue_import.assert_not_called()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            reverse(
+                "admin:core_legacymigrationrequest_change",
+                args=[migration_request.pk],
+            ),
+            [url for url, _ in response.redirect_chain],
+        )
+
     @override_settings(LEGACY_MIGRATION_CREATE_MISSING_USERS=True)
     def test_upsert_user_resolution_handles_missing_autocreate_user(self):
         owner = UserFactory(netid="profada", username="123456789", instructor=True)
