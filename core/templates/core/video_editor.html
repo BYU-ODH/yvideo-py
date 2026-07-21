@@ -1,5 +1,5 @@
 {% load static %}
-{% include 'base.html' %}
+{% include 'core/base.html' %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -15,24 +15,24 @@
         <div id="editor-container">
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
-                {% include 'partials/annotation_panel.html' %}
-                {% include 'partials/subtitle_editor_panel.html' %}
+                {% include 'core/partials/annotation_panel.html' %}
+                {% include 'core/partials/subtitle_editor_panel.html' %}
 
                 <div id="video-section" class="video-section">
-                    {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key %}
+                    {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key %}
                 </div>
 
                 <div class="detail-form-section editor-container-component-dark">
                     <!-- Annotation Detail Form -->
                     <div id="detail-form"
                         class="detail-form">
-                        {% include 'partials/item_form_placeholder.html' %}
+                        {% include 'core/partials/item_form_placeholder.html' %}
                     </div>
                 </div>
             </div>
 
             <!-- Bottom Panel: Timeline -->
-            {% include 'partials/timeline_base.html' %}
+            {% include 'core/partials/timeline_base.html' %}
         </div>
 
         <script type="module" src="{% static 'js/editor.js' %}"></script>

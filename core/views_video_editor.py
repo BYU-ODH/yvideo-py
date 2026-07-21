@@ -256,7 +256,7 @@ def get_player_wrapper_html(request):
 
     try:
         video_html = render_to_string(
-            "partials/player-wrapper.html",
+            "core/partials/player-wrapper.html",
             {
                 "content_id": content_id,
                 "resource_file_key_id": request.user.get_resource_filekey(content).pk,
@@ -455,7 +455,7 @@ def search_for_editor(request):
             & ~Q(id=request.user.id)
         ).order_by("last_name")[:25]
         result_html = render_to_string(
-            "partials/editor_search_results.html",
+            "core/partials/editor_search_results.html",
             {"editor_results": editor_results},
             request,
         )
@@ -536,13 +536,13 @@ def create_annotation(request, annotation_type, track_id):
 
     # Render item using shared partial
     track_item_html = render_to_string(
-        "partials/item.html",
+        "core/partials/item.html",
         {"item": annotation},
         request=request,
     )
 
     panel_item_html = render_to_string(
-        "partials/annotation_list_item.html",
+        "core/partials/annotation_list_item.html",
         {"id": annotation.pk, "type": annotation_type, "name": annotation.name},
     )
 
@@ -607,10 +607,10 @@ def generate_censor_item_and_positions_html(parent_annotation_id):
     try:
         censor_positions = get_list_of_blur_annotation_positions(parent_annotation)
         censor_positions_html = render_to_string(
-            "partials/censor_positions.html", {"item_positions": censor_positions}
+            "core/partials/censor_positions.html", {"item_positions": censor_positions}
         )
         track_item_html = render_to_string(
-            "partials/item.html", {"item": parent_annotation}
+            "core/partials/item.html", {"item": parent_annotation}
         )
         return {"censorPositions": censor_positions_html, "trackItem": track_item_html}
 
@@ -756,7 +756,7 @@ def generate_annotation_updated_html(
     request, content, annotation, annotation_type, position
 ):
     item_html = render_to_string(
-        "partials/item.html",
+        "core/partials/item.html",
         {"item": annotation},
         request=request,
     )
@@ -984,7 +984,7 @@ def load_annotation_set_settings(request, annotation_set_id):
         return HttpResponse("Unauthorized", status=403)
     return render(
         request,
-        "partials/annotation_set_settings_compact.html",
+        "core/partials/annotation_set_settings_compact.html",
         {
             "annotation_set": annotation_set,
             "content": content,
@@ -1115,7 +1115,7 @@ def display_annotation_set_create_option(request):
     try:
         return HttpResponse(
             render_to_string(
-                "partials/annotation_set_options/create_new.html", {}, request
+                "core/partials/annotation_set_options/create_new.html", {}, request
             )
         )
     except Exception as e:
@@ -1129,7 +1129,9 @@ def display_annotation_set_import_option(request):
     try:
         return HttpResponse(
             render_to_string(
-                "partials/annotation_set_options/import_from_file.html", {}, request
+                "core/partials/annotation_set_options/import_from_file.html",
+                {},
+                request,
             )
         )
     except Exception as e:
@@ -1145,7 +1147,7 @@ def display_copy_from_annotation_set_option(request, content_id):
         available_sets = content.get_available_annotation_sets()
         return HttpResponse(
             render_to_string(
-                "partials/annotation_set_options/copy_from_set.html",
+                "core/partials/annotation_set_options/copy_from_set.html",
                 {"available_annotation_sets": available_sets, "can_edit": True},
                 request,
             )
@@ -1167,7 +1169,7 @@ def display_use_existing_annotation_set_option(request, content_id):
         available_sets = content.get_available_annotation_sets()
         return HttpResponse(
             render_to_string(
-                "partials/annotation_set_options/use_existing_set.html",
+                "core/partials/annotation_set_options/use_existing_set.html",
                 {
                     "available_annotation_sets": available_sets,
                     "can_edit": (
@@ -1327,7 +1329,7 @@ def get_editable_subtitles(request, subtitle_id):
         cues = generate_vtt_cues_from_file_path(subtitle_obj.subtitles_file.path)
         return HttpResponse(
             render_to_string(
-                "partials/subtitle_panel_content.html",
+                "core/partials/subtitle_panel_content.html",
                 {"subtitle_track": subtitle_obj, "cues": cues},
             )
         )
@@ -1376,7 +1378,7 @@ def create_subtitle(request):
         return HttpResponseBadRequest()
 
     return render(
-        request, "partials/subtitle_track.html", {"subtitle_track": new_subtitle}
+        request, "core/partials/subtitle_track.html", {"subtitle_track": new_subtitle}
     )
 
 
@@ -1426,7 +1428,7 @@ def update_subtitle_metadata(request):
 
             return render(
                 request,
-                "partials/subtitle_track.html",
+                "core/partials/subtitle_track.html",
                 {"subtitle_track": subtitle_obj},
             )
         except Exception as e:
@@ -1481,7 +1483,7 @@ def update_subtitle_content(request):
         subtitle_obj.save()
         return HttpResponse(
             render_to_string(
-                "partials/subtitle_cues.html", {"cues": cues_list}, request
+                "core/partials/subtitle_cues.html", {"cues": cues_list}, request
             )
         )
 
