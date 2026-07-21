@@ -16,7 +16,7 @@
         </div>
         <div>
             <h4>Editors</h4>
-            {% include 'partials/annotation_set_selected_editors.html' %}
+            {% include 'core/partials/annotation_set_selected_editors.html' %}
         </div>
 
         <div id="editor-search-wrapper" class="column-flex">
@@ -24,7 +24,7 @@
                 Search for editor:
             </label>
             <input id="editor-search-input" aria-label="Search for editor" type="text" placeholder="Search for an editor to add">
-            {% include 'partials/editor_search_results.html' %}
+            {% include 'core/partials/editor_search_results.html' %}
         </div>
         {% if can_edit %}
         <button id="annotation-set-delete" class="red-button">Delete this set</button>
