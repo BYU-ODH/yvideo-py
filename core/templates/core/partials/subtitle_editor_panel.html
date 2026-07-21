@@ -1,10 +1,11 @@
+{% load static %}
 <div id="subtitle-editor-panel" class="subtitle-editor-panel-hidden editor-container-component-dark editor-panel-wrapper">
     <div id="subtitle-panel-header" class="row-flex flex-apart-aligned">
         <p>
             Subtitles
         </p>
         <button class="editor-menu-button" aria-label="Subtitles settings" command="show-modal" commandfor="subtitles-settings">
-            <img src="/static/img/dots_menu.svg" />
+            <img src="{% static 'img/dots_menu.svg' %}" />
         </button>
         <dialog id="subtitles-settings">
             {% include 'core/partials/subtitles_settings.html' %}

@@ -1,3 +1,4 @@
+{% load static %}
 {% for cue in cues %}
 <div class="editor-subtitle-cue">
     <div class="subtitle-input-groups">
@@ -13,7 +14,7 @@
     </div>
     <textarea id="editor-subtitle-{{forloop.counter0}}-payload" class="editor-subtitle-cue-content" rows="2" aria-label="Cue text content">{{cue.payload}}</textarea>
     <button class="panel-item-delete editor-subtitle-cue-delete" aria-label="Delete Cue">
-        <img src="/static/img/trash.svg" alt="T">
+        <img src="{% static 'img/trash.svg' %}" alt="T">
     </button>
 </div>
 {% empty %}

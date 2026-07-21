@@ -15,7 +15,7 @@
                         placeholder="Search"
                         aria-label="Search collections"
                     >
-                    <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
+                    <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
                 </div>
             </header>
             <dialog id="add-new-collection-dialog" class="user-view-modal">
@@ -59,7 +59,7 @@
                         {% for course in yearterm.collections_by_course %}
                             <div class="course-header row-flex clickable" onclick="handleAccordian(this)">
                                 <p>{{ course.course_name }}</p>
-                                <img src="/static/img/arrow.svg" class="arrow">
+                                <img src="{% static 'img/arrow.svg' %}" class="arrow">
                             </div>
                             <div class="collections-list-content course-collections-list accordian-folded">
                                 {% for collection in course.collections %}

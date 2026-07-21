@@ -1,6 +1,7 @@
+{% load static %}
 <div id="important-word-{{word.id}}" class="important-word-display">
     <p>{{word.word}} - {{word.translation}}</p>
-    <img src="../../../static/img/delete.svg"
+    <img src="{% static 'img/delete.svg' %}"
         hx-delete="{% url 'delete_important_word' word.id %}"
         hx-trigger="click"
         hx-target="#important-word-{{word.id}}"
