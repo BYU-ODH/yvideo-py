@@ -1,6 +1,32 @@
 from re import findall
 from re import sub
 
+from django.utils import timezone
+
+
+def estimate_current_yearterm(today=None):
+    """Estimate the current BYU yearterm code (e.g. "20264") from the date.
+
+    Term cutoffs approximate the BYU academic calendar
+    (https://academiccalendar.byu.edu/), whose exact dates shift a few days
+    each year (2026: Winter Jan 5 - Apr 15, Spring Apr 27 - Jun 15,
+    Summer Jun 22 - Aug 10, Fall Sep 2 - Dec 10). Days in the gap between
+    two terms are split at the midpoint, except that the winter break through
+    December belongs to Fall. For the authoritative answer, use
+    Api.get_current_year_term, which requires a BYU API credential.
+    """
+    if today is None:
+        today = timezone.localdate()
+    if (today.month, today.day) >= (8, 22):
+        term = "5"  # Fall
+    elif (today.month, today.day) >= (6, 19):
+        term = "4"  # Summer
+    elif (today.month, today.day) >= (4, 22):
+        term = "3"  # Spring
+    else:
+        term = "1"  # Winter
+    return f"{today.year}{term}"
+
 
 def hms2seconds(hms):
     """Convert a time string in 'HH:MM:SS.SS' format to total seconds."""

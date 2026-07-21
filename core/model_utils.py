@@ -8,9 +8,9 @@ from .models import PrivilegeLevel
 from .models import UserCourses
 
 try:
-    from yvideo.secret_settings import ADMIN_BYUID_WHITELIST
+    from yvideo import secret_settings
 except ImportError:
-    ADMIN_BYUID_WHITELIST = []
+    from yvideo import secret_settings_template as secret_settings
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,8 @@ def update_user_details(user):
         user.last_name = student_summary["last_name"]
         user.netid = student_summary["net_id"]
         user.privilege_level = PrivilegeLevel.STUDENT
+        user.is_staff = False
+        user.is_superuser = False
         try:
             user.save()
             return
@@ -135,14 +137,26 @@ def update_user_details(user):
         if worker_netid:
             user.netid = worker_netid
 
-        if user.username in ADMIN_BYUID_WHITELIST:
+        if user.username in secret_settings.ADMIN_BYUID_WHITELIST:
             user.privilege_level = PrivilegeLevel.ADMIN
+            user.is_staff = True
+            user.is_superuser = True
         elif not worker_summary["is_active"]:
             user.privilege_level = PrivilegeLevel.STUDENT
+            user.is_staff = False
+            user.is_superuser = False
         elif worker_summary["is_faculty"]:
             user.privilege_level = PrivilegeLevel.INSTRUCTOR
+            user.is_staff = False
+            user.is_superuser = False
         elif worker_summary["is_odh_employee"]:
             user.privilege_level = PrivilegeLevel.LAB_ASSISTANT
+            user.is_staff = True
+            user.is_superuser = False
+        else:
+            user.privilege_level = PrivilegeLevel.STUDENT
+            user.is_staff = False
+            user.is_superuser = False
 
         try:
             user.save()
