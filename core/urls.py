@@ -129,26 +129,6 @@ urlpatterns = [
         views_video_editor.update_subtitle_content,
         name="update_subtitle_content",
     ),
-    path(
-        "clips/<str:item_type>/<int:clip_id>/edit/",
-        views_video_editor.load_clip_form,
-        name="load_clip_form",
-    ),
-    path(
-        "clips/<str:item_type>/<int:clip_id>/update/",
-        views_video_editor.update_clip,
-        name="update_clip",
-    ),
-    path(
-        "clips/<str:item_type>/<int:clip_id>/delete/",
-        views_video_editor.delete_clip,
-        name="delete_clip",
-    ),
-    path(
-        "clips/<str:annotation_type>/create/content/<int:content_id>/",
-        views_video_editor.create_clip,
-        name="create_clip",
-    ),
     # Video editor page
     path(
         "video-editor/<int:content_id>/",
