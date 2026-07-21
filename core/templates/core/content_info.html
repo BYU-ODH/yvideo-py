@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'core/base.html' %}
 {% load static %}
 
 {% block extra_css %}
@@ -35,11 +35,11 @@
                 Remove from collection
             </button>
         </div>
-        {% include 'partials/content_settings_form.html' %}
+        {% include 'core/partials/content_settings_form.html' %}
     </div>
     {% endif %}
     <div id="content-details-video-player">
-        {% include 'partials/player-wrapper.html' %}
+        {% include 'core/partials/player-wrapper.html' %}
     </div>
 </div>
 <script type="module" src="{% static 'js/contentInfo.js' %}"></script>

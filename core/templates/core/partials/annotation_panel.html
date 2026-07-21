@@ -15,9 +15,9 @@
         <button id="annotation-set-menu-button" class="open-multi-select-button" aria-label="Annotation set settings">
             <img src="/static/img/dots_menu_white.svg" />
         </button>
-        {% include 'partials/annotation_set_settings_compact.html' %}
-        {% include 'partials/annotation_set_export_modal.html' %}
-        {% include 'partials/annotation_set_options/base_modal.html' %}
+        {% include 'core/partials/annotation_set_settings_compact.html' %}
+        {% include 'core/partials/annotation_set_export_modal.html' %}
+        {% include 'core/partials/annotation_set_options/base_modal.html' %}
     </div>
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}
@@ -39,7 +39,7 @@
                 </button>
                 <div id="{{group.type}}-annotation-items-list" class="annotation-items-list column-flex">
                     {% for instance in group.instances %}
-                        {% include "partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}
+                        {% include "core/partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}
                     {% endfor %}
                 </div>
             </div>

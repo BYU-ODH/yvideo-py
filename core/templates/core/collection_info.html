@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "core/base.html" %}
 {% load static %}
 
 {% block content %}
@@ -9,7 +9,7 @@
             <h3>{{ collection.name }}</h3>
         </header>
         {% if user.privilege_level == 0 or collection.owner == user %}
-            {% include 'partials/collection_settings.html' %}
+            {% include 'core/partials/collection_settings.html' %}
         {% endif %}
         <div id="collection-videos-content">
             <div id="collection-videos-header" class="column-flex">

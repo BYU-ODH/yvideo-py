@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'core/base.html' %}
 {% load static %}
 
 {% block title %}
@@ -11,7 +11,7 @@
 
 {% block content %}
     <div class="player-page">
-        {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
+        {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
 
         <div class="video-title">
             <h2>{{ content.title }}</h2>
