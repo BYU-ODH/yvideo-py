@@ -1857,9 +1857,11 @@ class LegacyMigrationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Move content from the old Y-Video")
-        self.assertContains(response, "Russell.Hansen@byu.edu")
+        self.assertContains(response, "russell_hansen@byu.edu")
         self.assertContains(response, "801-422-9295")
         self.assertContains(response, "What would you like to move?")
+        self.assertContains(response, "legacy-migrations-instructions")
+        self.assertContains(response, "legacy-migrations-help-text", count=2)
         self.assertContains(response, "Your requests")
         self.assertContains(response, "legacy-migrations-table-wrapper")
         self.assertContains(

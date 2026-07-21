@@ -7,7 +7,7 @@
         <header class="legacy-migrations-header">
             <h2>Move content from the old Y-Video</h2>
             <p>
-                Use this form to ask us to move a collection or video from the old
+                Use this form to request moving a collection or video from the old
                 Y-Video into your account. Our team will review your request and
                 handle the transfer.
             </p>
@@ -19,6 +19,20 @@
                 <p class="legacy-migrations-form-intro">
                     Tell us what you want moved and paste its old Y-Video link or ID.
                 </p>
+                <div class="legacy-migrations-instructions" role="note" aria-labelledby="legacy-migrations-instructions-heading">
+                    <h4 id="legacy-migrations-instructions-heading">Before you submit</h4>
+                    <p>
+                        For an entire <strong>collection</strong>, go to the old Y-Video's
+                        Collection Manager and select the desired collection on the left side
+                        of the page. Click "Edit User Access" and remove any courses or
+                        individuals that are no longer relevant. Then copy the URL from your
+                        browser's address bar and paste it below.
+                    </p>
+                    <p>
+                        For an individual <strong>video resource</strong>, go to the video's
+                        player or editor page and copy the URL from your browser's address bar.
+                    </p>
+                </div>
                 {% csrf_token %}
                 {{ form.non_field_errors }}
                 {% for field in form %}
@@ -26,9 +40,9 @@
                         {{ field.label_tag }}
                         {{ field }}
                         {% if field.help_text %}
-                            <div class="legacy-migrations-help-text" id="{{ field.auto_id }}_helptext">
+                            <small class="legacy-migrations-help-text" id="{{ field.auto_id }}_helptext">
                                 {{ field.help_text }}
-                            </div>
+                            </small>
                         {% endif %}
                         {{ field.errors }}
                     </div>
@@ -40,13 +54,8 @@
                 <h3 id="legacy-migrations-contact-heading">Need help?</h3>
                 <p>
                     If you are not sure what to enter or cannot find the old link,
-                    contact Russell Hansen.
+                    contact Russell Hansen: <a href="mailto:russell_hansen@byu.edu">russell_hansen@byu.edu</a> or <a href="tel:+18014229295">801-422-9295</a>.
                 </p>
-                <address>
-                    <strong>Russell Hansen</strong>
-                    <a href="mailto:Russell.Hansen@byu.edu">Russell.Hansen@byu.edu</a>
-                    <a href="tel:+18014229295">801-422-9295</a>
-                </address>
             </aside>
         </div>
 

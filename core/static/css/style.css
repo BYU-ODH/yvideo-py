@@ -706,7 +706,7 @@ a.blue-button {
 
 /* Legacy migration requests */
 .legacy-migrations-page {
-    width: min(100%, 72rem);
+    width: min(100%, 80rem);
     margin: 0 auto;
     padding: clamp(1.25rem, 4vw, 3rem);
 }
@@ -736,7 +736,7 @@ a.blue-button {
 
 .legacy-migrations-request-layout {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.5rem;
     align-items: start;
 }
@@ -761,6 +761,30 @@ a.blue-button {
 
 .legacy-migrations-form-intro {
     margin: 0.5rem 0 1.5rem;
+}
+
+.legacy-migrations-instructions {
+    margin-bottom: 1.75rem;
+    padding: 1rem 1.25rem;
+    border-left: 0.3rem solid var(--medium-blue);
+    border-radius: 0.35rem;
+    background: #eaf5fa;
+    color: var(--darker-grey);
+}
+
+.legacy-migrations-instructions h4 {
+    margin: 0 0 0.5rem;
+    color: var(--deep-blue);
+    font-size: 1rem;
+}
+
+.legacy-migrations-instructions p {
+    margin: 0;
+    line-height: 1.55;
+}
+
+.legacy-migrations-instructions p + p {
+    margin-top: 0.75rem;
 }
 
 .legacy-migrations-field {
@@ -799,8 +823,12 @@ a.blue-button {
 }
 
 .legacy-migrations-help-text {
+    display: block;
+    padding-left: 0.7rem;
+    border-left: 0.2rem solid var(--light-blue);
     color: var(--dark-grey);
     font-size: 0.9rem;
+    font-style: italic;
     line-height: 1.45;
 }
 
@@ -853,7 +881,6 @@ a.blue-button {
 .legacy-migrations-table-wrapper {
     width: 100%;
     overflow-x: auto;
-    border: 1px solid #d4d9dc;
     border-radius: 0.65rem;
 }
 
@@ -872,24 +899,29 @@ a.blue-button {
 .legacy-migrations-table th,
 .legacy-migrations-table td {
     padding: 1rem;
+    border: 1px solid #b8c2c7;
     vertical-align: middle;
 }
 
 .legacy-migrations-table th {
-    border-bottom: 2px solid #c8d0d4;
-    background: #f2f5f6;
-    color: var(--darker-grey);
+    border-color: #496b84;
+    background: var(--deep-blue);
+    color: white;
     font-size: 0.8rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
 
-.legacy-migrations-table tbody tr:not(:last-child) td {
-    border-bottom: 1px solid #dfe3e5;
+.legacy-migrations-table tbody tr:nth-child(odd) {
+    background: white;
+}
+
+.legacy-migrations-table tbody tr:nth-child(even) {
+    background: #edf3f6;
 }
 
 .legacy-migrations-table tbody tr:hover {
-    background: #f8fafb;
+    background: #dceef5;
 }
 
 .legacy-migrations-reference {
@@ -952,10 +984,6 @@ a.blue-button {
 }
 
 @media (max-width: 48rem) {
-    .legacy-migrations-request-layout {
-        grid-template-columns: 1fr;
-    }
-
     .legacy-migrations-history {
         margin-top: 2.25rem;
     }
