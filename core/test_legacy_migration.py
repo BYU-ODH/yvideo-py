@@ -1839,6 +1839,41 @@ class LegacyMigrationTests(TestCase):
             ).exists()
         )
 
+    def test_request_page_uses_user_focused_guidance_and_full_width_history(self):
+        instructor = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=instructor,
+            target_owner=instructor,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+            status=LegacyMigrationStatus.COMPLETED,
+        )
+        client = Client()
+        client.force_login(
+            instructor, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = client.get(reverse("legacy_migration_requests"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Move content from the old Y-Video")
+        self.assertContains(response, "Russell.Hansen@byu.edu")
+        self.assertContains(response, "801-422-9295")
+        self.assertContains(response, "What would you like to move?")
+        self.assertContains(response, "Your requests")
+        self.assertContains(response, "legacy-migrations-table-wrapper")
+        self.assertContains(
+            response,
+            reverse("legacy_migration_request_detail", args=[migration_request.pk]),
+        )
+        content = response.content.decode()
+        self.assertLess(
+            content.index("legacy-migrations-form"),
+            content.index("legacy-migrations-history"),
+        )
+        self.assertNotContains(response, "preflight")
+        self.assertNotContains(response, "Django admin")
+
     @override_settings(LEGACY_MIGRATION_ENABLED=False)
     def test_legacy_migration_views_return_404_when_feature_disabled(self):
         instructor = UserFactory(instructor=True)
