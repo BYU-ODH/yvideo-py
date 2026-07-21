@@ -64,7 +64,7 @@ def legacy_migration_requests(request):
     )
     return render(
         request,
-        "legacy_migration_requests.html",
+        "core/legacy_migration_requests.html",
         {
             "form": LegacyMigrationRequestForm(),
             "migration_requests": requests,
@@ -93,7 +93,7 @@ def create_legacy_migration_request(request):
         )
         return render(
             request,
-            "legacy_migration_requests.html",
+            "core/legacy_migration_requests.html",
             {
                 "form": form,
                 "migration_requests": requests,
@@ -129,7 +129,7 @@ def legacy_migration_request_detail(request, pk):
 
     return render(
         request,
-        "legacy_migration_request_detail.html",
+        "core/legacy_migration_request_detail.html",
         {
             "migration_request": migration_request,
         },

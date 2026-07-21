@@ -1,5 +1,5 @@
 {% load static %}
-{% include 'base.html' %}
+{% include 'core/base.html' %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -17,7 +17,7 @@
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
         <div class="top-panel">
             <div class="video-section">
-                {% include 'partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url %}
+                {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url %}
             </div>
 
             <div class="detail-form-section">
@@ -25,14 +25,14 @@
                      class="detail-form"
                      hx-trigger="loadForm"
                      hx-swap="innerHTML">
-                    {% include 'partials/item_form_placeholder.html' %}
+                    {% include 'core/partials/item_form_placeholder.html' %}
                 </div>
             </div>
         </div>
 
         <!-- Bottom Panel: Timeline -->
         <div id="timeline-section">
-            {% include 'partials/timeline_base.html' with layers=layers %}
+            {% include 'core/partials/timeline_base.html' with layers=layers %}
         </div>
 
     </div>

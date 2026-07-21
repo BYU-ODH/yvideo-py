@@ -34,7 +34,7 @@ def clip_editor(request, content_id):
 
         layer_items.append(
             {
-                "template": "partials/item.html",
+                "template": "core/partials/item.html",
                 "instance": item,
                 "content": content,
                 "item_type": "clip",
@@ -81,7 +81,7 @@ def clip_editor(request, content_id):
         "layers_list": layers_list,  # For timeline_layers.html content
     }
 
-    return render(request, "clip_editor.html", context)
+    return render(request, "core/clip_editor.html", context)
 
 
 @require_GET
@@ -120,7 +120,7 @@ def load_clip_form(request, item_type, clip_id):
         "end_seconds": hms2seconds(instance.end_time),
     }
 
-    return render(request, "partials/item_form.html", context)
+    return render(request, "core/partials/item_form.html", context)
 
 
 @require_POST
@@ -187,7 +187,7 @@ def update_clip(request, item_type, clip_id):
                 "start_seconds": hms2seconds(instance.start_time),
                 "end_seconds": hms2seconds(instance.end_time),
             }
-            return render(request, "partials/item_form.html", context)
+            return render(request, "core/partials/item_form.html", context)
 
         instance = form.save()
 
@@ -205,7 +205,7 @@ def update_clip(request, item_type, clip_id):
 
     # Render the layer item
     item_html = render_to_string(
-        "partials/item.html",
+        "core/partials/item.html",
         {
             "instance": instance,
             "content": content,
@@ -218,7 +218,7 @@ def update_clip(request, item_type, clip_id):
 
     # Always render the updated form with OOB swap
     form_content = render_to_string(
-        "partials/item_form.html",
+        "core/partials/item_form.html",
         {
             "instance": instance,
             "content": content,
@@ -237,7 +237,7 @@ def update_clip(request, item_type, clip_id):
 
     # Render JSON OOB update
     json_html = render_to_string(
-        "partials/player_json_oob.html",
+        "core/partials/player_json_oob.html",
         {
             "player_json": player_json,
         },
@@ -295,7 +295,7 @@ def create_clip(request, annotation_type, content_id):
 
     # Render the new layer item
     item_html = render_to_string(
-        "partials/item.html",
+        "core/partials/item.html",
         {
             "instance": new_item,
             "content": content,
@@ -308,7 +308,7 @@ def create_clip(request, annotation_type, content_id):
 
     # Render JSON OOB update
     json_html = render_to_string(
-        "partials/player_json_oob.html",
+        "core/partials/player_json_oob.html",
         {
             "player_json": player_json,
         },
@@ -354,14 +354,14 @@ def delete_clip(request, item_type, clip_id):
 
         # Render JSON OOB update
         json_html = render_to_string(
-            "partials/player_json_oob.html",
+            "core/partials/player_json_oob.html",
             {
                 "player_json": player_json,
             },
         )
 
         # Render placeholder for form with OOB swap
-        form_placeholder = render_to_string("partials/item_form_placeholder.html")
+        form_placeholder = render_to_string("core/partials/item_form_placeholder.html")
         form_html = (
             f'<div hx-swap-oob="innerHTML:#detail-form">{form_placeholder}</div>'
         )
