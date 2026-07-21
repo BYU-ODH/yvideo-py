@@ -129,14 +129,13 @@ class Api:
 
         worker_id_json_response = worker_id_request.json()
         response_data = worker_id_json_response["data"]
-        worker_id = False
-        if len(response_data) > 0:
+        try:
             worker_id = response_data[0]["worker_id"]
-        else:
+        except (IndexError, KeyError):
+            worker_id = None
             self.logger.error(
                 "Failed to get workerid from byuid because the API did not return a workerid"
             )
-            return None
 
         return worker_id
 
