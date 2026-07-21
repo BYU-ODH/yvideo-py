@@ -20,6 +20,7 @@ from django.test import Client
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 import xxhash
 
 from .admin import LegacyMigrationFileDecisionForm
@@ -37,6 +38,8 @@ from .legacy_migration import LegacyMigrationFileDecision
 from .legacy_migration import LegacyMigrationIssueSeverity
 from .legacy_migration import LegacyMigrationJob
 from .legacy_migration import LegacyMigrationJobCanceled
+from .legacy_migration import LegacyMigrationJobStatus
+from .legacy_migration import LegacyMigrationJobType
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationResource
 from .legacy_migration import LegacyMigrationService
@@ -2292,6 +2295,68 @@ class LegacyMigrationTests(TestCase):
                 for message in admin_messages
             )
         )
+
+    def test_approve_and_queue_import_requires_preflight(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        service = self.build_service()
+        with self.assertRaisesMessage(
+            ValueError,
+            "Run preflight before approving this request for import.",
+        ):
+            service.approve_and_queue_import(migration_request)
+
+    def test_change_form_approve_button_disabled_before_preflight(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        client = Client()
+        client.force_login(
+            admin_user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        change_url = reverse(
+            "admin:core_legacymigrationrequest_change", args=[migration_request.pk]
+        )
+        response = client.get(change_url)
+        self.assertIn(b'name="_approve_and_queue" disabled', response.content)
+
+        migration_request.preflight_completed_at = timezone.now()
+        migration_request.save(update_fields=["preflight_completed_at"])
+
+        response = client.get(change_url)
+        self.assertNotIn(b'name="_approve_and_queue" disabled', response.content)
+
+    def test_status_display_shows_active_job_type(self):
+        admin_user = UserFactory(admin=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=admin_user,
+            target_owner=admin_user,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+            status=LegacyMigrationStatus.RUNNING,
+        )
+        migration_request.jobs.create(
+            job_type=LegacyMigrationJobType.IMPORT,
+            status=LegacyMigrationJobStatus.RUNNING,
+        )
+
+        model_admin = LegacyMigrationRequestAdmin(LegacyMigrationRequest, admin.site)
+        self.assertEqual(
+            model_admin.status_display(migration_request), "Running (Import)"
+        )
+
+        active_job_summary = model_admin.active_job_summary(migration_request)
+        self.assertIn("Import job is running", active_job_summary)
 
     def test_change_form_retry_latest_failed_job_button_no_failed_job(self):
         admin_user = UserFactory(admin=True)

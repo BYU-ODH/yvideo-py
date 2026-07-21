@@ -7,6 +7,7 @@ from .models import LegacyMigrationFileDecision
 from .models import LegacyMigrationIssue
 from .models import LegacyMigrationIssueSeverity
 from .models import LegacyMigrationJob
+from .models import LegacyMigrationJobPhase
 from .models import LegacyMigrationJobStatus
 from .models import LegacyMigrationJobType
 from .models import LegacyMigrationKind
@@ -29,6 +30,7 @@ __all__ = [
     "LegacyMigrationIssueSeverity",
     "LegacyMigrationJob",
     "LegacyMigrationJobCanceled",
+    "LegacyMigrationJobPhase",
     "LegacyMigrationJobStatus",
     "LegacyMigrationJobType",
     "LegacyMigrationKind",

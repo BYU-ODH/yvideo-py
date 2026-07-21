@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -17,6 +18,7 @@ from .legacy_migration import LegacyMigrationFileAction
 from .legacy_migration import LegacyMigrationFileDecision
 from .legacy_migration import LegacyMigrationIssue
 from .legacy_migration import LegacyMigrationJob
+from .legacy_migration import LegacyMigrationJobStatus
 from .legacy_migration import LegacyMigrationKind
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationResource
@@ -51,6 +53,12 @@ from .models import UserCourses
 from .utils import convert_srt_content_to_vtt
 
 logger = logging.getLogger(__name__)
+
+
+def _pretty_json(value):
+    if not value:
+        return "-"
+    return json.dumps(value, indent=2, sort_keys=True, default=str)
 
 
 class LegacyMigrationFileDecisionForm(forms.ModelForm):
@@ -577,9 +585,16 @@ class LegacyMigrationUserResolutionInline(admin.TabularInline):
 class LegacyMigrationIssueInline(admin.TabularInline):
     model = LegacyMigrationIssue
     extra = 0
-    fields = ("severity", "code", "message", "details")
-    readonly_fields = ("severity", "code", "message", "details")
+    fields = ("severity", "code", "message", "details_display")
+    readonly_fields = ("severity", "code", "message", "details_display")
     can_delete = False
+
+    @admin.display(description="Details")
+    def details_display(self, obj):
+        return format_html(
+            "<pre style='white-space:pre-wrap;margin:0;'>{}</pre>",
+            _pretty_json(obj.details),
+        )
 
 
 class LegacyMigrationJobInline(admin.TabularInline):
@@ -616,10 +631,13 @@ class LegacySourceMapInline(admin.TabularInline):
 
 @admin.register(LegacyMigrationRequest)
 class LegacyMigrationRequestAdmin(VersionAdmin):
+    class Media:
+        js = ("js/legacy_migration_admin.js",)
+
     list_display = (
         "request_uuid",
         "migration_kind",
-        "status",
+        "status_display",
         "requested_by",
         "target_owner",
         "created_at",
@@ -629,11 +647,12 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
     readonly_fields = (
         "request_uuid",
         "legacy_identifier",
+        "active_job_summary",
         "snapshot_summary",
         "snapshot_collection_access_preview",
         "snapshot_courses_preview",
         "snapshot_contents_preview",
-        "raw_snapshot",
+        "raw_snapshot_display",
         "created_targets",
         "preflight_completed_at",
         "imported_at",
@@ -665,6 +684,7 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                     "target_collection_published",
                     "target_collection_archived",
                     "target_collection_public",
+                    "active_job_summary",
                     "latest_job_error",
                 )
             },
@@ -677,7 +697,7 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                     "snapshot_collection_access_preview",
                     "snapshot_courses_preview",
                     "snapshot_contents_preview",
-                    "raw_snapshot",
+                    "raw_snapshot_display",
                 )
             },
         ),
@@ -702,6 +722,61 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
         LegacyMigrationJobInline,
         LegacySourceMapInline,
     )
+
+    @admin.display(description="Status", ordering="status")
+    def status_display(self, obj):
+        label = obj.get_status_display()
+        if obj.status not in (
+            LegacyMigrationStatus.QUEUED,
+            LegacyMigrationStatus.RUNNING,
+        ):
+            return label
+        active_job = (
+            obj.jobs.filter(
+                status__in=(
+                    LegacyMigrationJobStatus.QUEUED,
+                    LegacyMigrationJobStatus.RUNNING,
+                )
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if not active_job:
+            return label
+        return f"{label} ({active_job.get_job_type_display()})"
+
+    @admin.display(description="Active Job")
+    def active_job_summary(self, obj):
+        active_job = (
+            obj.jobs.filter(
+                status__in=(
+                    LegacyMigrationJobStatus.QUEUED,
+                    LegacyMigrationJobStatus.RUNNING,
+                )
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if not active_job:
+            return "No preflight or import job is currently queued or running."
+        phase = (
+            f" — {active_job.get_current_phase_display()}"
+            if active_job.current_phase
+            else ""
+        )
+        return (
+            f"{active_job.get_job_type_display()} job is "
+            f"{active_job.get_status_display().lower()}{phase}."
+        )
+
+    @admin.display(description="Raw Snapshot (debugging)")
+    def raw_snapshot_display(self, obj):
+        if not obj.raw_snapshot:
+            return "No preflight snapshot yet."
+        return format_html(
+            "<pre style='white-space:pre-wrap;max-height:400px;overflow:auto;'>{}</pre>",
+            _pretty_json(obj.raw_snapshot),
+        )
 
     def save_model(self, request, obj, form, change):
         if not obj.requested_by:

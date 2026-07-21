@@ -34,6 +34,18 @@ class LegacyMigrationJobStatus(models.TextChoices):
     CANCELED = "canceled", "Canceled"
 
 
+class LegacyMigrationJobPhase(models.TextChoices):
+    USERS = "users", "Importing users"
+    COURSES = "courses", "Importing courses"
+    RESOURCES = "resources", "Importing resources"
+    FILES = "files", "Importing files"
+    CONTENTS = "contents", "Importing contents"
+    SUBTITLES = "subtitles", "Importing subtitles"
+    ANNOTATIONS = "annotations", "Importing annotations"
+    PERMISSIONS = "permissions", "Importing permissions"
+    FINALIZE = "finalize", "Finalizing"
+
+
 class LegacyMigrationIssueSeverity(models.TextChoices):
     BLOCKING = "blocking", "Blocking"
     WARNING = "warning", "Warning"
@@ -46,7 +58,7 @@ class LegacyMigrationFileAction(models.TextChoices):
 
 
 class LegacyMigrationUserResolutionStatus(models.TextChoices):
-    PENDING = "pending", "Pending"
+    PENDING = "pending", "Decision needed"
     AUTO = "auto", "Auto"
     MANUAL = "manual", "Manual"
     SKIP = "skip", "Skip"
@@ -309,7 +321,9 @@ class LegacyMigrationJob(models.Model):
         choices=LegacyMigrationJobStatus.choices,
         default=LegacyMigrationJobStatus.QUEUED,
     )
-    current_phase = models.CharField(max_length=100, blank=True)
+    current_phase = models.CharField(
+        max_length=100, blank=True, choices=LegacyMigrationJobPhase.choices
+    )
     attempts = models.PositiveIntegerField(default=0)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)

@@ -782,6 +782,8 @@ class LegacyMigrationService:
         return request_obj
 
     def approve_and_queue_import(self, request_obj):
+        if not request_obj.preflight_completed_at:
+            raise ValueError("Run preflight before approving this request for import.")
         self.sync_request_issues(request_obj)
         if request_obj.has_blocking_issues():
             raise ValueError("The migration request still has blocking issues.")
