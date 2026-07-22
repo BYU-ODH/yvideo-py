@@ -3,7 +3,7 @@
     <nav class="navbar{% if request.is_spoofing %} navbar-spoofing{% endif %}">
         <div class="navbar-start">
             <a class="navbar-brand" href="{% url 'index' %}">
-                <img class="logo" src="/static/img/logo.svg" alt="Logo">
+                <img class="logo" src="{% static 'img/logo.svg' %}" alt="Logo">
                 <h1>Y-VIDEO</h1>
             </a>
             <div class="breadcrumbs">

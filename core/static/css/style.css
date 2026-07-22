@@ -1120,7 +1120,7 @@ p.tile-subtitle {
 #icon {
     height: 1rem;
     width: 1rem;
-    background: url(/static/img/plus.svg) center center / contain no-repeat;
+    background: url(../img/plus.svg) center center / contain no-repeat;
 }
 
 #create-content-form {
