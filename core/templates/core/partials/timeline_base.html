@@ -1,3 +1,4 @@
+{% load static %}
 <div id="timeline-wrapper" class="editor-container-component-dark" data-annotation-set-id="{{ annotation_set.id }}">
     <div id="timeline-scrubber-row" class="timeline-row">
         <div class="timeline-row-left">
@@ -22,8 +23,8 @@
             </button>
         </div>
         <div id="timeline-zoom-controls" class="timeline-row-right">
-            <img id="zoom-out-button" class="timeline-zoom-icon" src="/static/img/minus-circle.svg" />
-            <img id="zoom-in-button" class="timeline-zoom-icon" src="/static/img/plus-circle.svg" />
+            <img id="zoom-out-button" class="timeline-zoom-icon" src="{% static 'img/minus-circle.svg' %}" />
+            <img id="zoom-in-button" class="timeline-zoom-icon" src="{% static 'img/plus-circle.svg' %}" />
             <div id="timeline-scroll-slider">
                 <input id="timeline-scroll-input"
                     type="range"

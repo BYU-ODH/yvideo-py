@@ -1,3 +1,4 @@
+{% load static %}
 <div class="timeline-row track-row" data-track-name="{{track.name}}" data-track-id="{{ track.id }}">
     <div class="timeline-row-left timeline-row-left-dark">
         <div class="timeline-track-name-wrapper">
@@ -33,7 +34,7 @@
                 {% endif %}
             </div>
             <button class="editor-menu-button open-multi-select-button" aria-label="Show options menu for track {{track.name}}">
-                <img class="timeline-track-icon" src="/static/img/dots_menu_white.svg" />
+                <img class="timeline-track-icon" src="{% static 'img/dots_menu_white.svg' %}" />
             </button>
         </div>
     </div>

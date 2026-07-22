@@ -1,7 +1,8 @@
+{% load static %}
 <div class="landing-page-collection tile">
     <a href="{% url 'collection_info' collection_id=collection.pk %}" class="collection-header">
         <div class="tile-image">
-            <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
+            <img src="{% static 'img/video.svg' %}" class="tile-image" alt="video-collection-icon">
         </div>
         <div class="tile-body">
             <h3 class="collection-header-name">{{ collection.name }}</h3>
