@@ -316,7 +316,7 @@ bash deploy/manage.sh shell           # open an interactive Django shell in the 
 - **Restrictive file permissions**: `.env`, `yvideo/secret_settings.py`, and the SQLite database files are kept at `chmod 600` so secrets and the database are readable only by the deploy user. The deploy entrypoint reapplies `600` to the database files on each container start.
 - **Rootless services**: The deployment scripts refuse to run as `root`. All Quadlets install into `~/.config/containers/systemd/` and the deploy timer into `~/.config/systemd/user/` for the application user.
 - **SQLite database**: Stored in `data/db.sqlite3` with WAL/SHM files alongside it. The `data/` bind mount preserves all of them across rebuilds.
-- **Static files**: `manage.py collectstatic` writes static assets (with hash added to filenames)and
+- **Static files**: `manage.py collectstatic` writes static assets (with hash added to filenames) and
   `staticfiles.json` to `STATIC_ROOT` (as set in `settings.py`) on the host.
   Apache serves this directory directly at `/static/`. Templates must use
   Django's `{% static %}` tag so deployed pages reference the hashed filenames.
