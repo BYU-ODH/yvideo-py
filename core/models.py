@@ -343,44 +343,6 @@ class ResourceFile(models.Model):
         unique_together = ("resource", "version")
 
 
-class Clip(models.Model):
-    resource = models.ForeignKey(
-        Resource, on_delete=models.CASCADE, related_name="clips"
-    )
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="clips"
-    )
-    name = models.CharField(max_length=255)
-    start_time = models.FloatField(default=0.0)
-    end_time = models.FloatField(default=0.0)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.name} | {self.start_time}-{self.end_time} | {self.resource.name} | {self.id}"
-
-    def can_edit(self, user):
-        """Check if user can edit this clip."""
-        return self.owner == user or user.is_staff or user.is_superuser or user.is_admin
-
-    def clone_for_user(self, user):
-        """Create a copy of this clip owned by a different user."""
-        return Clip.objects.create(
-            resource=self.resource,
-            owner=user,
-            name=self.name,
-            start_time=self.start_time,
-            end_time=self.end_time,
-            description=self.description,
-        )
-
-    def save(self, *args, **kwargs):
-        self.start_time = round(float(self.start_time or 0), 2)
-        self.end_time = round(float(self.end_time or 0), 2)
-        super().save(*args, **kwargs)
-
-
 class AnnotationSet(models.Model):
     """
     A collection of annotations for a Resource.
@@ -562,6 +524,7 @@ class Track(models.Model):
             PauseAnnotation,
             BlurAnnotation,
             CommentAnnotation,
+            Clip,
         ]:
             annotations.extend(model_class.objects.filter(track=self, active=True))
         return sorted(annotations, key=lambda a: a.start_time)
@@ -628,12 +591,6 @@ class Content(models.Model):
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     words = models.TextField(blank=True)
-    clips = models.ManyToManyField(
-        Clip,
-        related_name="contents",
-        blank=True,
-        limit_choices_to=models.Q(resource=models.F("resource")),
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -648,25 +605,6 @@ class Content(models.Model):
         if not self.resource_file or not self.resource_file.resource:
             return AnnotationSet.objects.none()
         return AnnotationSet.objects.filter(resource=self.resource_file.resource)
-
-    def get_clips_json(self):
-        """
-        Get all clips as list of dictionaries for the AnnotationPlayer.
-        """
-        clips_data = []
-        for clip in self.clips.all():
-            start = float(clip.start_time or 0)
-            end = float(clip.end_time or 0)
-            clips_data.append(
-                {
-                    "start": start,  # seconds for backend/player logic
-                    "end": end,
-                    "start_hms": seconds2hms(start),  # "0:00:12.34" for display
-                    "end_hms": seconds2hms(end),
-                    "label": clip.name,
-                }
-            )
-        return clips_data
 
     def get_subtitles(self):
         """
@@ -691,7 +629,7 @@ class Content(models.Model):
     def get_player_json(self):
         """
         Generate complete JSON data for AnnotationPlayer.loadData().
-        Returns a dict with 'annotations' and 'clips' keys, each containing JSON strings.
+        Returns a dict with 'annotations', each containing JSON strings.
         """
         annotation_set_json = (
             self.annotation_set.to_player_json()
@@ -701,7 +639,6 @@ class Content(models.Model):
         return {
             "annotations": annotation_set_json["annotations"],
             "tracks": annotation_set_json["tracks"],
-            "clips": self.get_clips_json(),
             "subtitleTracks": self.get_subtitles(),
         }
 
@@ -804,6 +741,7 @@ class BaseAnnotation(models.Model):
             "PauseAnnotation": PauseAnnotation,
             "BlurAnnotation": BlurAnnotation,
             "CommentAnnotation": CommentAnnotation,
+            "Clip": Clip,
         }
         new_annotation = annotation_types[self.__class__.__name__].objects.create(
             name=self.name,
@@ -1219,6 +1157,19 @@ class BlurAnnotationPosition(models.Model):
             return True, None
         except Exception as e:
             return False, f"Invalid position: {e}"
+
+
+class Clip(BaseAnnotation):
+    description = models.TextField(blank=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._meta.get_field(
+            "description"
+        ).help_text = "Short description of the scene this clip is showing"
+
+    def __str__(self):
+        return f"Clip {self.name} | {self.start_time}-{self.end_time} | {self.id}"
 
 
 class Course(models.Model):

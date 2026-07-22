@@ -267,23 +267,6 @@ def create_demo_data():
             collection_role=role,
         )
 
-    birds_clip = ClipFactory(
-        resource=birds_resource,
-        owner=professor_ada,
-        name="Birds Intro Clip",
-        start_time=2.5,
-        end_time=18.0,
-        description="Opening segment for the birds lesson.",
-    )
-    grid_clip = ClipFactory(
-        resource=grid_resource,
-        owner=professor_ben,
-        name="Grid Demonstration Clip",
-        start_time=1.0,
-        end_time=9.5,
-        description="Grid segment used in class exercises.",
-    )
-
     birds_annotation_set = AnnotationSetFactory(
         name="Professor Ada Birds Annotations",
         resource=birds_resource,
@@ -304,6 +287,20 @@ def create_demo_data():
         annotation_set=grid_annotation_set,
         name="Track 1",
         stack_position=0,
+    )
+    birds_clip = ClipFactory(
+        track=birds_track,
+        name="Birds Intro Clip",
+        start_time=2.5,
+        end_time=18.0,
+        description="Opening segment for the birds lesson.",
+    )
+    grid_clip = ClipFactory(
+        track=grid_track,
+        name="Grid Demonstration Clip",
+        start_time=1.0,
+        end_time=9.5,
+        description="Grid segment used in class exercises.",
     )
     MuteAnnotationFactory(
         track=birds_track,
@@ -399,7 +396,6 @@ def create_demo_data():
         title="Birds Overview",
         description="Published lesson content for Professor Ada's students.",
         published=True,
-        clips=[birds_clip],
     )
     ContentFactory(
         collection=ada_drafts,
@@ -430,7 +426,6 @@ def create_demo_data():
         title="Pattern Analysis Warmup",
         description="Published grid-based lesson content for Professor Ben.",
         published=True,
-        clips=[grid_clip],
     )
     ContentFactory(
         collection=ben_collection,
