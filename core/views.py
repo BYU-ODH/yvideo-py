@@ -91,7 +91,7 @@ def display_yearterm(yearterm):
 def index(request):
     if request.user.is_authenticated and request.user.privilege_level == 2:
         return HttpResponseRedirect(reverse("collections"))
-    return render(request, "index.html", {})
+    return render(request, "core/index.html", {})
 
 
 @require_POST
@@ -131,7 +131,7 @@ def player(request, content_id):
         "allow_events": True,
     }
 
-    return render(request, "player.html", context)
+    return render(request, "core/player.html", context)
 
 
 def stream_file(request, resource_file_key_id):
@@ -304,7 +304,7 @@ def collections(request):
         "public_collections": [],
         "manual_collections": manual_collections,
     }
-    return render(request, "collections.html", context)
+    return render(request, "core/collections.html", context)
 
 
 def get_collection_types(user):
@@ -406,7 +406,7 @@ def collection_info(request, collection_id):
 
         return render(
             request,
-            "collection_info.html",
+            "core/collection_info.html",
             {
                 "collection": collection,
                 "contents": contents,
@@ -438,7 +438,7 @@ def display_collection_settings(request, collection_id):
             "semester": year_and_semester["semester"],
             "year_options": year_and_semester["year_options"],
         }
-        return render(request, "partials/collection_settings.html", context)
+        return render(request, "core/partials/collection_settings.html", context)
     except Exception as e:
         logger.error(f"Failed to render collection settings. Exception: {e}")
         return HttpResponseServerError()
@@ -461,7 +461,7 @@ def render_course_assignment(request):
 
         return render(
             request,
-            "partials/course_assignment.html",
+            "core/partials/course_assignment.html",
             {"assigned_courses": assigned_courses},
         )
 
@@ -678,7 +678,7 @@ def display_create_content(request, collection_id):
     resources = Resource.objects.all()
     return render(
         request,
-        "partials/create_content.html",
+        "core/partials/create_content.html",
         {
             "form": form,
             "collection": collection,
@@ -732,7 +732,7 @@ def display_create_from_resource(request, collection_id):
         resources = Resource.objects.all()
         return render(
             request,
-            "create_from_resource.html",
+            "core/create_from_resource.html",
             {"resources": resources, "collection_id": collection_id},
         )
     except Exception as e:
@@ -755,7 +755,7 @@ def render_create_from_resource_form(request):
             "collection_id": parsed_data["collection_id"],
             "options": resource.resource_files.all(),
         }
-        return render(request, "partials/create_from_resource_form.html", context)
+        return render(request, "core/partials/create_from_resource_form.html", context)
     except Resource.DoesNotExist:
         logger.error(
             "Failed to render the create from resource form because no Resource matches the provided resource_id"
@@ -795,7 +795,7 @@ def display_content_info(request, content_id):
             "content_id": content.pk,
             "resource_file_key_id": resource_file_key.pk,
         }
-        return render(request, "content_info.html", context)
+        return render(request, "core/content_info.html", context)
     except Content.DoesNotExist:
         logger.error(
             f"Failed to display content settings because of missing content object. Id provided: {content_id}"
@@ -810,7 +810,7 @@ def render_content_settings_form(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
         context = {"content": content}
-        return render(request, "partials/content_settings_form.html", context)
+        return render(request, "core/partials/content_settings_form.html", context)
     except Content.DoesNotExist:
         logger.error(
             "Failed to render content settings form beacuse the requested content does not exist"
@@ -888,7 +888,7 @@ def create_important_word(request):
         )
         return render(
             request,
-            "partials/important_word.html",
+            "core/partials/important_word.html",
             {
                 "word": {
                     "id": important_word.id,
@@ -972,7 +972,7 @@ def add_annotation(request, content_id, annotation_type):
 
 @login_not_required
 def invalid_login(request):
-    return render(request, "invalid_login.html", {})
+    return render(request, "core/invalid_login.html", {})
 
 
 @admin_or_superuser_required
@@ -1007,7 +1007,7 @@ def spoof_user_search(request):
         & ~Q(id=request.user.id)
     ).order_by("last_name")[:25]
     html = render_to_string(
-        "partials/spoof_user_options_for_select.html", {"users": users}
+        "core/partials/spoof_user_options_for_select.html", {"users": users}
     )
     return HttpResponse(html)
 
@@ -1039,7 +1039,7 @@ def subtitle_editor(request, content_id):
 
     return render(
         request,
-        "subtitle_editor.html",
+        "core/subtitle_editor.html",
         {
             "content": content,
             "subtitle_tracks": subtitle_options,
@@ -1065,7 +1065,7 @@ def request_content(request):
 
     return render(
         request,
-        "partials/resource_content_intake_request.html",
+        "core/partials/resource_content_intake_request.html",
         {
             "form": form,
         },

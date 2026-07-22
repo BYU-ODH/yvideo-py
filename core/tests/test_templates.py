@@ -11,22 +11,24 @@ TEMPLATE_REFERENCE_PATTERN = re.compile(
 
 
 class TemplateValidationTests(SimpleTestCase):
-    def test_all_project_templates_load_and_resolve_static_references(self):
+    def test_all_core_templates_load_and_resolve_static_references(self):
         template_engine = engines["django"].engine
         template_root = Path(settings.BASE_DIR) / "core" / "templates" / "core"
         template_names = sorted(
-            str(path.relative_to(template_root))
+            str(Path("core") / path.relative_to(template_root))
             for path in template_root.rglob("*.html")
         )
 
-        self.assertTrue(template_names, "Expected at least one project template.")
+        self.assertTrue(template_names, "Expected at least one core app template.")
 
         referenced_template_names = set()
         for template_name in template_names:
             with self.subTest(template=template_name):
                 template_engine.get_template(template_name)
 
-            source = (template_root / template_name).read_text(encoding="utf-8")
+            source = (
+                template_root / Path(template_name).relative_to("core")
+            ).read_text(encoding="utf-8")
             referenced_template_names.update(
                 match.group("name")
                 for match in TEMPLATE_REFERENCE_PATTERN.finditer(source)
