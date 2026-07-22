@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./utils.js"
+import { getCSRFToken } from "./utils.js";
 
 function setupSubmit() {
   const submitButton = document.getElementById("content-settings-submit-button");
