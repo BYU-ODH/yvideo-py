@@ -524,6 +524,7 @@ class Track(models.Model):
             PauseAnnotation,
             BlurAnnotation,
             CommentAnnotation,
+            Clip,
         ]:
             annotations.extend(model_class.objects.filter(track=self, active=True))
         return sorted(annotations, key=lambda a: a.start_time)
