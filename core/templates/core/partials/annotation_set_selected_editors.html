@@ -1,10 +1,11 @@
+{% load static %}
 <div id="selected-editors">
 {% for editor in annotation_set.editors.all %}
     <div class="annotation-set-editor-details">
         <p>{{ editor.get_full_name }} ({{ editor.netid }})</p>
         {% if request.user == annotation_set.owner %}
         <button class="remove-editor-button" aria-label="Remove Editor" data-editor-id="{{editor.id}}">
-            <img src="/static/img/white-trash-can.svg" alt="Remove Editor">
+            <img src="{% static 'img/white-trash-can.svg' %}" alt="Remove Editor">
         </button>
         {% endif %}
     </div>

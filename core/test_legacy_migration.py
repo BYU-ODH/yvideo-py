@@ -51,6 +51,7 @@ from .legacy_migration.parsers import LegacyFileInfo
 from .models import BlankAnnotation
 from .models import BlurAnnotation
 from .models import BlurAnnotationPosition
+from .models import Clip
 from .models import Collection
 from .models import CollectionRole
 from .models import CollectionUserAccess
@@ -65,6 +66,7 @@ from .models import Subtitle
 
 
 @override_settings(
+    DEBUG=True,
     LEGACY_MIGRATION_ENABLED=True,
     LEGACY_MIGRATION_MEDIA_ROOT="",
 )
@@ -792,8 +794,13 @@ class LegacyMigrationTests(TestCase):
             os.stat(source_path).st_ino, os.stat(imported_file_path).st_ino
         )
 
-        self.assertEqual(imported_video.clips.count(), 1)
-        self.assertEqual(imported_video.annotation_set.tracks.count(), 2)
+        self.assertEqual(
+            Clip.objects.filter(
+                track__annotation_set=imported_video.annotation_set
+            ).count(),
+            1,
+        )
+        self.assertEqual(imported_video.annotation_set.tracks.count(), 3)
         self.assertEqual(
             BlurAnnotation.objects.filter(
                 track__annotation_set=imported_video.annotation_set

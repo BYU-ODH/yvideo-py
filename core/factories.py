@@ -148,18 +148,6 @@ class CollectionUserAccessFactory(factory.django.DjangoModelFactory):
     collection_role = CollectionRole.STUDENT
 
 
-class ClipFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = Clip
-
-    resource = factory.SubFactory(ResourceFactory)
-    owner = factory.SubFactory(UserFactory, instructor=True)
-    name = factory.Sequence(lambda n: f"Clip {n}")
-    start_time = 0.0
-    end_time = 15.0
-    description = ""
-
-
 class AnnotationSetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = AnnotationSet
@@ -256,6 +244,17 @@ class CommentAnnotationFactory(factory.django.DjangoModelFactory):
     bottom_right_y = 10.0
     font_size_in_rem = 1.0
     font_color = "ffffff"
+
+
+class ClipFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Clip
+
+    track = factory.SubFactory(TrackFactory)
+    name = factory.Sequence(lambda n: f"Clip {n}")
+    start_time = 0.0
+    end_time = 15.0
+    description = ""
 
 
 class SubtitleFactory(factory.django.DjangoModelFactory):

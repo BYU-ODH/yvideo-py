@@ -142,11 +142,6 @@ class DemoSeedDataTests(TestCase):
             ).exists()
         )
         self.assertTrue(ResourceFileKey.objects.filter(user=admin_user).exists())
-        self.assertGreaterEqual(
-            Content.objects.filter(clips__isnull=False).distinct().count(),
-            2,
-        )
-        self.assertTrue(Content.objects.filter(clips__isnull=True).exists())
 
     def test_seed_is_repeatable(self):
         first_counts = {

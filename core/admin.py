@@ -287,12 +287,6 @@ class ContentAdmin(VersionAdmin):
                 "resource_file"
             ].help_text = "Select collection, then save to see available resource files. You will be unable to see resource files that belong to Resources that you do not have Resource Access to."
 
-            # No clips until resource_file is selected and saved.
-            form.base_fields["clips"].queryset = Clip.objects.none()
-            form.base_fields[
-                "clips"
-            ].help_text = "Select a resource_file and save to see available clips."
-
         return form
 
 
@@ -347,15 +341,7 @@ class BlurAnnotationAdmin(AnnotationAdmin):
 
 @admin.register(Clip)
 class ClipAdmin(VersionAdmin):
-    list_display = ("name", "owner", "resource", "start_time", "end_time", "created_at")
-    list_filter = ("created_at",)
-    search_fields = (
-        "name",
-        "description",
-        "tags",
-        "owner__name",
-        "resource__name",
-    )
+    pass
 
 
 @admin.register(Subtitle)

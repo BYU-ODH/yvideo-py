@@ -1283,18 +1283,18 @@ class LegacyMigrationService:
             self._upsert_source_map(request_obj, "content", content_row["id"], content)
         return content
 
-    def _ensure_clip(self, request_obj, content, legacy_clip, clip_index):
+    def _ensure_clip(self, request_obj, content, track, legacy_clip, clip_index):
         source_id = f"{content.pk}:{clip_index}"
         clip = self._get_source_map_target("clip", source_id, Clip)
         defaults = {
-            "resource": content.get_resource(),
-            "owner": self._get_target_owner(request_obj),
+            "track": track,
             "name": legacy_clip.get("title")
             or legacy_clip.get("label")
             or f"{content.title} Clip {clip_index + 1}",
             "start_time": float(legacy_clip.get("start", 0) or 0),
             "end_time": float(legacy_clip.get("end", 0) or 0),
             "description": legacy_clip.get("description", ""),
+            "active": True,
         }
         if clip:
             for field_name, value in defaults.items():
@@ -1303,7 +1303,6 @@ class LegacyMigrationService:
         else:
             clip = Clip.objects.create(**defaults)
             self._upsert_source_map(request_obj, "clip", source_id, clip)
-        content.clips.add(clip)
         return clip
 
     def _annotation_model_for_type(self, legacy_type):
@@ -1318,8 +1317,11 @@ class LegacyMigrationService:
         }
         return mapping.get(normalized)
 
-    def _import_annotations(self, request_obj, content, legacy_annotations):
-        if not legacy_annotations:
+    def _import_annotations(
+        self, request_obj, content, legacy_annotations, legacy_clips=None
+    ):
+        legacy_clips = legacy_clips or []
+        if not legacy_annotations and not legacy_clips:
             return None
 
         source_id = str(content.pk)
@@ -1343,6 +1345,11 @@ class LegacyMigrationService:
                 annotation_set,
             )
 
+        layer_numbers = [
+            int(legacy_event.get("layer", 0) or 0)
+            for legacy_event in legacy_annotations
+            if self._annotation_model_for_type(legacy_event.get("type"))
+        ]
         tracks_by_layer = {}
         for index, legacy_event in enumerate(legacy_annotations):
             model_class = self._annotation_model_for_type(legacy_event.get("type"))
@@ -1418,6 +1425,21 @@ class LegacyMigrationService:
                 f"{content.pk}:{index}",
                 annotation,
             )
+
+        if legacy_clips:
+            clip_track = Track.objects.create(
+                annotation_set=annotation_set,
+                name="Imported Clips",
+                stack_position=max(layer_numbers, default=-1) + 1,
+            )
+            for clip_index, legacy_clip in enumerate(legacy_clips):
+                self._ensure_clip(
+                    request_obj,
+                    content,
+                    clip_track,
+                    legacy_clip,
+                    clip_index,
+                )
 
         content.annotation_set = annotation_set
         content.save(update_fields=["annotation_set", "updated_at"])
@@ -1643,18 +1665,13 @@ class LegacyMigrationService:
                     ):
                         target_file = decision.selected_existing_resource_file
 
-            content = self._ensure_content(
+            self._ensure_content(
                 request_obj,
                 collection,
                 content_row,
                 target_resource,
                 target_file,
             )
-            content.clips.clear()
-            for clip_index, clip_row in enumerate(
-                parse_legacy_clips(content_row["clips"])
-            ):
-                self._ensure_clip(request_obj, content, clip_row, clip_index)
 
         self._log_job_phase(job, "subtitles")
         for content_row in request_obj.raw_snapshot.get("contents", []):
@@ -1678,6 +1695,7 @@ class LegacyMigrationService:
                 request_obj,
                 content,
                 parse_legacy_annotations(content_row["annotations"]),
+                parse_legacy_clips(content_row["clips"]),
             )
 
         self._log_job_phase(job, "permissions")

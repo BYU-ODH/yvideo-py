@@ -21,7 +21,7 @@
                         placeholder="Search"
                         aria-label="Search videos"
                     >
-                    <img src="/static/img/search-icon.svg" class="search-icon" alt="search">
+                    <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
                 </div>
                 {% if user.privilege_level == 0 or collection.owner == user %}
                 <dialog id="add-video-dialog" class="user-view-modal">
@@ -56,7 +56,7 @@
                         <a href="{% url 'player' content.id %}" class="collection-video-tile">
                         {% endif %}
                             <div class="tile-image">
-                                <img src="/static/img/video.svg" class="tile-image" alt="video-collection-icon">
+                                <img src="{% static 'img/video.svg' %}" class="tile-image" alt="video-collection-icon">
                             </div>
                             <div class="tile-body">
                                 <h4 class="video-title">{{ content.title  }}</h4>

@@ -24,6 +24,7 @@ from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
 from .models import BlurAnnotationPosition
+from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
 from .models import MuteAnnotation
@@ -48,6 +49,7 @@ ANNOTATION_MODELS = {
     "pause": PauseAnnotation,
     "censor": BlurAnnotation,
     "comment": CommentAnnotation,
+    "clip": Clip,
 }
 
 ANNOTATION_ICONS = {
@@ -57,6 +59,7 @@ ANNOTATION_ICONS = {
     "pause": "/static/img/pause-icon.svg",
     "censor": "/static/img/blur-icon.svg",
     "comment": "/static/img/comment-icon.svg",
+    "clip": "/static/img/clip-icon.svg",
 }
 
 

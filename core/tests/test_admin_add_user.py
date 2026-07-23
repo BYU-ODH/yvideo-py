@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 from django.test import modify_settings
+from django.test import override_settings
 from django.urls import reverse
 
 from core.models import Course
@@ -19,6 +20,7 @@ ENROLLMENT_OK = {
 @modify_settings(
     MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
 )
+@override_settings(DEBUG=True)
 class AddUserAdminViewTests(TestCase):
     def setUp(self):
         self.admin_user = User.objects.create_superuser(
