@@ -1219,6 +1219,12 @@ export class Editor {
               break;
             }
           }
+
+          if (currentIndex === undefined) {
+            console.error(`Could not find clip annotation id (${annotationId}) matching the currently active clip.`);
+            return;
+          }
+
           const nextIndex = currentIndex + advanceValue;
           if (nextIndex >= clipLen) {
             // roll over to start of list
