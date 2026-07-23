@@ -38,7 +38,6 @@ DEMO_ADMIN_USERNAMES = {
     DEMO_ADMIN_USERNAME,
     "111223333",
     "111224444",
-    "111220000",
     "111225555",
     "111226666",
     "111227777",
@@ -111,15 +110,6 @@ def create_demo_data():
         last_name="Professor",
         email="profben@example.test",
         password="profben",
-    )
-    UserFactory(
-        instructor=True,
-        username="111220000",
-        netid="rjr45",
-        first_name="Rob",
-        last_name="Reynolds",
-        email="rjr45@example.test",
-        password="rjr45",
     )
     teaching_assistant = UserFactory(
         lab_assistant=True,

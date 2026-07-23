@@ -16,7 +16,6 @@ from core.models import CollectionUserAccess
 from core.models import CommentAnnotation
 from core.models import Content
 from core.models import MuteAnnotation
-from core.models import PrivilegeLevel
 from core.models import ResourceAccess
 from core.models import ResourceFile
 from core.models import ResourceFileKey
@@ -51,7 +50,6 @@ class DemoSeedDataTests(TestCase):
         admin_user = User.objects.get(username=DEMO_ADMIN_USERNAME)
         birds_content = Content.objects.get(title="Birds Overview")
         alice = User.objects.get(netid="studali")
-        rob = User.objects.get(netid="rjr45")
         admin_owned_collections = Collection.objects.filter(owner=admin_user)
 
         self.assertTrue(admin_user.is_superuser)
@@ -85,9 +83,6 @@ class DemoSeedDataTests(TestCase):
                 user=alice,
             ).exists()
         )
-        self.assertEqual(rob.first_name, "Rob")
-        self.assertEqual(rob.last_name, "Reynolds")
-        self.assertEqual(rob.privilege_level, PrivilegeLevel.INSTRUCTOR)
         self.assertTrue(alice.can_view_content(birds_content))
 
     def test_seed_creates_track_based_editor_data_for_fixture_covered_models(self):

@@ -1,3 +1,5 @@
+"""This file is only necessary for legacy migration. It can be removed one legacy migration is removed."""
+
 import os
 from pathlib import Path
 import subprocess

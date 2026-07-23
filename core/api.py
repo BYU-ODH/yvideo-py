@@ -229,10 +229,12 @@ class Api:
     def get_student_summary(self, byu_id=None, net_id=None):
         # Accepts either identifier; the endpoint returns both byu_id and net_id
         # in the response regardless of which one was used to query it.
-        if net_id is not None:
+        if byu_id is not None:
+            url = secret_settings.API_STUDENT_SUMMARY_URL + "?byu_id=" + byu_id
+        elif net_id is not None:
             url = secret_settings.API_STUDENT_SUMMARY_URL + "?net_id=" + net_id
         else:
-            url = secret_settings.API_STUDENT_SUMMARY_URL + "?byu_id=" + byu_id
+            return None
         headers = {"Authorization": self.build_auth_header()}
         summary_request = requests.get(url, headers=headers)
         summary_json_res = summary_request.json()

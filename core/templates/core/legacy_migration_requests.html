@@ -1,6 +1,11 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Legacy Migration Requests{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/legacy-migrations.css' %}">
+{% endblock %}
 
 {% block content %}
     <section class="legacy-migrations-page">

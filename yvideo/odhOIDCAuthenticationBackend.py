@@ -1,5 +1,4 @@
 import logging
-import random
 
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 
@@ -21,30 +20,6 @@ except ImportError:
     from . import secret_settings_template as secret_settings
 
 logger = logging.getLogger(__name__)
-
-
-def build_random_netid():
-    # this is only for dev purposes. this will be removed in the future
-    char_list = [
-        "a",
-        "b",
-        "c",
-        "d",
-        "e",
-        "f",
-        "g",
-        "h",
-        "i",
-        "j",
-        "k",
-        "l",
-        "m",
-        "n",
-        "o",
-        "p",
-    ]
-    new_id = random.choices(char_list, k=8)
-    return "".join(new_id)
 
 
 class OIDCUserAuth(OIDCAuthenticationBackend):
