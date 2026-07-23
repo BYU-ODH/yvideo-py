@@ -646,7 +646,11 @@
     margin-top: auto;
 }
 
-#annotation-form-save-button, #annotation-form-delete-button {
+#clip-next-last-buttons {
+    margin-bottom: 1rem;
+}
+
+#annotation-form-save-button, #annotation-form-delete-button, .clip-change-button {
     background-color: var(--dark-mode-dark-gray);
     color: var(--dark-mode-very-light-gray);
     padding: 0.4rem 1rem;
@@ -655,7 +659,7 @@
     border-radius: 5px;
 }
 
-#annotation-form-save-button:hover, #annotation-form-delete-button:hover {
+#annotation-form-save-button:hover, #annotation-form-delete-button:hover, .clip-change-button:hover {
     cursor: pointer;
     background-color: var(--dark-mode-very-dark-gray);
 }

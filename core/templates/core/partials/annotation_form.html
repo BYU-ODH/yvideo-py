@@ -3,6 +3,17 @@
 
     <h3>Edit {{ item_type_label }}</h3>
 
+    {% if item_type == "clip" %}
+        <div id="clip-next-last-buttons" class="row-flex flex-apart-aligned">
+            <button id="last-clip-button" class="clip-change-button">
+                View previous clip
+            </button>
+            <button id="next-clip-button" class="clip-change-button">
+                View next clip
+            </button>
+        </div>
+    {% endif %}
+
     <form id="annotation-update-form" {% if not can_edit %}disabled{% endif %} data-annotation-id="{{ instance.id }}"
     data-annotation-type="{{ item_type }}">
 
