@@ -75,7 +75,7 @@ SQLite snapshot instead of connecting directly to the legacy PostgreSQL database
 
 1. Copy `scripts/dump_legacy_to_sqlite_settings_template.py` to `scripts/dump_legacy_to_sqlite_settings.py`
 2. Fill in the legacy PostgreSQL credentials in `scripts/dump_legacy_to_sqlite_settings.py`
-3. Generate the initial snapshot:
+3. Test the script:
 
 ```bash
 uv run scripts/dump_legacy_to_sqlite.py
@@ -87,8 +87,10 @@ uv run scripts/dump_legacy_to_sqlite.py
 LEGACY_MIGRATION_ENABLED = True
 ```
 
-By default, the snapshot is written to `var/legacy_migration/legacy_dump.sqlite3`, and the
-running Django server refreshes it every day at 3:00 AM local time.
+By default, the snapshot is written to
+`var/legacy_migration/legacy_dump.sqlite3`. Every preflight run dumps a fresh
+snapshot itself before reading it. See
+[LEGACY_MIGRATION.md](LEGACY_MIGRATION.md) for details.
 
 ### Development Tools
 
