@@ -1207,8 +1207,6 @@ export class Editor {
         function handleClipChange(isAdvancing) {
           // use 1 to advance forward, -1 to advance backward
           const advanceValue = isAdvancing ? 1 : -1;
-          console.log(advanceValue, isAdvancing);
-          const itemForm = document.getElementById("existing-item-form");
 
           // we need to know where we are so we can determine which clip to click on.
           const clipList = document.getElementById("clip-annotation-items-list");
