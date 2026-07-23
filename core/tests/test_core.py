@@ -11,11 +11,11 @@ from django.test import TestCase
 from .. import api
 from ..factories import AnnotationSetFactory
 from ..factories import BlankAnnotationFactory
-from ..factories import CollectionFactory
 from ..factories import CommentAnnotationFactory
 from ..factories import ContentFactory
 from ..factories import CourseFactory
 from ..factories import MuteAnnotationFactory
+from ..factories import PlaylistFactory
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import TrackFactory
@@ -613,9 +613,9 @@ class AnnotationSetCreateForContentTests(TestCase):
         self.owner = UserFactory(instructor=True)
         self.resource = ResourceFactory()
         self.resource_file = ResourceFileFactory(resource=self.resource)
-        self.collection = CollectionFactory(owner=self.owner)
+        self.playlist = PlaylistFactory(owner=self.owner)
         self.content = ContentFactory(
-            collection=self.collection,
+            playlist=self.playlist,
             resource_file=self.resource_file,
         )
 

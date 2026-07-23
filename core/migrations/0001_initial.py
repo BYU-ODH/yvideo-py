@@ -129,7 +129,7 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
-            name='Collection',
+            name='Playlist',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=255)),
@@ -138,27 +138,27 @@ class Migration(migrations.Migration):
                 ('public', models.BooleanField(default=False)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('owner', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='collections_owned', to=settings.AUTH_USER_MODEL)),
+                ('owner', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='playlists_owned', to=settings.AUTH_USER_MODEL)),
             ],
         ),
         migrations.CreateModel(
-            name='CollectionUserAccess',
+            name='PlaylistUserAccess',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('collection_role', models.IntegerField(choices=[(0, 'Instructor'), (1, 'Ta'), (2, 'Student'), (3, 'Auditor')], default=2)),
+                ('playlist_role', models.IntegerField(choices=[(0, 'Instructor'), (1, 'Ta'), (2, 'Student'), (3, 'Auditor')], default=2)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('collection', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='core.collection')),
+                ('playlist', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='core.playlist')),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'unique_together': {('user', 'collection')},
+                'unique_together': {('user', 'playlist')},
             },
         ),
         migrations.AddField(
             model_name='user',
-            name='accessible_collections',
-            field=models.ManyToManyField(related_name='users', through='core.CollectionUserAccess', to='core.collection'),
+            name='accessible_playlists',
+            field=models.ManyToManyField(related_name='users', through='core.PlaylistUserAccess', to='core.playlist'),
         ),
         migrations.CreateModel(
             name='Content',
@@ -176,7 +176,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('annotation_set', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='contents', to='core.annotationset')),
-                ('collection', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='contents', to='core.collection')),
+                ('playlist', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='contents', to='core.playlist')),
             ],
         ),
         migrations.CreateModel(
@@ -196,9 +196,9 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.AddField(
-            model_name='collection',
+            model_name='playlist',
             name='courses',
-            field=models.ManyToManyField(blank=True, related_name='collections', to='core.course'),
+            field=models.ManyToManyField(blank=True, related_name='playlists', to='core.course'),
         ),
         migrations.CreateModel(
             name='Email',
@@ -248,6 +248,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('date_needed', models.DateTimeField(default=core.models.get_date_5_days_from_now)),
+                ('resource_collection', models.CharField(default='')),
                 ('audio_language', models.CharField(default='')),
                 ('subtitle_language', models.CharField(default='')),
                 ('checked_out_from_hbll', models.BooleanField(default=False)),
@@ -454,12 +455,12 @@ class Migration(migrations.Migration):
             field=models.ManyToManyField(blank=True, through='core.UserCourses', to='core.course'),
         ),
         migrations.AlterUniqueTogether(
-            name='collection',
+            name='playlist',
             unique_together={('name', 'owner')},
         ),
         migrations.AlterUniqueTogether(
             name='content',
-            unique_together={('collection', 'title')},
+            unique_together={('playlist', 'title')},
         ),
         migrations.CreateModel(
             name='Subtitle',

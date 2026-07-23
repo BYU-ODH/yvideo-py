@@ -8,8 +8,6 @@ from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
 from .models import Clip
-from .models import Collection
-from .models import CollectionUserAccess
 from .models import CommentAnnotation
 from .models import Content
 from .models import Course
@@ -18,6 +16,8 @@ from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
+from .models import Playlist
+from .models import PlaylistUserAccess
 from .models import Resource
 from .models import ResourceAccess
 from .models import ResourceFile
@@ -72,8 +72,8 @@ class ResourceAdmin(VersionAdmin):
         ResourceAccess.objects.create(user=user, resource=obj)
 
 
-@admin.register(Collection)
-class CollectionAdmin(VersionAdmin):
+@admin.register(Playlist)
+class PlaylistAdmin(VersionAdmin):
     list_display = ("name", "owner", "published", "archived", "public", "created_at")
     list_filter = ("published", "archived", "public", "created_at")
     search_fields = ("name", "owner__name", "owner__netid", "owner__username")
@@ -89,7 +89,7 @@ class ResourceFileAdmin(VersionAdmin):
 
 @admin.register(Content)
 class ContentAdmin(VersionAdmin):
-    list_display = ("title", "collection", "published", "views", "created_at")
+    list_display = ("title", "playlist", "published", "views", "created_at")
     list_filter = (
         "published",
         "allow_definitions",
@@ -98,39 +98,39 @@ class ContentAdmin(VersionAdmin):
         "created_at",
     )
     readonly_fields = ("views",)
-    search_fields = ("title", "description", "collection__name")
+    search_fields = ("title", "description", "playlist__name")
 
     def get_form(self, request, obj=None, **kwargs):
         """Dynamically filters the 'resource_file' field's queryset.
 
         If editing an existing Content object, it shows only the files
-        associated with resources owned by the content's collection owner.
-        If adding a new Content object, it shows no files until a collection
+        associated with resources owned by the content's playlist owner.
+        If adding a new Content object, it shows no files until a playlist
         is selected and saved, guiding the user with help text.
         """
         form = super().get_form(request, obj, **kwargs)
         # If we are editing an existing Content object.
         if obj:
-            # Check if the content has a collection and the collection has an owner.
-            if obj.collection and obj.collection.owner:
+            # Check if the content has a playlist and the playlist has an owner.
+            if obj.playlist and obj.playlist.owner:
                 # Filter the 'resource_file' field to show only files whose resource is accessible
-                # by the collection's owner.
+                # by the playlist's owner.
                 form.base_fields[
                     "resource_file"
                 ].queryset = ResourceFile.objects.filter(
-                    resource__users=obj.collection.owner
+                    resource__users=obj.playlist.owner
                 )
             else:
-                # If no collection or owner, show no files.
+                # If no playlist or owner, show no files.
                 form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
 
         else:
-            # On the 'add' page, we can't filter by collection owner yet.
-            # Showing no files until a collection is selected and saved.
+            # On the 'add' page, we can't filter by playlist owner yet.
+            # Showing no files until a playlist is selected and saved.
             form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
             form.base_fields[
                 "resource_file"
-            ].help_text = "Select collection, then save to see available resource files. You will be unable to see resource files that belong to Resources that you do not have Resource Access to."
+            ].help_text = "Select playlist, then save to see available resource files. You will be unable to see resource files that belong to Resources that you do not have Resource Access to."
 
         return form
 
@@ -231,11 +231,11 @@ class ResourceAccessAdmin(VersionAdmin):
     search_fields = ("user__netid", "user__username", "resource__name")
 
 
-@admin.register(CollectionUserAccess)
-class CollectionUserAccessAdmin(VersionAdmin):
-    list_display = ("user", "collection", "collection_role", "created_at")
-    list_filter = ("collection_role", "created_at")
-    search_fields = ("user__netid", "user__username", "collection__name")
+@admin.register(PlaylistUserAccess)
+class PlaylistUserAccessAdmin(VersionAdmin):
+    list_display = ("user", "playlist", "playlist_role", "created_at")
+    list_filter = ("playlist_role", "created_at")
+    search_fields = ("user__netid", "user__username", "playlist__name")
 
 
 @admin.register(ResourceFileKey)

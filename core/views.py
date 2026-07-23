@@ -25,18 +25,18 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
-from .forms import CollectionSettingsForm
 from .forms import ContentForm
 from .forms import ImportantWordForm
+from .forms import PlaylistSettingsForm
 from .forms import ResourceContentIntakeRequestForm
 from .models import BlankAnnotation
-from .models import Collection
-from .models import CollectionRole
-from .models import CollectionUserAccess
 from .models import Content
 from .models import Course
 from .models import ImportantWord
 from .models import MuteAnnotation
+from .models import Playlist
+from .models import PlaylistRole
+from .models import PlaylistUserAccess
 from .models import Resource
 from .models import ResourceFile
 from .models import ResourceFileKey
@@ -60,20 +60,20 @@ def admin_or_superuser_required(view_func):
     return _wrapped
 
 
-def prepare_collection_for_display(collection):
-    published_contents = Content.objects.filter(collection=collection).filter(
+def prepare_playlist_for_display(playlist):
+    published_contents = Content.objects.filter(playlist=playlist).filter(
         published=True
     )
     contents_count = published_contents.count()
-    parsed_collection = {
-        "pk": collection.pk,
-        "name": collection.name,
+    parsed_playlist = {
+        "pk": playlist.pk,
+        "name": playlist.name,
         "items_display": f"{contents_count} items"
         if contents_count > 1 or contents_count == 0
         else f"{contents_count} item",
         "published_contents": published_contents,
     }
-    return parsed_collection
+    return parsed_playlist
 
 
 def display_yearterm(yearterm):
@@ -90,7 +90,7 @@ def display_yearterm(yearterm):
 
 def index(request):
     if request.user.is_authenticated and request.user.privilege_level == 2:
-        return HttpResponseRedirect(reverse("collections"))
+        return HttpResponseRedirect(reverse("playlists"))
     return render(request, "core/index.html", {})
 
 
@@ -245,21 +245,20 @@ def stream_file(request, resource_file_key_id):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
-def collections(request):
-    # if admin, gather owned collections
-    owned_collections = []
+def playlists(request):
+    # if admin, gather owned playlists
+    owned_playlists = []
     allowed_privilege_levels = [2, 0]
     if (
         request.user.privilege_level in allowed_privilege_levels
         or request.user.privilege_level_override in allowed_privilege_levels
     ):
-        owned_collections_raw = Collection.objects.filter(owner=request.user)
-        owned_collections = [
-            prepare_collection_for_display(collection)
-            for collection in owned_collections_raw
+        owned_playlists_raw = Playlist.objects.filter(owner=request.user)
+        owned_playlists = [
+            prepare_playlist_for_display(playlist) for playlist in owned_playlists_raw
         ]
 
-    # organize assigned collections by yearterm and then by course.
+    # organize assigned playlists by yearterm and then by course.
     yearterms = []
     with connection.cursor() as cursor:
         cursor.execute(
@@ -267,64 +266,63 @@ def collections(request):
         )
         yearterms = [result[0] for result in cursor.fetchall()]
 
-    collections_by_course_by_yearterm = []
+    playlists_by_course_by_yearterm = []
     for yearterm in yearterms:
         user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
-        collections_by_course = []
+        playlists_by_course = []
         for user_course in user_courses:
-            collections = Collection.objects.filter(courses=user_course.course)
-            collections_by_course.append(
+            playlists = Playlist.objects.filter(courses=user_course.course)
+            playlists_by_course.append(
                 {
                     "course_name": user_course.course.__str__(),
-                    "collections": [
-                        prepare_collection_for_display(collection)
-                        for collection in collections
+                    "playlists": [
+                        prepare_playlist_for_display(playlist) for playlist in playlists
                     ],
                 }
             )
-        collections_by_course_by_yearterm.append(
+        playlists_by_course_by_yearterm.append(
             {
                 "yearterm_display": display_yearterm(yearterm),
-                "collections_by_course": collections_by_course,
+                "playlists_by_course": playlists_by_course,
             }
         )
 
-    manual_access_collections = Collection.objects.filter(
-        collectionuseraccess__user=request.user
+    manual_access_playlists = Playlist.objects.filter(
+        playlistuseraccess__user=request.user
     )
-    manual_collections = []
-    for collection in manual_access_collections:
-        prepared_collection = prepare_collection_for_display(collection)
-        manual_collections.append(prepared_collection)
+    manual_playlists = []
+    for playlist in manual_access_playlists:
+        prepared_playlist = prepare_playlist_for_display(playlist)
+        manual_playlists.append(prepared_playlist)
 
     context = {
         "user": request.user,
-        "owned_collections": owned_collections,
-        "assigned_courses_by_yearterm": collections_by_course_by_yearterm,
-        "public_collections": [],
-        "manual_collections": manual_collections,
+        "owned_playlists": owned_playlists,
+        "assigned_courses_by_yearterm": playlists_by_course_by_yearterm,
+        "public_playlists": [],
+        "manual_playlists": manual_playlists,
     }
-    return render(request, "core/collections.html", context)
+    return render(request, "core/playlists.html", context)
 
 
-def get_collection_types(user):
-    collections = Collection.objects.filter(owner=user)
+def get_playlist_types(user):
+    playlists = Playlist.objects.filter(owner=user)
 
-    archived = collections.filter(archived=True)
-    published = collections.filter(archived=False, published=True)
-    unpublished = collections.filter(archived=False, published=False)
+    archived = playlists.filter(archived=True)
+    published = playlists.filter(archived=False, published=True)
+    unpublished = playlists.filter(archived=False, published=False)
     return {"archived": archived, "published": published, "unpublished": unpublished}
 
 
-def create_collection(request):
+def create_playlist(request):
     data = json.loads(request.body)
     if data and "name" in data:
         try:
-            Collection.objects.create(name=data["name"], owner=request.user)
+            Playlist.objects.create(name=data["name"], owner=request.user)
             return HttpResponse()
         except Exception as e:
             logger.error(
-                f"An error occured when the user: {request.user} attempted to create a collection. Exception: {e}"
+                f"An error occured when the user: {request.user} attempted to create a playlist. Exception: {e}"
             )
 
             return HttpResponseServerError()
@@ -334,7 +332,7 @@ def create_collection(request):
 
 
 def get_semester_and_year_options():
-    # we need a list of years for the year selector when assigning collection to course
+    # we need a list of years for the year selector when assigning playlist to course
     today = datetime.now()
     start_year = today.year - 5
     year_options = [
@@ -361,8 +359,8 @@ def get_semester_and_year_options():
     }
 
 
-def get_assigned_courses(collection, yearterm):
-    courses = collection.courses.filter(yearterm=yearterm)
+def get_assigned_courses(playlist, yearterm):
+    courses = playlist.courses.filter(yearterm=yearterm)
     # aggregate the section numbers under the course title (course.dept course.catalog_number)
     assigned_courses_map = {}
     for course in courses:
@@ -395,60 +393,58 @@ def get_assigned_courses(collection, yearterm):
     return assigned_courses
 
 
-def collection_info(request, collection_id):
+def playlist_info(request, playlist_id):
     try:
-        collection = Collection.objects.get(pk=collection_id)
-        contents = Content.objects.filter(collection=collection)
+        playlist = Playlist.objects.get(pk=playlist_id)
+        contents = Content.objects.filter(playlist=playlist)
         year_and_semester = get_semester_and_year_options()
-        assigned_courses = get_assigned_courses(
-            collection, year_and_semester["yearterm"]
-        )
+        assigned_courses = get_assigned_courses(playlist, year_and_semester["yearterm"])
 
         return render(
             request,
-            "core/collection_info.html",
+            "core/playlist_info.html",
             {
-                "collection": collection,
+                "playlist": playlist,
                 "contents": contents,
-                "form": CollectionSettingsForm(instance=collection),
+                "form": PlaylistSettingsForm(instance=playlist),
                 "year_options": year_and_semester["year_options"],
                 "semester": year_and_semester["semester"],
                 "assigned_courses": assigned_courses,
             },
         )
-    except Collection.DoesNotExist:
+    except Playlist.DoesNotExist:
         logger.error(
-            f"Failed to retrieve collection info because collection does not exist. Collection ID: {collection_id}"
+            f"Failed to retrieve playlist info because playlist does not exist. Playlist ID: {playlist_id}"
         )
         return HttpResponseBadRequest()
     except Exception as e:
-        logger.error(f"Failed to retrieve collection info. Exception: {e}")
+        logger.error(f"Failed to retrieve playlist info. Exception: {e}")
         return HttpResponseServerError()
 
 
-def display_collection_settings(request, collection_id):
+def display_playlist_settings(request, playlist_id):
     try:
-        collection = Collection.objects.get(pk=collection_id)
-        form = CollectionSettingsForm(instance=collection)
+        playlist = Playlist.objects.get(pk=playlist_id)
+        form = PlaylistSettingsForm(instance=playlist)
         year_and_semester = get_semester_and_year_options()
 
         context = {
-            "collection": collection,
+            "playlist": playlist,
             "form": form,
             "semester": year_and_semester["semester"],
             "year_options": year_and_semester["year_options"],
         }
-        return render(request, "core/partials/collection_settings.html", context)
+        return render(request, "core/partials/playlist_settings.html", context)
     except Exception as e:
-        logger.error(f"Failed to render collection settings. Exception: {e}")
+        logger.error(f"Failed to render playlist settings. Exception: {e}")
         return HttpResponseServerError()
 
 
 def render_course_assignment(request):
     try:
         parsed_data = json.loads(request.body)
-        collection_id = parsed_data["collection_id"]
-        collection = Collection.objects.get(pk=collection_id)
+        playlist_id = parsed_data["playlist_id"]
+        playlist = Playlist.objects.get(pk=playlist_id)
         semester = parsed_data["semester"]
         year = parsed_data["year"]
 
@@ -457,7 +453,7 @@ def render_course_assignment(request):
             return HttpResponseBadRequest()
 
         yearterm = f"{year}{semester}"
-        assigned_courses = get_assigned_courses(collection, yearterm)
+        assigned_courses = get_assigned_courses(playlist, yearterm)
 
         return render(
             request,
@@ -465,9 +461,9 @@ def render_course_assignment(request):
             {"assigned_courses": assigned_courses},
         )
 
-    except Collection.DoesNotExist:
+    except Playlist.DoesNotExist:
         logger.error(
-            "Failed to render course assignment information because the collection does not exist"
+            "Failed to render course assignment information because the playlist does not exist"
         )
         return HttpResponseBadRequest()
     except Exception as e:
@@ -475,9 +471,9 @@ def render_course_assignment(request):
         return HttpResponseServerError()
 
 
-def assign_collection_to_course(request):
-    # first check if the course already exists. if so, add the collection to that course.
-    # otherwise, create the course and then add the collection
+def assign_playlist_to_course(request):
+    # first check if the course already exists. if so, add the playlist to that course.
+    # otherwise, create the course and then add the playlist
     try:
         parsed_data = json.loads(request.body)
         if (
@@ -486,14 +482,14 @@ def assign_collection_to_course(request):
             or "sections" not in parsed_data
             or "year" not in parsed_data
             or "semester" not in parsed_data
-            or "collection_id" not in parsed_data
+            or "playlist_id" not in parsed_data
         ):
             logger.error(
-                "Failed to assign course to collection because of insufficient data provided"
+                "Failed to assign course to playlist because of insufficient data provided"
             )
             return HttpResponseBadRequest()
-        collection_id = parsed_data["collection_id"]
-        collection = Collection.objects.get(pk=collection_id)
+        playlist_id = parsed_data["playlist_id"]
+        playlist = Playlist.objects.get(pk=playlist_id)
 
         dept = parsed_data["dept"]
         catalog_number = parsed_data["catalog_number"]
@@ -516,28 +512,28 @@ def assign_collection_to_course(request):
             else:
                 if existing_course_filter.count() > 1:
                     logger.error(
-                        f"More than one course was returned when assigning a collection ({collection}) to a course. Assigning to the first result"
+                        f"More than one course was returned when assigning a playlist ({playlist}) to a course. Assigning to the first result"
                     )
                 existing_course = existing_course_filter.first()
-            collection.courses.add(existing_course)
-            collection.save()
+            playlist.courses.add(existing_course)
+            playlist.save()
         return render_course_assignment(request)
 
-    except Collection.DoesNotExist:
+    except Playlist.DoesNotExist:
         logger.error(
-            "Failed to assign course to collection because the collection does not exist"
+            "Failed to assign course to playlist because the playlist does not exist"
         )
         return HttpResponseBadRequest()
     except Exception as e:
-        logger.error(f"Failed to assign course to collection. Exception: {e}")
+        logger.error(f"Failed to assign course to playlist. Exception: {e}")
         return HttpResponseServerError()
 
 
-def update_collection_course_sections(request):
+def update_playlist_course_sections(request):
     try:
         parsed_data = json.loads(request.body)
         if (
-            "collection_id" not in parsed_data
+            "playlist_id" not in parsed_data
             or "sections" not in parsed_data
             or "dept" not in parsed_data
             or "catalog_number" not in parsed_data
@@ -548,7 +544,7 @@ def update_collection_course_sections(request):
                 "Failed to update course sections because of insufficient data provided"
             )
             return HttpResponseBadRequest()
-        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
         new_sections_list = parsed_data["sections"]
         dept = parsed_data["dept"]
         catalog_number = parsed_data["catalog_number"]
@@ -571,24 +567,24 @@ def update_collection_course_sections(request):
                     section_number=new_section_number,
                 )
 
-        # Associate the provided sections with the collection.
+        # Associate the provided sections with the playlist.
         # We could go through and figure out exactly which should be removed and which should be added,
         # but it is probably more robust to simply remove all associations for this dept, catalog_number, and yearterm
         # and then add all the sections provided by the user.
-        collection.courses.remove(*courses)
+        playlist.courses.remove(*courses)
         new_courses = Course.objects.filter(
             dept=dept,
             catalog_number=catalog_number,
             yearterm=yearterm,
             section_number__in=new_sections_list,
         )
-        collection.courses.add(*new_courses)
+        playlist.courses.add(*new_courses)
 
         return HttpResponse()
 
-    except Collection.DoesNotExist:
+    except Playlist.DoesNotExist:
         logger.error(
-            "Failed to update course sections because the collection does not exist"
+            "Failed to update course sections because the playlist does not exist"
         )
         return HttpResponseBadRequest()
     except Exception as e:
@@ -596,7 +592,7 @@ def update_collection_course_sections(request):
         return HttpResponseServerError()
 
 
-def unassign_collection_from_course(request):
+def unassign_playlist_from_course(request):
     try:
         parsed_data = json.loads(request.body)
         if (
@@ -604,84 +600,84 @@ def unassign_collection_from_course(request):
             or "catalog_number" not in parsed_data
             or "semester" not in parsed_data
             or "year" not in parsed_data
-            or "collection_id" not in parsed_data
+            or "playlist_id" not in parsed_data
         ):
             logger.error(
-                "Failed to remove collection from course because of insufficient data"
+                "Failed to remove playlist from course because of insufficient data"
             )
             return HttpResponseBadRequest()
 
-        collection = Collection.objects.get(pk=parsed_data["collection_id"])
-        courses = collection.courses.all().filter(
+        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
+        courses = playlist.courses.all().filter(
             dept=parsed_data["dept"],
             catalog_number=parsed_data["catalog_number"],
             yearterm=f"{parsed_data['year']}{parsed_data['semester']}",
         )
-        collection.courses.remove(*courses)
+        playlist.courses.remove(*courses)
         return HttpResponse()
 
-    except Collection.DoesNotExist:
+    except Playlist.DoesNotExist:
         logger.error(
-            "Failed to remove collection assigned to course because the collection does not exist"
+            "Failed to remove playlist assigned to course because the playlist does not exist"
         )
         return HttpResponseBadRequest()
     except Exception as e:
-        logger.error(f"Failed to remove collection assigned to course. Exception: {e}")
+        logger.error(f"Failed to remove playlist assigned to course. Exception: {e}")
         return HttpResponseServerError()
 
 
 @require_POST
-def update_collection_settings(request):
-    form = CollectionSettingsForm(request.POST)
+def update_playlist_settings(request):
+    form = PlaylistSettingsForm(request.POST)
     if form.is_valid():
         try:
-            collection = Collection.objects.get(pk=form.cleaned_data["id"])
-            collection.name = form.cleaned_data["name"]
-            collection.published = form.cleaned_data["published"]
-            collection.archived = form.cleaned_data["archived"]
-            collection.save()
-            return collection_info(request, collection.id)
+            playlist = Playlist.objects.get(pk=form.cleaned_data["id"])
+            playlist.name = form.cleaned_data["name"]
+            playlist.published = form.cleaned_data["published"]
+            playlist.archived = form.cleaned_data["archived"]
+            playlist.save()
+            return playlist_info(request, playlist.id)
         except Exception as e:
             logger.error(
-                f"An error occured while attempting to update collection settings. {e}"
+                f"An error occured while attempting to update playlist settings. {e}"
             )
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
 
 
-def get_collection_contents(collection):
-    contents = Content.objects.filter(collection=collection)
+def get_playlist_contents(playlist):
+    contents = Content.objects.filter(playlist=playlist)
     published = contents.filter(published=True)
     unpublished = contents.filter(published=False)
     return {"published": published, "unpublished": unpublished}
 
 
 @require_http_methods(["DELETE"])
-def delete_collection(request, collection_id):
+def delete_playlist(request, playlist_id):
     try:
-        collection = Collection.objects.get(pk=collection_id)
-        if request.user.is_admin or request.user == collection.owner:
-            collection.delete()
+        playlist = Playlist.objects.get(pk=playlist_id)
+        if request.user.is_admin or request.user == playlist.owner:
+            playlist.delete()
         return HttpResponse()
     except Exception as e:
         logger.error(
-            f"An error occured while deleting the collection with id: {collection_id}. Exception: {e}"
+            f"An error occured while deleting the playlist with id: {playlist_id}. Exception: {e}"
         )
         return HttpResponseServerError()
 
 
 @require_GET
-def display_create_content(request, collection_id):
+def display_create_content(request, playlist_id):
     form = ContentForm()
-    collection = get_object_or_404(Collection, pk=collection_id)
+    playlist = get_object_or_404(Playlist, pk=playlist_id)
     resources = Resource.objects.all()
     return render(
         request,
         "core/partials/create_content.html",
         {
             "form": form,
-            "collection": collection,
+            "playlist": playlist,
             "resources": resources,
         },
     )
@@ -692,7 +688,7 @@ def create_content(request):
     try:
         parsed_data = json.loads(request.body)
         if (
-            "collection_id" not in parsed_data
+            "playlist_id" not in parsed_data
             or "title" not in parsed_data
             or "resource_file_id" not in parsed_data
         ):
@@ -701,10 +697,10 @@ def create_content(request):
             )
             return HttpResponseBadRequest()
 
-        collection = Collection.objects.get(pk=parsed_data["collection_id"])
+        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
         resource_file = ResourceFile.objects.get(pk=parsed_data["resource_file_id"])
         Content.objects.create(
-            collection=collection,
+            playlist=playlist,
             title=parsed_data["title"],
             resource_file=resource_file,
         )
@@ -717,14 +713,14 @@ def create_content(request):
         return HttpResponseServerError()
 
 
-def display_create_from_resource(request, collection_id):
-    if collection_id is None:
+def display_create_from_resource(request, playlist_id):
+    if playlist_id is None:
         return HttpResponseBadRequest()
     try:
-        Collection.objects.get(pk=collection_id)
+        Playlist.objects.get(pk=playlist_id)
     except Exception as e:
         logger.error(
-            f"Failed to display resources to create a content for the given collection. Exception: {e}"
+            f"Failed to display resources to create a content for the given playlist. Exception: {e}"
         )
         return HttpResponseBadRequest()
 
@@ -733,7 +729,7 @@ def display_create_from_resource(request, collection_id):
         return render(
             request,
             "core/create_from_resource.html",
-            {"resources": resources, "collection_id": collection_id},
+            {"resources": resources, "playlist_id": playlist_id},
         )
     except Exception as e:
         logger.error(
@@ -745,14 +741,14 @@ def display_create_from_resource(request, collection_id):
 def render_create_from_resource_form(request):
     try:
         parsed_data = json.loads(request.body)
-        if "resource_id" not in parsed_data or "collection_id" not in parsed_data:
+        if "resource_id" not in parsed_data or "playlist_id" not in parsed_data:
             return HttpResponseBadRequest()
 
         resource_id = parsed_data["resource_id"]
         resource = Resource.objects.get(pk=resource_id)
 
         context = {
-            "collection_id": parsed_data["collection_id"],
+            "playlist_id": parsed_data["playlist_id"],
             "options": resource.resource_files.all(),
         }
         return render(request, "core/partials/create_from_resource_form.html", context)
@@ -770,11 +766,11 @@ def render_create_from_resource_form(request):
 def delete_content(request, content_id):
     content = get_object_or_404(Content, pk=content_id)
     try:
-        contents_count = Content.objects.filter(collection=content.collection).count()
+        contents_count = Content.objects.filter(playlist=content.playlist).count()
         content.delete()
         if contents_count <= 1:
             return HttpResponse(
-                "There is no published content for this collection", status=200
+                "There is no published content for this playlist", status=200
             )
         else:
             return HttpResponse("", status=200)
@@ -821,24 +817,24 @@ def render_content_settings_form(request, content_id):
         return HttpResponseServerError()
 
 
-def remove_content_from_collection(request, content_id):
+def remove_content_from_playlist(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
-        if request.user.is_admin or request.user == content.collection.owner:
-            collection_id = content.collection.pk
-            content.collection = None
+        if request.user.is_admin or request.user == content.playlist.owner:
+            playlist_id = content.playlist.pk
+            content.playlist = None
             content.save()
-            return HttpResponse(collection_id)
+            return HttpResponse(playlist_id)
         else:
             return HttpResponse(status=401)
 
     except Content.DoesNotExist:
         logger.error(
-            "Failed to remove content from collection because the content doesn't exist"
+            "Failed to remove content from playlist because the content doesn't exist"
         )
         return HttpResponseBadRequest()
     except Exception as e:
-        logger.error(f"Failed to remove content from collection. Exception: {e}")
+        logger.error(f"Failed to remove content from playlist. Exception: {e}")
         return HttpResponseServerError()
 
 
@@ -1072,12 +1068,12 @@ def request_content(request):
     )
 
 
-def add_collection_member(request, collection_id):
+def add_playlist_member(request, playlist_id):
     allowed_privilege_levels = [0, 2]
     if request.user.privilege_level not in allowed_privilege_levels:
         return HttpResponse("Forbidden", status=403)
 
-    collection = get_object_or_404(Collection, pk=collection_id)
+    playlist = get_object_or_404(Playlist, pk=playlist_id)
 
     if request.method == "POST":
         # Get form data
@@ -1087,16 +1083,16 @@ def add_collection_member(request, collection_id):
         user = get_object_or_404(User, netid=netid)
 
         if role == "TA":
-            collection_role = CollectionRole.TA
+            playlist_role = PlaylistRole.TA
         else:
-            collection_role = CollectionRole.AUDITOR
+            playlist_role = PlaylistRole.AUDITOR
 
-        CollectionUserAccess.objects.create(
+        PlaylistUserAccess.objects.create(
             user=user,
-            collection=collection,
-            collection_role=collection_role,
+            playlist=playlist,
+            playlist_role=playlist_role,
         )
 
-        return redirect("view_collection", pk=collection.id)
+        return redirect("view_playlist", pk=playlist.id)
 
     return HttpResponseBadRequest()

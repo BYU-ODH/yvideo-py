@@ -699,7 +699,7 @@ a.blue-button {
     box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 5px -1px;
 }
 
-.collections-page {
+.playlists-page {
     display: flex;
     flex: 1;
     padding: 1rem;
@@ -715,34 +715,34 @@ a.blue-button {
     font-size: 2em;
 }
 
-/* COLLECTION PAGE */
-.collection-header {
+/* PLAYLIST PAGE */
+.playlist-header {
     grid-template-columns: 1fr 75px 25px;
     align-items: center;
     cursor: pointer;
 }
 
-#add-new-collection-button {
+#add-new-playlist-button {
     align-self: flex-end;
 }
 
-.collections-list-content {
+.playlists-list-content {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
 }
 
-.landing-page-collection-list {
+.landing-page-playlist-list {
     max-width: 1200px;
     margin: 40px auto 0;
     padding: 0 clamp(16px, 5vw, 80px);
 }
-.landing-page-collection {
+.landing-page-playlist {
     border-radius: 12px;
     box-shadow: rgb(185, 184, 184) 0px 1px 3px;
 }
 
-.landing-page-collection-contents {
+.landing-page-playlist-contents {
     margin-top: 1rem;
     border-top: 1px solid lightgrey;
     padding-top: 0.5rem;
@@ -754,7 +754,7 @@ a.blue-button {
     padding: 0 1rem;
 }
 
-.collection-header-name {
+.playlist-header-name {
     padding-left: 1.25rem;
     padding-right: 1.25rem;
     margin: 1rem 0 0.5rem 0;
@@ -797,39 +797,39 @@ p.tile-subtitle {
     padding: 0 0.5rem;
 }
 
-.course-collections-list {
+.course-playlists-list {
     border-left: 1px solid lightgrey;
 }
 
 /* Left side (sidebar) */
-.collection-username {
+.playlist-username {
     margin: 0;
     font-size: 1.2rem;
     font-weight: normal;
 }
 
 /* Right side (main content) */
-#collections-container {
+#playlists-container {
     display: flex;
     flex-direction: column;
 }
 
-#sorted-collections {
+#sorted-playlists {
     flex: 1;
 }
 
-#collections-detail {
+#playlists-detail {
     flex: 1;
     display: flex;
     flex-direction: column;
     padding: 0rem 2rem;
 }
 
-.collection-section {
+.playlist-section {
     padding: 0.5rem;
 }
 
-.collection-status {
+.playlist-status {
     display: flex;
     align-items: center;
     gap: 0.7rem;
@@ -852,7 +852,7 @@ p.tile-subtitle {
     text-align: center;
 }
 
-.collection-line {
+.playlist-line {
     height: 5rem;
     padding: 0px 3rem;
     display: flex;
@@ -860,27 +860,27 @@ p.tile-subtitle {
     align-items: center;
 }
 
-.collection-line:hover {
+.playlist-line:hover {
     cursor: pointer;
     text-decoration: underline;
     background: var(--selectable-grey);
 }
 
-.collection-line.active {
+.playlist-line.active {
     background: var(--selectable-grey);
 }
 
-.collection-line.active .arrow-icon {
+.playlist-line.active .arrow-icon {
     transform: rotate(180deg);
 }
 
-#collection-settings, #content-settings {
+#playlist-settings, #content-settings {
     padding: 1rem;
     border-radius: 1rem;
     border: 1px solid #00000025;
 }
 
-#collection-settings {
+#playlist-settings {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -895,15 +895,15 @@ p.tile-subtitle {
     flex-direction: column;
 }
 
-#collection-settings h3, #content-settings h3 {
+#playlist-settings h3, #content-settings h3 {
     margin: 0;
 }
 
-#collection-settings form, #content-settings form {
+#playlist-settings form, #content-settings form {
     align-items: flex-start;
 }
 
-/* collection course assignment form */
+/* playlist course assignment form */
 #assign-course-wrapper h4 {
     margin: 0;
     margin-top: 1rem;
@@ -1012,7 +1012,7 @@ p.tile-subtitle {
     background: var(--selectable-grey);
 }
 
-.collection-navigation {
+.playlist-navigation {
     position: absolute;
     padding-left: 2rem;
     height: 2.5rem;
@@ -1037,7 +1037,7 @@ p.tile-subtitle {
     cursor: pointer;
 }
 
-#collection-content {
+#playlist-content {
     display: flex;
     flex-direction: column;
     row-gap: 2rem;
@@ -1045,7 +1045,7 @@ p.tile-subtitle {
     padding: 0rem 2rem;
 }
 
-#no-collections-body {
+#no-playlists-body {
     height: 100%;
     width: 100%;
     font-size: 1.8rem;
@@ -1082,7 +1082,7 @@ p.tile-subtitle {
     margin: 0;
 }
 
-/* Create New Collection Modal */
+/* Create New Playlist Modal */
 #create-dialog {
     border: none;
     padding-top: 0.5rem;
@@ -1105,7 +1105,7 @@ p.tile-subtitle {
     cursor: pointer;
 }
 
-.collection-list {
+.playlist-list {
     display: flex;
     flex-direction: column;
     transition: height 0.25s ease-in-out;
@@ -1114,7 +1114,7 @@ p.tile-subtitle {
     padding: 1rem;
 }
 
-.collection-item {
+.playlist-item {
     padding: 0.5rem;
 }
 
@@ -1466,23 +1466,23 @@ p.tile-subtitle {
 
 
 /* Video Page */
-.collection-video-page {
+.playlist-video-page {
     max-width: 1200px;
     margin: 40px auto 0;
     padding: 0 clamp(16px, 5vw, 80px);
 }
 
-#collection-videos-header {
+#playlist-videos-header {
     align-items: flex-end;
 }
 
-#collection-video-list, #resource-detail-list {
+#playlist-video-list, #resource-detail-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
 }
 
-.collection-video-tile, .resource-details {
+.playlist-video-tile, .resource-details {
     border-radius: 12px;
     box-shadow: rgb(185, 184, 184) 0px 1px 3px;
 }

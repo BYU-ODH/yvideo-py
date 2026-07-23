@@ -1176,8 +1176,7 @@ def display_use_existing_annotation_set_option(request, content_id):
                 {
                     "available_annotation_sets": available_sets,
                     "can_edit": (
-                        content.collection.owner == request.user
-                        or request.user.is_admin
+                        content.playlist.owner == request.user or request.user.is_admin
                     ),
                 },
                 request,
