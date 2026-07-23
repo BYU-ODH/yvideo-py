@@ -9,7 +9,7 @@ from django.http import HttpResponseRedirect
 from django.urls import NoReverseMatch
 from django.urls import reverse
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
+from django.utils.html import format_html_join
 from reversion.admin import VersionAdmin
 
 from .legacy_migration import LegacyMigrationFileAction
@@ -90,10 +90,12 @@ class LegacyMigrationResourceInline(admin.TabularInline):
     def fuzzy_matches_preview(self, obj):
         if not obj.fuzzy_matches:
             return "-"
-        lines = []
-        for match in obj.fuzzy_matches:
-            lines.append(f"<li>{match['resource_name']} ({match['score']})</li>")
-        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+        items = format_html_join(
+            "",
+            "<li>{} ({})</li>",
+            ((match["resource_name"], match["score"]) for match in obj.fuzzy_matches),
+        )
+        return format_html("<ul>{}</ul>", items)
 
     fuzzy_matches_preview.short_description = "Similar Resources"
 
@@ -231,17 +233,21 @@ class LegacyMigrationFileDecisionInline(admin.TabularInline):
     def candidate_matches_preview(self, obj):
         if not obj.candidate_matches:
             return "-"
-        lines = []
-        for match in obj.candidate_matches:
-            lines.append(
-                "<li>"
-                f"{match['resource_name']} / {match['version']} "
-                f"[{match['match_reason']}] "
-                f"size={match['size_bytes']:,} "
-                f"path={match['path']} "
-                "</li>"
-            )
-        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+        items = format_html_join(
+            "",
+            "<li>{} / {} [{}] size={} path={}</li>",
+            (
+                (
+                    match["resource_name"],
+                    match["version"],
+                    match["match_reason"],
+                    f"{match['size_bytes']:,}",
+                    match["path"],
+                )
+                for match in obj.candidate_matches
+            ),
+        )
+        return format_html("<ul>{}</ul>", items)
 
     candidate_matches_preview.short_description = "Candidate Matches"
 
@@ -472,6 +478,11 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
             _pretty_json(obj.raw_snapshot),
         )
 
+    def has_approve_import_permission(self, request):
+        """Approving/retrying triggers a real import into production data,
+        so it's restricted beyond the standard model 'change' permission."""
+        return request.user.is_superuser
+
     def save_model(self, request, obj, form, change):
         if not obj.requested_by:
             obj.requested_by = request.user
@@ -515,21 +526,23 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
         if not access_rows:
             return "No collection access rows in the snapshot."
 
-        lines = []
-        for access_row in access_rows:
-            identity = (
-                access_row.get("username")
-                or access_row.get("email")
-                or access_row.get("byu_person_id")
-                or access_row.get("legacy_user_id")
-                or "Unknown user"
-            )
-            try:
-                role_label = CollectionRole(int(access_row["account_role"])).label
-            except (KeyError, TypeError, ValueError):
-                role_label = access_row.get("account_role", "Unknown")
-            lines.append(f"<li>{identity} ({role_label})</li>")
-        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+        def _access_rows():
+            for access_row in access_rows:
+                identity = (
+                    access_row.get("username")
+                    or access_row.get("email")
+                    or access_row.get("byu_person_id")
+                    or access_row.get("legacy_user_id")
+                    or "Unknown user"
+                )
+                try:
+                    role_label = CollectionRole(int(access_row["account_role"])).label
+                except (KeyError, TypeError, ValueError):
+                    role_label = access_row.get("account_role", "Unknown")
+                yield identity, role_label
+
+        items = format_html_join("", "<li>{} ({})</li>", _access_rows())
+        return format_html("<ul>{}</ul>", items)
 
     @admin.display(description="Course Associations")
     def snapshot_courses_preview(self, obj):
@@ -537,13 +550,15 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
         if not course_rows:
             return "No course associations in the snapshot."
 
-        lines = []
-        for course_row in course_rows:
-            department = (course_row.get("department") or "").upper()
-            catalog_number = str(course_row.get("catalog_number") or "").zfill(3)
-            section_number = str(course_row.get("section_number") or "").zfill(3)
-            lines.append(f"<li>{department} {catalog_number}-{section_number}</li>")
-        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+        def _course_lines():
+            for course_row in course_rows:
+                department = (course_row.get("department") or "").upper()
+                catalog_number = str(course_row.get("catalog_number") or "").zfill(3)
+                section_number = str(course_row.get("section_number") or "").zfill(3)
+                yield (f"{department} {catalog_number}-{section_number}",)
+
+        items = format_html_join("", "<li>{}</li>", _course_lines())
+        return format_html("<ul>{}</ul>", items)
 
     @admin.display(description="Contents")
     def snapshot_contents_preview(self, obj):
@@ -551,41 +566,51 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
         if not content_rows:
             return "No contents in the snapshot."
 
-        lines = []
-        for content_row in content_rows[:10]:
-            title = content_row.get("title") or "Untitled content"
-            resource_id = content_row.get("resource_id") or "No resource"
-            lines.append(f"<li>{title} ({resource_id})</li>")
+        visible_rows = content_rows[:10]
+        items = format_html_join(
+            "",
+            "<li>{} ({})</li>",
+            (
+                (
+                    content_row.get("title") or "Untitled content",
+                    content_row.get("resource_id") or "No resource",
+                )
+                for content_row in visible_rows
+            ),
+        )
+        extra = ""
         if len(content_rows) > 10:
-            lines.append(f"<li>... and {len(content_rows) - 10} more</li>")
-        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+            extra = format_html("<li>... and {} more</li>", len(content_rows) - 10)
+        return format_html("<ul>{}{}</ul>", items, extra)
 
     @admin.display(description="Imported Targets")
     def created_targets(self, obj):
         if not obj.source_maps.exists():
             return "No imported objects yet."
-        lines = []
-        for source_map in obj.source_maps.all().order_by("source_type", "source_id"):
-            try:
-                admin_url = reverse(
-                    f"admin:core_{source_map.target_model.lower()}_change",
-                    args=[source_map.target_id],
-                )
-                target_display = format_html(
-                    '<a href="{}">{}:{}</a>',
-                    admin_url,
-                    source_map.target_model,
-                    source_map.target_id,
-                )
-            except NoReverseMatch:
-                target_display = f"{source_map.target_model}:{source_map.target_id}"
-            lines.append(
-                "<li>"
-                f"{source_map.source_type}:{source_map.source_id} -> "
-                f"{target_display}"
-                "</li>"
-            )
-        return mark_safe(f"<ul>{''.join(lines)}</ul>")
+
+        def _rows():
+            for source_map in obj.source_maps.all().order_by(
+                "source_type", "source_id"
+            ):
+                try:
+                    admin_url = reverse(
+                        f"admin:core_{source_map.target_model.lower()}_change",
+                        args=[source_map.target_id],
+                    )
+                    target_display = format_html(
+                        '<a href="{}">{}:{}</a>',
+                        admin_url,
+                        source_map.target_model,
+                        source_map.target_id,
+                    )
+                except NoReverseMatch:
+                    target_display = format_html(
+                        "{}:{}", source_map.target_model, source_map.target_id
+                    )
+                yield source_map.source_type, source_map.source_id, target_display
+
+        items = format_html_join("", "<li>{}:{} -> {}</li>", _rows())
+        return format_html("<ul>{}</ul>", items)
 
     def _report_action_error(self, request, migration_request, action_label, exc):
         logger.exception(
@@ -740,7 +765,9 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
             f"Refreshed issues for {processed} request(s).",
         )
 
-    @admin.action(description="Approve and queue import")
+    @admin.action(
+        description="Approve and queue import", permissions=["approve_import"]
+    )
     def approve_and_queue_action(self, request, queryset):
         processed = 0
         failed = 0
@@ -757,7 +784,7 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
             f"Approved and queued {processed} request(s).",
         )
 
-    @admin.action(description="Retry latest failed job")
+    @admin.action(description="Retry latest failed job", permissions=["approve_import"])
     def retry_latest_failed_job_action(self, request, queryset):
         processed = 0
         failed = 0
@@ -802,10 +829,27 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
         "_retry_latest_failed_job",
         "_cancel_jobs",
     )
+    # Buttons that trigger a real import and therefore require the same
+    # elevated permission as the equivalent bulk actions.
+    _CHANGE_FORM_BUTTON_NAMES_REQUIRING_APPROVAL = (
+        "_approve_and_queue",
+        "_retry_latest_failed_job",
+    )
 
     def response_change(self, request, obj):
         for post_key in self._CHANGE_FORM_BUTTON_HANDLER_NAMES:
             if post_key in request.POST:
+                if (
+                    post_key in self._CHANGE_FORM_BUTTON_NAMES_REQUIRING_APPROVAL
+                    and not self.has_approve_import_permission(request)
+                ):
+                    self.message_user(
+                        request,
+                        "You don't have permission to approve or retry legacy "
+                        "migration imports.",
+                        level=messages.ERROR,
+                    )
+                    return HttpResponseRedirect(request.path)
                 handler = getattr(self, f"_handle{post_key}_button")
                 handler(request, obj)
                 return HttpResponseRedirect(request.path)
