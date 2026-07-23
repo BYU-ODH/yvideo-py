@@ -1202,6 +1202,47 @@ export class Editor {
         this.setUpCommentChangeListeners(detailForm);
         this.presentCommentBoxPositionAndSizeControls(annotationId);
       }
+      else if (annotationType == "clip") {
+        // set up the next/previous clip buttons each time the form is generated
+        function handleClipChange(isAdvancing) {
+          // use 1 to advance forward, -1 to advance backward
+          const advanceValue = isAdvancing ? 1 : -1;
+          console.log(advanceValue, isAdvancing);
+          const itemForm = document.getElementById("existing-item-form");
+          const id = itemForm.dataset["annotationId"];
+
+          // we need to know where we are so we can determine which clip to click on.
+          const clipList = document.getElementById("clip-annotation-items-list");
+          const clipLen = clipList.children.length;
+          let currentIndex;
+          for (let index = 0; index < clipLen; index++) {
+            const child = clipList.children[index];
+            if (child.dataset["annotationId"] == annotationId) {
+              currentIndex = index;
+              break;
+            }
+          }
+          const nextIndex = currentIndex + advanceValue;
+          if (nextIndex >= clipLen) {
+            // roll over to start of list
+            clipList.children[0].click();
+          }
+          else if (nextIndex < 0) {
+            clipList.children[clipLen - 1].click();
+          }
+          else {
+            clipList.children[nextIndex].click();
+          }
+        }
+        const nextClipButton = document.getElementById("next-clip-button");
+        if (nextClipButton) {
+          nextClipButton.addEventListener("click", () => handleClipChange(true));
+        }
+        const lastClipButton = document.getElementById("last-clip-button");
+        if (lastClipButton) {
+          lastClipButton.addEventListener("click", () => handleClipChange(false));
+        }
+      }
     }
 
     markItemAsActive(annotationType, annotationId) {
