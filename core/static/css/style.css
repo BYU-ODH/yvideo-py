@@ -658,6 +658,7 @@ a.blue-button {
 
 .sidebar.show {
     transform: translateX(0);
+    box-shadow: 0px 3px 6px var(--dark-grey);
 }
 
 .sidebar h2 {
