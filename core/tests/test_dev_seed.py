@@ -49,7 +49,7 @@ class DemoSeedDataTests(TestCase):
     def test_seed_creates_expected_accounts_and_access(self):
         admin_user = User.objects.get(username=DEMO_ADMIN_USERNAME)
         birds_content = Content.objects.get(title="Birds Overview")
-        alice = User.objects.get(netid="studali")
+        alice = User.objects.get(username="111227777")
         admin_owned_collections = Collection.objects.filter(owner=admin_user)
 
         self.assertTrue(admin_user.is_superuser)

@@ -1441,6 +1441,3 @@ class ResourceContentIntakeRequest(models.Model):
 
     def __str__(self):
         return f"Content request for {self.resource_title} by {self.owner} due by {self.date_needed}"
-
-
-from . import legacy_migration  # noqa: F401, E402

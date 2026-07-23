@@ -23,46 +23,46 @@ from django.urls import reverse
 from django.utils import timezone
 import xxhash
 
-from .admin import LegacyMigrationFileDecisionForm
-from .admin import LegacyMigrationRequestAdmin
-from .admin import LegacyMigrationResourceInline
-from .factories import CollectionFactory
-from .factories import ContentFactory
-from .factories import LanguageFactory
-from .factories import ResourceFactory
-from .factories import UserFactory
-from .legacy_migration import ChecksumCache
-from .legacy_migration import LegacyCatalogClient
-from .legacy_migration import LegacyMigrationFileAction
-from .legacy_migration import LegacyMigrationFileDecision
-from .legacy_migration import LegacyMigrationIssueSeverity
-from .legacy_migration import LegacyMigrationJob
-from .legacy_migration import LegacyMigrationJobCanceled
-from .legacy_migration import LegacyMigrationJobStatus
-from .legacy_migration import LegacyMigrationJobType
-from .legacy_migration import LegacyMigrationRequest
-from .legacy_migration import LegacyMigrationResource
-from .legacy_migration import LegacyMigrationService
-from .legacy_migration import LegacyMigrationStatus
-from .legacy_migration import LegacyMigrationUserResolutionStatus
-from .legacy_migration import LegacySourceMap
-from .legacy_migration import dump as legacy_dump
-from .legacy_migration.parsers import LegacyFileInfo
-from .models import BlankAnnotation
-from .models import BlurAnnotation
-from .models import BlurAnnotationPosition
-from .models import Clip
-from .models import Collection
-from .models import CollectionRole
-from .models import CollectionUserAccess
-from .models import Content
-from .models import MuteAnnotation
-from .models import PauseAnnotation
-from .models import Resource
-from .models import ResourceAccess
-from .models import ResourceFile
-from .models import SkipAnnotation
-from .models import Subtitle
+from ..admin_legacy_migration import LegacyMigrationFileDecisionForm
+from ..admin_legacy_migration import LegacyMigrationRequestAdmin
+from ..admin_legacy_migration import LegacyMigrationResourceInline
+from ..factories import CollectionFactory
+from ..factories import ContentFactory
+from ..factories import LanguageFactory
+from ..factories import ResourceFactory
+from ..factories import UserFactory
+from ..legacy_migration import ChecksumCache
+from ..legacy_migration import LegacyCatalogClient
+from ..legacy_migration import LegacyMigrationFileAction
+from ..legacy_migration import LegacyMigrationFileDecision
+from ..legacy_migration import LegacyMigrationIssueSeverity
+from ..legacy_migration import LegacyMigrationJob
+from ..legacy_migration import LegacyMigrationJobCanceled
+from ..legacy_migration import LegacyMigrationJobStatus
+from ..legacy_migration import LegacyMigrationJobType
+from ..legacy_migration import LegacyMigrationRequest
+from ..legacy_migration import LegacyMigrationResource
+from ..legacy_migration import LegacyMigrationService
+from ..legacy_migration import LegacyMigrationStatus
+from ..legacy_migration import LegacyMigrationUserResolutionStatus
+from ..legacy_migration import LegacySourceMap
+from ..legacy_migration import dump as legacy_dump
+from ..legacy_migration.parsers import LegacyFileInfo
+from ..models import BlankAnnotation
+from ..models import BlurAnnotation
+from ..models import BlurAnnotationPosition
+from ..models import Clip
+from ..models import Collection
+from ..models import CollectionRole
+from ..models import CollectionUserAccess
+from ..models import Content
+from ..models import MuteAnnotation
+from ..models import PauseAnnotation
+from ..models import Resource
+from ..models import ResourceAccess
+from ..models import ResourceFile
+from ..models import SkipAnnotation
+from ..models import Subtitle
 
 
 @override_settings(
@@ -1925,8 +1925,10 @@ class LegacyMigrationTests(TestCase):
         )
 
         with (
-            mock.patch("core.admin.LegacyMigrationService") as service_class,
-            mock.patch("core.admin.logger") as logger_mock,
+            mock.patch(
+                "core.admin_legacy_migration.LegacyMigrationService"
+            ) as service_class,
+            mock.patch("core.admin_legacy_migration.logger") as logger_mock,
         ):
             service_class.return_value.preflight_request.side_effect = OperationalError(
                 "legacy database unavailable"
@@ -1993,8 +1995,10 @@ class LegacyMigrationTests(TestCase):
         )
 
         with (
-            mock.patch("core.admin.LegacyMigrationService") as service_class,
-            mock.patch("core.admin.logger"),
+            mock.patch(
+                "core.admin_legacy_migration.LegacyMigrationService"
+            ) as service_class,
+            mock.patch("core.admin_legacy_migration.logger"),
         ):
             service_class.return_value.preflight_request.side_effect = [
                 None,
@@ -2110,7 +2114,9 @@ class LegacyMigrationTests(TestCase):
             admin_user, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+        with mock.patch(
+            "core.admin_legacy_migration.LegacyMigrationService"
+        ) as service_class:
             response = client.post(
                 reverse(
                     "admin:core_legacymigrationrequest_change",
@@ -2149,7 +2155,9 @@ class LegacyMigrationTests(TestCase):
             admin_user, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+        with mock.patch(
+            "core.admin_legacy_migration.LegacyMigrationService"
+        ) as service_class:
             service_class.return_value.preflight_request.side_effect = OperationalError(
                 "legacy database unavailable"
             )
@@ -2195,7 +2203,9 @@ class LegacyMigrationTests(TestCase):
             admin_user, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+        with mock.patch(
+            "core.admin_legacy_migration.LegacyMigrationService"
+        ) as service_class:
             response = client.post(
                 reverse(
                     "admin:core_legacymigrationrequest_change",
@@ -2234,7 +2244,9 @@ class LegacyMigrationTests(TestCase):
             admin_user, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+        with mock.patch(
+            "core.admin_legacy_migration.LegacyMigrationService"
+        ) as service_class:
             response = client.post(
                 reverse(
                     "admin:core_legacymigrationrequest_change",
@@ -2275,7 +2287,9 @@ class LegacyMigrationTests(TestCase):
             admin_user, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+        with mock.patch(
+            "core.admin_legacy_migration.LegacyMigrationService"
+        ) as service_class:
             service_class.return_value.approve_and_queue_import.side_effect = (
                 ValueError("The migration request still has blocking issues.")
             )
@@ -2497,7 +2511,9 @@ class LegacyMigrationTests(TestCase):
             admin_user, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        with mock.patch("core.admin.LegacyMigrationService") as service_class:
+        with mock.patch(
+            "core.admin_legacy_migration.LegacyMigrationService"
+        ) as service_class:
             response = client.post(
                 reverse(
                     "admin:core_legacymigrationrequest_change",

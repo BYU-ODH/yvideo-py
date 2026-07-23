@@ -12,7 +12,7 @@ scripts/dump_legacy_to_sqlite_settings.py
 *media
 *requirements.txt
 
-# TODO start tracking migrations once we have a stable database schema (and before we start the pilot!)
+# TODO start tracking migrations before pilot begins
 # Until then, just keep replacing 0001 when models change
 core/migrations/*.py
 

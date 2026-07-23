@@ -15,13 +15,13 @@ from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
 
-from .factories import UserFactory
-from .legacy_migration import LegacyMigrationJob
-from .legacy_migration import LegacyMigrationJobStatus
-from .legacy_migration import LegacyMigrationJobType
-from .legacy_migration import LegacyMigrationRequest
-from .legacy_migration import LegacyMigrationService
-from .legacy_migration import LegacyMigrationStatus
+from ..factories import UserFactory
+from ..legacy_migration import LegacyMigrationJob
+from ..legacy_migration import LegacyMigrationJobStatus
+from ..legacy_migration import LegacyMigrationJobType
+from ..legacy_migration import LegacyMigrationRequest
+from ..legacy_migration import LegacyMigrationService
+from ..legacy_migration import LegacyMigrationStatus
 
 
 class LegacyMigrationRecoveryTests(TestCase):

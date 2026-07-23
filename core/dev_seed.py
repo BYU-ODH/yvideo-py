@@ -288,14 +288,14 @@ def create_demo_data():
         name="Track 1",
         stack_position=0,
     )
-    ClipFactory(
+    birds_clip = ClipFactory(
         track=birds_track,
         name="Birds Intro Clip",
         start_time=2.5,
         end_time=18.0,
         description="Opening segment for the birds lesson.",
     )
-    ClipFactory(
+    grid_clip = ClipFactory(
         track=grid_track,
         name="Grid Demonstration Clip",
         start_time=1.0,
