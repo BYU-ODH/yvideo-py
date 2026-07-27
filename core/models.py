@@ -39,6 +39,23 @@ class CollectionRole(models.IntegerChoices):
     AUDITOR = 3
 
 
+def validate_imdb_id(id):
+    """
+    IMDB ids start with 2 letters that identify the type of object the id
+    is assigned to. For example, 'tt' is for a title entity (movie, series, episode,
+    video game, other media), and 'nm' signfies a name entity (actor/accress name).
+    We only care about title entities so we enforce 'tt' imdb ids. Also, an IMDB id
+    always has 2 letters and then at least 7 digits following it. There is no max
+    length id constraint.
+    """
+    if id[:2] != "tt":
+        raise ValidationError(f"Invalid IMDB ID: {id} it must begin with 'tt'")
+    if len(id) < 9:
+        raise ValidationError(
+            f"Invalid IMDB ID: {id} is too short; it must contain at least 9 characters."
+        )
+
+
 class Resource(models.Model):
     class MediaType(models.TextChoices):
         TEXT = ("txt", "Text")
@@ -55,6 +72,7 @@ class Resource(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    imdb_id = models.CharField(validators=[validate_imdb_id])
 
     def __str__(self):
         return f"{self.name}"
