@@ -7,6 +7,6 @@
         hx-target="#important-word-{{word.id}}"
         hx-swap="outerHTML"
         hx-vals="{'id': '{{word.id}}'}"
-        hx-headers="js:{'x-csrftoken': document.querySelector('[name=csrfmiddlewaretoken]').value}"
+        hx-headers="js:{'x-csrftoken': document.cookie.split('; ').find(c => c.startsWith('csrftoken='))?.split('=')[1]}"
     />
 </div>
