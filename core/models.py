@@ -304,6 +304,13 @@ def file_upload_path(instance, filename):
     return filename
 
 
+def validate_isbn(isbn):
+    if len(isbn != 13):
+        raise ValidationError(
+            "ISBN number must be 13. If you only have an ISBN 10, use the online conversion tool to generate an ISBN 13 from the ISBN 10."
+        )
+
+
 class ResourceFile(models.Model):
     file = models.FileField(
         upload_to=file_upload_path,
@@ -340,6 +347,7 @@ class ResourceFile(models.Model):
     checksum_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    isbn = models.CharField(validators=[validate_isbn])
 
     def delete(self, *args, **kwargs):
         """Delete the file from the filesystem when the model is deleted."""
