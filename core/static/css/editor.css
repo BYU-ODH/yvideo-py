@@ -20,9 +20,9 @@
     --mute-type-color: #EBBF81;
     --mute-type-color-transparent: #EBBF8175;
     --mute-type-color-very-transparent: #EBBF8150;
-    --censor-type-color: #826AB4;
-    --censor-type-color-transparent: #826AB480;
-    --censor-type-color-very-transparent: #826AB450;
+    --blur-type-color: #826AB4;
+    --blur-type-color-transparent: #826AB480;
+    --blur-type-color-very-transparent: #826AB450;
     --comment-type-color: #449964;
     --comment-type-color-transparent: #44996475;
     --comment-type-color-very-transparent: #44996450;
@@ -172,8 +172,8 @@
     background-color: var(--mute-type-color);
 }
 
-#censor-type-header-right {
-    background-color: var(--censor-type-color);
+#blur-type-header-right {
+    background-color: var(--blur-type-color);
 }
 
 #comment-type-header-right {
@@ -355,8 +355,8 @@
     background-color: var(--mute-type-color-very-transparent);
     cursor: pointer;
 }
-.censor-list-item-wrapper:hover {
-    background-color: var(--censor-type-color-very-transparent);
+.blur-list-item-wrapper:hover {
+    background-color: var(--blur-type-color-very-transparent);
     cursor: pointer;
 }
 .comment-list-item-wrapper:hover {
@@ -384,8 +384,8 @@
     background-color: var(--mute-type-color-transparent);
 }
 
-.censor-list-item-wrapper-selected {
-    background-color: var(--censor-type-color-transparent);
+.blur-list-item-wrapper-selected {
+    background-color: var(--blur-type-color-transparent);
 }
 
 .comment-list-item-wrapper-selected {
@@ -706,7 +706,7 @@
     cursor: nesw-resize;
 }
 
-/* censor-positions */
+/* blur-positions */
 #positions-list p {
     margin: 0;
 }
@@ -735,7 +735,7 @@
     flex: 1;
 }
 
-.censor-position-delete-button {
+.blur-position-delete-button {
     padding: 0;
     margin: 0;
     background-color: #ffffff00;
@@ -743,30 +743,30 @@
     display: none;
 }
 
-.censor-position-delete-button img {
+.blur-position-delete-button img {
     height: 100%;
     width: 100%;
     padding: 3px;
 }
 
-.censor-position-delete-button img:hover {
+.blur-position-delete-button img:hover {
     background-color: #ffffff40;
     border-radius: 4px;
 }
 
 .active-position-entry {
-    background-color: var(--censor-type-color-transparent);
+    background-color: var(--blur-type-color-transparent);
 }
 
-.active-position-entry .censor-position-delete-button {
+.active-position-entry .blur-position-delete-button {
     display: block;
 }
 
-.active-censor-position {
+.active-blur-position {
     border: 1px dashed white;
 }
 
-.censor-position-locator {
+.blur-position-locator {
     position: absolute;
     bottom: 2px;
     width: 12px;
@@ -776,12 +776,12 @@
     z-index: 2;
 }
 
-.censor-position-locator:hover {
+.blur-position-locator:hover {
     cursor: pointer;
     box-shadow: 0px 3px 6px #00000075;
 }
 
-.active-censor-position-locator {
+.active-blur-position-locator {
     border: 2px solid white;
 }
 
@@ -1079,8 +1079,8 @@ of the page */
     background-color: var(--pause-type-color);
 }
 
-.track-item[data-annotation-type="censor"] {
-    background-color: var(--censor-type-color);
+.track-item[data-annotation-type="blur"] {
+    background-color: var(--blur-type-color);
 }
 
 .track-item[data-annotation-type="comment"] {
@@ -1179,7 +1179,7 @@ of the page */
     min-width: 0;
 }
 
-.track-item[data-annotation-type="censor"] .track-item-content {
+.track-item[data-annotation-type="blur"] .track-item-content {
     margin-bottom: 15px;
 }
 
