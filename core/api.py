@@ -226,8 +226,15 @@ class Api:
         else:
             return None
 
-    def get_student_summary(self, byu_id):
-        url = secret_settings.API_STUDENT_SUMMARY_URL + "?byu_id=" + byu_id
+    def get_student_summary(self, byu_id=None, net_id=None):
+        # Accepts either identifier; the endpoint returns both byu_id and net_id
+        # in the response regardless of which one was used to query it.
+        if byu_id is not None:
+            url = secret_settings.API_STUDENT_SUMMARY_URL + "?byu_id=" + byu_id
+        elif net_id is not None:
+            url = secret_settings.API_STUDENT_SUMMARY_URL + "?net_id=" + net_id
+        else:
+            return None
         headers = {"Authorization": self.build_auth_header()}
         summary_request = requests.get(url, headers=headers)
         summary_json_res = summary_request.json()
@@ -240,7 +247,7 @@ class Api:
                 "last_name": data["preferred_last_name"],
                 "email": data["student_email_address"],
                 "is_faculty": False,
-                "byu_id": byu_id,
+                "byu_id": data["byu_id"],
                 "net_id": data["net_id"],
             }
             return parsed_summary

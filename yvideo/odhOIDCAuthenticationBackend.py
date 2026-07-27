@@ -1,3 +1,5 @@
+import logging
+
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 
 from core.api import Api
@@ -17,6 +19,8 @@ except ImportError:
     )
     from . import secret_settings_template as secret_settings
 
+logger = logging.getLogger(__name__)
+
 
 class OIDCUserAuth(OIDCAuthenticationBackend):
     def verify_claims(self, claims):
@@ -31,7 +35,10 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 return False
             return True
         else:
-            print("Login rejected. No BYU-ID provided")
+            logger.warning(
+                "OIDC claims missing byu_id; received claims: %s",
+                sorted(claims.keys()),
+            )
             return False
 
     def create_user(self, claims):

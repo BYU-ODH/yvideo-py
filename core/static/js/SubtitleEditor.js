@@ -155,9 +155,13 @@ class SubtitleEditor {
     else {
       this.cuesAreBeingUpdated = true;
       const cues = this._packageCuesAsJSON();
+      const csrfToken = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("csrftoken="))
+          ?.split("=")[1];
       const result = await fetch("/subtitle-editor/update-subtitle-file", {
         method: "POST",
-        headers: {"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value},
+        headers: {"X-CSRFToken": csrfToken},
         body: JSON.stringify({ subtitle_id: this.selectedTrackId, cues: cues, is_autosave: isAutosave, seconds_nudge: secondsNudge, nudge_excluded_cues: nudgeExcludedCues })
       });
       if (!result.ok) {

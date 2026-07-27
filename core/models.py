@@ -126,10 +126,16 @@ class User(AbstractUser):
 
     def can_view_content(self, content):
         # owners and admins should have view permission even if the playlist is not published
-        if content.playlist.owner == self:
+        if content.playlist and content.playlist.owner == self:
             return True
         if self.is_admin or self.is_superuser or self.is_staff:
             return True
+        if content.playlist is None:
+            resource = content.get_resource()
+            return bool(
+                resource
+                and ResourceAccess.objects.filter(user=self, resource=resource).exists()
+            )
         if content.playlist.published:
             if PlaylistUserAccess.objects.filter(
                 user=self, playlist=content.playlist
@@ -138,9 +144,16 @@ class User(AbstractUser):
             # TODO Check course enrollment
         return False
 
+    def get_content_source_url(self, content):
+        """URL for URL-only content, gated by the same permission check that
+        protects file-backed content."""
+        if content.is_url_only() and self.can_view_content(content):
+            return content.url
+        return None
+
     def get_resource_filekey(self, content):
-        """Get or create a ResourceFileKey for the given content."""
-        if self.can_view_content(content):
+        """Get or create a FileKey for the given content."""
+        if self.can_view_content(content) and content.resource_file:
             resource_file_key = ResourceFileKey.objects.filter(
                 resource_file=content.resource_file, user=self
             ).first()
@@ -375,8 +388,8 @@ class AnnotationSet(models.Model):
 
     def can_be_viewed_by(self, user):
         """Check if user can view this annotation set (through any content using the resource)."""
-        return Content.objects.filter(resource_file__resource=self.resource).filter(
-            playlist__owner=user
+        return Content.objects.filter(
+            resource=self.resource, playlist__owner=user
         ).exists() or self.can_edit(user)
 
     @classmethod
@@ -392,13 +405,14 @@ class AnnotationSet(models.Model):
         Create a new AnnotationSet for a content's resource.
         Automatically adds playlist owner and instructor/TAs as editors.
         """
+
         try:
             playlist = content.playlist
-            resource = content.resource_file.resource if content.resource_file else None
+            resource = content.get_resource()
 
             if not resource:
                 raise ValueError(
-                    "Content must have a file with a resource to create an AnnotationSet"
+                    "Content must be associated with a resource to create an AnnotationSet"
                 )
 
             # Create annotation set with user as owner
@@ -576,6 +590,13 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
+    resource = models.ForeignKey(
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="contents",
+        null=True,
+        blank=True,
+    )
     annotation_set = models.ForeignKey(
         AnnotationSet,
         on_delete=models.SET_NULL,
@@ -598,13 +619,30 @@ class Content(models.Model):
         unique_together = ("playlist", "title")
 
     def __str__(self):
-        return f"{self.title} | {self.playlist.name} | {self.id}"
+        playlist_name = self.playlist.name if self.playlist else "No Playlist"
+        return f"{self.title} | {playlist_name} | {self.id}"
+
+    def save(self, *args, **kwargs):
+        if self.resource_file:
+            self.resource = self.resource_file.resource
+        super().save(*args, **kwargs)
+
+    def get_resource(self):
+        if self.resource_id:
+            return self.resource
+        if self.resource_file_id:
+            return self.resource_file.resource
+        return None
+
+    def is_url_only(self):
+        return self.resource_file_id is None and bool(self.url)
 
     def get_available_annotation_sets(self):
         """Get all AnnotationSets available for this content's resource."""
-        if not self.resource_file or not self.resource_file.resource:
+        resource = self.get_resource()
+        if not resource:
             return AnnotationSet.objects.none()
-        return AnnotationSet.objects.filter(resource=self.resource_file.resource)
+        return AnnotationSet.objects.filter(resource=resource)
 
     def get_subtitles(self):
         """
@@ -614,7 +652,10 @@ class Content(models.Model):
             - 'vtt' or 'url'
             - 'label'
         """
-        sub_objs = Subtitle.objects.filter(resource=self.resource_file.resource)
+        resource = self.get_resource()
+        if not resource:
+            return []
+        sub_objs = Subtitle.objects.filter(resource=resource)
         subtitles = [
             {
                 "id": sub.pk,

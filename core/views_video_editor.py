@@ -167,6 +167,7 @@ def video_editor(request, content_id):
 
         # Determine if user can edit the active annotation set
         annotation_set = content.annotation_set
+
         can_edit = (
             annotation_set.can_edit(request.user)
             if annotation_set is not None
@@ -194,6 +195,7 @@ def video_editor(request, content_id):
             "content": content,
             "content_id": content_id,
             "file_key": file_key.id if file_key else None,
+            "content_source_url": request.user.get_content_source_url(content),
             "allow_events": True,
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,
@@ -258,11 +260,15 @@ def get_player_wrapper_html(request):
         return HttpResponse("Unauthorized", status=403)
 
     try:
+        resource_file_key = request.user.get_resource_filekey(content)
         video_html = render_to_string(
             "core/partials/player-wrapper.html",
             {
-                "content_id": content_id,
-                "resource_file_key_id": request.user.get_resource_filekey(content).pk,
+                "content_id": content.pk,
+                "resource_file_key_id": resource_file_key.pk
+                if resource_file_key
+                else None,
+                "content_source_url": request.user.get_content_source_url(content),
             },
             request=request,
         )
