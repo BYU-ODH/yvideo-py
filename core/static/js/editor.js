@@ -24,7 +24,7 @@ export class Editor {
         this.listenForNewItemCreation();
         this.typeOfAnnotationInFocus = null;
         this.annotationIdInFocus = null;
-        this.activeCensorPosition = null;
+        this.activeBlurPosition = null;
         this.tickMarksContainer = document.querySelector('#tick-marks-container');
         this.timelineTicksContent = document.getElementById('timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
@@ -275,9 +275,9 @@ export class Editor {
         this.markItemAsActive(annotationType, annotationId);
       });
 
-      // set up censor position locator listeners
-      if (annotationType == "censor") {
-        const positionLocators = element.querySelectorAll(".censor-position-locator");
+      // set up blur position locator listeners
+      if (annotationType == "blur") {
+        const positionLocators = element.querySelectorAll(".blur-position-locator");
         for (let positionLocator of positionLocators) {
           positionLocator.addEventListener("click", (e) => {
             // allow propagation only if the parent item is not active
@@ -285,11 +285,11 @@ export class Editor {
             if (parentItem.className.includes("active-track-item")) {
               e.stopPropagation();
               this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+              this.markBlurPositionAsActive(positionLocator.dataset["positionId"]);
               return;
             }
             this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-            this.markCensorPositionAsActive(positionLocator.dataset["positionId"]);
+            this.markBlurPositionAsActive(positionLocator.dataset["positionId"]);
           })
         }
       }
@@ -360,9 +360,9 @@ export class Editor {
       const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        // we don't want to submit the form when a censor position is deleted.
+        // we don't want to submit the form when a blur position is deleted.
         // That change is handled in a different way.
-        if (e.submitter.classList.contains("censor-position-delete-button")) {
+        if (e.submitter.classList.contains("blur-position-delete-button")) {
           return;
         }
         this.updateAnnotation({annotationType, annotationId})
@@ -380,8 +380,8 @@ export class Editor {
         return;
       }
 
-      if(this.typeOfAnnotationInFocus == "censor") {
-        this.handleFocusChangeAwayFromCensorType();
+      if(this.typeOfAnnotationInFocus == "blur") {
+        this.handleFocusChangeAwayFromBlurType();
       }
       window.dispatchEvent(this.annotationUpdatedEvent);
 
@@ -438,11 +438,11 @@ export class Editor {
       this.changeAnnotationInFocus();
     }
 
-    getCensorPositions() {
-      if (this.typeOfAnnotationInFocus != "censor") {
+    getBlurPositions() {
+      if (this.typeOfAnnotationInFocus != "blur") {
         return;
       }
-      const positionsWrapper = document.getElementById("censor-positions-wrapper");
+      const positionsWrapper = document.getElementById("blur-positions-wrapper");
       const positionEls = positionsWrapper.querySelectorAll(".position-entry");
       const positions = [];
       for (let positionEl of positionEls) {
@@ -459,45 +459,45 @@ export class Editor {
       return positions;
     }
 
-    placeNewCensorPositionHtml(censor_parent_id, itemAndPositionsHtml) {
+    placeNewBlurPositionHtml(blur_parent_id, itemAndPositionsHtml) {
       const annotationUpdateForm = document.getElementById("existing-item-form");
       const currentFormId = annotationUpdateForm.dataset["annotationId"];
-      const censorPositionWrapperEl = document.getElementById("censor-positions-wrapper");
+      const blurPositionWrapperEl = document.getElementById("blur-positions-wrapper");
       // don't do anything if the user has moved onto a different item
-      if (!censorPositionWrapperEl || censor_parent_id != currentFormId) {
+      if (!blurPositionWrapperEl || blur_parent_id != currentFormId) {
         return;
       }
-      censorPositionWrapperEl.outerHTML = itemAndPositionsHtml["censorPositions"];
+      blurPositionWrapperEl.outerHTML = itemAndPositionsHtml["blurPositions"];
 
-      const trackItemToUpdate = this.timelineWrapper.querySelector(`.track-item[data-annotation-id='${censor_parent_id}']`);
+      const trackItemToUpdate = this.timelineWrapper.querySelector(`.track-item[data-annotation-id='${blur_parent_id}']`);
       trackItemToUpdate.outerHTML = itemAndPositionsHtml["trackItem"];
       this.placeTrackItems();
-      this.setUpCensorPositionDeleteListeners(censor_parent_id)
-      this.setupCensorPositionSeekListeners();
+      this.setUpBlurPositionDeleteListeners(blur_parent_id)
+      this.setupBlurPositionSeekListeners();
       return;
     }
 
-    async createCensorPosition(parentCensorId, time, x, y, width, height, parentStartTime, parentEndTime) {
+    async createBlurPosition(parentBlurId, time, x, y, width, height, parentStartTime, parentEndTime) {
       if (parseFloat(parentStartTime) > parseFloat(time) || parseFloat(parentEndTime) < parseFloat(time)) {
         return;
       }
-      const response = await fetch("/annotations/censor-position/create", {
+      const response = await fetch("/annotations/blur-position/create", {
         method: "POST",
         headers: {"X-CSRFToken": getCSRFToken(), "Content-Type": "application/json"},
-        body: JSON.stringify({parent_annotation_id: parentCensorId, time, x, y, width, height})
+        body: JSON.stringify({parent_annotation_id: parentBlurId, time, x, y, width, height})
       });
       if (response.ok) {
         const responseHtmlMap = await response.json();
-        this.placeNewCensorPositionHtml(parentCensorId, responseHtmlMap)
+        this.placeNewBlurPositionHtml(parentBlurId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else if (!response.ok) {
-        console.error("Failed to create censor position");
+        console.error("Failed to create blur position");
       }
     }
 
-    async updateCensorPosition(positionId, time, x, y, width, height, parentAnnotationId) {
-      const response = await fetch("/annotations/censor-position/update", {
+    async updateBlurPosition(positionId, time, x, y, width, height, parentAnnotationId) {
+      const response = await fetch("/annotations/blur-position/update", {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -507,32 +507,32 @@ export class Editor {
       });
       if (response.ok) {
         const responseHtmlMap = await response.json();
-        this.placeNewCensorPositionHtml(parentAnnotationId, responseHtmlMap)
+        this.placeNewBlurPositionHtml(parentAnnotationId, responseHtmlMap)
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       else {
-        console.error("Failed to update censor position");
+        console.error("Failed to update blur position");
       }
     }
 
-    async deleteCensorPosition(parentAnnotationId, positionId) {
-      const response = await fetch(`/annotations/censor-position/delete/${positionId}`, {
+    async deleteBlurPosition(parentAnnotationId, positionId) {
+      const response = await fetch(`/annotations/blur-position/delete/${positionId}`, {
         method: "DELETE",
         headers: {"X-CSRFToken": getCSRFToken()}
       });
       if (response.status == 200) {
-        const censorPositionLocatorToDelete = document.querySelector(`.censor-position-locator[data-position-id='${positionId}']`);
-        const censorPositionEntryToDelete = document.querySelector(`.position-entry[data-position-id='${positionId}']`);
-        censorPositionLocatorToDelete.remove();
-        censorPositionEntryToDelete.remove();
+        const blurPositionLocatorToDelete = document.querySelector(`.blur-position-locator[data-position-id='${positionId}']`);
+        const blurPositionEntryToDelete = document.querySelector(`.position-entry[data-position-id='${positionId}']`);
+        blurPositionLocatorToDelete.remove();
+        blurPositionEntryToDelete.remove();
       }
       else if (!response.ok) {
-        console.error("Failed to delete censor position");
+        console.error("Failed to delete blur position");
       }
     }
 
-    async handleCensorAnnotationBoxClick(e) {
-      if (e.target.className.includes("censor-position")) {
+    async handleBlurAnnotationBoxClick(e) {
+      if (e.target.className.includes("blur-position")) {
         return;
       }
       const annotationBoxDim = e.target.getBoundingClientRect();
@@ -547,18 +547,18 @@ export class Editor {
       const itemForm = document.getElementById("existing-item-form");
       const annotationId = itemForm.dataset["annotationId"];
 
-      const currentPositions = this.getCensorPositions();
+      const currentPositions = this.getBlurPositions();
       const existingPosition = currentPositions.find(position => Math.abs(position.time - time) < 0.01);
 
       if (existingPosition?.id) {
-        await this.updateCensorPosition(existingPosition.id, time, x, y, width, height, annotationId)
+        await this.updateBlurPosition(existingPosition.id, time, x, y, width, height, annotationId)
       }
       else {
         const startTimeEl = document.getElementById("start_time");
         const parentStartTime = parseFloat(startTimeEl.value).toFixed(2);
         const endTimeEl = document.getElementById("end_time");
         const parentEndTime = parseFloat(endTimeEl.value).toFixed(2);
-        await this.createCensorPosition(annotationId, time, x, y, width, height, parentStartTime, parentEndTime)
+        await this.createBlurPosition(annotationId, time, x, y, width, height, parentStartTime, parentEndTime)
       }
     }
 
@@ -623,34 +623,34 @@ export class Editor {
       }
     }
 
-    handleCensorPointerDown(e) {
+    handleBlurPointerDown(e) {
       e.preventDefault();
       e.stopPropagation();
-      const censorEl = e.currentTarget;
-      const censorLeftStart = censorEl.style.left;
-      const censorTopStart = censorEl.style.top;
-      const censorPointerId = e.pointerId;
-      censorEl.setPointerCapture(censorPointerId);
-      const annotationBox = censorEl.closest("#annotation-box");
+      const blurEl = e.currentTarget;
+      const blurLeftStart = blurEl.style.left;
+      const blurTopStart = blurEl.style.top;
+      const blurPointerId = e.pointerId;
+      blurEl.setPointerCapture(blurPointerId);
+      const annotationBox = blurEl.closest("#annotation-box");
       const boxRect = annotationBox.getBoundingClientRect();
-      const widthPercent = parseFloat(censorEl.style.width);
-      const heightPercent = parseFloat(censorEl.style.height);
+      const widthPercent = parseFloat(blurEl.style.width);
+      const heightPercent = parseFloat(blurEl.style.height);
 
       async function onPointerUp(upEvent) {
         const positionEl = upEvent.target;
         const positionRect = positionEl.getBoundingClientRect();
-        const censorPositionId = positionEl.dataset["censorPositionId"];
-        const parentCensorId = positionEl.dataset["censorPositionParentId"];
+        const blurPositionId = positionEl.dataset["blurPositionId"];
+        const parentBlurId = positionEl.dataset["blurPositionParentId"];
         const newX = ((positionRect.left - boxRect.left) / boxRect.width) * 100;
         const newY = ((positionRect.top - boxRect.top) / boxRect.height) * 100;
-        await this.updateCensorPosition(censorPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentCensorId);
+        await this.updateBlurPosition(blurPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentBlurId);
         handleCleanup();
       }
 
       function handleMoveCancel() {
         handleCleanup();
-        censorEl.style.left = censorLeftStart;
-        censorEl.style.top = censorTopStart;
+        blurEl.style.left = blurLeftStart;
+        blurEl.style.top = blurTopStart;
       }
 
       function handleEscKeyPress(keyupEvent) {
@@ -665,54 +665,54 @@ export class Editor {
 
       const pointerUpCallback = onPointerUp.bind(this);
 
-      const handleCensorMove = this.buildMoveHandler(censorEl);
+      const handleBlurMove = this.buildMoveHandler(blurEl);
       function handleCleanup() {
-        censorEl.releasePointerCapture(censorPointerId);
-        censorEl.removeEventListener('pointermove', handleCensorMove);
-        censorEl.removeEventListener('pointerup', pointerUpCallback);
-        censorEl.removeEventListener('pointercancel', handleMoveCancel);
+        blurEl.releasePointerCapture(blurPointerId);
+        blurEl.removeEventListener('pointermove', handleBlurMove);
+        blurEl.removeEventListener('pointerup', pointerUpCallback);
+        blurEl.removeEventListener('pointercancel', handleMoveCancel);
         document.removeEventListener("keyup", handleEscKeyPress);
       }
 
       document.addEventListener("keyup", handleEscKeyPress);
-      censorEl.addEventListener('pointercancel', handleMoveCancel);
-      censorEl.addEventListener('pointerup', pointerUpCallback);
-      censorEl.addEventListener('pointermove', handleCensorMove);
+      blurEl.addEventListener('pointercancel', handleMoveCancel);
+      blurEl.addEventListener('pointerup', pointerUpCallback);
+      blurEl.addEventListener('pointermove', handleBlurMove);
     }
 
 
-    handleFocusChangeToCensorType() {
-      this.annotationBox.className = "annotation-box annotation-box-censor-editor";
-      this.annotationBoxCensorListener = this.handleCensorAnnotationBoxClick.bind(this);
-      this.annotationBox.addEventListener("click", this.annotationBoxCensorListener);
-      const censorPositions = document.getElementsByClassName("censor-position");
-      for (let position of censorPositions) {
-        if (position.dataset["censorPositionParentId"] == this.annotationIdInFocus) {
-          this.activeCensorPosition = position;
-          this.activeCensorPosition.classList.add("active-censor-position");
+    handleFocusChangeToBlurType() {
+      this.annotationBox.className = "annotation-box annotation-box-blur-editor";
+      this.annotationBoxBlurListener = this.handleBlurAnnotationBoxClick.bind(this);
+      this.annotationBox.addEventListener("click", this.annotationBoxBlurListener);
+      const blurPositions = document.getElementsByClassName("blur-position");
+      for (let position of blurPositions) {
+        if (position.dataset["blurPositionParentId"] == this.annotationIdInFocus) {
+          this.activeBlurPosition = position;
+          this.activeBlurPosition.classList.add("active-blur-position");
           break;
         } else {
-          position.classList.remove("active-censor-position");
+          position.classList.remove("active-blur-position");
         }
       }
 
       // build resize points on corners
-      if (this.activeCensorPosition) {
+      if (this.activeBlurPosition) {
         const cornerData = ["resize-point-top resize-point-left", "resize-point-top", "resize-point-left", ""];
 
         for (const cssClass of cornerData) {
           const point = document.createElement("div");
-          point.className = `censor-position-adjustment-point ${cssClass} resize-point`;
+          point.className = `blur-position-adjustment-point ${cssClass} resize-point`;
 
           point.addEventListener("pointerdown", (ptrDownEvent) => {
             ptrDownEvent.stopPropagation();
             ptrDownEvent.preventDefault();
             point.setPointerCapture(ptrDownEvent.pointerId);
 
-            const startLeft = this.activeCensorPosition.style.left;
-            const startTop = this.activeCensorPosition.style.top;
-            const startWidth = this.activeCensorPosition.style.width;
-            const startHeight = this.activeCensorPosition.style.height;
+            const startLeft = this.activeBlurPosition.style.left;
+            const startTop = this.activeBlurPosition.style.top;
+            const startWidth = this.activeBlurPosition.style.width;
+            const startHeight = this.activeBlurPosition.style.height;
             let resizeCancelled = false;
 
             const onMove = this.buildResizePointMoveHandler();
@@ -729,20 +729,20 @@ export class Editor {
               handleCleanup();
               if (resizeCancelled) return;
 
-              const newLeft = parseFloat(this.activeCensorPosition.style.left);
-              const newTop = parseFloat(this.activeCensorPosition.style.top);
-              const newWidth = parseFloat(this.activeCensorPosition.style.width);
-              const newHeight = parseFloat(this.activeCensorPosition.style.height);
-              const positionId = this.activeCensorPosition.dataset["censorPositionId"];
-              const parentId = this.activeCensorPosition.dataset["censorPositionParentId"];
-              await this.updateCensorPosition(positionId, this.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
+              const newLeft = parseFloat(this.activeBlurPosition.style.left);
+              const newTop = parseFloat(this.activeBlurPosition.style.top);
+              const newWidth = parseFloat(this.activeBlurPosition.style.width);
+              const newHeight = parseFloat(this.activeBlurPosition.style.height);
+              const positionId = this.activeBlurPosition.dataset["blurPositionId"];
+              const parentId = this.activeBlurPosition.dataset["blurPositionParentId"];
+              await this.updateBlurPosition(positionId, this.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
             }
 
             function onCancel() {
-              this.activeCensorPosition.style.left = startLeft;
-              this.activeCensorPosition.style.top = startTop;
-              this.activeCensorPosition.style.width = startWidth;
-              this.activeCensorPosition.style.height = startHeight;
+              this.activeBlurPosition.style.left = startLeft;
+              this.activeBlurPosition.style.top = startTop;
+              this.activeBlurPosition.style.width = startWidth;
+              this.activeBlurPosition.style.height = startHeight;
               handleCleanup();
             }
 
@@ -752,10 +752,10 @@ export class Editor {
               }
               if (keyupEvent.key === "Escape") {
                 resizeCancelled = true;
-                this.activeCensorPosition.style.left = startLeft;
-                this.activeCensorPosition.style.top = startTop;
-                this.activeCensorPosition.style.width = startWidth;
-                this.activeCensorPosition.style.height = startHeight;
+                this.activeBlurPosition.style.left = startLeft;
+                this.activeBlurPosition.style.top = startTop;
+                this.activeBlurPosition.style.width = startWidth;
+                this.activeBlurPosition.style.height = startHeight;
                 point.removeEventListener("pointermove", onMove);
                 document.removeEventListener("keyup", handleEscKeyPress);
               }
@@ -767,28 +767,28 @@ export class Editor {
             point.addEventListener("pointermove", onMove);
           });
 
-          this.activeCensorPosition.appendChild(point);
+          this.activeBlurPosition.appendChild(point);
         }
 
-        this.activeCensorPosition.addEventListener("pointerdown", this.handleCensorPointerDown.bind(this));
+        this.activeBlurPosition.addEventListener("pointerdown", this.handleBlurPointerDown.bind(this));
       }
     }
 
-    handleFocusChangeAwayFromCensorType() {
-      this.annotationBox.removeEventListener("click", this.annotationBoxCensorListener);
+    handleFocusChangeAwayFromBlurType() {
+      this.annotationBox.removeEventListener("click", this.annotationBoxBlurListener);
       this.annotationBox.className = "annotation-box";
-      if (this.activeCensorPosition) {
-        this.activeCensorPosition.removeEventListener("pointerdown", this.handleCensorPointerDown);
-        this.activeCensorPosition.classList.toggle("active-censor-position");
+      if (this.activeBlurPosition) {
+        this.activeBlurPosition.removeEventListener("pointerdown", this.handleBlurPointerDown);
+        this.activeBlurPosition.classList.toggle("active-blur-position");
       }
-      const censorPositionAdjustmentPoints = document.getElementsByClassName("censor-position-adjustment-point");
+      const blurPositionAdjustmentPoints = document.getElementsByClassName("blur-position-adjustment-point");
       // iteration by index prevents unexpected behavior from deleting earlier elements
       // in the array.
-      for (let pointI = censorPositionAdjustmentPoints.length - 1; pointI >= 0; pointI--) {
-        const pointToRemove = censorPositionAdjustmentPoints[pointI];
+      for (let pointI = blurPositionAdjustmentPoints.length - 1; pointI >= 0; pointI--) {
+        const pointToRemove = blurPositionAdjustmentPoints[pointI];
         pointToRemove.remove();
       }
-      this.activeCensorPosition = null;
+      this.activeBlurPosition = null;
     }
 
     changeAnnotationInFocus() {
@@ -802,12 +802,12 @@ export class Editor {
       this.typeOfAnnotationInFocus = itemForm.dataset["annotationType"];
       this.annotationIdInFocus = itemForm.dataset["annotationId"];
 
-      if (previousTypeInFocus == "censor") {
-        this.handleFocusChangeAwayFromCensorType();
+      if (previousTypeInFocus == "blur") {
+        this.handleFocusChangeAwayFromBlurType();
       }
 
-      if (this.typeOfAnnotationInFocus == "censor" ) {
-        this.handleFocusChangeToCensorType();
+      if (this.typeOfAnnotationInFocus == "blur" ) {
+        this.handleFocusChangeToBlurType();
       }
     }
 
@@ -934,7 +934,7 @@ export class Editor {
     }
 
 
-    markCensorPositionAsActive(positionId) {
+    markBlurPositionAsActive(positionId) {
       // inactivate any active form elements
       const activeFormPositionCSSClass = "active-position-entry";
       const currentActiveFormPositions = document.querySelectorAll(`.${activeFormPositionCSSClass}`);
@@ -949,20 +949,20 @@ export class Editor {
       }
 
       // inactivate any active position locators
-      const activePositionLocatorCSSClass = "active-censor-position-locator";
+      const activePositionLocatorCSSClass = "active-blur-position-locator";
       const currentActivePositionLocators = document.querySelectorAll(`.${activePositionLocatorCSSClass}`);
       for (let activePositionLocator of currentActivePositionLocators) {
         activePositionLocator.classList.remove(activePositionLocatorCSSClass);
       }
 
       // activeate position locator
-      const positionLocatorToActivate = document.querySelector(`.censor-position-locator[data-position-id="${positionId}"]`);
+      const positionLocatorToActivate = document.querySelector(`.blur-position-locator[data-position-id="${positionId}"]`);
       if (positionLocatorToActivate) {
         positionLocatorToActivate.classList.add(activePositionLocatorCSSClass);
       }
     }
 
-    setupCensorPositionSeekListeners() {
+    setupBlurPositionSeekListeners() {
       const handler = (clickEvent) => {
         const parent = clickEvent.target.closest(".position-entry");
         if (!parent) {
@@ -979,7 +979,7 @@ export class Editor {
           }
         }
         this.video.currentTime = time;
-        this.markCensorPositionAsActive(parent.dataset["positionId"]);
+        this.markBlurPositionAsActive(parent.dataset["positionId"]);
       }
       const positionEntries = document.getElementsByClassName("position-entry");
       for (let positionEntry of positionEntries) {
@@ -987,14 +987,14 @@ export class Editor {
       }
     }
 
-    setUpCensorPositionDeleteListeners(parentAnnotationId) {
-      const buttons = document.getElementsByClassName("censor-position-delete-button");
+    setUpBlurPositionDeleteListeners(parentAnnotationId) {
+      const buttons = document.getElementsByClassName("blur-position-delete-button");
       for (let button of buttons) {
         const buttonParent = button.parentElement;
         const positionId = buttonParent.dataset["positionId"];
 
         button.addEventListener("click", async () => {
-          await this.deleteCensorPosition(parentAnnotationId, positionId);
+          await this.deleteBlurPosition(parentAnnotationId, positionId);
         });
       }
     }
@@ -1194,9 +1194,9 @@ export class Editor {
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
       this.setUpItemForm();
-      if (annotationType == "censor") {
-        this.setUpCensorPositionDeleteListeners(annotationId);
-        this.setupCensorPositionSeekListeners();
+      if (annotationType == "blur") {
+        this.setUpBlurPositionDeleteListeners(annotationId);
+        this.setupBlurPositionSeekListeners();
       }
       else if (annotationType == "comment") {
         this.setUpCommentChangeListeners(detailForm);
@@ -1479,10 +1479,10 @@ export class Editor {
               replacementItem.dataset["end"] = endTime;
             }
             replacementItem.style.left = newLeftRatio * 100 + '%';
-            if (annotationType == "censor") {
-              const censorPositions = replacementItem.querySelectorAll(".censor-position-locator");
+            if (annotationType == "blur") {
+              const blurPositions = replacementItem.querySelectorAll(".blur-position-locator");
               const positionsToDelete = [];
-              for (let position of censorPositions) {
+              for (let position of blurPositions) {
                 if (position.dataset["positionTime"] < startTime) {
                   positionsToDelete.push(position);
                 }
@@ -1838,10 +1838,10 @@ export class Editor {
               const itemLeftValue = parseFloat(item.dataset["start"]) / this.duration * 100
               item.style.setProperty("left", `${itemLeftValue}%`);
 
-              // apply postion styling to censor positions
-              if (item.dataset.annotationType == "censor") {
-                const censorPositionLocators = item.querySelectorAll(".censor-position-locator");
-                for (let positionLocator of censorPositionLocators) {
+              // apply postion styling to blur positions
+              if (item.dataset.annotationType == "blur") {
+                const blurPositionLocators = item.querySelectorAll(".blur-position-locator");
+                for (let positionLocator of blurPositionLocators) {
                   const positionLocatorDim = positionLocator.getBoundingClientRect();
                   const positionWidth = positionLocatorDim.width;
                   const positionTime = positionLocator.dataset["positionTime"];

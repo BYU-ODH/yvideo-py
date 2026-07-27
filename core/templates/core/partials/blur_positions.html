@@ -1,5 +1,5 @@
 {% load static %}
-<div id="censor-positions-wrapper">
+<div id="blur-positions-wrapper">
     <h4>Blur Points</h4>
     <div id="positions-list">
         <div class="position-headers">
@@ -30,7 +30,7 @@
                 <input class="position-height-input" name="position-height" type="text" value="{{position.height}}" aria-label="position height as a percentage of the video window">
             </div>
             {% if forloop.counter != 1 %}
-            <button class="censor-position-delete-button">
+            <button class="blur-position-delete-button">
                 <img src="{% static 'img/white-trash-can.svg' %}"></img>
             </button>
             {% endif %}
