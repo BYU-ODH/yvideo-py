@@ -63,15 +63,6 @@ ANNOTATION_ICONS = {
 }
 
 
-def build_player_wrapper_context(request, content):
-    resource_file_key = request.user.get_resource_filekey(content)
-    return {
-        "content_id": content.pk,
-        "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
-        "content_source_url": request.user.get_content_source_url(content),
-    }
-
-
 def get_annotation_groups(annotations):
     # [{type:"", type_display:"", icon:"", instances: []}]
 
@@ -176,10 +167,6 @@ def video_editor(request, content_id):
 
         # Determine if user can edit the active annotation set
         annotation_set = content.annotation_set
-        if annotation_set is None and content.get_resource():
-            annotation_set = AnnotationSet.create_for_content(content, request.user)
-            content.annotation_set = annotation_set
-            content.save(update_fields=["annotation_set", "updated_at"])
 
         can_edit = (
             annotation_set.can_edit(request.user)
@@ -273,9 +260,16 @@ def get_player_wrapper_html(request):
         return HttpResponse("Unauthorized", status=403)
 
     try:
+        resource_file_key = request.user.get_resource_filekey(content)
         video_html = render_to_string(
             "core/partials/player-wrapper.html",
-            build_player_wrapper_context(request, content),
+            {
+                "content_id": content.pk,
+                "resource_file_key_id": resource_file_key.pk
+                if resource_file_key
+                else None,
+                "content_source_url": request.user.get_content_source_url(content),
+            },
             request=request,
         )
 

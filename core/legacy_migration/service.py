@@ -1,5 +1,6 @@
 from collections import Counter
 import datetime
+from difflib import SequenceMatcher
 import json
 import logging
 import os
@@ -11,18 +12,6 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
-
-try:
-    from rapidfuzz import fuzz
-except ImportError:  # pragma: no cover - fallback only matters if dependency is missing
-    from difflib import SequenceMatcher
-
-    class _FuzzFallback:
-        @staticmethod
-        def WRatio(left, right):
-            return int(SequenceMatcher(None, left, right).ratio() * 100)
-
-    fuzz = _FuzzFallback()
 
 from ..models import AnnotationSet
 from ..models import BlankAnnotation
@@ -219,7 +208,12 @@ class LegacyMigrationService:
         normalized_legacy_name = normalize_name(legacy_name)
         for resource in Resource.objects.all().only("id", "name"):
             normalized_candidate = normalize_name(resource.name)
-            score = fuzz.WRatio(normalized_legacy_name, normalized_candidate)
+            score = int(
+                SequenceMatcher(
+                    None, normalized_legacy_name, normalized_candidate
+                ).ratio()
+                * 100
+            )
             matches.append(
                 {
                     "resource_id": resource.pk,

@@ -530,6 +530,52 @@ class LegacyMigrationTests(TestCase):
         service.sync_request_issues(migration_request)
         self.assertEqual(migration_request.issues.count(), 0)
 
+    def test_build_fuzzy_matches_ranks_by_name_similarity(self):
+        # Scores below come from the difflib.SequenceMatcher ratio that backs
+        # _build_fuzzy_matches; they're deterministic for these fixed strings.
+        exact_variant = ResourceFactory(name="INTRODUCTION TO BYZANTINE ART!!")
+        near_duplicate = ResourceFactory(name="Introduction to Byzantin Art")
+        moderate_variant = ResourceFactory(
+            name="Introduction to Byzantine Art (Revised)"
+        )
+        weak_variant = ResourceFactory(name="Byzantine Art")
+        unrelated = ResourceFactory(name="Quantum Computing Basics")
+        # Lowest-scoring candidate: exercises the top-5 cap below.
+        ResourceFactory(name="Cooking with Cast Iron")
+
+        service = LegacyMigrationService(require_catalog=False)
+        matches = service._build_fuzzy_matches("Introduction to Byzantine Art")
+
+        # Only the 5 highest-scoring candidates are kept.
+        self.assertEqual(len(matches), 5)
+        self.assertNotIn(
+            "cooking with cast iron", [m["normalized_name"] for m in matches]
+        )
+
+        scores_by_resource_id = {m["resource_id"]: m["score"] for m in matches}
+        # Punctuation/case-only differences normalize away entirely.
+        self.assertEqual(scores_by_resource_id[exact_variant.pk], 100)
+        # A one-letter typo still lands solidly in "likely the same resource" territory.
+        self.assertEqual(scores_by_resource_id[near_duplicate.pk], 98)
+        # A trailing qualifier is a lower but still strong match.
+        self.assertEqual(scores_by_resource_id[moderate_variant.pk], 87)
+        # Sharing only some of the words scores much lower.
+        self.assertEqual(scores_by_resource_id[weak_variant.pk], 61)
+        # An unrelated name scores lowest among the kept candidates.
+        self.assertEqual(scores_by_resource_id[unrelated.pk], 30)
+
+        # Results are sorted best-match-first.
+        self.assertEqual(
+            [m["resource_id"] for m in matches],
+            [
+                exact_variant.pk,
+                near_duplicate.pk,
+                moderate_variant.pk,
+                weak_variant.pk,
+                unrelated.pk,
+            ],
+        )
+
     def test_import_collection_migrates_files_url_content_permissions_and_annotations(
         self,
     ):

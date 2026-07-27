@@ -1,4 +1,4 @@
-FROM docker.io/library/python:3.13-slim-bookworm
+FROM docker.io/library/debian:stable-slim
 
 # uv must remain in the final image because Gunicorn and management commands
 # run through it.

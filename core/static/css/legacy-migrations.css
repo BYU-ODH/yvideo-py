@@ -1,3 +1,14 @@
+:root {
+    --legacy-migrations-border: #d4d9dc;
+    --legacy-migrations-panel-bg: #f8fafb;
+    --legacy-migrations-instructions-bg: #eaf5fa;
+    --legacy-migrations-table-border: #b8c2c7;
+    --legacy-migrations-table-header-border: #496b84;
+    --legacy-migrations-table-row-alt-bg: #edf3f6;
+    --legacy-migrations-table-row-hover-bg: #dceef5;
+    --legacy-migrations-status-bg: #e1f1f7;
+}
+
 /* Legacy migration requests */
 .legacy-migrations-page {
     width: min(100%, 80rem);
@@ -37,13 +48,13 @@
 
 .legacy-migrations-form,
 .legacy-migrations-contact {
-    border: 1px solid #d4d9dc;
+    border: 1px solid var(--legacy-migrations-border);
     border-radius: 0.75rem;
 }
 
 .legacy-migrations-form {
     padding: clamp(1.25rem, 3vw, 2rem);
-    background: #f8fafb;
+    background: var(--legacy-migrations-panel-bg);
 }
 
 .legacy-migrations-form h3,
@@ -62,7 +73,7 @@
     padding: 1rem 1.25rem;
     border-left: 0.3rem solid var(--medium-blue);
     border-radius: 0.35rem;
-    background: #eaf5fa;
+    background: var(--legacy-migrations-instructions-bg);
     color: var(--darker-grey);
 }
 
@@ -151,7 +162,7 @@
 }
 
 .legacy-migrations-contact a {
-    color: #551a8b;
+    color: var(--dark-primary-blue);
 }
 
 .legacy-migrations-history {
@@ -193,12 +204,12 @@
 .legacy-migrations-table th,
 .legacy-migrations-table td {
     padding: 1rem;
-    border: 1px solid #b8c2c7;
+    border: 1px solid var(--legacy-migrations-table-border);
     vertical-align: middle;
 }
 
 .legacy-migrations-table th {
-    border-color: #496b84;
+    border-color: var(--legacy-migrations-table-header-border);
     background: var(--deep-blue);
     color: white;
     font-size: 0.8rem;
@@ -211,11 +222,11 @@
 }
 
 .legacy-migrations-table tbody tr:nth-child(even) {
-    background: #edf3f6;
+    background: var(--legacy-migrations-table-row-alt-bg);
 }
 
 .legacy-migrations-table tbody tr:hover {
-    background: #dceef5;
+    background: var(--legacy-migrations-table-row-hover-bg);
 }
 
 .legacy-migrations-reference {
@@ -230,7 +241,7 @@
     display: inline-block;
     padding: 0.3rem 0.65rem;
     border-radius: 1rem;
-    background: #e1f1f7;
+    background: var(--legacy-migrations-status-bg);
     color: var(--deep-blue);
     font-size: 0.9rem;
     font-weight: 650;
@@ -286,7 +297,7 @@
 .legacy-yvideo-logo {
     font-family: "Roboto Mono", monospace;
     font-weight: bold;
-    background: linear-gradient(to right, #0582CA 0%, #002E5D 100%);
+    background: linear-gradient(to right, var(--medium-blue) 0%, var(--deep-blue) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text; /* eslint-disable-line css/use-baseline */
