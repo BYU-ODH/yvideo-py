@@ -1,0 +1,304 @@
+:root {
+    --legacy-migrations-border: #d4d9dc;
+    --legacy-migrations-panel-bg: #f8fafb;
+    --legacy-migrations-instructions-bg: #eaf5fa;
+    --legacy-migrations-table-border: #b8c2c7;
+    --legacy-migrations-table-header-border: #496b84;
+    --legacy-migrations-table-row-alt-bg: #edf3f6;
+    --legacy-migrations-table-row-hover-bg: #dceef5;
+    --legacy-migrations-status-bg: #e1f1f7;
+}
+
+/* Legacy migration requests */
+.legacy-migrations-page {
+    width: min(100%, 80rem);
+    margin: 0 auto;
+    padding: clamp(1.25rem, 4vw, 3rem);
+}
+
+.legacy-migrations-header {
+    max-width: 52rem;
+    margin-bottom: 2rem;
+}
+
+.legacy-migrations-header h2 {
+    margin: 0 0 0.75rem;
+    color: var(--deep-blue);
+    font-size: clamp(1.75rem, 4vw, 2.35rem);
+}
+
+.legacy-migrations-header p,
+.legacy-migrations-form-intro,
+.legacy-migrations-contact p,
+.legacy-migrations-history-header p {
+    line-height: 1.6;
+}
+
+.legacy-migrations-header p {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.legacy-migrations-request-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.legacy-migrations-form,
+.legacy-migrations-contact {
+    border: 1px solid var(--legacy-migrations-border);
+    border-radius: 0.75rem;
+}
+
+.legacy-migrations-form {
+    padding: clamp(1.25rem, 3vw, 2rem);
+    background: var(--legacy-migrations-panel-bg);
+}
+
+.legacy-migrations-form h3,
+.legacy-migrations-contact h3,
+.legacy-migrations-history h3 {
+    margin: 0;
+    color: var(--deep-blue);
+}
+
+.legacy-migrations-form-intro {
+    margin: 0.5rem 0 1.5rem;
+}
+
+.legacy-migrations-instructions {
+    margin-bottom: 1.75rem;
+    padding: 1rem 1.25rem;
+    border-left: 0.3rem solid var(--medium-blue);
+    border-radius: 0.35rem;
+    background: var(--legacy-migrations-instructions-bg);
+    color: var(--darker-grey);
+}
+
+.legacy-migrations-instructions h4 {
+    margin: 0 0 0.5rem;
+    color: var(--deep-blue);
+    font-size: 1rem;
+}
+
+.legacy-migrations-instructions p {
+    margin: 0;
+    line-height: 1.55;
+}
+
+.legacy-migrations-instructions p + p {
+    margin-top: 0.75rem;
+}
+
+.legacy-migrations-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+}
+
+.legacy-migrations-field label {
+    font-weight: 650;
+}
+
+.legacy-migrations-field input,
+.legacy-migrations-field select,
+.legacy-migrations-field textarea {
+    width: 100%;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--grey);
+    border-radius: 0.35rem;
+    background-color: white;
+    font-size: 1rem;
+}
+
+.legacy-migrations-field textarea {
+    /* eslint-disable-next-line css/use-baseline */
+    resize: vertical;
+}
+
+.legacy-migrations-field input:focus,
+.legacy-migrations-field select:focus,
+.legacy-migrations-field textarea:focus {
+    outline: 3px solid var(--light-blue);
+    outline-offset: 1px;
+    border-color: var(--medium-blue);
+}
+
+.legacy-migrations-help-text {
+    display: block;
+    padding-left: 0.7rem;
+    border-left: 0.2rem solid var(--light-blue);
+    color: var(--dark-grey);
+    font-size: 0.9rem;
+    font-style: italic;
+    line-height: 1.45;
+}
+
+.legacy-migrations-field .errorlist,
+.legacy-migrations-form > .errorlist {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--dark-red);
+}
+
+.legacy-migrations-contact {
+    padding: 1.5rem;
+    border-left: 0.35rem solid var(--medium-blue);
+}
+
+.legacy-migrations-contact p {
+    margin: 0.5rem 0 1rem;
+}
+
+.legacy-migrations-contact address {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-style: normal;
+    overflow-wrap: anywhere;
+}
+
+.legacy-migrations-contact a {
+    color: var(--dark-primary-blue);
+}
+
+.legacy-migrations-history {
+    width: 100%;
+    margin-top: 3rem;
+}
+
+.legacy-migrations-history-header {
+    margin-bottom: 1rem;
+}
+
+.legacy-migrations-history-header h3 {
+    font-size: 1.6rem;
+}
+
+.legacy-migrations-history-header p {
+    margin: 0.35rem 0 0;
+    color: var(--dark-grey);
+}
+
+.legacy-migrations-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 0.65rem;
+}
+
+.legacy-migrations-table-wrapper:focus {
+    outline: 3px solid var(--light-blue);
+    outline-offset: 2px;
+}
+
+.legacy-migrations-table {
+    width: 100%;
+    min-width: 46rem;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.legacy-migrations-table th,
+.legacy-migrations-table td {
+    padding: 1rem;
+    border: 1px solid var(--legacy-migrations-table-border);
+    vertical-align: middle;
+}
+
+.legacy-migrations-table th {
+    border-color: var(--legacy-migrations-table-header-border);
+    background: var(--deep-blue);
+    color: white;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.legacy-migrations-table tbody tr:nth-child(odd) {
+    background: white;
+}
+
+.legacy-migrations-table tbody tr:nth-child(even) {
+    background: var(--legacy-migrations-table-row-alt-bg);
+}
+
+.legacy-migrations-table tbody tr:hover {
+    background: var(--legacy-migrations-table-row-hover-bg);
+}
+
+.legacy-migrations-reference {
+    display: inline-block;
+    max-width: 22rem;
+    overflow-wrap: anywhere;
+    font-family: "Roboto Mono", monospace;
+    font-size: 0.9rem;
+}
+
+.legacy-migrations-status {
+    display: inline-block;
+    padding: 0.3rem 0.65rem;
+    border-radius: 1rem;
+    background: var(--legacy-migrations-status-bg);
+    color: var(--deep-blue);
+    font-size: 0.9rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.legacy-migrations-table time {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    white-space: nowrap;
+}
+
+.legacy-migrations-table time span {
+    color: var(--dark-grey);
+    font-size: 0.9rem;
+}
+
+.legacy-migrations-action {
+    text-align: right;
+}
+
+.legacy-migrations-view-link {
+    display: inline-block;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid var(--dark-primary-blue);
+    border-radius: 1rem;
+    color: var(--dark-primary-blue);
+    font-weight: 650;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.legacy-migrations-view-link:hover {
+    background: var(--dark-primary-blue);
+    color: white;
+}
+
+.legacy-migrations-empty {
+    margin: 0;
+    padding: 1.5rem;
+    border: 1px dashed var(--light-grey);
+    border-radius: 0.65rem;
+    color: var(--dark-grey);
+}
+
+@media (max-width: 48rem) {
+    .legacy-migrations-history {
+        margin-top: 2.25rem;
+    }
+}
+
+.legacy-yvideo-logo {
+    font-family: "Roboto Mono", monospace;
+    font-weight: bold;
+    background: linear-gradient(to right, var(--medium-blue) 0%, var(--deep-blue) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text; /* eslint-disable-line css/use-baseline */
+}

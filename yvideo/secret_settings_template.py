@@ -23,6 +23,15 @@ API_NET_ID_IAM_URL = ""
 API_WORKER_SUMMARY_URL = ""
 API_STUDENT_SUMMARY_URL = ""
 API_STUDENT_ENROLLMENTS_URL = ""
+LEGACY_MIGRATION_ENABLED = False
+LEGACY_MIGRATION_MEDIA_ROOT = ""
+LEGACY_MIGRATION_DB_ALIAS = "legacy"
+LEGACY_MIGRATION_SQLITE_PATH = "var/legacy_migration/legacy_dump.sqlite3"
+LEGACY_MIGRATION_CREATE_MISSING_USERS = False
+LEGACY_MIGRATION_WORKER_LOCK_PATH = "var/legacy_migration/job_worker.lock"
+# The app reads a local SQLite snapshot for legacy migration. It refreshes
+# that snapshot itself (by running scripts/dump_legacy_to_sqlite.py) every
+# time preflight runs, so it's never stale.
 
 
 # Required when behind a reverse proxy (Apache, nginx).

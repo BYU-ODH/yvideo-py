@@ -8,9 +8,9 @@ dependencies = [
     "django-reversion>=6.3.0,<7",
     "django>=5.2.15,<5.3",
     "gunicorn>=26.0.0,<27",
+    "mozilla-django-oidc >=5.0.2,<6",
     "requests>=2.34.2,<2.35",
     "xxhash>=3.8.0,<4",
-    "mozilla-django-oidc >=5.0.2,<6"
 ]
 
 [dependency-groups]
