@@ -2067,17 +2067,27 @@ export class Editor {
         const targetLabels = 5;
         const rawInterval = viewportSeconds / targetLabels;
 
+        // Ticks are drawn across the whole duration (not just the visible
+        // window), so deep zoom on a long video can demand an enormous
+        // number of minor ticks. Cap the total so it stays cheap to render.
+        const MAX_MINOR_TICKS = 4000;
+        const fitsTickBudget = (interval) => (this.duration / (interval / 5)) <= MAX_MINOR_TICKS;
+
         // Snap to nice intervals: 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, etc.
         const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600];
 
         for (const interval of niceIntervals) {
-            if (interval >= rawInterval) {
+            if (interval >= rawInterval && fitsTickBudget(interval)) {
                 return interval;
             }
         }
 
-        // For very long videos, use multiples of an hour
-        return Math.ceil(rawInterval / 3600) * 3600;
+        // For very long videos, use multiples of an hour, still respecting the tick budget
+        let interval = Math.max(3600, Math.ceil(rawInterval / 3600) * 3600);
+        while (!fitsTickBudget(interval)) {
+            interval += 3600;
+        }
+        return interval;
     }
 
     renderTickMarksAndLabels() {
@@ -2185,24 +2195,19 @@ export class Editor {
     }
 
     attachZoomListener() {
-      const bindZoomLevel = () => {
-        if (this.zoomLevel > 10) {
-          console.error("zoomLevel exceeded expected max zoom of 10; reverting to zoom 10.");
-          this.zoomLevel = 10;
-        }
-        else if (this.zoomLevel < 1) {
-          console.error("zoomLevel lower than expected min zoom of 1; reverting to zoom 1.");
-          this.zoomLevel = 1;
-        }
-      }
+      const MIN_ZOOM_LEVEL = 1;
+      const MIN_VIEWPORT_SECONDS = 5;
+      const ZOOM_STEP_FACTOR = 1.5;
+
+      // Cap zoom so the visible window can shrink to a few seconds no matter
+      // how long the video is, instead of a fixed zoom level that leaves long
+      // videos unable to zoom in past several minutes of visible width.
+      const getMaxZoomLevel = () => Math.max(10, this.duration / MIN_VIEWPORT_SECONDS);
 
       const zoomInButton = document.getElementById("zoom-in-button");
       if (zoomInButton) {
         zoomInButton.addEventListener("click", () => {
-          if (this.zoomLevel < 10) {
-            this.zoomLevel += 1;
-          }
-          bindZoomLevel();
+          this.zoomLevel = Math.min(getMaxZoomLevel(), this.zoomLevel * ZOOM_STEP_FACTOR);
           this.handleZoom();
         });
       }
@@ -2210,10 +2215,7 @@ export class Editor {
       const zoomOutButton = document.getElementById("zoom-out-button");
       if (zoomOutButton) {
         zoomOutButton.addEventListener("click", () => {
-          if (this.zoomLevel > 1) {
-            this.zoomLevel -= 1;
-          }
-          bindZoomLevel();
+          this.zoomLevel = Math.max(MIN_ZOOM_LEVEL, this.zoomLevel / ZOOM_STEP_FACTOR);
           this.handleZoom();
         });
       }
