@@ -1,0 +1,82 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block content %}
+    <div class="main-content">
+        {% if user.privilege_level == 2 or user.privilege_level == 0 %}
+        <div class="landing-page-playlist-list column-flex">
+            <header class="playlists-header row-flex flex-apart-aligned">
+                <h2>My Playlists</h2>
+                <div class="search-wrapper">
+                    <input
+                        type="text"
+                        id="playlists-search"
+                        class="list-search-input"
+                        placeholder="Search"
+                        aria-label="Search playlists"
+                    >
+                    <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
+                </div>
+            </header>
+            <dialog id="add-new-playlist-dialog" class="user-view-modal">
+                <button class="close-dialog-button" command="close" commandfor="add-new-playlist-dialog">
+                    Close
+                </button>
+                <div class="user-view-modal-header">
+                    <h3>Create New Playlist</h3>
+                </div>
+                <form id="new-playlist-form" class="user-view-modal-body column-flex">
+                    <div class="form-input-group">
+                        <label for="new-playlist-name-input">Playlist name</label>
+                        <input id="new-playlist-name-input" type="text" name="name">
+                    </div>
+                    <button id="create-new-playlist-submit" class="blue-button" type="submit">
+                        Submit
+                    </button>
+                </form>
+            </dialog>
+            <button id="add-new-playlist-button" class="blue-button" command="show-modal" commandfor="add-new-playlist-dialog">
+                + Add New Playlist
+            </button>
+            <div class="playlists-list-content">
+                {% for playlist in owned_playlists %}
+                    {% include "core/partials/landing_page_playlist.html" %}
+                {% empty %}
+                    <p>No Playlists</p>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="landing-page-playlist-list">
+            <header class="playlists-header row-flex flex-apart-aligned">
+                <h2>Playlists assigned to me</h2>
+            </header>
+            <div class="yearterm-courses-list">
+                {% for yearterm in assigned_courses_by_yearterm %}
+                    <h3 class="yearterm-courses-header">{{ yearterm.yearterm_display }}</h3>
+                    <div class="yearterm-course-playlists-list">
+                        {% for course in yearterm.playlists_by_course %}
+                            <div class="course-header row-flex clickable" onclick="handleAccordian(this)">
+                                <p>{{ course.course_name }}</p>
+                                <img src="{% static 'img/arrow.svg' %}" class="arrow">
+                            </div>
+                            <div class="playlists-list-content course-playlists-list accordian-folded">
+                                {% for playlist in course.playlists %}
+                                    {% include "core/partials/landing_page_playlist.html" %}
+                                {% empty %}
+                                    <p>No playlists for {{course.course_name}}</p>
+                                {% endfor %}
+                            </div>
+                        {% empty %}
+                            <p>None of the courses you're enrolled in for {{ yearterm.yearterm_display }} have assigned playlists.</p>
+                        {% endfor %}
+                    </div>
+                {% empty %}
+                    <p>No semesters with courses assigned</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+<script type="module" src="{% static 'js/playlists.js' %}"></script>
+{% endblock %}

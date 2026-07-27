@@ -3,8 +3,8 @@ from pathlib import Path
 from playwright.sync_api import Page
 import pytest
 
-from core.models import Collection
 from core.models import Content
+from core.models import Playlist
 
 pytestmark = [
     pytest.mark.e2e,
@@ -24,8 +24,8 @@ AXE_MIN_JS = (
 # build the URL path from the deterministic demo seed data.
 FULL_PAGE_VIEWS = [
     "index",
-    "collections",
-    "collection_info",
+    "playlists",
+    "playlist_info",
     "content_info",
     "player",
     "create_from_resource",
@@ -35,19 +35,19 @@ FULL_PAGE_VIEWS = [
 def _resolve_path(view_name: str) -> str:
     if view_name == "index":
         return "/"
-    if view_name == "collections":
-        return "/collections/"
+    if view_name == "playlists":
+        return "/playlists/"
 
     # Owned by the demo admin (the account dev-quick-login authenticates as), so
     # every view-permission check passes.
-    collection = Collection.objects.get(name="Local Admin / Demo Review Shelf")
+    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
     content = Content.objects.get(title="Birds Overview")
 
     return {
-        "collection_info": f"/collections/{collection.id}/",
+        "playlist_info": f"/playlists/{playlist.id}/",
         "content_info": f"/content/display-settings/{content.id}/",
         "player": f"/player/{content.id}/",
-        "create_from_resource": f"/create-from-resource/{collection.id}",
+        "create_from_resource": f"/create-from-resource/{playlist.id}",
     }[view_name]
 
 

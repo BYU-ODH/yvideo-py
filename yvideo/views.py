@@ -15,7 +15,7 @@ django_login = login_not_required(django_login)
 
 def oidc_login(request):
     if request.user.is_authenticated:
-        return HttpResponseRedirect("/collections")
+        return HttpResponseRedirect("/playlists")
     return HttpResponseRedirect(reverse("oidc_authentication_init"))
 
 

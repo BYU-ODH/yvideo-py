@@ -26,9 +26,9 @@ import xxhash
 from ..admin_legacy_migration import LegacyMigrationFileDecisionForm
 from ..admin_legacy_migration import LegacyMigrationRequestAdmin
 from ..admin_legacy_migration import LegacyMigrationResourceInline
-from ..factories import CollectionFactory
 from ..factories import ContentFactory
 from ..factories import LanguageFactory
+from ..factories import PlaylistFactory
 from ..factories import ResourceFactory
 from ..factories import UserFactory
 from ..legacy_migration import ChecksumCache
@@ -52,12 +52,12 @@ from ..models import BlankAnnotation
 from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
 from ..models import Clip
-from ..models import Collection
-from ..models import CollectionRole
-from ..models import CollectionUserAccess
 from ..models import Content
 from ..models import MuteAnnotation
 from ..models import PauseAnnotation
+from ..models import Playlist
+from ..models import PlaylistRole
+from ..models import PlaylistUserAccess
 from ..models import Resource
 from ..models import ResourceAccess
 from ..models import ResourceFile
@@ -306,16 +306,14 @@ class LegacyMigrationTests(TestCase):
         )
         current_resource_file.file.name = "legacy/shared-birds.mp4"
         current_resource_file.save()
-        current_collection = CollectionFactory(
-            owner=owner, name="Current Birds Collection"
-        )
-        CollectionUserAccess.objects.create(
+        current_playlist = PlaylistFactory(owner=owner, name="Current Birds Playlist")
+        PlaylistUserAccess.objects.create(
             user=ta_user,
-            collection=current_collection,
-            collection_role=CollectionRole.TA,
+            playlist=current_playlist,
+            playlist_role=PlaylistRole.TA,
         )
         Content.objects.create(
-            collection=current_collection,
+            playlist=current_playlist,
             title="Current Birds Content",
             resource=current_resource,
             resource_file=current_resource_file,
@@ -585,7 +583,7 @@ class LegacyMigrationTests(TestCase):
         target_owner = UserFactory(
             netid="profben", username="111111111", instructor=True
         )
-        collection_ta = UserFactory(
+        playlist_ta = UserFactory(
             netid="caseyta", username="222222222", instructor=True
         )
         resource_guest = UserFactory(
@@ -819,10 +817,10 @@ class LegacyMigrationTests(TestCase):
         service.run_job(job)
         migration_request.refresh_from_db()
 
-        imported_collection = Collection.objects.get(name="Imported Legacy Shelf")
-        imported_contents = Content.objects.filter(
-            collection=imported_collection
-        ).order_by("title")
+        imported_playlist = Playlist.objects.get(name="Imported Legacy Shelf")
+        imported_contents = Content.objects.filter(playlist=imported_playlist).order_by(
+            "title"
+        )
         self.assertEqual(imported_contents.count(), 2)
         imported_video = imported_contents.get(title="Imported Lecture")
         imported_url = imported_contents.get(title="Imported URL Content")
@@ -833,7 +831,7 @@ class LegacyMigrationTests(TestCase):
         self.assertIsNone(imported_url.resource_file)
         self.assertEqual(imported_url.resource.media_type, Resource.MediaType.WEB)
         self.assertEqual(imported_url.url, "https://example.com/imported.mp4")
-        self.assertTrue(imported_collection.courses.filter(dept="FILM").exists())
+        self.assertTrue(imported_playlist.courses.filter(dept="FILM").exists())
 
         imported_file_path = Path(imported_video.resource_file.file.path)
         self.assertEqual(
@@ -876,27 +874,27 @@ class LegacyMigrationTests(TestCase):
         )
         self.assertFalse(
             ResourceAccess.objects.filter(
-                user=collection_ta, resource=imported_video.resource
+                user=playlist_ta, resource=imported_video.resource
             ).exists()
         )
         self.assertTrue(
-            CollectionUserAccess.objects.filter(
+            PlaylistUserAccess.objects.filter(
                 user=target_owner,
-                collection=imported_collection,
-                collection_role=CollectionRole.INSTRUCTOR,
+                playlist=imported_playlist,
+                playlist_role=PlaylistRole.INSTRUCTOR,
             ).exists()
         )
         self.assertTrue(
-            CollectionUserAccess.objects.filter(
-                user=collection_ta,
-                collection=imported_collection,
-                collection_role=CollectionRole.TA,
+            PlaylistUserAccess.objects.filter(
+                user=playlist_ta,
+                playlist=imported_playlist,
+                playlist_role=PlaylistRole.TA,
             ).exists()
         )
         self.assertFalse(
-            CollectionUserAccess.objects.filter(
+            PlaylistUserAccess.objects.filter(
                 user=resource_guest,
-                collection=imported_collection,
+                playlist=imported_playlist,
             ).exists()
         )
         self.assertEqual(migration_request.status, LegacyMigrationStatus.COMPLETED)
@@ -1553,11 +1551,9 @@ class LegacyMigrationTests(TestCase):
         job = service.approve_and_queue_import(migration_request)
         service.run_job(job)
 
-        imported_collection = Collection.objects.get(
-            name="Reuse Existing Resource Shelf"
-        )
+        imported_playlist = Playlist.objects.get(name="Reuse Existing Resource Shelf")
         imported_content = Content.objects.get(
-            collection=imported_collection,
+            playlist=imported_playlist,
             title="Reuse Existing Resource Content",
         )
 
@@ -1645,7 +1641,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": "missingguest",
                 "collection_id": legacy_collection_id,
-                "account_role": CollectionRole.TA,
+                "account_role": PlaylistRole.TA,
             },
         )
 
@@ -1664,7 +1660,7 @@ class LegacyMigrationTests(TestCase):
             [
                 {
                     "collection_id": legacy_collection_id,
-                    "account_role": CollectionRole.TA,
+                    "account_role": PlaylistRole.TA,
                     "username": "missingguest",
                     "legacy_user_id": None,
                     "byu_person_id": None,
@@ -1751,7 +1747,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": ta_user.netid,
                 "collection_id": legacy_collection_id,
-                "account_role": CollectionRole.TA,
+                "account_role": PlaylistRole.TA,
             },
         )
         self.insert_legacy_row(
@@ -1864,7 +1860,7 @@ class LegacyMigrationTests(TestCase):
         )
 
         self.assertIn(ta_user.netid, access_preview)
-        self.assertIn(CollectionRole(CollectionRole.TA).label, access_preview)
+        self.assertIn(PlaylistRole(PlaylistRole.TA).label, access_preview)
         self.assertIn("FILM 101-001", course_preview)
         self.assertIn(resource_guest.netid, resource_access_preview)
 
@@ -1945,14 +1941,14 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     @override_settings(LEGACY_MIGRATION_ENABLED=False)
-    def test_collections_hides_legacy_migration_link_when_feature_disabled(self):
+    def test_playlists_hides_legacy_migration_link_when_feature_disabled(self):
         instructor = UserFactory(instructor=True)
         client = Client()
         client.force_login(
             instructor, backend="django.contrib.auth.backends.ModelBackend"
         )
 
-        response = client.get(reverse("collections"))
+        response = client.get(reverse("playlists"))
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Migrate from legacy")
@@ -2929,23 +2925,23 @@ class LegacyMigrationTests(TestCase):
                 },
             },
         )
-        collection = CollectionFactory(owner=owner, name="Imported Shelf")
+        playlist = PlaylistFactory(owner=owner, name="Imported Shelf")
 
         service.sync_request_issues(migration_request)
         self.assertTrue(
-            migration_request.issues.filter(code="collection_name_conflict").exists()
+            migration_request.issues.filter(code="playlist_name_conflict").exists()
         )
 
         LegacySourceMap.objects.create(
             source_type="collection",
             source_id=legacy_collection_id,
             request=migration_request,
-            target_model="Collection",
-            target_id=collection.pk,
+            target_model="Playlist",
+            target_id=playlist.pk,
         )
         service.sync_request_issues(migration_request)
         self.assertFalse(
-            migration_request.issues.filter(code="collection_name_conflict").exists()
+            migration_request.issues.filter(code="playlist_name_conflict").exists()
         )
 
     def test_sync_issues_warns_on_unknown_collection_role(self):
@@ -3189,7 +3185,7 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(migration_request.status, LegacyMigrationStatus.COMPLETED)
         self.assertEqual(ResourceFile.objects.count(), 1)
         shared_file = ResourceFile.objects.get()
-        contents = Content.objects.filter(collection__name="Duplicate Files Shelf")
+        contents = Content.objects.filter(playlist__name="Duplicate Files Shelf")
         self.assertEqual(contents.count(), 2)
         for content in contents:
             self.assertEqual(content.resource_file, shared_file)
@@ -3201,9 +3197,9 @@ class LegacyMigrationTests(TestCase):
     def test_player_url_only_content_requires_view_permission(self):
         owner = UserFactory(instructor=True)
         other_user = UserFactory(instructor=True)
-        collection = CollectionFactory(owner=owner, published=False)
+        playlist = PlaylistFactory(owner=owner, published=False)
         content = Content.objects.create(
-            collection=collection,
+            playlist=playlist,
             title="URL Only Lecture",
             url="https://example.com/lecture.mp4",
         )

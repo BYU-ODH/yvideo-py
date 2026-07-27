@@ -5,9 +5,9 @@ function setupOpenModalFunctions() {
   const resourceDetails = document.getElementsByClassName("resource-details");
   for (let resourceDetail of resourceDetails) {
     const resourceId = resourceDetail.dataset["resourceId"];
-    const collectionId = window.location.pathname.match(/\d.*/g)[0];
-    if (resourceId === undefined || collectionId === undefined) {
-      console.error("Failed to get create from resource form because of invalid resourceId or collectionId");
+    const playlistId = window.location.pathname.match(/\d.*/g)[0];
+    if (resourceId === undefined || playlistId === undefined) {
+      console.error("Failed to get create from resource form because of invalid resourceId or playlistId");
       return;
     }
     resourceDetail.addEventListener("click", async () => {
@@ -19,7 +19,7 @@ function setupOpenModalFunctions() {
         },
         body: JSON.stringify({
           resource_id: resourceId,
-          collection_id: collectionId
+          playlist_id: playlistId
         })
       });
       if (!newFormResponse.ok) {
@@ -35,15 +35,15 @@ function setupOpenModalFunctions() {
   }
 }
 
-function validateForm(collectionIdInput, titleInput, resourceFileInput) {
+function validateForm(playlistIdInput, titleInput, resourceFileInput) {
   let formIsValid = true;
   function markElAsInvalid(el) {
     formIsValid = false;
     el.classList.add("invalid-input");
   }
 
-  if (collectionIdInput?.value === undefined) {
-    console.log("Invalid collection_id value!");
+  if (playlistIdInput?.value === undefined) {
+    console.log("Invalid playlist_id value!");
     formIsValid = false;
   }
   if (titleInput.value === undefined) {
@@ -60,10 +60,10 @@ function setupCreateResourceForm() {
   const createButton = document.getElementById("create-from-resource-form-submit");
   createButton.addEventListener("click", async (event) => {
     event.preventDefault();
-    const collectionIdInput = document.getElementById("collection-id");
+    const playlistIdInput = document.getElementById("playlist-id");
     const titleInput = document.getElementById("content-title-input");
     const resourceFileInput = document.getElementById("resource-file-input");
-    if (validateForm(collectionIdInput, titleInput, resourceFileInput)) {
+    if (validateForm(playlistIdInput, titleInput, resourceFileInput)) {
       const createResponse = await fetch("/content/create/", {
         method: "post",
         headers: {
@@ -71,7 +71,7 @@ function setupCreateResourceForm() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          "collection_id": collectionIdInput.value,
+          "playlist_id": playlistIdInput.value,
           "title": titleInput.value,
           "resource_file_id": resourceFileInput.value
         })
@@ -82,7 +82,7 @@ function setupCreateResourceForm() {
         return;
       }
 
-      window.location.replace(`/collections/${collectionIdInput.value}`);
+      window.location.replace(`/playlists/${playlistIdInput.value}`);
     }
   });
 }

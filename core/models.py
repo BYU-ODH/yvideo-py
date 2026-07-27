@@ -32,7 +32,7 @@ class PrivilegeLevel(models.IntegerChoices):
     STUDENT = 3
 
 
-class CollectionRole(models.IntegerChoices):
+class PlaylistRole(models.IntegerChoices):
     INSTRUCTOR = 0
     TA = 1
     STUDENT = 2
@@ -102,8 +102,8 @@ class User(AbstractUser):
     resources = models.ManyToManyField(
         Resource, through="ResourceAccess", related_name="users"
     )
-    accessible_collections = models.ManyToManyField(
-        "Collection", through="CollectionUserAccess", related_name="users"
+    accessible_playlists = models.ManyToManyField(
+        "Playlist", through="PlaylistUserAccess", related_name="users"
     )
     courses = models.ManyToManyField("Course", through="UserCourses", blank=True)
 
@@ -125,20 +125,20 @@ class User(AbstractUser):
         return self.privilege_level == PrivilegeLevel.ADMIN
 
     def can_view_content(self, content):
-        # owners and admins should have view permission even if the collection is not published
-        if content.collection and content.collection.owner == self:
+        # owners and admins should have view permission even if the playlist is not published
+        if content.playlist and content.playlist.owner == self:
             return True
         if self.is_admin or self.is_superuser or self.is_staff:
             return True
-        if content.collection is None:
+        if content.playlist is None:
             resource = content.get_resource()
             return bool(
                 resource
                 and ResourceAccess.objects.filter(user=self, resource=resource).exists()
             )
-        if content.collection.published:
-            if CollectionUserAccess.objects.filter(
-                user=self, collection=content.collection
+        if content.playlist.published:
+            if PlaylistUserAccess.objects.filter(
+                user=self, playlist=content.playlist
             ).exists():
                 return True
             # TODO Check course enrollment
@@ -183,15 +183,15 @@ class ResourceAccess(models.Model):  # "through" model
         )
 
 
-class Collection(models.Model):
+class Playlist(models.Model):
     name = models.CharField(max_length=255)
     owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="collections_owned"
+        User, on_delete=models.CASCADE, related_name="playlists_owned"
     )
     published = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
     public = models.BooleanField(default=False)
-    courses = models.ManyToManyField("Course", related_name="collections", blank=True)
+    courses = models.ManyToManyField("Course", related_name="playlists", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -202,28 +202,28 @@ class Collection(models.Model):
         unique_together = ("name", "owner")
 
     def get_instructors_and_tas(self):
-        """Get all users with instructor or TA access to this collection."""
-        instructor_tas = CollectionUserAccess.objects.filter(
-            collection=self,
-            collection_role__in=[CollectionRole.INSTRUCTOR, CollectionRole.TA],
+        """Get all users with instructor or TA access to this playlist."""
+        instructor_tas = PlaylistUserAccess.objects.filter(
+            playlist=self,
+            playlist_role__in=[PlaylistRole.INSTRUCTOR, PlaylistRole.TA],
         ).select_related("user")
         return [access.user for access in instructor_tas]
 
 
-class CollectionUserAccess(models.Model):  # "through" model
+class PlaylistUserAccess(models.Model):  # "through" model
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
-    collection_role = models.IntegerField(
-        choices=CollectionRole.choices, default=CollectionRole.STUDENT
+    playlist = models.ForeignKey(Playlist, on_delete=models.CASCADE)
+    playlist_role = models.IntegerField(
+        choices=PlaylistRole.choices, default=PlaylistRole.STUDENT
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("user", "collection")
+        unique_together = ("user", "playlist")
 
     def __str__(self):
-        return f"{self.user.netid} {self.user.username} | {self.collection.name}"
+        return f"{self.user.netid} {self.user.username} | {self.playlist.name}"
 
 
 def validate_media_file(file):
@@ -358,7 +358,7 @@ class ResourceFile(models.Model):
 
 class AnnotationSet(models.Model):
     """
-    A collection of annotations for a Resource.
+    A set of annotations for a Resource.
     Multiple contents can use the same AnnotationSet.
     """
 
@@ -389,7 +389,7 @@ class AnnotationSet(models.Model):
     def can_be_viewed_by(self, user):
         """Check if user can view this annotation set (through any content using the resource)."""
         return Content.objects.filter(
-            resource=self.resource, collection__owner=user
+            resource=self.resource, playlist__owner=user
         ).exists() or self.can_edit(user)
 
     @classmethod
@@ -403,11 +403,11 @@ class AnnotationSet(models.Model):
     ):
         """
         Create a new AnnotationSet for a content's resource.
-        Automatically adds collection owner and instructor/TAs as editors.
+        Automatically adds playlist owner and instructor/TAs as editors.
         """
 
         try:
-            collection = content.collection
+            playlist = content.playlist
             resource = content.get_resource()
 
             if not resource:
@@ -432,8 +432,8 @@ class AnnotationSet(models.Model):
                 name=name, resource=resource, owner=user
             )
 
-            # Add all collection instructors/TAs as editors
-            instructors_and_tas = collection.get_instructors_and_tas()
+            # Add all playlist instructors/TAs as editors
+            instructors_and_tas = playlist.get_instructors_and_tas()
             annotation_set.editors.add(*instructors_and_tas)
 
             # create new annotations if provided (if importing from json, for example)
@@ -576,8 +576,8 @@ class Track(models.Model):
 
 class Content(models.Model):
     title = models.CharField(max_length=255)
-    collection = models.ForeignKey(
-        Collection,
+    playlist = models.ForeignKey(
+        Playlist,
         on_delete=models.CASCADE,
         related_name="contents",
         null=True,
@@ -616,11 +616,11 @@ class Content(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("collection", "title")
+        unique_together = ("playlist", "title")
 
     def __str__(self):
-        collection_name = self.collection.name if self.collection else "No Collection"
-        return f"{self.title} | {collection_name} | {self.id}"
+        playlist_name = self.playlist.name if self.playlist else "No Playlist"
+        return f"{self.title} | {playlist_name} | {self.id}"
 
     def save(self, *args, **kwargs):
         if self.resource_file:
@@ -1417,6 +1417,7 @@ class ResourceContentIntakeRequest(models.Model):
     date_needed = models.DateTimeField(default=get_date_5_days_from_now)
 
     # Resource-specific fields
+    resource_collection = models.CharField(default="")
     audio_language = models.CharField(default="")
     subtitle_language = models.CharField(default="")
 
