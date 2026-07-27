@@ -32,6 +32,7 @@ DEMO_MEDIA_DIR = REPO_ROOT / "demo_media"
 class UserFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = User
+        skip_postgeneration_save = True
 
     username = factory.Sequence(lambda n: f"usr{n:05d}")
     first_name = factory.Sequence(lambda n: f"User{n}")
@@ -41,7 +42,7 @@ class UserFactory(factory.django.DjangoModelFactory):
     is_active = True
     is_staff = False
     is_superuser = False
-    password = factory.PostGenerationMethodCall("set_password", "password123")
+    password = factory.django.Password("password123")
 
     class Params:
         admin = factory.Trait(
@@ -123,6 +124,7 @@ class ResourceFileFactory(factory.django.DjangoModelFactory):
 class CollectionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Collection
+        skip_postgeneration_save = True
 
     owner = factory.SubFactory(UserFactory, instructor=True)
     name = factory.Sequence(lambda n: f"Demo Collection {n}")
@@ -149,6 +151,7 @@ class CollectionUserAccessFactory(factory.django.DjangoModelFactory):
 class AnnotationSetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = AnnotationSet
+        skip_postgeneration_save = True
 
     name = factory.Sequence(lambda n: f"Annotation Set {n}")
     resource = factory.SubFactory(ResourceFactory)
@@ -173,10 +176,12 @@ class TrackFactory(factory.django.DjangoModelFactory):
 class ContentFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Content
+        skip_postgeneration_save = True
 
     title = factory.Sequence(lambda n: f"Demo Content {n}")
     collection = factory.SubFactory(CollectionFactory)
     resource_file = factory.SubFactory(ResourceFileFactory)
+    resource = factory.SelfAttribute("resource_file.resource")
     annotation_set = None
     description = ""
     allow_definitions = True
@@ -192,11 +197,11 @@ class ContentFactory(factory.django.DjangoModelFactory):
 
     @factory.post_generation
     def grant_owner_resource_access(self, create, extracted, **kwargs):
-        if not create or not self.collection or not self.resource_file:
+        if not create or not self.collection or not self.get_resource():
             return
         ResourceAccess.objects.get_or_create(
             user=self.collection.owner,
-            resource=self.resource_file.resource,
+            resource=self.get_resource(),
         )
 
 

@@ -11,6 +11,13 @@ Volume=@REPO_ROOT@/staticfiles:/app/staticfiles
 Volume=@REPO_ROOT@/var:/app/var
 Volume=@REPO_ROOT@/demo_media:/app/demo_media:ro
 Volume=@REPO_ROOT@/yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
+# LEGACY MIGRATION ONLY — delete this line when legacy_migration is removed
+# (and remove the matching DEPLOY_HOME template-variable substitution in
+# deploy/common.sh if nothing else uses it). See
+# core/legacy_migration/REMOVAL.md for the full checklist.
+# legacy_migration shells out to ssh/scp as the container's root user; reuse
+# the deploy user's own keys/known_hosts for the legacy media host.
+Volume=@DEPLOY_HOME@/.ssh:/root/.ssh:ro
 Environment=YVIDEO_DB_DIR=/app/data
 Environment=WORKERS=@WORKERS@
 Environment=THREADS=@THREADS@

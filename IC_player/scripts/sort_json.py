@@ -15,7 +15,9 @@ try:
         if "position" in x["options"]["details"]
     )
 except AssertionError as e:
-    raise e("The first value in `position` must match the `start` time.")
+    raise AssertionError(
+        "The first value in `position` must match the `start` time."
+    ) from e
 
 out_str = json.dumps(output)
 out_str = out_str.replace('{"options', '\n  {"options')

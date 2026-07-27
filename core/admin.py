@@ -1,9 +1,16 @@
+import logging
 import os
 
 from django.contrib import admin
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+from django.urls import reverse
 from reversion.admin import VersionAdmin
 
+from .forms import AddUserLookupForm
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -29,6 +36,8 @@ from .models import User
 from .models import UserCourses
 from .utils import convert_srt_content_to_vtt
 
+logger = logging.getLogger(__name__)
+
 
 @admin.register(User)
 class UserAdmin(VersionAdmin):
@@ -43,6 +52,51 @@ class UserAdmin(VersionAdmin):
     )
     list_filter = ("privilege_level", "date_joined")
     search_fields = ("username", "netid", "first_name", "last_name")
+    add_form_template = "admin/core/user/add_form.html"
+
+    def add_view(self, request, form_url="", extra_context=None):
+        # A new user's data (name, netid, permissions) comes entirely from BYU's
+        # APIs, so instead of Django's generic model-field add form, admins just
+        # supply a BYU ID (to create/populate a user) or a NetID (to find an
+        # existing one).
+        with self.create_revision(request):
+            return self._add_view(request, form_url, extra_context)
+
+    def _add_view(self, request, form_url="", extra_context=None):
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+
+        if request.method == "POST":
+            form = AddUserLookupForm(request.POST)
+            if form.is_valid():
+                user = form.resolved_user
+                if form.created:
+                    self.log_addition(
+                        request, user, "Added via BYU ID lookup in admin."
+                    )
+                    messages.success(
+                        request,
+                        f'The user "{user}" was created and populated from BYU\'s directory.',
+                    )
+                    if getattr(form, "enrollment_warning", None):
+                        messages.warning(request, form.enrollment_warning)
+                else:
+                    messages.info(request, f'Found existing user "{user}".')
+                return HttpResponseRedirect(
+                    reverse("admin:core_user_change", args=(user.pk,))
+                )
+        else:
+            form = AddUserLookupForm()
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Add user",
+            "opts": self.model._meta,
+        }
+        if extra_context:
+            context.update(extra_context)
+        context["form"] = form
+        return render(request, self.add_form_template, context)
 
 
 @admin.register(Resource)
@@ -69,7 +123,7 @@ class ResourceAdmin(VersionAdmin):
             user = User.objects.get(username=requester_username)
         except Exception:
             return
-        ResourceAccess.objects.create(user=user, resource=obj)
+        ResourceAccess.objects.get_or_create(user=user, resource=obj)
 
 
 @admin.register(Collection)
@@ -89,7 +143,14 @@ class ResourceFileAdmin(VersionAdmin):
 
 @admin.register(Content)
 class ContentAdmin(VersionAdmin):
-    list_display = ("title", "collection", "published", "views", "created_at")
+    list_display = (
+        "title",
+        "collection",
+        "resource",
+        "published",
+        "views",
+        "created_at",
+    )
     list_filter = (
         "published",
         "allow_definitions",
@@ -123,6 +184,14 @@ class ContentAdmin(VersionAdmin):
             else:
                 # If no collection or owner, show no files.
                 form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
+
+            # Filter clips to show only those associated with the selected file
+            if obj.get_resource():
+                form.base_fields["clips"].queryset = Clip.objects.filter(
+                    resource=obj.get_resource()
+                )
+            else:
+                form.base_fields["clips"].queryset = Clip.objects.none()
 
         else:
             # On the 'add' page, we can't filter by collection owner yet.

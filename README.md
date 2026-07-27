@@ -68,6 +68,30 @@ uv run manage.py runserver
 
 The application will be available at http://localhost:8000
 
+### Legacy Migration Snapshot Setup
+
+If you want to use the legacy migration workflow, the Django app reads from a local
+SQLite snapshot instead of connecting directly to the legacy PostgreSQL database.
+
+1. Copy `scripts/dump_legacy_to_sqlite_settings_template.py` to `scripts/dump_legacy_to_sqlite_settings.py`
+2. Fill in the legacy PostgreSQL credentials in `scripts/dump_legacy_to_sqlite_settings.py`
+3. Test the script:
+
+```bash
+uv run scripts/dump_legacy_to_sqlite.py
+```
+
+4. Enable legacy migration in `yvideo/secret_settings.py`:
+
+```python
+LEGACY_MIGRATION_ENABLED = True
+```
+
+By default, the snapshot is written to
+`var/legacy_migration/legacy_dump.sqlite3`. Every preflight run dumps a fresh
+snapshot itself before reading it. See
+[LEGACY_MIGRATION.md](LEGACY_MIGRATION.md) for details.
+
 ### Development Tools
 
 - **Pre-commit hooks**: Automatically run linting and formatting on commit

@@ -1,0 +1,109 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Legacy Migration Requests{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/legacy-migrations.css' %}">
+{% endblock %}
+
+{% block content %}
+    <section class="legacy-migrations-page">
+        <header class="legacy-migrations-header">
+            <h2>Move content from the old Y-Video</h2>
+            <p>
+                Use this form to request moving a collection or video from the old
+                Y-Video into your account. Our team will review your request and
+                handle the transfer.
+            </p>
+        </header>
+
+        <div class="legacy-migrations-request-layout">
+            <form method="post" action="{% url 'create_legacy_migration_request' %}" class="legacy-migrations-form">
+                <h3>Request a migration</h3>
+                <p class="legacy-migrations-form-intro">
+                    Tell us what you want moved and paste its old Y-Video link or ID.
+                </p>
+                <div class="legacy-migrations-instructions" role="note" aria-labelledby="legacy-migrations-instructions-heading">
+                    <h4 id="legacy-migrations-instructions-heading">Before you submit</h4>
+                    <p>
+                        For an entire <strong>collection</strong>, go to the old Y-Video's
+                        Collection Manager and select the desired collection on the left side
+                        of the page. Click "Edit User Access" and remove any courses or
+                        individuals that are no longer relevant. Then copy the URL from your
+                        browser's address bar and paste it below.
+                    </p>
+                    <p>
+                        For an individual <strong>video resource</strong>, go to the video's
+                        player or editor page and copy the URL from your browser's address bar.
+                    </p>
+                </div>
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                {% for field in form %}
+                    <div class="legacy-migrations-field">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {% if field.help_text %}
+                            <small class="legacy-migrations-help-text" id="{{ field.auto_id }}_helptext">
+                                {{ field.help_text }}
+                            </small>
+                        {% endif %}
+                        {{ field.errors }}
+                    </div>
+                {% endfor %}
+                <button type="submit" class="large-button">Submit request</button>
+            </form>
+
+            <aside class="legacy-migrations-contact" aria-labelledby="legacy-migrations-contact-heading">
+                <h3 id="legacy-migrations-contact-heading">Need help?</h3>
+                <p>
+                    If you are not sure what to enter or cannot find the old link,
+                    contact Russell Hansen: <a href="mailto:russell_hansen@byu.edu">russell_hansen@byu.edu</a> or <a href="tel:+18014229295">801-422-9295</a>.
+                </p>
+            </aside>
+        </div>
+
+        <section class="legacy-migrations-history" aria-labelledby="legacy-migrations-history-heading">
+            <div class="legacy-migrations-history-header">
+                <h3 id="legacy-migrations-history-heading">Your requests</h3>
+                <p>Track the progress of requests you have submitted.</p>
+            </div>
+            {% if migration_requests %}
+                <div class="legacy-migrations-table-wrapper" role="region" aria-label="Your migration requests" tabindex="0">
+                    <table class="legacy-migrations-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Type</th>
+                                <th scope="col">Old Y-Video link or ID</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Submitted</th>
+                                <th scope="col" class="legacy-migrations-action">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for migration_request in migration_requests %}
+                                <tr>
+                                    <td>{{ migration_request.get_migration_kind_display }}</td>
+                                    <td><span class="legacy-migrations-reference">{{ migration_request.legacy_reference }}</span></td>
+                                    <td><span class="legacy-migrations-status">{{ migration_request.get_status_display }}</span></td>
+                                    <td>
+                                        <time datetime="{{ migration_request.created_at|date:'c' }}">
+                                            {{ migration_request.created_at|date:"M j, Y" }}
+                                            <span>{{ migration_request.created_at|time:"g:i a" }}</span>
+                                        </time>
+                                    </td>
+                                    <td class="legacy-migrations-action">
+                                        <a href="{% url 'legacy_migration_request_detail' migration_request.pk %}" class="legacy-migrations-view-link">View request</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="legacy-migrations-empty">You have not submitted any migration requests yet.</p>
+            {% endif %}
+        </section>
+    </section>
+{% endblock %}
