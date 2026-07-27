@@ -740,10 +740,7 @@ class BaseAnnotation(models.Model):
     @property
     def annotation_type(self):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
-        type_string = self.__class__.__name__.replace("Annotation", "").lower()
-        if type_string == "blur":
-            type_string = "censor"
-        return type_string
+        return self.__class__.__name__.replace("Annotation", "").lower()
 
     def calculate_position(self):
         """Calculate visual position on timeline."""
@@ -1098,7 +1095,7 @@ class BlurAnnotation(BaseAnnotation):
                     "type": position.type,
                 }
             )
-        data.update({"positions": positions, "type": "censor"})
+        data.update({"positions": positions, "type": "blur"})
         return data
 
     def get_position_locators(self):
@@ -1179,7 +1176,7 @@ class BlurAnnotationPosition(models.Model):
     width = models.FloatField(null=False, blank=False)
     height = models.FloatField(null=False, blank=False)
     blur_amount = models.IntegerField(null=False, blank=False, default=60)
-    type = models.TextField(null=False, blank=False, default="blur")
+    type = models.TextField(null=False, blank=False, default="blur")  # TODO remove?
 
     @classmethod
     def validate(cls, data_dict):

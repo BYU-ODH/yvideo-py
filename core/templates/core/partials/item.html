@@ -20,9 +20,9 @@
 
     <div class="track-item-content">
         <span class="track-item-label">{{ item.name }}</span>
-        {% if item.annotation_type == "censor" %}
+        {% if item.annotation_type == "blur" %}
         {% for position_locator in item.get_position_locators %}
-            <div class="censor-position-locator" data-position-id="{{position_locator.id}}" data-position-time="{{position_locator.time}}">
+            <div class="blur-position-locator" data-position-id="{{position_locator.id}}" data-position-time="{{position_locator.time}}">
             </div>
         {% endfor %}
         {% endif %}

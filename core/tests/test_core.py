@@ -846,7 +846,7 @@ class AnnotationSetCreateForContentTests(TestCase):
                 self.assertTrue(
                     orig_annotation["font_color"] == new_annotation["font_color"]
                 )
-            elif orig_type == "censor":
+            elif orig_type == "blur":
                 self.assertTrue(
                     len(orig_annotation["positions"])
                     == len(new_annotation["positions"])
