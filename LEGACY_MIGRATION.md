@@ -328,7 +328,7 @@ Common warnings include:
   identical. The file is imported once and shared by every resource that
   references it.
 - `unknown_collection_role`: a legacy collection access row has an
-  `account_role` value that does not map to a current collection role. That
+  `account_role` value that does not map to a current playlist role. That
   row is skipped during import.
 
 Warnings do not block approval. Blocking issues do.
@@ -393,9 +393,9 @@ The `Imported Targets` section links the legacy source IDs to the newly created 
 
 For collection migrations:
 
-- The request's `target_owner` becomes the owner of the new collection.
+- The request's `target_owner` becomes the owner of the new playlist.
 - The resolved legacy collection owner is also given instructor access if they are different from the target owner.
-- Resolved legacy collection access rows are imported into `CollectionUserAccess`.
+- Resolved legacy collection access rows are imported into `PlaylistUserAccess`.
 - Resolved legacy resource access rows are imported into `ResourceAccess`.
 - The target owner is always given access to imported resources.
 
@@ -422,14 +422,14 @@ Two safety rules apply during import:
 
 This is why the file review step is important.
 
-## Verifying the Imported Collection
+## Verifying the Imported Playlist
 
-After completion, verify the new collection in the application.
+After completion, verify the new playlist in the application.
 
 Check:
 
-1. The collection exists and is owned by the intended target owner.
-2. The expected contents appear in the collection.
+1. The playlist exists and is owned by the intended target owner.
+2. The expected contents appear in the playlist.
 3. Imported video/audio files play.
 4. URL-only contents open correctly.
 5. Subtitles are present.

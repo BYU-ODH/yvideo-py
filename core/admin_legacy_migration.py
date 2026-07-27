@@ -24,7 +24,7 @@ from .legacy_migration import LegacyMigrationService
 from .legacy_migration import LegacyMigrationStatus
 from .legacy_migration import LegacyMigrationUserResolution
 from .legacy_migration import LegacySourceMap
-from .models import CollectionRole
+from .models import PlaylistRole
 
 logger = logging.getLogger(__name__)
 
@@ -536,7 +536,7 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                     or "Unknown user"
                 )
                 try:
-                    role_label = CollectionRole(int(access_row["account_role"])).label
+                    role_label = PlaylistRole(int(access_row["account_role"])).label
                 except (KeyError, TypeError, ValueError):
                     role_label = access_row.get("account_role", "Unknown")
                 yield identity, role_label

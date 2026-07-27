@@ -10,12 +10,12 @@ from core.dev_features import DEMO_ADMIN_USERNAME
 from core.dev_seed import seed_demo_data
 from core.models import AnnotationSet
 from core.models import BlankAnnotation
-from core.models import Collection
-from core.models import CollectionRole
-from core.models import CollectionUserAccess
 from core.models import CommentAnnotation
 from core.models import Content
 from core.models import MuteAnnotation
+from core.models import Playlist
+from core.models import PlaylistRole
+from core.models import PlaylistUserAccess
 from core.models import ResourceAccess
 from core.models import ResourceFile
 from core.models import ResourceFileKey
@@ -50,36 +50,36 @@ class DemoSeedDataTests(TestCase):
         admin_user = User.objects.get(username=DEMO_ADMIN_USERNAME)
         birds_content = Content.objects.get(title="Birds Overview")
         alice = User.objects.get(username="111227777")
-        admin_owned_collections = Collection.objects.filter(owner=admin_user)
+        admin_owned_playlists = Playlist.objects.filter(owner=admin_user)
 
         self.assertTrue(admin_user.is_superuser)
         self.assertTrue(admin_user.is_staff)
-        self.assertEqual(admin_owned_collections.count(), 2)
+        self.assertEqual(admin_owned_playlists.count(), 2)
         self.assertTrue(
-            admin_owned_collections.filter(
+            admin_owned_playlists.filter(
                 name="Local Admin / Demo Review Shelf"
             ).exists()
         )
         self.assertTrue(
-            admin_owned_collections.filter(name="Local Admin / Draft Sandbox").exists()
+            admin_owned_playlists.filter(name="Local Admin / Draft Sandbox").exists()
         )
         self.assertEqual(
-            CollectionUserAccess.objects.filter(
+            PlaylistUserAccess.objects.filter(
                 user=admin_user,
-                collection__owner=admin_user,
-                collection_role=CollectionRole.INSTRUCTOR,
+                playlist__owner=admin_user,
+                playlist_role=PlaylistRole.INSTRUCTOR,
             ).count(),
             2,
         )
         self.assertTrue(
             ResourceAccess.objects.filter(
-                user=birds_content.collection.owner,
+                user=birds_content.playlist.owner,
                 resource=birds_content.resource_file.resource,
             ).exists()
         )
         self.assertTrue(
-            CollectionUserAccess.objects.filter(
-                collection=birds_content.collection,
+            PlaylistUserAccess.objects.filter(
+                playlist=birds_content.playlist,
                 user=alice,
             ).exists()
         )

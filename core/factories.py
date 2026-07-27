@@ -6,14 +6,14 @@ import factory
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import Clip
-from .models import Collection
-from .models import CollectionRole
-from .models import CollectionUserAccess
 from .models import CommentAnnotation
 from .models import Content
 from .models import Course
 from .models import Language
 from .models import MuteAnnotation
+from .models import Playlist
+from .models import PlaylistRole
+from .models import PlaylistUserAccess
 from .models import PrivilegeLevel
 from .models import Resource
 from .models import ResourceAccess
@@ -121,13 +121,13 @@ class ResourceFileFactory(factory.django.DjangoModelFactory):
     )
 
 
-class CollectionFactory(factory.django.DjangoModelFactory):
+class PlaylistFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = Collection
+        model = Playlist
         skip_postgeneration_save = True
 
     owner = factory.SubFactory(UserFactory, instructor=True)
-    name = factory.Sequence(lambda n: f"Demo Collection {n}")
+    name = factory.Sequence(lambda n: f"Demo Playlist {n}")
     published = False
     archived = False
     public = False
@@ -139,13 +139,13 @@ class CollectionFactory(factory.django.DjangoModelFactory):
         self.courses.set(extracted)
 
 
-class CollectionUserAccessFactory(factory.django.DjangoModelFactory):
+class PlaylistUserAccessFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = CollectionUserAccess
+        model = PlaylistUserAccess
 
     user = factory.SubFactory(UserFactory)
-    collection = factory.SubFactory(CollectionFactory)
-    collection_role = CollectionRole.STUDENT
+    playlist = factory.SubFactory(PlaylistFactory)
+    playlist_role = PlaylistRole.STUDENT
 
 
 class AnnotationSetFactory(factory.django.DjangoModelFactory):
@@ -179,7 +179,7 @@ class ContentFactory(factory.django.DjangoModelFactory):
         skip_postgeneration_save = True
 
     title = factory.Sequence(lambda n: f"Demo Content {n}")
-    collection = factory.SubFactory(CollectionFactory)
+    playlist = factory.SubFactory(PlaylistFactory)
     resource_file = factory.SubFactory(ResourceFileFactory)
     resource = factory.SelfAttribute("resource_file.resource")
     annotation_set = None
@@ -197,10 +197,10 @@ class ContentFactory(factory.django.DjangoModelFactory):
 
     @factory.post_generation
     def grant_owner_resource_access(self, create, extracted, **kwargs):
-        if not create or not self.collection or not self.get_resource():
+        if not create or not self.playlist or not self.get_resource():
             return
         ResourceAccess.objects.get_or_create(
-            user=self.collection.owner,
+            user=self.playlist.owner,
             resource=self.get_resource(),
         )
 

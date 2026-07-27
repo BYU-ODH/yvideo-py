@@ -18,15 +18,15 @@ from ..models import BlankAnnotation
 from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
 from ..models import Clip
-from ..models import Collection
-from ..models import CollectionRole
-from ..models import CollectionUserAccess
 from ..models import CommentAnnotation
 from ..models import Content
 from ..models import Course
 from ..models import Language
 from ..models import MuteAnnotation
 from ..models import PauseAnnotation
+from ..models import Playlist
+from ..models import PlaylistRole
+from ..models import PlaylistUserAccess
 from ..models import Resource
 from ..models import ResourceAccess
 from ..models import ResourceFile
@@ -500,7 +500,7 @@ class LegacyMigrationService:
 
     def _resolve_collection_role(self, raw_role):
         try:
-            return CollectionRole(int(raw_role))
+            return PlaylistRole(int(raw_role))
         except (TypeError, ValueError):
             return None
 
@@ -546,26 +546,26 @@ class LegacyMigrationService:
             and request_obj.target_owner
             and request_obj.target_collection_name
         ):
-            conflict_qs = Collection.objects.filter(
+            conflict_qs = Playlist.objects.filter(
                 owner=request_obj.target_owner,
                 name=request_obj.target_collection_name,
             )
-            # A collection created by an earlier (possibly failed) run of this
+            # A playlist created by an earlier (possibly failed) run of this
             # same request is not a conflict; excluding it keeps retries viable.
             snapshot_collection = request_obj.raw_snapshot.get("collection") or {}
             legacy_collection_id = snapshot_collection.get("legacy_collection_id")
             if legacy_collection_id:
-                mapped_collection = self._get_source_map_target(
-                    "collection", legacy_collection_id, Collection
+                mapped_playlist = self._get_source_map_target(
+                    "collection", legacy_collection_id, Playlist
                 )
-                if mapped_collection:
-                    conflict_qs = conflict_qs.exclude(pk=mapped_collection.pk)
+                if mapped_playlist:
+                    conflict_qs = conflict_qs.exclude(pk=mapped_playlist.pk)
             if conflict_qs.exists():
                 LegacyMigrationIssue.objects.create(
                     request=request_obj,
                     severity=LegacyMigrationIssueSeverity.BLOCKING,
-                    code="collection_name_conflict",
-                    message="The target owner already has a collection with the selected name.",
+                    code="playlist_name_conflict",
+                    message="The target owner already has a playlist with the selected name.",
                     details={
                         "target_collection_name": request_obj.target_collection_name
                     },
@@ -1114,20 +1114,20 @@ class LegacyMigrationService:
         )
         return target_resource
 
-    def _ensure_collection(self, request_obj, owner):
+    def _ensure_playlist(self, request_obj, owner):
         snapshot_collection = request_obj.raw_snapshot.get("collection")
         if not snapshot_collection:
             return None
 
-        mapped_collection = self._get_source_map_target(
+        mapped_playlist = self._get_source_map_target(
             "collection",
             snapshot_collection["legacy_collection_id"],
-            Collection,
+            Playlist,
         )
-        if mapped_collection:
-            return mapped_collection
+        if mapped_playlist:
+            return mapped_playlist
 
-        collection = Collection.objects.create(
+        playlist = Playlist.objects.create(
             name=request_obj.target_collection_name or snapshot_collection["name"],
             owner=owner,
             published=(
@@ -1150,9 +1150,9 @@ class LegacyMigrationService:
             request_obj,
             "collection",
             snapshot_collection["legacy_collection_id"],
-            collection,
+            playlist,
         )
-        return collection
+        return playlist
 
     def _import_file_to_storage(self, source_path, resource, version):
         extension = get_legacy_file_extension(source_path)
@@ -1249,13 +1249,13 @@ class LegacyMigrationService:
         return resource_file
 
     def _ensure_content(
-        self, request_obj, collection, content_row, target_resource, target_file
+        self, request_obj, playlist, content_row, target_resource, target_file
     ):
         mapped_content = self._get_source_map_target(
             "content", content_row["id"], Content
         )
         defaults = {
-            "collection": collection,
+            "playlist": playlist,
             "title": content_row["title"],
             "resource": target_resource,
             "resource_file": target_file,
@@ -1484,22 +1484,22 @@ class LegacyMigrationService:
             imported.append(subtitle)
         return imported
 
-    def _import_courses(self, request_obj, collection):
+    def _import_courses(self, request_obj, playlist):
         for course_row in request_obj.raw_snapshot.get("courses", []):
             course, _ = Course.objects.get_or_create(
                 dept=(course_row["department"] or "").upper(),
                 catalog_number=str(course_row["catalog_number"]).zfill(3),
                 section_number=str(course_row["section_number"]).zfill(3),
             )
-            collection.courses.add(course)
+            playlist.courses.add(course)
 
-    def _apply_permissions(self, request_obj, collection, imported_resources):
+    def _apply_permissions(self, request_obj, playlist, imported_resources):
         owner = self._get_target_owner(request_obj)
-        if collection:
-            CollectionUserAccess.objects.get_or_create(
+        if playlist:
+            PlaylistUserAccess.objects.get_or_create(
                 user=owner,
-                collection=collection,
-                defaults={"collection_role": CollectionRole.INSTRUCTOR},
+                playlist=playlist,
+                defaults={"playlist_role": PlaylistRole.INSTRUCTOR},
             )
 
             snapshot_collection = request_obj.raw_snapshot.get("collection") or {}
@@ -1511,10 +1511,10 @@ class LegacyMigrationService:
                 and legacy_owner.matched_user
                 and legacy_owner.matched_user != owner
             ):
-                CollectionUserAccess.objects.get_or_create(
+                PlaylistUserAccess.objects.get_or_create(
                     user=legacy_owner.matched_user,
-                    collection=collection,
-                    defaults={"collection_role": CollectionRole.INSTRUCTOR},
+                    playlist=playlist,
+                    defaults={"playlist_role": PlaylistRole.INSTRUCTOR},
                 )
 
             for access_row in request_obj.raw_snapshot.get("collection_access", []):
@@ -1528,10 +1528,10 @@ class LegacyMigrationService:
                         }
                     )
                 ).first()
-                collection_role = self._resolve_collection_role(
+                playlist_role = self._resolve_collection_role(
                     access_row["account_role"]
                 )
-                if collection_role is None:
+                if playlist_role is None:
                     logger.warning(
                         "Skipping legacy collection access for %s: unknown "
                         "account_role %r.",
@@ -1545,10 +1545,10 @@ class LegacyMigrationService:
                     and resolution.resolution_status
                     != LegacyMigrationUserResolutionStatus.SKIP
                 ):
-                    CollectionUserAccess.objects.get_or_create(
+                    PlaylistUserAccess.objects.get_or_create(
                         user=resolution.matched_user,
-                        collection=collection,
-                        defaults={"collection_role": collection_role},
+                        playlist=playlist,
+                        defaults={"playlist_role": playlist_role},
                     )
 
         for resource in imported_resources:
@@ -1603,9 +1603,9 @@ class LegacyMigrationService:
         self._log_job_phase(job, "users")
 
         self._log_job_phase(job, "courses")
-        collection = self._ensure_collection(request_obj, owner)
-        if collection:
-            self._import_courses(request_obj, collection)
+        playlist = self._ensure_playlist(request_obj, owner)
+        if playlist:
+            self._import_courses(request_obj, playlist)
 
         self._log_job_phase(job, "resources")
         imported_resources = []
@@ -1661,7 +1661,7 @@ class LegacyMigrationService:
 
             self._ensure_content(
                 request_obj,
-                collection,
+                playlist,
                 content_row,
                 target_resource,
                 target_file,
@@ -1693,6 +1693,6 @@ class LegacyMigrationService:
             )
 
         self._log_job_phase(job, "permissions")
-        self._apply_permissions(request_obj, collection, imported_resources)
+        self._apply_permissions(request_obj, playlist, imported_resources)
 
         self._log_job_phase(job, "finalize")

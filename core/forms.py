@@ -7,9 +7,9 @@ from django.core.exceptions import ValidationError
 from .api import Api
 from .model_utils import update_user_enrollment
 from .models import Clip
-from .models import Collection
 from .models import Content
 from .models import ImportantWord
+from .models import Playlist
 from .models import ResourceContentIntakeRequest
 from .models import Subtitle
 from .models import User
@@ -22,29 +22,27 @@ BYU_ID_PATTERN = re.compile(r"^\d{9}$")
 NETID_PATTERN = re.compile(r"^(?=.*[A-Za-z])[A-Za-z0-9]{2,8}$")
 
 
-class CollectionForm(forms.ModelForm):
+class PlaylistForm(forms.ModelForm):
     name = forms.CharField(
-        widget=forms.TextInput(attrs={"placeholder": "Collection Name"})
+        widget=forms.TextInput(attrs={"placeholder": "Playlist Name"})
     )
 
     def clean_name(self):
         name = self.cleaned_data["name"]
 
-        if Collection.objects.filter(
-            owner=self.initial.get("user"), name=name
-        ).exists():
-            raise ValidationError("You already have a collection with this name.")
+        if Playlist.objects.filter(owner=self.initial.get("user"), name=name).exists():
+            raise ValidationError("You already have a playlist with this name.")
 
         return name
 
     class Meta:
-        model = Collection
+        model = Playlist
         fields = ("name",)
 
 
-class CollectionSettingsForm(forms.ModelForm):
+class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
-        model = Collection
+        model = Playlist
         fields = ["id", "name", "published", "archived"]
 
     id = forms.CharField(widget=forms.HiddenInput)

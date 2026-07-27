@@ -8,8 +8,8 @@
 {% endblock %}
 
 {% block content %}
-    <section class="collections-page">
-        <div id="collections-container">
+    <section class="playlists-page">
+        <div id="playlists-container">
             <h2>Migration Request {{ migration_request.request_uuid }}</h2>
             <p><strong>Status:</strong> {{ migration_request.get_status_display }}</p>
             <p><strong>Type:</strong> {{ migration_request.get_migration_kind_display }}</p>
@@ -43,7 +43,7 @@
             </ul>
         </div>
 
-        <div id="collections-detail">
+        <div id="playlists-detail">
             <h3>Issues</h3>
             <ul>
                 {% for issue in migration_request.issues.all %}
