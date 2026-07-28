@@ -147,29 +147,6 @@ export class Editor {
       return (endTime - startTime) / this.duration;
     }
 
-    handleMouseMove(e) {
-        if (!this.dragState) return;
-
-        // Define a threshold (in pixels) to determine if this is a real drag
-        const DRAG_THRESHOLD = 3;
-
-        const deltaX = Math.abs(e.clientX - this.dragState.startX);
-
-        // Only mark as moved if we've exceeded the threshold
-        if (deltaX > DRAG_THRESHOLD) {
-            this.dragState.hasMoved = true;
-        }
-
-        // Only update position if we've started moving
-        if (this.dragState.hasMoved) {
-            if (this.dragState.type === 'resize') {
-                this.updateResizePosition(e);
-            }
-        }
-
-        e.preventDefault();
-    }
-
     hideOrShowResizeHandles(itemElement) {
       // we have to explicitly check for "track-item" class because other class names
       // contain the string "track-item". Otherwise we could have just checked for the
@@ -195,6 +172,30 @@ export class Editor {
           handle.classList.remove(hiddenClass);
         }
       }
+    }
+
+    handleMouseMove(e) {
+        if (!this.dragState) return;
+
+        // Define a threshold (in pixels) to determine if this is a real drag
+        const DRAG_THRESHOLD = 3;
+
+        const deltaX = Math.abs(e.clientX - this.dragState.startX);
+
+        // Only mark as moved if we've exceeded the threshold
+        if (deltaX > DRAG_THRESHOLD) {
+            this.dragState.hasMoved = true;
+        }
+
+        // Only update position if we've started moving
+        if (this.dragState.hasMoved) {
+            if (this.dragState.type === 'resize') {
+                this.updateResizePosition(e);
+                this.hideOrShowResizeHandles(this.dragState.item);
+            }
+        }
+
+        e.preventDefault();
     }
 
     updateResizePosition(e) {
@@ -233,7 +234,6 @@ export class Editor {
 
             const deltaWidth = newWidth - this.dragState.originalWidth;
             this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
-            this.hideOrShowResizeHandles(this.dragState.item);
 
             this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
         }
