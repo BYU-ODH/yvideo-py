@@ -311,10 +311,10 @@ def create_demo_data():
     )
     BlankAnnotationFactory(
         track=birds_track,
-        name="Blur Caption Cue",
+        name="birds blank",
         start_time=12.0,
         end_time=14.5,
-        description="Blur an embedded lower-third before class discussion.",
+        description="Blank the display",
         type="#",
     )
     CommentAnnotationFactory(
