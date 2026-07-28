@@ -2211,6 +2211,11 @@ export class Editor {
       this.renderTickMarksAndLabels();
       // Zoom changes the visible time window, so recompute the scrubber bounds.
       this.adjustScrubberPosition();
+
+      const trackItems = this.timelineWrapper.querySelectorAll(".track-item");
+      for (let item of trackItems) {
+        this.hideOrShowResizeHandles(item);
+      }
     }
 
     attachZoomListener() {
