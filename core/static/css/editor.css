@@ -1173,6 +1173,11 @@ of the page */
     border-radius: 8px;
 }
 
+.resize-handle-hidden {
+    visibility: hidden;
+    width: 0px;
+}
+
 .track-item-content {
     flex: 1;
     overflow: hidden;
