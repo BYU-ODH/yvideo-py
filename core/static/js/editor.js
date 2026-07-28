@@ -170,6 +170,33 @@ export class Editor {
         e.preventDefault();
     }
 
+    hideOrShowResizeHandles(itemElement) {
+      // we have to explicitly check for "track-item" class because other class names
+      // contain the string "track-item". Otherwise we could have just checked for the
+      // "track-item" substring in element.className
+      let isTrackItem = false;
+      for (let cl of itemElement.classList) {
+        if (cl == "track-item") isTrackItem = true;
+        break;
+      }
+
+      if (!isTrackItem) return;
+
+      const hiddenClass = "resize-handle-hidden";
+      const resizeHandles = itemElement.querySelectorAll(".resize-handle");
+      // getBoundingClientRect provides size values in px.
+      const triggerWidth = 60;
+      const shouldHideHandles = itemElement.getBoundingClientRect().width < triggerWidth;
+      for (let handle of resizeHandles) {
+        if (shouldHideHandles) {
+          handle.classList.add(hiddenClass);
+        }
+        else {
+          handle.classList.remove(hiddenClass);
+        }
+      }
+    }
+
     updateResizePosition(e) {
         const deltaX = e.clientX - this.dragState.startX;
         // Don't account for zoom in percent calculation - container width is already adjusted
@@ -206,6 +233,7 @@ export class Editor {
 
             const deltaWidth = newWidth - this.dragState.originalWidth;
             this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
+            this.hideOrShowResizeHandles(this.dragState.item);
 
             this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
         }
@@ -1834,6 +1862,7 @@ export class Editor {
               if (item.dataset.annotationType != "pause") {
                 const itemWidthValue = itemDuration / this.duration * 100;
                 item.style.setProperty("width", `${itemWidthValue}%`);
+                this.hideOrShowResizeHandles(item);
               }
               const itemLeftValue = parseFloat(item.dataset["start"]) / this.duration * 100
               item.style.setProperty("left", `${itemLeftValue}%`);
@@ -2192,6 +2221,11 @@ export class Editor {
       this.renderTickMarksAndLabels();
       // Zoom changes the visible time window, so recompute the scrubber bounds.
       this.adjustScrubberPosition();
+
+      const trackItems = this.timelineWrapper.querySelectorAll(".track-item");
+      for (let item of trackItems) {
+        this.hideOrShowResizeHandles(item);
+      }
     }
 
     attachZoomListener() {
