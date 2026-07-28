@@ -10,13 +10,13 @@ from .dev_features import DEMO_ADMIN_USERNAME
 from .factories import AnnotationSetFactory
 from .factories import BlankAnnotationFactory
 from .factories import ClipFactory
-from .factories import CollectionFactory
-from .factories import CollectionUserAccessFactory
 from .factories import CommentAnnotationFactory
 from .factories import ContentFactory
 from .factories import CourseFactory
 from .factories import LanguageFactory
 from .factories import MuteAnnotationFactory
+from .factories import PlaylistFactory
+from .factories import PlaylistUserAccessFactory
 from .factories import ResourceAccessFactory
 from .factories import ResourceFactory
 from .factories import ResourceFileKeyFactory
@@ -24,10 +24,10 @@ from .factories import SubtitleFactory
 from .factories import TrackFactory
 from .factories import UserCourseFactory
 from .factories import UserFactory
-from .models import Collection
-from .models import CollectionRole
 from .models import Content
 from .models import Course
+from .models import Playlist
+from .models import PlaylistRole
 from .models import Resource
 from .models import ResourceFile
 from .models import User
@@ -220,51 +220,51 @@ def create_demo_data():
         burned_in_subtitles_language=spanish,
     )
 
-    ada_collection = CollectionFactory(
+    ada_playlist = PlaylistFactory(
         owner=professor_ada,
         name="Professor Ada / Birds of a Feather",
         published=True,
         courses=[biology_course],
     )
-    ada_drafts = CollectionFactory(
+    ada_drafts = PlaylistFactory(
         owner=professor_ada,
         name="Professor Ada / Draft Lesson Shelf",
         published=False,
     )
-    admin_collection = CollectionFactory(
+    admin_playlist = PlaylistFactory(
         owner=admin,
         name="Local Admin / Demo Review Shelf",
         published=True,
     )
-    admin_drafts = CollectionFactory(
+    admin_drafts = PlaylistFactory(
         owner=admin,
         name="Local Admin / Draft Sandbox",
         published=False,
     )
-    ben_collection = CollectionFactory(
+    ben_playlist = PlaylistFactory(
         owner=professor_ben,
         name="Professor Ben / Visual Pattern Lab",
         published=True,
         courses=[film_course],
     )
 
-    for collection, user, role in [
-        (ada_collection, professor_ada, CollectionRole.INSTRUCTOR),
-        (ada_collection, teaching_assistant, CollectionRole.TA),
-        (ada_collection, student_alice, CollectionRole.STUDENT),
-        (ada_collection, student_bob, CollectionRole.STUDENT),
-        (ada_drafts, professor_ada, CollectionRole.INSTRUCTOR),
-        (admin_collection, admin, CollectionRole.INSTRUCTOR),
-        (admin_drafts, admin, CollectionRole.INSTRUCTOR),
-        (ben_collection, professor_ben, CollectionRole.INSTRUCTOR),
-        (ben_collection, teaching_assistant, CollectionRole.TA),
-        (ben_collection, student_bob, CollectionRole.STUDENT),
-        (ben_collection, student_ivy, CollectionRole.STUDENT),
+    for playlist, user, role in [
+        (ada_playlist, professor_ada, PlaylistRole.INSTRUCTOR),
+        (ada_playlist, teaching_assistant, PlaylistRole.TA),
+        (ada_playlist, student_alice, PlaylistRole.STUDENT),
+        (ada_playlist, student_bob, PlaylistRole.STUDENT),
+        (ada_drafts, professor_ada, PlaylistRole.INSTRUCTOR),
+        (admin_playlist, admin, PlaylistRole.INSTRUCTOR),
+        (admin_drafts, admin, PlaylistRole.INSTRUCTOR),
+        (ben_playlist, professor_ben, PlaylistRole.INSTRUCTOR),
+        (ben_playlist, teaching_assistant, PlaylistRole.TA),
+        (ben_playlist, student_bob, PlaylistRole.STUDENT),
+        (ben_playlist, student_ivy, PlaylistRole.STUDENT),
     ]:
-        CollectionUserAccessFactory(
-            collection=collection,
+        PlaylistUserAccessFactory(
+            playlist=playlist,
             user=user,
-            collection_role=role,
+            playlist_role=role,
         )
 
     birds_annotation_set = AnnotationSetFactory(
@@ -390,7 +390,7 @@ def create_demo_data():
     )
 
     birds_content = ContentFactory(
-        collection=ada_collection,
+        playlist=ada_playlist,
         resource_file=birds_file,
         annotation_set=birds_annotation_set,
         title="Birds Overview",
@@ -398,14 +398,14 @@ def create_demo_data():
         published=True,
     )
     ContentFactory(
-        collection=ada_drafts,
+        playlist=ada_drafts,
         resource_file=birds_file,
         title="Birds Draft Discussion",
         description="Unpublished draft content for in-progress lesson work.",
         published=False,
     )
     ContentFactory(
-        collection=admin_collection,
+        playlist=admin_playlist,
         resource_file=grid_file,
         annotation_set=grid_annotation_set,
         title="Admin Review Warmup",
@@ -413,14 +413,14 @@ def create_demo_data():
         published=True,
     )
     ContentFactory(
-        collection=admin_drafts,
+        playlist=admin_drafts,
         resource_file=overlay_file,
         title="Admin Draft Overlay Notes",
         description="Unpublished demo content for local admin testing.",
         published=False,
     )
     ContentFactory(
-        collection=ben_collection,
+        playlist=ben_playlist,
         resource_file=grid_file,
         annotation_set=grid_annotation_set,
         title="Pattern Analysis Warmup",
@@ -428,7 +428,7 @@ def create_demo_data():
         published=True,
     )
     ContentFactory(
-        collection=ben_collection,
+        playlist=ben_playlist,
         resource_file=overlay_file,
         title="Overlay Composition Exercise",
         description="Published content demonstrating the transparent-border asset.",
@@ -450,11 +450,11 @@ def create_demo_data():
     return {
         "users": User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).count(),
         "resources": Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).count(),
-        "collections": Collection.objects.filter(
+        "playlists": Playlist.objects.filter(
             owner__username__in=DEMO_ADMIN_USERNAMES
         ).count(),
         "contents": Content.objects.filter(
-            collection__owner__username__in=DEMO_ADMIN_USERNAMES
+            playlist__owner__username__in=DEMO_ADMIN_USERNAMES
         ).count(),
         "seeded_admin_netid": DEMO_ADMIN_USERNAME,
         "seeded_admin_password": DEMO_ADMIN_PASSWORD,

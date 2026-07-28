@@ -136,11 +136,17 @@ render_template() {
     root="$(repo_root)"
     mkdir -p "$(dirname "$output")"
 
+    # The @DEPLOY_HOME@ substitution below exists LEGACY MIGRATION ONLY, to
+    # mount ~/.ssh into the container (see deploy/quadlet.container.in).
+    # Delete it when legacy_migration is removed, unless another template
+    # variable has started using it by then. See
+    # core/legacy_migration/REMOVAL.md for the full checklist.
     sed \
         -e "s|@APP_NAME@|$(escape_sed_replacement "$APP_NAME")|g" \
         -e "s|@BUILD_IMAGE_TAG@|$(escape_sed_replacement "$(build_image_tag)")|g" \
         -e "s|@HOST_PORT@|$(escape_sed_replacement "$HOST_PORT")|g" \
         -e "s|@REPO_ROOT@|$(escape_sed_replacement "$root")|g" \
+        -e "s|@DEPLOY_HOME@|$(escape_sed_replacement "$HOME")|g" \
         -e "s|@WORKERS@|$(escape_sed_replacement "$WORKERS")|g" \
         -e "s|@THREADS@|$(escape_sed_replacement "$THREADS")|g" \
         "$template" >"$output"

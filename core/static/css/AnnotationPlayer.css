@@ -107,7 +107,7 @@
   filter: brightness(0);
 }
 
-.annotation-player-container video.blurred {
+.annotation-player-container video.screen-blurred {
   filter: blur(80px);
 }
 
@@ -127,39 +127,39 @@
   box-sizing: content-box;*/
 }
 
-.annotation-box .censor {
+.annotation-box .blur {
   pointer-events: none;
 }
 
-.annotation-box .censor.black {
+.annotation-box .blur.black {
   background-color: black;
 }
 
-.annotation-box .censor.red {
+.annotation-box .blur.red {
   background-color: red;
 }
 
-.annotation-box .censor-position.blur {
+.annotation-box .blur-position.blur {
   backdrop-filter: blur(80px);  /* eslint-disable-line css/use-baseline */
 }
 
-.annotation-box-censor-editor {
+.annotation-box-blur-editor {
     pointer-events: auto;
 }
 
-.censor-position:hover {
+.blur-position:hover {
     cursor: move;
 }
 
-.censor-position .dragging {
+.blur-position .dragging {
     cursor: grabbing;
 }
 
-.active-censor-position {
+.active-blur-position {
     z-index: 1;
 }
 
-.annotation-box-censor-editor {
+.annotation-box-blur-editor {
     display: block;
 }
 

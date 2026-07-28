@@ -1,44 +1,44 @@
-<div id="collection-settings">
+<div id="playlist-settings">
     <div class="column-flex">
         <h3>Settings</h3>
-        <form id="collection-settings-form" class="column-flex" method="post" action="/collection-settings/update/">
+        <form id="playlist-settings-form" class="column-flex" method="post" action="/playlist-settings/update/">
             {% csrf_token %}
 
             {{ form.non_field_errors }}
             {{ form.id }}
-            <div class="collection-form-group">
+            <div class="playlist-form-group">
                 {{ form.name.as_field_group }}
             </div>
-            <div class="collection-form-group">
+            <div class="playlist-form-group">
                 {{ form.published.as_field_group }}
             </div>
-            <div class="collection-form-group">
+            <div class="playlist-form-group">
                 {{ form.archived.as_field_group }}
             </div>
             <div class="row-flex">
-                <button id="collection-settings-submit" class="blue-button" type="submit">
+                <button id="playlist-settings-submit" class="blue-button" type="submit">
                     Submit
                 </button>
-                <button id="collection-settings-reset" class="cancel-button">
+                <button id="playlist-settings-reset" class="cancel-button">
                     Reset
                 </button>
             </div>
         </form>
     </div>
-    <dialog id="collection-delete-modal" class="user-view-modal">
+    <dialog id="playlist-delete-modal" class="user-view-modal">
         <h3 class="user-view-modal-header">
-            Delete this collection?
+            Delete this playlist?
         </h3>
         <div class="user-view-modal-body row-flex flex-apart-aligned">
-            <button id="collection-confirm-delete" class="blue-button">
+            <button id="playlist-confirm-delete" class="blue-button">
                 Yes
             </button>
-            <button class="cancel-button" command="close" commandfor="collection-delete-modal">
+            <button class="cancel-button" command="close" commandfor="playlist-delete-modal">
                 No
             </button>
         </div>
     </dialog>
-    <dialog id="collection-course-assignments-modal" class="user-view-modal">
+    <dialog id="playlist-course-assignments-modal" class="user-view-modal">
         <h3 class="user-view-modal-header">
             Edit Course Assignments
         </h3>
@@ -68,10 +68,10 @@
         </div>
     </dialog>
     <div class="column-flex flex-apart">
-        <button id="collection-settings-delete" class="red-button" command="show-modal" commandfor="collection-delete-modal">
-            Delete Collection
+        <button id="playlist-settings-delete" class="red-button" command="show-modal" commandfor="playlist-delete-modal">
+            Delete Playlist
         </button>
-        <button id="collection-edit-course-assignment-button" class="blue-button" command="show-modal" commandfor="collection-course-assignments-modal">
+        <button id="playlist-edit-course-assignment-button" class="blue-button" command="show-modal" commandfor="playlist-course-assignments-modal">
             Edit Course Assignments
         </button>
     </div>

@@ -11,24 +11,29 @@ TEMPLATE_REFERENCE_PATTERN = re.compile(
 
 
 class TemplateValidationTests(SimpleTestCase):
-    def test_all_core_templates_load_and_resolve_static_references(self):
+    def assert_templates_load_and_resolve_static_references(
+        self, template_root, template_prefix=None
+    ):
         template_engine = engines["django"].engine
-        template_root = Path(settings.BASE_DIR) / "core" / "templates" / "core"
-        template_names = sorted(
-            str(Path("core") / path.relative_to(template_root))
-            for path in template_root.rglob("*.html")
-        )
+        template_paths = sorted(template_root.rglob("*.html"))
 
-        self.assertTrue(template_names, "Expected at least one core app template.")
+        self.assertTrue(template_paths, f"Expected templates under {template_root}.")
 
         referenced_template_names = set()
-        for template_name in template_names:
+        for template_path in template_paths:
+            relative_path = template_path.relative_to(template_root)
+            template_name = str(
+                Path(template_prefix) / relative_path
+                if template_prefix
+                else relative_path
+            )
             with self.subTest(template=template_name):
-                template_engine.get_template(template_name)
+                template = template_engine.get_template(template_name)
+                self.assertEqual(
+                    Path(template.origin.name).resolve(), template_path.resolve()
+                )
 
-            source = (
-                template_root / Path(template_name).relative_to("core")
-            ).read_text(encoding="utf-8")
+            source = template_path.read_text(encoding="utf-8")
             referenced_template_names.update(
                 match.group("name")
                 for match in TEMPLATE_REFERENCE_PATTERN.finditer(source)
@@ -37,3 +42,13 @@ class TemplateValidationTests(SimpleTestCase):
         for referenced_template_name in sorted(referenced_template_names):
             with self.subTest(reference=referenced_template_name):
                 template_engine.get_template(referenced_template_name)
+
+    def test_all_core_templates_load_and_resolve_static_references(self):
+        template_root = Path(settings.BASE_DIR) / "core" / "templates" / "core"
+        self.assert_templates_load_and_resolve_static_references(
+            template_root, template_prefix="core"
+        )
+
+    def test_all_project_templates_load_and_resolve_static_references(self):
+        template_root = Path(settings.BASE_DIR) / "templates"
+        self.assert_templates_load_and_resolve_static_references(template_root)

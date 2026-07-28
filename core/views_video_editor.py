@@ -47,7 +47,7 @@ ANNOTATION_MODELS = {
     "mute": MuteAnnotation,
     "blank": BlankAnnotation,
     "pause": PauseAnnotation,
-    "censor": BlurAnnotation,
+    "blur": BlurAnnotation,
     "comment": CommentAnnotation,
     "clip": Clip,
 }
@@ -57,7 +57,7 @@ ANNOTATION_ICONS = {
     "mute": "img/mute-icon.svg",
     "blank": "img/blank-icon.svg",
     "pause": "img/pause-icon.svg",
-    "censor": "img/blur-icon.svg",
+    "blur": "img/blur-icon.svg",
     "comment": "img/comment-icon.svg",
     "clip": "img/clip-icon.svg",
 }
@@ -167,6 +167,7 @@ def video_editor(request, content_id):
 
         # Determine if user can edit the active annotation set
         annotation_set = content.annotation_set
+
         can_edit = (
             annotation_set.can_edit(request.user)
             if annotation_set is not None
@@ -194,6 +195,7 @@ def video_editor(request, content_id):
             "content": content,
             "content_id": content_id,
             "file_key": file_key.id if file_key else None,
+            "content_source_url": request.user.get_content_source_url(content),
             "allow_events": True,
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,
@@ -258,11 +260,15 @@ def get_player_wrapper_html(request):
         return HttpResponse("Unauthorized", status=403)
 
     try:
+        resource_file_key = request.user.get_resource_filekey(content)
         video_html = render_to_string(
             "core/partials/player-wrapper.html",
             {
-                "content_id": content_id,
-                "resource_file_key_id": request.user.get_resource_filekey(content).pk,
+                "content_id": content.pk,
+                "resource_file_key_id": resource_file_key.pk
+                if resource_file_key
+                else None,
+                "content_source_url": request.user.get_content_source_url(content),
             },
             request=request,
         )
@@ -532,7 +538,7 @@ def create_annotation(request, annotation_type, track_id):
         data["end_time"] = end_time
 
     annotation = model_class.objects.create(**data)
-    if annotation_type == "censor":
+    if annotation_type == "blur":
         BlurAnnotationPosition.objects.create(
             blur_annotation=annotation, time=0, x=50, y=50, width=4, height=3
         )
@@ -587,43 +593,43 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
 
 def get_list_of_blur_annotation_positions(blur_annotation_parent):
     try:
-        censor_positions = list(
+        blur_positions = list(
             BlurAnnotationPosition.objects.filter(
                 blur_annotation=blur_annotation_parent
             ).order_by("time")
         )
     except Exception as e:
-        logger.error(f"Failed to get censor positions. Exception: {e}")
+        logger.error(f"Failed to get blur positions. Exception: {e}")
         return []
-    return censor_positions
+    return blur_positions
 
 
-def generate_censor_item_and_positions_html(parent_annotation_id):
+def generate_blur_item_and_positions_html(parent_annotation_id):
     try:
         parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
     except Exception as e:
         logger.error(
-            f"Failed to get parent_annotation while updateing censor positions html. Exception: {e}"
+            f"Failed to get parent_annotation while updateing blur positions html. Exception: {e}"
         )
         return False
 
     try:
-        censor_positions = get_list_of_blur_annotation_positions(parent_annotation)
-        censor_positions_html = render_to_string(
-            "core/partials/censor_positions.html", {"item_positions": censor_positions}
+        blur_positions = get_list_of_blur_annotation_positions(parent_annotation)
+        blur_positions_html = render_to_string(
+            "core/partials/blur_positions.html", {"item_positions": blur_positions}
         )
         track_item_html = render_to_string(
             "core/partials/item.html", {"item": parent_annotation}
         )
-        return {"censorPositions": censor_positions_html, "trackItem": track_item_html}
+        return {"blurPositions": blur_positions_html, "trackItem": track_item_html}
 
     except Exception as e:
-        logger.error(f"Failed to generate censor_postion html. Exception: {e}")
+        logger.error(f"Failed to generate blur_postion html. Exception: {e}")
         return False
 
 
 @require_POST
-def create_censor_position(request):
+def create_blur_position(request):
     try:
         parsed_body = json.loads(request.body)
         parent_annotation_id = parsed_body["parent_annotation_id"]
@@ -634,7 +640,7 @@ def create_censor_position(request):
         position_height = parsed_body["height"]
     except Exception as e:
         logger.error(
-            f"Unable to parse data for updating or creating censor positions: {e}"
+            f"Unable to parse data for updating or creating blur positions: {e}"
         )
         return HttpResponseBadRequest()
 
@@ -663,11 +669,11 @@ def create_censor_position(request):
         parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
         if parent_annotation.end_time < round(float(position_time), 2):
             return HttpResponseBadRequest(
-                "New censor position cannot occur at a time greater than the blur annotation's end time"
+                "New blur position cannot occur at a time greater than the blur annotation's end time"
             )
         elif parent_annotation.start_time > round(float(position_time), 2):
             return HttpResponseBadRequest(
-                "New censor position cannot occur before the start time of the parent censor annotation"
+                "New blur position cannot occur before the start time of the parent blur annotation"
             )
         BlurAnnotationPosition.objects.create(
             blur_annotation=parent_annotation,
@@ -681,16 +687,14 @@ def create_censor_position(request):
         logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
         return HttpResponseServerError()
 
-    item_and_position_html = generate_censor_item_and_positions_html(
-        parent_annotation_id
-    )
+    item_and_position_html = generate_blur_item_and_positions_html(parent_annotation_id)
     if item_and_position_html is False:
         return HttpResponseServerError()
     return JsonResponse(item_and_position_html)
 
 
 @require_POST
-def update_censor_position(request):
+def update_blur_position(request):
     try:
         parsed_body = json.loads(request.body)
         position_id = parsed_body["position_id"]
@@ -701,7 +705,7 @@ def update_censor_position(request):
         position_width = parsed_body["width"]
     except Exception as e:
         logger.error(
-            f"Unable to parse data for updating or creating censor positions: {e}"
+            f"Unable to parse data for updating or creating blur positions: {e}"
         )
         return HttpResponseBadRequest()
 
@@ -715,7 +719,7 @@ def update_censor_position(request):
             this_blur_position.height = position_height
             this_blur_position.width = position_width
             this_blur_position.save()
-            item_and_positions_html = generate_censor_item_and_positions_html(
+            item_and_positions_html = generate_blur_item_and_positions_html(
                 this_blur_position.blur_annotation.pk
             )
             if item_and_positions_html is False:
@@ -726,7 +730,7 @@ def update_censor_position(request):
             return HttpResponseServerError()
 
 
-def delete_censor_position(request, position_id):
+def delete_blur_position(request, position_id):
     try:
         position = BlurAnnotationPosition.objects.get(pk=position_id)
         # I know this looks dumb, but if i used position.blur_annotation to get the parent,
@@ -765,7 +769,7 @@ def generate_annotation_updated_html(
     )
 
     item_positions = []
-    if annotation_type == "censor":
+    if annotation_type == "blur":
         try:
             item_positions = get_list_of_blur_annotation_positions(annotation)
         except Exception as e:
@@ -871,7 +875,7 @@ def update_annotation(request, annotation_type, annotation_id):
             setattr(annotation, key, value)
 
         annotation.save()
-        if annotation_type == "censor":
+        if annotation_type == "blur":
             annotation.remove_positions_outside_of_timebox()
         annotation.refresh_from_db()
 
@@ -1176,8 +1180,7 @@ def display_use_existing_annotation_set_option(request, content_id):
                 {
                     "available_annotation_sets": available_sets,
                     "can_edit": (
-                        content.collection.owner == request.user
-                        or request.user.is_admin
+                        content.playlist.owner == request.user or request.user.is_admin
                     ),
                 },
                 request,

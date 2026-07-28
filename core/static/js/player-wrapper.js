@@ -5,12 +5,12 @@
 
 
 import { AnnotationPlayer } from './AnnotationPlayer.js';
+import { getCSRFToken } from './utils.js';
 
 async function getPlayerData(contentId) {
-  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
   const playerDataResponse = await fetch("/player-data/" + contentId + '/', {
       method: "POST",
-      headers: {"X-CSRFToken": csrfToken},
+      headers: {"X-CSRFToken": getCSRFToken()},
       mode: "same-origin"
   });
   if (!playerDataResponse.ok) {

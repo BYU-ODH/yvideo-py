@@ -1,38 +1,48 @@
+import logging
+import re
+
 from django import forms
 from django.core.exceptions import ValidationError
 
+from .api import Api
+from .model_utils import update_user_enrollment
 from .models import Clip
-from .models import Collection
 from .models import Content
 from .models import ImportantWord
+from .models import Playlist
 from .models import ResourceContentIntakeRequest
 from .models import Subtitle
+from .models import User
+from .models import UserCourses
 from .utils import hms2seconds
 
+logger = logging.getLogger(__name__)
 
-class CollectionForm(forms.ModelForm):
+BYU_ID_PATTERN = re.compile(r"^\d{9}$")
+NETID_PATTERN = re.compile(r"^(?=.*[A-Za-z])[A-Za-z0-9]{2,8}$")
+
+
+class PlaylistForm(forms.ModelForm):
     name = forms.CharField(
-        widget=forms.TextInput(attrs={"placeholder": "Collection Name"})
+        widget=forms.TextInput(attrs={"placeholder": "Playlist Name"})
     )
 
     def clean_name(self):
         name = self.cleaned_data["name"]
 
-        if Collection.objects.filter(
-            owner=self.initial.get("user"), name=name
-        ).exists():
-            raise ValidationError("You already have a collection with this name.")
+        if Playlist.objects.filter(owner=self.initial.get("user"), name=name).exists():
+            raise ValidationError("You already have a playlist with this name.")
 
         return name
 
     class Meta:
-        model = Collection
+        model = Playlist
         fields = ("name",)
 
 
-class CollectionSettingsForm(forms.ModelForm):
+class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
-        model = Collection
+        model = Playlist
         fields = ["id", "name", "published", "archived"]
 
     id = forms.CharField(widget=forms.HiddenInput)
@@ -120,3 +130,132 @@ class ResourceContentIntakeRequestForm(forms.ModelForm):
     class Meta:
         model = ResourceContentIntakeRequest
         exclude = []
+
+
+class AddUserLookupForm(forms.Form):
+    identifier = forms.CharField(
+        label="BYU ID or NetID",
+        help_text=(
+            "Enter a 9-digit BYU ID or a NetID — their name, NetID/BYU ID, and "
+            "permissions will be filled in automatically from BYU's directory. "
+            "A NetID can only create a new user if they have a BYU student "
+            "record; otherwise, use their 9-digit BYU ID, or have them log in "
+            "to Y-Video themselves."
+        ),
+        widget=forms.TextInput(attrs={"autofocus": True}),
+    )
+
+    def clean_identifier(self):
+        value = self.cleaned_data["identifier"].strip()
+        if BYU_ID_PATTERN.match(value):
+            self.resolved_user, self.created = self._resolve_byu_id(value)
+        elif NETID_PATTERN.match(value):
+            self.resolved_user, self.created = self._resolve_netid(value)
+        else:
+            raise ValidationError("Enter a 9-digit BYU ID or a valid NetID.")
+        return value
+
+    def _resolve_byu_id(self, byu_id):
+        existing = User.objects.filter(username=byu_id).first()
+        if existing:
+            return existing, False
+
+        # Reuse the same API-driven lookup used to provision users at SSO login.
+        from yvideo.odhOIDCAuthenticationBackend import OIDCUserAuth
+
+        try:
+            created_user = OIDCUserAuth().create_user({"byu_id": byu_id})
+            if created_user is not None:
+                enrollment_result = update_user_enrollment(created_user)
+        except Exception:
+            logger.exception(
+                "Failed to create user from BYU API for byu_id=%s during admin "
+                "add-user lookup.",
+                byu_id,
+            )
+            raise ValidationError(
+                "Couldn't reach BYU's directory to create this user. Try again "
+                "in a moment."
+            )
+
+        if created_user is None:
+            raise ValidationError(
+                "BYU's directory has no record that qualifies this BYU ID for "
+                "an account (not currently faculty, ODH staff, or an active "
+                "student). Double-check the number, or confirm eligibility "
+                "with BYU IT."
+            )
+
+        if not (
+            enrollment_result["is_current_sem_updated"]
+            and enrollment_result["is_next_sem_updated"]
+        ):
+            self.enrollment_warning = enrollment_result["result_message"]
+
+        return created_user, True
+
+    def _resolve_netid(self, netid):
+        existing = User.objects.filter(netid__iexact=netid).first()
+        if existing:
+            return existing, False
+
+        api = Api()
+        try:
+            student_summary = api.get_student_summary(net_id=netid)
+        except Exception:
+            logger.exception(
+                "Failed to look up NetID %s via the student summary API "
+                "during admin add-user lookup.",
+                netid,
+            )
+            raise ValidationError(
+                "Couldn't reach BYU's directory to look up that NetID. Try "
+                "again in a moment."
+            )
+
+        if student_summary is None:
+            if self._student_summary_api_is_reachable(api) is False:
+                raise ValidationError(
+                    "BYU's directory API appears to be unavailable right now. "
+                    "Try again in a moment."
+                )
+            raise ValidationError(
+                "No BYU student record was found for that NetID. This person "
+                "may need to log in to Y-Video themselves to create their "
+                "account, or you can add them directly with their 9-digit "
+                "BYU ID."
+            )
+
+        # A NetID with a student record may still belong to someone who is now
+        # faculty/staff — let create_user's own worker-vs-student check (inside
+        # _resolve_byu_id) decide their current role rather than assuming.
+        return self._resolve_byu_id(student_summary["byu_id"])
+
+    def _student_summary_api_is_reachable(self, api):
+        # Probes a known currently-enrolled local student to tell an outage
+        # apart from a genuine "no record for this NetID" result.
+        probe_netid = self._pick_probe_netid()
+        if not probe_netid:
+            return None
+
+        try:
+            return api.get_student_summary(net_id=probe_netid) is not None
+        except Exception:
+            return False
+
+    @staticmethod
+    def _pick_probe_netid():
+        latest_yearterm = (
+            UserCourses.objects.order_by("-yearterm")
+            .values_list("yearterm", flat=True)
+            .first()
+        )
+        if not latest_yearterm:
+            return None
+        return (
+            UserCourses.objects.filter(yearterm=latest_yearterm)
+            .exclude(user__netid__isnull=True)
+            .exclude(user__netid="")
+            .values_list("user__netid", flat=True)
+            .first()
+        )

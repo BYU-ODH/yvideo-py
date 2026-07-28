@@ -1,61 +1,77 @@
 from django.urls import path
 
 from . import views
+from . import views_legacy_migration
 from . import views_video_editor
 
 app_name = "core"
 
 urlpatterns = [
     path("", views.index, name="index"),
-    path("collections/", views.collections, name="collections"),
     path(
-        "collections/<int:collection_id>/",
-        views.collection_info,
-        name="collection_info",
+        "legacy-migrations/",
+        views_legacy_migration.legacy_migration_requests,
+        name="legacy_migration_requests",
     ),
     path(
-        "collections/render-course-assignment/",
+        "legacy-migrations/create/",
+        views_legacy_migration.create_legacy_migration_request,
+        name="create_legacy_migration_request",
+    ),
+    path(
+        "legacy-migrations/<int:pk>/",
+        views_legacy_migration.legacy_migration_request_detail,
+        name="legacy_migration_request_detail",
+    ),
+    path("playlists/", views.playlists, name="playlists"),
+    path(
+        "playlists/<int:playlist_id>/",
+        views.playlist_info,
+        name="playlist_info",
+    ),
+    path(
+        "playlists/render-course-assignment/",
         views.render_course_assignment,
         name="render_course_assignment",
     ),
-    path("collections/create/", views.create_collection, name="create_collection"),
+    path("playlists/create/", views.create_playlist, name="create_playlist"),
     path(
-        "collections/delete/<int:collection_id>/",
-        views.delete_collection,
-        name="delete_collection",
+        "playlists/delete/<int:playlist_id>/",
+        views.delete_playlist,
+        name="delete_playlist",
     ),
     path(
-        "collections/assign-course/",
-        views.assign_collection_to_course,
-        name="assign_collection_to_course",
+        "playlists/assign-course/",
+        views.assign_playlist_to_course,
+        name="assign_playlist_to_course",
     ),
     path(
-        "collections/course/update-sections/",
-        views.update_collection_course_sections,
-        name="update_collection_course_sections",
+        "playlists/course/update-sections/",
+        views.update_playlist_course_sections,
+        name="update_playlist_course_sections",
     ),
     path(
-        "collections/course/unassign/",
-        views.unassign_collection_from_course,
-        name="unassign_collection_from_course",
+        "playlists/course/unassign/",
+        views.unassign_playlist_from_course,
+        name="unassign_playlist_from_course",
     ),
     path(
-        "display-collection-settings/<int:collection_id>/",
-        views.display_collection_settings,
-        name="display_collection_settings",
+        "display-playlist-settings/<int:playlist_id>/",
+        views.display_playlist_settings,
+        name="display_playlist_settings",
     ),
     path(
-        "collection-settings/update/",
-        views.update_collection_settings,
-        name="update_collection_settings",
+        "playlist-settings/update/",
+        views.update_playlist_settings,
+        name="update_playlist_settings",
     ),
     path(
-        "collection/delete/<int:collection_id>",
-        views.delete_collection,
-        name="delete_collection",
+        "playlist/delete/<int:playlist_id>",
+        views.delete_playlist,
+        name="delete_playlist",
     ),
     path(
-        "content/display-create/<int:collection_id>/",
+        "content/display-create/<int:playlist_id>/",
         views.display_create_content,
         name="display_create_content",
     ),
@@ -66,7 +82,7 @@ urlpatterns = [
         name="request_content",
     ),
     path(
-        "create-from-resource/<int:collection_id>",
+        "create-from-resource/<int:playlist_id>",
         views.display_create_from_resource,
         name="display_create_from_resource",
     ),
@@ -87,9 +103,9 @@ urlpatterns = [
     ),
     path("content/update/", views.update_content, name="update_content"),
     path(
-        "content/remove-from-collection/<int:content_id>/",
-        views.remove_content_from_collection,
-        name="remove_content_from_collection",
+        "content/remove-from-playlist/<int:content_id>/",
+        views.remove_content_from_playlist,
+        name="remove_content_from_playlist",
     ),
     path(
         "content/delete/<int:content_id>", views.delete_content, name="delete_content"
@@ -260,19 +276,19 @@ urlpatterns = [
         name="delete_annotation",
     ),
     path(
-        "annotations/censor-position/create",
-        views_video_editor.create_censor_position,
-        name="create_censor_position",
+        "annotations/blur-position/create",
+        views_video_editor.create_blur_position,
+        name="create_blur_position",
     ),
     path(
-        "annotations/censor-position/update",
-        views_video_editor.update_censor_position,
-        name="update_censor_position",
+        "annotations/blur-position/update",
+        views_video_editor.update_blur_position,
+        name="update_blur_position",
     ),
     path(
-        "annotations/censor-position/delete/<int:position_id>",
-        views_video_editor.delete_censor_position,
-        name="delete_censor_position",
+        "annotations/blur-position/delete/<int:position_id>",
+        views_video_editor.delete_blur_position,
+        name="delete_blur_position",
     ),
     path(
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",

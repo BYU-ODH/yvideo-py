@@ -3,16 +3,16 @@
 
 {% block content %}
 <div class="main-content">
-    <div class="collection-video-page column-flex">
+    <div class="playlist-video-page column-flex">
         <header class="video-title">
-            <h2>Collection Details</h2>
-            <h3>{{ collection.name }}</h3>
+            <h2>Playlist Details</h2>
+            <h3>{{ playlist.name }}</h3>
         </header>
-        {% if user.privilege_level == 0 or collection.owner == user %}
-            {% include 'core/partials/collection_settings.html' %}
+        {% if user.privilege_level == 0 or playlist.owner == user %}
+            {% include 'core/partials/playlist_settings.html' %}
         {% endif %}
-        <div id="collection-videos-content">
-            <div id="collection-videos-header" class="column-flex">
+        <div id="playlist-videos-content">
+            <div id="playlist-videos-header" class="column-flex">
                 <div class="search-wrapper">
                     <input
                         type="text"
@@ -23,14 +23,14 @@
                     >
                     <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
                 </div>
-                {% if user.privilege_level == 0 or collection.owner == user %}
+                {% if user.privilege_level == 0 or playlist.owner == user %}
                 <dialog id="add-video-dialog" class="user-view-modal">
                     <div class="user-view-modal-header">
                         <h3>Add a New Video</h3>
                     </div>
 
                     <div class="user-view-modal-body row-flex flex-apart-aligned">
-                        <a href="/create-from-resource/{{ collection.id }}" class="blue-button">
+                        <a href="/create-from-resource/{{ playlist.id }}" class="blue-button">
                             Create from existing resource
                         </a>
                         <a href="/content-intake-request/" class="blue-button">
@@ -46,17 +46,17 @@
                 </button>
                 {% endif %}
             </div>
-            <div id="collection-video-list">
+            <div id="playlist-video-list">
                 {% for content in contents %}
-                    {% if content.published == True or content.published == False and collection.owner == user or user.is_admin %}
-                    <div class="collection-video tile">
-                        {% if user.is_admin or collection.owner == user %}
-                        <a href="{% url 'display_content_info' content.id %}" class="collection-video-tile">
+                    {% if content.published == True or content.published == False and playlist.owner == user or user.is_admin %}
+                    <div class="playlist-video tile">
+                        {% if user.is_admin or playlist.owner == user %}
+                        <a href="{% url 'display_content_info' content.id %}" class="playlist-video-tile">
                         {% else %}
-                        <a href="{% url 'player' content.id %}" class="collection-video-tile">
+                        <a href="{% url 'player' content.id %}" class="playlist-video-tile">
                         {% endif %}
                             <div class="tile-image">
-                                <img src="{% static 'img/video.svg' %}" class="tile-image" alt="video-collection-icon">
+                                <img src="{% static 'img/video.svg' %}" class="tile-image" alt="video-playlist-icon">
                             </div>
                             <div class="tile-body">
                                 <h4 class="video-title">{{ content.title  }}</h4>
@@ -65,11 +65,11 @@
                     </div>
                     {% endif %}
                 {% empty %}
-                    <p>There are no videos assigned to this collection</p>
+                    <p>There are no videos assigned to this playlist</p>
                 {% endfor %}
             </div>
         </div>
     </div>
 </div>
-<script type="module" src="{% static 'js/collectionInfo.js' %}"></script>
+<script type="module" src="{% static 'js/playlistInfo.js' %}"></script>
 {% endblock %}
