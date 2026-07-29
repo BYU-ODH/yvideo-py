@@ -11,7 +11,6 @@ from django.urls import reverse
 from reversion.admin import VersionAdmin
 
 from .forms import AddUserLookupForm
-from .model_utils import generate_resource_file_barcode
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -144,7 +143,7 @@ class ResourceFileAdmin(VersionAdmin):
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         if obj.barcode is None or not obj.barcode:
-            obj.barcode = generate_resource_file_barcode()
+            obj.generate_barcode()
             try:
                 obj.save()
             except Exception:

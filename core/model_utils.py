@@ -1,12 +1,10 @@
 import logging
-from random import choices
 
 from django.utils import timezone
 
 from .api import Api
 from .models import Course
 from .models import PrivilegeLevel
-from .models import ResourceFile
 from .models import UserCourses
 
 try:
@@ -246,31 +244,3 @@ def update_user_enrollment(user):
     update_result["is_next_sem_updated"] = updated_next_sem_correctly
     update_result["result_message"] = result_message
     return update_result
-
-
-def generate_random_digit_string(length):
-    char_options = [str(num) for num in range(10)]
-    random_digits = choices(char_options, k=length)
-    return "".join(random_digits)
-
-
-def generate_resource_file_barcode():
-    """
-    If we need to generate a barcode, that means the media doesn't have
-    a UPC or EAN associated with it and we need to generate our own
-    internally unique code. With each generation, check that the code
-    is unique before returning.
-    """
-    char_options = [str(num) for num in range(10)]
-    unique = False
-    new_barcode = ""
-
-    while not unique:
-        random_digits = generate_random_digit_string(10)
-        new_barcode = "BYU" + random_digits
-        matching_resource_files = ResourceFile.objects.filter(
-            barcode=new_barcode
-        ).count()
-        unique = not matching_resource_files
-
-    return new_barcode
