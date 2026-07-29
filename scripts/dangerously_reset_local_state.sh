@@ -6,7 +6,7 @@ usage() {
     cat <<'EOF'
 Usage: bash scripts/dangerously_reset_local_state.sh [--force] [--bootstrap] [--db-dir=DIR]
 
-Deletes local development state:
+Deletes development state:
 - SQLite database files
 - generated media under media/
 

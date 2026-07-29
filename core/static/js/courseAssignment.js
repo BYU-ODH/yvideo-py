@@ -1,14 +1,14 @@
 import { getCSRFToken } from "./utils.js";
 
-function getCollectionIdValue() {
-  const collectionForm = document.getElementById("collection-settings-form");
-  if (!collectionForm) {
+function getPlaylistIdValue() {
+  const playlistForm = document.getElementById("playlist-settings-form");
+  if (!playlistForm) {
     return;
   }
-  const idInput = collectionForm.querySelector("input[name='id']");
+  const idInput = playlistForm.querySelector("input[name='id']");
   const idValue = idInput?.value;
   if (idValue === undefined) {
-    console.error("Failed to get collection id from form");
+    console.error("Failed to get playlist id from form");
     return;
   }
   return idValue;
@@ -35,7 +35,7 @@ function setupSemesterSelectionHandlers() {
   // update the assigned courses displayed whenever the user changes
   // the selected year or semester
   const handler = async () => {
-    const renderResponse = await fetch("/collections/render-course-assignment/", {
+    const renderResponse = await fetch("/playlists/render-course-assignment/", {
       method: "POST",
       headers: {
         "X-CSRFToken": getCSRFToken(),
@@ -44,7 +44,7 @@ function setupSemesterSelectionHandlers() {
       body: JSON.stringify({
         "semester": getSemester(),
         "year": getYear(),
-        "collection_id": getCollectionIdValue()
+        "playlist_id": getPlaylistIdValue()
       })
     });
     if (!renderResponse.ok) {
@@ -68,7 +68,7 @@ function setupAssignCourseButton() {
   const semester = getSemester();
   const year = getYear();
   if (semester === undefined || year === undefined) {
-    console.error("Failed to assign course to collection because semester and or year are undefined");
+    console.error("Failed to assign course to playlist because semester and or year are undefined");
     return;
   }
 
@@ -97,7 +97,7 @@ function setupAssignCourseButton() {
     if (invalid) {
       return;
     }
-    const assignmentResponse = await fetch("/collections/assign-course/", {
+    const assignmentResponse = await fetch("/playlists/assign-course/", {
       method: "POST",
       headers: {
         "X-CSRFToken": getCSRFToken(),
@@ -109,12 +109,12 @@ function setupAssignCourseButton() {
         "sections": sections,
         "semester": semester,
         "year": year,
-        "collection_id": getCollectionIdValue()
+        "playlist_id": getPlaylistIdValue()
       })
     });
 
     if (!assignmentResponse.ok) {
-      console.error("Failed to assign course to collection");
+      console.error("Failed to assign course to playlist");
       return;
     }
 
@@ -150,14 +150,14 @@ function setupSubmitSectionButtons() {
         console.error("Failed to update sections because year and/or semseter are undefined");
         return;
       }
-      const saveResponse = await fetch("/collections/course/update-sections/", {
+      const saveResponse = await fetch("/playlists/course/update-sections/", {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          "collection_id": getCollectionIdValue(),
+          "playlist_id": getPlaylistIdValue(),
           "sections": cleanSectionsInput(sectionInput.value),
           "dept": dept,
           "catalog_number": catalogNumber,
@@ -184,7 +184,7 @@ function setupRemoveCourseButtons() {
     const catalogNumber = assignedCourseEl.dataset["catalogNumber"];
     const semester = getSemester();
     const year = getYear();
-    const collectionId = getCollectionIdValue();
+    const playlistId = getPlaylistIdValue();
 
     // initially this event was defined on the assignedCourseEl's removal button
     // however the querySelector call had some issue. Instead, we put the event
@@ -194,7 +194,7 @@ function setupRemoveCourseButtons() {
       if (!event.target.closest(".remove-course-assignment-button")) {
         return;
       }
-      const removeRequest = await fetch("/collections/course/unassign/", {
+      const removeRequest = await fetch("/playlists/course/unassign/", {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -205,12 +205,12 @@ function setupRemoveCourseButtons() {
           catalog_number: catalogNumber,
           semester: semester,
           year: year,
-          collection_id: collectionId
+          playlist_id: playlistId
         })
       });
 
       if (!removeRequest.ok) {
-        console.error("Failed to remove collection from course");
+        console.error("Failed to remove playlist from course");
         return;
       }
 

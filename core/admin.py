@@ -1,16 +1,21 @@
+import logging
 import os
 
 from django.contrib import admin
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
+from django.urls import reverse
 from reversion.admin import VersionAdmin
 
+from .forms import AddUserLookupForm
 from .model_utils import generate_resource_file_barcode
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
 from .models import Clip
-from .models import Collection
-from .models import CollectionUserAccess
 from .models import CommentAnnotation
 from .models import Content
 from .models import Course
@@ -19,6 +24,8 @@ from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
+from .models import Playlist
+from .models import PlaylistUserAccess
 from .models import Resource
 from .models import ResourceAccess
 from .models import ResourceFile
@@ -29,6 +36,8 @@ from .models import Track
 from .models import User
 from .models import UserCourses
 from .utils import convert_srt_content_to_vtt
+
+logger = logging.getLogger(__name__)
 
 
 @admin.register(User)
@@ -44,6 +53,51 @@ class UserAdmin(VersionAdmin):
     )
     list_filter = ("privilege_level", "date_joined")
     search_fields = ("username", "netid", "first_name", "last_name")
+    add_form_template = "admin/core/user/add_form.html"
+
+    def add_view(self, request, form_url="", extra_context=None):
+        # A new user's data (name, netid, permissions) comes entirely from BYU's
+        # APIs, so instead of Django's generic model-field add form, admins just
+        # supply a BYU ID (to create/populate a user) or a NetID (to find an
+        # existing one).
+        with self.create_revision(request):
+            return self._add_view(request, form_url, extra_context)
+
+    def _add_view(self, request, form_url="", extra_context=None):
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+
+        if request.method == "POST":
+            form = AddUserLookupForm(request.POST)
+            if form.is_valid():
+                user = form.resolved_user
+                if form.created:
+                    self.log_addition(
+                        request, user, "Added via BYU ID lookup in admin."
+                    )
+                    messages.success(
+                        request,
+                        f'The user "{user}" was created and populated from BYU\'s directory.',
+                    )
+                    if getattr(form, "enrollment_warning", None):
+                        messages.warning(request, form.enrollment_warning)
+                else:
+                    messages.info(request, f'Found existing user "{user}".')
+                return HttpResponseRedirect(
+                    reverse("admin:core_user_change", args=(user.pk,))
+                )
+        else:
+            form = AddUserLookupForm()
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Add user",
+            "opts": self.model._meta,
+        }
+        if extra_context:
+            context.update(extra_context)
+        context["form"] = form
+        return render(request, self.add_form_template, context)
 
 
 @admin.register(Resource)
@@ -70,11 +124,11 @@ class ResourceAdmin(VersionAdmin):
             user = User.objects.get(username=requester_username)
         except Exception:
             return
-        ResourceAccess.objects.create(user=user, resource=obj)
+        ResourceAccess.objects.get_or_create(user=user, resource=obj)
 
 
-@admin.register(Collection)
-class CollectionAdmin(VersionAdmin):
+@admin.register(Playlist)
+class PlaylistAdmin(VersionAdmin):
     list_display = ("name", "owner", "published", "archived", "public", "created_at")
     list_filter = ("published", "archived", "public", "created_at")
     search_fields = ("name", "owner__name", "owner__netid", "owner__username")
@@ -102,7 +156,14 @@ class ResourceFileAdmin(VersionAdmin):
 
 @admin.register(Content)
 class ContentAdmin(VersionAdmin):
-    list_display = ("title", "collection", "published", "views", "created_at")
+    list_display = (
+        "title",
+        "playlist",
+        "resource",
+        "published",
+        "views",
+        "created_at",
+    )
     list_filter = (
         "published",
         "allow_definitions",
@@ -111,39 +172,47 @@ class ContentAdmin(VersionAdmin):
         "created_at",
     )
     readonly_fields = ("views",)
-    search_fields = ("title", "description", "collection__name")
+    search_fields = ("title", "description", "playlist__name")
 
     def get_form(self, request, obj=None, **kwargs):
         """Dynamically filters the 'resource_file' field's queryset.
 
         If editing an existing Content object, it shows only the files
-        associated with resources owned by the content's collection owner.
-        If adding a new Content object, it shows no files until a collection
+        associated with resources owned by the content's playlist owner.
+        If adding a new Content object, it shows no files until a playlist
         is selected and saved, guiding the user with help text.
         """
         form = super().get_form(request, obj, **kwargs)
         # If we are editing an existing Content object.
         if obj:
-            # Check if the content has a collection and the collection has an owner.
-            if obj.collection and obj.collection.owner:
+            # Check if the content has a playlist and the playlist has an owner.
+            if obj.playlist and obj.playlist.owner:
                 # Filter the 'resource_file' field to show only files whose resource is accessible
-                # by the collection's owner.
+                # by the playlist's owner.
                 form.base_fields[
                     "resource_file"
                 ].queryset = ResourceFile.objects.filter(
-                    resource__users=obj.collection.owner
+                    resource__users=obj.playlist.owner
                 )
             else:
-                # If no collection or owner, show no files.
+                # If no playlist or owner, show no files.
                 form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
 
+            # Filter clips to show only those associated with the selected file
+            if obj.get_resource():
+                form.base_fields["clips"].queryset = Clip.objects.filter(
+                    resource=obj.get_resource()
+                )
+            else:
+                form.base_fields["clips"].queryset = Clip.objects.none()
+
         else:
-            # On the 'add' page, we can't filter by collection owner yet.
-            # Showing no files until a collection is selected and saved.
+            # On the 'add' page, we can't filter by playlist owner yet.
+            # Showing no files until a playlist is selected and saved.
             form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
             form.base_fields[
                 "resource_file"
-            ].help_text = "Select collection, then save to see available resource files. You will be unable to see resource files that belong to Resources that you do not have Resource Access to."
+            ].help_text = "Select playlist, then save to see available resource files. You will be unable to see resource files that belong to Resources that you do not have Resource Access to."
 
         return form
 
@@ -244,11 +313,11 @@ class ResourceAccessAdmin(VersionAdmin):
     search_fields = ("user__netid", "user__username", "resource__name")
 
 
-@admin.register(CollectionUserAccess)
-class CollectionUserAccessAdmin(VersionAdmin):
-    list_display = ("user", "collection", "collection_role", "created_at")
-    list_filter = ("collection_role", "created_at")
-    search_fields = ("user__netid", "user__username", "collection__name")
+@admin.register(PlaylistUserAccess)
+class PlaylistUserAccessAdmin(VersionAdmin):
+    list_display = ("user", "playlist", "playlist_role", "created_at")
+    list_filter = ("playlist_role", "created_at")
+    search_fields = ("user__netid", "user__username", "playlist__name")
 
 
 @admin.register(ResourceFileKey)

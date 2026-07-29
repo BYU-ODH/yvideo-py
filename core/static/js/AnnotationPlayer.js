@@ -79,7 +79,7 @@ export class AnnotationPlayer {
 
     this.annotations = [];
     this.subtitleTrackBlobUrls = []; // Store subtitle track blob URLs for cleanup
-    this.currently = { muting: -1, blanking: -1, blurring: -1 };
+    this.currently = { muting: -1, blanking: -1, screenBlurring: -1 };
 
     this.mouseTimer = null;
     this.controlsTimeout = null;
@@ -362,15 +362,25 @@ export class AnnotationPlayer {
   parseICLegacyAnnotations(annotationObj) {
     const annotations = [];
     for (const icAnno of annotationObj) {
+      // The legacy IC format uses "censor" for positional blur boxes and a
+      // separate top-level "blur" for whole-screen blur; translate both so
+      // they don't collide once "censor" becomes "blur" in the new schema.
+      let legacyType = icAnno.options["type"];
+      let type = legacyType;
+      if (legacyType === "censor") {
+        type = "blur";
+      } else if (legacyType === "blur") {
+        type = "screenBlur";
+      }
       let annotation = {
         label: icAnno.options["label"],
         start: icAnno.options["start"],
         end: icAnno.options["end"],
-        type: icAnno.options["type"],
+        type: type,
         details: icAnno.options["details"],
       };
-      if (annotation.type === "censor" && annotation.details.interpolate) {
-        this.interpolateCensor(annotation);
+      if (annotation.type === "blur" && annotation.details.interpolate) {
+        this.interpolateBlur(annotation);
       }
       annotations.push(annotation);
     }
@@ -634,7 +644,7 @@ export class AnnotationPlayer {
 
   setupVideoElemAnnotations() {
     this._onPlaying = () => this.applyAnnotations();
-    this.currently = { muting: -1, blanking: -1, blurring: -1 };
+    this.currently = { muting: -1, blanking: -1, screenBlurring: -1 };
     this.videoElem.addEventListener("playing", this._onPlaying);
   }
 
@@ -661,7 +671,7 @@ export class AnnotationPlayer {
     for (let i = 0; i < numAnnotations; i++) {
       let vMuted = this.videoElem.muted;
       let vBlanked = this.videoElem.classList.contains("blanked");
-      let vBlurred = this.videoElem.classList.contains("blurred");
+      let vScreenBlurred = this.videoElem.classList.contains("screen-blurred");
       let a = this.annotations[i];
       let aStart = a["start"];
       let aEnd = a["end"];
@@ -729,22 +739,22 @@ export class AnnotationPlayer {
             }
           }
           break;
-        case "blur":
-          if (this.currently.blurring === -1 || this.currently.blurring === i) {
+        case "screenBlur":
+          if (this.currently.screenBlurring === -1 || this.currently.screenBlurring === i) {
             if (isActiveNow) {
-              if (!vBlurred) {
-                this.currently.blurring = i;
-                this.blur();
+              if (!vScreenBlurred) {
+                this.currently.screenBlurring = i;
+                this.screenBlur();
               }
             } else {
-              if (vBlurred) {
-                this.currently.blurring = -1;
-                this.unblur();
+              if (vScreenBlurred) {
+                this.currently.screenBlurring = -1;
+                this.unscreenBlur();
               }
             }
           }
           break;
-        case "censor":
+        case "blur":
           if (isActiveNow) {
             function determineWhichBlurPositionToShow(positions) {
               let desiredPosition = positions[0];
@@ -757,44 +767,44 @@ export class AnnotationPlayer {
               return desiredPosition;
             }
 
-            if (!this.annotationBox.querySelector("#censor" + i)) {
+            if (!this.annotationBox.querySelector("#blur" + i)) {
               const firstPosition = aPositions[0];
-              const censor = document.createElement("div");
-              censor.dataset["censorPositionParentId"] = a.id;
-              censor.dataset["censorPositionId"] = firstPosition.id;
-              censor.id = "censor" + i;
-              censor.className = "censor-position " + firstPosition["type"];
-              censor.style.position = "absolute";
-              censor.style.width =  firstPosition["width"] + "%";
-              censor.style.height = firstPosition["height"] + "%";
-              censor.style.left = firstPosition["x"] + "%";
-              censor.style.top = firstPosition["y"] + "%";
+              const blur = document.createElement("div");
+              blur.dataset["blurPositionParentId"] = a.id;
+              blur.dataset["blurPositionId"] = firstPosition.id;
+              blur.id = "blur" + i;
+              blur.className = "blur-position " + firstPosition["type"];
+              blur.style.position = "absolute";
+              blur.style.width =  firstPosition["width"] + "%";
+              blur.style.height = firstPosition["height"] + "%";
+              blur.style.left = firstPosition["x"] + "%";
+              blur.style.top = firstPosition["y"] + "%";
               const type = firstPosition["type"];
               if (type === "black" || type === "red") {
-                censor.style.backgroundColor = type;
+                blur.style.backgroundColor = type;
               } else if (type === "blur") {
-                censor.style.backdropFilter =
+                blur.style.backdropFilter =
                   "blur(" + firstPosition["blur_amount"] + ")";
               }
-              this.annotationBox.appendChild(censor);
+              this.annotationBox.appendChild(blur);
             } else {
-              const censor = this.annotationBox.querySelector(
-                "#censor" + i,
+              const blur = this.annotationBox.querySelector(
+                "#blur" + i,
               );
               const positionToShow = determineWhichBlurPositionToShow(aPositions);
-              censor.dataset["censorPositionParentId"] = a.id;
-              censor.dataset["censorPositionId"] = positionToShow.id;
-              censor.style.width =  positionToShow["width"] + "%";
-              censor.style.height = positionToShow["height"] + "%";
-              censor.style.left = positionToShow["x"] + "%";
-              censor.style.top = positionToShow["y"] + "%";
+              blur.dataset["blurPositionParentId"] = a.id;
+              blur.dataset["blurPositionId"] = positionToShow.id;
+              blur.style.width =  positionToShow["width"] + "%";
+              blur.style.height = positionToShow["height"] + "%";
+              blur.style.left = positionToShow["x"] + "%";
+              blur.style.top = positionToShow["y"] + "%";
             }
           } else {
-            const existingCensor = this.annotationBox.querySelector(
-              "#censor" + i,
+            const existingBlur = this.annotationBox.querySelector(
+              "#blur" + i,
             );
-            if (existingCensor) {
-              existingCensor.remove();
+            if (existingBlur) {
+              existingBlur.remove();
             }
           }
           break;
@@ -836,9 +846,9 @@ export class AnnotationPlayer {
   resetAnnotations() {
     this.videoElem.removeEventListener("playing", this._onPlaying);
     this.videoElem.classList.remove("blanked");
-    this.videoElem.classList.remove("blurred");
+    this.videoElem.classList.remove("screen-blurred");
     Array.from(
-      this.annotationBox.querySelectorAll("[id^=censor]"),
+      this.annotationBox.querySelectorAll("[id^=blur]"),
     ).forEach((el) => el.remove());
     this.unmute();
   }
@@ -852,13 +862,13 @@ export class AnnotationPlayer {
     this.videoElem.classList.remove("blanked");
   }
 
-  blur() {  // Blur the whole screen (not just censored areas)
-    this.videoElem.classList.add("blurred");
+  screenBlur() {  // Blur the whole screen (not the individual blur-position boxes)
+    this.videoElem.classList.add("screen-blurred");
     // TODO Make this subtype of `blanked` with CSS options
   }
 
-  unblur() {
-    this.videoElem.classList.remove("blurred");
+  unscreenBlur() {
+    this.videoElem.classList.remove("screen-blurred");
   }
 
   mute(isAnnotation = false) {
@@ -953,7 +963,7 @@ export class AnnotationPlayer {
     }
   }
 
-  interpolateCensor(annotation) {
+  interpolateBlur(annotation) {
     annotation.details["intPositions"] = {};
     let position = annotation.details.position;
     let timeKeys = Object.keys(position).sort(

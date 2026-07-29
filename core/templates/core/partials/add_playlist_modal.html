@@ -1,12 +1,12 @@
-<dialog id="collection_modal">
+<dialog id="playlist_modal">
     <div class="modal-box">
 
-        <h3>Add New Collection</h3>
+        <h3>Add New Playlist</h3>
 
         <form
-            id="collection-form"
-            hx-post="{% url 'create_collection' %}"
-            hx-target="#sorted-collections"
+            id="playlist-form"
+            hx-post="{% url 'create_playlist' %}"
+            hx-target="#sorted-playlists"
             hx-swap="outerHTML">
             {% csrf_token %}
 
@@ -26,8 +26,8 @@
             </div>
 
             <div class="modal-action">
-                <button type="submit" onclick="collection_modal.close();">Create</button>
-                <button type="button" onclick="collection_modal.close();">Cancel</button>
+                <button type="submit" onclick="playlist_modal.close();">Create</button>
+                <button type="button" onclick="playlist_modal.close();">Cancel</button>
             </div>
         </form>
     </div>

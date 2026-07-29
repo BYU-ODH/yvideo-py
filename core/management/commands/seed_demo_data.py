@@ -29,7 +29,7 @@ class Command(BaseCommand):
                 [
                     f"Users: {summary['users']}",
                     f"Resources: {summary['resources']}",
-                    f"Collections: {summary['collections']}",
+                    f"Playlists: {summary['playlists']}",
                     f"Contents: {summary['contents']}",
                     f"Admin netid: {summary['seeded_admin_netid']}",
                     f"Admin password: {summary['seeded_admin_password']}",
