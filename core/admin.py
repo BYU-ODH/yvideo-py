@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.core.files.base import ContentFile
 from reversion.admin import VersionAdmin
 
+from .model_utils import generate_resource_file_barcode
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -85,6 +86,24 @@ class ResourceFileAdmin(VersionAdmin):
     list_filter = ("full_video", "created_at")
     search_fields = ("file", "version", "resource__name")
     readonly_fields = ("checksum", "checksum_at")
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields[
+            "barcode"
+        ].help_text = "Provide the UPC or EAN number that appears below the barcode. If there is no number, a value will be automatically generated for this ResourceFile upon submission."
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.barcode is None or not obj.barcode:
+            obj.barcode = generate_resource_file_barcode()
+            try:
+                obj.save()
+            except Exception:
+                # barcode isn't required even though we want it to be filled.
+                # So we can just return if we get an exception and define the
+                # barcode at a later time.
+                return
 
 
 @admin.register(Content)
