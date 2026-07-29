@@ -6,6 +6,7 @@ import mimetypes
 import os
 import re
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import connection
@@ -1059,7 +1060,19 @@ def request_content(request):
             content_request = form.save(commit=False)
             content_request.owner = request.user
             content_request.save()
+            messages.success(
+                request,
+                "Your resource request has been submitted. Please bring your VHS, "
+                "DVD, Blu-ray, or other physical copy of this resource to the "
+                "Humanities Learning Commons (HLC) so we can begin processing it.",
+            )
             return redirect("request_content")
+        for field_name in form.errors:
+            if field_name in form.fields:
+                widget = form.fields[field_name].widget
+                widget.attrs["class"] = (
+                    f"{widget.attrs.get('class', '')} invalid-input".strip()
+                )
     else:
         form = ResourceIntakeRequestForm()
 

@@ -1411,6 +1411,36 @@ p.tile-subtitle {
     max-width: 300px;
 }
 
+.content-intake-required-marker {
+    color: var(--red);
+}
+
+.content-intake-field-error label {
+    color: var(--red);
+}
+
+#content-intake-form-messages {
+    margin-bottom: 1.5rem;
+}
+
+.content-intake-message {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.content-intake-message-success {
+    background-color: #e6f4ea;
+    color: #1e7e34;
+    border: 1px solid #1e7e34;
+}
+
+.content-intake-message-error {
+    background-color: #fdecea;
+    color: var(--dark-red);
+    border: 1px solid var(--red);
+}
+
 /* index page */
 #index-page {
     display: flex;

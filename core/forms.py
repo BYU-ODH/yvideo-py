@@ -127,6 +127,9 @@ class SubtitleForm(forms.ModelForm):
 
 
 class ResourceIntakeRequestForm(forms.ModelForm):
+    acknowledged_compliance = forms.BooleanField(required=True)
+    acknowledged_fair_use_limitation = forms.BooleanField(required=True)
+
     class Meta:
         model = ResourceIntakeRequest
         exclude = []
