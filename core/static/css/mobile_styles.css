@@ -97,12 +97,12 @@
         width: 100%;
     }
 
-    #content-intake-form-main-content {
+    #resource-intake-form-main-content {
         padding: 30px 20px;
     }
 
-    .content-intake-group-set,
-    #content-intake-request-checks {
+    .resource-intake-group-set,
+    #resource-intake-request-checks {
         column-gap: 30px;
     }
 }

@@ -1,17 +1,17 @@
 {% include 'core/base.html' %}
-<div id="content-intake-form-wrapper">
+<div id="resource-intake-form-wrapper">
     <h2>
         Resource Intake Request
     </h2>
-    <div id="content-intake-form-main-content">
+    <div id="resource-intake-form-main-content">
         {% if messages %}
-            <div id="content-intake-form-messages">
+            <div id="resource-intake-form-messages">
                 {% for message in messages %}
-                    <p class="content-intake-message content-intake-message-{{ message.tags }}">{{ message }}</p>
+                    <p class="resource-intake-message resource-intake-message-{{ message.tags }}">{{ message }}</p>
                 {% endfor %}
             </div>
         {% endif %}
-        <form id="content-intake-form" method="post" novalidate>
+        <form id="resource-intake-form" method="post" novalidate>
             {% csrf_token %}
             <div>
                 <p>
@@ -26,27 +26,27 @@
                 <h3>
                     Request information
                 </h3>
-                <div class="row-flex content-intake-group-set">
+                <div class="row-flex resource-intake-group-set">
                     <div class="column-flex">
-                        <div class="content-intake-form-group{% if form.resource_title.errors %} content-intake-field-error{% endif %}">
-                            <label>Resource Title <span class="content-intake-required-marker">*</span></label>
+                        <div class="resource-intake-form-group{% if form.resource_title.errors %} resource-intake-field-error{% endif %}">
+                            <label>Resource Title <span class="resource-intake-required-marker">*</span></label>
                             {{ form.resource_title }}
                         </div>
-                        <div class="content-intake-form-group">
+                        <div class="resource-intake-form-group">
                             <label>IMDB Link (optional)</label>
                             {{ form.imdb_link }}
                         </div>
-                        <div class="content-intake-form-group">
+                        <div class="resource-intake-form-group">
                             <label>Date Needed (min. 5 days required)</label>
                             {{ form.date_needed }}
                         </div>
                     </div>
                     <div class="column-flex">
-                        <div class="content-intake-form-group{% if form.audio_language.errors %} content-intake-field-error{% endif %}">
-                            <label>Audio Language <span class="content-intake-required-marker">*</span></label>
+                        <div class="resource-intake-form-group{% if form.audio_language.errors %} resource-intake-field-error{% endif %}">
+                            <label>Audio Language <span class="resource-intake-required-marker">*</span></label>
                             {{ form.audio_language }}
                         </div>
-                        <div class="content-intake-form-group">
+                        <div class="resource-intake-form-group">
                             <label>Subtitle Language (optional)</label>
                             {{ form.subtitle_language }}
                         </div>
@@ -54,41 +54,41 @@
                 </div>
             </div>
 
-            <div id="content-intake-request-checks-wrapper">
+            <div id="resource-intake-request-checks-wrapper">
                 <h3>Check all that apply</h3>
-                <div id="content-intake-request-checks">
+                <div id="resource-intake-request-checks">
                     <div>
                         <h4>Content Advisories:</h4>
-                        <div id="content-advisory-choice-set" class="content-intake-choice-set">
-                            <div class="content-intake-choice-group">
+                        <div id="content-advisory-choice-set" class="resource-intake-choice-set">
+                            <div class="resource-intake-choice-group">
                                 {{ form.violence_or_blood_and_gore }}
                                 <label for="{{ form.violence_or_blood_and_gore.id_for_label }}">
                                     Violence or blood and gore
                                 </label>
                             </div>
 
-                            <div class="content-intake-choice-group">
+                            <div class="resource-intake-choice-group">
                                 {{ form.nudity_or_sexual_content }}
                                 <label for="{{ form.nudity_or_sexual_content.id_for_label }}">
                                     Nudity or sexual content
                                 </label>
                             </div>
 
-                            <div class="content-intake-choice-group">
+                            <div class="resource-intake-choice-group">
                                 {{ form.profanity_or_vulgarity }}
                                 <label for="{{ form.profanity_or_vulgarity.id_for_label }}">
                                     Profanity or vulgarity
                                 </label>
                             </div>
 
-                            <div class="content-intake-choice-group">
+                            <div class="resource-intake-choice-group">
                                 {{ form.self_harm_or_suicide }}
                                 <label for="{{ form.self_harm_or_suicide.id_for_label }}">
                                     Self-harm or suicide
                                 </label>
                             </div>
 
-                            <div class="content-intake-choice-group">
+                            <div class="resource-intake-choice-group">
                                 {{ form.drug_use }}
                                 <label for="{{ form.drug_use.id_for_label }}">
                                     Drug use
@@ -100,15 +100,15 @@
                     <div>
                         <div>
                             <h4>Library ownership:</h4>
-                            <div class="content-intake-choice-set">
-                                <div class="content-intake-choice-group">
+                            <div class="resource-intake-choice-set">
+                                <div class="resource-intake-choice-group">
                                     {{ form.checked_out_from_hbll }}
                                     <label for="{{ form.checked_out_from_hbll.id_for_label }}">
                                         Checked out from HBLL
                                     </label>
                                 </div>
 
-                                <div class="content-intake-choice-group">
+                                <div class="resource-intake-choice-group">
                                     {{ form.checked_out_from_other_byu_library }}
                                     <label for="{{ form.checked_out_from_other_byu_library.id_for_label }}">
                                         Checked out from another BYU library
@@ -121,23 +121,23 @@
                 </div>
             </div>
 
-            <div id="content-intake-legal-compliance-wrapper">
+            <div id="resource-intake-legal-compliance-wrapper">
                 <h3>Legal compliance</h3>
-                <div class="content-intake-choice-set">
-                    <div class="content-intake-choice-group{% if form.acknowledged_compliance.errors %} content-intake-field-error{% endif %}">
+                <div class="resource-intake-choice-set">
+                    <div class="resource-intake-choice-group{% if form.acknowledged_compliance.errors %} resource-intake-field-error{% endif %}">
                         {{ form.acknowledged_compliance }}
-                        <label id="content-intake-policy-compliance-label" for="{{ form.acknowledged_compliance.id_for_label }}">
-                            <span class="content-intake-required-marker">*</span> I have
+                        <label id="resource-intake-policy-compliance-label" for="{{ form.acknowledged_compliance.id_for_label }}">
+                            <span class="resource-intake-required-marker">*</span> I have
                             read the <a target="_blank" href="https://policy.byu.edu/view/guidelines-for-selecting-and-teaching-literary-and-visual-materials-at-byu-policy">BYU Visual Teaching Materials Policy</a>
                             and <a target="_blank" href="https://policy.byu.edu/view/copyright-policy">BYU Copyright Policy</a>
                             and will use this resource in compliance with them.
                         </label>
                     </div>
 
-                    <div class="content-intake-choice-group{% if form.acknowledged_fair_use_limitation.errors %} content-intake-field-error{% endif %}">
+                    <div class="resource-intake-choice-group{% if form.acknowledged_fair_use_limitation.errors %} resource-intake-field-error{% endif %}">
                         {{ form.acknowledged_fair_use_limitation }}
                         <label for="{{ form.acknowledged_fair_use_limitation.id_for_label }}">
-                            <span class="content-intake-required-marker">*</span> I will
+                            <span class="resource-intake-required-marker">*</span> I will
                             only share this resource with students enrolled in relevant
                             courses, or other uses permitted by
                             <a target="_blank" href="https://www.copyright.gov/help/faq/faq-fairuse.html">Fair Use</a>.
