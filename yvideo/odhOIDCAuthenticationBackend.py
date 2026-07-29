@@ -63,11 +63,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 user = User.objects.create(
                     username=byu_id,
                     netid=api.get_net_id_from_worker_id(worker_id),
-                    privilege_level=(
-                        PrivilegeLevel.ADMIN
-                        if is_whitelist_admin
-                        else PrivilegeLevel.INSTRUCTOR
-                    ),
+                    privilege_level=PrivilegeLevel.INSTRUCTOR,
                     first_name=worker_summary["first_name"],
                     last_name=worker_summary["last_name"],
                     is_staff=worker_summary["is_odh_employee"] or is_whitelist_admin,
@@ -82,11 +78,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                     last_name=worker_summary["last_name"],
                     is_staff=is_whitelist_admin,
                     is_superuser=is_whitelist_admin,
-                    privilege_level=(
-                        PrivilegeLevel.ADMIN
-                        if is_whitelist_admin
-                        else PrivilegeLevel.STUDENT
-                    ),
+                    privilege_level=PrivilegeLevel.STUDENT,
                 )
                 return user
 

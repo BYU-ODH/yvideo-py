@@ -32,14 +32,9 @@ def _legacy_migration_unavailable_response():
 
 
 def _can_request_migration(user):
-    allowed_levels = {
-        PrivilegeLevel.ADMIN,
-        PrivilegeLevel.INSTRUCTOR,
-        PrivilegeLevel.LAB_ASSISTANT,
-    }
     return (
-        user.privilege_level in allowed_levels
-        or user.privilege_level_override in allowed_levels
+        user.privilege_level == PrivilegeLevel.INSTRUCTOR
+        or user.privilege_level_override == PrivilegeLevel.INSTRUCTOR
         or user.is_staff
         or user.is_superuser
     )

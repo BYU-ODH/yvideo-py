@@ -112,7 +112,7 @@ def create_demo_data():
         password="profben",
     )
     teaching_assistant = UserFactory(
-        lab_assistant=True,
+        student=True,
         username="111225555",
         netid="caseyta",
         first_name="Casey",
@@ -121,7 +121,7 @@ def create_demo_data():
         password="caseyta",
     )
     lab_assistant = UserFactory(
-        lab_assistant=True,
+        student=True,
         username="111226666",
         netid="labdemo",
         first_name="Jordan",

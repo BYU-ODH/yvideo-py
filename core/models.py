@@ -26,10 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class PrivilegeLevel(models.IntegerChoices):
-    ADMIN = 0
-    LAB_ASSISTANT = 1
-    INSTRUCTOR = 2
-    STUDENT = 3
+    INSTRUCTOR = 0
+    STUDENT = 1
 
 
 class PlaylistRole(models.IntegerChoices):
@@ -102,7 +100,6 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
-        extra_fields.setdefault("privilege_level", PrivilegeLevel.ADMIN)
 
         return self.create_user(username=username, password=password, **extra_fields)
 
@@ -140,7 +137,7 @@ class User(AbstractUser):
 
     @property
     def is_admin(self):
-        return self.privilege_level == PrivilegeLevel.ADMIN
+        return self.is_superuser
 
     def can_view_content(self, content):
         # owners and admins should have view permission even if the playlist is not published

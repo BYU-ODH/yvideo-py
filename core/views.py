@@ -37,6 +37,7 @@ from .models import MuteAnnotation
 from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
+from .models import PrivilegeLevel
 from .models import Resource
 from .models import ResourceFile
 from .models import ResourceFileKey
@@ -89,7 +90,10 @@ def display_yearterm(yearterm):
 
 
 def index(request):
-    if request.user.is_authenticated and request.user.privilege_level == 2:
+    if (
+        request.user.is_authenticated
+        and request.user.privilege_level == PrivilegeLevel.INSTRUCTOR
+    ):
         return HttpResponseRedirect(reverse("playlists"))
     return render(request, "core/index.html", {})
 
@@ -250,10 +254,10 @@ def stream_file(request, resource_file_key_id):
 def playlists(request):
     # if admin, gather owned playlists
     owned_playlists = []
-    allowed_privilege_levels = [2, 0]
     if (
-        request.user.privilege_level in allowed_privilege_levels
-        or request.user.privilege_level_override in allowed_privilege_levels
+        request.user.privilege_level == PrivilegeLevel.INSTRUCTOR
+        or request.user.privilege_level_override == PrivilegeLevel.INSTRUCTOR
+        or request.user.is_admin
     ):
         owned_playlists_raw = Playlist.objects.filter(owner=request.user)
         owned_playlists = [
@@ -1073,8 +1077,10 @@ def request_content(request):
 
 
 def add_playlist_member(request, playlist_id):
-    allowed_privilege_levels = [0, 2]
-    if request.user.privilege_level not in allowed_privilege_levels:
+    if (
+        request.user.privilege_level == PrivilegeLevel.INSTRUCTOR
+        or request.user.is_admin
+    ):
         return HttpResponse("Forbidden", status=403)
 
     playlist = get_object_or_404(Playlist, pk=playlist_id)

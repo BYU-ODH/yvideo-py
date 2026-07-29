@@ -46,11 +46,9 @@ class UserFactory(factory.django.DjangoModelFactory):
 
     class Params:
         admin = factory.Trait(
-            privilege_level=PrivilegeLevel.ADMIN,
             is_staff=True,
             is_superuser=True,
         )
-        lab_assistant = factory.Trait(privilege_level=PrivilegeLevel.LAB_ASSISTANT)
         instructor = factory.Trait(privilege_level=PrivilegeLevel.INSTRUCTOR)
         student = factory.Trait(privilege_level=PrivilegeLevel.STUDENT)
 
