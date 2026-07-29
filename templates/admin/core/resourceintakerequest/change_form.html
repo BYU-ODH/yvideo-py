@@ -1,0 +1,198 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+#id_resource_to_use,
+#id_file_to_use {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+#id_resource_to_use > div,
+#id_file_to_use > div {
+  width: 100%;
+}
+
+#id_resource_to_use label,
+#id_file_to_use label {
+  box-sizing: border-box;
+  display: block;
+  width: 100% !important;
+  max-width: none;
+  padding-left: 1.75rem;
+  text-indent: -1.75rem;
+  line-height: 1.5;
+}
+
+#id_resource_to_use input[type="radio"],
+#id_file_to_use input[type="radio"] {
+  margin-right: 0.5rem;
+}
+
+.intake-missing-imdb {
+  color: var(--body-quiet-color);
+  font-style: italic;
+}
+
+.intake-file-title {
+  margin-right: 0.4rem;
+}
+
+.intake-file-meta,
+.intake-file-status {
+  display: inline-block;
+  margin: 0.125rem 0.2rem;
+  padding: 0.1rem 0.4rem;
+  border-left: 3px solid var(--hairline-color);
+  border-radius: 3px;
+  background: var(--darkened-bg);
+  text-indent: 0;
+}
+
+.intake-file-status {
+  font-weight: 600;
+}
+
+.intake-file-status--match {
+  border-left-color: var(--link-fg);
+}
+
+.intake-file-status--mismatch {
+  border-left-color: var(--error-fg);
+  color: var(--error-fg);
+}
+</style>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const createResource = document.querySelector(
+    'input[name="resource_to_use"][value="create"]'
+  );
+  const resourceImdbRow = document.querySelector(
+    ".form-row.field-new_resource_imdb_id"
+  );
+  const resourceImdbId = document.querySelector("#id_new_resource_imdb_id");
+  const resourceNotInImdbRow = document.querySelector(
+    ".form-row.field-new_resource_not_in_imdb"
+  );
+  const resourceNotInImdb = document.querySelector(
+    "#id_new_resource_not_in_imdb"
+  );
+  const fileChoices = document.querySelectorAll('input[name="file_to_use"]');
+  const uploadFile = document.querySelector(
+    'input[name="file_to_use"][value="upload"]'
+  );
+  const uploadedFile = document.querySelector("#id_new_resource_file");
+  const fileVersion = document.querySelector(
+    "#id_new_resource_file_version"
+  );
+  const fileAudioLanguage = document.querySelector(
+    "#id_new_resource_file_audio_language"
+  );
+  const fileSubtitleLanguage = document.querySelector(
+    "#id_new_resource_file_subtitle_language"
+  );
+  const fileFullVideo = document.querySelector(
+    "#id_new_resource_file_full_video"
+  );
+  const fileBarcode = document.querySelector(
+    "#id_new_resource_file_barcode"
+  );
+  const fileHasNoBarcode = document.querySelector(
+    "#id_new_resource_file_has_no_barcode"
+  );
+  const uploadGroup = uploadedFile.closest(".form-row");
+  const fileBarcodeFieldBox = fileBarcode.closest(".fieldBox");
+  const fileBarcodeContainer =
+    fileBarcodeFieldBox && fileBarcodeFieldBox.parentElement;
+  const uploadFields = [
+    uploadedFile,
+    fileVersion,
+    fileAudioLanguage,
+    fileSubtitleLanguage,
+    fileFullVideo,
+    fileBarcode,
+    fileHasNoBarcode,
+  ];
+  const proofOfOwnership = document.querySelector(
+    "#id_user_has_shown_proof_of_ownership"
+  );
+  const approveRequest = document.querySelector(
+    'input[name="_approve_request"]'
+  );
+
+  if (!createResource || !uploadFile || !uploadGroup || !fileBarcodeContainer) {
+    return;
+  }
+
+  function syncFileChoice() {
+    if (createResource.checked) {
+      uploadFile.checked = true;
+    }
+    fileChoices.forEach(function (choice) {
+      choice.disabled = createResource.checked && choice !== uploadFile;
+    });
+    syncResourceFields();
+    syncUploadFields();
+  }
+
+  function syncResourceFields() {
+    const creatingResource = createResource.checked;
+    const needsImdbId = creatingResource && !resourceNotInImdb.checked;
+    resourceNotInImdbRow.classList.toggle("hidden", !creatingResource);
+    resourceNotInImdb.disabled = !creatingResource;
+    resourceImdbRow.classList.toggle("hidden", !needsImdbId);
+    resourceImdbId.disabled = !needsImdbId;
+    resourceImdbId.required = needsImdbId;
+  }
+
+  function syncUploadFields() {
+    const uploadingFile = uploadFile.checked;
+    const needsBarcode = uploadingFile && !fileHasNoBarcode.checked;
+    uploadGroup.classList.toggle("hidden", !uploadingFile);
+    uploadFields.forEach(function (field) {
+      field.disabled = !uploadingFile;
+    });
+    uploadedFile.required = uploadingFile;
+    fileBarcodeContainer.classList.toggle("hidden", !needsBarcode);
+    fileBarcode.disabled = !needsBarcode;
+    fileBarcode.required = needsBarcode;
+  }
+
+  function syncApproveButton() {
+    if (proofOfOwnership && approveRequest) {
+      approveRequest.disabled = !proofOfOwnership.checked;
+    }
+  }
+
+  document.querySelectorAll('input[name="resource_to_use"]').forEach(
+    function (choice) {
+      choice.addEventListener("change", syncFileChoice);
+    }
+  );
+  fileChoices.forEach(function (choice) {
+    choice.addEventListener("change", syncUploadFields);
+  });
+  resourceNotInImdb.addEventListener("change", syncResourceFields);
+  fileHasNoBarcode.addEventListener("change", syncUploadFields);
+  if (proofOfOwnership) {
+    proofOfOwnership.addEventListener("change", syncApproveButton);
+  }
+  syncFileChoice();
+  syncApproveButton();
+});
+</script>
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+{{ block.super }}
+<div class="submit-row">
+  <input type="submit"
+         value="{% translate 'Approve request' %}"
+         name="_approve_request"
+         class="default">
+</div>
+{% endblock %}
