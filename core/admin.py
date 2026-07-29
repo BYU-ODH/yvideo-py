@@ -140,6 +140,18 @@ class ResourceFileAdmin(VersionAdmin):
     search_fields = ("file", "version", "resource__name")
     readonly_fields = ("checksum", "checksum_at")
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.barcode is None or not obj.barcode:
+            obj.generate_barcode()
+            try:
+                obj.save()
+            except Exception:
+                # barcode isn't required even though we want it to be filled.
+                # So we can just return if we get an exception and define the
+                # barcode at a later time.
+                return
+
 
 @admin.register(Content)
 class ContentAdmin(VersionAdmin):

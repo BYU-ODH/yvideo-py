@@ -39,6 +39,23 @@ class PlaylistRole(models.IntegerChoices):
     AUDITOR = 3
 
 
+def validate_imdb_id(id):
+    """
+    IMDB ids start with 2 letters that identify the type of object the id
+    is assigned to. For example, 'tt' is for a title entity (movie, series, episode,
+    video game, other media), and 'nm' signfies a name entity (actor/accress name).
+    We only care about title entities so we enforce 'tt' imdb ids. Also, an IMDB id
+    always has 2 letters and then at least 7 digits following it. There is no max
+    length id constraint.
+    """
+    if id[:2] != "tt":
+        raise ValidationError(f"Invalid IMDB ID: {id} it must begin with 'tt'")
+    if len(id) < 9:
+        raise ValidationError(
+            f"Invalid IMDB ID: {id} is too short; it must contain at least 9 characters."
+        )
+
+
 class Resource(models.Model):
     class MediaType(models.TextChoices):
         TEXT = ("txt", "Text")
@@ -55,6 +72,7 @@ class Resource(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    imdb_id = models.CharField(validators=[validate_imdb_id])
 
     def __str__(self):
         return f"{self.name}"
@@ -335,6 +353,31 @@ class ResourceFile(models.Model):
     checksum_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    barcode = models.CharField(
+        null=True,
+        blank=True,
+        help_text="The EAN or UPC barcode on the resource. If there isn't one, an internal 'BYU' prefixed code will be assigned.",
+    )
+
+    def clean(self):
+        super().clean()
+        self.validate_barcode()
+
+    def validate_barcode(self):
+        if self.barcode is None:
+            return
+        barcode_len = len(self.barcode)
+        if barcode_len < 12 or barcode_len > 13:
+            raise ValidationError("Barcode must be 12 or 13 characters long.")
+
+    def generate_barcode(self):
+        """
+        If we need to generate a barcode, that means the media doesn't have
+        a UPC or EAN associated with it and we need to generate our own
+        internally unique code.
+        """
+        self.barcode = "BYU" + str(self.id).zfill(10)
+        self.save()
 
     def delete(self, *args, **kwargs):
         """Delete the file from the filesystem when the model is deleted."""
