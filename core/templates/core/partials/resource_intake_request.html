@@ -1,60 +1,21 @@
 {% include 'core/base.html' %}
 <div id="content-intake-form-wrapper">
     <h2>
-        Content Intake Form
+        Resource Intake Request
     </h2>
     <div id="content-intake-form-main-content">
         <form id="content-intake-form" method="post">
             {% csrf_token %}
             <div>
                 <p>
-                    The Office of Digital Humanities and its Humanities Learning Commons conform to all applicable copyright laws. We will NOT process copyrighted material unless:
+                    You are responsible for ensuring that your use of Y-video is lawful. The Office of Digital Humanities and its Humanities Learning Commons seek to conform to all applicable copyright laws, and we reserve the right to refuse service if we judge your use to be unlawful.
                 </p>
-                <ol class="column-flex">
-                    <li>YOU are the copyright holder;</li>
-                    <li>You show us WRITTEN PERMISSION;</li>
-                    <li>The HLC Supervisor has determined that your request is within the legally defined bounds of <a target="_blank" href="https://www.copyright.gov/help/faq/faq-fairuse.html" alt="USA fair use copyright frequently asked questions">FAIR USE</a>.</li>
-                </ol>
             </div>
 
             <div>
                 <h3>
-                    Patron Information
+                    Request information
                 </h3>
-                <div class="row-flex content-intake-group-set">
-                    <div class="column-flex">
-                        <div class="content-intake-form-group">
-                            <label>Name</label>
-                            {{ form.patron_name }}
-                        </div>
-                        <div class="content-intake-form-group">
-                            <label>Net ID</label>
-                            {{ form.patron_netid }}
-                        </div>
-                        <div class="content-intake-form-group">
-                            <label>Email</label>
-                            {{ form.patron_email }}
-                        </div>
-                        <div class="content-intake-form-group">
-                            <label>Date Needed (min. 5 days required)</label>
-                            {{ form.date_needed }}
-                        </div>
-                    </div>
-                    <div class="column-flex">
-                        <div class="content-intake-form-group">
-                            <label>Status:</label>
-                            {{ form.user_type }}
-                        </div>
-                        <div class="content-intake-form-group">
-                            <label>Phone Number</label>
-                            {{ form.patron_phone_number }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div>
-                <h3>Video Information</h3>
                 <div class="row-flex content-intake-group-set">
                     <div class="column-flex">
                         <div class="content-intake-form-group">
@@ -62,8 +23,12 @@
                             {{ form.resource_title }}
                         </div>
                         <div class="content-intake-form-group">
-                            <label>Y-Video Collection</label>
-                            {{ form.resource_collection }}
+                            <label>IMDB Link (optional)</label>
+                            {{ form.imdb_link }}
+                        </div>
+                        <div class="content-intake-form-group">
+                            <label>Date Needed (min. 5 days required)</label>
+                            {{ form.date_needed }}
                         </div>
                     </div>
                     <div class="column-flex">
@@ -119,13 +84,6 @@
                                     Drug use
                                 </label>
                             </div>
-
-                            <div class="content-intake-choice-group">
-                                {{ form.acknowledged_compliance }}
-                                <label id="content-intake-policy-compliance-label" for="{{ form.acknowledged_compliance.id_for_label }}">
-                                    I have read and acknowledge this resource complies with the <a target="_blank" href="https://policy.byu.edu/view/guidelines-for-selecting-and-teaching-literary-and-visual-materials-at-byu-policy">BYU Visual Teaching Materials Policy</a>.
-                                </label>
-                            </div>
                         </div>
                     </div>
 
@@ -143,38 +101,33 @@
                                 <div class="content-intake-choice-group">
                                     {{ form.checked_out_from_other_byu_library }}
                                     <label for="{{ form.checked_out_from_other_byu_library.id_for_label }}">
-                                        Checked out from another BYU library
+                                        Checked out from another BYU library or department
                                     </label>
                                 </div>
 
-                                <div class="content-intake-choice-group">
-                                    {{ form.checked_out_from_non_byu_library }}
-                                    <label for="{{ form.checked_out_from_non_byu_library.id_for_label }}">
-                                        Checked out from a non-BYU library
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4>Purpose of Use:</h4>
-                            <div class="content-intake-choice-set">
-                                <div class="content-intake-choice-group">
-                                    {{ form.is_for_course_use }}
-                                    <label for="{{ form.is_for_course_use.id_for_label }}">
-                                        For course use
-                                    </label>
-                                </div>
-
-                                <div class="content-intake-choice-group">
-                                    {{ form.is_for_ic_use }}
-                                    <label for="{{ form.is_for_ic_use.id_for_label }}">
-                                        For International Cinema use
-                                    </label>
-                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div id="content-intake-legal-compliance-wrapper">
+                <h3>Legal compliance</h3>
+                <div class="content-intake-choice-set">
+                    <div class="content-intake-choice-group">
+                        {{ form.acknowledged_compliance }}
+                        <label id="content-intake-policy-compliance-label" for="{{ form.acknowledged_compliance.id_for_label }}">
+                            I have read the <a target="_blank" href="https://policy.byu.edu/view/guidelines-for-selecting-and-teaching-literary-and-visual-materials-at-byu-policy">BYU Visual Teaching Materials Policy</a> and <a target="_blank" href="https://policy.byu.edu/view/copyright-policy">BYU Copyright Policy</a> and will use this resource in compliance with them.
+                        </label>
+                    </div>
+
+                    <div class="content-intake-choice-group">
+                        {{ form.acknowledged_fair_use_limitation }}
+                        <label for="{{ form.acknowledged_fair_use_limitation.id_for_label }}">
+                            I will only share this resource with students enrolled in relevant courses, or other uses permitted by <a target="_blank" href="https://www.copyright.gov/help/faq/faq-fairuse.html">Fair Use</a>. (See <a href="https://files.lib.byu.edu/copyright/Checklist_for_Fair_Use.pdf">BYU's Fair Use checklist</a>.) Note that Fair Use arguments are much weaker for films that can be streamed on commercial services, e.g. Amazon Prime, Disney+, Hulu, Netflix, Paramount+, etc.
+                        </label>
+                    </div>
+
                 </div>
             </div>
 

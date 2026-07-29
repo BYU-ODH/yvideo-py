@@ -1378,8 +1378,14 @@ p.tile-subtitle {
 .content-intake-form-group input {
     width: 320px;
     height: 36px;
+    padding: 0 10px;
     border-radius: 4px;
     border: 1px solid #00000075;
+    font-size: 1rem;
+}
+
+.content-intake-form-group input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
 }
 
 .content-intake-group-set {

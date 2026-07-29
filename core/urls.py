@@ -77,7 +77,7 @@ urlpatterns = [
     ),
     path("content/create/", views.create_content, name="create_content"),
     path(
-        "content-intake-request/",
+        "resource-intake-request/",
         views.request_content,
         name="request_content",
     ),

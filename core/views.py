@@ -28,7 +28,7 @@ from django.views.decorators.http import require_POST
 from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import PlaylistSettingsForm
-from .forms import ResourceContentIntakeRequestForm
+from .forms import ResourceIntakeRequestForm
 from .models import BlankAnnotation
 from .models import Content
 from .models import Course
@@ -1054,18 +1054,18 @@ def subtitle_editor(request, content_id):
 def request_content(request):
 
     if request.method == "POST":
-        form = ResourceContentIntakeRequestForm(request.POST)
+        form = ResourceIntakeRequestForm(request.POST)
         if form.is_valid():
             content_request = form.save(commit=False)
             content_request.owner = request.user
             content_request.save()
             return redirect("request_content")
     else:
-        form = ResourceContentIntakeRequestForm()
+        form = ResourceIntakeRequestForm()
 
     return render(
         request,
-        "core/partials/resource_content_intake_request.html",
+        "core/partials/resource_intake_request.html",
         {
             "form": form,
         },

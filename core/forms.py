@@ -10,7 +10,7 @@ from .models import Clip
 from .models import Content
 from .models import ImportantWord
 from .models import Playlist
-from .models import ResourceContentIntakeRequest
+from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
@@ -126,10 +126,13 @@ class SubtitleForm(forms.ModelForm):
     owner = forms.CharField(widget=forms.HiddenInput)
 
 
-class ResourceContentIntakeRequestForm(forms.ModelForm):
+class ResourceIntakeRequestForm(forms.ModelForm):
     class Meta:
-        model = ResourceContentIntakeRequest
+        model = ResourceIntakeRequest
         exclude = []
+        widgets = {
+            "date_needed": forms.DateInput(attrs={"type": "date"}),
+        }
 
 
 class AddUserLookupForm(forms.Form):

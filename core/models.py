@@ -1406,7 +1406,7 @@ def get_date_5_days_from_now():
     return timezone.now() + timedelta(days=5)
 
 
-class ResourceContentIntakeRequest(models.Model):
+class ResourceIntakeRequest(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -1414,18 +1414,14 @@ class ResourceContentIntakeRequest(models.Model):
     date_needed = models.DateTimeField(default=get_date_5_days_from_now)
 
     # Resource-specific fields
-    resource_collection = models.CharField(default="")
+    resource_title = models.CharField(default="")
+    imdb_link = models.URLField(default="", blank=True)
     audio_language = models.CharField(default="")
     subtitle_language = models.CharField(default="")
 
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)
     checked_out_from_other_byu_library = models.BooleanField(default=False)
-    checked_out_from_non_byu_library = models.BooleanField(default=False)
-
-    # Purpose of use fields
-    is_for_course_use = models.BooleanField(default=False)
-    is_for_ic_use = models.BooleanField(default=False)
 
     # Content advisory fields
     violence_or_blood_and_gore = models.BooleanField(default=False)
@@ -1434,8 +1430,9 @@ class ResourceContentIntakeRequest(models.Model):
     self_harm_or_suicide = models.BooleanField(default=False)
     drug_use = models.BooleanField(default=False)
 
-    # Compliance
+    # Legal compliance
     acknowledged_compliance = models.BooleanField(default=False)
+    acknowledged_fair_use_limitation = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Content request for {self.resource_title} by {self.owner} due by {self.date_needed}"
