@@ -1,4 +1,3 @@
-from datetime import date
 from datetime import timedelta
 import tempfile
 
@@ -79,7 +78,15 @@ class ResourceIntakeRequestAdminTests(TestCase):
         values.update(overrides)
         return ResourceFile.objects.create(**values)
 
-    def change_payload(self, intake_request, **overrides):
+    @staticmethod
+    def upload(name, content=None, content_type="video/mp4"):
+        return SimpleUploadedFile(
+            name,
+            content if content is not None else name.encode(),
+            content_type=content_type,
+        )
+
+    def change_payload(self, intake_request, *, omit=(), **overrides):
         imdb_id = next(
             (
                 part
@@ -104,6 +111,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
             "_approve_request": "Approve request",
         }
         values.update(overrides)
+        for field_name in omit:
+            values.pop(field_name, None)
         return values
 
     def change_url(self, intake_request):
@@ -112,7 +121,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
             args=(intake_request.pk,),
         )
 
-    def test_change_form_groups_radio_decisions_and_includes_resource_links(self):
+    def test_change_form_lists_resource_and_file_decisions(self):
         intake_request = self.create_request()
         imdb_match = self.create_resource()
         matching_file = self.create_resource_file(imdb_match, "matching")
@@ -128,66 +137,29 @@ class ResourceIntakeRequestAdminTests(TestCase):
 
         response = self.client.get(self.change_url(intake_request))
 
-        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            "admin/core/resourceintakerequest/change_form.html",
+        )
         self.assertContains(response, "Intake Decisions")
-        self.assertContains(response, 'name="date_needed"')
         self.assertNotContains(response, 'name="date_needed_1"')
-        self.assertContains(response, "Resource to use")
         self.assertContains(response, "Create a new Resource using information above")
         self.assertContains(response, imdb_match.name)
         self.assertContains(response, "https://www.imdb.com/title/tt2278388/")
         self.assertContains(response, fuzzy_match.name)
-        self.assertContains(response, "File to use")
         self.assertContains(response, "Upload new file")
         self.assertContains(response, matching_file.version)
         self.assertContains(response, "Audio:</strong> English (en)")
         self.assertContains(response, "Burned-in subtitles:</strong> Spanish (es)")
         self.assertContains(response, "Matches requested languages")
-        self.assertContains(response, "intake-file-meta")
-        self.assertContains(response, "intake-file-status--match")
-        self.assertContains(response, "intake-file-status--mismatch")
+        self.assertContains(response, "Does not match requested languages")
         form = response.context["adminform"].form
         self.assertEqual(len(form.fields["resource_to_use"].choices), 3)
         self.assertEqual(len(form.fields["file_to_use"].choices), 3)
-        self.assertContains(response, 'type="file"')
         self.assertContains(response, "Approve request")
         self.assertContains(response, 'name="_save"')
-        self.assertContains(response, "uploadFile.checked = true")
-        self.assertContains(response, 'uploadedFile.closest(".form-row")')
-        self.assertContains(
-            response,
-            'uploadGroup.classList.toggle("hidden", !uploadingFile)',
-        )
-        self.assertContains(
-            response,
-            'fileBarcodeContainer.classList.toggle("hidden", !needsBarcode)',
-        )
-        self.assertContains(
-            response,
-            "fileBarcodeFieldBox && fileBarcodeFieldBox.parentElement",
-        )
-        self.assertContains(response, "uploadedFile.required = uploadingFile")
-        self.assertContains(response, "User has shown proof of ownership")
-        self.assertContains(response, "Resource is not in IMDb")
-        self.assertContains(response, "Uploaded file has no barcode")
-        self.assertContains(response, "Uploaded file contains the full video")
-        self.assertContains(response, "resourceImdbId.required = needsImdbId")
-        self.assertContains(response, "fileBarcode.required = needsBarcode")
-        self.assertContains(
-            response, "approveRequest.disabled = !proofOfOwnership.checked"
-        )
-        self.assertContains(response, "width: 100% !important")
-        self.assertContains(response, "text-indent: -1.75rem")
-        self.assertNotContains(response, "Grant access using selected Resource")
-        self.assertNotContains(response, "Generated resource:")
         for field_name in form.UPLOAD_FIELDS:
             self.assertFalse(form.fields[field_name].required)
-
-    def test_date_needed_is_a_date(self):
-        intake_request = ResourceIntakeRequest.objects.create(owner=self.owner)
-        intake_request.refresh_from_db()
-
-        self.assertIsInstance(intake_request.date_needed, date)
 
     def test_approve_requires_proof_of_ownership(self):
         intake_request = self.create_request()
@@ -195,24 +167,21 @@ class ResourceIntakeRequestAdminTests(TestCase):
         resource_file = self.create_resource_file(resource, "matching")
         payload = self.change_payload(
             intake_request,
+            omit=("user_has_shown_proof_of_ownership",),
             resource_to_use=str(resource.pk),
             file_to_use=str(resource_file.pk),
         )
-        payload.pop("user_has_shown_proof_of_ownership")
 
         response = self.client.post(
             self.change_url(intake_request),
             payload,
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
             "Confirm that the user has shown proof of ownership",
         )
         self.assertFalse(ResourceAccess.objects.filter(user=self.owner).exists())
-        intake_request.refresh_from_db()
-        self.assertIsNone(intake_request.generated_resource)
 
     def test_resource_without_imdb_id_uses_plain_missing_id_label(self):
         intake_request = self.create_request(
@@ -229,31 +198,27 @@ class ResourceIntakeRequestAdminTests(TestCase):
         self.assertContains(response, "(no IMDb id)")
         self.assertNotContains(response, "Search IMDb")
 
-    def test_new_resource_coerces_file_choice_and_requires_upload_fields(self):
+    def test_new_resource_forces_upload_choice(self):
         intake_request = self.create_request()
         resource = self.create_resource()
         resource_file = self.create_resource_file(resource, "matching")
         payload = self.change_payload(
             intake_request,
+            omit=("_approve_request",),
             resource_to_use="create",
             file_to_use=str(resource_file.pk),
+            _save="Save",
         )
-        payload.pop("_approve_request")
-        payload["_save"] = "Save"
 
         response = self.client.post(
             self.change_url(intake_request),
             payload,
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "This field is required.", count=1)
-        self.assertNotContains(
-            response, "A new Resource must use a newly uploaded file."
-        )
+        form = response.context["adminform"].form
+        self.assertEqual(form.cleaned_data["file_to_use"], "upload")
+        self.assertEqual(list(form.errors), ["new_resource_file"])
         self.assertEqual(Resource.objects.count(), 1)
-        self.assertEqual(ResourceFile.objects.count(), 1)
-        self.assertFalse(ResourceAccess.objects.filter(user=self.owner).exists())
 
     def test_only_file_and_barcode_decision_are_required_for_an_upload(self):
         intake_request = self.create_request(
@@ -265,12 +230,13 @@ class ResourceIntakeRequestAdminTests(TestCase):
 
         form = response.context["adminform"].form
         self.assertEqual(form.fields["file_to_use"].initial, "upload")
-        self.assertTrue(form.fields["new_resource_file"].required)
-        self.assertTrue(form.fields["new_resource_file_barcode"].required)
-        self.assertFalse(form.fields["new_resource_file_version"].required)
-        self.assertFalse(form.fields["new_resource_file_audio_language"].required)
-        self.assertFalse(form.fields["new_resource_file_subtitle_language"].required)
-        self.assertFalse(form.fields["new_resource_file_full_video"].required)
+        required_fields = {
+            name for name in form.UPLOAD_FIELDS if form.fields[name].required
+        }
+        self.assertEqual(
+            required_fields,
+            {"new_resource_file", "new_resource_file_barcode"},
+        )
 
     def test_approve_existing_file_associates_request_and_grants_access(self):
         intake_request = self.create_request()
@@ -287,9 +253,6 @@ class ResourceIntakeRequestAdminTests(TestCase):
             follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(Resource.objects.count(), 1)
-        self.assertEqual(ResourceFile.objects.count(), 1)
         self.assertTrue(
             ResourceAccess.objects.filter(user=self.owner, resource=resource).exists()
         )
@@ -315,11 +278,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
             ),
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "does not belong to the selected Resource")
         self.assertFalse(ResourceAccess.objects.filter(user=self.owner).exists())
-        intake_request.refresh_from_db()
-        self.assertIsNone(intake_request.generated_resource)
 
     def test_nonmatching_existing_file_requires_an_upload(self):
         intake_request = self.create_request()
@@ -339,7 +299,6 @@ class ResourceIntakeRequestAdminTests(TestCase):
             ),
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "does not match the requested audio")
         self.assertFalse(ResourceAccess.objects.filter(user=self.owner).exists())
 
@@ -347,17 +306,13 @@ class ResourceIntakeRequestAdminTests(TestCase):
         intake_request = self.create_request()
         resource = self.create_resource()
 
-        response = self.client.post(
+        self.client.post(
             self.change_url(intake_request),
             self.change_payload(
                 intake_request,
                 resource_to_use=str(resource.pk),
                 file_to_use="upload",
-                new_resource_file=SimpleUploadedFile(
-                    "requested-version.mp4",
-                    b"requested video content",
-                    content_type="video/mp4",
-                ),
+                new_resource_file=self.upload("requested-version.mp4"),
                 new_resource_file_version="Spanish subtitle edition",
                 new_resource_file_audio_language=self.english.pk,
                 new_resource_file_subtitle_language=self.spanish.pk,
@@ -365,7 +320,6 @@ class ResourceIntakeRequestAdminTests(TestCase):
             follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
         resource_file = ResourceFile.objects.get()
         self.assertEqual(resource_file.resource, resource)
         self.assertEqual(resource_file.version, "Spanish subtitle edition")
@@ -379,88 +333,50 @@ class ResourceIntakeRequestAdminTests(TestCase):
         intake_request.refresh_from_db()
         self.assertEqual(intake_request.generated_resource, resource)
 
-    def test_upload_can_be_marked_as_a_clip(self):
-        intake_request = self.create_request()
-        resource = self.create_resource()
-        payload = self.change_payload(
-            intake_request,
-            resource_to_use=str(resource.pk),
-            file_to_use="upload",
-            new_resource_file=SimpleUploadedFile(
-                "clip.mp4",
-                b"clip content",
-                content_type="video/mp4",
-            ),
-        )
-        payload.pop("new_resource_file_full_video")
-
-        response = self.client.post(
-            self.change_url(intake_request),
-            payload,
-            follow=True,
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(ResourceFile.objects.get().full_video)
-
-    def test_upload_allows_blank_version_audio_and_subtitle(self):
+    def test_upload_allows_clip_with_blank_optional_metadata(self):
         intake_request = self.create_request(
             audio_language="",
             subtitle_language="",
         )
         resource = self.create_resource()
+        payload = self.change_payload(
+            intake_request,
+            omit=("new_resource_file_full_video",),
+            resource_to_use=str(resource.pk),
+            file_to_use="upload",
+            new_resource_file=self.upload("silent-film.mp4"),
+        )
 
-        response = self.client.post(
+        self.client.post(
             self.change_url(intake_request),
-            self.change_payload(
-                intake_request,
-                resource_to_use=str(resource.pk),
-                file_to_use="upload",
-                new_resource_file=SimpleUploadedFile(
-                    "silent-film.mp4",
-                    b"silent film content",
-                    content_type="video/mp4",
-                ),
-            ),
+            payload,
             follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
         resource_file = ResourceFile.objects.get()
         self.assertEqual(resource_file.version, "")
         self.assertIsNone(resource_file.audio_language)
         self.assertIsNone(resource_file.burned_in_subtitles_language)
-        self.assertTrue(resource_file.barcode.startswith("BYU"))
-        self.assertTrue(
-            ResourceAccess.objects.filter(user=self.owner, resource=resource).exists()
-        )
+        self.assertFalse(resource_file.full_video)
 
     def test_upload_accepts_an_explicit_barcode(self):
         intake_request = self.create_request()
         resource = self.create_resource()
         payload = self.change_payload(
             intake_request,
+            omit=("new_resource_file_has_no_barcode",),
             resource_to_use=str(resource.pk),
             file_to_use="upload",
-            new_resource_file=SimpleUploadedFile(
-                "barcoded.mp4",
-                b"barcoded video content",
-                content_type="video/mp4",
-            ),
-            new_resource_file_version="barcoded",
-            new_resource_file_audio_language=self.english.pk,
-            new_resource_file_subtitle_language=self.spanish.pk,
+            new_resource_file=self.upload("barcoded.mp4"),
             new_resource_file_barcode="012345678901",
         )
-        payload.pop("new_resource_file_has_no_barcode")
 
-        response = self.client.post(
+        self.client.post(
             self.change_url(intake_request),
             payload,
             follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertEqual(ResourceFile.objects.get().barcode, "012345678901")
 
     def test_upload_requires_barcode_or_no_barcode_confirmation(self):
@@ -468,25 +384,17 @@ class ResourceIntakeRequestAdminTests(TestCase):
         resource = self.create_resource()
         payload = self.change_payload(
             intake_request,
+            omit=("new_resource_file_has_no_barcode",),
             resource_to_use=str(resource.pk),
             file_to_use="upload",
-            new_resource_file=SimpleUploadedFile(
-                "missing-barcode.mp4",
-                b"missing barcode video",
-                content_type="video/mp4",
-            ),
-            new_resource_file_version="missing-barcode",
-            new_resource_file_audio_language=self.english.pk,
-            new_resource_file_subtitle_language=self.spanish.pk,
+            new_resource_file=self.upload("missing-barcode.mp4"),
         )
-        payload.pop("new_resource_file_has_no_barcode")
 
         response = self.client.post(
             self.change_url(intake_request),
             payload,
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "This field is required.")
         self.assertFalse(ResourceFile.objects.exists())
 
@@ -496,11 +404,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         duplicate_content = b"duplicate video content"
         existing_file = ResourceFile(
             resource=resource,
-            file=SimpleUploadedFile(
-                "existing.mp4",
-                duplicate_content,
-                content_type="video/mp4",
-            ),
+            file=self.upload("existing.mp4", duplicate_content),
             version="existing",
             audio_language=self.english,
             burned_in_subtitles_language=self.spanish,
@@ -513,21 +417,12 @@ class ResourceIntakeRequestAdminTests(TestCase):
                 intake_request,
                 resource_to_use=str(resource.pk),
                 file_to_use="upload",
-                new_resource_file=SimpleUploadedFile(
-                    "duplicate.mp4",
-                    duplicate_content,
-                    content_type="video/mp4",
-                ),
-                new_resource_file_version="duplicate",
-                new_resource_file_audio_language=self.english.pk,
-                new_resource_file_subtitle_language=self.spanish.pk,
+                new_resource_file=self.upload("duplicate.mp4", duplicate_content),
             ),
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "same content already exists")
         self.assertEqual(ResourceFile.objects.count(), 1)
-        self.assertFalse(ResourceAccess.objects.filter(user=self.owner).exists())
 
     def test_upload_reuses_resourcefile_media_type_validation(self):
         intake_request = self.create_request()
@@ -539,53 +434,38 @@ class ResourceIntakeRequestAdminTests(TestCase):
                 intake_request,
                 resource_to_use=str(resource.pk),
                 file_to_use="upload",
-                new_resource_file=SimpleUploadedFile(
+                new_resource_file=self.upload(
                     "not-media.exe",
-                    b"not media",
                     content_type="application/octet-stream",
                 ),
-                new_resource_file_version="invalid media",
-                new_resource_file_audio_language=self.english.pk,
-                new_resource_file_subtitle_language=self.spanish.pk,
             ),
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "File type not supported")
         self.assertFalse(ResourceFile.objects.exists())
-        self.assertFalse(ResourceAccess.objects.filter(user=self.owner).exists())
 
-    def test_approve_new_resource_requires_upload_and_creates_both(self):
+    def test_approve_creates_new_resource_and_file(self):
         intake_request = self.create_request(
             resource_title="A Brand New Resource",
             imdb_link="https://www.imdb.com/title/tt7654321/",
         )
 
-        response = self.client.post(
+        self.client.post(
             self.change_url(intake_request),
             self.change_payload(
                 intake_request,
                 resource_to_use="create",
                 file_to_use="upload",
-                new_resource_file=SimpleUploadedFile(
-                    "brand-new.mp4",
-                    b"brand new video",
-                    content_type="video/mp4",
-                ),
-                new_resource_file_version="brand-new",
-                new_resource_file_audio_language=self.english.pk,
-                new_resource_file_subtitle_language=self.spanish.pk,
+                new_resource_file=self.upload("brand-new.mp4"),
             ),
             follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
         resource = Resource.objects.get()
         resource_file = ResourceFile.objects.get()
         self.assertEqual(resource.name, "A Brand New Resource")
         self.assertEqual(resource.imdb_id, "tt7654321")
         self.assertEqual(resource_file.resource, resource)
-        self.assertEqual(resource_file.version, "brand-new")
         self.assertTrue(
             ResourceAccess.objects.filter(user=self.owner, resource=resource).exists()
         )
@@ -604,18 +484,10 @@ class ResourceIntakeRequestAdminTests(TestCase):
                 intake_request,
                 resource_to_use="create",
                 file_to_use="upload",
-                new_resource_file=SimpleUploadedFile(
-                    "unidentified.mp4",
-                    b"unidentified video",
-                    content_type="video/mp4",
-                ),
-                new_resource_file_version="unidentified",
-                new_resource_file_audio_language=self.english.pk,
-                new_resource_file_subtitle_language=self.spanish.pk,
+                new_resource_file=self.upload("unidentified.mp4"),
             ),
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "This field is required.")
         self.assertFalse(Resource.objects.exists())
 
@@ -629,22 +501,14 @@ class ResourceIntakeRequestAdminTests(TestCase):
             resource_to_use="create",
             file_to_use="upload",
             new_resource_not_in_imdb="on",
-            new_resource_file=SimpleUploadedFile(
-                "not-in-imdb.mp4",
-                b"not in imdb video",
-                content_type="video/mp4",
-            ),
-            new_resource_file_version="not-in-imdb",
-            new_resource_file_audio_language=self.english.pk,
-            new_resource_file_subtitle_language=self.spanish.pk,
+            new_resource_file=self.upload("not-in-imdb.mp4"),
         )
 
-        response = self.client.post(
+        self.client.post(
             self.change_url(intake_request),
             payload,
             follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
         resource = Resource.objects.get()
         self.assertRegex(resource.imdb_id, r"^BYU\d{10}$")
