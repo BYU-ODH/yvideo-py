@@ -5,6 +5,8 @@ from django.contrib import admin
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.files.base import ContentFile
+from django.db import IntegrityError
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
@@ -29,6 +31,7 @@ from .models import Resource
 from .models import ResourceAccess
 from .models import ResourceFile
 from .models import ResourceFileKey
+from .models import ResourceIntakeRequest
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import Track
@@ -124,6 +127,77 @@ class ResourceAdmin(VersionAdmin):
         except Exception:
             return
         ResourceAccess.objects.get_or_create(user=user, resource=obj)
+
+
+@admin.register(ResourceIntakeRequest)
+class ResourceIntakeRequestAdmin(VersionAdmin):
+    list_display = (
+        "resource_title",
+        "owner",
+        "date_needed",
+        "generated_resource",
+        "created_at",
+    )
+    list_filter = ("checked_out_from_hbll", "checked_out_from_other_byu_library")
+    search_fields = ("resource_title", "owner__username", "owner__netid")
+    readonly_fields = ("generated_resource",)
+    actions = ["generate_resource"]
+
+    # IMDB id confirmation and file/barcode upload belong here too, but those
+    # fields (Resource.imdb_id, ResourceFile.barcode) live on the
+    # 45-add-resourceimdb_id-and-resourcefileisbn branch and aren't merged yet.
+    @admin.action(description="Generate Resource from selected request(s)")
+    def generate_resource(self, request, queryset):
+        created = 0
+        skipped = 0
+        failed = []
+        for intake_request in queryset:
+            if intake_request.generated_resource_id:
+                skipped += 1
+                continue
+            if not intake_request.owner:
+                failed.append(f"{intake_request} (no owner on file)")
+                continue
+            try:
+                with transaction.atomic():
+                    resource = Resource.objects.create(
+                        name=intake_request.resource_title,
+                        media_type=Resource.MediaType.VIDEO,
+                        requester_username=intake_request.owner.username,
+                        physical_copy_exists=True,
+                        violence_or_blood_and_gore=intake_request.violence_or_blood_and_gore,
+                        nudity_or_sexual_content=intake_request.nudity_or_sexual_content,
+                        profanity_or_vulgarity=intake_request.profanity_or_vulgarity,
+                        self_harm_or_suicide=intake_request.self_harm_or_suicide,
+                        drug_use=intake_request.drug_use,
+                        checked_out_from_hbll=intake_request.checked_out_from_hbll,
+                        checked_out_from_other_byu_library=intake_request.checked_out_from_other_byu_library,
+                    )
+                    ResourceAccess.objects.get_or_create(
+                        user=intake_request.owner, resource=resource
+                    )
+                    intake_request.generated_resource = resource
+                    intake_request.save(update_fields=["generated_resource"])
+            except IntegrityError:
+                failed.append(str(intake_request))
+                continue
+            created += 1
+
+        if created:
+            messages.success(request, f"Generated {created} resource(s).")
+        if skipped:
+            messages.warning(
+                request,
+                f"Skipped {skipped} request(s) that already have a generated resource.",
+            )
+        if failed:
+            messages.error(
+                request,
+                "Could not generate a resource for: "
+                + ", ".join(failed)
+                + ". A resource with that name may already exist, or the "
+                "request has no owner on file.",
+            )
 
 
 @admin.register(Playlist)

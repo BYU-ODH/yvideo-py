@@ -56,6 +56,17 @@ class Resource(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Content advisory fields
+    violence_or_blood_and_gore = models.BooleanField(default=False)
+    nudity_or_sexual_content = models.BooleanField(default=False)
+    profanity_or_vulgarity = models.BooleanField(default=False)
+    self_harm_or_suicide = models.BooleanField(default=False)
+    drug_use = models.BooleanField(default=False)
+
+    # Library ownership
+    checked_out_from_hbll = models.BooleanField(default=False)
+    checked_out_from_other_byu_library = models.BooleanField(default=False)
+
     def __str__(self):
         return f"{self.name}"
 
@@ -1412,12 +1423,19 @@ class ResourceIntakeRequest(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     date_needed = models.DateTimeField(default=get_date_5_days_from_now)
+    generated_resource = models.ForeignKey(
+        Resource,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="intake_requests",
+    )
 
     # Resource-specific fields
     resource_title = models.CharField(default="")
     imdb_link = models.URLField(default="", blank=True)
     audio_language = models.CharField(default="")
-    subtitle_language = models.CharField(default="")
+    subtitle_language = models.CharField(default="", blank=True)
 
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)

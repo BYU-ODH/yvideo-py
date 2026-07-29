@@ -1347,12 +1347,13 @@ p.tile-subtitle {
     flex-direction: column;
     align-items: center;
     padding: 10px 0px 70px 0px;
+    width: 100%;
 }
 
 #content-intake-form-main-content {
     background-color: white;
     border-radius: 12px;
-    width: 1000px;
+    width: min(1000px, 100%);
     padding: 50px 80px;
     font-weight: 500;
 }
@@ -1376,7 +1377,8 @@ p.tile-subtitle {
 }
 
 .content-intake-form-group input {
-    width: 320px;
+    width: 100%;
+    max-width: 320px;
     height: 36px;
     padding: 0 10px;
     border-radius: 4px;
@@ -1389,7 +1391,9 @@ p.tile-subtitle {
 }
 
 .content-intake-group-set {
-    column-gap: 120px;
+    column-gap: 60px;
+    row-gap: 1.5rem;
+    flex-wrap: wrap;
 }
 
 .content-intake-choice-set {
@@ -1403,7 +1407,8 @@ p.tile-subtitle {
 }
 
 #content-advisory-choice-set {
-    width: 300px;
+    width: 100%;
+    max-width: 300px;
 }
 
 /* index page */
