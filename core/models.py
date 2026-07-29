@@ -305,6 +305,8 @@ def file_upload_path(instance, filename):
 
 
 def validate_barcode(barcode):
+    if barcode is None:
+        return
     barcode_len = len(barcode)
     if barcode_len < 12 or barcode_len > 13:
         raise ValidationError("Barcode must be 12 or 13 characters long.")
@@ -346,7 +348,12 @@ class ResourceFile(models.Model):
     checksum_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    barcode = models.CharField(validators=[validate_barcode], null=True)
+    barcode = models.CharField(
+        validators=[validate_barcode],
+        null=True,
+        blank=True,
+        help_text="The EAN or UPC barcode on the resource. If there isn't one, an internal 'BYU' prefixed code will be assigned.",
+    )
 
     def delete(self, *args, **kwargs):
         """Delete the file from the filesystem when the model is deleted."""

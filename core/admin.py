@@ -87,12 +87,6 @@ class ResourceFileAdmin(VersionAdmin):
     search_fields = ("file", "version", "resource__name")
     readonly_fields = ("checksum", "checksum_at")
 
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        form.base_fields[
-            "barcode"
-        ].help_text = "Provide the UPC or EAN number that appears below the barcode. If there is no number, a value will be automatically generated for this ResourceFile upon submission."
-
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         if obj.barcode is None or not obj.barcode:
