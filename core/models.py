@@ -37,6 +37,9 @@ class PlaylistRole(models.IntegerChoices):
     AUDITOR = 3
 
 
+LAB_ASSISTANT_GROUP_NAME = "lab_assistant"
+
+
 def validate_imdb_id(id):
     """
     IMDB ids start with 2 letters that identify the type of object the id
@@ -141,10 +144,7 @@ class User(AbstractUser):
 
     @property
     def is_lab_assistant(self):
-        # this means the name of the group must be "lab_assistant" to work. I don't think that
-        # is what we want, but I'm not sure. It would be best to decide on a name and use it.
-        # Maybe Russell should decide?
-        return self.groups.filter(name="lab_assistant").count() >= 1
+        return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1
 
     def can_view_content(self, content):
         # owners and admins should have view permission even if the playlist is not published

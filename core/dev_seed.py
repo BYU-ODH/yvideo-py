@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -24,6 +25,7 @@ from .factories import SubtitleFactory
 from .factories import TrackFactory
 from .factories import UserCourseFactory
 from .factories import UserFactory
+from .models import LAB_ASSISTANT_GROUP_NAME
 from .models import Content
 from .models import Course
 from .models import Playlist
@@ -129,6 +131,9 @@ def create_demo_data():
         email="labdemo@example.test",
         password="labdemo",
     )
+    la_group = Group.objects.get(name=LAB_ASSISTANT_GROUP_NAME)
+    lab_assistant.groups.add(la_group)
+
     student_alice = UserFactory(
         student=True,
         username="111227777",

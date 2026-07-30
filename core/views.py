@@ -303,6 +303,7 @@ def playlists(request):
 
     context = {
         "user": request.user,
+        "is_instructor": request.user.privilege_level == PrivilegeLevel.INSTRUCTOR,
         "owned_playlists": owned_playlists,
         "assigned_courses_by_yearterm": playlists_by_course_by_yearterm,
         "public_playlists": [],
@@ -1077,7 +1078,7 @@ def request_content(request):
 
 
 def add_playlist_member(request, playlist_id):
-    if (
+    if not (
         request.user.privilege_level == PrivilegeLevel.INSTRUCTOR
         or request.user.is_admin
     ):

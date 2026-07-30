@@ -117,6 +117,7 @@ def legacy_migration_request_detail(request, pk):
     if not (
         request.user.is_staff
         or request.user.is_superuser
+        or request.user.is_lab_assistant
         or migration_request.requested_by_id == request.user.id
         or migration_request.target_owner_id == request.user.id
     ):
