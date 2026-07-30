@@ -2,6 +2,16 @@
    (no dependency on style.css's :root variables) so it can be loaded as-is
    on both the main site and the Django admin site. */
 
+:root {
+    --spoof-border-gray: #ccc;
+    --spoof-input-bg: #f9f9f9;
+    --spoof-accent-blue: #0582ca;
+    --spoof-warning-bg: #ffc;
+    --spoof-warning-red: #ce0000;
+    --spoof-warning-border: #d89b00;
+    --spoof-warning-muted: #7c8383;
+}
+
 .spoof-form {
     display: flex;
     flex-direction: row;
@@ -32,19 +42,19 @@
 
 #spoof-user-input {
     padding: 0.5rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--spoof-border-gray);
     border-radius: 6px 6px 0 0;
     font-size: 1rem;
-    background: #f9f9f9;
-    color: #000;
+    background: var(--spoof-input-bg);
+    color: black;
     transition: border-color 0.2s;
     width: 100%;
     z-index: 2;
 }
 
 #spoof-user-input:focus {
-    border-color: #0582ca;
-    background: #fff;
+    border-color: var(--spoof-accent-blue);
+    background: white;
 }
 
 .spoof-select {
@@ -53,12 +63,12 @@
     left: 0;
     width: 100%;
     min-width: 180px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--spoof-border-gray);
     border-top: none;
     border-radius: 0 0 6px 6px;
     font-size: 1rem;
-    background: #fff;
-    color: #000;
+    background: white;
+    color: black;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     z-index: 10;
     max-height: 66vh;
@@ -75,7 +85,7 @@
     padding: 0.6rem 1.2rem;
     border: none;
     border-radius: 6px;
-    background: #0582ca;
+    background: var(--spoof-accent-blue);
     color: white;
     font-size: 1rem;
     cursor: pointer;
@@ -88,21 +98,21 @@
 
 .spoof-go-btn:enabled {
     opacity: 1;
-    background: #0582ca;
+    background: var(--spoof-accent-blue);
 }
 
 .spoof-go-btn:disabled {
-    background: #0582ca;
+    background: var(--spoof-accent-blue);
     opacity: 0.6;
     cursor: not-allowed;
 }
 
 #spoof-warning {
-    background: #ffc;
+    background: var(--spoof-warning-bg);
     position: static;
-    color: #ce0000;
+    color: var(--spoof-warning-red);
     padding: 0.55rem 0.9rem;
-    border: 1px solid #d89b00;
+    border: 1px solid var(--spoof-warning-border);
     border-radius: 0.75rem;
     display: flex;
     align-items: center;
@@ -134,12 +144,12 @@
 }
 
 .spoof-warning-as {
-    color: #7c8383;
+    color: var(--spoof-warning-muted);
     font-size: 0.95rem;
 }
 
 .spoof-warning-stop {
-    color: #ce0000;
+    color: var(--spoof-warning-red);
     font-weight: 600;
     text-decoration: none;
     margin-left: 0.15rem;
