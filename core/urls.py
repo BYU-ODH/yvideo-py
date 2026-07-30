@@ -77,9 +77,9 @@ urlpatterns = [
     ),
     path("content/create/", views.create_content, name="create_content"),
     path(
-        "content-intake-request/",
-        views.request_content,
-        name="request_content",
+        "resource-intake-request/",
+        views.request_resource,
+        name="request_resource",
     ),
     path(
         "create-from-resource/<int:playlist_id>",
