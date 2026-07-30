@@ -37,6 +37,7 @@ def _can_request_migration(user):
         or user.privilege_level_override == PrivilegeLevel.INSTRUCTOR
         or user.is_staff
         or user.is_superuser
+        or user.is_lab_assistant
     )
 
 

@@ -11,6 +11,7 @@ import uuid
 from django.conf import settings
 from django.contrib import admin
 from django.contrib import messages
+from django.contrib.auth.models import Group
 from django.contrib.messages import get_messages
 from django.core.exceptions import ImproperlyConfigured
 from django.db import OperationalError
@@ -48,6 +49,7 @@ from ..legacy_migration import LegacyMigrationUserResolutionStatus
 from ..legacy_migration import LegacySourceMap
 from ..legacy_migration import dump as legacy_dump
 from ..legacy_migration.parsers import LegacyFileInfo
+from ..models import LAB_ASSISTANT_GROUP_NAME
 from ..models import BlankAnnotation
 from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
@@ -1890,6 +1892,50 @@ class LegacyMigrationTests(TestCase):
                 job_type="preflight", status="queued"
             ).exists()
         )
+
+    def test_lab_assistant_request_view_creates_queued_preflight_job(self):
+        lab_assistant = UserFactory(student=True)
+        lab_assistant_group, _ = Group.objects.get_or_create(
+            name=LAB_ASSISTANT_GROUP_NAME
+        )
+        lab_assistant.groups.add(lab_assistant_group)
+        client = Client()
+        client.force_login(
+            lab_assistant, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = client.post(
+            reverse("create_legacy_migration_request"),
+            data={
+                "migration_kind": "resource",
+                "legacy_reference": str(uuid.uuid4()),
+                "request_notes": "Please migrate this resource.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        migration_request = LegacyMigrationRequest.objects.get()
+        self.assertEqual(migration_request.requested_by, lab_assistant)
+        self.assertEqual(migration_request.target_owner, lab_assistant)
+
+    def test_plain_student_request_view_is_forbidden(self):
+        student = UserFactory(student=True)
+        client = Client()
+        client.force_login(
+            student, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = client.post(
+            reverse("create_legacy_migration_request"),
+            data={
+                "migration_kind": "resource",
+                "legacy_reference": str(uuid.uuid4()),
+                "request_notes": "Please migrate this resource.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(LegacyMigrationRequest.objects.exists())
 
     def test_request_page_uses_user_focused_guidance_and_full_width_history(self):
         instructor = UserFactory(instructor=True)
