@@ -3,7 +3,7 @@
 
 {% block content %}
     <div class="main-content">
-        {% if user.privilege_level == 2 or user.privilege_level == 0 %}
+        {% if is_instructor or user.is_admin %}
         <div class="landing-page-playlist-list column-flex">
             <header class="playlists-header row-flex flex-apart-aligned">
                 <h2>My Playlists</h2>

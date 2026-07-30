@@ -26,10 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class PrivilegeLevel(models.IntegerChoices):
-    ADMIN = 0
-    LAB_ASSISTANT = 1
-    INSTRUCTOR = 2
-    STUDENT = 3
+    INSTRUCTOR = 0
+    STUDENT = 1
 
 
 class PlaylistRole(models.IntegerChoices):
@@ -37,6 +35,9 @@ class PlaylistRole(models.IntegerChoices):
     TA = 1
     STUDENT = 2
     AUDITOR = 3
+
+
+LAB_ASSISTANT_GROUP_NAME = "lab_assistant"
 
 
 def validate_imdb_id(id):
@@ -122,7 +123,6 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
-        extra_fields.setdefault("privilege_level", PrivilegeLevel.ADMIN)
 
         return self.create_user(username=username, password=password, **extra_fields)
 
@@ -160,7 +160,11 @@ class User(AbstractUser):
 
     @property
     def is_admin(self):
-        return self.privilege_level == PrivilegeLevel.ADMIN
+        return self.is_superuser
+
+    @property
+    def is_lab_assistant(self):
+        return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1
 
     def can_view_content(self, content):
         # owners and admins should have view permission even if the playlist is not published

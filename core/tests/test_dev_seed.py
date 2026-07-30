@@ -50,10 +50,15 @@ class DemoSeedDataTests(TestCase):
         admin_user = User.objects.get(username=DEMO_ADMIN_USERNAME)
         birds_content = Content.objects.get(title="Birds Overview")
         alice = User.objects.get(username="111227777")
+        lab_assistant_user = User.objects.get(username="111226666")
         admin_owned_playlists = Playlist.objects.filter(owner=admin_user)
 
         self.assertTrue(admin_user.is_superuser)
         self.assertTrue(admin_user.is_staff)
+        self.assertTrue(admin_user.is_admin)
+        self.assertFalse(alice.is_admin)
+        self.assertTrue(lab_assistant_user.is_lab_assistant)
+        self.assertFalse(alice.is_lab_assistant)
         self.assertEqual(admin_owned_playlists.count(), 2)
         self.assertTrue(
             admin_owned_playlists.filter(
