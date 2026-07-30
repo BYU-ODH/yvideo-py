@@ -180,8 +180,8 @@ def _resolve_requested_language(value):
 
 
 class ResourceIntakeRequestAdminForm(forms.ModelForm):
-    CREATE_RESOURCE = "create"
-    UPLOAD_FILE = "upload"
+    CREATE_RESOURCE = "create-resource"
+    UPLOAD_FILE = "upload-file"
 
     resource_to_use = forms.ChoiceField(
         choices=(),

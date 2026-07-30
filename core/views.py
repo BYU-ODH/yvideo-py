@@ -1052,7 +1052,7 @@ def subtitle_editor(request, content_id):
     )
 
 
-def request_content(request):
+def request_resource(request):
 
     if request.method == "POST":
         form = ResourceIntakeRequestForm(request.POST)
@@ -1066,7 +1066,7 @@ def request_content(request):
                 "DVD, Blu-ray, or other physical copy of this resource to the "
                 "Humanities Learning Commons (HLC) so we can begin processing it.",
             )
-            return redirect("request_content")
+            return redirect("request_resource")
         for field_name in form.errors:
             if field_name in form.fields:
                 widget = form.fields[field_name].widget

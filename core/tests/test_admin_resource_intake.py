@@ -214,7 +214,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         payload = self.change_payload(
             intake_request,
             omit=("_approve_request",),
-            resource_to_use="create",
+            resource_to_use="create-resource",
             file_to_use=str(resource_file.pk),
             _save="Save",
         )
@@ -225,7 +225,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         )
 
         form = response.context["adminform"].form
-        self.assertEqual(form.cleaned_data["file_to_use"], "upload")
+        self.assertEqual(form.cleaned_data["file_to_use"], "upload-file")
         self.assertEqual(list(form.errors), ["new_resource_file"])
         self.assertEqual(Resource.objects.count(), 1)
 
@@ -238,7 +238,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         response = self.client.get(self.change_url(intake_request))
 
         form = response.context["adminform"].form
-        self.assertEqual(form.fields["file_to_use"].initial, "upload")
+        self.assertEqual(form.fields["file_to_use"].initial, "upload-file")
         required_fields = {name for name in UPLOAD_FIELDS if form.fields[name].required}
         self.assertEqual(
             required_fields,
@@ -318,7 +318,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
             self.change_payload(
                 intake_request,
                 resource_to_use=str(resource.pk),
-                file_to_use="upload",
+                file_to_use="upload-file",
                 new_resource_file=self.upload("requested-version.mp4"),
                 new_resource_file_version="Spanish subtitle edition",
                 new_resource_file_audio_language=self.english.pk,
@@ -350,7 +350,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
             intake_request,
             omit=("new_resource_file_full_video",),
             resource_to_use=str(resource.pk),
-            file_to_use="upload",
+            file_to_use="upload-file",
             new_resource_file=self.upload("silent-film.mp4"),
         )
 
@@ -373,7 +373,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
             intake_request,
             omit=("new_resource_file_has_no_barcode",),
             resource_to_use=str(resource.pk),
-            file_to_use="upload",
+            file_to_use="upload-file",
             new_resource_file=self.upload("barcoded.mp4"),
             new_resource_file_barcode="012345678901",
         )
@@ -393,7 +393,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
             intake_request,
             omit=("new_resource_file_has_no_barcode",),
             resource_to_use=str(resource.pk),
-            file_to_use="upload",
+            file_to_use="upload-file",
             new_resource_file=self.upload("missing-barcode.mp4"),
         )
 
@@ -423,7 +423,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
             self.change_payload(
                 intake_request,
                 resource_to_use=str(resource.pk),
-                file_to_use="upload",
+                file_to_use="upload-file",
                 new_resource_file=self.upload("duplicate.mp4", duplicate_content),
             ),
         )
@@ -440,7 +440,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
             self.change_payload(
                 intake_request,
                 resource_to_use=str(resource.pk),
-                file_to_use="upload",
+                file_to_use="upload-file",
                 new_resource_file=self.upload(
                     "not-media.exe",
                     content_type="application/octet-stream",
@@ -461,8 +461,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
             self.change_url(intake_request),
             self.change_payload(
                 intake_request,
-                resource_to_use="create",
-                file_to_use="upload",
+                resource_to_use="create-resource",
+                file_to_use="upload-file",
                 new_resource_file=self.upload("brand-new.mp4"),
             ),
             follow=True,
@@ -484,8 +484,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
             self.change_url(intake_request),
             self.change_payload(
                 intake_request,
-                resource_to_use="create",
-                file_to_use="upload",
+                resource_to_use="create-resource",
+                file_to_use="upload-file",
                 new_resource_file=self.upload("unidentified.mp4"),
             ),
         )
@@ -500,8 +500,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
         )
         payload = self.change_payload(
             intake_request,
-            resource_to_use="create",
-            file_to_use="upload",
+            resource_to_use="create-resource",
+            file_to_use="upload-file",
             new_resource_not_in_imdb="on",
             new_resource_file=self.upload("not-in-imdb.mp4"),
         )
