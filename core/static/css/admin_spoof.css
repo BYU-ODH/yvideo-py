@@ -1,0 +1,43 @@
+/* Admin-only layout for the spoof form/warning; the widgets' own look
+   (colors, spacing, dropdown, etc.) lives in the shared spoof_widgets.css. */
+
+/* #header is normally a flex row of #branding and #user-tools with
+   justify-content: space-between; regrid it so the spoof bar can sit
+   in a true center column instead of being pushed to the far right. */
+#header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    column-gap: 1rem;
+}
+
+#branding {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+#user-tools {
+    grid-column: 3;
+    grid-row: 1;
+}
+
+#admin-spoof-bar {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: center;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.5rem 0.9rem;
+    color: var(--body-fg, #333);
+    background: var(--body-bg, #fff);
+    border-radius: 0.75rem;
+}
+
+/* admin's own #header a:link/:visited rule otherwise wins on color, since
+   its #header ID selector outranks a plain .spoof-warning-stop class. */
+#admin-spoof-bar .spoof-warning-stop:link,
+#admin-spoof-bar .spoof-warning-stop:visited {
+    color: #ce0000;
+}
