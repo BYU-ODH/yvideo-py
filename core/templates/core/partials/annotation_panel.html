@@ -30,14 +30,16 @@
                         {{ group.type_display }}
                     </div>
                 </div>
-                <div id="{{group.type}}-type-header-right" class="annotation-type-header-right">
-                    <img class="annotation-icon" src="{% static group.icon %}" alt="{{group.type}} icon">
+                <div class="annotation-type-header-right-group">
+                    <button class="annotation-type-add-button annotation-type-header-add-button" data-annotation-type="{{group.type}}" aria-label="Add new {{ group.type_display }} annotation">
+                        +
+                    </button>
+                    <div id="{{group.type}}-type-header-right" class="annotation-type-header-right">
+                        <img class="annotation-icon" src="{% static group.icon %}" alt="{{group.type}} icon">
+                    </div>
                 </div>
             </div>
             <div id="{{group.type}}-annotation-type-list" class="annotation-type-list column-flex">
-                <button class="annotation-type-add-button plain-text-button" data-annotation-type="{{group.type}}">
-                    + Add New
-                </button>
                 <div id="{{group.type}}-annotation-items-list" class="annotation-items-list column-flex">
                     {% for instance in group.instances %}
                         {% include "core/partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}

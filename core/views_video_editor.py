@@ -33,6 +33,7 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import Track
 from .models import User
+from .utils import ANNOTATION_ICONS
 from .utils import VTTCue
 from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_content_to_vtt
@@ -50,16 +51,6 @@ ANNOTATION_MODELS = {
     "blur": BlurAnnotation,
     "comment": CommentAnnotation,
     "clip": Clip,
-}
-
-ANNOTATION_ICONS = {
-    "skip": "img/skip-icon.svg",
-    "mute": "img/mute-icon.svg",
-    "blank": "img/blank-icon.svg",
-    "pause": "img/pause-icon.svg",
-    "blur": "img/blur-icon.svg",
-    "comment": "img/comment-icon.svg",
-    "clip": "img/clip-icon.svg",
 }
 
 

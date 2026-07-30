@@ -2,7 +2,8 @@ import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, anima
 
 // Clicking or dragging inside these regions seeks the video: the ticks/scrubber
 // row and every track row's right-hand (scrollable) area. Clicks on a
-// `.track-item-content` are excluded so they can still select the annotation.
+// `.track-item` are excluded so they can still select the annotation or use
+// its resize handles instead of seeking.
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 
 function convertPercentStringToDecimal(percentString) {
@@ -39,6 +40,12 @@ export class Editor {
         this.selectedSubtitleTrackId = null;
         this.itemBeingDragged = null;
         this.dragTimeStart = null;
+        this.dragGrabOffsetX = 0;
+        // Preloaded here (rather than created fresh in the dragstart handler) so it is
+        // already decoded by the time a drag begins, avoiding a flash of the browser's
+        // default drag representation (globe/plus icon) on the first drag.
+        this.dragGhostImage = new Image();
+        this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
         this.init();
     }
@@ -153,23 +160,25 @@ export class Editor {
       // "track-item" substring in element.className
       let isTrackItem = false;
       for (let cl of itemElement.classList) {
-        if (cl == "track-item") isTrackItem = true;
-        break;
+        if (cl == "track-item") {
+          isTrackItem = true;
+          break;
+        }
       }
 
       if (!isTrackItem) return;
 
-      const hiddenClass = "resize-handle-hidden";
+      const narrowClass = "resize-handle-narrow";
       const resizeHandles = itemElement.querySelectorAll(".resize-handle");
       // getBoundingClientRect provides size values in px.
       const triggerWidth = 60;
-      const shouldHideHandles = itemElement.getBoundingClientRect().width < triggerWidth;
+      const shouldNarrowHandles = itemElement.getBoundingClientRect().width < triggerWidth;
       for (let handle of resizeHandles) {
-        if (shouldHideHandles) {
-          handle.classList.add(hiddenClass);
+        if (shouldNarrowHandles) {
+          handle.classList.add(narrowClass);
         }
         else {
-          handle.classList.remove(hiddenClass);
+          handle.classList.remove(narrowClass);
         }
       }
     }
@@ -351,13 +360,16 @@ export class Editor {
       item.addEventListener("dragstart", (event) => {
         this.itemBeingDragged = item;
         this.dragTimeStart = Date.now();
+        // Remember where within the item the user grabbed it, so the item's
+        // start edge follows the cursor at a fixed offset instead of snapping
+        // its start to the raw cursor position.
+        this.dragGrabOffsetX = event.clientX - item.getBoundingClientRect().left;
         this.resetTrackItemProjectionsStyle();
         this.blockTrackItemPointerEvents();
+        event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/html", item.outerHTML);
         event.dataTransfer.setData("text/plain", item.id);
-        const img = new Image()
-        img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-        event.dataTransfer.setDragImage(img, 0, 0);
+        event.dataTransfer.setDragImage(this.dragGhostImage, 0, 0);
         item.classList.add("is-dragging");
       });
 
@@ -1422,6 +1434,7 @@ export class Editor {
 
       annotationContainer.addEventListener("dragover", (event) => {
         event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
         if (!this.itemBeingDragged) {
           console.error("No item is being dragged!");
           return;
@@ -1429,9 +1442,11 @@ export class Editor {
         const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
         projectionEl.style.width = this.itemBeingDragged.style.width;
         if (itemOriginalTrackId == thisContainerTrackId) {
-          // show the projection moving in concert with the mouse
+          // show the projection moving in concert with the mouse, keeping the
+          // same offset between the cursor and the item's start edge that was
+          // established when the drag began.
           const containerDim = annotationContainer.getBoundingClientRect();
-          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
           this.video.currentTime = this.video.duration * newLeftRatio;
           projectionEl.style.left = (newLeftRatio * 100) + '%';
           projectionEl.style.top = this.itemBeingDragged.style.top;
@@ -1492,9 +1507,10 @@ export class Editor {
             replacementItem.dataset["originalTrackId"] = trackId;
           }
         } else {
-          // move item to new position within same track
+          // move item to new position within same track, preserving the
+          // cursor-to-start-edge offset from dragstart
           const containerDim = annotationContainer.getBoundingClientRect();
-          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
           const startTime = this.video.duration * newLeftRatio;
           let endTime;
           if (originalEndTime) {
@@ -1853,7 +1869,11 @@ export class Editor {
     placeTrackItems() {
         // Process each track container separately
         this.tracks.forEach(track => {
-            const trackItems = Array.from(track.children);
+            // Exclude the drag-projection placeholder, and sort by start time so
+            // that overlapping items are stacked top to bottom in that order below.
+            const trackItems = Array.from(track.children)
+                .filter(el => el.classList.contains('track-item'))
+                .sort((a, b) => parseFloat(a.dataset.start) - parseFloat(b.dataset.start));
             for (let item of trackItems) {
               const itemStart = parseFloat(item.dataset["start"]);
               const itemEnd = parseFloat(item.dataset["end"]);
@@ -1990,6 +2010,9 @@ export class Editor {
           const annotationType = button.dataset["annotationType"];
           button.addEventListener("click", async (e) => {
             e.preventDefault();
+            // Stop this button's click (which may live inside the collapsible
+            // .annotation-type-header) from also toggling the header's expansion.
+            e.stopPropagation();
             const trackRow = document.querySelector(".track-row");
             if (!trackRow) {
               console.error("Unable to assign listeners to new item creation buttons. Invalid track row.");
@@ -2031,6 +2054,14 @@ export class Editor {
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);
               this.placeTrackItems();
+
+              // Immediately select and focus the newly created annotation so its
+              // detail form is populated without an extra click.
+              const newAnnotationId = newNode.dataset["annotationId"];
+              this.markItemAsActive(annotationType, newAnnotationId);
+              this.getItemFormDetails(annotationType, newAnnotationId, this.contentId);
+              newNode.focus();
+
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
             else {
@@ -2321,7 +2352,7 @@ export class Editor {
     // region but not on an annotation's content (which selects the annotation).
     isSeekTarget(target) {
         if (!target.closest(SEEK_REGION_SELECTOR)) return false;
-        if (target.closest('.track-item-content')) return false;
+        if (target.closest('.track-item')) return false;
         return true;
     }
 

@@ -152,6 +152,28 @@
     background-color: white;
 }
 
+.annotation-type-header-right-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    column-gap: 6px;
+}
+
+/* Compact "+" button that lives directly on the header so a new annotation
+   can be added without expanding the (collapsed-by-default) type list. */
+.annotation-type-header-add-button {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    background-color: var(--dark-mode-very-dark-gray);
+}
+
 #skip-type-header-right {
     background-color: var(--skip-type-color);
 }
@@ -1104,7 +1126,7 @@ of the page */
 }
 
 .track-item {
-    cursor: pointer;
+    cursor: grab;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -1173,19 +1195,34 @@ of the page */
     border-radius: 8px;
 }
 
-.resize-handle-hidden {
+/* Applied when the item is too narrow for a full-size handle. The handle
+   stays interactable at a small fixed width; only its visual indicator
+   (the little white bar) is hidden so it doesn't crowd the label. */
+.resize-handle-narrow {
+    width: 4px;
+}
+
+.resize-handle-narrow .resize-handle-indicator {
     visibility: hidden;
-    width: 0px;
 }
 
 .track-item-content {
     flex: 1;
+    display: flex;
+    align-items: center;
     overflow: hidden;
     min-width: 0;
 }
 
 .track-item[data-annotation-type="blur"] .track-item-content {
     margin-bottom: 15px;
+}
+
+.track-item-type-icon {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    margin-right: 4px;
 }
 
 .track-item-label {
@@ -1195,11 +1232,13 @@ of the page */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .track-item.is-dragging {
     opacity: 0.33;
     pointer-events: auto;
+    cursor: grabbing;
 }
 
 /* Styles for zoom slider. */
