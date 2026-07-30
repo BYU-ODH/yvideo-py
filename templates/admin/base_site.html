@@ -4,9 +4,16 @@
 
 {% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
 
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin_spoof.css' %}">
+{% endblock %}
+
 {% block extrahead %}
 {{ block.super }}
 <link rel="shortcut icon" type="image/png" href="{% static 'img/favicon-admin.ico' %}">
+<script src="{% static 'js/vendor/htmx.js' %}"></script>
+<script src="{% static 'js/spoof.js' %}"></script>
 {% endblock %}
 
 {% block branding %}
@@ -16,4 +23,11 @@
 {% endif %}
 {% endblock %}
 
-{% block nav-global %}{% endblock %}
+{% block nav-global %}
+{% if request.is_spoofing or request.can_spoof %}
+<div id="admin-spoof-bar">
+    {% include "core/partials/spoof_warning.html" %}
+    {% include "core/partials/spoof_form.html" %}
+</div>
+{% endif %}
+{% endblock %}
