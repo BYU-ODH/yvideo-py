@@ -7,7 +7,7 @@
             name="search"
             placeholder="User search"
             hx-post="{% url 'spoof_user_search' %}"
-            hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
+            hx-trigger="input changed delay:500ms"
             hx-target="#spoof-user-select"
             autocomplete="off">
         <select name="spoof_user_id" id="spoof-user-select" size="4" class="spoof-select">
