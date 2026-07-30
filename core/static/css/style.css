@@ -13,6 +13,9 @@
     --light-red: #f34a3f;
     --red: #ce0000;
     --dark-red: #990000;
+    --pale-red: #fdecea;
+    --pale-green: #e6f4ea;
+    --green: #1e7e34;
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
@@ -1430,13 +1433,13 @@ p.tile-subtitle {
 }
 
 .resource-intake-message-success {
-    background-color: #e6f4ea;
-    color: #1e7e34;
-    border: 1px solid #1e7e34;
+    background-color: var(--pale-green);
+    color: var(--green);
+    border: 1px solid var(--green);
 }
 
 .resource-intake-message-error {
-    background-color: #fdecea;
+    background-color: var(--pale-red);
     color: var(--dark-red);
     border: 1px solid var(--red);
 }

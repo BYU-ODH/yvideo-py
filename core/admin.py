@@ -182,14 +182,6 @@ def _resolve_requested_language(value):
 class ResourceIntakeRequestAdminForm(forms.ModelForm):
     CREATE_RESOURCE = "create"
     UPLOAD_FILE = "upload"
-    UPLOAD_FIELDS = (
-        "new_resource_file",
-        "new_resource_file_version",
-        "new_resource_file_audio_language",
-        "new_resource_file_subtitle_language",
-        "new_resource_file_full_video",
-        "new_resource_file_barcode",
-    )
 
     resource_to_use = forms.ChoiceField(
         choices=(),
@@ -203,7 +195,11 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
     new_resource_imdb_id = forms.CharField(
         required=False,
         label="IMDb id",
-        help_text="Required when creating a Resource that is listed in IMDb.",
+        help_text=(
+            "Required when creating a Resource that is listed in IMDb, e.g. "
+            "tt2278388. Find it in the URL of the title's IMDb page: "
+            "imdb.com/title/tt2278388/."
+        ),
     )
     new_resource_not_in_imdb = forms.BooleanField(
         required=False,
@@ -215,14 +211,14 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
         widget=forms.RadioSelect,
         label="File to use",
         help_text=(
-            "Choose a ResourceFile that satisfies the requested languages, or "
+            "Choose a ResourceFile that matches the requested languages, or "
             "upload a new file."
         ),
     )
     new_resource_file = forms.FileField(
         required=False,
         label="File upload",
-        help_text="Required when “Upload new file” is selected.",
+        help_text='Required when "Upload new file" is selected.',
     )
     new_resource_file_version = forms.CharField(
         required=False,
@@ -246,7 +242,7 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
         required=False,
         initial=True,
         label="Uploaded file contains the full video",
-        help_text="Clear this checkbox if the uploaded file is only a clip.",
+        help_text="Clear this checkbox if the uploaded file is only a portion.",
     )
     new_resource_file_barcode = forms.CharField(
         required=False,
@@ -280,7 +276,7 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
         resource_choices = [
             (
                 self.CREATE_RESOURCE,
-                "Create a new Resource using information above",
+                "Create from scratch",
             )
         ]
         for candidate in candidates:
@@ -389,7 +385,7 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
     @staticmethod
     def _resource_file_label(resource, resource_file, language_status):
         file_name = os.path.basename(resource_file.file.name)
-        scope = "full work" if resource_file.full_video else "clip"
+        scope = "full work" if resource_file.full_video else "portion"
         audio = resource_file.audio_language or "not specified"
         subtitles = resource_file.burned_in_subtitles_language or "none"
         barcode = resource_file.barcode or "not assigned"

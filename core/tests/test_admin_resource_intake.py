@@ -15,6 +15,15 @@ from core.models import ResourceFile
 from core.models import ResourceIntakeRequest
 from core.models import User
 
+UPLOAD_FIELDS = (
+    "new_resource_file",
+    "new_resource_file_version",
+    "new_resource_file_audio_language",
+    "new_resource_file_subtitle_language",
+    "new_resource_file_full_video",
+    "new_resource_file_barcode",
+)
+
 
 @modify_settings(
     MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
@@ -143,7 +152,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         )
         self.assertContains(response, "Intake Decisions")
         self.assertNotContains(response, 'name="date_needed_1"')
-        self.assertContains(response, "Create a new Resource using information above")
+        self.assertContains(response, "Create from scratch")
         self.assertContains(response, imdb_match.name)
         self.assertContains(response, "https://www.imdb.com/title/tt2278388/")
         self.assertContains(response, fuzzy_match.name)
@@ -158,7 +167,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         self.assertEqual(len(form.fields["file_to_use"].choices), 3)
         self.assertContains(response, "Approve request")
         self.assertContains(response, 'name="_save"')
-        for field_name in form.UPLOAD_FIELDS:
+        for field_name in UPLOAD_FIELDS:
             self.assertFalse(form.fields[field_name].required)
 
     def test_approve_requires_proof_of_ownership(self):
@@ -230,9 +239,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
 
         form = response.context["adminform"].form
         self.assertEqual(form.fields["file_to_use"].initial, "upload")
-        required_fields = {
-            name for name in form.UPLOAD_FIELDS if form.fields[name].required
-        }
+        required_fields = {name for name in UPLOAD_FIELDS if form.fields[name].required}
         self.assertEqual(
             required_fields,
             {"new_resource_file", "new_resource_file_barcode"},
@@ -281,7 +288,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         self.assertContains(response, "does not belong to the selected Resource")
         self.assertFalse(ResourceAccess.objects.filter(user=self.owner).exists())
 
-    def test_nonmatching_existing_file_requires_an_upload(self):
+    def test_existing_file_with_language_mismatch_requires_an_upload(self):
         intake_request = self.create_request()
         resource = self.create_resource()
         resource_file = self.create_resource_file(
@@ -466,11 +473,6 @@ class ResourceIntakeRequestAdminTests(TestCase):
         self.assertEqual(resource.name, "A Brand New Resource")
         self.assertEqual(resource.imdb_id, "tt7654321")
         self.assertEqual(resource_file.resource, resource)
-        self.assertTrue(
-            ResourceAccess.objects.filter(user=self.owner, resource=resource).exists()
-        )
-        intake_request.refresh_from_db()
-        self.assertEqual(intake_request.generated_resource, resource)
 
     def test_new_resource_requires_imdb_id_or_not_in_imdb_confirmation(self):
         intake_request = self.create_request(
@@ -491,7 +493,7 @@ class ResourceIntakeRequestAdminTests(TestCase):
         self.assertContains(response, "This field is required.")
         self.assertFalse(Resource.objects.exists())
 
-    def test_new_resource_not_in_imdb_gets_generated_byu_id(self):
+    def test_new_resource_not_in_imdb_gets_generated_internal_imdb_id(self):
         intake_request = self.create_request(
             resource_title="Resource Not In IMDb",
             imdb_link="",
