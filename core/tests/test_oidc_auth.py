@@ -40,6 +40,8 @@ class CreateUserTests(TestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user.netid, "jdoe42")
         self.assertEqual(user.privilege_level, PrivilegeLevel.INSTRUCTOR)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
         # Guards against regressing the bug where the bound method was called as
         # get_net_id_from_worker_id(self, worker_id).
         api.get_net_id_from_worker_id.assert_called_once_with("W123")
@@ -55,7 +57,7 @@ class CreateUserTests(TestCase):
         with patch.object(secret_settings, "ADMIN_BYUID_WHITELIST", ["byu-admin"]):
             user = OIDCUserAuth().create_user({"byu_id": "byu-admin"})
 
-        self.assertEqual(user.privilege_level, PrivilegeLevel.ADMIN)
+        self.assertEqual(user.privilege_level, PrivilegeLevel.INSTRUCTOR)
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
 
@@ -74,6 +76,7 @@ class CreateUserTests(TestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user.privilege_level, PrivilegeLevel.INSTRUCTOR)
         self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
 
     @patch("yvideo.odhOIDCAuthenticationBackend.Api")
     def test_student_user_gets_netid_from_student_summary(self, MockApi):
@@ -91,6 +94,8 @@ class CreateUserTests(TestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user.netid, "sstudent")
         self.assertEqual(user.privilege_level, PrivilegeLevel.STUDENT)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
         api.get_net_id_from_worker_id.assert_not_called()
 
     @patch("yvideo.odhOIDCAuthenticationBackend.Api")

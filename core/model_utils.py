@@ -138,20 +138,16 @@ def update_user_details(user):
             user.netid = worker_netid
 
         if user.username in secret_settings.ADMIN_BYUID_WHITELIST:
-            user.privilege_level = PrivilegeLevel.ADMIN
+            user.privilege_level = (
+                PrivilegeLevel.INSTRUCTOR
+                if worker_summary["is_faculty"]
+                else PrivilegeLevel.STUDENT
+            )
             user.is_staff = True
             user.is_superuser = True
-        elif not worker_summary["is_active"]:
-            user.privilege_level = PrivilegeLevel.STUDENT
-            user.is_staff = False
-            user.is_superuser = False
-        elif worker_summary["is_faculty"]:
+        elif worker_summary["is_active"] and worker_summary["is_faculty"]:
             user.privilege_level = PrivilegeLevel.INSTRUCTOR
             user.is_staff = False
-            user.is_superuser = False
-        elif worker_summary["is_odh_employee"]:
-            user.privilege_level = PrivilegeLevel.LAB_ASSISTANT
-            user.is_staff = True
             user.is_superuser = False
         else:
             user.privilege_level = PrivilegeLevel.STUDENT

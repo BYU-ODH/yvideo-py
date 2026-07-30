@@ -8,7 +8,7 @@
             <h2>Playlist Details</h2>
             <h3>{{ playlist.name }}</h3>
         </header>
-        {% if user.privilege_level == 0 or playlist.owner == user %}
+        {% if user == playlist.owner or user.is_admin %}
             {% include 'core/partials/playlist_settings.html' %}
         {% endif %}
         <div id="playlist-videos-content">
@@ -23,7 +23,7 @@
                     >
                     <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
                 </div>
-                {% if user.privilege_level == 0 or playlist.owner == user %}
+                {% if user == playlist.owner or user.is_admin %}
                 <dialog id="add-video-dialog" class="user-view-modal">
                     <div class="user-view-modal-header">
                         <h3>Add a New Video</h3>
