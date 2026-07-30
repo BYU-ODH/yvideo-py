@@ -1921,9 +1921,7 @@ class LegacyMigrationTests(TestCase):
     def test_plain_student_request_view_is_forbidden(self):
         student = UserFactory(student=True)
         client = Client()
-        client.force_login(
-            student, backend="django.contrib.auth.backends.ModelBackend"
-        )
+        client.force_login(student, backend="django.contrib.auth.backends.ModelBackend")
 
         response = client.post(
             reverse("create_legacy_migration_request"),
