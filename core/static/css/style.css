@@ -1145,7 +1145,7 @@ p.tile-subtitle {
     height: auto;
 }
 
-/* Header and spoofing controls */
+/* Header */
 .site-header {
     min-height: var(--header-height);
 }
@@ -1182,9 +1182,6 @@ p.tile-subtitle {
     column-gap: 0.6rem;
     z-index: 2;
 }
-
-/* Spoof form and spoof warning styles live in spoof_widgets.css, shared
-   with the Django admin site. */
 
 /* Player Container Styles */
 .player-container {
