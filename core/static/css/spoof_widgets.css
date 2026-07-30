@@ -1,0 +1,162 @@
+/* Spoof form ("Act for:") and spoof warning banner. Shared, self-contained
+   (no dependency on style.css's :root variables) so it can be loaded as-is
+   on both the main site and the Django admin site. */
+
+:root {
+    --spoof-border-gray: #ccc;
+    --spoof-input-bg: #f9f9f9;
+    --spoof-accent-blue: #0582ca;
+    --spoof-warning-bg: #ffc;
+    --spoof-warning-red: #ce0000;
+    --spoof-warning-border: #d89b00;
+    --spoof-warning-muted: #7c8383;
+}
+
+.spoof-form {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    position: relative;
+    margin: 0;
+    flex: 0 1 auto;
+}
+
+.spoof-label {
+    margin-right: 0.2rem;
+    font-size: 1rem;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.spoof-input-group {
+    position: relative;
+    width: clamp(9rem, 18vw, 13.75rem);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    flex: 0 1 auto;
+}
+
+#spoof-user-input {
+    padding: 0.5rem;
+    border: 1px solid var(--spoof-border-gray);
+    border-radius: 6px 6px 0 0;
+    font-size: 1rem;
+    background: var(--spoof-input-bg);
+    color: black;
+    transition: border-color 0.2s;
+    width: 100%;
+    z-index: 2;
+}
+
+#spoof-user-input:focus {
+    border-color: var(--spoof-accent-blue);
+    background: white;
+}
+
+.spoof-select {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    min-width: 180px;
+    border: 1px solid var(--spoof-border-gray);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    font-size: 1rem;
+    background: white;
+    color: black;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    z-index: 10;
+    max-height: 66vh;
+    overflow-y: auto;
+    display: none;
+    transition: max-height 0.2s;
+}
+
+.spoof-select.show {
+    display: block;
+}
+
+.spoof-go-btn {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--spoof-accent-blue);
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition:
+        opacity 0.2s,
+        background 0.2s;
+    flex-shrink: 0;
+}
+
+.spoof-go-btn:enabled {
+    opacity: 1;
+    background: var(--spoof-accent-blue);
+}
+
+.spoof-go-btn:disabled {
+    background: var(--spoof-accent-blue);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+#spoof-warning {
+    background: var(--spoof-warning-bg);
+    position: static;
+    color: var(--spoof-warning-red);
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--spoof-warning-border);
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    min-width: 0;
+    z-index: 1;
+}
+
+.spoof-warning-message {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: left;
+}
+
+.spoof-warning-message-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    direction: ltr;
+}
+
+.spoof-warning-target {
+    font-weight: 600;
+}
+
+.spoof-warning-as {
+    color: var(--spoof-warning-muted);
+    font-size: 0.95rem;
+}
+
+.spoof-warning-stop {
+    color: var(--spoof-warning-red);
+    font-weight: 600;
+    text-decoration: none;
+    margin-left: 0.15rem;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.spoof-warning-stop:hover {
+    text-decoration: underline;
+}

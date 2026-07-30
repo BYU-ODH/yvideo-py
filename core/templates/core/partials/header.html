@@ -16,47 +16,12 @@
             </div>
         </div>
 
-        {% if request.is_spoofing %}
         <div class="navbar-center">
-            <div id="spoof-warning">
-                <span class="spoof-warning-message">
-                    <span class="spoof-warning-message-content">
-                        <span class="spoof-warning-as">{{ request.original_user.username }} as</span>
-                        <span class="spoof-warning-target">
-                            {{ request.user.first_name }} {{ request.user.last_name }}
-                            <span class="spoof-warning-netid">({{ request.user.netid }})</span>
-                        </span>
-                    </span>
-                </span>
-                <a
-                    class="spoof-warning-stop"
-                    href="{% url 'stop_spoofing' %}?next={{ request.get_full_path|urlencode }}"
-                >[Stop]</a>
-            </div>
+            {% include "core/partials/spoof_warning.html" %}
+            {% include "core/partials/spoof_form.html" %}
         </div>
-        {% endif %}
 
         <div class="navbar-actions">
-            {% if request.can_spoof and not request.is_spoofing %}
-            <form method="post" action="{% url 'start_spoofing' %}" class="spoof-form">
-                {% csrf_token %}
-                <label for="spoof-user-input" class="spoof-label">Act for:</label>
-                <div class="spoof-input-group">
-                    <input id="spoof-user-input" type="search"
-                        name="search"
-                        placeholder="User search"
-                        hx-post="{% url 'spoof_user_search' %}"
-                        hx-trigger="input changed delay:500ms, keyup[key=='Enter']"
-                        hx-target="#spoof-user-select"
-                        autocomplete="off">
-                    <select name="spoof_user_id" id="spoof-user-select" size="4" class="spoof-select">
-                        <!-- Options populated by HTMX response -->
-                    </select>
-                </div>
-                <button id="spoof-user-submit" type="submit" disabled class="spoof-go-btn">Go</button>
-            </form>
-            {% endif %}
-
             <button class="sidebar-toggle" aria-label="Toggle sidebar">
                 <span></span>
                 <span></span>
@@ -84,6 +49,7 @@
     </nav>
 
 
+    <script src="{% static 'js/spoof.js' %}"></script>
     <script>
   document.addEventListener('DOMContentLoaded', function () {
     const toggleButton = document.querySelector('.sidebar-toggle');
@@ -96,53 +62,6 @@
     const sidebarCloseButton = document.getElementById("sidebar-close");
     sidebarCloseButton.addEventListener("click", () => {
       sidebar.classList.remove('show');
-    });
-
-    // Spoofing logic
-    const spoofInput = document.getElementById('spoof-user-input');
-    const spoofSelect = document.getElementById('spoof-user-select');
-    const spoofSubmit = document.getElementById('spoof-user-submit');
-    if (spoofSelect && spoofInput && spoofSubmit) {
-        spoofSelect.addEventListener('change', function () {
-            const selectedOption = spoofSelect.options[spoofSelect.selectedIndex];
-            if (selectedOption && selectedOption.value) {
-                spoofInput.value = selectedOption.text;
-                spoofSubmit.disabled = false;
-            } else {
-                spoofSubmit.disabled = true;
-            }
-        });
-        spoofInput.addEventListener('input', function () {
-            spoofSubmit.disabled = true;
-            // Show select if options exist
-            if (spoofSelect.options.length > 0) {
-                spoofSelect.classList.add('show');
-            } else {
-                spoofSelect.classList.remove('show');
-            }
-        });
-        // Hide select when input loses focus and select not hovered
-        spoofInput.addEventListener('blur', function () {
-            setTimeout(() => {
-                spoofSelect.classList.remove('show');
-            }, 200);
-        });
-        spoofSelect.addEventListener('mouseenter', function () {
-            spoofSelect.classList.add('show');
-        });
-        spoofSelect.addEventListener('mouseleave', function () {
-            spoofSelect.classList.remove('show');
-        });
-    }
-    // When HTMX updates select, show if options exist
-    document.body.addEventListener('htmx:afterSwap', function (evt) {
-        if (evt.target.id === 'spoof-user-select') {
-            if (spoofSelect.options.length > 0) {
-                spoofSelect.classList.add('show');
-            } else {
-                spoofSelect.classList.remove('show');
-            }
-        }
     });
 });
 </script>
