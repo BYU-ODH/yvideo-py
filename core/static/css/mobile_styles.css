@@ -96,4 +96,13 @@
     .video-wrapper {
         width: 100%;
     }
+
+    #resource-intake-form-main-content {
+        padding: 30px 20px;
+    }
+
+    .resource-intake-group-set,
+    #resource-intake-request-checks {
+        column-gap: 30px;
+    }
 }
