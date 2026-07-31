@@ -108,16 +108,10 @@
     cursor: pointer;
 }
 
-/* row-flex only sets align-content, which does nothing on a single-line flex
-   row -- align-items is what actually centers the arrow/icon/text here. */
 .annotation-type-header-left {
     align-items: center;
 }
 
-/* This is a fixed, small set of built-in labels (Skip, Mute, Blank, Pause,
-   Blur, Comment, Clip) -- unlike arbitrary user content, it must always be
-   fully legible, so it's exempt from shrinking (#editor-annotation-panel is
-   sized with this in mind) rather than ellipsizing under pressure. */
 .annotation-type-header-text {
     flex-shrink: 0;
     white-space: nowrap;
@@ -169,8 +163,6 @@
     background-color: white;
 }
 
-/* Flat "+" that lives directly on the header so a new annotation can be
-   added without expanding the (collapsed-by-default) type list. */
 .annotation-type-header-add-button {
     background: none;
     border: none;
@@ -1211,9 +1203,6 @@ of the page */
     border-radius: 8px;
 }
 
-/* Applied when the item is too narrow for a full-size handle. The handle
-   stays interactable at a small fixed width; only its visual indicator
-   (the little white bar) is hidden so it doesn't crowd the label. */
 .resize-handle-narrow {
     width: 4px;
 }

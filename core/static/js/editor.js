@@ -3,7 +3,7 @@ import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, anima
 // Clicking or dragging inside these regions seeks the video: the ticks/scrubber
 // row and every track row's right-hand (scrollable) area. Clicks on a
 // `.track-item` are excluded so they can still select the annotation or use
-// its resize handles instead of seeking.
+// its resize handles.
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 
 function convertPercentStringToDecimal(percentString) {
@@ -41,10 +41,7 @@ export class Editor {
         this.itemBeingDragged = null;
         this.dragTimeStart = null;
         this.dragGrabOffsetX = 0;
-        // Preloaded here (rather than created fresh in the dragstart handler) so it is
-        // already decoded by the time a drag begins, avoiding a flash of the browser's
-        // default drag representation (globe/plus icon) on the first drag.
-        this.dragGhostImage = new Image();
+        this.dragGhostImage = new Image();  // Used to avoid browser's default globe icon
         this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
         this.init();
@@ -125,9 +122,7 @@ export class Editor {
 
         document.body.classList.add('resizing', 'resizing-item');
 
-        // Hide the hover scrubber for the duration of the resize: as the cursor
-        // is dragged off the (shrinking/growing) item it can pass over empty
-        // seek area, which would otherwise flash the scrubber back on mid-drag.
+        // Hide the hover scrubber for the duration of the resize
         if (this.timelineScrubber) this.timelineScrubber.style.opacity = '0';
 
         // Seek video to the handle position being dragged
@@ -365,9 +360,6 @@ export class Editor {
       item.addEventListener("dragstart", (event) => {
         this.itemBeingDragged = item;
         this.dragTimeStart = Date.now();
-        // Remember where within the item the user grabbed it, so the item's
-        // start edge follows the cursor at a fixed offset instead of snapping
-        // its start to the raw cursor position.
         this.dragGrabOffsetX = event.clientX - item.getBoundingClientRect().left;
         this.resetTrackItemProjectionsStyle();
         this.blockTrackItemPointerEvents();
@@ -912,9 +904,6 @@ export class Editor {
       if (autoUpdateForm) {
         const targetForm = document.getElementById("detail-form");
         targetForm.innerHTML = formHtml;
-        // Whatever the form now reflects should also be the item shown as
-        // active on the track (resize/drag saves replace the item's DOM node
-        // via autoUpdateItem above, which drops its active-track-item class).
         this.markItemAsActive(annotationType, annotationId);
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
@@ -1451,9 +1440,7 @@ export class Editor {
         const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
         projectionEl.style.width = this.itemBeingDragged.style.width;
         if (itemOriginalTrackId == thisContainerTrackId) {
-          // show the projection moving in concert with the mouse, keeping the
-          // same offset between the cursor and the item's start edge that was
-          // established when the drag began.
+          // show the projection moving in concert with the mouse (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
           const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
           this.video.currentTime = this.video.duration * newLeftRatio;
@@ -1516,8 +1503,7 @@ export class Editor {
             replacementItem.dataset["originalTrackId"] = trackId;
           }
         } else {
-          // move item to new position within same track, preserving the
-          // cursor-to-start-edge offset from dragstart
+          // move item to new position within same track (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
           const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
           const startTime = this.video.duration * newLeftRatio;
@@ -1554,9 +1540,7 @@ export class Editor {
           replacementItem.classList.remove("is-dragging");
           annotationContainer.appendChild(replacementItem);
           this.placeTrackItems();
-          // updateAnnotation() above already marked the item active, but at
-          // that point it was still targeting originalItem -- which we've
-          // just replaced. Reapply now that replacementItem is the one
+          // Reapply `active` class now that replacementItem is the one
           // actually left in the DOM.
           this.markItemAsActive(annotationType, annotationId);
         }
@@ -1875,8 +1859,6 @@ export class Editor {
     placeTrackItems() {
         // Process each track container separately
         this.tracks.forEach(track => {
-            // Exclude the drag-projection placeholder, and sort by start time so
-            // that overlapping items are stacked top to bottom in that order below.
             const trackItems = Array.from(track.children)
                 .filter(el => el.classList.contains('track-item'))
                 .sort((a, b) => parseFloat(a.dataset.start) - parseFloat(b.dataset.start));
@@ -1909,8 +1891,7 @@ export class Editor {
             // - top to bottom - whose last item ends before this one starts. This is
             // recomputed from scratch every call, purely from start/end times (never
             // from a sibling's previously-rendered position), so a start/end change on
-            // any single item correctly reflows every item's row in the track, not just
-            // the one that changed.
+            // any single item correctly reflows every item's row in the track.
             const ROW_HEIGHT = 35;
             const rowEndTimes = [];
             for (let item of trackItems) {
@@ -1998,8 +1979,7 @@ export class Editor {
               trackContainer.appendChild(newNode);
               this.placeTrackItems();
 
-              // Immediately select and focus the newly created annotation so its
-              // detail form is populated without an extra click.
+              // Immediately select and focus the newly created annotation.
               const newAnnotationId = newNode.dataset["annotationId"];
               this.markItemAsActive(annotationType, newAnnotationId);
               this.getItemFormDetails(annotationType, newAnnotationId, this.contentId);
@@ -2335,9 +2315,6 @@ export class Editor {
 
         // Track the cursor and show the hover scrubber across the seek regions.
         this.timelineWrapper.addEventListener('mousemove', (e) => {
-            // this.dragState is truthy for the duration of a resize drag; the
-            // cursor can stray over empty seek area while resizing, and the
-            // scrubber must stay hidden throughout (see startResize).
             if (this.isDragging || this.dragState) return;
             if (!this.isSeekTarget(e.target)) {
                 if (this.timelineScrubber) this.timelineScrubber.style.opacity = '0';
