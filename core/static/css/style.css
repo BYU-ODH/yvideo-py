@@ -1441,6 +1441,24 @@ h4.video-title {
     padding: 2rem;
 }
 
+.content-form-group {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.35rem;
+}
+
+.content-form-group label {
+    display: block;
+    font-weight: 500;
+}
+
+.content-form-group input {
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
 button.disabled {
     cursor: not-allowed;
     color: #434343;

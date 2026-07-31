@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from .models import Resource
 
-_ID_RE = re.compile(r"^[\w-]{11}$")
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 def parse_youtube_video_id(url):
