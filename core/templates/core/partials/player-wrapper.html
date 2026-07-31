@@ -1,14 +1,19 @@
 {% load static %}
 
 <div id="annotation-player-container" data-contentid="{{content_id}}" class="annotation-player-container">
-    <video id="video-player" preload="auto">
-        {% if resource_file_key_id %}
-            <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">
-        {% elif content_source_url %} {# TODO - actually handle Youtube and Vimeo properly #}
-            <source src="{{ content_source_url }}" type="video/mp4">
-        {% endif %}
-        Your browser does not support the video tag.
-    </video>
+    {% if youtube_video_id %}
+        <youtube-video id="video-player" data-video-id="{{ youtube_video_id }}"></youtube-video>
+    {% else %}
+        <video id="video-player" preload="auto">
+            {% if resource_file_key_id %}
+                <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">
+            {% elif content_source_url %}
+                <source src="{{ content_source_url }}" type="video/mp4">
+            {% endif %}
+            Your browser does not support the video tag.
+        </video>
+    {% endif %}
 </div>
 
+<script type="module" src="{% static 'js/YouTubeVideoElement.js' %}"></script>
 <script type="module" src="{% static 'js/player-wrapper.js' %}"></script>
