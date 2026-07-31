@@ -50,7 +50,7 @@ from .models import UserCourses
 logger = logging.getLogger(__name__)
 
 
-def admin_or_superuser_required(view_func):
+def spoof_permission_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if not getattr(request, "can_spoof", False):
@@ -979,25 +979,38 @@ def invalid_login(request):
     return render(request, "core/invalid_login.html", {})
 
 
-@admin_or_superuser_required
+@spoof_permission_required
 def spoof_user_start(request):
     if request.method == "POST":
         spoof_user_id = request.POST.get("spoof_user_id")
         if spoof_user_id:
-            request.session["spoof_user_id"] = int(spoof_user_id)
+            target_user = User.objects.filter(pk=spoof_user_id).first()
+            if target_user and request.user.can_spoof_as(target_user):
+                request.session["spoof_user_id"] = target_user.pk
+            else:
+                target_desc = (
+                    f"{target_user.first_name} {target_user.last_name} "
+                    f"({target_user.netid} {target_user.username})"
+                    if target_user
+                    else f"unknown user id {spoof_user_id}"
+                )
+                logger.warning(
+                    f"SPOOF DENIED: {request.user.first_name} {request.user.last_name} "
+                    f"({request.user.netid} {request.user.username}) attempted to spoof as {target_desc}"
+                )
         return redirect(
             request.POST.get("next") or request.headers.get("Referer") or "/"
         )
     return redirect("/")
 
 
-@admin_or_superuser_required
+@spoof_permission_required
 def spoof_user_stop(request):
     request.session.pop("spoof_user_id", None)
     return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
 
 
-@admin_or_superuser_required
+@spoof_permission_required
 def spoof_user_search(request):
     if request.method != "POST":
         return HttpResponse(status=405)
@@ -1009,7 +1022,11 @@ def spoof_user_search(request):
             | Q(username__icontains=query)
         )
         & ~Q(id=request.user.id)
-    ).order_by("last_name")[:25]
+    )
+    if not request.user.is_admin:
+        # Lab assistants may spoof any non-admin user, but never an admin.
+        users = users.exclude(is_superuser=True)
+    users = users.order_by("last_name")[:25]
     html = render_to_string(
         "core/partials/spoof_user_options_for_select.html", {"users": users}
     )

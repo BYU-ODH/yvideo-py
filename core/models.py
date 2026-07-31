@@ -166,6 +166,21 @@ class User(AbstractUser):
     def is_lab_assistant(self):
         return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1
 
+    @property
+    def can_spoof(self):
+        return self.is_admin or self.is_lab_assistant
+
+    def can_spoof_as(self, target_user):
+        """Whether this user may act as target_user via the spoofing feature.
+
+        Admins may spoof anyone; lab assistants may spoof anyone except admins.
+        """
+        if not self.can_spoof:
+            return False
+        if self.is_admin:
+            return True
+        return not target_user.is_admin
+
     def can_view_content(self, content):
         # owners and admins should have view permission even if the playlist is not published
         if content.playlist and content.playlist.owner == self:
