@@ -540,3 +540,24 @@ class ResourceIntakeRequestAdminTests(TestCase):
         resource = Resource.objects.get()
         self.assertEqual(resource.byu_call_number, "PN1997.2 .L53 2010")
         self.assertTrue(resource.checked_out_from_hbll)
+
+    def test_checked_out_from_hbll_requires_byu_call_number(self):
+        intake_request = self.create_request(
+            resource_title="Library Checkout Film",
+            imdb_link="https://www.imdb.com/title/tt1111111/",
+        )
+
+        response = self.client.post(
+            self.change_url(intake_request),
+            self.change_payload(
+                intake_request,
+                resource_to_use="create-resource",
+                file_to_use="upload-file",
+                new_resource_imdb_id="tt1111111",
+                new_resource_file=self.upload("library-film.mp4"),
+                checked_out_from_hbll="on",
+            ),
+        )
+
+        self.assertContains(response, "This field is required.")
+        self.assertFalse(Resource.objects.exists())

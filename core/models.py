@@ -1522,7 +1522,16 @@ class ResourceIntakeRequest(models.Model):
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)
     checked_out_from_other_byu_library = models.BooleanField(default=False)
-    byu_call_number = models.CharField(max_length=255, blank=True, default="")
+    byu_call_number = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="BYU call number",
+        help_text=(
+            "BYU library call number. Required when checked out from HBLL or "
+            "another BYU library."
+        ),
+    )
 
     # Content advisory fields
     violence_or_blood_and_gore = models.BooleanField(default=False)

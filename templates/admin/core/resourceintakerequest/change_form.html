@@ -162,26 +162,6 @@ document.addEventListener("DOMContentLoaded", function () {
     fileBarcode.required = needsBarcode;
   }
 
-  const checkedOutFromHbll = document.querySelector(
-    "#id_checked_out_from_hbll"
-  );
-  const checkedOutFromOtherByu = document.querySelector(
-    "#id_checked_out_from_other_byu_library"
-  );
-  const callNumberRow = document.querySelector(
-    ".form-row.field-byu_call_number"
-  );
-
-  function syncCallNumberRow() {
-    if (!callNumberRow) {
-      return;
-    }
-    const isCheckedOut =
-      (checkedOutFromHbll && checkedOutFromHbll.checked) ||
-      (checkedOutFromOtherByu && checkedOutFromOtherByu.checked);
-    callNumberRow.classList.toggle("hidden", !isCheckedOut);
-  }
-
   function syncApproveButton() {
     if (proofOfOwnership && approveRequest) {
       approveRequest.disabled = !proofOfOwnership.checked;
@@ -201,15 +181,8 @@ document.addEventListener("DOMContentLoaded", function () {
   if (proofOfOwnership) {
     proofOfOwnership.addEventListener("change", syncApproveButton);
   }
-  if (checkedOutFromHbll) {
-    checkedOutFromHbll.addEventListener("change", syncCallNumberRow);
-  }
-  if (checkedOutFromOtherByu) {
-    checkedOutFromOtherByu.addEventListener("change", syncCallNumberRow);
-  }
   syncFileChoice();
   syncApproveButton();
-  syncCallNumberRow();
 });
 </script>
 {% endblock %}

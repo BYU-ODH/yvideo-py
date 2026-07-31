@@ -366,6 +366,9 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
             file_has_no_barcode = bool(
                 self.data.get("new_resource_file_has_no_barcode")
             )
+            checked_out_from_library = bool(
+                self.data.get("checked_out_from_hbll")
+            ) or bool(self.data.get("checked_out_from_other_byu_library"))
         else:
             create_selected = (
                 self.fields["resource_to_use"].initial == self.CREATE_RESOURCE
@@ -373,6 +376,10 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
             resource_not_in_imdb = False
             upload_selected = self.fields["file_to_use"].initial == self.UPLOAD_FILE
             file_has_no_barcode = False
+            checked_out_from_library = (
+                self.instance.checked_out_from_hbll
+                or self.instance.checked_out_from_other_byu_library
+            )
 
         self.fields["new_resource_imdb_id"].required = (
             create_selected and not resource_not_in_imdb
@@ -381,6 +388,7 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
         self.fields["new_resource_file_barcode"].required = (
             upload_selected and not file_has_no_barcode
         )
+        self.fields["byu_call_number"].required = checked_out_from_library
 
     @staticmethod
     def _resource_file_label(resource, resource_file, language_status):
@@ -705,6 +713,10 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
     )
     list_filter = ("checked_out_from_hbll", "checked_out_from_other_byu_library")
     search_fields = ("resource_title", "owner__username", "owner__netid")
+
+    class Media:
+        js = ("js/admin_call_number.js",)
+
     fieldsets = (
         (
             None,
