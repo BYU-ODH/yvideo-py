@@ -87,6 +87,24 @@ Un patrón de cuadrícula de color llena la pantalla.
 Cada celda cambia de tono durante la demostración.
 """
 
+DEMO_SUBTITLE_VTT_OVERLAY_EN = """WEBVTT
+
+00:00:00.000 --> 00:00:02.500
+A transparent-border overlay is layered on top of the grid.
+
+00:00:02.500 --> 00:00:05.000
+The overlay demonstrates compositing two assets together.
+"""
+
+DEMO_SUBTITLE_VTT_OVERLAY_ES = """WEBVTT
+
+00:00:00.000 --> 00:00:02.500
+Una superposición de borde transparente se coloca sobre la cuadrícula.
+
+00:00:02.500 --> 00:00:05.000
+La superposición demuestra cómo combinar dos recursos.
+"""
+
 
 def seed_demo_data():
     with transaction.atomic():
@@ -513,7 +531,7 @@ def create_demo_data():
         language=english,
         name="English Captions",
         subtitles_file=ContentFile(
-            DEMO_SUBTITLE_VTT_GRID_EN.encode("utf-8"), name="overlay-en.vtt"
+            DEMO_SUBTITLE_VTT_OVERLAY_EN.encode("utf-8"), name="overlay-en.vtt"
         ),
         is_original=True,
     )
@@ -523,7 +541,7 @@ def create_demo_data():
         language=spanish,
         name="Spanish Captions",
         subtitles_file=ContentFile(
-            DEMO_SUBTITLE_VTT_GRID_ES.encode("utf-8"), name="overlay-es.vtt"
+            DEMO_SUBTITLE_VTT_OVERLAY_ES.encode("utf-8"), name="overlay-es.vtt"
         ),
         is_original=False,
     )

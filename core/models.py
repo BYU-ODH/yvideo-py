@@ -745,7 +745,7 @@ class Content(models.Model):
         Each dict has the following keys:
             - 'srclang'
             - 'vtt' or 'url'
-            - 'label'
+            - 'name'
             - 'default' (True only for the instructor-chosen default track)
         """
         resource = self.get_resource()
@@ -764,6 +764,13 @@ class Content(models.Model):
             for sub in sub_objs
         ]
         return subtitles
+
+    def get_subtitle_options(self):
+        """Get (id, name) pairs for every subtitle on this content's resource, for use in selection UI."""
+        resource = self.get_resource()
+        if not resource:
+            return []
+        return list(Subtitle.objects.filter(resource=resource).values("id", "name"))
 
     def get_player_json(self):
         """

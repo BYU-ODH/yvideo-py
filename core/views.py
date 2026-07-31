@@ -801,17 +801,11 @@ def display_content_info(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
         resource_file_key = request.user.get_resource_filekey(content)
-        resource = content.get_resource()
-        subtitle_options = []
-        if resource:
-            subtitle_options = list(
-                Subtitle.objects.filter(resource=resource).values("id", "name")
-            )
         context = {
             "content": content,
             "content_id": content.pk,
             "resource_file_key_id": resource_file_key.pk,
-            "subtitle_options": subtitle_options,
+            "subtitle_options": content.get_subtitle_options(),
         }
         return render(request, "core/content_info.html", context)
     except Content.DoesNotExist:
@@ -827,13 +821,10 @@ def display_content_info(request, content_id):
 def render_content_settings_form(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
-        resource = content.get_resource()
-        subtitle_options = []
-        if resource:
-            subtitle_options = list(
-                Subtitle.objects.filter(resource=resource).values("id", "name")
-            )
-        context = {"content": content, "subtitle_options": subtitle_options}
+        context = {
+            "content": content,
+            "subtitle_options": content.get_subtitle_options(),
+        }
         return render(request, "core/partials/content_settings_form.html", context)
     except Content.DoesNotExist:
         logger.error(
@@ -882,7 +873,10 @@ def update_content(request):
 
         default_subtitle_id = data.get("default_subtitle_track_id")
         if default_subtitle_id:
-            content.default_subtitle_track_id = int(default_subtitle_id)
+            resource = content.get_resource()
+            content.default_subtitle_track = Subtitle.objects.filter(
+                pk=default_subtitle_id, resource=resource
+            ).first()
         else:
             content.default_subtitle_track = None
 

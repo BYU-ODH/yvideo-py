@@ -1234,7 +1234,7 @@ export class AnnotationPlayer {
 
       if (trackData.label) subtitleTrackElem.label = trackData.label;
       if (trackData.srclang) subtitleTrackElem.srclang = trackData.srclang;
-      subtitleTrackElem.default = trackData.default === true;  // honour instructor-chosen default track
+      subtitleTrackElem.default = trackData.default === true;  // honor instructor-chosen default track
 
       // Set src - either from url or vtt content
       if (trackData.url) {
