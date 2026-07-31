@@ -18,12 +18,14 @@ from ..factories import MuteAnnotationFactory
 from ..factories import PlaylistFactory
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
+from ..factories import SubtitleFactory
 from ..factories import TrackFactory
 from ..factories import UserCourseFactory
 from ..factories import UserFactory
 from ..models import AnnotationSet
 from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
+from ..models import Content
 from ..models import PauseAnnotation
 from ..models import SkipAnnotation
 from ..models import validate_font_color
@@ -897,3 +899,63 @@ class AnnotationSetCreateForContentTests(TestCase):
         self._assert_annotation_set_json_is_correct(
             original_json, new_set.to_player_json()
         )
+
+
+class DefaultSubtitleTrackTests(TestCase):
+    """Tests for the instructor-chosen default subtitle track on Content."""
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.resource = ResourceFactory()
+        self.resource_file = ResourceFileFactory(resource=self.resource)
+        self.playlist = PlaylistFactory(owner=self.owner)
+        self.content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+        self.subtitle_en = SubtitleFactory(
+            resource=self.resource, owner=self.owner
+        )
+        self.subtitle_es = SubtitleFactory(
+            resource=self.resource, owner=self.owner
+        )
+
+    def test_default_subtitle_track_is_null_by_default(self):
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertIsNone(content.default_subtitle_track)
+
+    def test_get_subtitles_default_flag_false_when_no_default_set(self):
+        subtitles = self.content.get_subtitles()
+        self.assertEqual(len(subtitles), 2)
+        for sub in subtitles:
+            self.assertFalse(sub["default"])
+
+    def test_get_subtitles_marks_exactly_one_default(self):
+        self.content.default_subtitle_track = self.subtitle_en
+        self.content.save()
+        subtitles = self.content.get_subtitles()
+        defaults = [s for s in subtitles if s["default"]]
+        non_defaults = [s for s in subtitles if not s["default"]]
+        self.assertEqual(len(defaults), 1)
+        self.assertEqual(len(non_defaults), 1)
+        self.assertEqual(defaults[0]["id"], self.subtitle_en.pk)
+
+    def test_get_subtitles_default_flag_in_player_json(self):
+        self.content.default_subtitle_track = self.subtitle_es
+        self.content.save()
+        player_json = self.content.get_player_json()
+        subtitle_tracks = player_json["subtitleTracks"]
+        defaults = [s for s in subtitle_tracks if s["default"]]
+        self.assertEqual(len(defaults), 1)
+        self.assertEqual(defaults[0]["id"], self.subtitle_es.pk)
+
+    def test_set_null_clears_default(self):
+        self.content.default_subtitle_track = self.subtitle_en
+        self.content.save()
+        self.content.default_subtitle_track = None
+        self.content.save()
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertIsNone(content.default_subtitle_track)
+        subtitles = content.get_subtitles()
+        for sub in subtitles:
+            self.assertFalse(sub["default"])
