@@ -181,3 +181,28 @@ class PlayerViewYoutubeRenderingTests(TestCase):
 
         self.assertContains(response, "<video")
         self.assertNotContains(response, "<youtube-video")
+
+
+@modify_settings(
+    MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
+)
+class DisplayContentInfoYoutubeRenderingTests(TestCase):
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+
+    def test_youtube_content_renders_without_error(self):
+        playlist = PlaylistFactory(owner=self.owner)
+        resource = get_or_create_youtube_resource("eHEsJyVQn3w", self.owner.username)
+        content = Content.objects.create(
+            playlist=playlist,
+            title="YouTube Content",
+            url="https://www.youtube.com/watch?v=eHEsJyVQn3w",
+            resource=resource,
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse("display_content_info", args=[content.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<youtube-video")
+        self.assertContains(response, 'data-video-id="eHEsJyVQn3w"')

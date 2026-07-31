@@ -852,10 +852,13 @@ def display_content_info(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
         resource_file_key = request.user.get_resource_filekey(content)
+        content_source_url = request.user.get_content_source_url(content)
         context = {
             "content": content,
             "content_id": content.pk,
-            "resource_file_key_id": resource_file_key.pk,
+            "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
+            "content_source_url": content_source_url,
+            "youtube_video_id": parse_youtube_video_id(content_source_url),
         }
         return render(request, "core/content_info.html", context)
     except Content.DoesNotExist:
