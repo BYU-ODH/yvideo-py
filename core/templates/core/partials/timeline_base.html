@@ -38,15 +38,15 @@
     </div>
     <dialog id="new-track-dialog">
         <h2>New Track</h2>
-        <div class="dialog-content">
+        <form id="new-track-form" class="dialog-content">
             <div>
-                <label>New Track Name</label>
-                <input id="new-track-name" type="text" />
+                <label for="new-track-name">New Track Name</label>
+                <input id="new-track-name" name="track_name" type="text" />
             </div>
-            <button id="new-track-save-button" class="blue-button">
+            <button id="new-track-save-button" class="blue-button" type="submit">
                 Save
             </button>
-        </div>
+        </form>
         <button id="new-track-dialog-close-button" class="close-dialog-button red-button" command="close" commandfor="new-track-dialog">x</button>
     </dialog>
 </div>

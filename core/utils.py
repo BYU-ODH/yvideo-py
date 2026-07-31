@@ -3,6 +3,17 @@ from re import sub
 
 from django.utils import timezone
 
+# Map annotation type strings to their timeline/panel icon's static path.
+ANNOTATION_ICONS = {
+    "skip": "img/skip-icon.svg",
+    "mute": "img/mute-icon.svg",
+    "blank": "img/blank-icon.svg",
+    "pause": "img/pause-icon.svg",
+    "blur": "img/blur-icon.svg",
+    "comment": "img/comment-icon.svg",
+    "clip": "img/clip-icon.svg",
+}
+
 
 def estimate_current_yearterm(today=None):
     """Estimate the current BYU yearterm code (e.g. "20264") from the date.
