@@ -43,7 +43,11 @@ def test_clips_only_playback_redirects_into_the_clip_when_started_outside_it(
             video.muted = true;
             // Seek past the clip's end (18.0s), into the dead zone after it.
             video.currentTime = 19.0;
-            await video.play();
+            // The player's clipsOnly enforcement reacts to the "playing" event
+            // and immediately calls pause() once it sees we're outside every
+            // clip, which aborts this play() request in Chromium - expected
+            // here, so it's swallowed rather than left to fail the test.
+            await video.play().catch(() => {});
             await new Promise((resolve) => setTimeout(resolve, 500));
             return { paused: video.paused, time: video.currentTime };
         }"""
