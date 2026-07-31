@@ -45,17 +45,17 @@ def parse_youtube_video_id(url):
 def get_or_create_youtube_resource(video_id, requester_username):
     """Get-or-create the per-video Resource that backs a YouTube Content.
 
-    Deduped by video id (not by Content row), so the same video reused across
-    multiple playlists shares one Resource - and therefore one annotation-set
-    pool - while different videos never share.
+    Deduped by ``imdb_id`` (not ``name``, which is just a human-facing label an
+    admin could rename, and not by Content row), so the same video reused
+    across multiple playlists shares one Resource - and therefore one
+    annotation-set pool - while different videos never share.
     """
-    resource, created = Resource.objects.get_or_create(
-        name=f"YouTube: {video_id}",
+    resource, _ = Resource.objects.get_or_create(
+        imdb_id=f"YT{video_id}",
         defaults={
+            "name": f"YouTube: {video_id}",
             "media_type": Resource.MediaType.WEB,
             "requester_username": requester_username,
         },
     )
-    if created:
-        resource.generate_internal_imdb_id(prefix="YT")
     return resource

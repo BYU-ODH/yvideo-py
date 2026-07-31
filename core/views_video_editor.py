@@ -190,9 +190,7 @@ def video_editor(request, content_id):
             "content_id": content_id,
             "file_key": file_key.id if file_key else None,
             "content_source_url": content_source_url,
-            "youtube_video_id": parse_youtube_video_id(content_source_url)
-            if content_source_url
-            else None,
+            "youtube_video_id": parse_youtube_video_id(content_source_url),
             "allow_events": True,
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,
@@ -267,9 +265,7 @@ def get_player_wrapper_html(request):
                 if resource_file_key
                 else None,
                 "content_source_url": content_source_url,
-                "youtube_video_id": parse_youtube_video_id(content_source_url)
-                if content_source_url
-                else None,
+                "youtube_video_id": parse_youtube_video_id(content_source_url),
             },
             request=request,
         )
