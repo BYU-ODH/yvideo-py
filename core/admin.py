@@ -674,6 +674,9 @@ class ResourceAdmin(VersionAdmin):
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
     search_fields = ("name",)
 
+    class Media:
+        js = ("js/admin_call_number.js",)
+
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         # Provide Resource Access to the request that wanted this Resource to be created
