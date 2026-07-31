@@ -897,3 +897,159 @@ class AnnotationSetCreateForContentTests(TestCase):
         self._assert_annotation_set_json_is_correct(
             original_json, new_set.to_player_json()
         )
+
+
+class ContentClipsOnlyModelTests(TestCase):
+    """Tests for the clips_only boolean field on the Content model."""
+
+    def setUp(self):
+        self.playlist = PlaylistFactory()
+        self.resource_file = ResourceFileFactory()
+
+    def test_clips_only_defaults_to_false(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+        self.assertFalse(content.clips_only)
+
+    def test_clips_only_can_be_set_true(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=True,
+        )
+        self.assertTrue(content.clips_only)
+
+    def test_clips_only_persists_to_database(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=True,
+        )
+        refreshed = content.__class__.objects.get(pk=content.pk)
+        self.assertTrue(refreshed.clips_only)
+
+
+class ContentClipsOnlyViewTests(TestCase):
+    """Tests for the clips_only field in the get_player_data and update_content views."""
+
+    def setUp(self):
+        from ..factories import ClipFactory, AnnotationSetFactory, TrackFactory, UserFactory
+        from ..models import ResourceFileKey
+
+        self.user = UserFactory(instructor=True)
+        self.client.force_login(self.user)
+        self.playlist = PlaylistFactory(owner=self.user)
+        self.resource_file = ResourceFileFactory()
+        self.content_clips_only = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=True,
+        )
+        self.content_no_clips_only = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=False,
+        )
+
+        # Create a ResourceFileKey so the player endpoint can be accessed
+        ResourceFileKey.objects.create(
+            user=self.user,
+            resource_file=self.resource_file,
+        )
+
+        # Set up an annotation set with a clip
+        self.annotation_set = AnnotationSetFactory(
+            resource=self.resource_file.resource,
+            owner=self.user,
+        )
+        self.track = TrackFactory(annotation_set=self.annotation_set)
+        self.clip = ClipFactory(
+            track=self.track,
+            start_time=10.0,
+            end_time=30.0,
+        )
+        self.content_clips_only.annotation_set = self.annotation_set
+        self.content_clips_only.save()
+
+    def _get_player_data(self, content):
+        import json
+        from django.test import Client
+        from django.urls import reverse
+        response = self.client.post(
+            f"/player-data/{content.pk}/",
+            HTTP_X_CSRFTOKEN="test",
+        )
+        return response
+
+    def test_player_data_returns_clips_only_true(self):
+        response = self._get_player_data(self.content_clips_only)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["clipsOnly"])
+
+    def test_player_data_returns_clips_only_false(self):
+        response = self._get_player_data(self.content_no_clips_only)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["clipsOnly"])
+
+    def test_player_data_returns_clips_list(self):
+        response = self._get_player_data(self.content_clips_only)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("clips", data)
+        self.assertEqual(len(data["clips"]), 1)
+        clip = data["clips"][0]
+        self.assertEqual(clip["class_type"], "Clip")
+        self.assertAlmostEqual(clip["start"], 10.0)
+        self.assertAlmostEqual(clip["end"], 30.0)
+
+    def test_update_content_sets_clips_only(self):
+        import json
+        from django.test import RequestFactory
+        from django.urls import reverse
+
+        response = self.client.post(
+            "/content/update/",
+            data=json.dumps({
+                "id": self.content_no_clips_only.pk,
+                "title": self.content_no_clips_only.title,
+                "description": "",
+                "words": "",
+                "allow_definitions": True,
+                "allow_notes": True,
+                "allow_captions": True,
+                "allow_fast_playback": True,
+                "clips_only": True,
+                "published": False,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.content_no_clips_only.refresh_from_db()
+        self.assertTrue(self.content_no_clips_only.clips_only)
+
+    def test_update_content_clears_clips_only(self):
+        import json
+
+        response = self.client.post(
+            "/content/update/",
+            data=json.dumps({
+                "id": self.content_clips_only.pk,
+                "title": self.content_clips_only.title,
+                "description": "",
+                "words": "",
+                "allow_definitions": True,
+                "allow_notes": True,
+                "allow_captions": True,
+                "allow_fast_playback": True,
+                "clips_only": False,
+                "published": False,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.content_clips_only.refresh_from_db()
+        self.assertFalse(self.content_clips_only.clips_only)

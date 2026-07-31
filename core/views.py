@@ -114,11 +114,17 @@ def get_player_data(request, content_id):
             any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
         )
 
+        clips = [
+            a for a in player_json["annotations"] if a.get("class_type") == "Clip"
+        ]
+
         data = {
             "annotations": player_json["annotations"],
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
+            "clips": clips,
+            "clipsOnly": content.clips_only,
         }
 
         return JsonResponse(data)
@@ -865,6 +871,7 @@ def update_content(request):
         content.allow_notes = data["allow_notes"]
         content.allow_captions = data["allow_captions"]
         content.allow_fast_playback = data["allow_fast_playback"]
+        content.clips_only = data["clips_only"]
         content.published = data["published"]
 
         content.save()

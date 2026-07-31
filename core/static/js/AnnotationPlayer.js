@@ -59,6 +59,7 @@ export class AnnotationPlayer {
     this.videoElem.controls = false;
 
     this.allowFastPlayback = options.allowFastPlayback !== false;
+    this.clipsOnly = options.clipsOnly === true;
     this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     if (!this.allowFastPlayback) {
       this.playbackRates = this.playbackRates.filter(rate => rate <= 1.0);
@@ -670,6 +671,17 @@ export class AnnotationPlayer {
       }
     }
 
+    // Enforce clipsOnly mode: pause and redirect if playback leaves all clip ranges
+    if (this.clipsOnly && this.clips && this.clips.length > 0) {
+      const clipOnlyBoundary = this._getClipOnlyBoundary(time);
+      if (clipOnlyBoundary !== null) {
+        this.pause();
+        this.videoElem.currentTime = clipOnlyBoundary;
+        this.timeCache = clipOnlyBoundary;
+        return;
+      }
+    }
+
     let numAnnotations = this.annotations.length;
     let isMuteAnnotationActive = false;
     for (let i = 0; i < numAnnotations; i++) {
@@ -1072,7 +1084,13 @@ export class AnnotationPlayer {
 
     const rect = this.controls.scrubber.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newTime = percent * (this.videoElem.duration || 0);
+    let newTime = percent * (this.videoElem.duration || 0);
+
+    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
+    if (clipOnlyBoundary !== null) {
+      newTime = clipOnlyBoundary;
+    }
+
     this.skipTo(newTime);
   }
 
@@ -1085,6 +1103,11 @@ export class AnnotationPlayer {
     const skipBoundary = this._getSkipBoundary(newTime);
     if (skipBoundary !== null) {
       newTime = skipBoundary;
+    }
+
+    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
+    if (clipOnlyBoundary !== null) {
+      newTime = clipOnlyBoundary;
     }
 
     const adjustedPercent = newTime / (this.videoElem.duration || 1);
@@ -1122,6 +1145,28 @@ export class AnnotationPlayer {
     }
 
     return null;
+  }
+
+  /**
+   * When clipsOnly mode is active, returns the time the player should seek to
+   * if the requested `time` is outside all defined clip ranges.
+   * Returns null if `time` is already within a clip (no redirect needed) or if
+   * clipsOnly is disabled / no clips are defined.
+   */
+  _getClipOnlyBoundary(time) {
+    if (!this.clipsOnly || !this.clips || this.clips.length === 0) return null;
+
+    for (const clip of this.clips) {
+      const start = parseFloat(clip.start);
+      const end = parseFloat(clip.end);
+      if (time >= start && time < end) return null; // already inside a clip
+    }
+
+    // Outside all clips — redirect to the start of the next clip after `time`,
+    // or wrap around to the first clip.
+    const sorted = [...this.clips].sort((a, b) => parseFloat(a.start) - parseFloat(b.start));
+    const next = sorted.find(clip => parseFloat(clip.start) > time);
+    return parseFloat((next || sorted[0]).start);
   }
 
   beginScrubberDrag(e) {

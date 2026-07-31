@@ -10,9 +10,10 @@ function setupSubmit() {
     const allowNotesInput = document.getElementById("allow-notes");
     const allowCaptsInput = document.getElementById("allow-captions");
     const allowFastPlaybackInput = document.getElementById("allow-fast-playback");
+    const clipsOnlyInput = document.getElementById("clips-only");
     const wordsInput = document.getElementById("words");
     const descriptionInput = document.getElementById("description");
-    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, wordsInput, descriptionInput].some(el => el === undefined);
+    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, clipsOnlyInput, wordsInput, descriptionInput].some(el => el === undefined);
     if (isUndefined) {
       console.log("at least one content settings form input is undefined.");
       return;
@@ -31,6 +32,7 @@ function setupSubmit() {
         "allow_notes": allowNotesInput.checked,
         "allow_captions": allowCaptsInput.checked,
         "allow_fast_playback": allowFastPlaybackInput.checked,
+        "clips_only": clipsOnlyInput.checked,
         "words": wordsInput.value,
         "description": descriptionInput.value,
       })

@@ -29,6 +29,10 @@
                     <label for="allow-fast-playback">Allow fast playback</label>
                     <input id="allow-fast-playback" type="checkbox" {% if content.allow_fast_playback %}checked{% endif %}>
                 </div>
+                <div class="content-form-group">
+                    <label for="clips-only">Show only clips defined in the editor (better Fair Use protection)</label>
+                    <input id="clips-only" type="checkbox" {% if content.clips_only %}checked{% endif %}>
+                </div>
             </div>
             <div class="content-form-group column-flex">
                 <label for="words">
