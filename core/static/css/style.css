@@ -1459,6 +1459,12 @@ h4.video-title {
     font-size: 1rem;
 }
 
+.add-youtube-video-error {
+    color: #e74c3c;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
 button.disabled {
     cursor: not-allowed;
     color: #434343;
