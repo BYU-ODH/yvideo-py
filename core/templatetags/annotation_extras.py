@@ -7,4 +7,4 @@ register = template.Library()
 
 @register.filter
 def annotation_icon(annotation_type):
-    return ANNOTATION_ICONS.get(annotation_type, "")
+    return ANNOTATION_ICONS[annotation_type]
