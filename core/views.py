@@ -8,6 +8,7 @@ import re
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import connection
 from django.db.models import Q
@@ -46,6 +47,8 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
+from .youtube import get_or_create_youtube_resource
+from .youtube import parse_youtube_video_id
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +145,9 @@ def player(request, content_id):
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "content_source_url": content_source_url,
+        "youtube_video_id": parse_youtube_video_id(content_source_url)
+        if content_source_url
+        else None,
         "allow_events": True,
     }
 
@@ -725,6 +731,50 @@ def create_content(request):
         return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"An error occured while creating a new Content. Exception: {e}")
+        return HttpResponseServerError()
+
+
+@require_POST
+@login_required
+def create_content_from_url(request):
+    """Create URL-only Content from a YouTube URL, self-serve (no lab-assistant/
+    admin gate) - see core/youtube.py for the Resource get-or-create logic."""
+    try:
+        parsed_data = json.loads(request.body)
+        if (
+            "playlist_id" not in parsed_data
+            or "title" not in parsed_data
+            or "url" not in parsed_data
+        ):
+            logger.error(
+                "Failed to create new content from URL because of invalid data provided."
+            )
+            return HttpResponseBadRequest()
+
+        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
+        if not (playlist.owner == request.user or request.user.is_admin):
+            return HttpResponse("Unauthorized", status=403)
+
+        video_id = parse_youtube_video_id(parsed_data["url"])
+        if not video_id:
+            logger.error(
+                "Failed to create new content because the URL was not a "
+                "recognized YouTube URL"
+            )
+            return HttpResponseBadRequest("Unrecognized YouTube URL")
+
+        resource = get_or_create_youtube_resource(video_id, request.user.username)
+        Content.objects.create(
+            playlist=playlist,
+            title=parsed_data["title"],
+            url=parsed_data["url"],
+            resource=resource,
+        )
+        return HttpResponse()
+    except Exception as e:
+        logger.error(
+            f"An error occured while creating new YouTube content. Exception: {e}"
+        )
         return HttpResponseServerError()
 
 

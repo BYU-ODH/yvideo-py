@@ -54,6 +54,11 @@ function attachAnnotationPlayer() {
 
         annotationPlayer = new AnnotationPlayer({
             container: container,
+            // Look up the video element by id rather than relying on
+            // AnnotationPlayer's default `container.querySelector('video')`,
+            // since YouTube-backed content uses a <youtube-video> custom
+            // element instead of a real <video> tag.
+            video: container.querySelector('#video-player'),
             disabledControls: [],
             tracks: tracks,
             clips: clips,
