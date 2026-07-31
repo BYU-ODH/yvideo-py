@@ -114,9 +114,7 @@ def get_player_data(request, content_id):
             any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
         )
 
-        clips = [
-            a for a in player_json["annotations"] if a.get("class_type") == "Clip"
-        ]
+        clips = [a for a in player_json["annotations"] if a.get("class_type") == "Clip"]
 
         data = {
             "annotations": player_json["annotations"],

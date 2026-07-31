@@ -146,6 +146,7 @@ class Migration(migrations.Migration):
                 ('allow_notes', models.BooleanField(default=True)),
                 ('allow_captions', models.BooleanField(default=True)),
                 ('allow_fast_playback', models.BooleanField(default=True)),
+                ('clips_only', models.BooleanField(default=False)),
                 ('views', models.IntegerField(default=0, editable=False)),
                 ('published', models.BooleanField(default=False)),
                 ('words', models.TextField(blank=True)),
