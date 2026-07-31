@@ -1,3 +1,5 @@
+{% load static %}
+{% load annotation_extras %}
 <div class="track-item elevated {{ item.annotation_type }}-type-track-item"
      id="{{ item.annotation_type }}-{{ item.id }}"
      draggable="true"
@@ -19,6 +21,7 @@
     {% endif %}
 
     <div class="track-item-content">
+        <img class="track-item-type-icon" src="{% static item.annotation_type|annotation_icon %}" alt="" aria-hidden="true">
         <span class="track-item-label">{{ item.name }}</span>
         {% if item.annotation_type == "blur" %}
         {% for position_locator in item.get_position_locators %}

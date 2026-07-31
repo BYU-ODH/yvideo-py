@@ -2,7 +2,8 @@ import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, anima
 
 // Clicking or dragging inside these regions seeks the video: the ticks/scrubber
 // row and every track row's right-hand (scrollable) area. Clicks on a
-// `.track-item-content` are excluded so they can still select the annotation.
+// `.track-item` are excluded so they can still select the annotation or use
+// its resize handles.
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 
 function convertPercentStringToDecimal(percentString) {
@@ -39,6 +40,9 @@ export class Editor {
         this.selectedSubtitleTrackId = null;
         this.itemBeingDragged = null;
         this.dragTimeStart = null;
+        this.dragGrabOffsetX = 0;
+        this.dragGhostImage = new Image();  // Used to avoid browser's default globe icon
+        this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
         this.init();
     }
@@ -118,6 +122,9 @@ export class Editor {
 
         document.body.classList.add('resizing', 'resizing-item');
 
+        // Hide the hover scrubber for the duration of the resize
+        if (this.timelineScrubber) this.timelineScrubber.style.opacity = '0';
+
         // Seek video to the handle position being dragged
         this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
     }
@@ -153,23 +160,25 @@ export class Editor {
       // "track-item" substring in element.className
       let isTrackItem = false;
       for (let cl of itemElement.classList) {
-        if (cl == "track-item") isTrackItem = true;
-        break;
+        if (cl == "track-item") {
+          isTrackItem = true;
+          break;
+        }
       }
 
       if (!isTrackItem) return;
 
-      const hiddenClass = "resize-handle-hidden";
+      const narrowClass = "resize-handle-narrow";
       const resizeHandles = itemElement.querySelectorAll(".resize-handle");
       // getBoundingClientRect provides size values in px.
       const triggerWidth = 60;
-      const shouldHideHandles = itemElement.getBoundingClientRect().width < triggerWidth;
+      const shouldNarrowHandles = itemElement.getBoundingClientRect().width < triggerWidth;
       for (let handle of resizeHandles) {
-        if (shouldHideHandles) {
-          handle.classList.add(hiddenClass);
+        if (shouldNarrowHandles) {
+          handle.classList.add(narrowClass);
         }
         else {
-          handle.classList.remove(hiddenClass);
+          handle.classList.remove(narrowClass);
         }
       }
     }
@@ -351,13 +360,13 @@ export class Editor {
       item.addEventListener("dragstart", (event) => {
         this.itemBeingDragged = item;
         this.dragTimeStart = Date.now();
+        this.dragGrabOffsetX = event.clientX - item.getBoundingClientRect().left;
         this.resetTrackItemProjectionsStyle();
         this.blockTrackItemPointerEvents();
+        event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/html", item.outerHTML);
         event.dataTransfer.setData("text/plain", item.id);
-        const img = new Image()
-        img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-        event.dataTransfer.setDragImage(img, 0, 0);
+        event.dataTransfer.setDragImage(this.dragGhostImage, 0, 0);
         item.classList.add("is-dragging");
       });
 
@@ -895,6 +904,7 @@ export class Editor {
       if (autoUpdateForm) {
         const targetForm = document.getElementById("detail-form");
         targetForm.innerHTML = formHtml;
+        this.markItemAsActive(annotationType, annotationId);
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       return true;
@@ -1422,6 +1432,7 @@ export class Editor {
 
       annotationContainer.addEventListener("dragover", (event) => {
         event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
         if (!this.itemBeingDragged) {
           console.error("No item is being dragged!");
           return;
@@ -1429,9 +1440,9 @@ export class Editor {
         const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
         projectionEl.style.width = this.itemBeingDragged.style.width;
         if (itemOriginalTrackId == thisContainerTrackId) {
-          // show the projection moving in concert with the mouse
+          // show the projection moving in concert with the mouse (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
-          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
           this.video.currentTime = this.video.duration * newLeftRatio;
           projectionEl.style.left = (newLeftRatio * 100) + '%';
           projectionEl.style.top = this.itemBeingDragged.style.top;
@@ -1492,9 +1503,9 @@ export class Editor {
             replacementItem.dataset["originalTrackId"] = trackId;
           }
         } else {
-          // move item to new position within same track
+          // move item to new position within same track (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
-          const newLeftRatio = (event.clientX - containerDim.left) / containerDim.width;
+          const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
           const startTime = this.video.duration * newLeftRatio;
           let endTime;
           if (originalEndTime) {
@@ -1529,6 +1540,9 @@ export class Editor {
           replacementItem.classList.remove("is-dragging");
           annotationContainer.appendChild(replacementItem);
           this.placeTrackItems();
+          // Reapply `active` class now that replacementItem is the one
+          // actually left in the DOM.
+          this.markItemAsActive(annotationType, annotationId);
         }
       });
     }
@@ -1797,17 +1811,14 @@ export class Editor {
 
     /* track creation */
     watchForTrackCreation() {
-      const addNewTrackButton = document.getElementById("new-track-save-button");
+      const addNewTrackForm = document.getElementById("new-track-form");
       const addNewTrackInput = document.getElementById("new-track-name");
       const dialog = document.getElementById("new-track-dialog");
       const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
 
       async function handleTrackCreation(e) {
+        e.preventDefault();
         e.stopPropagation();
-        // allow any event unless it is keydown triggered from a key other than the Enter key
-        if (e.type == "keydown" && e.key != "Enter") {
-          return;
-        }
         const newTrackName = addNewTrackInput.value;
         if (!newTrackName) {
           return;
@@ -1842,18 +1853,15 @@ export class Editor {
         this.placeTrackItems();
         this.adjustScrubberHeight();
       }
-      addNewTrackButton.addEventListener("click", handleTrackCreation.bind(this));
-      addNewTrackInput.addEventListener("keydown", (e) => {
-        if (e.key == "Enter") {
-          addNewTrackButton.click();
-        }
-      });
+      addNewTrackForm.addEventListener("submit", handleTrackCreation.bind(this));
     }
 
     placeTrackItems() {
         // Process each track container separately
         this.tracks.forEach(track => {
-            const trackItems = Array.from(track.children);
+            const trackItems = Array.from(track.children)
+                .filter(el => el.classList.contains('track-item'))
+                .sort((a, b) => parseFloat(a.dataset.start) - parseFloat(b.dataset.start));
             for (let item of trackItems) {
               const itemStart = parseFloat(item.dataset["start"]);
               const itemEnd = parseFloat(item.dataset["end"]);
@@ -1879,95 +1887,31 @@ export class Editor {
                 }
               }
             }
-            const trackDim = track.getBoundingClientRect();
-            const itemCount = trackItems.length;
-
-            // Track the bottom of each row (stack)
-            let rowBottoms = [];
-
-            // place each track item
-            for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
-                const currentTrackItem = trackItems[itemIndex];
-                const currentItemStart = Number(currentTrackItem.dataset.start);
-                const currentItemEnd = Number(currentTrackItem.dataset.end);
-                const currentTrackItemDim = currentTrackItem.getBoundingClientRect();
-
-                // find the lowest positioned overlapping sibling so we know where to place currentTrackItem
-                let allOverlappingSiblings = [];
-                let lowestPositionedOverlappingSibling;
-                for (let siblingItemIndex = 0; siblingItemIndex < itemIndex; siblingItemIndex++) {
-                    const siblingItem = trackItems[siblingItemIndex];
-                    if (siblingItem == currentTrackItem) { // this should never happen
-                        break;
-                    }
-                    const siblingItemStart = Number(siblingItem.dataset.start);
-                    const siblingItemEnd = Number(siblingItem.dataset.end);
-                    // sibling can be smaller and completely overlap with current item
-                    // sibling can be larger and completely overlap with current item
-                    // sibling can overlap with current item on current item start but not end time
-                    // sibling can overlap with current item on item end but not start time
-                    const isOverlapping = ((currentItemStart <= siblingItemStart && currentItemEnd >= siblingItemEnd)
-                        || (currentItemStart >= siblingItemStart && currentItemEnd <= siblingItemEnd)
-                        || (currentItemStart >= siblingItemStart && currentItemStart <= siblingItemEnd)
-                        || (currentItemEnd >= siblingItemStart && currentItemEnd <= siblingItemEnd));
-                    if (isOverlapping) {
-                        allOverlappingSiblings.push(siblingItem);
-                        let lowestSiblingDim;
-                        const siblingDim = siblingItem.getBoundingClientRect();
-                        if (lowestPositionedOverlappingSibling) {
-                            lowestSiblingDim = lowestPositionedOverlappingSibling.getBoundingClientRect();
-                        }
-
-                        if (!lowestSiblingDim) {
-                            lowestPositionedOverlappingSibling = siblingItem;
-                        }
-                        else if(lowestSiblingDim.bottom < siblingDim.bottom) {
-                            lowestPositionedOverlappingSibling = siblingItem;
-                        }
-                    }
+            // Assign each item (already sorted by start time above) to the first row
+            // - top to bottom - whose last item ends before this one starts. This is
+            // recomputed from scratch every call, purely from start/end times (never
+            // from a sibling's previously-rendered position), so a start/end change on
+            // any single item correctly reflows every item's row in the track.
+            const ROW_HEIGHT = 35;
+            const rowEndTimes = [];
+            for (let item of trackItems) {
+                const itemStart = Number(item.dataset.start);
+                const itemEnd = Number(item.dataset.end);
+                let rowIndex = rowEndTimes.findIndex(rowEndTime => itemStart > rowEndTime);
+                if (rowIndex === -1) {
+                    rowIndex = rowEndTimes.length;
                 }
-
-                // place currentTrackItem if there is an overlapping sibling
-                if (lowestPositionedOverlappingSibling) {
-                    // check if there is room at the top
-                    let isSiblingOccupyingTopSpot = false;
-                    for (let sibling of allOverlappingSiblings) {
-                        const overLapSibDim = sibling.getBoundingClientRect();
-                        if (overLapSibDim.bottom - trackDim.top <= 35) {
-                            isSiblingOccupyingTopSpot = true;
-                            break;
-                        }
-                    }
-                    if (isSiblingOccupyingTopSpot) {
-                        // take the bottom of sibling, subtract the top of the container, add 5 pixels
-                        const siblingDim = lowestPositionedOverlappingSibling.getBoundingClientRect();
-                        currentTrackItem.style.top = siblingDim.bottom - trackDim.top + 5 + "px";
-                    }
-                } else {
-                    // else place at the top (default)
-                    currentTrackItem.style.top = "5px";
-                }
-
-                // Track the bottom of this item for stacking calculation
-                const itemTop = parseFloat(currentTrackItem.style.top) || 0;
-                const itemBottom = itemTop + currentTrackItemDim.height; // item height is 30px
-                rowBottoms.push(itemBottom);
+                rowEndTimes[rowIndex] = itemEnd;
+                item.style.top = `${(rowIndex * ROW_HEIGHT) + 5}px`;
             }
 
-            // Calculate the number of stacked rows (find max top value / 35 + 1)
-            let maxStack = 1;
-            if (trackItems.length > 0) {
-                // Find all unique top positions (rounded to nearest 5px)
-                const tops = trackItems.map(item => Math.round((parseFloat(item.style.top) || 0) / 5) * 5);
-                const uniqueRows = Array.from(new Set(tops));
-                maxStack = uniqueRows.length;
-            }
+            const maxStack = trackItems.length > 0 ? rowEndTimes.length : 1;
 
             // Set min-height on the parent track (timeline-row)
             const trackContainer = track.closest('.timeline-row');
             if (trackContainer) {
-                // 1 item = 40px; 2 = 75px; 3 = 110px; 4 = 145px; etc. (diff = 35px)
-                const minHeight = (maxStack * 35) + 5;
+                // 1 item = 40px; 2 = 75px; 3 = 110px; 4 = 145px; etc.
+                const minHeight = (maxStack * ROW_HEIGHT) + 5;
                 trackContainer.style.minHeight = `${minHeight}px`;
             }
         });
@@ -1990,6 +1934,9 @@ export class Editor {
           const annotationType = button.dataset["annotationType"];
           button.addEventListener("click", async (e) => {
             e.preventDefault();
+            // Stop this button's click (which may live inside the collapsible
+            // .annotation-type-header) from also toggling the header's expansion.
+            e.stopPropagation();
             const trackRow = document.querySelector(".track-row");
             if (!trackRow) {
               console.error("Unable to assign listeners to new item creation buttons. Invalid track row.");
@@ -2031,6 +1978,13 @@ export class Editor {
               newNode.dataset["end"] = endTime;
               trackContainer.appendChild(newNode);
               this.placeTrackItems();
+
+              // Immediately select and focus the newly created annotation.
+              const newAnnotationId = newNode.dataset["annotationId"];
+              this.markItemAsActive(annotationType, newAnnotationId);
+              this.getItemFormDetails(annotationType, newAnnotationId, this.contentId);
+              newNode.focus();
+
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
             else {
@@ -2321,7 +2275,7 @@ export class Editor {
     // region but not on an annotation's content (which selects the annotation).
     isSeekTarget(target) {
         if (!target.closest(SEEK_REGION_SELECTOR)) return false;
-        if (target.closest('.track-item-content')) return false;
+        if (target.closest('.track-item')) return false;
         return true;
     }
 
@@ -2361,7 +2315,7 @@ export class Editor {
 
         // Track the cursor and show the hover scrubber across the seek regions.
         this.timelineWrapper.addEventListener('mousemove', (e) => {
-            if (this.isDragging) return;
+            if (this.isDragging || this.dragState) return;
             if (!this.isSeekTarget(e.target)) {
                 if (this.timelineScrubber) this.timelineScrubber.style.opacity = '0';
                 return;
