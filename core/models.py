@@ -162,6 +162,11 @@ class User(AbstractUser):
     def is_admin(self):
         return self.is_superuser
 
+    @classmethod
+    def is_admin_q(cls):
+        """Q object equivalent of the ``is_admin`` property, for filtering querysets."""
+        return models.Q(is_superuser=True)
+
     @property
     def is_lab_assistant(self):
         return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1

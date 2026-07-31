@@ -16,9 +16,15 @@ class SpoofingTests(TestCase):
         self.other_admin = UserFactory(admin=True, netid="admin2")
         self.lab_assistant = UserFactory(lab_assistant=True, netid="labasst")
         self.student = UserFactory(student=True, netid="student1")
+        self.other_student = UserFactory(student=True, netid="student2")
 
     def _start(self, target):
         return self.client.post(reverse("start_spoofing"), {"spoof_user_id": target.pk})
+
+    def _start_raw(self, spoof_user_id):
+        return self.client.post(
+            reverse("start_spoofing"), {"spoof_user_id": spoof_user_id}
+        )
 
     def test_admin_can_spoof_any_user(self):
         self.client.force_login(self.admin)
@@ -126,3 +132,37 @@ class SpoofingTests(TestCase):
 
         self.assertEqual(response.wsgi_request.user, self.lab_assistant)
         self.assertFalse(response.wsgi_request.is_spoofing)
+
+    def test_lab_assistant_can_switch_spoof_target_while_active(self):
+        self.client.force_login(self.lab_assistant)
+        self._start(self.student)
+
+        response = self._start(self.other_student)
+
+        self.assertEqual(
+            self.client.session.get("spoof_user_id"), self.other_student.pk
+        )
+        follow_up = self.client.get("/")
+        self.assertEqual(follow_up.wsgi_request.user, self.other_student)
+        self.assertTrue(follow_up.wsgi_request.is_spoofing)
+        self.assertNotEqual(response.status_code, 500)
+
+    def test_switching_spoof_target_denial_is_logged_with_real_actor(self):
+        self.client.force_login(self.lab_assistant)
+        self._start(self.student)
+
+        with self.assertLogs("core.views", level="WARNING") as captured:
+            self._start(self.admin)
+
+        [message] = captured.output
+        self.assertIn("SPOOF DENIED", message)
+        self.assertIn(self.lab_assistant.netid, message)
+        self.assertNotIn(self.student.netid, message)
+
+    def test_non_numeric_spoof_user_id_is_denied_without_error(self):
+        self.client.force_login(self.admin)
+
+        response = self._start_raw("not-a-number")
+
+        self.assertNotEqual(response.status_code, 500)
+        self.assertNotIn("spoof_user_id", self.client.session)

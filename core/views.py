@@ -62,6 +62,12 @@ def spoof_permission_required(view_func):
     return _wrapped
 
 
+def _spoof_actor(request):
+    """The real authenticated user, even if `request.user` has been swapped to a
+    spoofed identity by SpoofUserMiddleware for this request."""
+    return getattr(request, "original_user", request.user)
+
+
 def prepare_playlist_for_display(playlist):
     published_contents = Content.objects.filter(playlist=playlist).filter(
         published=True
@@ -984,8 +990,13 @@ def spoof_user_start(request):
     if request.method == "POST":
         spoof_user_id = request.POST.get("spoof_user_id")
         if spoof_user_id:
-            target_user = User.objects.filter(pk=spoof_user_id).first()
-            if target_user and request.user.can_spoof_as(target_user):
+            actor = _spoof_actor(request)
+            target_user = (
+                User.objects.filter(pk=spoof_user_id).first()
+                if spoof_user_id.isdigit()
+                else None
+            )
+            if target_user and actor.can_spoof_as(target_user):
                 request.session["spoof_user_id"] = target_user.pk
             else:
                 target_desc = (
@@ -995,8 +1006,8 @@ def spoof_user_start(request):
                     else f"unknown user id {spoof_user_id}"
                 )
                 logger.warning(
-                    f"SPOOF DENIED: {request.user.first_name} {request.user.last_name} "
-                    f"({request.user.netid} {request.user.username}) attempted to spoof as {target_desc}"
+                    f"SPOOF DENIED: {actor.first_name} {actor.last_name} "
+                    f"({actor.netid} {actor.username}) attempted to spoof as {target_desc}"
                 )
         return redirect(
             request.POST.get("next") or request.headers.get("Referer") or "/"
@@ -1014,6 +1025,7 @@ def spoof_user_stop(request):
 def spoof_user_search(request):
     if request.method != "POST":
         return HttpResponse(status=405)
+    actor = _spoof_actor(request)
     query = request.POST.get("search", "").strip()
     users = User.objects.filter(
         (
@@ -1021,11 +1033,11 @@ def spoof_user_search(request):
             | Q(last_name__icontains=query)
             | Q(username__icontains=query)
         )
-        & ~Q(id=request.user.id)
+        & ~Q(id=actor.id)
     )
-    if not request.user.is_admin:
+    if not actor.is_admin:
         # Lab assistants may spoof any non-admin user, but never an admin.
-        users = users.exclude(is_superuser=True)
+        users = users.exclude(User.is_admin_q())
     users = users.order_by("last_name")[:25]
     html = render_to_string(
         "core/partials/spoof_user_options_for_select.html", {"users": users}
