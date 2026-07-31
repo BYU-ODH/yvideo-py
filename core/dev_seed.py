@@ -51,13 +51,40 @@ DEMO_COURSES = [
     ("BIO", "205", "001"),
     ("FILM", "330", "001"),
 ]
-DEMO_SUBTITLE_VTT = """WEBVTT
+DEMO_SUBTITLE_VTT_EN = """WEBVTT
 
 00:00:00.000 --> 00:00:02.500
 Birds gather near the shoreline.
 
 00:00:02.500 --> 00:00:05.000
 The sample media stays connected to a real mp4 file.
+"""
+
+DEMO_SUBTITLE_VTT_ES = """WEBVTT
+
+00:00:00.000 --> 00:00:02.500
+Las aves se reúnen cerca de la orilla.
+
+00:00:02.500 --> 00:00:05.000
+El medio de muestra permanece conectado a un archivo mp4 real.
+"""
+
+DEMO_SUBTITLE_VTT_GRID_EN = """WEBVTT
+
+00:00:00.000 --> 00:00:02.500
+A color grid pattern fills the screen.
+
+00:00:02.500 --> 00:00:05.000
+Each cell shifts hue during the demonstration.
+"""
+
+DEMO_SUBTITLE_VTT_GRID_ES = """WEBVTT
+
+00:00:00.000 --> 00:00:02.500
+Un patrón de cuadrícula de color llena la pantalla.
+
+00:00:02.500 --> 00:00:05.000
+Cada celda cambia de tono durante la demostración.
 """
 
 
@@ -440,16 +467,70 @@ def create_demo_data():
         published=True,
     )
 
-    SubtitleFactory(
+    birds_en_subtitle = SubtitleFactory(
         resource=birds_resource,
         owner=professor_ada,
         language=english,
-        name="English Demo Captions",
+        name="English Captions",
         subtitles_file=ContentFile(
-            DEMO_SUBTITLE_VTT.encode("utf-8"), name="birds-demo.vtt"
+            DEMO_SUBTITLE_VTT_EN.encode("utf-8"), name="birds-en.vtt"
         ),
         is_original=True,
     )
+    SubtitleFactory(
+        resource=birds_resource,
+        owner=professor_ada,
+        language=spanish,
+        name="Spanish Captions",
+        subtitles_file=ContentFile(
+            DEMO_SUBTITLE_VTT_ES.encode("utf-8"), name="birds-es.vtt"
+        ),
+        is_original=False,
+    )
+    SubtitleFactory(
+        resource=grid_resource,
+        owner=professor_ben,
+        language=english,
+        name="English Captions",
+        subtitles_file=ContentFile(
+            DEMO_SUBTITLE_VTT_GRID_EN.encode("utf-8"), name="grid-en.vtt"
+        ),
+        is_original=True,
+    )
+    SubtitleFactory(
+        resource=grid_resource,
+        owner=professor_ben,
+        language=spanish,
+        name="Spanish Captions",
+        subtitles_file=ContentFile(
+            DEMO_SUBTITLE_VTT_GRID_ES.encode("utf-8"), name="grid-es.vtt"
+        ),
+        is_original=False,
+    )
+    SubtitleFactory(
+        resource=overlay_resource,
+        owner=professor_ben,
+        language=english,
+        name="English Captions",
+        subtitles_file=ContentFile(
+            DEMO_SUBTITLE_VTT_GRID_EN.encode("utf-8"), name="overlay-en.vtt"
+        ),
+        is_original=True,
+    )
+    SubtitleFactory(
+        resource=overlay_resource,
+        owner=professor_ben,
+        language=spanish,
+        name="Spanish Captions",
+        subtitles_file=ContentFile(
+            DEMO_SUBTITLE_VTT_GRID_ES.encode("utf-8"), name="overlay-es.vtt"
+        ),
+        is_original=False,
+    )
+
+    birds_content.default_subtitle_track = birds_en_subtitle
+    birds_content.save()
+
     ResourceFileKeyFactory(user=admin, resource_file=birds_file)
 
     return {
