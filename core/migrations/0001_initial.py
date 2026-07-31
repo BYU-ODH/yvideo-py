@@ -132,7 +132,6 @@ class Migration(migrations.Migration):
                 ('width', models.FloatField()),
                 ('height', models.FloatField()),
                 ('blur_amount', models.IntegerField(default=60)),
-                ('type', models.TextField(default='blur')),
                 ('blur_annotation', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='positions', to='core.blurannotation')),
             ],
         ),

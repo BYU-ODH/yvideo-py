@@ -1159,7 +1159,6 @@ class BlurAnnotation(BaseAnnotation):
                     "width": position.width,
                     "height": position.height,
                     "blur_amount": position.blur_amount,
-                    "type": position.type,
                 }
             )
         data.update({"positions": positions, "type": "blur"})
@@ -1207,7 +1206,6 @@ class BlurAnnotation(BaseAnnotation):
                 width=position.width,
                 height=position.height,
                 blur_amount=position.blur_amount,
-                type=position.type,
             )
         new_annotation.save()
         return new_annotation
@@ -1224,7 +1222,6 @@ class BlurAnnotation(BaseAnnotation):
                 width=position.get("width"),
                 height=position.get("height"),
                 blur_amount=position.get("blur_amount", 60),
-                type=position.get("type", "blur"),
             )
         return obj
 
@@ -1243,7 +1240,6 @@ class BlurAnnotationPosition(models.Model):
     width = models.FloatField(null=False, blank=False)
     height = models.FloatField(null=False, blank=False)
     blur_amount = models.IntegerField(null=False, blank=False, default=60)
-    type = models.TextField(null=False, blank=False, default="blur")  # TODO remove?
 
     @classmethod
     def validate(cls, data_dict):

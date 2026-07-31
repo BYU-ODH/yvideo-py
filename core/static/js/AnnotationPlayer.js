@@ -773,19 +773,14 @@ export class AnnotationPlayer {
               blur.dataset["blurPositionParentId"] = a.id;
               blur.dataset["blurPositionId"] = firstPosition.id;
               blur.id = "blur" + i;
-              blur.className = "blur-position " + firstPosition["type"];
+              blur.className = "blur-position blur";
               blur.style.position = "absolute";
               blur.style.width =  firstPosition["width"] + "%";
               blur.style.height = firstPosition["height"] + "%";
               blur.style.left = firstPosition["x"] + "%";
               blur.style.top = firstPosition["y"] + "%";
-              const type = firstPosition["type"];
-              if (type === "black" || type === "red") {
-                blur.style.backgroundColor = type;
-              } else if (type === "blur") {
-                blur.style.backdropFilter =
-                  "blur(" + firstPosition["blur_amount"] + ")";
-              }
+              blur.style.backdropFilter =
+                "blur(" + firstPosition["blur_amount"] + ")";
               this.annotationBox.appendChild(blur);
             } else {
               const blur = this.annotationBox.querySelector(
