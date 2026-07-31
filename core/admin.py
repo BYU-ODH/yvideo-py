@@ -887,6 +887,7 @@ class ContentAdmin(VersionAdmin):
         "allow_definitions",
         "allow_notes",
         "allow_captions",
+        "allow_fast_playback",
         "created_at",
     )
     readonly_fields = ("views",)
