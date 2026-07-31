@@ -783,7 +783,6 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
             with transaction.atomic():
                 resource = form.cleaned_data["selected_resource"]
                 if resource is None:
-                    resource_not_in_imdb = form.cleaned_data["new_resource_not_in_imdb"]
                     resource = Resource.objects.create(
                         name=obj.resource_title,
                         media_type=Resource.MediaType.VIDEO,
@@ -800,8 +799,6 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                             obj.checked_out_from_other_byu_library
                         ),
                     )
-                    if resource_not_in_imdb:
-                        resource.generate_internal_imdb_id()
 
                 resource_file = form.cleaned_data["selected_resource_file"]
                 if resource_file is None:

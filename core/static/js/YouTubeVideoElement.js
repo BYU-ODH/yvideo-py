@@ -79,9 +79,31 @@ export class YouTubeVideoElement extends HTMLElement {
     });
   }
 
+  disconnectedCallback() {
+    // Reparenting (see connectedCallback above) also triggers a
+    // disconnect/reconnect pair synchronously within the same call, so by
+    // the time this microtask runs, `isConnected` is back to `true` if this
+    // was just a move. Only tear down on a genuine removal from the document.
+    queueMicrotask(() => {
+      if (this.isConnected) return;
+      this._stopPolling();
+      this._player?.destroy();
+      this._player = null;
+      this._ready = false;
+      this._pending = [];
+      this._initialized = false;
+    });
+  }
+
   _onReady() {
     this._ready = true;
     this._state.duration = this._player.getDuration();
+    // The IFrame Player API has no getter for the underlying video's
+    // intrinsic resolution, so this reports the element's own rendered box
+    // (forced to 16:9 by AnnotationPlayer.css) rather than the true video
+    // dimensions. Fine for standard 16:9 videos; non-16:9 videos (e.g.
+    // Shorts) won't get the same aspect-correct wrapper fit that file-backed
+    // <video> content gets from its real videoWidth/videoHeight.
     const rect = this.getBoundingClientRect();
     this._state.videoWidth = rect.width || DEFAULT_WIDTH;
     this._state.videoHeight = rect.height || DEFAULT_HEIGHT;
@@ -119,14 +141,21 @@ export class YouTubeVideoElement extends HTMLElement {
   _onError() {
     this._stopPolling();
     const videoId = this.dataset.videoId;
-    this.innerHTML = `
-      <div class="youtube-video-error">
-        <p>This video can't be played here.</p>
-        <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener">
-          Watch on YouTube
-        </a>
-      </div>
-    `;
+
+    const container = document.createElement("div");
+    container.className = "youtube-video-error";
+
+    const message = document.createElement("p");
+    message.textContent = "This video can't be played here.";
+
+    const link = document.createElement("a");
+    link.href = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "Watch on YouTube";
+
+    container.append(message, link);
+    this.replaceChildren(container);
   }
 
   _startPolling() {
