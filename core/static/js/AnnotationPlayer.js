@@ -58,7 +58,11 @@ export class AnnotationPlayer {
     this._createControls();
     this.videoElem.controls = false;
 
+    this.allowFastPlayback = options.allowFastPlayback !== false;
     this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+    if (!this.allowFastPlayback) {
+      this.playbackRates = this.playbackRates.filter(rate => rate <= 1.0);
+    }
     this.state = {
       playing: false,
       started: false,
@@ -1206,6 +1210,9 @@ export class AnnotationPlayer {
   }
 
   setPlaybackRate(rate) {
+    if (!this.allowFastPlayback && rate > 1.0) {
+      rate = 1.0;
+    }
     this.state.playbackRate = rate;
     this.videoElem.playbackRate = rate;
 

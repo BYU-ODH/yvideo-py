@@ -118,6 +118,7 @@ def get_player_data(request, content_id):
             "annotations": player_json["annotations"],
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
+            "allowFastPlayback": content.allow_fast_playback,
         }
 
         return JsonResponse(data)
@@ -863,6 +864,7 @@ def update_content(request):
         content.allow_definitions = data["allow_definitions"]
         content.allow_notes = data["allow_notes"]
         content.allow_captions = data["allow_captions"]
+        content.allow_fast_playback = data["allow_fast_playback"]
         content.published = data["published"]
 
         content.save()

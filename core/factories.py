@@ -194,6 +194,7 @@ class ContentFactory(factory.django.DjangoModelFactory):
     allow_definitions = True
     allow_notes = True
     allow_captions = True
+    allow_fast_playback = True
     published = False
 
     @factory.post_generation

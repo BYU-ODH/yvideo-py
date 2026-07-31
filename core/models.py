@@ -696,6 +696,7 @@ class Content(models.Model):
     allow_definitions = models.BooleanField(default=True)
     allow_notes = models.BooleanField(default=True)
     allow_captions = models.BooleanField(default=True)
+    allow_fast_playback = models.BooleanField(default=True)
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     words = models.TextField(blank=True)
