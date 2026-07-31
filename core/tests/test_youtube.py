@@ -20,7 +20,7 @@ class ParseYoutubeVideoIdTests(TestCase):
             "eHEsJyVQn3w",
         )
 
-    def test_short_url_with_share_tracking_param(self):
+    def test_youtu_be_url_with_share_tracking_param(self):
         self.assertEqual(
             parse_youtube_video_id("https://youtu.be/3W8pr0tiijs?si=abc123"),
             "3W8pr0tiijs",
@@ -47,7 +47,7 @@ class ParseYoutubeVideoIdTests(TestCase):
     def test_unrecognized_url_returns_none(self):
         self.assertIsNone(parse_youtube_video_id("https://vimeo.com/12345"))
 
-    def test_non_youtube_watch_path_returns_none(self):
+    def test_unrecognized_path_on_youtube_domain_returns_none(self):
         self.assertIsNone(parse_youtube_video_id("https://www.youtube.com/"))
 
     def test_empty_or_missing_url_returns_none(self):
@@ -56,7 +56,7 @@ class ParseYoutubeVideoIdTests(TestCase):
 
 
 class GetOrCreateYoutubeResourceTests(TestCase):
-    def test_creates_resource_with_expected_shape(self):
+    def test_creates_resource_with_correct_fields(self):
         resource = get_or_create_youtube_resource("abcdefghijk", "123456789")
 
         self.assertEqual(resource.name, "YouTube: abcdefghijk")
@@ -152,7 +152,7 @@ class CreateContentFromUrlViewTests(TestCase):
 @modify_settings(
     MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
 )
-class PlayerContextThreadingTests(TestCase):
+class PlayerViewYoutubeRenderingTests(TestCase):
     def setUp(self):
         self.owner = UserFactory(instructor=True)
 
