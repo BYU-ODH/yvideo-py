@@ -4,9 +4,10 @@ import re
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+from .models import YOUTUBE_VIDEO_ID_PATTERN
 from .models import Resource
 
-_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+_ID_RE = re.compile(rf"^{YOUTUBE_VIDEO_ID_PATTERN}$")
 
 
 def parse_youtube_video_id(url):
