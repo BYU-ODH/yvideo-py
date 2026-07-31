@@ -78,7 +78,7 @@
 }
 
 #editor-annotation-panel {
-    width: 200px;
+    width: 214px;
 }
 
 .editor-annotation-panel-visible {
@@ -108,8 +108,24 @@
     cursor: pointer;
 }
 
+/* row-flex only sets align-content, which does nothing on a single-line flex
+   row -- align-items is what actually centers the arrow/icon/text here. */
+.annotation-type-header-left {
+    align-items: center;
+}
+
+/* This is a fixed, small set of built-in labels (Skip, Mute, Blank, Pause,
+   Blur, Comment, Clip) -- unlike arbitrary user content, it must always be
+   fully legible, so it's exempt from shrinking (#editor-annotation-panel is
+   sized with this in mind) rather than ellipsizing under pressure. */
+.annotation-type-header-text {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .annotation-type-header-arrow {
     width: 12px;
+    flex-shrink: 0;
     rotate: -90deg;
 }
 
@@ -122,6 +138,7 @@
     height: 28px;
     padding: 8px;
     border-radius: 20px;
+    flex-shrink: 0;
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -152,26 +169,17 @@
     background-color: white;
 }
 
-.annotation-type-header-right-group {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    column-gap: 6px;
-}
-
-/* Compact "+" button that lives directly on the header so a new annotation
-   can be added without expanding the (collapsed-by-default) type list. */
+/* Flat "+" that lives directly on the header so a new annotation can be
+   added without expanding the (collapsed-by-default) type list. */
 .annotation-type-header-add-button {
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    font-size: 16px;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 1.4rem;
+    font-weight: 400;
     line-height: 1;
-    background-color: var(--dark-mode-very-dark-gray);
+    flex-shrink: 0;
 }
 
 #skip-type-header-right {
@@ -209,12 +217,20 @@
     color: white;
 }
 
+.panel-item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
 .panel-item-delete {
     display: flex;
     flex-direction: column;
     justify-content: center;
     border-radius: 25%;
     padding: 3px;
+    flex-shrink: 0;
     background-color: #00000000; /* full transparent */
     border: none;
 }
