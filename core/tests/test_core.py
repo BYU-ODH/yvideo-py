@@ -7,10 +7,12 @@ import unittest
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
 
 from .. import api
 from ..factories import AnnotationSetFactory
 from ..factories import BlankAnnotationFactory
+from ..factories import ClipFactory
 from ..factories import CommentAnnotationFactory
 from ..factories import ContentFactory
 from ..factories import CourseFactory
@@ -25,6 +27,7 @@ from ..models import AnnotationSet
 from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
 from ..models import PauseAnnotation
+from ..models import ResourceFileKey
 from ..models import SkipAnnotation
 from ..models import validate_font_color
 from ..utils import VTTCue
@@ -935,9 +938,6 @@ class ContentClipsOnlyViewTests(TestCase):
     """Tests for the clips_only field in the get_player_data and update_content views."""
 
     def setUp(self):
-        from ..factories import ClipFactory, AnnotationSetFactory, TrackFactory, UserFactory
-        from ..models import ResourceFileKey
-
         self.user = UserFactory(instructor=True)
         self.client.force_login(self.user)
         self.playlist = PlaylistFactory(owner=self.user)
@@ -964,9 +964,9 @@ class ContentClipsOnlyViewTests(TestCase):
             resource=self.resource_file.resource,
             owner=self.user,
         )
-        self.track = TrackFactory(annotation_set=self.annotation_set)
-        self.clip = ClipFactory(
-            track=self.track,
+        track = TrackFactory(annotation_set=self.annotation_set)
+        ClipFactory(
+            track=track,
             start_time=10.0,
             end_time=30.0,
         )
@@ -974,14 +974,7 @@ class ContentClipsOnlyViewTests(TestCase):
         self.content_clips_only.save()
 
     def _get_player_data(self, content):
-        import json
-        from django.test import Client
-        from django.urls import reverse
-        response = self.client.post(
-            f"/player-data/{content.pk}/",
-            HTTP_X_CSRFTOKEN="test",
-        )
-        return response
+        return self.client.post(reverse("get_player_data", args=[content.pk]))
 
     def test_player_data_returns_clips_only_true(self):
         response = self._get_player_data(self.content_clips_only)
@@ -1007,24 +1000,22 @@ class ContentClipsOnlyViewTests(TestCase):
         self.assertAlmostEqual(clip["end"], 30.0)
 
     def test_update_content_sets_clips_only(self):
-        import json
-        from django.test import RequestFactory
-        from django.urls import reverse
-
         response = self.client.post(
-            "/content/update/",
-            data=json.dumps({
-                "id": self.content_no_clips_only.pk,
-                "title": self.content_no_clips_only.title,
-                "description": "",
-                "words": "",
-                "allow_definitions": True,
-                "allow_notes": True,
-                "allow_captions": True,
-                "allow_fast_playback": True,
-                "clips_only": True,
-                "published": False,
-            }),
+            reverse("update_content"),
+            data=json.dumps(
+                {
+                    "id": self.content_no_clips_only.pk,
+                    "title": self.content_no_clips_only.title,
+                    "description": "",
+                    "words": "",
+                    "allow_definitions": True,
+                    "allow_notes": True,
+                    "allow_captions": True,
+                    "allow_fast_playback": True,
+                    "clips_only": True,
+                    "published": False,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)
@@ -1032,22 +1023,22 @@ class ContentClipsOnlyViewTests(TestCase):
         self.assertTrue(self.content_no_clips_only.clips_only)
 
     def test_update_content_clears_clips_only(self):
-        import json
-
         response = self.client.post(
-            "/content/update/",
-            data=json.dumps({
-                "id": self.content_clips_only.pk,
-                "title": self.content_clips_only.title,
-                "description": "",
-                "words": "",
-                "allow_definitions": True,
-                "allow_notes": True,
-                "allow_captions": True,
-                "allow_fast_playback": True,
-                "clips_only": False,
-                "published": False,
-            }),
+            reverse("update_content"),
+            data=json.dumps(
+                {
+                    "id": self.content_clips_only.pk,
+                    "title": self.content_clips_only.title,
+                    "description": "",
+                    "words": "",
+                    "allow_definitions": True,
+                    "allow_notes": True,
+                    "allow_captions": True,
+                    "allow_fast_playback": True,
+                    "clips_only": False,
+                    "published": False,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200)

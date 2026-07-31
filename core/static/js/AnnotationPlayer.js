@@ -1086,10 +1086,7 @@ export class AnnotationPlayer {
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     let newTime = percent * (this.videoElem.duration || 0);
 
-    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
-    if (clipOnlyBoundary !== null) {
-      newTime = clipOnlyBoundary;
-    }
+    newTime = this._resolveClipOnlyRedirect(newTime);
 
     this.skipTo(newTime);
   }
@@ -1105,10 +1102,7 @@ export class AnnotationPlayer {
       newTime = skipBoundary;
     }
 
-    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
-    if (clipOnlyBoundary !== null) {
-      newTime = clipOnlyBoundary;
-    }
+    newTime = this._resolveClipOnlyRedirect(newTime);
 
     const adjustedPercent = newTime / (this.videoElem.duration || 1);
     this.updateScrubber(adjustedPercent);
@@ -1167,6 +1161,14 @@ export class AnnotationPlayer {
     const sorted = [...this.clips].sort((a, b) => parseFloat(a.start) - parseFloat(b.start));
     const next = sorted.find(clip => parseFloat(clip.start) > time);
     return parseFloat((next || sorted[0]).start);
+  }
+
+  // Convenience wrapper around _getClipOnlyBoundary for callers that just
+  // want the redirected time (falling back to `time` itself when no
+  // redirect is needed), rather than having to null-check the boundary.
+  _resolveClipOnlyRedirect(time) {
+    const boundary = this._getClipOnlyBoundary(time);
+    return boundary !== null ? boundary : time;
   }
 
   beginScrubberDrag(e) {
