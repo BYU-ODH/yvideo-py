@@ -1,8 +1,10 @@
 from pathlib import Path
 
+from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
 import factory
 
+from .models import LAB_ASSISTANT_GROUP_NAME
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import Clip
@@ -51,6 +53,13 @@ class UserFactory(factory.django.DjangoModelFactory):
         )
         instructor = factory.Trait(privilege_level=PrivilegeLevel.INSTRUCTOR)
         student = factory.Trait(privilege_level=PrivilegeLevel.STUDENT)
+
+    @factory.post_generation
+    def lab_assistant(self, create, extracted, **kwargs):
+        if not create or not extracted:
+            return
+        group, _ = Group.objects.get_or_create(name=LAB_ASSISTANT_GROUP_NAME)
+        self.groups.add(group)
 
 
 class LanguageFactory(factory.django.DjangoModelFactory):

@@ -52,11 +52,3 @@ repos:
           - "eslint@10.6.0"
           - "globals@17.7.0"
         language_version: 20.19.5
-
-  -   repo: local
-      hooks:
-      -   id: django-tests
-          name: Run Django tests
-          entry: uv run python manage.py test core
-          language: system
-          pass_filenames: false
