@@ -86,6 +86,15 @@ class Resource(models.Model):
     checked_out_from_other_byu_library = models.BooleanField(
         default=False, verbose_name="Checked out from other BYU Library"
     )
+    byu_call_number = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="BYU call number",
+        help_text=(
+            "BYU library call number. Required when checked out from HBLL or "
+            "another BYU library."
+        ),
+    )
 
     def __str__(self):
         return f"{self.name}"
@@ -1513,6 +1522,7 @@ class ResourceIntakeRequest(models.Model):
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)
     checked_out_from_other_byu_library = models.BooleanField(default=False)
+    byu_call_number = models.CharField(max_length=255, blank=True, default="")
 
     # Content advisory fields
     violence_or_blood_and_gore = models.BooleanField(default=False)

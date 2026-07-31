@@ -715,6 +715,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                         "checked_out_from_hbll",
                         "checked_out_from_other_byu_library",
                     ),
+                    "byu_call_number",
                     (
                         "violence_or_blood_and_gore",
                         "nudity_or_sexual_content",
@@ -799,6 +800,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                         checked_out_from_other_byu_library=(
                             obj.checked_out_from_other_byu_library
                         ),
+                        byu_call_number=obj.byu_call_number,
                     )
                     if resource_not_in_imdb:
                         resource.generate_internal_imdb_id()
