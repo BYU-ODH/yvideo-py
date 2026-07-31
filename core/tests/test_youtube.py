@@ -62,7 +62,7 @@ class GetOrCreateYoutubeResourceTests(TestCase):
         self.assertEqual(resource.name, "YouTube: abcdefghijk")
         self.assertEqual(resource.media_type, Resource.MediaType.WEB)
         self.assertEqual(resource.requester_username, "123456789")
-        self.assertRegex(resource.imdb_id, r"^YT\d{10}$")
+        self.assertEqual(resource.imdb_id, "YTabcdefghijk")
 
     def test_same_video_id_dedupes_to_one_resource(self):
         first = get_or_create_youtube_resource("abcdefghijk", "123456789")

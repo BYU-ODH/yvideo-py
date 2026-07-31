@@ -145,9 +145,7 @@ def player(request, content_id):
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "content_source_url": content_source_url,
-        "youtube_video_id": parse_youtube_video_id(content_source_url)
-        if content_source_url
-        else None,
+        "youtube_video_id": parse_youtube_video_id(content_source_url),
         "allow_events": True,
     }
 
@@ -771,6 +769,9 @@ def create_content_from_url(request):
             resource=resource,
         )
         return HttpResponse()
+    except Playlist.DoesNotExist:
+        logger.error("Failed to create new content due to missing Playlist")
+        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(
             f"An error occured while creating new YouTube content. Exception: {e}"

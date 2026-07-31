@@ -15,5 +15,7 @@
     {% endif %}
 </div>
 
-<script type="module" src="{% static 'js/YouTubeVideoElement.js' %}"></script>
+{% if youtube_video_id %}
+    <script type="module" src="{% static 'js/YouTubeVideoElement.js' %}"></script>
+{% endif %}
 <script type="module" src="{% static 'js/player-wrapper.js' %}"></script>
