@@ -57,7 +57,8 @@ function attachAnnotationPlayer() {
             disabledControls: [],
             tracks: tracks,
             clips: clips,
-            subtitleSidebar: enableSubtitleSidebar
+            subtitleSidebar: enableSubtitleSidebar,
+            allowFastPlayback: playerData.allowFastPlayback !== false
         });
 
         if (playerData) {
