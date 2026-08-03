@@ -1168,6 +1168,7 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
             "allow_notes": self.content.allow_notes,
             "allow_captions": self.content.allow_captions,
             "allow_fast_playback": self.content.allow_fast_playback,
+            "clips_only": self.content.clips_only,
             "published": self.content.published,
         }
         payload.update(field_overrides)
