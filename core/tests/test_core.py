@@ -21,12 +21,14 @@ from ..factories import MuteAnnotationFactory
 from ..factories import PlaylistFactory
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
+from ..factories import SubtitleFactory
 from ..factories import TrackFactory
 from ..factories import UserCourseFactory
 from ..factories import UserFactory
 from ..models import AnnotationSet
 from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
+from ..models import Content
 from ..models import PauseAnnotation
 from ..models import ResourceFileKey
 from ..models import SkipAnnotation
@@ -1083,3 +1085,130 @@ class ContentHasClipsWarningTests(TestCase):
             clips_only=False,
         )
         self.assertFalse(self._clips_only_warning_is_visible(content))
+
+
+class DefaultSubtitleTrackTests(TestCase):
+    """Tests for the instructor-chosen default subtitle track on Content."""
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.resource = ResourceFactory()
+        self.resource_file = ResourceFileFactory(resource=self.resource)
+        self.playlist = PlaylistFactory(owner=self.owner)
+        self.content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+        self.subtitle_en = SubtitleFactory(resource=self.resource, owner=self.owner)
+        self.subtitle_es = SubtitleFactory(resource=self.resource, owner=self.owner)
+
+    def test_default_subtitle_track_is_null_by_default(self):
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertIsNone(content.default_subtitle_track)
+
+    def test_get_subtitles_default_flag_false_when_no_default_set(self):
+        subtitles = self.content.get_subtitles()
+        self.assertEqual(len(subtitles), 2)
+        for sub in subtitles:
+            self.assertFalse(sub["default"])
+
+    def test_get_subtitles_marks_exactly_one_default(self):
+        self.content.default_subtitle_track = self.subtitle_en
+        self.content.save()
+        subtitles = self.content.get_subtitles()
+        defaults = [s for s in subtitles if s["default"]]
+        non_defaults = [s for s in subtitles if not s["default"]]
+        self.assertEqual(len(defaults), 1)
+        self.assertEqual(len(non_defaults), 1)
+        self.assertEqual(defaults[0]["id"], self.subtitle_en.pk)
+
+    def test_get_subtitles_default_flag_in_player_json(self):
+        self.content.default_subtitle_track = self.subtitle_es
+        self.content.save()
+        player_json = self.content.get_player_json()
+        subtitle_tracks = player_json["subtitleTracks"]
+        defaults = [s for s in subtitle_tracks if s["default"]]
+        self.assertEqual(len(defaults), 1)
+        self.assertEqual(defaults[0]["id"], self.subtitle_es.pk)
+
+    def test_set_null_clears_default(self):
+        self.content.default_subtitle_track = self.subtitle_en
+        self.content.save()
+        self.content.default_subtitle_track = None
+        self.content.save()
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertIsNone(content.default_subtitle_track)
+        subtitles = content.get_subtitles()
+        for sub in subtitles:
+            self.assertFalse(sub["default"])
+
+
+class UpdateContentDefaultSubtitleTrackTests(TestCase):
+    """Tests for setting the default subtitle track through the update_content view."""
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.resource = ResourceFactory()
+        self.resource_file = ResourceFileFactory(resource=self.resource)
+        self.playlist = PlaylistFactory(owner=self.owner)
+        self.content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+        self.subtitle = SubtitleFactory(resource=self.resource, owner=self.owner)
+        self.client.force_login(self.owner)
+
+    def _post_update_content(self, **field_overrides):
+        payload = {
+            "id": self.content.pk,
+            "title": self.content.title,
+            "description": self.content.description,
+            "words": self.content.words,
+            "allow_definitions": self.content.allow_definitions,
+            "allow_notes": self.content.allow_notes,
+            "allow_captions": self.content.allow_captions,
+            "allow_fast_playback": self.content.allow_fast_playback,
+            "published": self.content.published,
+        }
+        payload.update(field_overrides)
+        return self.client.post(
+            reverse("update_content"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_setting_default_subtitle_track_id_saves_it_on_content(self):
+        response = self._post_update_content(default_subtitle_track_id=self.subtitle.pk)
+        self.assertEqual(response.status_code, 200)
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertEqual(content.default_subtitle_track_id, self.subtitle.pk)
+
+    def test_omitting_default_subtitle_track_id_leaves_default_unset(self):
+        response = self._post_update_content()
+        self.assertEqual(response.status_code, 200)
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertIsNone(content.default_subtitle_track_id)
+
+    def test_sending_empty_default_subtitle_track_id_clears_existing_default(self):
+        self.content.default_subtitle_track = self.subtitle
+        self.content.save()
+
+        response = self._post_update_content(default_subtitle_track_id="")
+
+        self.assertEqual(response.status_code, 200)
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertIsNone(content.default_subtitle_track_id)
+
+    def test_subtitle_from_a_different_resource_is_not_saved_as_default(self):
+        other_resource = ResourceFactory()
+        subtitle_from_other_resource = SubtitleFactory(
+            resource=other_resource, owner=self.owner
+        )
+
+        response = self._post_update_content(
+            default_subtitle_track_id=subtitle_from_other_resource.pk
+        )
+
+        self.assertEqual(response.status_code, 200)
+        content = Content.objects.get(pk=self.content.pk)
+        self.assertIsNone(content.default_subtitle_track_id)

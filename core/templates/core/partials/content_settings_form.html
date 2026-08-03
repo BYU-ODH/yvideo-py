@@ -37,6 +37,19 @@
             <div id="clips-only-warning" class="clips-only-warning"{% if not content.clips_only or content_has_clips %} hidden{% endif %}>
                 Warning! This video has no clips defined! Turning this setting on blocks the player from showing any part of the video.
             </div>
+            {% if subtitle_options %}
+            <div class="content-form-group">
+                <label for="default-subtitle-track">Default subtitle track</label>
+                <select id="default-subtitle-track">
+                    <option value="">None</option>
+                    {% for option in subtitle_options %}
+                    <option value="{{ option.id }}" {% if content.default_subtitle_track_id == option.id %}selected{% endif %}>
+                        {{ option.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="content-form-group column-flex">
                 <label for="words">
                     Important words

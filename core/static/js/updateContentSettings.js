@@ -13,6 +13,7 @@ function setupSubmit() {
     const clipsOnlyInput = document.getElementById("clips-only");
     const wordsInput = document.getElementById("words");
     const descriptionInput = document.getElementById("description");
+    const defaultSubtitleTrackInput = document.getElementById("default-subtitle-track");
     const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, clipsOnlyInput, wordsInput, descriptionInput].some(el => el === undefined);
     if (isUndefined) {
       console.log("at least one content settings form input is undefined.");
@@ -35,6 +36,7 @@ function setupSubmit() {
         "clips_only": clipsOnlyInput.checked,
         "words": wordsInput.value,
         "description": descriptionInput.value,
+        "default_subtitle_track_id": defaultSubtitleTrackInput ? defaultSubtitleTrackInput.value : "",
       })
     });
     window.location.reload();
