@@ -62,9 +62,28 @@ function setupReset() {
   });
 }
 
+function setupClipsOnlyWarning() {
+  const clipsOnlyInput = document.getElementById("clips-only");
+  const formGroup = document.getElementById("clips-only-form-group");
+  const warning = document.getElementById("clips-only-warning");
+  if (!clipsOnlyInput || !formGroup || !warning) return;
+
+  const hasClips = clipsOnlyInput.dataset.contentHasClips === "true";
+
+  const updateWarning = () => {
+    const shouldWarn = clipsOnlyInput.checked && !hasClips;
+    formGroup.classList.toggle("clips-only-invalid", shouldWarn);
+    warning.hidden = !shouldWarn;
+  };
+
+  clipsOnlyInput.addEventListener("change", updateWarning);
+  updateWarning();
+}
+
 function initialize() {
   setupReset();
   setupSubmit();
+  setupClipsOnlyWarning();
 }
 
 initialize();

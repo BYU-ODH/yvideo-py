@@ -29,10 +29,13 @@
                     <label for="allow-fast-playback">Allow fast playback</label>
                     <input id="allow-fast-playback" type="checkbox" {% if content.allow_fast_playback %}checked{% endif %}>
                 </div>
-                <div class="content-form-group">
+                <div id="clips-only-form-group" class="content-form-group{% if content.clips_only and not content_has_clips %} clips-only-invalid{% endif %}">
                     <label for="clips-only">Show only clips defined in the editor (better Fair Use protection)</label>
-                    <input id="clips-only" type="checkbox" {% if content.clips_only %}checked{% endif %}>
+                    <input id="clips-only" type="checkbox" {% if content.clips_only %}checked{% endif %} data-content-has-clips="{{ content_has_clips|yesno:'true,false' }}">
                 </div>
+            </div>
+            <div id="clips-only-warning" class="clips-only-warning"{% if not content.clips_only or content_has_clips %} hidden{% endif %}>
+                Warning! This video has no clips defined! Turning this setting on blocks the player from showing any part of the video.
             </div>
             <div class="content-form-group column-flex">
                 <label for="words">

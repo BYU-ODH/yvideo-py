@@ -7,6 +7,7 @@ import unittest
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 
 from .. import api
@@ -902,38 +903,6 @@ class AnnotationSetCreateForContentTests(TestCase):
         )
 
 
-class ContentClipsOnlyModelTests(TestCase):
-    """Tests for the clips_only boolean field on the Content model."""
-
-    def setUp(self):
-        self.playlist = PlaylistFactory()
-        self.resource_file = ResourceFileFactory()
-
-    def test_clips_only_defaults_to_false(self):
-        content = ContentFactory(
-            playlist=self.playlist,
-            resource_file=self.resource_file,
-        )
-        self.assertFalse(content.clips_only)
-
-    def test_clips_only_can_be_set_true(self):
-        content = ContentFactory(
-            playlist=self.playlist,
-            resource_file=self.resource_file,
-            clips_only=True,
-        )
-        self.assertTrue(content.clips_only)
-
-    def test_clips_only_persists_to_database(self):
-        content = ContentFactory(
-            playlist=self.playlist,
-            resource_file=self.resource_file,
-            clips_only=True,
-        )
-        refreshed = content.__class__.objects.get(pk=content.pk)
-        self.assertTrue(refreshed.clips_only)
-
-
 class ContentClipsOnlyViewTests(TestCase):
     """Tests for the clips_only field in the get_player_data and update_content views."""
 
@@ -976,17 +945,32 @@ class ContentClipsOnlyViewTests(TestCase):
     def _get_player_data(self, content):
         return self.client.post(reverse("get_player_data", args=[content.pk]))
 
-    def test_player_data_returns_clips_only_true(self):
-        response = self._get_player_data(self.content_clips_only)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["clipsOnly"])
+    def _update_content(self, content, clips_only):
+        return self.client.post(
+            reverse("update_content"),
+            data=json.dumps(
+                {
+                    "id": content.pk,
+                    "title": content.title,
+                    "description": "",
+                    "words": "",
+                    "allow_definitions": True,
+                    "allow_notes": True,
+                    "allow_captions": True,
+                    "allow_fast_playback": True,
+                    "clips_only": clips_only,
+                    "published": False,
+                }
+            ),
+            content_type="application/json",
+        )
 
-    def test_player_data_returns_clips_only_false(self):
-        response = self._get_player_data(self.content_no_clips_only)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertFalse(data["clipsOnly"])
+    def test_player_data_reflects_the_content_clips_only_flag(self):
+        clips_only_response = self._get_player_data(self.content_clips_only)
+        no_clips_only_response = self._get_player_data(self.content_no_clips_only)
+
+        self.assertTrue(clips_only_response.json()["clipsOnly"])
+        self.assertFalse(no_clips_only_response.json()["clipsOnly"])
 
     def test_player_data_returns_clips_list(self):
         response = self._get_player_data(self.content_clips_only)
@@ -1006,48 +990,96 @@ class ContentClipsOnlyViewTests(TestCase):
         annotation_class_types = [a["class_type"] for a in data["annotations"]]
         self.assertNotIn("Clip", annotation_class_types)
 
-    def test_update_content_sets_clips_only(self):
-        response = self.client.post(
-            reverse("update_content"),
-            data=json.dumps(
-                {
-                    "id": self.content_no_clips_only.pk,
-                    "title": self.content_no_clips_only.title,
-                    "description": "",
-                    "words": "",
-                    "allow_definitions": True,
-                    "allow_notes": True,
-                    "allow_captions": True,
-                    "allow_fast_playback": True,
-                    "clips_only": True,
-                    "published": False,
-                }
-            ),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.content_no_clips_only.refresh_from_db()
-        self.assertTrue(self.content_no_clips_only.clips_only)
+    def test_update_content_toggles_clips_only(self):
+        set_response = self._update_content(self.content_no_clips_only, clips_only=True)
+        clear_response = self._update_content(self.content_clips_only, clips_only=False)
 
-    def test_update_content_clears_clips_only(self):
-        response = self.client.post(
-            reverse("update_content"),
-            data=json.dumps(
-                {
-                    "id": self.content_clips_only.pk,
-                    "title": self.content_clips_only.title,
-                    "description": "",
-                    "words": "",
-                    "allow_definitions": True,
-                    "allow_notes": True,
-                    "allow_captions": True,
-                    "allow_fast_playback": True,
-                    "clips_only": False,
-                    "published": False,
-                }
-            ),
-            content_type="application/json",
+        self.assertEqual(set_response.status_code, 200)
+        self.assertEqual(clear_response.status_code, 200)
+        self.content_no_clips_only.refresh_from_db()
+        self.content_clips_only.refresh_from_db()
+        self.assertTrue(self.content_no_clips_only.clips_only)
+        self.assertFalse(self.content_clips_only.clips_only)
+
+
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+)
+class ContentHasClipsWarningTests(TestCase):
+    """Tests for Content.has_clips() and the settings-form no-clips warning."""
+
+    def setUp(self):
+        self.user = UserFactory(instructor=True)
+        # Rendering the settings form is a GET request, which
+        # mozilla_django_oidc's SessionRefresh middleware intercepts unless the
+        # session's auth backend is explicitly non-OIDC (see test_legacy_migration.py
+        # for the same pattern).
+        self.client.force_login(
+            self.user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+        self.playlist = PlaylistFactory(owner=self.user)
+        self.resource_file = ResourceFileFactory()
+        self.annotation_set = AnnotationSetFactory(
+            resource=self.resource_file.resource,
+            owner=self.user,
+        )
+        track = TrackFactory(annotation_set=self.annotation_set)
+        ClipFactory(track=track, start_time=5.0, end_time=15.0)
+
+    def test_has_clips_is_true_when_an_active_clip_exists(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            annotation_set=self.annotation_set,
+        )
+        self.assertTrue(content.has_clips())
+
+    def test_has_clips_is_false_without_an_annotation_set(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+        self.assertFalse(content.has_clips())
+
+    def _clips_only_warning_is_visible(self, content):
+        # The warning <div> is always rendered (so updateContentSettings.js can
+        # toggle it live as the checkbox changes) - whether it's shown or not
+        # comes down to the "hidden" attribute on that element, not whether its
+        # text appears in the response at all.
+        response = self.client.get(
+            reverse("render_content_settings_form", args=[content.pk])
         )
         self.assertEqual(response.status_code, 200)
-        self.content_clips_only.refresh_from_db()
-        self.assertFalse(self.content_clips_only.clips_only)
+        self.assertIn(b'id="clips-only-warning"', response.content)
+        hidden_tag = b'<div id="clips-only-warning" class="clips-only-warning" hidden>'
+        return hidden_tag not in response.content
+
+    def test_settings_form_warns_when_clips_only_is_on_with_no_clips(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=True,
+        )
+        self.assertTrue(self._clips_only_warning_is_visible(content))
+
+    def test_settings_form_does_not_warn_when_clips_exist(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            annotation_set=self.annotation_set,
+            clips_only=True,
+        )
+        self.assertFalse(self._clips_only_warning_is_visible(content))
+
+    def test_settings_form_does_not_warn_when_clips_only_is_off(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=False,
+        )
+        self.assertFalse(self._clips_only_warning_is_visible(content))

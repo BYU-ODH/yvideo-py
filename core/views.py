@@ -812,6 +812,7 @@ def display_content_info(request, content_id):
             "content": content,
             "content_id": content.pk,
             "resource_file_key_id": resource_file_key.pk,
+            "content_has_clips": content.has_clips(),
         }
         return render(request, "core/content_info.html", context)
     except Content.DoesNotExist:
@@ -827,7 +828,7 @@ def display_content_info(request, content_id):
 def render_content_settings_form(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
-        context = {"content": content}
+        context = {"content": content, "content_has_clips": content.has_clips()}
         return render(request, "core/partials/content_settings_form.html", context)
     except Content.DoesNotExist:
         logger.error(

@@ -133,6 +133,20 @@ a.blue-button {
     border: 2px solid var(--red) !important;
 }
 
+.content-form-group.clips-only-invalid label {
+    color: var(--red);
+    font-weight: bold;
+}
+
+.clips-only-warning {
+    color: var(--dark-red);
+    background-color: var(--pale-red);
+    border: 1px solid var(--red);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-weight: 500;
+}
+
 .clickable:hover {
     color: var(--deep-blue);
     cursor: pointer;

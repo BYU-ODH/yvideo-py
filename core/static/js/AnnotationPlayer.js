@@ -105,6 +105,8 @@ export class AnnotationPlayer {
     this.setupEventListeners();
   }
 
+  static NO_CLIPS_DEFINED_MESSAGE = "This video's settings have been limited to pre-defined clips, but no clips have been defined by the instructor. The instructor must either remove the setting or add clips in the editor.";
+
   static icons = {
     playPauseBtn: {
       play: `<svg height="100%" version="1.1" viewBox="0 0 36 36" width="100%"><path d="M 12,26 18.5,22 18.5,14 12,10 z M 18.5,22 25,18 25,18 18.5,14 z"></path></svg>`,
@@ -671,8 +673,16 @@ export class AnnotationPlayer {
       }
     }
 
+    if (this.clipsOnly && (!this.clips || this.clips.length === 0)) {
+      // clips_only is on but no clips are defined - there's nothing playable
+      // left to restrict playback to, so block playback entirely instead of
+      // silently falling back to showing the whole video.
+      this.pause(AnnotationPlayer.NO_CLIPS_DEFINED_MESSAGE);
+      return;
+    }
+
     // Enforce clipsOnly mode: pause and redirect if playback leaves all clip ranges
-    if (this.clipsOnly && this.clips && this.clips.length > 0) {
+    if (this.clipsOnly && this.clips.length > 0) {
       const clipOnlyBoundary = this._getClipOnlyBoundary(time);
       if (clipOnlyBoundary !== null) {
         this.pause();
