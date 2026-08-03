@@ -999,6 +999,13 @@ class ContentClipsOnlyViewTests(TestCase):
         self.assertAlmostEqual(clip["start"], 10.0)
         self.assertAlmostEqual(clip["end"], 30.0)
 
+    def test_player_data_does_not_duplicate_clips_in_annotations(self):
+        response = self._get_player_data(self.content_clips_only)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        annotation_class_types = [a["class_type"] for a in data["annotations"]]
+        self.assertNotIn("Clip", annotation_class_types)
+
     def test_update_content_sets_clips_only(self):
         response = self.client.post(
             reverse("update_content"),

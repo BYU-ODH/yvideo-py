@@ -115,9 +115,12 @@ def get_player_data(request, content_id):
         )
 
         clips = [a for a in player_json["annotations"] if a.get("class_type") == "Clip"]
+        annotations = [
+            a for a in player_json["annotations"] if a.get("class_type") != "Clip"
+        ]
 
         data = {
-            "annotations": player_json["annotations"],
+            "annotations": annotations,
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
