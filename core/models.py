@@ -700,6 +700,13 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
+    default_subtitle_track = models.ForeignKey(
+        "Subtitle",
+        on_delete=models.SET_NULL,
+        related_name="default_for_contents",
+        null=True,
+        blank=True,
+    )
     url = models.URLField(max_length=500, blank=True, null=True)
     description = models.TextField(blank=True)
     allow_definitions = models.BooleanField(default=True)
@@ -747,22 +754,32 @@ class Content(models.Model):
         Each dict has the following keys:
             - 'srclang'
             - 'vtt' or 'url'
-            - 'label'
+            - 'name'
+            - 'default' (True only for the instructor-chosen default track)
         """
         resource = self.get_resource()
         if not resource:
             return []
         sub_objs = Subtitle.objects.filter(resource=resource)
+        default_id = self.default_subtitle_track_id
         subtitles = [
             {
                 "id": sub.pk,
                 "srclang": sub.language.lang_tag,
                 "vtt": sub.subtitles_file.read().decode("utf-8"),
                 "name": sub.name,
+                "default": sub.pk == default_id,
             }
             for sub in sub_objs
         ]
         return subtitles
+
+    def get_subtitle_options(self):
+        """Get (id, name) pairs for every subtitle on this content's resource, for use in selection UI."""
+        resource = self.get_resource()
+        if not resource:
+            return []
+        return list(Subtitle.objects.filter(resource=resource).values("id", "name"))
 
     def get_player_json(self):
         """

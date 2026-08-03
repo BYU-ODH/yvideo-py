@@ -12,6 +12,7 @@ function setupSubmit() {
     const allowFastPlaybackInput = document.getElementById("allow-fast-playback");
     const wordsInput = document.getElementById("words");
     const descriptionInput = document.getElementById("description");
+    const defaultSubtitleTrackInput = document.getElementById("default-subtitle-track");
     const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, wordsInput, descriptionInput].some(el => el === undefined);
     if (isUndefined) {
       console.log("at least one content settings form input is undefined.");
@@ -33,6 +34,7 @@ function setupSubmit() {
         "allow_fast_playback": allowFastPlaybackInput.checked,
         "words": wordsInput.value,
         "description": descriptionInput.value,
+        "default_subtitle_track_id": defaultSubtitleTrackInput ? defaultSubtitleTrackInput.value : "",
       })
     });
     window.location.reload();
