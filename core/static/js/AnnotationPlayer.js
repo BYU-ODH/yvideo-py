@@ -149,12 +149,31 @@ export class AnnotationPlayer {
   setVideoWrapperStyling() {
     const containerDim = this.container.getBoundingClientRect();
     const containerAspectRatio = containerDim.width / containerDim.height;
+    const constrainByHeight = containerAspectRatio > this.aspectRatio;
 
-    if (containerAspectRatio > this.aspectRatio) {
+    if (constrainByHeight) {
       this.setVidWrapperToTall();
     }
     else {
       this.setVidWrapperToWide();
+    }
+
+    // Explicitly compute both dimensions in pixels instead of leaning on
+    // CSS's "percentage height of an auto-height parent resolves via the
+    // element's intrinsic aspect ratio" behavior: that resolution is a
+    // special allowance CSS makes only for *replaced* elements (video, img,
+    // iframe...). youtube-video is an ordinary custom element - however it
+    // renders internally - so relying on that trick leaves it silently
+    // collapsed to 0x0 in the non-full-height case. A real <video> happens
+    // to size correctly either way, so computing pixels explicitly here is
+    // safe for it too.
+    if (!this.aspectRatio) return;
+    if (constrainByHeight) {
+      this.videoWrapper.style.height = `${containerDim.height}px`;
+      this.videoWrapper.style.width = `${containerDim.height * this.aspectRatio}px`;
+    } else {
+      this.videoWrapper.style.width = `${containerDim.width}px`;
+      this.videoWrapper.style.height = `${containerDim.width / this.aspectRatio}px`;
     }
   }
 
@@ -1548,6 +1567,11 @@ export class AnnotationPlayer {
 
   setupEventListeners() {
     this.videoElem.addEventListener('loadedmetadata', () => {
+      // Recompute now that real dimensions are known, rather than relying
+      // solely on the container ResizeObserver (which may fire - and compute
+      // a stale/zero aspect ratio - before metadata is available).
+      this.setAspectRatio();
+      this.setVideoWrapperStyling();
       this.renderSkipsOnScrubber();
       this._conditionallyUpdateControlsIconVisibility();
     });

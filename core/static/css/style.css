@@ -1421,6 +1421,7 @@ h4.video-title {
 
 .user-view-modal {
     background: white;
+    color: black;
     border-radius: 12px;
     padding: 0;
     box-shadow: 3px 6px 10px #00000050;
@@ -1463,6 +1464,41 @@ h4.video-title {
     color: #e74c3c;
     font-size: 0.85rem;
     margin-top: 0.25rem;
+}
+
+.add-video-modal-columns {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    column-gap: 2rem;
+}
+
+.add-video-modal-column {
+    flex: 1;
+    min-width: 220px;
+}
+
+.add-video-modal-column-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+}
+
+.add-video-modal-divider {
+    align-self: stretch;
+    width: 1px;
+    background-color: var(--selectable-grey);
+}
+
+@media (max-width: 640px) {
+    .add-video-modal-columns {
+        flex-direction: column;
+        row-gap: 1.5rem;
+    }
+
+    .add-video-modal-divider {
+        width: 100%;
+        height: 1px;
+    }
 }
 
 button.disabled {

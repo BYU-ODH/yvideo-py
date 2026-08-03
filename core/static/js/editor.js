@@ -17,7 +17,7 @@ function convertPercentStringToDecimal(percentString) {
 
 export class Editor {
     constructor() {
-        this.video = document.querySelector('.annotation-player-container video');
+        this.video = document.querySelector('#video-player');
         this.duration = this.video.duration;
         this.annotationBox = window.videoPlayer.annotationBox;
         this.dragState = null;
@@ -249,7 +249,7 @@ export class Editor {
     }
 
     seekToHandlePosition(isLeft, leftPercent, widthPercent) {
-        const video = document.querySelector('.annotation-player-container video');
+        const video = document.querySelector('#video-player');
         if (!video) return;
 
         // Calculate time based on which handle is being dragged
@@ -951,7 +951,7 @@ export class Editor {
     }
 
     setTimeFromVideo(fieldName) {
-        const video = document.querySelector('.annotation-player-container video');
+        const video = document.querySelector('#video-player');
         if (!video) return;
 
         const currentTime = video.currentTime;
@@ -2969,7 +2969,7 @@ function editorInit() {
 }
 
 const checkVideo = setInterval(() => {
-    const video = document.querySelector('.annotation-player-container video');
+    const video = document.querySelector('#video-player');
     if (video && !isNaN(video.duration) && window?.videoPlayer) {
       clearInterval(checkVideo);
       editorInit();

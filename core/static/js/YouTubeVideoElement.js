@@ -69,7 +69,21 @@ export class YouTubeVideoElement extends HTMLElement {
     loadIframeApi().then((YT) => {
       this._player = new YT.Player(mount, {
         videoId: videoId,
-        playerVars: { playsinline: 1, modestbranding: 1, rel: 0 },
+        width: "100%",
+        height: "100%",
+        // controls:0 hides YouTube's own control bar entirely - AnnotationPlayer
+        // provides all playback UI. disablekb:1 stops YouTube from also handling
+        // keyboard shortcuts (space/arrows) that AnnotationPlayer.js already
+        // listens for. iv_load_policy:3 suppresses YouTube's video annotation
+        // cards, which would otherwise overlay the video the same way.
+        playerVars: {
+          playsinline: 1,
+          modestbranding: 1,
+          rel: 0,
+          controls: 0,
+          disablekb: 1,
+          iv_load_policy: 3,
+        },
         events: {
           onReady: () => this._onReady(),
           onStateChange: (event) => this._onStateChange(event),

@@ -12,6 +12,14 @@
         <link rel="stylesheet" href="{% static 'css/editor.css' %}">
     </head>
     <body>
+        {% if youtube_video_id %}
+            <div id="youtube-editor-warning-banner" class="youtube-editor-warning-banner" role="alert">
+                <strong>Editing a YouTube video:</strong>
+                YouTube videos can be changed or removed without notice, so there is
+                no guarantee that your edits will remain aligned with the video.
+                Use this feature at your own risk!
+            </div>
+        {% endif %}
         <div id="editor-container">
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
