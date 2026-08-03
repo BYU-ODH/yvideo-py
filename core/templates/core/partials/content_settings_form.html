@@ -30,6 +30,19 @@
                     <input id="allow-fast-playback" type="checkbox" {% if content.allow_fast_playback %}checked{% endif %}>
                 </div>
             </div>
+            {% if subtitle_options %}
+            <div class="content-form-group">
+                <label for="default-subtitle-track">Default subtitle track</label>
+                <select id="default-subtitle-track">
+                    <option value="">None</option>
+                    {% for option in subtitle_options %}
+                    <option value="{{ option.id }}" {% if content.default_subtitle_track_id == option.id %}selected{% endif %}>
+                        {{ option.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="content-form-group column-flex">
                 <label for="words">
                     Important words
