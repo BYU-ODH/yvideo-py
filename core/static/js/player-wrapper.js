@@ -59,7 +59,8 @@ function attachAnnotationPlayer() {
             clips: clips,
             subtitleSidebar: enableSubtitleSidebar,
             allowFastPlayback: playerData.allowFastPlayback !== false,
-            clipsOnly: playerData.clipsOnly === true
+            clipsOnly: playerData.clipsOnly === true,
+            editorMode: container.dataset.editorMode === 'true'
         });
 
         if (playerData) {

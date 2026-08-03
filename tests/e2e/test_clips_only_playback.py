@@ -91,6 +91,77 @@ def test_clips_only_scrubber_click_outside_clip_snaps_into_it(
     )
 
 
+def test_clips_only_scrubber_click_outside_clip_flashes_clip_highlights(
+    page, live_server, seeded_demo_data
+):
+    content = _enable_clips_only_on_birds_overview()
+
+    page.goto(f"{live_server.url}/login/dev/quick/")
+    page.goto(f"{live_server.url}/player/{content.pk}/")
+    _wait_for_video_ready(page)
+
+    scrubber = page.locator(".annotation-player-container .scrubber")
+    box = scrubber.bounding_box()
+    # Click near the very start of the scrubber - well before the clip's
+    # start (2.5s) - to trigger the clips_only redirect.
+    page.mouse.click(box["x"] + 2, box["y"] + box["height"] / 2)
+
+    result = page.evaluate(
+        """() => {
+            const clipsBtn = document.querySelector('.clips-btn');
+            const markers = Array.from(document.querySelectorAll('.clip-on-scrubber'));
+            return {
+                clipsBtnFlashing: !!clipsBtn && clipsBtn.classList.contains('clip-restriction-flash'),
+                markerCount: markers.length,
+                allMarkersFlashing: markers.length > 0
+                    && markers.every((el) => el.classList.contains('clip-restriction-flash')),
+            };
+        }"""
+    )
+
+    assert result["clipsBtnFlashing"], (
+        "the clips button should flash yellow when a seek is redirected outside every clip"
+    )
+    assert result["markerCount"] > 0, (
+        "every clip should be rendered as a scrubber marker"
+    )
+    assert result["allMarkersFlashing"], (
+        "every clip-on-scrubber marker should flash, not just the active one"
+    )
+
+
+def test_clips_only_does_not_restrict_playback_in_the_editor(
+    page, live_server, seeded_demo_data
+):
+    # clips_only is a student-facing playback constraint; the editor must
+    # always be able to play/scrub the full video regardless of it.
+    content = _enable_clips_only_on_birds_overview()
+
+    page.goto(f"{live_server.url}/login/dev/quick/")
+    page.goto(f"{live_server.url}/video-editor/{content.pk}/")
+    _wait_for_video_ready(page)
+
+    result = page.evaluate(
+        """async () => {
+            const video = document.querySelector('.annotation-player-container video');
+            video.muted = true;
+            // This is well outside the one defined clip (2.5s-18.0s) - in
+            // clips_only student playback this would immediately redirect
+            // back into the clip and pause.
+            video.currentTime = 19.0;
+            await video.play().catch(() => {});
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            const advanced = video.currentTime > 19.0;
+            video.pause();
+            return { advanced, time: video.currentTime };
+        }"""
+    )
+
+    assert result["advanced"], (
+        "the editor should not be redirected/paused by clips_only playback restrictions"
+    )
+
+
 def test_clips_only_with_no_clips_defined_blocks_playback_with_a_message(
     page, live_server, seeded_demo_data
 ):

@@ -19,7 +19,7 @@
                 {% include 'core/partials/subtitle_editor_panel.html' %}
 
                 <div id="video-section" class="video-section">
-                    {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url %}
+                    {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url editor_mode=True %}
                 </div>
 
                 <div class="detail-form-section editor-container-component-dark">

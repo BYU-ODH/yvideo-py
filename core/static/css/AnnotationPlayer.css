@@ -341,6 +341,7 @@
 
 .clips-btn {
     padding: 12px;
+    transition: background-color 0.3s ease-in-out;
 }
 
 /* Clip button active state (yellow highlight) */
@@ -353,15 +354,27 @@
   background-color: #ffed4e;
 }
 
-.clip-on-scrubber.active {
+.clip-on-scrubber {
   position: absolute;
-  height: 100%;
-  background-color: #ffe600;
   height: 6px;
-  opacity: 0.85;
+  background-color: rgba(255, 230, 0, 0.35);
   pointer-events: none;
   z-index: 2;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.3s ease-in-out;
+}
+
+.clip-on-scrubber.active {
+  background-color: #ffe600;
+  opacity: 0.85;
+}
+
+/* Fades to yellow, then fades back to normal - a single warning pulse for a
+   seek that landed outside every clip while clips_only is enforced. Plain
+   transitions (not @keyframes) so there are exactly two transitions: fade
+   in, then fade out, with no flash beforehand. */
+.clips-btn.clip-restriction-flash,
+.clip-on-scrubber.clip-restriction-flash {
+  background-color: #ffd700;
 }
 
 /* Ensure clips render above buffered bar but below progress */

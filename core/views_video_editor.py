@@ -260,6 +260,7 @@ def get_player_wrapper_html(request):
                 if resource_file_key
                 else None,
                 "content_source_url": request.user.get_content_source_url(content),
+                "editor_mode": True,
             },
             request=request,
         )

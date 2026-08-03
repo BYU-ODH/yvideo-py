@@ -43,7 +43,7 @@ The seed command copies the checked-in sample mp4 files from `demo_media/` into 
 
 If you want to wipe local state and rebuild from the current models, use:
 ```bash
-bash scripts/dangerously_reset_local_state.sh --bootstrap
+bash scripts/dangerously_reset_local_state.sh
 ```
 
 That removes the local SQLite database, generated media under `media/`, and any local

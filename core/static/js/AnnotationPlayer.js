@@ -59,7 +59,10 @@ export class AnnotationPlayer {
     this.videoElem.controls = false;
 
     this.allowFastPlayback = options.allowFastPlayback !== false;
-    this.clipsOnly = options.clipsOnly === true;
+    this.editorMode = options.editorMode === true;
+    // The clips_only restriction is a student-facing playback constraint; the
+    // editor must always be able to play/scrub the full video regardless of it.
+    this.clipsOnly = options.clipsOnly === true && !this.editorMode;
     this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     if (!this.allowFastPlayback) {
       this.playbackRates = this.playbackRates.filter(rate => rate <= 1.0);
@@ -448,10 +451,12 @@ export class AnnotationPlayer {
     }
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
+    this.renderClipsOnScrubber();
     this.applyAnnotations();
 
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
+      this.renderClipsOnScrubber();
     });
   }
 
@@ -477,24 +482,23 @@ export class AnnotationPlayer {
     });
   }
 
-  renderActiveClipOnScrubber() {
+  renderClipsOnScrubber() {
     if (!this.controls.scrubber || !this.clips || !this.videoElem.duration) return;
 
     this.controls.scrubber.querySelectorAll('.clip-on-scrubber').forEach(el => el.remove());
 
-    if (this.activeClipIndex !== null && this.clips[this.activeClipIndex]) {
-      const clip = this.clips[this.activeClipIndex];
+    this.clips.forEach((clip, index) => {
       const startPercent = (parseFloat(clip.start) / this.videoElem.duration) * 100;
       const endPercent = (parseFloat(clip.end) / this.videoElem.duration) * 100;
 
       const clipElement = document.createElement('div');
-      clipElement.className = 'clip-on-scrubber active';
-      clipElement.dataset.clipIndex = this.activeClipIndex;
+      clipElement.className = 'clip-on-scrubber' + (index === this.activeClipIndex ? ' active' : '');
+      clipElement.dataset.clipIndex = index;
       clipElement.style.left = `${startPercent}%`;
       clipElement.style.width = `${endPercent - startPercent}%`;
 
       this.controls.scrubber.appendChild(clipElement);
-    }
+    });
   }
 
   _renderClipsMenu() {
@@ -563,7 +567,7 @@ export class AnnotationPlayer {
         this.controls.clipsBtn.classList.remove('clip-active');
       }
     }
-    this.renderActiveClipOnScrubber();
+    this.renderClipsOnScrubber();
   }
 
   play() {
@@ -688,6 +692,7 @@ export class AnnotationPlayer {
         this.pause();
         this.videoElem.currentTime = clipOnlyBoundary;
         this.timeCache = clipOnlyBoundary;
+        this._flashClipRestrictionWarning();
         return;
       }
     }
@@ -1096,7 +1101,11 @@ export class AnnotationPlayer {
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     let newTime = percent * (this.videoElem.duration || 0);
 
-    newTime = this._resolveClipOnlyRedirect(newTime);
+    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
+    if (clipOnlyBoundary !== null) {
+      newTime = clipOnlyBoundary;
+      this._flashClipRestrictionWarning();
+    }
 
     this.skipTo(newTime);
   }
@@ -1112,7 +1121,16 @@ export class AnnotationPlayer {
       newTime = skipBoundary;
     }
 
-    newTime = this._resolveClipOnlyRedirect(newTime);
+    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
+    if (clipOnlyBoundary !== null) {
+      newTime = clipOnlyBoundary;
+      if (!this._draggedOutsideClip) {
+        this._draggedOutsideClip = true;
+        this._flashClipRestrictionWarning();
+      }
+    } else {
+      this._draggedOutsideClip = false;
+    }
 
     const adjustedPercent = newTime / (this.videoElem.duration || 1);
     this.updateScrubber(adjustedPercent);
@@ -1173,17 +1191,32 @@ export class AnnotationPlayer {
     return parseFloat((next || sorted[0]).start);
   }
 
-  // Convenience wrapper around _getClipOnlyBoundary for callers that just
-  // want the redirected time (falling back to `time` itself when no
-  // redirect is needed), rather than having to null-check the boundary.
-  _resolveClipOnlyRedirect(time) {
-    const boundary = this._getClipOnlyBoundary(time);
-    return boundary !== null ? boundary : time;
+  // Fades the clips button and every clip-on-scrubber marker to yellow, then
+  // fades them back to normal, to warn that a requested seek fell outside
+  // every clip. Driven by the CSS `transition` on these elements (not a
+  // keyframe animation), so adding/removing this class is exactly the two
+  // transitions asked for: fade in, then fade out.
+  _flashClipRestrictionWarning() {
+    if (!this.controls.scrubber) return;
+
+    const elements = [
+      this.controls.clipsBtn,
+      ...this.controls.scrubber.querySelectorAll('.clip-on-scrubber'),
+    ].filter(Boolean);
+
+    elements.forEach(el => {
+      clearTimeout(el._clipRestrictionFlashTimeout);
+      el.classList.add('clip-restriction-flash');
+      el._clipRestrictionFlashTimeout = setTimeout(() => {
+        el.classList.remove('clip-restriction-flash');
+      }, 300);
+    });
   }
 
   beginScrubberDrag(e) {
     if (!this.controls.scrubber) return;
     this.isDragging = true;
+    this._draggedOutsideClip = false;
     this.wasPlayingBeforeDrag = !this.videoElem.paused;
     if (this.wasPlayingBeforeDrag) {
       this.videoElem.pause();
