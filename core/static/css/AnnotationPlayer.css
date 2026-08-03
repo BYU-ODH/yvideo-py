@@ -107,6 +107,20 @@
 /* youtube-video is a custom element with no intrinsic size of its own */
 .annotation-player-container youtube-video {
   aspect-ratio: 16 / 9;
+  position: relative;
+}
+
+/* The YouTube IFrame API sizes its generated <iframe> (or the placeholder
+   div before it's ready) in pixels, independent of this element's own box.
+   Force whatever it renders to absolutely fill youtube-video's box instead,
+   the same way object-fit:fill makes a real <video>'s decoded frame fill
+   its box regardless of the video's native resolution. */
+.annotation-player-container youtube-video > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .annotation-player-container video.blanked,
