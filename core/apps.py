@@ -14,4 +14,4 @@ class CoreConfig(AppConfig):
         def create_lab_assistant_group(sender, **kwargs):
             Group.objects.get_or_create(name=LAB_ASSISTANT_GROUP_NAME)
 
-        post_migrate.connect(create_lab_assistant_group, sender=self)
+        post_migrate.connect(create_lab_assistant_group, sender=self, weak=False)
