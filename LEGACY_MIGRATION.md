@@ -42,7 +42,7 @@ Run:
 uv run python manage.py migrate
 ```
 
-The `core` migration creates the legacy migration tables.
+The `core` migrations create the legacy migration tables.
 
 You can verify with:
 
@@ -50,11 +50,7 @@ You can verify with:
 uv run python manage.py showmigrations core
 ```
 
-You should see:
-
-```text
-[X] 0001_initial
-```
+You should see every listed migration marked `[X]`, with no unapplied (`[ ]`) entries.
 
 ### 2. Legacy migration is enabled
 
