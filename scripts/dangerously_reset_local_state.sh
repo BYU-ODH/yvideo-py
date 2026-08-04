@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: bash scripts/dangerously_reset_local_state.sh [--force] [--no-bootstrap] [--db-dir=DIR]
+Usage: bash scripts/dangerously_reset_local_state.sh [--force] [--bootstrap] [--db-dir=DIR]
 
 Deletes development state:
 - SQLite database files
@@ -13,10 +13,6 @@ Deletes development state:
 Unless --db-dir is given, the database location is read directly from Django
 (settings.DATABASES['default']['NAME']) so this script can never disagree with
 the app about where the database lives.
-
-By default, after cleanup this also deletes
-core/migrations/0001_initial.py, then runs makemigrations, migrate, and
-seed_demo_data. Pass --no-bootstrap to skip that and just clear state.
 
 Options:
   --force         Skip the confirmation prompt.
@@ -33,7 +29,7 @@ if [[ ! -f "manage.py" ]]; then
 fi
 
 force=false
-bootstrap=true
+bootstrap=false
 db_dir_arg=""
 
 while [[ $# -gt 0 ]]; do
@@ -41,8 +37,8 @@ while [[ $# -gt 0 ]]; do
         --force)
             force=true
             ;;
-        --no-bootstrap)
-            bootstrap=false
+        --bootstrap)
+            bootstrap=true
             ;;
         --db-dir=*)
             db_dir_arg="${1#*=}"
