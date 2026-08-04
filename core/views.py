@@ -114,17 +114,12 @@ def get_player_data(request, content_id):
             any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
         )
 
-        clips = [a for a in player_json["annotations"] if a.get("class_type") == "Clip"]
-        annotations = [
-            a for a in player_json["annotations"] if a.get("class_type") != "Clip"
-        ]
-
         data = {
-            "annotations": annotations,
+            "annotations": player_json["annotations"],
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
-            "clips": clips,
+            "clips": player_json["clips"],
             "clipsOnly": content.clips_only,
         }
 

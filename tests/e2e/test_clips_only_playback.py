@@ -68,7 +68,7 @@ def test_clips_only_playback_redirects_into_the_clip_when_started_outside_it(
     )
 
 
-def test_clips_only_scrubber_click_outside_clip_snaps_into_it(
+def test_clips_only_scrubber_click_outside_clip_snaps_into_it_and_flashes_highlights(
     page, live_server, seeded_demo_data
 ):
     content = _enable_clips_only_on_birds_overview()
@@ -83,34 +83,12 @@ def test_clips_only_scrubber_click_outside_clip_snaps_into_it(
     # into a ~20s video, so this lands well before the clip's start.
     page.mouse.click(box["x"] + 2, box["y"] + box["height"] / 2)
 
-    current_time = page.evaluate(
-        "() => document.querySelector('.annotation-player-container video').currentTime"
-    )
-    assert current_time == pytest.approx(2.5, abs=0.5), (
-        "clicking the scrubber outside the clip should snap into it"
-    )
-
-
-def test_clips_only_scrubber_click_outside_clip_flashes_clip_highlights(
-    page, live_server, seeded_demo_data
-):
-    content = _enable_clips_only_on_birds_overview()
-
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
-    _wait_for_video_ready(page)
-
-    scrubber = page.locator(".annotation-player-container .scrubber")
-    box = scrubber.bounding_box()
-    # Click near the very start of the scrubber - well before the clip's
-    # start (2.5s) - to trigger the clips_only redirect.
-    page.mouse.click(box["x"] + 2, box["y"] + box["height"] / 2)
-
     result = page.evaluate(
         """() => {
             const clipsBtn = document.querySelector('.clips-btn');
             const markers = Array.from(document.querySelectorAll('.clip-on-scrubber'));
             return {
+                time: document.querySelector('.annotation-player-container video').currentTime,
                 clipsBtnFlashing: !!clipsBtn && clipsBtn.classList.contains('clip-restriction-flash'),
                 markerCount: markers.length,
                 allMarkersFlashing: markers.length > 0
@@ -119,6 +97,9 @@ def test_clips_only_scrubber_click_outside_clip_flashes_clip_highlights(
         }"""
     )
 
+    assert result["time"] == pytest.approx(2.5, abs=0.5), (
+        "clicking the scrubber outside the clip should snap into it"
+    )
     assert result["clipsBtnFlashing"], (
         "the clips button should flash yellow when a seek is redirected outside every clip"
     )

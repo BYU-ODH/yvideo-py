@@ -1178,17 +1178,16 @@ export class AnnotationPlayer {
   _getClipOnlyBoundary(time) {
     if (!this.clipsOnly || !this.clips || this.clips.length === 0) return null;
 
-    for (const clip of this.clips) {
-      const start = parseFloat(clip.start);
-      const end = parseFloat(clip.end);
-      if (time >= start && time < end) return null; // already inside a clip
-    }
+    const ranges = this.clips
+      .map(clip => [parseFloat(clip.start), parseFloat(clip.end)])
+      .sort((a, b) => a[0] - b[0]);
+
+    if (ranges.some(([start, end]) => time >= start && time < end)) return null; // already inside a clip
 
     // Outside all clips — redirect to the start of the next clip after `time`,
     // or wrap around to the first clip.
-    const sorted = [...this.clips].sort((a, b) => parseFloat(a.start) - parseFloat(b.start));
-    const next = sorted.find(clip => parseFloat(clip.start) > time);
-    return parseFloat((next || sorted[0]).start);
+    const next = ranges.find(([start]) => start > time);
+    return (next || ranges[0])[0];
   }
 
   // Fades the clips button and every clip-on-scrubber marker to yellow, then

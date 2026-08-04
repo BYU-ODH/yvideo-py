@@ -133,18 +133,26 @@ a.blue-button {
     border: 2px solid var(--red) !important;
 }
 
-.content-form-group.clips-only-invalid label {
+/* Shared with .resource-intake-field-error / .resource-intake-message-error below:
+   one red-error color scheme for an invalid form field's label and for an
+   inline warning message box. */
+.content-form-group.clips-only-invalid label,
+.resource-intake-field-error label {
     color: var(--red);
-    font-weight: bold;
 }
 
-.clips-only-warning {
+.clips-only-warning,
+.resource-intake-message {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.clips-only-warning,
+.resource-intake-message-error {
     color: var(--dark-red);
     background-color: var(--pale-red);
     border: 1px solid var(--red);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-weight: 500;
 }
 
 .clickable:hover {
@@ -1283,18 +1291,8 @@ p.tile-subtitle {
     color: var(--red);
 }
 
-.resource-intake-field-error label {
-    color: var(--red);
-}
-
 #resource-intake-form-messages {
     margin-bottom: 1.5rem;
-}
-
-.resource-intake-message {
-    padding: 12px 16px;
-    border-radius: 6px;
-    font-weight: 500;
 }
 
 .resource-intake-message-success {
@@ -1303,11 +1301,8 @@ p.tile-subtitle {
     border: 1px solid var(--green);
 }
 
-.resource-intake-message-error {
-    background-color: var(--pale-red);
-    color: var(--dark-red);
-    border: 1px solid var(--red);
-}
+/* .resource-intake-message and .resource-intake-message-error / .resource-intake-field-error label
+   are styled near the top of this file, shared with .clips-only-warning / .clips-only-invalid. */
 
 /* index page */
 #index-page {

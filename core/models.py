@@ -776,7 +776,11 @@ class Content(models.Model):
         return subtitles
 
     def has_clips(self):
-        """Whether this content's annotation set has any active Clip annotations."""
+        """
+        Whether this content's annotation set has any active Clip annotations.
+        Cheap existence check for template rendering; contrast with
+        get_player_json()['clips'], which returns the clips themselves for playback.
+        """
         if not self.annotation_set_id:
             return False
         return Clip.objects.filter(
@@ -793,15 +797,20 @@ class Content(models.Model):
     def get_player_json(self):
         """
         Generate complete JSON data for AnnotationPlayer.loadData().
-        Returns a dict with 'annotations', each containing JSON strings.
+        Returns a dict with 'annotations' and 'clips' (Clip annotations are
+        split out of 'annotations' since the player treats them separately).
         """
         annotation_set_json = (
             self.annotation_set.to_player_json()
             if self.annotation_set
             else {"annotations": [], "tracks": []}
         )
+        annotations = annotation_set_json["annotations"]
+        clips = [a for a in annotations if a.get("class_type") == "Clip"]
+        other_annotations = [a for a in annotations if a.get("class_type") != "Clip"]
         return {
-            "annotations": annotation_set_json["annotations"],
+            "annotations": other_annotations,
+            "clips": clips,
             "tracks": annotation_set_json["tracks"],
             "subtitleTracks": self.get_subtitles(),
         }

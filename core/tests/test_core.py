@@ -3,6 +3,7 @@ import copy
 from datetime import date
 from functools import cmp_to_key
 import json
+import re
 import unittest
 
 from django.core.exceptions import ValidationError
@@ -1057,9 +1058,11 @@ class ContentHasClipsWarningTests(TestCase):
             reverse("render_content_settings_form", args=[content.pk])
         )
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'id="clips-only-warning"', response.content)
-        hidden_tag = b'<div id="clips-only-warning" class="clips-only-warning" hidden>'
-        return hidden_tag not in response.content
+        warning_tag = re.search(
+            rb'<div id="clips-only-warning"[^>]*>', response.content
+        )
+        self.assertIsNotNone(warning_tag, "clips-only-warning element not rendered")
+        return b"hidden" not in warning_tag.group()
 
     def test_settings_form_warns_when_clips_only_is_on_with_no_clips(self):
         content = ContentFactory(
