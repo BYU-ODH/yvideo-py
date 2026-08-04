@@ -108,7 +108,7 @@ export class AnnotationPlayer {
     this.setupEventListeners();
   }
 
-  static NO_CLIPS_DEFINED_MESSAGE = "This video's settings have been limited to pre-defined clips, but no clips have been defined by the instructor. The instructor must either remove the setting or add clips in the editor.";
+  static NO_CLIPS_DEFINED_MESSAGE = "This video's settings have been limited to pre-defined clips, but no clips have been defined by the instructor. The instructor must either remove the setting or define clips in the editor.";
 
   static icons = {
     playPauseBtn: {
