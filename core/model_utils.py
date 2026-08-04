@@ -104,12 +104,15 @@ def update_user_details(user):
         if student_summary is None:
             # this is a non-student user, do nothing
             return
+        is_whitelist_admin = byu_id in getattr(
+            secret_settings, "ADMIN_BYUID_WHITELIST", []
+        )
         user.first_name = student_summary["first_name"]
         user.last_name = student_summary["last_name"]
         user.netid = student_summary["net_id"]
         user.privilege_level = PrivilegeLevel.STUDENT
-        user.is_staff = False
-        user.is_superuser = False
+        user.is_staff = is_whitelist_admin
+        user.is_superuser = is_whitelist_admin
         try:
             user.save()
             return
