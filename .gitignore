@@ -12,10 +12,6 @@ scripts/dump_legacy_to_sqlite_settings.py
 *media
 *requirements.txt
 
-# TODO start tracking migrations before pilot begins
-# Until then, just keep replacing 0001 when models change
-core/migrations/*.py
-
 # BDR notes to self about the task at hand
 task_notes
 
