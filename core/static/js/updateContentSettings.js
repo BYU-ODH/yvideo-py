@@ -72,6 +72,8 @@ function setupClipsOnlyWarning() {
 
   const hasClips = clipsOnlyInput.dataset.contentHasClips === "true";
 
+  // Mirrors the server-rendered initial state in content_settings_form.html
+  // ("clips_only and not content_has_clips") - keep both in sync.
   const updateWarning = () => {
     const shouldWarn = clipsOnlyInput.checked && !hasClips;
     formGroup.classList.toggle("clips-only-invalid", shouldWarn);

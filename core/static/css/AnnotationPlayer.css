@@ -341,7 +341,6 @@
 
 .clips-btn {
     padding: 12px;
-    transition: background-color 0.3s ease-in-out;
 }
 
 /* Clip button active state (yellow highlight) */
@@ -354,13 +353,17 @@
   background-color: #ffed4e;
 }
 
+.clips-btn,
+.clip-on-scrubber {
+  transition: background-color 0.3s ease-in-out;
+}
+
 .clip-on-scrubber {
   position: absolute;
   height: 6px;
   background-color: rgba(255, 230, 0, 0.35);
   pointer-events: none;
   z-index: 2;
-  transition: background-color 0.3s ease-in-out;
 }
 
 .clip-on-scrubber.active {

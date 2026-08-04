@@ -685,14 +685,18 @@ export class AnnotationPlayer {
       return;
     }
 
-    // Enforce clipsOnly mode: pause and redirect if playback leaves all clip ranges
+    // Enforce clipsOnly mode: pause and redirect if playback leaves all clip
+    // ranges. This fires during ordinary forward playback (e.g. reaching the
+    // end of a clip), not just from a seek, so it does not flash the
+    // "restriction violated" warning - that's reserved for the scrubber
+    // click/drag handlers, where the student actually tried to go somewhere
+    // disallowed.
     if (this.clipsOnly && this.clips.length > 0) {
       const clipOnlyBoundary = this._getClipOnlyBoundary(time);
       if (clipOnlyBoundary !== null) {
         this.pause();
         this.videoElem.currentTime = clipOnlyBoundary;
         this.timeCache = clipOnlyBoundary;
-        this._flashClipRestrictionWarning();
         return;
       }
     }
@@ -1099,13 +1103,7 @@ export class AnnotationPlayer {
 
     const rect = this.controls.scrubber.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    let newTime = percent * (this.videoElem.duration || 0);
-
-    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
-    if (clipOnlyBoundary !== null) {
-      newTime = clipOnlyBoundary;
-      this._flashClipRestrictionWarning();
-    }
+    const newTime = this._redirectTimeOutsideClip(percent * (this.videoElem.duration || 0));
 
     this.skipTo(newTime);
   }
@@ -1121,16 +1119,7 @@ export class AnnotationPlayer {
       newTime = skipBoundary;
     }
 
-    const clipOnlyBoundary = this._getClipOnlyBoundary(newTime);
-    if (clipOnlyBoundary !== null) {
-      newTime = clipOnlyBoundary;
-      if (!this._draggedOutsideClip) {
-        this._draggedOutsideClip = true;
-        this._flashClipRestrictionWarning();
-      }
-    } else {
-      this._draggedOutsideClip = false;
-    }
+    newTime = this._redirectTimeOutsideClip(newTime, { debounceFlash: true });
 
     const adjustedPercent = newTime / (this.videoElem.duration || 1);
     this.updateScrubber(adjustedPercent);
@@ -1188,6 +1177,33 @@ export class AnnotationPlayer {
     // or wrap around to the first clip.
     const next = ranges.find(([start]) => start > time);
     return (next || ranges[0])[0];
+  }
+
+  /**
+   * For a scrubber click/drag: returns `time` unchanged if it's a valid seek
+   * target, or the nearest clip boundary (see `_getClipOnlyBoundary`) if the
+   * student tried to seek outside every clip - flashing the restriction
+   * warning in that case, since this path is always a deliberate seek.
+   * With `debounceFlash`, the warning only flashes on the first out-of-clip
+   * position of a drag, not on every mousemove tick until the drag re-enters
+   * a clip.
+   */
+  _redirectTimeOutsideClip(time, { debounceFlash = false } = {}) {
+    const clipOnlyBoundary = this._getClipOnlyBoundary(time);
+    if (clipOnlyBoundary === null) {
+      if (debounceFlash) this._draggedOutsideClip = false;
+      return time;
+    }
+
+    if (debounceFlash) {
+      if (!this._draggedOutsideClip) {
+        this._draggedOutsideClip = true;
+        this._flashClipRestrictionWarning();
+      }
+    } else {
+      this._flashClipRestrictionWarning();
+    }
+    return clipOnlyBoundary;
   }
 
   // Fades the clips button and every clip-on-scrubber marker to yellow, then

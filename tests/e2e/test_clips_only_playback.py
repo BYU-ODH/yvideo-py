@@ -68,6 +68,51 @@ def test_clips_only_playback_redirects_into_the_clip_when_started_outside_it(
     )
 
 
+def test_clips_only_playback_pauses_at_the_end_of_a_clip_without_flashing_a_violation_warning(
+    page, live_server, seeded_demo_data
+):
+    # Distinguishes ordinary playback reaching the natural end of a clip from
+    # a deliberate out-of-clip seek (see the scrubber-click test below): the
+    # restriction warning should only flash when a student actually tries to
+    # go somewhere disallowed, not every time a clip's playback simply ends.
+    content = _enable_clips_only_on_birds_overview()
+
+    page.goto(f"{live_server.url}/login/dev/quick/")
+    page.goto(f"{live_server.url}/player/{content.pk}/")
+    _wait_for_video_ready(page)
+
+    result = page.evaluate(
+        """async () => {
+            const video = document.querySelector('.annotation-player-container video');
+            video.muted = true;
+            // Start just inside the clip, close to its 18.0s end, so ordinary
+            // playback runs off the end of the clip within this test's window.
+            video.currentTime = 17.7;
+            await video.play().catch(() => {});
+            await new Promise((resolve) => setTimeout(resolve, 800));
+            const clipsBtn = document.querySelector('.clips-btn');
+            const markers = Array.from(document.querySelectorAll('.clip-on-scrubber'));
+            return {
+                paused: video.paused,
+                time: video.currentTime,
+                anyFlashing: (!!clipsBtn && clipsBtn.classList.contains('clip-restriction-flash'))
+                    || markers.some((el) => el.classList.contains('clip-restriction-flash')),
+            };
+        }"""
+    )
+
+    assert result["paused"], (
+        "playback should pause once it runs off the end of the clip"
+    )
+    assert result["time"] == pytest.approx(2.5, abs=0.5), (
+        "playback that reaches the end of the only clip should snap back to its start"
+    )
+    assert not result["anyFlashing"], (
+        "reaching a clip's natural end during ordinary playback is not a restriction "
+        "violation and should not flash the warning"
+    )
+
+
 def test_clips_only_scrubber_click_outside_clip_snaps_into_it_and_flashes_highlights(
     page, live_server, seeded_demo_data
 ):
@@ -80,8 +125,12 @@ def test_clips_only_scrubber_click_outside_clip_snaps_into_it_and_flashes_highli
     scrubber = page.locator(".annotation-player-container .scrubber")
     box = scrubber.bounding_box()
     # Click near the very start of the scrubber - the clip begins at 2.5s
-    # into a ~20s video, so this lands well before the clip's start.
-    page.mouse.click(box["x"] + 2, box["y"] + box["height"] / 2)
+    # into a ~20s video, so this lands well before the clip's start. Uses the
+    # locator's own click (which scrolls the element into view first) rather
+    # than raw page.mouse.click at absolute page coordinates - the scrubber
+    # sits below the fold on the default viewport size, so a raw click there
+    # silently misses it.
+    scrubber.click(position={"x": 2, "y": box["height"] / 2})
 
     result = page.evaluate(
         """() => {

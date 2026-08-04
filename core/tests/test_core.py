@@ -948,23 +948,23 @@ class ContentClipsOnlyViewTests(TestCase):
     def _get_player_data(self, content):
         return self.client.post(reverse("get_player_data", args=[content.pk]))
 
-    def _update_content(self, content, clips_only):
+    def _update_content(self, content, **field_overrides):
+        payload = {
+            "id": content.pk,
+            "title": content.title,
+            "description": content.description,
+            "words": content.words,
+            "allow_definitions": content.allow_definitions,
+            "allow_notes": content.allow_notes,
+            "allow_captions": content.allow_captions,
+            "allow_fast_playback": content.allow_fast_playback,
+            "clips_only": content.clips_only,
+            "published": content.published,
+        }
+        payload.update(field_overrides)
         return self.client.post(
             reverse("update_content"),
-            data=json.dumps(
-                {
-                    "id": content.pk,
-                    "title": content.title,
-                    "description": "",
-                    "words": "",
-                    "allow_definitions": True,
-                    "allow_notes": True,
-                    "allow_captions": True,
-                    "allow_fast_playback": True,
-                    "clips_only": clips_only,
-                    "published": False,
-                }
-            ),
+            data=json.dumps(payload),
             content_type="application/json",
         )
 
