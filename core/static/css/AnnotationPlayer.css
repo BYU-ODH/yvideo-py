@@ -371,10 +371,6 @@
   opacity: 0.85;
 }
 
-/* Fades to yellow, then fades back to normal - a single warning pulse for a
-   seek that landed outside every clip while clips_only is enforced. Plain
-   transitions (not @keyframes) so there are exactly two transitions: fade
-   in, then fade out, with no flash beforehand. */
 .clips-btn.clip-restriction-flash,
 .clip-on-scrubber.clip-restriction-flash {
   background-color: #ffd700;

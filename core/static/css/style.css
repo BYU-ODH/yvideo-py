@@ -133,9 +133,6 @@ a.blue-button {
     border: 2px solid var(--red) !important;
 }
 
-/* Shared with .resource-intake-field-error / .resource-intake-message-error below:
-   one red-error color scheme for an invalid form field's label and for an
-   inline warning message box. */
 .content-form-group.clips-only-invalid label,
 .resource-intake-field-error label {
     color: var(--red);
@@ -1302,8 +1299,6 @@ p.tile-subtitle {
     border: 1px solid var(--green);
 }
 
-/* .resource-intake-message and .resource-intake-message-error / .resource-intake-field-error label
-   are styled near the top of this file, shared with .clips-only-warning / .clips-only-invalid. */
 
 /* index page */
 #index-page {

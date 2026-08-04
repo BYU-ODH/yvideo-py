@@ -60,8 +60,7 @@ export class AnnotationPlayer {
 
     this.allowFastPlayback = options.allowFastPlayback !== false;
     this.editorMode = options.editorMode === true;
-    // The clips_only restriction is a student-facing playback constraint; the
-    // editor must always be able to play/scrub the full video regardless of it.
+    // Ignore clips_only restriction in editor mode.
     this.clipsOnly = options.clipsOnly === true && !this.editorMode;
     this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     if (!this.allowFastPlayback) {
@@ -678,25 +677,16 @@ export class AnnotationPlayer {
     }
 
     if (this.clipsOnly && (!this.clips || this.clips.length === 0)) {
-      // clips_only is on but no clips are defined - there's nothing playable
-      // left to restrict playback to, so block playback entirely instead of
-      // silently falling back to showing the whole video.
       this.pause(AnnotationPlayer.NO_CLIPS_DEFINED_MESSAGE);
       return;
     }
 
-    // Enforce clipsOnly mode: pause and redirect if playback leaves all clip
-    // ranges. This fires during ordinary forward playback (e.g. reaching the
-    // end of a clip), not just from a seek, so it does not flash the
-    // "restriction violated" warning - that's reserved for the scrubber
-    // click/drag handlers, where the student actually tried to go somewhere
-    // disallowed.
     if (this.clipsOnly && this.clips.length > 0) {
-      const clipOnlyBoundary = this._getClipOnlyBoundary(time);
-      if (clipOnlyBoundary !== null) {
+      const clipsOnlyBoundary = this._getClipsOnlyBoundary(time);
+      if (clipsOnlyBoundary !== null) {
         this.pause();
-        this.videoElem.currentTime = clipOnlyBoundary;
-        this.timeCache = clipOnlyBoundary;
+        this.videoElem.currentTime = clipsOnlyBoundary;
+        this.timeCache = clipsOnlyBoundary;
         return;
       }
     }
@@ -1164,7 +1154,7 @@ export class AnnotationPlayer {
    * Returns null if `time` is already within a clip (no redirect needed) or if
    * clipsOnly is disabled / no clips are defined.
    */
-  _getClipOnlyBoundary(time) {
+  _getClipsOnlyBoundary(time) {
     if (!this.clipsOnly || !this.clips || this.clips.length === 0) return null;
 
     const ranges = this.clips
@@ -1181,7 +1171,7 @@ export class AnnotationPlayer {
 
   /**
    * For a scrubber click/drag: returns `time` unchanged if it's a valid seek
-   * target, or the nearest clip boundary (see `_getClipOnlyBoundary`) if the
+   * target, or the nearest clip boundary (see `_getClipsOnlyBoundary`) if the
    * student tried to seek outside every clip - flashing the restriction
    * warning in that case, since this path is always a deliberate seek.
    * With `debounceFlash`, the warning only flashes on the first out-of-clip
@@ -1189,8 +1179,8 @@ export class AnnotationPlayer {
    * a clip.
    */
   _redirectTimeOutsideClip(time, { debounceFlash = false } = {}) {
-    const clipOnlyBoundary = this._getClipOnlyBoundary(time);
-    if (clipOnlyBoundary === null) {
+    const clipsOnlyBoundary = this._getClipsOnlyBoundary(time);
+    if (clipsOnlyBoundary === null) {
       if (debounceFlash) this._draggedOutsideClip = false;
       return time;
     }
@@ -1203,14 +1193,12 @@ export class AnnotationPlayer {
     } else {
       this._flashClipRestrictionWarning();
     }
-    return clipOnlyBoundary;
+    return clipsOnlyBoundary;
   }
 
   // Fades the clips button and every clip-on-scrubber marker to yellow, then
   // fades them back to normal, to warn that a requested seek fell outside
-  // every clip. Driven by the CSS `transition` on these elements (not a
-  // keyframe animation), so adding/removing this class is exactly the two
-  // transitions asked for: fade in, then fade out.
+  // every clip.
   _flashClipRestrictionWarning() {
     if (!this.controls.scrubber) return;
 
