@@ -122,6 +122,8 @@ def get_player_data(request, content_id):
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
+            "clips": player_json["clips"],
+            "clipsOnly": content.clips_only,
         }
 
         return JsonResponse(data)
@@ -859,6 +861,8 @@ def display_content_info(request, content_id):
             "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
             "content_source_url": content_source_url,
             "youtube_video_id": parse_youtube_video_id(content_source_url),
+            "content_has_clips": content.has_clips(),
+            "subtitle_options": content.get_subtitle_options(),
         }
         return render(request, "core/content_info.html", context)
     except Content.DoesNotExist:
@@ -874,7 +878,11 @@ def display_content_info(request, content_id):
 def render_content_settings_form(request, content_id):
     try:
         content = Content.objects.get(pk=content_id)
-        context = {"content": content}
+        context = {
+            "content": content,
+            "content_has_clips": content.has_clips(),
+            "subtitle_options": content.get_subtitle_options(),
+        }
         return render(request, "core/partials/content_settings_form.html", context)
     except Content.DoesNotExist:
         logger.error(
@@ -919,7 +927,17 @@ def update_content(request):
         content.allow_notes = data["allow_notes"]
         content.allow_captions = data["allow_captions"]
         content.allow_fast_playback = data["allow_fast_playback"]
+        content.clips_only = data["clips_only"]
         content.published = data["published"]
+
+        default_subtitle_id = data.get("default_subtitle_track_id")
+        if default_subtitle_id:
+            resource = content.get_resource()
+            content.default_subtitle_track = Subtitle.objects.filter(
+                pk=default_subtitle_id, resource=resource
+            ).first()
+        else:
+            content.default_subtitle_track = None
 
         content.save()
         return HttpResponse()

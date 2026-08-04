@@ -122,8 +122,8 @@ if [[ "$bootstrap" == true ]]; then
     echo "Rebuilding local database from migrations..."
     uv run manage.py migrate
     uv run manage.py seed_demo_data
+else
+    echo "Possible next steps:"
+    echo "  uv run manage.py migrate"
+    echo "  uv run manage.py seed_demo_data"
 fi
-
-echo "Next steps:"
-echo "  uv run manage.py migrate"
-echo "  uv run manage.py seed_demo_data"

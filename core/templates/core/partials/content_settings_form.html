@@ -29,7 +29,32 @@
                     <label for="allow-fast-playback">Allow fast playback</label>
                     <input id="allow-fast-playback" type="checkbox" {% if content.allow_fast_playback %}checked{% endif %}>
                 </div>
+                {% comment %}
+                   "clips_only and not content_has_clips" here mirrors setupClipsOnlyWarning()'s
+                   shouldWarn check in updateContentSettings.js - this is just the correct
+                   initial paint before that script runs; keep both in sync.
+                {% endcomment %}
+                <div id="clips-only-form-group" class="content-form-group{% if content.clips_only and not content_has_clips %} clips-only-invalid{% endif %}">
+                    <label for="clips-only">Show only clips defined in the editor (better Fair Use protection)</label>
+                    <input id="clips-only" type="checkbox" {% if content.clips_only %}checked{% endif %} data-content-has-clips="{{ content_has_clips|yesno:'true,false' }}">
+                </div>
             </div>
+            <div id="clips-only-warning" class="clips-only-warning"{% if not content.clips_only or content_has_clips %} hidden{% endif %}>
+                Warning! This video has no clips defined! Turning this setting on blocks the player from showing any part of the video.
+            </div>
+            {% if subtitle_options %}
+            <div class="content-form-group">
+                <label for="default-subtitle-track">Default subtitle track</label>
+                <select id="default-subtitle-track">
+                    <option value="">None</option>
+                    {% for option in subtitle_options %}
+                    <option value="{{ option.id }}" {% if content.default_subtitle_track_id == option.id %}selected{% endif %}>
+                        {{ option.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="content-form-group column-flex">
                 <label for="words">
                     Important words
@@ -46,7 +71,7 @@
     <div class="row-flex flex-apart-aligned">
         <div class="row-flex">
             <button id="content-settings-submit-button" class="blue-button">
-                Submit
+                Save
             </button>
             <button id="content-settings-reset-button" class="cancel-button">
                 Reset

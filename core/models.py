@@ -95,6 +95,15 @@ class Resource(models.Model):
     checked_out_from_other_byu_library = models.BooleanField(
         default=False, verbose_name="Checked out from other BYU Library"
     )
+    byu_call_number = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="BYU call number",
+        help_text=(
+            "BYU library call number. Required when checked out from HBLL or "
+            "another BYU library."
+        ),
+    )
 
     def __str__(self):
         return f"{self.name}"
@@ -718,12 +727,23 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
+    default_subtitle_track = models.ForeignKey(
+        "Subtitle",
+        on_delete=models.SET_NULL,
+        related_name="default_for_contents",
+        null=True,
+        blank=True,
+    )
     url = models.URLField(max_length=500, blank=True, null=True)
     description = models.TextField(blank=True)
     allow_definitions = models.BooleanField(default=True)
     allow_notes = models.BooleanField(default=True)
     allow_captions = models.BooleanField(default=True)
     allow_fast_playback = models.BooleanField(default=True)
+    clips_only = models.BooleanField(
+        default=False,
+        verbose_name="Show only clips defined in the editor (better Fair Use protection)",
+    )
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     words = models.TextField(blank=True)
@@ -765,35 +785,65 @@ class Content(models.Model):
         Each dict has the following keys:
             - 'srclang'
             - 'vtt' or 'url'
-            - 'label'
+            - 'name'
+            - 'default' (True only for the instructor-chosen default track)
         """
         resource = self.get_resource()
         if not resource:
             return []
         sub_objs = Subtitle.objects.filter(resource=resource)
+        default_id = self.default_subtitle_track_id
         subtitles = [
             {
                 "id": sub.pk,
                 "srclang": sub.language.lang_tag,
                 "vtt": sub.subtitles_file.read().decode("utf-8"),
                 "name": sub.name,
+                "default": sub.pk == default_id,
             }
             for sub in sub_objs
         ]
         return subtitles
 
+    def has_clips(self):
+        """
+        Whether this content's annotation set has any active Clip annotations.
+        Cheap existence check for template rendering; contrast with
+        get_player_json()['clips'], which returns the clips themselves for playback.
+        Queries Clip directly (rather than reusing Track.get_active_annotations())
+        so this stays a plain .exists() check - keep the "active" condition here
+        in sync with Track.get_active_annotations() if that definition changes.
+        """
+        if not self.annotation_set_id:
+            return False
+        return Clip.objects.filter(
+            track__annotation_set_id=self.annotation_set_id, active=True
+        ).exists()
+
+    def get_subtitle_options(self):
+        """Get (id, name) pairs for every subtitle on this content's resource, for use in selection UI."""
+        resource = self.get_resource()
+        if not resource:
+            return []
+        return list(Subtitle.objects.filter(resource=resource).values("id", "name"))
+
     def get_player_json(self):
         """
         Generate complete JSON data for AnnotationPlayer.loadData().
-        Returns a dict with 'annotations', each containing JSON strings.
+        Returns a dict with 'annotations' and 'clips' (Clip annotations are
+        split out of 'annotations' since the player treats them separately).
         """
         annotation_set_json = (
             self.annotation_set.to_player_json()
             if self.annotation_set
             else {"annotations": [], "tracks": []}
         )
+        annotations = annotation_set_json["annotations"]
+        clips = [a for a in annotations if a.get("class_type") == "Clip"]
+        other_annotations = [a for a in annotations if a.get("class_type") != "Clip"]
         return {
-            "annotations": annotation_set_json["annotations"],
+            "annotations": other_annotations,
+            "clips": clips,
             "tracks": annotation_set_json["tracks"],
             "subtitleTracks": self.get_subtitles(),
         }
@@ -1540,6 +1590,16 @@ class ResourceIntakeRequest(models.Model):
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)
     checked_out_from_other_byu_library = models.BooleanField(default=False)
+    byu_call_number = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="BYU call number",
+        help_text=(
+            "BYU library call number. Required when checked out from HBLL or "
+            "another BYU library."
+        ),
+    )
 
     # Content advisory fields
     violence_or_blood_and_gore = models.BooleanField(default=False)

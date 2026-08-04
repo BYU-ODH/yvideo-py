@@ -266,6 +266,7 @@ def get_player_wrapper_html(request):
                 else None,
                 "content_source_url": content_source_url,
                 "youtube_video_id": parse_youtube_video_id(content_source_url),
+                "editor_mode": True,
             },
             request=request,
         )

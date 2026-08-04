@@ -388,15 +388,34 @@
   background-color: #ffed4e;
 }
 
-.clip-on-scrubber.active {
+.clips-btn {
+  transition: background-color 0.3s ease-in-out;
+}
+
+.clip-on-scrubber {
   position: absolute;
-  height: 100%;
-  background-color: #ffe600;
+  top: 50%;
   height: 6px;
-  opacity: 0.85;
+  transform: translateY(-50%);
+  background-color: rgba(255, 230, 0, 0.35);
   pointer-events: none;
   z-index: 2;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.3s ease-in-out, height 0.3s ease-in-out;
+}
+
+.clip-on-scrubber.active {
+  background-color: #ffe600;
+  opacity: 0.85;
+}
+
+.clips-btn.clip-restriction-flash,
+.clip-on-scrubber.clip-restriction-flash {
+  background-color: #ffd700;
+}
+
+.clip-on-scrubber.clip-restriction-flash {
+  height: 14px;
+  z-index: 6;
 }
 
 /* Ensure clips render above buffered bar but below progress */

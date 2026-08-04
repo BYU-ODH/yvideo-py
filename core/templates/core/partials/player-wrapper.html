@@ -1,6 +1,6 @@
 {% load static %}
 
-<div id="annotation-player-container" data-contentid="{{content_id}}" class="annotation-player-container">
+<div id="annotation-player-container" data-contentid="{{content_id}}" data-editor-mode="{{ editor_mode|yesno:'true,false' }}" class="annotation-player-container">
     {% if youtube_video_id %}
         <youtube-video id="video-player" data-video-id="{{ youtube_video_id }}"></youtube-video>
     {% else %}

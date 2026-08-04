@@ -10,9 +10,11 @@ function setupSubmit() {
     const allowNotesInput = document.getElementById("allow-notes");
     const allowCaptsInput = document.getElementById("allow-captions");
     const allowFastPlaybackInput = document.getElementById("allow-fast-playback");
+    const clipsOnlyInput = document.getElementById("clips-only");
     const wordsInput = document.getElementById("words");
     const descriptionInput = document.getElementById("description");
-    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, wordsInput, descriptionInput].some(el => el === undefined);
+    const defaultSubtitleTrackInput = document.getElementById("default-subtitle-track");
+    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, clipsOnlyInput, wordsInput, descriptionInput].some(el => el === undefined);
     if (isUndefined) {
       console.log("at least one content settings form input is undefined.");
       return;
@@ -31,8 +33,10 @@ function setupSubmit() {
         "allow_notes": allowNotesInput.checked,
         "allow_captions": allowCaptsInput.checked,
         "allow_fast_playback": allowFastPlaybackInput.checked,
+        "clips_only": clipsOnlyInput.checked,
         "words": wordsInput.value,
         "description": descriptionInput.value,
+        "default_subtitle_track_id": defaultSubtitleTrackInput ? defaultSubtitleTrackInput.value : "",
       })
     });
     window.location.reload();
@@ -60,9 +64,30 @@ function setupReset() {
   });
 }
 
+function setupClipsOnlyWarning() {
+  const clipsOnlyInput = document.getElementById("clips-only");
+  const formGroup = document.getElementById("clips-only-form-group");
+  const warning = document.getElementById("clips-only-warning");
+  if (!clipsOnlyInput || !formGroup || !warning) return;
+
+  const hasClips = clipsOnlyInput.dataset.contentHasClips === "true";
+
+  // Mirrors the server-rendered initial state in content_settings_form.html
+  // ("clips_only and not content_has_clips") - keep both in sync.
+  const updateWarning = () => {
+    const shouldWarn = clipsOnlyInput.checked && !hasClips;
+    formGroup.classList.toggle("clips-only-invalid", shouldWarn);
+    warning.hidden = !shouldWarn;
+  };
+
+  clipsOnlyInput.addEventListener("change", updateWarning);
+  updateWarning();
+}
+
 function initialize() {
   setupReset();
   setupSubmit();
+  setupClipsOnlyWarning();
 }
 
 initialize();
