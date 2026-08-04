@@ -503,7 +503,12 @@ export class AnnotationPlayer {
   _renderClipsMenu() {
     if (!this.controls.clipsMenu) return;
 
-    let menuHTML = '<div class="clip-option" data-clip="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">None</div>';
+    let menuHTML = '';
+    if (this.clipsOnly) {
+      menuHTML += '<div class="clips-menu-message" style="padding:8px 16px;white-space:nowrap;color:#aaa;">Instructor has allowed only these clips:</div>';
+    } else {
+      menuHTML += '<div class="clip-option" data-clip="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">None</div>';
+    }
 
     this.clips.forEach((clip, index) => {
       const label = clip.label || `Clip ${index + 1}`;
@@ -1150,23 +1155,25 @@ export class AnnotationPlayer {
 
   /**
    * When clipsOnly mode is active, returns the time the player should seek to
-   * if the requested `time` is outside all defined clip ranges.
-   * Returns null if `time` is already within a clip (no redirect needed) or if
-   * clipsOnly is disabled / no clips are defined.
+   * if the requested `time` is outside all defined clip ranges: whichever
+   * clip boundary (a clip's start, or its end) is numerically nearest to
+   * `time`.
+   * Returns null if `time` is already within a clip (no redirect needed) or
+   * if clipsOnly is disabled / no clips are defined.
    */
   _getClipsOnlyBoundary(time) {
     if (!this.clipsOnly || !this.clips || this.clips.length === 0) return null;
 
-    const ranges = this.clips
-      .map(clip => [parseFloat(clip.start), parseFloat(clip.end)])
-      .sort((a, b) => a[0] - b[0]);
+    const ranges = this.clips.map(clip => [parseFloat(clip.start), parseFloat(clip.end)]);
 
     if (ranges.some(([start, end]) => time >= start && time < end)) return null; // already inside a clip
 
-    // Outside all clips — redirect to the start of the next clip after `time`,
-    // or wrap around to the first clip.
-    const next = ranges.find(([start]) => start > time);
-    return (next || ranges[0])[0];
+    // A clip's end is exclusive, so landing exactly on one wouldn't count as
+    // "inside" it - nudge just inside instead.
+    const boundaries = ranges.flatMap(([start, end]) => [start, Math.max(start, end - 0.05)]);
+    return boundaries.reduce((nearest, boundary) =>
+      Math.abs(boundary - time) < Math.abs(nearest - time) ? boundary : nearest
+    );
   }
 
   /**

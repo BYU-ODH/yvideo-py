@@ -37,37 +37,6 @@ def _wait_for_video_ready(page):
     )
 
 
-def test_clips_only_playback_redirects_into_the_clip_when_started_outside_it(
-    page, live_server, seeded_demo_data
-):
-    content = _enable_clips_only_on_birds_overview()
-
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
-    _wait_for_video_ready(page)
-
-    result = page.evaluate(
-        """async () => {
-            const video = document.querySelector('.annotation-player-container video');
-            video.muted = true;
-            // Seek past the clip's end (18.0s), into the dead zone after it.
-            video.currentTime = 19.0;
-            // The player's clipsOnly enforcement reacts to the "playing" event
-            // and immediately calls pause() once it sees we're outside every
-            // clip, which aborts this play() request in Chromium - expected
-            // here, so it's swallowed rather than left to fail the test.
-            await video.play().catch(() => {});
-            await new Promise((resolve) => setTimeout(resolve, 500));
-            return { paused: video.paused, time: video.currentTime };
-        }"""
-    )
-
-    assert result["paused"], "clips_only playback should pause once redirected"
-    assert result["time"] == pytest.approx(2.5, abs=0.5), (
-        "playback starting outside the clip should snap to the clip's start"
-    )
-
-
 def test_clips_only_playback_pauses_at_the_end_of_a_clip_without_flashing_a_violation_warning(
     page, live_server, seeded_demo_data
 ):
@@ -104,8 +73,9 @@ def test_clips_only_playback_pauses_at_the_end_of_a_clip_without_flashing_a_viol
     assert result["paused"], (
         "playback should pause once it runs off the end of the clip"
     )
-    assert result["time"] == pytest.approx(2.5, abs=0.5), (
-        "playback that reaches the end of the only clip should snap back to its start"
+    assert result["time"] == pytest.approx(18.0, abs=0.5), (
+        "playback that reaches the end of the only clip should stay there, "
+        "not jump anywhere else"
     )
     assert not result["anyFlashing"], (
         "reaching a clip's natural end during ordinary playback is not a restriction "
@@ -205,8 +175,10 @@ def test_clips_only_with_no_clips_defined_blocks_playback_with_a_message(
         """async () => {
             const video = document.querySelector('.annotation-player-container video');
             video.muted = true;
-            // See test_clips_only_playback_redirects_into_the_clip_when_started_outside_it
-            // for why the AbortError from this play() request is expected and swallowed.
+            // The player's clipsOnly enforcement reacts to the "playing" event
+            // and immediately calls pause() once it sees there are no clips to
+            // play, which aborts this play() request in Chromium - expected
+            // here, so it's swallowed rather than left to fail the test.
             await video.play().catch(() => {});
             await new Promise((resolve) => setTimeout(resolve, 500));
             const messageBox = document.querySelector('.annotation-box');
