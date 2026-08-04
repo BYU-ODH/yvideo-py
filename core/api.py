@@ -132,10 +132,8 @@ class Api:
         try:
             worker_id = response_data[0]["worker_id"]
         except (IndexError, KeyError):
-            worker_id = None
-            self.logger.error(
-                "Failed to get workerid from byuid because the API did not return a workerid"
-            )
+            # No worker record for this BYU ID, so this is not an employee.
+            return False
 
         return worker_id
 
