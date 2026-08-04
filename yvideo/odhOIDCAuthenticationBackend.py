@@ -28,7 +28,7 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
             api = Api()
             worker_id = api.get_worker_id_from_byu_id(claims.get("byu_id"))
             student_summary = api.get_student_summary(claims.get("byu_id"))
-            if worker_id is None and student_summary is None:
+            if not worker_id and student_summary is None:
                 print(
                     f"Login rejected because the user is not affiliated as an employee or student. Rejected BYU-ID: {claims.get('byu_id')}"
                 )
@@ -89,6 +89,8 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
                 netid=student_summary["net_id"],
                 first_name=student_summary["first_name"],
                 last_name=student_summary["last_name"],
+                is_staff=is_whitelist_admin,
+                is_superuser=is_whitelist_admin,
             )
             return user
 
