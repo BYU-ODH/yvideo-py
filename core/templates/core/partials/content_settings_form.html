@@ -29,9 +29,11 @@
                     <label for="allow-fast-playback">Allow fast playback</label>
                     <input id="allow-fast-playback" type="checkbox" {% if content.allow_fast_playback %}checked{% endif %}>
                 </div>
-                {# "clips_only and not content_has_clips" here mirrors setupClipsOnlyWarning()'s
+                {% comment %}
+                   "clips_only and not content_has_clips" here mirrors setupClipsOnlyWarning()'s
                    shouldWarn check in updateContentSettings.js - this is just the correct
-                   initial paint before that script runs; keep both in sync. #}
+                   initial paint before that script runs; keep both in sync.
+                {% endcomment %}
                 <div id="clips-only-form-group" class="content-form-group{% if content.clips_only and not content_has_clips %} clips-only-invalid{% endif %}">
                     <label for="clips-only">Show only clips defined in the editor (better Fair Use protection)</label>
                     <input id="clips-only" type="checkbox" {% if content.clips_only %}checked{% endif %} data-content-has-clips="{{ content_has_clips|yesno:'true,false' }}">
@@ -69,7 +71,7 @@
     <div class="row-flex flex-apart-aligned">
         <div class="row-flex">
             <button id="content-settings-submit-button" class="blue-button">
-                Submit
+                Save
             </button>
             <button id="content-settings-reset-button" class="cancel-button">
                 Reset
