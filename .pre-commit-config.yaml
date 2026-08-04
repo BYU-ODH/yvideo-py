@@ -37,6 +37,15 @@ repos:
     hooks:
       - id: uv-lock
 
+  - repo: local
+    hooks:
+      - id: django-makemigrations-check
+        name: django makemigrations --check
+        entry: uv run manage.py makemigrations --check --dry-run
+        language: system
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v10.6.0
     hooks:
