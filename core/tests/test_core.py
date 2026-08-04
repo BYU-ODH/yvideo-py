@@ -3,15 +3,18 @@ import copy
 from datetime import date
 from functools import cmp_to_key
 import json
+import re
 import unittest
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 
 from .. import api
 from ..factories import AnnotationSetFactory
 from ..factories import BlankAnnotationFactory
+from ..factories import ClipFactory
 from ..factories import CommentAnnotationFactory
 from ..factories import ContentFactory
 from ..factories import CourseFactory
@@ -28,6 +31,7 @@ from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
 from ..models import Content
 from ..models import PauseAnnotation
+from ..models import ResourceFileKey
 from ..models import SkipAnnotation
 from ..models import validate_font_color
 from ..utils import VTTCue
@@ -902,6 +906,190 @@ class AnnotationSetCreateForContentTests(TestCase):
         )
 
 
+class ContentClipsOnlyViewTests(TestCase):
+    """Tests for the clips_only field in the get_player_data and update_content views."""
+
+    def setUp(self):
+        self.user = UserFactory(instructor=True)
+        self.client.force_login(self.user)
+        self.playlist = PlaylistFactory(owner=self.user)
+        self.resource_file = ResourceFileFactory()
+        self.content_clips_only = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=True,
+        )
+        self.content_no_clips_only = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=False,
+        )
+
+        # Create a ResourceFileKey so the player endpoint can be accessed
+        ResourceFileKey.objects.create(
+            user=self.user,
+            resource_file=self.resource_file,
+        )
+
+        # Set up an annotation set with a clip
+        self.annotation_set = AnnotationSetFactory(
+            resource=self.resource_file.resource,
+            owner=self.user,
+        )
+        track = TrackFactory(annotation_set=self.annotation_set)
+        ClipFactory(
+            track=track,
+            start_time=10.0,
+            end_time=30.0,
+        )
+        self.content_clips_only.annotation_set = self.annotation_set
+        self.content_clips_only.save()
+
+    def _get_player_data(self, content):
+        return self.client.post(reverse("get_player_data", args=[content.pk]))
+
+    def _update_content(self, content, **field_overrides):
+        payload = {
+            "id": content.pk,
+            "title": content.title,
+            "description": content.description,
+            "words": content.words,
+            "allow_definitions": content.allow_definitions,
+            "allow_notes": content.allow_notes,
+            "allow_captions": content.allow_captions,
+            "allow_fast_playback": content.allow_fast_playback,
+            "clips_only": content.clips_only,
+            "published": content.published,
+        }
+        payload.update(field_overrides)
+        return self.client.post(
+            reverse("update_content"),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_player_data_reflects_the_content_clips_only_flag(self):
+        clips_only_response = self._get_player_data(self.content_clips_only)
+        no_clips_only_response = self._get_player_data(self.content_no_clips_only)
+
+        self.assertTrue(clips_only_response.json()["clipsOnly"])
+        self.assertFalse(no_clips_only_response.json()["clipsOnly"])
+
+    def test_player_data_returns_clips_list(self):
+        response = self._get_player_data(self.content_clips_only)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("clips", data)
+        self.assertEqual(len(data["clips"]), 1)
+        clip = data["clips"][0]
+        self.assertEqual(clip["class_type"], "Clip")
+        self.assertAlmostEqual(clip["start"], 10.0)
+        self.assertAlmostEqual(clip["end"], 30.0)
+
+    def test_player_data_does_not_duplicate_clips_in_annotations(self):
+        response = self._get_player_data(self.content_clips_only)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        annotation_class_types = [a["class_type"] for a in data["annotations"]]
+        self.assertNotIn("Clip", annotation_class_types)
+
+    def test_update_content_toggles_clips_only(self):
+        set_response = self._update_content(self.content_no_clips_only, clips_only=True)
+        clear_response = self._update_content(self.content_clips_only, clips_only=False)
+
+        self.assertEqual(set_response.status_code, 200)
+        self.assertEqual(clear_response.status_code, 200)
+        self.content_no_clips_only.refresh_from_db()
+        self.content_clips_only.refresh_from_db()
+        self.assertTrue(self.content_no_clips_only.clips_only)
+        self.assertFalse(self.content_clips_only.clips_only)
+
+
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+)
+class ContentHasClipsWarningTests(TestCase):
+    """Tests for Content.has_clips() and the settings-form no-clips warning."""
+
+    def setUp(self):
+        self.user = UserFactory(instructor=True)
+        # Rendering the settings form is a GET request, which
+        # mozilla_django_oidc's SessionRefresh middleware intercepts unless the
+        # session's auth backend is explicitly non-OIDC (see test_legacy_migration.py
+        # for the same pattern).
+        self.client.force_login(
+            self.user, backend="django.contrib.auth.backends.ModelBackend"
+        )
+        self.playlist = PlaylistFactory(owner=self.user)
+        self.resource_file = ResourceFileFactory()
+        self.annotation_set = AnnotationSetFactory(
+            resource=self.resource_file.resource,
+            owner=self.user,
+        )
+        track = TrackFactory(annotation_set=self.annotation_set)
+        ClipFactory(track=track, start_time=5.0, end_time=15.0)
+
+    def test_has_clips_is_true_when_an_active_clip_exists(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            annotation_set=self.annotation_set,
+        )
+        self.assertTrue(content.has_clips())
+
+    def test_has_clips_is_false_without_an_annotation_set(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+        self.assertFalse(content.has_clips())
+
+    def _clips_only_warning_is_visible(self, content):
+        # The warning <div> is always rendered (so updateContentSettings.js can
+        # toggle it live as the checkbox changes) - whether it's shown or not
+        # comes down to the "hidden" attribute on that element, not whether its
+        # text appears in the response at all.
+        response = self.client.get(
+            reverse("render_content_settings_form", args=[content.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        warning_tag = re.search(
+            rb'<div id="clips-only-warning"[^>]*>', response.content
+        )
+        self.assertIsNotNone(warning_tag, "clips-only-warning element not rendered")
+        return b"hidden" not in warning_tag.group()
+
+    def test_settings_form_warns_when_clips_only_is_on_with_no_clips(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=True,
+        )
+        self.assertTrue(self._clips_only_warning_is_visible(content))
+
+    def test_settings_form_does_not_warn_when_clips_exist(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            annotation_set=self.annotation_set,
+            clips_only=True,
+        )
+        self.assertFalse(self._clips_only_warning_is_visible(content))
+
+    def test_settings_form_does_not_warn_when_clips_only_is_off(self):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            clips_only=False,
+        )
+        self.assertFalse(self._clips_only_warning_is_visible(content))
+
+
 class DefaultSubtitleTrackTests(TestCase):
     """Tests for the instructor-chosen default subtitle track on Content."""
 
@@ -983,6 +1171,7 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
             "allow_notes": self.content.allow_notes,
             "allow_captions": self.content.allow_captions,
             "allow_fast_playback": self.content.allow_fast_playback,
+            "clips_only": self.content.clips_only,
             "published": self.content.published,
         }
         payload.update(field_overrides)

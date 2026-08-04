@@ -119,6 +119,8 @@ def get_player_data(request, content_id):
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
+            "clips": player_json["clips"],
+            "clipsOnly": content.clips_only,
         }
 
         return JsonResponse(data)
@@ -805,6 +807,7 @@ def display_content_info(request, content_id):
             "content": content,
             "content_id": content.pk,
             "resource_file_key_id": resource_file_key.pk,
+            "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitle_options(),
         }
         return render(request, "core/content_info.html", context)
@@ -823,6 +826,7 @@ def render_content_settings_form(request, content_id):
         content = Content.objects.get(pk=content_id)
         context = {
             "content": content,
+            "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitle_options(),
         }
         return render(request, "core/partials/content_settings_form.html", context)
@@ -869,6 +873,7 @@ def update_content(request):
         content.allow_notes = data["allow_notes"]
         content.allow_captions = data["allow_captions"]
         content.allow_fast_playback = data["allow_fast_playback"]
+        content.clips_only = data["clips_only"]
         content.published = data["published"]
 
         default_subtitle_id = data.get("default_subtitle_track_id")

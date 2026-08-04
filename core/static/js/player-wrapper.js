@@ -58,7 +58,9 @@ function attachAnnotationPlayer() {
             tracks: tracks,
             clips: clips,
             subtitleSidebar: enableSubtitleSidebar,
-            allowFastPlayback: playerData.allowFastPlayback !== false
+            allowFastPlayback: playerData.allowFastPlayback !== false,
+            clipsOnly: playerData.clipsOnly === true,
+            editorMode: container.dataset.editorMode === 'true'
         });
 
         if (playerData) {
@@ -88,7 +90,8 @@ async function handleVideoSectionChanges() {
   const playerData = await getPlayerData(contentId);
   if (playerData !== false) {
     player.loadData({
-      annotations: playerData.annotations || []
+      annotations: playerData.annotations || [],
+      clips: playerData.clips || []
     });
   }
 }

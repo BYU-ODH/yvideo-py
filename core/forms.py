@@ -60,6 +60,7 @@ class ContentForm(forms.ModelForm):
             "allow_notes",
             "allow_captions",
             "allow_fast_playback",
+            "clips_only",
             "resource_file",
         ]
 
@@ -77,6 +78,7 @@ class UpdateContentForm(forms.ModelForm):
             "allow_notes",
             "allow_captions",
             "allow_fast_playback",
+            "clips_only",
             "published",
         ]
 

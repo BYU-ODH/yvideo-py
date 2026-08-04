@@ -59,6 +59,9 @@ export class AnnotationPlayer {
     this.videoElem.controls = false;
 
     this.allowFastPlayback = options.allowFastPlayback !== false;
+    this.editorMode = options.editorMode === true;
+    // Ignore clips_only restriction in editor mode.
+    this.clipsOnly = options.clipsOnly === true && !this.editorMode;
     this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     if (!this.allowFastPlayback) {
       this.playbackRates = this.playbackRates.filter(rate => rate <= 1.0);
@@ -103,6 +106,8 @@ export class AnnotationPlayer {
 
     this.setupEventListeners();
   }
+
+  static NO_CLIPS_DEFINED_MESSAGE = "This video's settings have been limited to pre-defined clips, but no clips have been defined by the instructor. The instructor must either remove the setting or define clips in the editor.";
 
   static icons = {
     playPauseBtn: {
@@ -445,10 +450,12 @@ export class AnnotationPlayer {
     }
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
+    this.renderClipsOnScrubber();
     this.applyAnnotations();
 
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
+      this.renderClipsOnScrubber();
     });
   }
 
@@ -474,30 +481,34 @@ export class AnnotationPlayer {
     });
   }
 
-  renderActiveClipOnScrubber() {
+  renderClipsOnScrubber() {
     if (!this.controls.scrubber || !this.clips || !this.videoElem.duration) return;
 
     this.controls.scrubber.querySelectorAll('.clip-on-scrubber').forEach(el => el.remove());
 
-    if (this.activeClipIndex !== null && this.clips[this.activeClipIndex]) {
-      const clip = this.clips[this.activeClipIndex];
+    this.clips.forEach((clip, index) => {
       const startPercent = (parseFloat(clip.start) / this.videoElem.duration) * 100;
       const endPercent = (parseFloat(clip.end) / this.videoElem.duration) * 100;
 
       const clipElement = document.createElement('div');
-      clipElement.className = 'clip-on-scrubber active';
-      clipElement.dataset.clipIndex = this.activeClipIndex;
+      clipElement.className = 'clip-on-scrubber' + (index === this.activeClipIndex ? ' active' : '');
+      clipElement.dataset.clipIndex = index;
       clipElement.style.left = `${startPercent}%`;
       clipElement.style.width = `${endPercent - startPercent}%`;
 
       this.controls.scrubber.appendChild(clipElement);
-    }
+    });
   }
 
   _renderClipsMenu() {
     if (!this.controls.clipsMenu) return;
 
-    let menuHTML = '<div class="clip-option" data-clip="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">None</div>';
+    let menuHTML = '';
+    if (this.clipsOnly) {
+      menuHTML += '<div class="clips-menu-message" style="padding:8px 16px;white-space:nowrap;color:#aaa;">Instructor has allowed only these clips:</div>';
+    } else {
+      menuHTML += '<div class="clip-option" data-clip="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">None</div>';
+    }
 
     this.clips.forEach((clip, index) => {
       const label = clip.label || `Clip ${index + 1}`;
@@ -560,7 +571,7 @@ export class AnnotationPlayer {
         this.controls.clipsBtn.classList.remove('clip-active');
       }
     }
-    this.renderActiveClipOnScrubber();
+    this.renderClipsOnScrubber();
   }
 
   play() {
@@ -667,6 +678,21 @@ export class AnnotationPlayer {
         this._updateClipHighlighting();
         this._updateClipsMenuHighlight();
         this.pause();
+      }
+    }
+
+    if (this.clipsOnly && (!this.clips || this.clips.length === 0)) {
+      this.pause(AnnotationPlayer.NO_CLIPS_DEFINED_MESSAGE);
+      return;
+    }
+
+    if (this.clipsOnly && this.clips.length > 0) {
+      const clipsOnlyBoundary = this._getClipsOnlyBoundary(time);
+      if (clipsOnlyBoundary !== null) {
+        this.pause();
+        this.videoElem.currentTime = clipsOnlyBoundary;
+        this.timeCache = clipsOnlyBoundary;
+        return;
       }
     }
 
@@ -1072,7 +1098,8 @@ export class AnnotationPlayer {
 
     const rect = this.controls.scrubber.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newTime = percent * (this.videoElem.duration || 0);
+    const newTime = this._redirectTimeOutsideClip(percent * (this.videoElem.duration || 0));
+
     this.skipTo(newTime);
   }
 
@@ -1086,6 +1113,8 @@ export class AnnotationPlayer {
     if (skipBoundary !== null) {
       newTime = skipBoundary;
     }
+
+    newTime = this._redirectTimeOutsideClip(newTime, { debounceFlash: true });
 
     const adjustedPercent = newTime / (this.videoElem.duration || 1);
     this.updateScrubber(adjustedPercent);
@@ -1124,9 +1153,80 @@ export class AnnotationPlayer {
     return null;
   }
 
+  /**
+   * When clipsOnly mode is active, returns the time the player should seek to
+   * if the requested `time` is outside all defined clip ranges: whichever
+   * clip boundary (a clip's start, or its end) is numerically nearest to
+   * `time`.
+   * Returns null if `time` is already within a clip (no redirect needed) or
+   * if clipsOnly is disabled / no clips are defined.
+   */
+  _getClipsOnlyBoundary(time) {
+    if (!this.clipsOnly || !this.clips || this.clips.length === 0) return null;
+
+    const ranges = this.clips.map(clip => [parseFloat(clip.start), parseFloat(clip.end)]);
+
+    if (ranges.some(([start, end]) => time >= start && time < end)) return null; // already inside a clip
+
+    // A clip's end is exclusive, so landing exactly on one wouldn't count as
+    // "inside" it - nudge just inside instead.
+    const boundaries = ranges.flatMap(([start, end]) => [start, Math.max(start, end - 0.05)]);
+    return boundaries.reduce((nearest, boundary) =>
+      Math.abs(boundary - time) < Math.abs(nearest - time) ? boundary : nearest
+    );
+  }
+
+  /**
+   * For a scrubber click/drag: returns `time` unchanged if it's a valid seek
+   * target, or the nearest clip boundary (see `_getClipsOnlyBoundary`) if the
+   * student tried to seek outside every clip - flashing the restriction
+   * warning in that case, since this path is always a deliberate seek.
+   * With `debounceFlash`, the warning only flashes on the first out-of-clip
+   * position of a drag, not on every mousemove tick until the drag re-enters
+   * a clip.
+   */
+  _redirectTimeOutsideClip(time, { debounceFlash = false } = {}) {
+    const clipsOnlyBoundary = this._getClipsOnlyBoundary(time);
+    if (clipsOnlyBoundary === null) {
+      if (debounceFlash) this._draggedOutsideClip = false;
+      return time;
+    }
+
+    if (debounceFlash) {
+      if (!this._draggedOutsideClip) {
+        this._draggedOutsideClip = true;
+        this._flashClipRestrictionWarning();
+      }
+    } else {
+      this._flashClipRestrictionWarning();
+    }
+    return clipsOnlyBoundary;
+  }
+
+  // Fades the clips button and every clip-on-scrubber marker to yellow, then
+  // fades them back to normal, to warn that a requested seek fell outside
+  // every clip.
+  _flashClipRestrictionWarning() {
+    if (!this.controls.scrubber) return;
+
+    const elements = [
+      this.controls.clipsBtn,
+      ...this.controls.scrubber.querySelectorAll('.clip-on-scrubber'),
+    ].filter(Boolean);
+
+    elements.forEach(el => {
+      clearTimeout(el._clipRestrictionFlashTimeout);
+      el.classList.add('clip-restriction-flash');
+      el._clipRestrictionFlashTimeout = setTimeout(() => {
+        el.classList.remove('clip-restriction-flash');
+      }, 300);
+    });
+  }
+
   beginScrubberDrag(e) {
     if (!this.controls.scrubber) return;
     this.isDragging = true;
+    this._draggedOutsideClip = false;
     this.wasPlayingBeforeDrag = !this.videoElem.paused;
     if (this.wasPlayingBeforeDrag) {
       this.videoElem.pause();
