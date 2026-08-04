@@ -16,8 +16,7 @@ the app about where the database lives.
 
 Options:
   --force         Skip the confirmation prompt.
-  --bootstrap     Delete core/migrations/0001_initial.py, then run
-                  makemigrations, migrate, and seed_demo_data after cleanup.
+  --bootstrap     Run migrate and seed_demo_data after cleanup.
   --db-dir=DIR    Directory holding the SQLite database files. Overrides the
                   path reported by Django.
   -h, --help      Show this help text.
@@ -120,16 +119,11 @@ rm -rf media/*
 echo "Local state cleared."
 
 if [[ "$bootstrap" == true ]]; then
-    echo "Regenerating core migrations..."
-    rm -f core/migrations/0001_initial.py
-    uv run manage.py makemigrations
     echo "Rebuilding local database from migrations..."
     uv run manage.py migrate
     uv run manage.py seed_demo_data
 else
     echo "Possible next steps:"
-    echo "  rm -f core/migrations/0001_initial.py"
-    echo "  uv run manage.py makemigrations"
     echo "  uv run manage.py migrate"
     echo "  uv run manage.py seed_demo_data"
 fi
