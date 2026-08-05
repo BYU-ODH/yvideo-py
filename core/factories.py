@@ -65,10 +65,14 @@ class UserFactory(factory.django.DjangoModelFactory):
 class LanguageFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Language
-        django_get_or_create = ("lang_tag",)
+        django_get_or_create = ("iso_639_3",)
 
     language = factory.Sequence(lambda n: f"Language {n}")
-    lang_tag = factory.Sequence(lambda n: f"l{n:02d}")
+    # "qaa".."qtz" is reserved by ISO 639-3 for private use, so these never
+    # collide with a real seeded language code.
+    iso_639_3 = factory.Sequence(
+        lambda n: f"q{chr(97 + (n // 26) % 20)}{chr(97 + n % 26)}"
+    )
 
 
 class CourseFactory(factory.django.DjangoModelFactory):

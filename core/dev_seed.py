@@ -128,8 +128,8 @@ def create_demo_data():
     # compute once so every demo course and enrollment shares the same term
     demo_yearterm = estimate_current_yearterm()
 
-    english = LanguageFactory(language="English", lang_tag="en")
-    spanish = LanguageFactory(language="Spanish", lang_tag="es")
+    english = LanguageFactory(language="English", iso_639_3="eng")
+    spanish = LanguageFactory(language="Spanish", iso_639_3="spa")
 
     admin = UserFactory(
         admin=True,

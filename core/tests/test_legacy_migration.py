@@ -293,7 +293,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_preflight_builds_file_candidates_and_fuzzy_name_issue(self):
         self.create_legacy_schema()
-        language = LanguageFactory(language="English", lang_tag="en")
+        language = LanguageFactory(language="English", iso_639_3="eng")
 
         owner = UserFactory(netid="profada", username="123456789", instructor=True)
         ta_user = UserFactory(netid="caseyta", username="987654321", instructor=True)
@@ -475,7 +475,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "created": "2026-01-01 00:00:00",
                 "title": "English",
-                "language": "en",
+                "language": "English",
                 "content": json.dumps([{"start": 0, "end": 1, "text": "Birds"}]),
                 "words": "Birds",
                 "content_id": legacy_content_id,
@@ -576,11 +576,153 @@ class LegacyMigrationTests(TestCase):
             ],
         )
 
+    def test_resolve_language_rejects_cakchiquel_legacy_default(self):
+        # The legacy system used Cakchiquel as a bogus default subtitle
+        # language, so migration must never auto-resolve it, even though a
+        # matching Language row exists (an admin may still pick it manually).
+        LanguageFactory(language="Cakchiquel", iso_639_3="cak")
+        service = LegacyMigrationService(require_catalog=False)
+
+        self.assertIsNone(service._resolve_language("Cakchiquel"))
+        self.assertIsNone(service._resolve_language("cak"))
+        self.assertIsNone(service._resolve_language("CAKCHIQUEL"))
+
+    def test_resolve_language_still_resolves_trustworthy_languages(self):
+        english = LanguageFactory(language="English", iso_639_3="eng")
+
+        service = LegacyMigrationService(require_catalog=False)
+
+        self.assertEqual(service._resolve_language("English"), english)
+        self.assertEqual(service._resolve_language("eng"), english)
+
+    def test_preflight_flags_cakchiquel_subtitle_language_for_manual_review(self):
+        # A subtitle's raw language must be attached to real, file-backed
+        # content: the preflight subtitle-language check is skipped entirely
+        # for synthetic (URL-only) content.
+        self.create_legacy_schema()
+        LanguageFactory(language="Cakchiquel", iso_639_3="cak")
+
+        owner = UserFactory(netid="profcak", username="333333333", instructor=True)
+        legacy_collection_id = str(uuid.uuid4())
+        legacy_owner_id = str(uuid.uuid4())
+        legacy_resource_id = str(uuid.uuid4())
+        legacy_content_id = str(uuid.uuid4())
+        legacy_file_id = str(uuid.uuid4())
+        self.write_media_file("legacy/cak-video.mp4", payload=b"video-payload")
+
+        self.insert_legacy_row(
+            "users",
+            {
+                "id": legacy_owner_id,
+                "deleted": None,
+                "username": "profcak",
+                "byu_person_id": "333333333",
+                "email": "profcak@example.test",
+            },
+        )
+        self.insert_legacy_row(
+            "collections",
+            {
+                "id": legacy_collection_id,
+                "deleted": None,
+                "collection_name": "Legacy Cakchiquel Collection",
+                "owner": legacy_owner_id,
+                "published": 1,
+                "archived": 0,
+                "public": 0,
+                "copyrighted": 0,
+            },
+        )
+        self.insert_legacy_row(
+            "resources",
+            {
+                "id": legacy_resource_id,
+                "deleted": None,
+                "resource_name": "Cakchiquel Video Resource",
+                "resource_type": "video",
+                "requester_email": "profcak@example.test",
+                "copyrighted": 0,
+                "physical_copy_exists": 1,
+                "full_video": 1,
+                "published": 1,
+                "views": 0,
+                "metadata": "{}",
+            },
+        )
+        self.insert_legacy_row(
+            "files",
+            {
+                "id": legacy_file_id,
+                "deleted": None,
+                "resource_id": legacy_resource_id,
+                "filepath": "legacy/cak-video.mp4",
+                "file_version": "original",
+                "metadata": "{}",
+                "created": "2026-01-01 00:00:00",
+                "updated": "2026-01-01 00:00:00",
+            },
+        )
+        self.insert_legacy_row(
+            "contents",
+            {
+                "id": legacy_content_id,
+                "deleted": None,
+                "created": "2026-01-01 00:00:00",
+                "collection_id": legacy_collection_id,
+                "resource_id": legacy_resource_id,
+                "title": "Cakchiquel Video Lesson",
+                "content_type": "video",
+                "url": "",
+                "description": "",
+                "tags": "",
+                "annotations": json.dumps([]),
+                "thumbnail": "",
+                "allow_definitions": 1,
+                "allow_notes": 1,
+                "allow_captions": 1,
+                "views": 0,
+                "file_version": "original",
+                "published": 1,
+                "words": "",
+                "clips": json.dumps([]),
+            },
+        )
+        self.insert_legacy_row(
+            "subtitles",
+            {
+                "id": str(uuid.uuid4()),
+                "deleted": None,
+                "created": "2026-01-01 00:00:00",
+                "title": "Cakchiquel",
+                "language": "Cakchiquel",
+                "content": json.dumps([{"start": 0, "end": 1, "text": "Hola"}]),
+                "words": "Hola",
+                "content_id": legacy_content_id,
+            },
+        )
+
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=legacy_collection_id,
+        )
+        service = self.build_service()
+        service.preflight_request(migration_request)
+        migration_request.refresh_from_db()
+
+        self.assertTrue(
+            migration_request.issues.filter(
+                code="missing_subtitle_language", severity="blocking"
+            ).exists()
+        )
+        self.assertTrue(migration_request.has_blocking_issues())
+
     def test_import_collection_migrates_files_url_content_permissions_and_annotations(
         self,
     ):
         self.create_legacy_schema()
-        LanguageFactory(language="English", lang_tag="en")
+        LanguageFactory(language="English", iso_639_3="eng")
 
         target_owner = UserFactory(
             netid="profben", username="111111111", instructor=True
@@ -795,7 +937,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "created": "2026-01-01 00:00:00",
                 "title": "English",
-                "language": "en",
+                "language": "English",
                 "content": json.dumps(
                     [{"start": 0.0, "end": 2.0, "text": "Hello world"}]
                 ),
@@ -1439,7 +1581,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_import_reuses_selected_existing_resource(self):
         self.create_legacy_schema()
-        LanguageFactory(language="English", lang_tag="en")
+        LanguageFactory(language="English", iso_639_3="eng")
 
         owner = UserFactory(netid="profada", username="123456789", instructor=True)
         existing_resource = ResourceFactory(

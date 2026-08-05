@@ -22,6 +22,12 @@ HMS_VALIDATOR = RegexValidator(
     code="invalid_time_format",
 )
 
+ISO_639_3_VALIDATOR = RegexValidator(
+    regex=r"^[a-z]{3}$",
+    message="Must be a three-letter lowercase ISO 639-3 code (e.g., eng, spa).",
+    code="invalid_iso_639_3",
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -769,7 +775,7 @@ class Content(models.Model):
         subtitles = [
             {
                 "id": sub.pk,
-                "srclang": sub.language.lang_tag,
+                "srclang": sub.language.iso_639_3,
                 "vtt": sub.subtitles_file.read().decode("utf-8"),
                 "name": sub.name,
                 "default": sub.pk == default_id,
@@ -1432,8 +1438,15 @@ class UserCourses(models.Model):
 
 class Language(models.Model):
     language = models.CharField(max_length=60, unique=True, blank=False, null=False)
-    # TODO ensure that these are ISO 639-1 (2002) or a three-letter code from ISO 639-2 (1998), ISO 639-3 (2007) or ISO 639-5 (2008)
-    lang_tag = models.CharField(max_length=10, unique=True, blank=False, null=False)
+    iso_639_3 = models.CharField(
+        max_length=3,
+        unique=True,
+        blank=False,
+        null=False,
+        validators=[ISO_639_3_VALIDATOR],
+        help_text="Three-letter ISO 639-3 code. See "
+        "https://iso639-3.sil.org/code_tables/639/data",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1441,7 +1454,7 @@ class Language(models.Model):
         ordering = ["language"]
 
     def __str__(self):
-        return f"{self.language} ({self.lang_tag})"
+        return f"{self.language} ({self.iso_639_3})"
 
 
 def subtitle_file_upload_path(instance, filename):

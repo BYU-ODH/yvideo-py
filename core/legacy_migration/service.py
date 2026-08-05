@@ -69,6 +69,12 @@ from .remote_files import scp_remote_legacy_file
 
 logger = logging.getLogger(__name__)
 
+# The legacy system used Cakchiquel (Kaqchikel) as a bogus default subtitle
+# language, so it's never trustworthy coming out of a legacy dump. Treat it
+# as unresolved so migration always forces an admin to pick the real
+# language instead of silently importing it.
+UNTRUSTWORTHY_LEGACY_LANGUAGE_ISO_639_3 = "cak"
+
 
 class LegacyMigrationJobCanceled(Exception):
     """Raised inside a running job when it was canceled from the admin."""
@@ -767,8 +773,8 @@ class LegacyMigrationService:
                         severity=LegacyMigrationIssueSeverity.BLOCKING,
                         code="missing_subtitle_language",
                         message=(
-                            f"Subtitle language '{subtitle_row['language']}' does not match "
-                            "a current Language row."
+                            f"Subtitle language '{subtitle_row['language']}' could not be "
+                            "automatically resolved and must be selected manually."
                         ),
                         details={"legacy_subtitle_id": subtitle_row["id"]},
                     )
@@ -999,10 +1005,13 @@ class LegacyMigrationService:
         language = (raw_language or "").strip()
         if not language:
             return None
-        return (
-            Language.objects.filter(lang_tag__iexact=language).first()
+        resolved = (
+            Language.objects.filter(iso_639_3__iexact=language).first()
             or Language.objects.filter(language__iexact=language).first()
         )
+        if resolved and resolved.iso_639_3 == UNTRUSTWORTHY_LEGACY_LANGUAGE_ISO_639_3:
+            return None
+        return resolved
 
     def _get_target_owner(self, request_obj):
         owner = request_obj.target_owner or request_obj.requested_by

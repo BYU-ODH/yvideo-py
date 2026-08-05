@@ -143,7 +143,7 @@ def _language_matches_request(language, requested_language):
     }
     language_values = {
         _normalize_match_value(language.language),
-        _normalize_match_value(language.lang_tag),
+        _normalize_match_value(language.iso_639_3),
     }
     return bool(requested_values & language_values)
 
