@@ -112,6 +112,9 @@
     display: flex;
     flex-direction: column;
     row-gap: 2px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .annotation-type-header {
@@ -895,6 +898,11 @@
 
 .timeline-row-left {
     border-radius: 8px 0px 0px 8px;
+    border-left: 3px solid transparent;
+}
+
+.track-row.active-track .timeline-row-left {
+    border-left: 3px solid #fff;
 }
 
 .timeline-row-right {

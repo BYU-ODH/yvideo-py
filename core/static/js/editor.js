@@ -39,8 +39,8 @@ export class Editor {
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.selectedSubtitleTrackId = null;
         this.itemBeingDragged = null;
-        this.dragTimeStart = null;
         this.dragGrabOffsetX = 0;
+        this.activeTrackId = null;
         this.dragGhostImage = new Image();  // Used to avoid browser's default globe icon
         this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
@@ -91,6 +91,16 @@ export class Editor {
           container.addEventListener('mousedown', this.handleMouseDown.bind(this));
       });
       this.tracks = tracks;
+      this.setActiveTrack(this.activeTrackId);  // Re-apply active track highlight after tracks are rebuilt
+    }
+
+    setActiveTrack(trackId) {
+      const trackRows = document.getElementsByClassName("track-row");
+      const activeTrackExists = Array.from(trackRows).some(row => row.dataset["trackId"] == trackId);
+      this.activeTrackId = activeTrackExists ? trackId : trackRows[0]?.dataset["trackId"];
+      for (let trackRow of trackRows) {
+        trackRow.classList.toggle("active-track", trackRow.dataset["trackId"] == this.activeTrackId);
+      }
     }
 
     startResize(trackItem, handle, e) {
@@ -359,7 +369,6 @@ export class Editor {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
         this.itemBeingDragged = item;
-        this.dragTimeStart = Date.now();
         this.dragGrabOffsetX = event.clientX - item.getBoundingClientRect().left;
         this.resetTrackItemProjectionsStyle();
         this.blockTrackItemPointerEvents();
@@ -372,7 +381,6 @@ export class Editor {
 
       item.addEventListener("dragend", () => {
         this.itemBeingDragged = null;
-        this.dragTimeStart = null;
         item.classList.remove("is-dragging");
         this.allowTrackItemPointerEvents();
       })
@@ -1322,12 +1330,12 @@ export class Editor {
 
       // we are ready to add the active item's style
       thisPanelItem.classList.add(`${annotationType}-list-item-wrapper-selected`, activePanelItemClass);
-      thisPanelItem.scrollIntoView({behavior: "smooth"});
       const thisItemList = thisPanelItem.closest(".annotation-type-list");
       thisItemList.classList.add(itemListExpansionClass);
       const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
       const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
       thisGroupArrow.classList.add(arrowRotationClass);
+      thisPanelItem.scrollIntoView({behavior: "smooth", block: "nearest"});
 
       // handle track item style
       const activeTrackItemCSSClass = "active-track-item";
@@ -1343,6 +1351,11 @@ export class Editor {
         return;
       }
       trackItem.classList.add(activeTrackItemCSSClass);
+
+      const parentTrackRow = trackItem.closest(".track-row");
+      if (parentTrackRow) {
+        this.setActiveTrack(parentTrackRow.dataset["trackId"]);
+      }
 
       // skip to start of this annotation in video
       const startTime = Number(trackItem.dataset["start"]);
@@ -1438,7 +1451,11 @@ export class Editor {
           return;
         }
         const itemOriginalTrackId = this.itemBeingDragged.dataset["originalTrackId"];
-        projectionEl.style.width = this.itemBeingDragged.style.width;
+        // Pause items have no `style.width` (they render at a content-driven,
+        // shrink-to-fit size - see placeTrackItems), so fall back to their
+        // actual rendered width to keep the drag shadow the same size as the
+        // item being dragged.
+        projectionEl.style.width = this.itemBeingDragged.style.width || `${this.itemBeingDragged.getBoundingClientRect().width}px`;
         if (itemOriginalTrackId == thisContainerTrackId) {
           // show the projection moving in concert with the mouse (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
@@ -1469,21 +1486,25 @@ export class Editor {
         event.preventDefault();
         this.itemBeingDragged = null;
         projectionEl.style.visibility = "hidden";
-        // check if it has been longer than 50ms since drag started
-        if ((Date.now() - this.dragTimeStart) <= 100) {
-          return;
-        }
         const itemId = event.dataTransfer.getData("text");
         if (!itemId || !itemIdRegEx.test(itemId)) {
           return;
         }
         const originalItem = document.getElementById(itemId);
 
-        // build new item, and check if we need to move it to a different track
+        // build new item, and check if we need to move it to a different track.
+        // Parse by selector rather than a fixed child index: native drag-and-drop
+        // payloads are serialized through the OS's clipboard format, and some
+        // platforms wrap the transferred HTML in extra nodes (e.g. a leading
+        // <meta charset>) before it can be read back out.
         const trackItemHTML = event.dataTransfer.getData("text/html");
-        // the second child of the new element has to be used because the dataTransfer API
-        // adds some meta information about the html as the root node in the transfered HTML
-        const replacementItem = createElementFromHTMLString(trackItemHTML, 1);
+        const htmlTemplate = document.createElement("template");
+        htmlTemplate.innerHTML = trackItemHTML.trim();
+        const replacementItem = htmlTemplate.content.querySelector(".track-item");
+        if (!replacementItem) {
+          console.error("Failed to parse dragged track item from drop payload");
+          return;
+        }
         const trackRowParent = event.target.closest(".track-row");
         const trackId = trackRowParent.dataset["trackId"];
         const originalTrackId = originalItem.dataset["originalTrackId"];
@@ -1555,6 +1576,12 @@ export class Editor {
       this.watchForTrackRename(trackRootElement);
       this.watchForTrackMovement(trackRootElement);
       this.watchForTrackDelete(trackRootElement);
+      this.watchForTrackActivation(trackRootElement);
+    }
+
+    watchForTrackActivation(trackRootElement) {
+      const trackId = trackRootElement.dataset["trackId"];
+      trackRootElement.addEventListener("click", () => this.setActiveTrack(trackId));
     }
 
     /* track options menu */
@@ -1619,6 +1646,8 @@ export class Editor {
         const trackParentNode = createElementFromHTMLString(newTrackHTML);
         this.setupTrackWatchers(trackParentNode);
         this.timelineWrapper.insertBefore(trackParentNode, timelineZoomRow);
+        const annotationContainer = trackParentNode.querySelector(".track-row-annotations-container");
+        this.setupTrackDragListeners(annotationContainer);
       }
     }
 
@@ -1872,6 +1901,13 @@ export class Editor {
                 item.style.setProperty("width", `${itemWidthValue}%`);
                 this.hideOrShowResizeHandles(item);
               }
+              else {
+                // Pause items have no real duration - use virtualEnd for visual purposes.
+                const containerWidth = track.scrollWidth || track.getBoundingClientRect().width;
+                const itemWidth = item.getBoundingClientRect().width;
+                const virtualDuration = containerWidth > 0 ? (itemWidth / containerWidth) * this.duration : 0;
+                item.dataset.virtualEnd = itemStart + virtualDuration;
+              }
               const itemLeftValue = parseFloat(item.dataset["start"]) / this.duration * 100
               item.style.setProperty("left", `${itemLeftValue}%`);
 
@@ -1896,7 +1932,7 @@ export class Editor {
             const rowEndTimes = [];
             for (let item of trackItems) {
                 const itemStart = Number(item.dataset.start);
-                const itemEnd = Number(item.dataset.end);
+                const itemEnd = item.dataset.annotationType === "pause" ? Number(item.dataset.virtualEnd) : Number(item.dataset.end);
                 let rowIndex = rowEndTimes.findIndex(rowEndTime => itemStart > rowEndTime);
                 if (rowIndex === -1) {
                     rowIndex = rowEndTimes.length;
@@ -1937,7 +1973,7 @@ export class Editor {
             // Stop this button's click (which may live inside the collapsible
             // .annotation-type-header) from also toggling the header's expansion.
             e.stopPropagation();
-            const trackRow = document.querySelector(".track-row");
+            const trackRow = document.querySelector(`.track-row[data-track-id="${this.activeTrackId}"]`) || document.querySelector(".track-row");
             if (!trackRow) {
               console.error("Unable to assign listeners to new item creation buttons. Invalid track row.");
               return;
