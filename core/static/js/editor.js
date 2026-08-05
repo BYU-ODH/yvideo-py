@@ -91,12 +91,9 @@ export class Editor {
           container.addEventListener('mousedown', this.handleMouseDown.bind(this));
       });
       this.tracks = tracks;
-      this.restoreActiveTrackHighlight();
+      this.setActiveTrack(this.activeTrackId);  // Re-apply active track highlight after tracks are rebuilt
     }
 
-    // Marks `trackId` as the active track (highlighted, and the destination for
-    // newly created items). Falls back to the first track if `trackId` no longer
-    // exists (e.g. the active track was just deleted).
     setActiveTrack(trackId) {
       const trackRows = document.getElementsByClassName("track-row");
       const activeTrackExists = Array.from(trackRows).some(row => row.dataset["trackId"] == trackId);
@@ -104,13 +101,6 @@ export class Editor {
       for (let trackRow of trackRows) {
         trackRow.classList.toggle("active-track", trackRow.dataset["trackId"] == this.activeTrackId);
       }
-    }
-
-    // Re-applies the active-track highlight after tracks are rebuilt from new
-    // HTML (track creation, deletion, reordering all replace every track-row
-    // element, which drops any classes previously set on them).
-    restoreActiveTrackHighlight() {
-      this.setActiveTrack(this.activeTrackId);
     }
 
     startResize(trackItem, handle, e) {
@@ -1345,10 +1335,6 @@ export class Editor {
       const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
       const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
       thisGroupArrow.classList.add(arrowRotationClass);
-      // Scroll after the list has expanded, so the item's final (post-expansion)
-      // position is used. `block: "nearest"` keeps this scroll scoped to the
-      // annotation panel's own scroll container instead of climbing to a
-      // shared ancestor and dragging the video/detail-form panels along with it.
       thisPanelItem.scrollIntoView({behavior: "smooth", block: "nearest"});
 
       // handle track item style
@@ -1593,10 +1579,6 @@ export class Editor {
       this.watchForTrackActivation(trackRootElement);
     }
 
-    // track activation (used to decide where newly created items land). A single
-    // listener on the whole row covers the left panel, the annotations
-    // container, and everything in between - clicking anywhere in a track
-    // makes it the active one.
     watchForTrackActivation(trackRootElement) {
       const trackId = trackRootElement.dataset["trackId"];
       trackRootElement.addEventListener("click", () => this.setActiveTrack(trackId));
@@ -1920,12 +1902,7 @@ export class Editor {
                 this.hideOrShowResizeHandles(item);
               }
               else {
-                // Pause items have no real duration - they render at a fixed,
-                // content-driven (shrink-to-fit) width instead of a percentage
-                // width. Convert that rendered width into an equivalent virtual
-                // end time, so the row-stacking pass below can treat a pause
-                // like any other item and keep other items from being drawn
-                // directly on top of it.
+                // Pause items have no real duration - use virtualEnd for visual purposes.
                 const containerWidth = track.scrollWidth || track.getBoundingClientRect().width;
                 const itemWidth = item.getBoundingClientRect().width;
                 const virtualDuration = containerWidth > 0 ? (itemWidth / containerWidth) * this.duration : 0;
@@ -1955,11 +1932,6 @@ export class Editor {
             const rowEndTimes = [];
             for (let item of trackItems) {
                 const itemStart = Number(item.dataset.start);
-                // Pause items have no real end time in their data, but they still
-                // occupy real visual space (see the virtual-end calculation above),
-                // so use that virtual end here too - otherwise a pause could be
-                // treated as zero-width for stacking purposes while still
-                // rendering wide enough to visually overlap its neighbors.
                 const itemEnd = item.dataset.annotationType === "pause" ? Number(item.dataset.virtualEnd) : Number(item.dataset.end);
                 let rowIndex = rowEndTimes.findIndex(rowEndTime => itemStart > rowEndTime);
                 if (rowIndex === -1) {
