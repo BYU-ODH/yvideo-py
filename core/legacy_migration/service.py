@@ -73,7 +73,7 @@ logger = logging.getLogger(__name__)
 # language, so it's never trustworthy coming out of a legacy dump. Treat it
 # as unresolved so migration always forces an admin to pick the real
 # language instead of silently importing it.
-UNTRUSTWORTHY_LEGACY_LANGUAGE_ISO_639_3 = "cak"
+UNTRUSTWORTHY_LEGACY_LANGUAGE_BCP47 = "cak"
 
 
 class LegacyMigrationJobCanceled(Exception):
@@ -1006,10 +1006,10 @@ class LegacyMigrationService:
         if not language:
             return None
         resolved = (
-            Language.objects.filter(iso_639_3__iexact=language).first()
+            Language.objects.filter(bcp47__iexact=language).first()
             or Language.objects.filter(language__iexact=language).first()
         )
-        if resolved and resolved.iso_639_3 == UNTRUSTWORTHY_LEGACY_LANGUAGE_ISO_639_3:
+        if resolved and resolved.bcp47 == UNTRUSTWORTHY_LEGACY_LANGUAGE_BCP47:
             return None
         return resolved
 
