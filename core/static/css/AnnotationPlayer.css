@@ -5,9 +5,57 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   transition: none;
   align-items: center;
+}
+
+/* The browser's default fullscreen styling (position: fixed, inset: 0) is
+   overridden by our own `position: relative` above because author styles
+   win over the UA stylesheet at equal specificity. Without this, the
+   container stays sized/positioned as it was in the page flow and never
+   actually grows to fill the screen. Re-declare the fullscreen sizing
+   explicitly for each fullscreen pseudo-class (kept as separate rules
+   rather than one selector list, since older engines invalidate an entire
+   selector list when one selector in it is unrecognized). */
+.annotation-player-container:fullscreen {  /* eslint-disable-line css/use-baseline */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
+}
+
+.annotation-player-container:-webkit-full-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
+}
+
+.annotation-player-container:-moz-full-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
+}
+
+.annotation-player-container:-ms-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
 }
 
 .video-wrapper {
@@ -17,6 +65,11 @@
   justify-content: center;
   transition: margin-right 0.3s ease;
   min-width: 0;
+  width: 100%;
+}
+
+.video-wrapper.full-height {
+  width: auto;
 }
 
 .video-title {
@@ -29,6 +82,7 @@
 }
 
 .annotation-player-container.subtitle-sidebar-open .video-wrapper {
+  width: auto;
   margin-right: 320px;
 }
 
