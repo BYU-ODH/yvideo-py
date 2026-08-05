@@ -61,7 +61,7 @@ def _inject_blur_annotation(page):
         }""",
         BLUR_POSITION,
     )
-    page.wait_for_selector("#blur0", state="attached")
+    page.wait_for_selector("#blur-1", state="attached")
 
 
 # The rectangle the picture actually occupies inside the video element. Since the video is
@@ -101,7 +101,7 @@ def _blur_position_relative_to_video(page):
             """
         + _CONTENT_RECT_JS
         + """
-            const b = document.querySelector('#blur0').getBoundingClientRect();
+            const b = document.querySelector('#blur-1').getBoundingClientRect();
             return {
                 x: (b.left - frame.x) / frame.width,
                 y: (b.top - frame.y) / frame.height,
@@ -374,7 +374,7 @@ def test_blur_radius_scales_with_the_rendered_frame(
     _inject_blur_annotation(page)
 
     read_radius = """() => {
-        const value = getComputedStyle(document.querySelector('#blur0')).backdropFilter;
+        const value = getComputedStyle(document.querySelector('#blur-1')).backdropFilter;
         const match = value.match(/blur\\(([\\d.]+)px\\)/);
         return match ? parseFloat(match[1]) : null;
     }"""
@@ -389,6 +389,58 @@ def test_blur_radius_scales_with_the_rendered_frame(
     assert small < large, (
         f"blur radius did not shrink with the frame ({small} vs {large})"
     )
+
+
+def test_the_blur_glides_between_positions(page, live_server, seeded_demo_data):
+    """A blur with several positions interpolates between them rather than snapping.
+
+    This is a safety property, not a nicety: a box that snaps to the last position passed lags
+    behind whatever it is covering, briefly exposing it. Interpolating is what makes a handful
+    of positions sufficient to keep a moving subject hidden.
+    """
+    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+
+    # Two positions four seconds apart, moving right and growing. Every field differs so a
+    # field mix-up cannot cancel out.
+    page.evaluate(
+        """() => {
+            window.videoPlayer.loadData({
+                annotations: [{
+                    id: 1,
+                    type: 'blur',
+                    start: 0,
+                    end: 999999,
+                    positions: [
+                        {id: 1, time: 0, x: 10, y: 20, width: 20, height: 10},
+                        {id: 2, time: 4, x: 50, y: 40, width: 30, height: 20},
+                    ],
+                }],
+            });
+        }"""
+    )
+    page.wait_for_selector("#blur-1", state="attached")
+
+    def seek_and_measure(time):
+        page.evaluate(f"() => window.videoPlayer.setCurrentTime({time})")
+        page.wait_for_timeout(200)
+        return _blur_position_relative_to_video(page)
+
+    # Exactly halfway: every field should be halfway too. Snapping would report the t=0 values
+    # (0.10 / 0.20 / 0.20 / 0.10) instead.
+    midpoint = seek_and_measure(2.0)
+    assert midpoint["x"] == pytest.approx(0.30, abs=0.01)
+    assert midpoint["y"] == pytest.approx(0.30, abs=0.01)
+    assert midpoint["width"] == pytest.approx(0.25, abs=0.01)
+    assert midpoint["height"] == pytest.approx(0.15, abs=0.01)
+
+    # A quarter of the way, to prove it is genuinely proportional and not just a 50% special case.
+    quarter = seek_and_measure(1.0)
+    assert quarter["x"] == pytest.approx(0.20, abs=0.01)
+
+    # Past the last position the geometry holds rather than extrapolating off-frame.
+    beyond = seek_and_measure(6.0)
+    assert beyond["x"] == pytest.approx(0.50, abs=0.01)
+    assert beyond["width"] == pytest.approx(0.30, abs=0.01)
 
 
 def test_blur_stays_aligned_with_the_subtitle_sidebar_open(

@@ -1,6 +1,6 @@
 import { SubtitleSidebar } from "./SubtitleSidebar.js";
 import { formatSecondsToString, animateDuringPlayback } from "./utils.js";
-import { contentRect } from "./video-geometry.js";
+import { contentRect, rectAtTime } from "./video-geometry.js";
 
 export class AnnotationPlayer {
   constructor(options = {}) {
@@ -746,7 +746,7 @@ export class AnnotationPlayer {
       let aEnd = a["end"];
       let aType = a["type"];
       let aPositions = a["positions"];
-      const isActiveNow = time >= aStart && time < aEnd
+      const isActiveNow = time >= aStart && time <= aEnd
       switch (aType) {
         case "skip":
           if (isActiveNow) {
@@ -823,57 +823,49 @@ export class AnnotationPlayer {
             }
           }
           break;
-        case "blur":
-          if (isActiveNow) {
-            function determineWhichBlurPositionToShow(positions) {
-              let desiredPosition = positions[0];
-              for (let i = 1; i < positions.length; i++) {
-                const positionToEvaluate = positions[i];
-                if (positionToEvaluate["time"] <= time) {
-                  desiredPosition = positionToEvaluate;
-                }
-              }
-              return desiredPosition;
-            }
+        case "blur": {
+          // Keyed by annotation id, not loop index: loadData re-parses on every edit, so an
+          // index-keyed div would silently start representing a different annotation if the
+          // ordering ever changed.
+          const blurId = "blur-" + a.id;
+          const existingBlur = this.annotationBox.querySelector("#" + blurId);
 
-            if (!this.annotationBox.querySelector("#blur" + i)) {
-              const firstPosition = aPositions[0];
-              const blur = document.createElement("div");
-              blur.dataset["blurPositionParentId"] = a.id;
-              blur.dataset["blurPositionId"] = firstPosition.id;
-              blur.id = "blur" + i;
-              blur.className = "blur-position blur";
-              blur.style.position = "absolute";
-              blur.style.width =  firstPosition["width"] + "%";
-              blur.style.height = firstPosition["height"] + "%";
-              blur.style.left = firstPosition["x"] + "%";
-              blur.style.top = firstPosition["y"] + "%";
-              // Blur strength deliberately not set here. It used to emit
-              // `blur(60)` from the model's integer default -- unitless, invalid, silently
-              // discarded -- so the stylesheet was always the real source. It now scales with
-              // the frame via --blur-radius, and an inline value here would override that.
-              this.annotationBox.appendChild(blur);
-            } else {
-              const blur = this.annotationBox.querySelector(
-                "#blur" + i,
-              );
-              const positionToShow = determineWhichBlurPositionToShow(aPositions);
-              blur.dataset["blurPositionParentId"] = a.id;
-              blur.dataset["blurPositionId"] = positionToShow.id;
-              blur.style.width =  positionToShow["width"] + "%";
-              blur.style.height = positionToShow["height"] + "%";
-              blur.style.left = positionToShow["x"] + "%";
-              blur.style.top = positionToShow["y"] + "%";
-            }
-          } else {
-            const existingBlur = this.annotationBox.querySelector(
-              "#blur" + i,
-            );
+          // The box glides between positions rather than snapping to the last one passed.
+          // With snapping it lags behind whatever it is covering and briefly exposes it, so
+          // this is what makes a handful of positions enough to keep a moving subject hidden.
+          const rect = isActiveNow ? rectAtTime(aPositions, time) : null;
+
+          if (!rect) {
+            // Either outside the annotation's window, or it has no positions at all - which
+            // an import can produce, and which used to throw here on aPositions[0].
             if (existingBlur) {
               existingBlur.remove();
             }
+            break;
           }
+
+          const blur = existingBlur || document.createElement("div");
+          if (!existingBlur) {
+            blur.id = blurId;
+            blur.className = "blur-position blur";
+            blur.style.position = "absolute";
+            // Blur strength deliberately not set inline. It used to emit `blur(60)` from the
+            // model's integer default -- unitless, invalid, silently discarded -- so the
+            // stylesheet was always the real source. It now scales with the frame via
+            // --blur-radius, which an inline value here would override.
+            this.annotationBox.appendChild(blur);
+          }
+          // Only the parent id is published, deliberately. There is no `blurPositionId` to
+          // publish any more: the rendered box is usually a tween between two positions, so no
+          // single row owns it. The editor must decide which position a drag applies to from
+          // the playhead, not from a stale id on this element.
+          blur.dataset["blurPositionParentId"] = a.id;
+          blur.style.left = rect.x + "%";
+          blur.style.top = rect.y + "%";
+          blur.style.width = rect.width + "%";
+          blur.style.height = rect.height + "%";
           break;
+        }
         case "comment":
           if (isActiveNow) {
             let commentTextBox = this.annotationBox.querySelector("#comment-text-box-" + a.id);
@@ -913,8 +905,10 @@ export class AnnotationPlayer {
     this.videoElem.removeEventListener("playing", this._onPlaying);
     this.videoElem.classList.remove("blanked");
     this.videoElem.classList.remove("screen-blurred");
+    // Select by class, not an "[id^=blur]" prefix match: the id is now `blur-<annotationId>`,
+    // and a prefix match would also sweep up anything else whose id merely starts with "blur".
     Array.from(
-      this.annotationBox.querySelectorAll("[id^=blur]"),
+      this.annotationBox.querySelectorAll(".blur-position"),
     ).forEach((el) => el.remove());
     this.unmute();
   }
@@ -1653,6 +1647,10 @@ export class AnnotationPlayer {
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.onProgress());
+    // Repaint annotations after a seek that did not come from skipTo - the editor's timeline,
+    // keyboard scrubbing, or a direct currentTime assignment. Without this, dragging the
+    // playhead while paused leaves a gliding blur showing its geometry from the old time.
+    this.videoElem.addEventListener('seeked', () => this.applyAnnotations());
     // Move the scrubber every animation frame while playing so it glides
     // instead of lurching between timeupdate events (shared with the editor).
     animateDuringPlayback(this.videoElem, () => this.paintProgress());
