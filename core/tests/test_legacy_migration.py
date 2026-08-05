@@ -293,7 +293,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_preflight_builds_file_candidates_and_fuzzy_name_issue(self):
         self.create_legacy_schema()
-        language = LanguageFactory(language="English", iso_639_3="eng")
+        language = LanguageFactory(language="English", bcp47="en")
 
         owner = UserFactory(netid="profada", username="123456789", instructor=True)
         ta_user = UserFactory(netid="caseyta", username="987654321", instructor=True)
@@ -580,7 +580,7 @@ class LegacyMigrationTests(TestCase):
         # The legacy system used Cakchiquel as a bogus default subtitle
         # language, so migration must never auto-resolve it, even though a
         # matching Language row exists (an admin may still pick it manually).
-        LanguageFactory(language="Cakchiquel", iso_639_3="cak")
+        LanguageFactory(language="Cakchiquel", bcp47="cak")
         service = LegacyMigrationService(require_catalog=False)
 
         self.assertIsNone(service._resolve_language("Cakchiquel"))
@@ -588,19 +588,20 @@ class LegacyMigrationTests(TestCase):
         self.assertIsNone(service._resolve_language("CAKCHIQUEL"))
 
     def test_resolve_language_still_resolves_trustworthy_languages(self):
-        english = LanguageFactory(language="English", iso_639_3="eng")
+        english = LanguageFactory(language="English", bcp47="en")
 
         service = LegacyMigrationService(require_catalog=False)
 
         self.assertEqual(service._resolve_language("English"), english)
-        self.assertEqual(service._resolve_language("eng"), english)
+        self.assertEqual(service._resolve_language("en"), english)
+        self.assertEqual(service._resolve_language("EN"), english)
 
     def test_preflight_flags_cakchiquel_subtitle_language_for_manual_review(self):
         # A subtitle's raw language must be attached to real, file-backed
         # content: the preflight subtitle-language check is skipped entirely
         # for synthetic (URL-only) content.
         self.create_legacy_schema()
-        LanguageFactory(language="Cakchiquel", iso_639_3="cak")
+        LanguageFactory(language="Cakchiquel", bcp47="cak")
 
         owner = UserFactory(netid="profcak", username="333333333", instructor=True)
         legacy_collection_id = str(uuid.uuid4())
@@ -722,7 +723,7 @@ class LegacyMigrationTests(TestCase):
         self,
     ):
         self.create_legacy_schema()
-        LanguageFactory(language="English", iso_639_3="eng")
+        LanguageFactory(language="English", bcp47="en")
 
         target_owner = UserFactory(
             netid="profben", username="111111111", instructor=True
@@ -1581,7 +1582,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_import_reuses_selected_existing_resource(self):
         self.create_legacy_schema()
-        LanguageFactory(language="English", iso_639_3="eng")
+        LanguageFactory(language="English", bcp47="en")
 
         owner = UserFactory(netid="profada", username="123456789", instructor=True)
         existing_resource = ResourceFactory(
