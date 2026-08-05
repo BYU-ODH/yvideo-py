@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 validators=[
                     django.core.validators.RegexValidator(
                         code="invalid_bcp47",
-                        message="Must be a 2- or 3-letter lowercase BCP 47 language subtag (e.g., en, spa).",
+                        message="Must be a 2- or 3-letter lowercase BCP 47 language subtag (e.g., en, ceb).",
                         regex="^[a-z]{2,3}$",
                     )
                 ],
