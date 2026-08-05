@@ -531,9 +531,7 @@ def create_annotation(request, annotation_type, track_id):
 
     annotation = model_class.objects.create(**data)
     if annotation_type == "blur":
-        BlurAnnotationPosition.objects.create(
-            blur_annotation=annotation, time=0, x=50, y=50, width=4, height=3
-        )
+        annotation.ensure_first_position()
 
     # Render item using shared partial
     track_item_html = render_to_string(
@@ -583,20 +581,7 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
     return {"success": True, "result": annotation}
 
 
-def get_list_of_blur_annotation_positions(blur_annotation_parent):
-    try:
-        blur_positions = list(
-            BlurAnnotationPosition.objects.filter(
-                blur_annotation=blur_annotation_parent
-            ).order_by("time")
-        )
-    except Exception as e:
-        logger.error(f"Failed to get blur positions. Exception: {e}")
-        return []
-    return blur_positions
-
-
-def generate_blur_item_and_positions_html(parent_annotation_id):
+def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
     try:
         parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
     except Exception as e:
@@ -606,12 +591,16 @@ def generate_blur_item_and_positions_html(parent_annotation_id):
         return False
 
     try:
-        blur_positions = get_list_of_blur_annotation_positions(parent_annotation)
         blur_positions_html = render_to_string(
-            "core/partials/blur_positions.html", {"item_positions": blur_positions}
+            "core/partials/blur_positions.html",
+            {"item_positions": parent_annotation.positions.all()},
+            request=request,
         )
         track_item_html = render_to_string(
-            "core/partials/item.html", {"item": parent_annotation}
+            "core/partials/item.html",
+            {"item": parent_annotation},
+            # item.html contains {% csrf_token %}, which renders empty without a request.
+            request=request,
         )
         return {"blurPositions": blur_positions_html, "trackItem": track_item_html}
 
@@ -688,7 +677,9 @@ def create_blur_position(request):
         logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
         return HttpResponseServerError()
 
-    item_and_position_html = generate_blur_item_and_positions_html(parent_annotation_id)
+    item_and_position_html = generate_blur_item_and_positions_html(
+        parent_annotation_id, request=request
+    )
     if item_and_position_html is False:
         return HttpResponseServerError()
     return JsonResponse(item_and_position_html)
@@ -729,7 +720,7 @@ def update_blur_position(request):
         return HttpResponseServerError()
 
     item_and_positions_html = generate_blur_item_and_positions_html(
-        parent_annotation.pk
+        parent_annotation.pk, request=request
     )
     if item_and_positions_html is False:
         return HttpResponseServerError()
@@ -767,10 +758,7 @@ def generate_annotation_updated_html(
 
     item_positions = []
     if annotation_type == "blur":
-        try:
-            item_positions = get_list_of_blur_annotation_positions(annotation)
-        except Exception as e:
-            logger.error(f"Failed to get blur annotation positions. Exception: {e}")
+        item_positions = annotation.positions.all()
 
     form_html = render_to_string(
         "core/partials/annotation_form.html",
@@ -808,6 +796,11 @@ def update_annotation(request, annotation_type, annotation_id):
         if not validation_result["success"]:
             return validation_result["result"]
         annotation = validation_result["result"]
+
+        # Captured before any field is reassigned: reconcile_positions below needs the window
+        # the positions were authored against to tell a move apart from a resize.
+        old_start = annotation.start_time
+        old_end = getattr(annotation, "end_time", old_start)
 
         fields_to_update = {}
         fields_to_update["start_time"] = json_data["start_time"]
@@ -873,7 +866,7 @@ def update_annotation(request, annotation_type, annotation_id):
 
         annotation.save()
         if annotation_type == "blur":
-            annotation.remove_positions_outside_of_timebox()
+            annotation.reconcile_positions(old_start, old_end)
         annotation.refresh_from_db()
 
         new_start_time = annotation.start_time
