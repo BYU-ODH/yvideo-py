@@ -48,13 +48,13 @@ class ResourceIntakeRequestAdminTests(TestCase):
         )
         self.client.force_login(self.admin_user)
         self.english, _ = Language.objects.get_or_create(
-            lang_tag="en", defaults={"language": "English"}
+            iso_639_3="eng", defaults={"language": "English"}
         )
         self.spanish, _ = Language.objects.get_or_create(
-            lang_tag="es", defaults={"language": "Spanish"}
+            iso_639_3="spa", defaults={"language": "Spanish"}
         )
         self.french, _ = Language.objects.get_or_create(
-            lang_tag="fr", defaults={"language": "French"}
+            iso_639_3="fra", defaults={"language": "French"}
         )
 
     def create_request(self, **overrides):
@@ -164,8 +164,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
         self.assertContains(response, fuzzy_match.name)
         self.assertContains(response, "Upload new file")
         self.assertContains(response, matching_file.version)
-        self.assertContains(response, "Audio:</strong> English (en)")
-        self.assertContains(response, "Burned-in subtitles:</strong> Spanish (es)")
+        self.assertContains(response, "Audio:</strong> English (eng)")
+        self.assertContains(response, "Burned-in subtitles:</strong> Spanish (spa)")
         self.assertContains(response, "Matches requested languages")
         self.assertContains(response, "Does not match requested languages")
         form = response.context["adminform"].form
