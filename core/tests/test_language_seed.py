@@ -13,28 +13,28 @@ class DefaultLanguageDataTests(TestCase):
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(len(codes), len(set(codes)))
 
-    def test_all_codes_are_three_lowercase_letters(self):
+    def test_all_codes_are_two_or_three_lowercase_letters(self):
         for _, code in DEFAULT_LANGUAGES:
-            self.assertRegex(code, r"^[a-z]{3}$")
+            self.assertRegex(code, r"^[a-z]{2,3}$")
 
     def test_covers_languages_taught_at_byu(self):
         codes = {code for _, code in DEFAULT_LANGUAGES}
         # A sample spanning CLS and the other language departments,
         # https://cls.byu.edu/language-classes
         for expected_code in [
-            "eng",
-            "spa",
-            "fra",
-            "ita",
-            "deu",
-            "por",
-            "rus",
-            "ara",
-            "zho",
-            "jpn",
-            "kor",
-            "heb",
-            "fas",
+            "en",
+            "es",
+            "fr",
+            "it",
+            "de",
+            "pt",
+            "ru",
+            "ar",
+            "zh",
+            "ja",
+            "ko",
+            "he",
+            "fa",
             "ase",
             "ceb",
             "haw",
@@ -56,7 +56,7 @@ class SeedLanguagesTests(TestCase):
         # The Django test runner creates the test database by running
         # migrations, which fires post_migrate and should have already
         # populated the Language table before this test ever runs.
-        codes = set(Language.objects.values_list("iso_639_3", flat=True))
+        codes = set(Language.objects.values_list("bcp47", flat=True))
         for _, code in DEFAULT_LANGUAGES:
             self.assertIn(code, codes)
 
@@ -66,7 +66,7 @@ class SeedLanguagesTests(TestCase):
         self.assertEqual(Language.objects.count(), before_count)
 
     def test_seed_languages_does_not_overwrite_renamed_language(self):
-        english = Language.objects.get(iso_639_3="eng")
+        english = Language.objects.get(bcp47="en")
         english.language = "Custom English Name"
         english.save()
 
@@ -76,22 +76,41 @@ class SeedLanguagesTests(TestCase):
         self.assertEqual(english.language, "Custom English Name")
 
     def test_seed_languages_adds_missing_language(self):
-        Language.objects.filter(iso_639_3="epo").delete()
+        Language.objects.filter(bcp47="eo").delete()
 
         seed_languages(Language)
 
         self.assertTrue(
-            Language.objects.filter(iso_639_3="epo", language="Esperanto").exists()
+            Language.objects.filter(bcp47="eo", language="Esperanto").exists()
         )
 
+    def test_seed_languages_skips_name_already_taken_by_a_different_code(self):
+        # A defensive backstop: both `language` and `bcp47` are unique, so if
+        # some pre-existing row's code doesn't match what DEFAULT_LANGUAGES
+        # expects for that name (for whatever reason - manual DB edits, a
+        # future data change, etc.), inserting a second row for the same
+        # name would crash this post_migrate hook (and therefore `manage.py
+        # migrate` itself) with an IntegrityError. It must skip instead.
+        Language.objects.filter(bcp47="en").delete()
+        Language.objects.create(language="English", bcp47="xx")
 
-class LanguageIso6393ValidationTests(TestCase):
-    def test_rejects_codes_that_are_not_three_lowercase_letters(self):
-        for invalid_code in ["en", "eng2", "ENG", "e-g", ""]:
-            language = Language(language="Test Language", iso_639_3=invalid_code)
+        seed_languages(Language)  # must not raise IntegrityError
+
+        self.assertEqual(Language.objects.filter(language="English").count(), 1)
+        self.assertEqual(Language.objects.get(language="English").bcp47, "xx")
+
+
+class LanguageBcp47ValidationTests(TestCase):
+    def test_rejects_codes_that_are_not_two_or_three_lowercase_letters(self):
+        for invalid_code in ["e", "eng2", "EN", "e-g", ""]:
+            language = Language(language="Test Language", bcp47=invalid_code)
             with self.assertRaises(ValidationError):
                 language.full_clean()
 
+    def test_accepts_a_valid_two_letter_code(self):
+        language = Language(language="Test Language 2", bcp47="tz")
+        language.full_clean()
+
     def test_accepts_a_valid_three_letter_code(self):
-        language = Language(language="Test Language", iso_639_3="qaa")
+        language = Language(language="Test Language 3", bcp47="qaa")
         language.full_clean()

@@ -138,7 +138,7 @@ class DemoSeedDataTests(TestCase):
         self.assertTrue(
             ResourceFile.objects.filter(
                 resource__name="Grid Overlay",
-                burned_in_subtitles_language__iso_639_3="spa",
+                burned_in_subtitles_language__bcp47="es",
             ).exists()
         )
         self.assertTrue(ResourceFileKey.objects.filter(user=admin_user).exists())

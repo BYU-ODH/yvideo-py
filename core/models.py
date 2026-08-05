@@ -22,10 +22,10 @@ HMS_VALIDATOR = RegexValidator(
     code="invalid_time_format",
 )
 
-ISO_639_3_VALIDATOR = RegexValidator(
-    regex=r"^[a-z]{3}$",
-    message="Must be a three-letter lowercase ISO 639-3 code (e.g., eng, spa).",
-    code="invalid_iso_639_3",
+BCP47_VALIDATOR = RegexValidator(
+    regex=r"^[a-z]{2,3}$",
+    message="Must be a 2- or 3-letter lowercase BCP 47 language subtag (e.g., en, spa).",
+    code="invalid_bcp47",
 )
 
 logger = logging.getLogger(__name__)
@@ -775,7 +775,7 @@ class Content(models.Model):
         subtitles = [
             {
                 "id": sub.pk,
-                "srclang": sub.language.iso_639_3,
+                "srclang": sub.language.bcp47,
                 "vtt": sub.subtitles_file.read().decode("utf-8"),
                 "name": sub.name,
                 "default": sub.pk == default_id,
@@ -1438,14 +1438,16 @@ class UserCourses(models.Model):
 
 class Language(models.Model):
     language = models.CharField(max_length=60, unique=True, blank=False, null=False)
-    iso_639_3 = models.CharField(
+    bcp47 = models.CharField(
         max_length=3,
         unique=True,
         blank=False,
         null=False,
-        validators=[ISO_639_3_VALIDATOR],
-        help_text="Three-letter ISO 639-3 code. See "
-        "https://iso639-3.sil.org/code_tables/639/data",
+        validators=[BCP47_VALIDATOR],
+        help_text="BCP 47 primary language subtag: the 2-letter ISO 639-1 "
+        "code where one exists (e.g. en, es), otherwise the 3-letter "
+        "ISO 639-3 code (e.g. ase, cak). See "
+        "https://www.rfc-editor.org/rfc/rfc5646",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1454,7 +1456,7 @@ class Language(models.Model):
         ordering = ["language"]
 
     def __str__(self):
-        return f"{self.language} ({self.iso_639_3})"
+        return f"{self.language} ({self.bcp47})"
 
 
 def subtitle_file_upload_path(instance, filename):
