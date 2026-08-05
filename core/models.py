@@ -974,11 +974,19 @@ class BaseAnnotation(models.Model):
             **new_data, prev=self, next=None, active=True
         )
 
+        # Related data belongs to a particular version too. Subclasses with
+        # versioned child objects can copy them to the new annotation here.
+        self._copy_related_data_to_version(new_annotation)
+
         # Step 4: Link new annotation as this annotation's next
         self.next = new_annotation
         self.save()
 
         return new_annotation
+
+    def _copy_related_data_to_version(self, new_annotation):
+        """Copy child records that form part of an annotation version."""
+        return None
 
     def _delete_next_chain(self):
         """Recursively delete all next annotations in the chain."""
@@ -1221,6 +1229,22 @@ class CommentAnnotation(BaseAnnotation):
 
 
 class BlurAnnotation(BaseAnnotation):
+    def _copy_related_data_to_version(self, new_annotation):
+        BlurAnnotationPosition.objects.bulk_create(
+            [
+                BlurAnnotationPosition(
+                    blur_annotation=new_annotation,
+                    time=position.time,
+                    x=position.x,
+                    y=position.y,
+                    width=position.width,
+                    height=position.height,
+                    blur_amount=position.blur_amount,
+                )
+                for position in self.positions.all()
+            ]
+        )
+
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()

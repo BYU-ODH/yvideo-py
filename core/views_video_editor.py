@@ -127,7 +127,11 @@ def return_annotation_if_authorized_and_exists(
         }
 
     try:
-        annotation = model_class.objects.get(id=annotation_id, active=True)
+        annotation = model_class.objects.select_for_update().get(
+            id=annotation_id,
+            active=True,
+            track__annotation_set=annotation_set,
+        )
     except model_class.DoesNotExist:
         return {
             "success": False,
@@ -313,25 +317,24 @@ def select_annotation_set(request):
         return HttpResponseServerError()
 
 
-def build_timeline_layers_html(request, content, annotation_set):
-    """Render the timeline track layers for an annotation set.
-
-    Used to refresh the timeline (HTMX target ``#annotation-timeline``) after an
-    undo/redo operation."""
-    tracks = annotation_set.get_tracks() if annotation_set is not None else []
-    return render_to_string(
-        "core/partials/timeline_base.html",
-        {
-            "tracks": tracks,
-            "annotation_set": annotation_set,
-            "content": content,
-        },
-        request,
+def build_annotation_version_response(request, content, annotation):
+    """Build every UI fragment needed after changing the active version."""
+    annotation_type = annotation.annotation_type
+    position = {"start": annotation.start_time, "end": annotation.end_time}
+    return JsonResponse(
+        generate_annotation_updated_html(
+            request,
+            content,
+            annotation,
+            annotation_type,
+            position,
+        )
     )
 
 
 @require_POST
 @login_required
+@transaction.atomic
 def undo_annotation(request, content_id):
     """Undo the last annotation edit for a specific annotation."""
     content = get_object_or_404(Content, id=content_id)
@@ -353,16 +356,12 @@ def undo_annotation(request, content_id):
     if not prev_version:
         return HttpResponse("Nothing to undo for this annotation", status=400)
 
-    # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
-    if timeline_layers_html:
-        return HttpResponse(timeline_layers_html)
-    else:
-        return HttpResponseServerError()
+    return build_annotation_version_response(request, content, prev_version)
 
 
 @require_POST
 @login_required
+@transaction.atomic
 def redo_annotation(request, content_id):
     """Redo the last undone annotation edit for a specific annotation."""
     content = get_object_or_404(Content, id=content_id)
@@ -384,12 +383,7 @@ def redo_annotation(request, content_id):
     if not next_version:
         return HttpResponse("Nothing to redo for this annotation", status=400)
 
-    # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
-    if timeline_layers_html:
-        return HttpResponse(timeline_layers_html)
-    else:
-        return HttpResponseServerError()
+    return build_annotation_version_response(request, content, next_version)
 
 
 @require_POST
@@ -567,7 +561,11 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
         }
 
     try:
-        annotation = model_class.objects.get(id=annotation_id, active=True)
+        annotation = model_class.objects.select_for_update().get(
+            id=annotation_id,
+            active=True,
+            track__annotation_set=content.annotation_set,
+        )
     except model_class.DoesNotExist:
         return {
             "success": False,
@@ -774,7 +772,7 @@ def generate_annotation_updated_html(
             "instance": annotation,
             "item_type_label": annotation_type.title(),
             "content": content,
-            "can_edit": True,
+            "can_edit": annotation.track.annotation_set.can_edit(request.user),
             "start_seconds": position["start"],
             "end_seconds": position["end"],
             "item_positions": item_positions,
@@ -782,7 +780,24 @@ def generate_annotation_updated_html(
         request=request,
     )
 
-    return {"item_html": item_html, "form_html": form_html}
+    panel_item_html = render_to_string(
+        "core/partials/annotation_list_item.html",
+        {
+            "id": annotation.pk,
+            "type": annotation_type,
+            "name": annotation.name,
+        },
+        request=request,
+    )
+
+    return {
+        "annotation_id": annotation.pk,
+        "annotation_type": annotation_type,
+        "track_id": annotation.track_id,
+        "item_html": item_html,
+        "panel_item_html": panel_item_html,
+        "form_html": form_html,
+    }
 
 
 @require_POST
@@ -811,7 +826,10 @@ def update_annotation(request, annotation_type, annotation_id):
 
         if "track_id" in json_data and json_data["track_id"] is not None:
             try:
-                new_track = Track.objects.get(pk=json_data["track_id"])
+                new_track = Track.objects.get(
+                    pk=json_data["track_id"],
+                    annotation_set=annotation.track.annotation_set,
+                )
                 fields_to_update["track"] = new_track
             except Track.DoesNotExist:
                 logger.error(
@@ -863,10 +881,7 @@ def update_annotation(request, annotation_type, annotation_id):
             if "font_color" in json_data:
                 fields_to_update["font_color"] = json_data["font_color"]
 
-        for key, value in fields_to_update.items():
-            setattr(annotation, key, value)
-
-        annotation.save()
+        annotation = annotation.edit(**fields_to_update)
         if annotation_type == "blur":
             annotation.remove_positions_outside_of_timebox()
         annotation.refresh_from_db()
@@ -878,10 +893,7 @@ def update_annotation(request, annotation_type, annotation_id):
         new_annotation_html = generate_annotation_updated_html(
             request, content, annotation, annotation_type, position
         )
-        item_html = new_annotation_html["item_html"]
-        form_html = new_annotation_html["form_html"]
-
-        return JsonResponse({"item_html": item_html, "form_html": form_html})
+        return JsonResponse(new_annotation_html)
     except Exception as e:
         logger.error(f"Failed to update annotation. Exception: {e}")
         return HttpResponseServerError()
@@ -932,6 +944,9 @@ def load_annotation_form(request, annotation_type, annotation_id):
 
     content_id = request.GET.get("content_id")
     content = get_object_or_404(Content, id=content_id)
+
+    if annotation.track.annotation_set_id != content.annotation_set_id:
+        return HttpResponseNotFound("Annotation does not belong to this content")
 
     if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse(

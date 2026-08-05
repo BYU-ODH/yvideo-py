@@ -77,6 +77,7 @@ export class Editor {
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
         this.setupAnnotationSetOptionsModal();
+        this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
@@ -314,6 +315,9 @@ export class Editor {
     }
 
     setUpItemClickListeners(element) {
+      if (element.dataset.clickSetup === "true") {
+        return;
+      }
       const annotationType = element.dataset["annotationType"];
       const annotationId = element.dataset["annotationId"];
       element.addEventListener("click", async (e) => {
@@ -340,6 +344,7 @@ export class Editor {
           })
         }
       }
+      element.dataset.clickSetup = "true";
     }
 
     blockTrackItemPointerEvents() {
@@ -401,15 +406,15 @@ export class Editor {
       if (!itemForm) {
         return;
       }
-      const annotationId = itemForm.dataset["annotationId"];
-      const annotationType = itemForm.dataset["annotationType"];
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
         // we don't want to submit the form when a blur position is deleted.
         // That change is handled in a different way.
-        if (e.submitter.classList.contains("blur-position-delete-button")) {
+        if (e.submitter?.classList.contains("blur-position-delete-button")) {
           return;
         }
+        const annotationId = e.currentTarget.dataset["annotationId"];
+        const annotationType = e.currentTarget.dataset["annotationType"];
         this.updateAnnotation({annotationType, annotationId})
       })
     }
@@ -856,13 +861,165 @@ export class Editor {
       }
     }
 
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
+    listenForHistoryControls() {
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest(".annotation-history-button");
+        if (!button || button.disabled) {
+          return;
+        }
+        event.preventDefault();
+        this.changeAnnotationVersion(button);
+      });
+
+      document.addEventListener("keydown", (event) => {
+        const target = event.target;
+        const isTextEntry = target.matches?.("input, textarea, select, [contenteditable='true']");
+        if (isTextEntry || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") {
+          return;
+        }
+
+        const action = event.shiftKey ? "redo" : "undo";
+        const button = document.querySelector(
+          `.annotation-history-button[data-history-action="${action}"]:not(:disabled)`
+        );
+        if (!button) {
+          return;
+        }
+        event.preventDefault();
+        this.changeAnnotationVersion(button);
+      });
+    }
+
+    async changeAnnotationVersion(button) {
+      if (this.historyRequestInFlight) {
+        return false;
+      }
+      this.historyRequestInFlight = true;
+      button.disabled = true;
+
+      try {
+        const response = await fetch(button.dataset.historyUrl, {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": getCSRFToken(),
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            annotation_id: button.dataset.annotationId,
+            annotation_type: button.dataset.annotationType,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to ${button.dataset.historyAction} annotation history`);
+          if (button.isConnected) {
+            button.disabled = false;
+          }
+          return false;
+        }
+
+        const responseData = await response.json();
+        this.applyAnnotationVersionResponse(
+          responseData,
+          button.dataset.annotationId,
+          true,
+        );
+        window.dispatchEvent(this.annotationUpdatedEvent);
+        return true;
+      } catch (error) {
+        console.error(`Failed to ${button.dataset.historyAction} annotation history`, error);
+        if (button.isConnected) {
+          button.disabled = false;
+        }
+        return false;
+      } finally {
+        this.historyRequestInFlight = false;
+      }
+    }
+
+    replaceAnnotationVersionElements(responseData, previousAnnotationId) {
+      const annotationType = responseData.annotation_type;
+      const annotationId = String(responseData.annotation_id);
+      const trackId = String(responseData.track_id);
+      const previousItem = document.getElementById(`${annotationType}-${previousAnnotationId}`);
+      const destination = document.querySelector(
+        `.track-row[data-track-id="${trackId}"] .track-row-annotations-container`
+      );
+
+      if (!previousItem || !destination) {
+        console.error("Could not place the active annotation version in the timeline");
+        return false;
+      }
+
+      const newItem = createElementFromHTMLString(responseData.item_html);
+      if (previousItem.parentElement === destination) {
+        previousItem.replaceWith(newItem);
+      } else {
+        previousItem.remove();
+        destination.appendChild(newItem);
+      }
+
+      const previousPanelItem = document.getElementById(
+        `${annotationType}-panel-item-${previousAnnotationId}`
+      );
+      if (previousPanelItem) {
+        previousPanelItem.replaceWith(
+          createElementFromHTMLString(responseData.panel_item_html)
+        );
+      }
+
+      this.placeTrackItems();
+      return annotationId;
+    }
+
+    syncOpenFormToVersion(responseData) {
+      const itemForm = document.getElementById("existing-item-form");
+      const updateForm = document.getElementById("annotation-update-form");
+      if (!itemForm || !updateForm) {
+        return;
+      }
+
+      const annotationId = String(responseData.annotation_id);
+      itemForm.dataset.annotationId = annotationId;
+      updateForm.dataset.annotationId = annotationId;
+      this.annotationIdInFocus = annotationId;
+
+      const renderedForm = createElementFromHTMLString(responseData.form_html);
+      const renderedToolbar = renderedForm.querySelector(".undo-redo-toolbar");
+      const currentToolbar = itemForm.querySelector(".undo-redo-toolbar");
+      if (renderedToolbar && currentToolbar) {
+        currentToolbar.replaceWith(renderedToolbar);
+      }
+    }
+
+    applyAnnotationVersionResponse(responseData, previousAnnotationId, replaceForm) {
+      const annotationId = this.replaceAnnotationVersionElements(
+        responseData,
+        previousAnnotationId,
+      );
+      if (!annotationId) {
+        return false;
+      }
+
+      const annotationType = responseData.annotation_type;
+      const detailForm = document.getElementById("detail-form");
+      if (replaceForm) {
+        detailForm.innerHTML = responseData.form_html;
+        this.setUpLoadedItemForm(annotationType, annotationId);
+      } else {
+        this.syncOpenFormToVersion(responseData);
+      }
+      this.markItemAsActive(annotationType, annotationId);
+      return true;
+    }
+
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true}) {
 
       let requestBody, contentType;
       if (isFromItem) {
         requestBody = JSON.stringify({
           "content_id": this.contentId,
-          "name": name,
+          "annotation_name": name,
           "description": description,
           "start_time": startTime,
           "end_time": endTime,
@@ -899,22 +1056,11 @@ export class Editor {
 
       const responseData = await response.json();
 
-      const itemHtml = responseData["item_html"];
-      const formHtml = responseData["form_html"];
-
-      if (autoUpdateItem) {
-        const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
-        targetItem.outerHTML = itemHtml;
-
-        this.placeTrackItems();
-      }
-
-      if (autoUpdateForm) {
-        const targetForm = document.getElementById("detail-form");
-        targetForm.innerHTML = formHtml;
-        this.markItemAsActive(annotationType, annotationId);
-        window.dispatchEvent(this.annotationUpdatedEvent);
-      }
+      // A saved edit creates a new database version with a new ID. Even when
+      // callers do not need a visual refresh, all DOM references must advance
+      // to that ID so subsequent edits address the active version.
+      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
+      window.dispatchEvent(this.annotationUpdatedEvent);
       return true;
     }
 
@@ -1051,9 +1197,9 @@ export class Editor {
       // it to be defined before we query for it in the outer function. If you wait to get
       // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
       const itemForm = formElement.querySelector("#existing-item-form");
-      const annotationId = itemForm.dataset["annotationId"];
       const fontSizeInput = formElement.querySelector("#font-size");
       function getCommentBoxOrWriteError() {
+        const annotationId = itemForm.dataset["annotationId"];
         const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
         if (!commentTextBox) {
           console.error("could not find comment text box with annotation id: " + annotationId);
@@ -1061,8 +1207,16 @@ export class Editor {
         }
         return commentTextBox;
       }
-      const update = async () => {
-        await this.updateAnnotation({annotationType: "comment", annotationId, autoUpdateForm: false})
+      let updateTimerId;
+      const update = () => {
+        clearTimeout(updateTimerId);
+        updateTimerId = setTimeout(() => {
+          if (!itemForm.isConnected) {
+            return;
+          }
+          const annotationId = itemForm.dataset["annotationId"];
+          this.updateAnnotation({annotationType: "comment", annotationId, autoUpdateForm: false});
+        }, 250);
       }
 
       // handle font size change
@@ -1148,9 +1302,10 @@ export class Editor {
 
     updateCommentBoxPositionAndSize(annotationId) {
       // validate that the box exists and we are editing the correct one
-      const commentBox = document.getElementById("comment-text-box-" + annotationId);
       const updateForm = document.getElementById("annotation-update-form");
-      if (!commentBox || !updateForm || updateForm.dataset["annotationId"] != annotationId) return;
+      annotationId = updateForm?.dataset["annotationId"];
+      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+      if (!commentBox || !updateForm) return;
 
       // update the form and save
       const boxTop = parseFloat(commentBox.style.top);
@@ -1172,7 +1327,7 @@ export class Editor {
       formBottomX.value = boxLeft + parseFloat(commentBox.style.width);
       formBottomY.value = boxTop + parseFloat(commentBox.style.height);
 
-      this.updateAnnotation({annotationType:"comment", annotationId, autoUpdateItem: false});
+      this.updateAnnotation({annotationType:"comment", annotationId});
     }
 
     presentCommentBoxPositionAndSizeControls(annotationId) {
@@ -1233,12 +1388,8 @@ export class Editor {
       }
     }
 
-    async getItemFormDetails(annotationType, annotationId, contentId) {
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
-        method: "GET"
-      });
+    setUpLoadedItemForm(annotationType, annotationId) {
       const detailForm = document.getElementById("detail-form");
-      detailForm.innerHTML = await response.text();
       this.setUpItemForm();
       if (annotationType == "blur") {
         this.setUpBlurPositionDeleteListeners(annotationId);
@@ -1292,6 +1443,20 @@ export class Editor {
           lastClipButton.addEventListener("click", () => handleClipChange(false));
         }
       }
+    }
+
+    async getItemFormDetails(annotationType, annotationId, contentId) {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
+        method: "GET"
+      });
+      if (!response.ok) {
+        console.error("Failed to load the annotation detail form");
+        return false;
+      }
+      const detailForm = document.getElementById("detail-form");
+      detailForm.innerHTML = await response.text();
+      this.setUpLoadedItemForm(annotationType, annotationId);
+      return true;
     }
 
     markItemAsActive(annotationType, annotationId) {
@@ -1492,19 +1657,6 @@ export class Editor {
         }
         const originalItem = document.getElementById(itemId);
 
-        // build new item, and check if we need to move it to a different track.
-        // Parse by selector rather than a fixed child index: native drag-and-drop
-        // payloads are serialized through the OS's clipboard format, and some
-        // platforms wrap the transferred HTML in extra nodes (e.g. a leading
-        // <meta charset>) before it can be read back out.
-        const trackItemHTML = event.dataTransfer.getData("text/html");
-        const htmlTemplate = document.createElement("template");
-        htmlTemplate.innerHTML = trackItemHTML.trim();
-        const replacementItem = htmlTemplate.content.querySelector(".track-item");
-        if (!replacementItem) {
-          console.error("Failed to parse dragged track item from drop payload");
-          return;
-        }
         const trackRowParent = event.target.closest(".track-row");
         const trackId = trackRowParent.dataset["trackId"];
         const originalTrackId = originalItem.dataset["originalTrackId"];
@@ -1515,14 +1667,9 @@ export class Editor {
         if (originalItem.dataset["end"]) {
           originalEndTime = parseFloat(originalItem.dataset["end"]);
         }
-        let success;
         if (trackId != originalTrackId) {
           // transfer item to new track
-
-          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
-          if (success) {
-            replacementItem.dataset["originalTrackId"] = trackId;
-          }
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime});
         } else {
           // move item to new position within same track (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
@@ -1532,38 +1679,7 @@ export class Editor {
           if (originalEndTime) {
             endTime = originalEndTime - originalStartTime + startTime;
           }
-          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
-          if (success) {
-            replacementItem.dataset["start"] = startTime;
-            if (endTime) {
-              replacementItem.dataset["end"] = endTime;
-            }
-            replacementItem.style.left = newLeftRatio * 100 + '%';
-            if (annotationType == "blur") {
-              const blurPositions = replacementItem.querySelectorAll(".blur-position-locator");
-              const positionsToDelete = [];
-              for (let position of blurPositions) {
-                if (position.dataset["positionTime"] < startTime) {
-                  positionsToDelete.push(position);
-                }
-              }
-
-              for (let i = positionsToDelete.length - 1; i > -1; i--) {
-                positionsToDelete[i].remove();
-              }
-            }
-          }
-        }
-
-        if (success) {
-          replacementItem.dataset["setup"] = "false";
-          originalItem.remove();
-          replacementItem.classList.remove("is-dragging");
-          annotationContainer.appendChild(replacementItem);
-          this.placeTrackItems();
-          // Reapply `active` class now that replacementItem is the one
-          // actually left in the DOM.
-          this.markItemAsActive(annotationType, annotationId);
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime});
         }
       });
     }
