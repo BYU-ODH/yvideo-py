@@ -5,7 +5,13 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  /* Centers the video (and its exactly-overlaid annotation box) in
+     whichever axis has leftover space once the other axis is pinned to fit
+     - e.g. top/bottom letterboxing in a portrait fullscreen container.
+     Elsewhere (the plain, non-fullscreen player page) the container's own
+     height always matches the video's rendered height, so there's no
+     leftover space and this has no visible effect. */
+  justify-content: center;
   transition: none;
   align-items: center;
 }

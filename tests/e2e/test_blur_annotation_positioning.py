@@ -31,7 +31,12 @@ def _open_player(page, live_server, viewport=None):
     page.wait_for_function(
         """() => {
             const video = document.querySelector('.annotation-player-container video');
-            return video && !isNaN(video.duration) && video.duration > 0;
+            // window.videoPlayer and the video's duration load via two
+            // independent async paths (a player-data fetch vs. the browser's
+            // own media loading) with no ordering guarantee between them.
+            // Waiting on duration alone races window.videoPlayer.loadData
+            // below - fast/warm machines usually win the race, CI doesn't.
+            return window.videoPlayer && video && !isNaN(video.duration) && video.duration > 0;
         }""",
         timeout=5000,
     )
@@ -87,6 +92,16 @@ def _assert_relative_positions_match(before, after):
     assert before["height"] == pytest.approx(after["height"], abs=0.02)
 
 
+def _video_and_annotation_box_rects(page):
+    return page.evaluate(
+        """() => {
+            const video = document.querySelector('.annotation-player-container video');
+            const box = document.querySelector('.annotation-box');
+            return {video: video.getBoundingClientRect(), box: box.getBoundingClientRect()};
+        }"""
+    )
+
+
 def test_blur_annotation_stays_aligned_when_window_shrinks_in_both_directions(
     page, live_server, seeded_demo_data
 ):
@@ -112,6 +127,98 @@ def test_blur_annotation_stays_aligned_when_window_shrinks_in_both_directions(
         "video did not actually shrink with the window - this test would "
         "pass vacuously without a real resize"
     )
+
+    after = _blur_position_relative_to_video(page)
+    _assert_relative_positions_match(before, after)
+
+
+def test_video_is_pillarboxed_and_blur_stays_aligned_in_fullscreen(
+    page, live_server, seeded_demo_data
+):
+    # birds.mp4 is 16:9. A viewport proportionally *wider* than that (here
+    # roughly 2.67:1) is the mirror image of the other fullscreen test: the
+    # container is now wider than the video needs, so height - not width -
+    # is the constraining dimension, and .video-wrapper must switch into its
+    # "full-height" branch (width: auto) to pillarbox on the sides instead of
+    # stretching to the container's full width. Nothing else in this file
+    # exercises that branch.
+    _open_player(page, live_server, viewport={"width": 1600, "height": 600})
+    _inject_blur_annotation(page)
+
+    before = _blur_position_relative_to_video(page)
+
+    page.locator(".fullscreen-btn").click()
+    page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
+    page.wait_for_timeout(300)
+
+    has_full_height = page.evaluate(
+        "() => document.querySelector('.video-wrapper').classList.contains('full-height')"
+    )
+    assert has_full_height, (
+        "expected the height-constrained branch to engage for a container "
+        "this much wider than the video's own aspect ratio"
+    )
+
+    video_box = page.evaluate(
+        """() => document.querySelector('.annotation-player-container video')
+            .getBoundingClientRect()"""
+    )
+    viewport = page.viewport_size
+
+    # Height fills the screen; width is narrower than the screen (proving
+    # this didn't just vacuously stretch edge-to-edge) and centered within it.
+    assert video_box["height"] == pytest.approx(viewport["height"], abs=2)
+    assert video_box["width"] < viewport["width"] - 2
+    expected_x = (viewport["width"] - video_box["width"]) / 2
+    assert video_box["x"] == pytest.approx(expected_x, abs=2)
+
+    rects = _video_and_annotation_box_rects(page)
+    assert rects["box"]["x"] == pytest.approx(rects["video"]["x"], abs=1)
+    assert rects["box"]["y"] == pytest.approx(rects["video"]["y"], abs=1)
+    assert rects["box"]["width"] == pytest.approx(rects["video"]["width"], abs=1)
+    assert rects["box"]["height"] == pytest.approx(rects["video"]["height"], abs=1)
+
+    after = _blur_position_relative_to_video(page)
+    _assert_relative_positions_match(before, after)
+
+
+def test_video_is_vertically_centered_and_blur_stays_aligned_in_portrait_fullscreen(
+    page, live_server, seeded_demo_data
+):
+    # A viewport much narrower than the video's own 16:9 - e.g. a phone held
+    # upright - is width-constrained, so the video letterboxes top/bottom
+    # instead of filling the screen's height. The video block must be
+    # centered in that leftover vertical space, not pinned to the top edge,
+    # and the blur/annotation container must track the video exactly
+    # regardless of where it ends up on screen.
+    _open_player(page, live_server, viewport={"width": 300, "height": 1600})
+    _inject_blur_annotation(page)
+
+    before = _blur_position_relative_to_video(page)
+
+    page.locator(".fullscreen-btn").click()
+    page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
+    page.wait_for_timeout(300)
+
+    video_box = page.evaluate(
+        """() => document.querySelector('.annotation-player-container video')
+            .getBoundingClientRect()"""
+    )
+    viewport = page.viewport_size
+
+    assert video_box["width"] == pytest.approx(viewport["width"], abs=2)
+    assert video_box["height"] < viewport["height"] - 2
+    expected_y = (viewport["height"] - video_box["height"]) / 2
+    assert video_box["y"] == pytest.approx(expected_y, abs=2), (
+        "video should be vertically centered in the letterboxed space, not "
+        "pinned to the top of the screen"
+    )
+
+    rects = _video_and_annotation_box_rects(page)
+    assert rects["box"]["x"] == pytest.approx(rects["video"]["x"], abs=1)
+    assert rects["box"]["y"] == pytest.approx(rects["video"]["y"], abs=1)
+    assert rects["box"]["width"] == pytest.approx(rects["video"]["width"], abs=1)
+    assert rects["box"]["height"] == pytest.approx(rects["video"]["height"], abs=1)
 
     after = _blur_position_relative_to_video(page)
     _assert_relative_positions_match(before, after)
