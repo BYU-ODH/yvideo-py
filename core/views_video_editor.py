@@ -621,6 +621,8 @@ def generate_blur_item_and_positions_html(parent_annotation_id):
 
 
 @require_POST
+@login_required
+@transaction.atomic
 def create_blur_position(request):
     try:
         parsed_body = json.loads(request.body)
@@ -636,20 +638,28 @@ def create_blur_position(request):
         )
         return HttpResponseBadRequest()
 
-    if (
-        not parent_annotation_id
-        or not position_time
-        or not position_x
-        or not position_y
-        or not position_width
-        or not position_height
+    # `is None` rather than a falsy test: 0 is legitimate for every one of these. x=0 or y=0 is a
+    # box flush against the left or top edge, and time=0 is a position at the very start.
+    if parent_annotation_id is None or any(
+        value is None
+        for value in (
+            position_time,
+            position_x,
+            position_y,
+            position_width,
+            position_height,
+        )
     ):
         return HttpResponseBadRequest()
+
+    parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
+    if not parent_annotation.track.annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
     # check if the position already exists
     try:
         num_of_pre_existing_objs = BlurAnnotationPosition.objects.filter(
-            blur_annotation__pk=parent_annotation_id, time=position_time
+            blur_annotation=parent_annotation, time=position_time
         ).count()
         if num_of_pre_existing_objs > 0:
             return HttpResponse(status=200)
@@ -658,7 +668,6 @@ def create_blur_position(request):
         return HttpResponseServerError()
 
     try:
-        parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
         if parent_annotation.end_time < round(float(position_time), 2):
             return HttpResponseBadRequest(
                 "New blur position cannot occur at a time greater than the blur annotation's end time"
@@ -686,6 +695,8 @@ def create_blur_position(request):
 
 
 @require_POST
+@login_required
+@transaction.atomic
 def update_blur_position(request):
     try:
         parsed_body = json.loads(request.body)
@@ -701,54 +712,48 @@ def update_blur_position(request):
         )
         return HttpResponseBadRequest()
 
-    # update the existing BlurAnnotationPosition
-    else:
-        try:
-            this_blur_position = BlurAnnotationPosition.objects.get(pk=position_id)
-            this_blur_position.time = position_time
-            this_blur_position.x = position_x
-            this_blur_position.y = position_y
-            this_blur_position.height = position_height
-            this_blur_position.width = position_width
-            this_blur_position.save()
-            item_and_positions_html = generate_blur_item_and_positions_html(
-                this_blur_position.blur_annotation.pk
-            )
-            if item_and_positions_html is False:
-                return HttpResponseServerError()
-            return JsonResponse(item_and_positions_html)
-        except Exception as e:
-            logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
-            return HttpResponseServerError()
+    this_blur_position = get_object_or_404(BlurAnnotationPosition, pk=position_id)
+    parent_annotation = this_blur_position.blur_annotation
+    if not parent_annotation.track.annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
-
-def delete_blur_position(request, position_id):
     try:
-        position = BlurAnnotationPosition.objects.get(pk=position_id)
-        # I know this looks dumb, but if i used position.blur_annotation to get the parent,
-        # the reference to that parent is deleted once position is deleted. I do this to
-        # allow for access to the parent after the position is deleted
-        blur_annotation_parent = BlurAnnotation.objects.get(
-            pk=position.blur_annotation.pk
-        )
+        this_blur_position.time = position_time
+        this_blur_position.x = position_x
+        this_blur_position.y = position_y
+        this_blur_position.height = position_height
+        this_blur_position.width = position_width
+        this_blur_position.save()
     except Exception as e:
-        logger.error(
-            f"Failed to get blur annotation parent while deleting annotation. Exception: {e}"
-        )
+        logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
+        return HttpResponseServerError()
+
+    item_and_positions_html = generate_blur_item_and_positions_html(
+        parent_annotation.pk
+    )
+    if item_and_positions_html is False:
+        return HttpResponseServerError()
+    return JsonResponse(item_and_positions_html)
+
+
+@require_http_methods(["DELETE"])
+@login_required
+@transaction.atomic
+def delete_blur_position(request, position_id):
+    position = get_object_or_404(BlurAnnotationPosition, pk=position_id)
+    if not position.blur_annotation.track.annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
+    if position.time <= 0:
+        return HttpResponseBadRequest()
 
     try:
-        if position.time > 0:
-            position.delete()
-        else:
-            return HttpResponseBadRequest()
+        position.delete()
     except Exception as e:
         logger.error(f"Failed to delete blur position. Exception: {e}")
         return HttpResponseServerError()
 
-    if not blur_annotation_parent:
-        return HttpResponse(status=205)
-    else:
-        return HttpResponse()
+    return HttpResponse()
 
 
 def generate_annotation_updated_html(
