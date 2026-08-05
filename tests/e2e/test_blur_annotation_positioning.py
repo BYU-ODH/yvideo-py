@@ -224,6 +224,57 @@ def test_video_is_vertically_centered_and_blur_stays_aligned_in_portrait_fullscr
     _assert_relative_positions_match(before, after)
 
 
+def test_blur_stays_aligned_after_exiting_fullscreen(
+    page, live_server, seeded_demo_data
+):
+    # Fullscreen escapes the normal page flow (position: fixed, top: 0), so
+    # the video's on-screen y-offset reliably differs from windowed mode
+    # (which sits below the page header) regardless of viewport size - a
+    # simple, non-vacuous signal that fullscreen actually engaged. Exiting
+    # must put the layout back the way it was, not just drop the
+    # :fullscreen styling while some other stale sizing lingers, and the
+    # blur must still track the video correctly once back in the normal
+    # page flow.
+    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    _inject_blur_annotation(page)
+
+    before = _blur_position_relative_to_video(page)
+    video_box_before = page.evaluate(
+        "() => document.querySelector('.annotation-player-container video')"
+        ".getBoundingClientRect()"
+    )
+
+    page.locator(".fullscreen-btn").click()
+    page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
+    page.wait_for_timeout(300)
+
+    video_box_fullscreen = page.evaluate(
+        "() => document.querySelector('.annotation-player-container video')"
+        ".getBoundingClientRect()"
+    )
+    assert video_box_fullscreen["y"] != video_box_before["y"], (
+        "video's position did not actually change on entering fullscreen - "
+        "this test would pass vacuously without a real layout change to revert"
+    )
+
+    page.evaluate("() => document.exitFullscreen()")
+    page.wait_for_function("() => !document.fullscreenElement", timeout=2000)
+    page.wait_for_timeout(300)
+
+    video_box_after = page.evaluate(
+        "() => document.querySelector('.annotation-player-container video')"
+        ".getBoundingClientRect()"
+    )
+    assert video_box_after["y"] == pytest.approx(video_box_before["y"], abs=2), (
+        "video did not revert to its windowed position after exiting fullscreen"
+    )
+    assert video_box_after["width"] == pytest.approx(video_box_before["width"], abs=2)
+    assert video_box_after["height"] == pytest.approx(video_box_before["height"], abs=2)
+
+    after = _blur_position_relative_to_video(page)
+    _assert_relative_positions_match(before, after)
+
+
 def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(
     page, live_server, seeded_demo_data
 ):
