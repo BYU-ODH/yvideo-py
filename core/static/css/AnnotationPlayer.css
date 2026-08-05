@@ -5,12 +5,6 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* Centers the video (and its exactly-overlaid annotation box) in
-     whichever axis has leftover space once the other axis is pinned to fit
-     - e.g. top/bottom letterboxing in a portrait fullscreen container.
-     Elsewhere (the plain, non-fullscreen player page) the container's own
-     height always matches the video's rendered height, so there's no
-     leftover space and this has no visible effect. */
   justify-content: center;
   transition: none;
   align-items: center;
@@ -71,14 +65,6 @@
   justify-content: center;
   transition: margin-right 0.3s ease;
   min-width: 0;
-  /* Without an explicit width, this flex item's cross-size resolves via
-     fit-content(available), whose upper bound is the <video>'s own
-     max-content contribution - its intrinsic pixel size. That silently
-     caps the video at its native resolution and blocks it from ever
-     scaling past that (e.g. a 1280x720 source on a larger fullscreen
-     display), even though nothing here is otherwise width-constrained.
-     Pinning width to 100% removes that ceiling; .full-height reverts to
-     auto so height (not width) drives the aspect-ratio fit in that mode. */
   width: 100%;
 }
 
@@ -96,10 +82,6 @@
 }
 
 .annotation-player-container.subtitle-sidebar-open .video-wrapper {
-  /* Revert to the fit-content default here so the margin below actually
-     shrinks the video to make room for the sidebar instead of overflowing
-     past it (100% width + a margin would push the total box wider than
-     the container, which `overflow: hidden` would then just clip). */
   width: auto;
   margin-right: 320px;
 }
