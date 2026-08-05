@@ -17,7 +17,6 @@ BLUR_POSITION = {
     "y": 30,
     "width": 22,
     "height": 14,
-    "blur_amount": "5px",
 }
 
 
@@ -65,21 +64,49 @@ def _inject_blur_annotation(page):
     page.wait_for_selector("#blur0", state="attached")
 
 
+# The rectangle the picture actually occupies inside the video element. Since the video is
+# `object-fit: contain`, its element box is generally *larger* than the picture - the leftover
+# space is letterbox/pillarbox bars - so the element box is not what a blur's percentages are
+# relative to.
+#
+# This is re-derived from videoWidth/videoHeight here rather than by calling the app's own
+# contentRect(), so it stays an independent oracle instead of a tautology.
+_CONTENT_RECT_JS = """
+    const video = document.querySelector('.annotation-player-container video');
+    const v = video.getBoundingClientRect();
+    let frame = {x: v.x, y: v.y, width: v.width, height: v.height};
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+        const scale = Math.min(v.width / video.videoWidth, v.height / video.videoHeight);
+        const width = video.videoWidth * scale;
+        const height = video.videoHeight * scale;
+        frame = {
+            x: v.x + (v.width - width) / 2,
+            y: v.y + (v.height - height) / 2,
+            width: width,
+            height: height,
+        };
+    }
+"""
+
+
+def _video_content_rect(page):
+    return page.evaluate("() => {" + _CONTENT_RECT_JS + "return frame;}")
+
+
 def _blur_position_relative_to_video(page):
-    # Express the blur box's on-screen geometry as a fraction of the video
-    # element's own on-screen box, so it can be compared across resizes
-    # regardless of how large the video is currently rendered.
+    # Express the blur box's on-screen geometry as a fraction of the video's *picture*, so it
+    # can be compared across resizes regardless of how large the video is currently rendered.
     return page.evaluate(
         """() => {
-            const blur = document.querySelector('#blur0');
-            const video = document.querySelector('.annotation-player-container video');
-            const b = blur.getBoundingClientRect();
-            const v = video.getBoundingClientRect();
+            """
+        + _CONTENT_RECT_JS
+        + """
+            const b = document.querySelector('#blur0').getBoundingClientRect();
             return {
-                x: (b.left - v.left) / v.width,
-                y: (b.top - v.top) / v.height,
-                width: b.width / v.width,
-                height: b.height / v.height,
+                x: (b.left - frame.x) / frame.width,
+                y: (b.top - frame.y) / frame.height,
+                width: b.width / frame.width,
+                height: b.height / frame.height,
             };
         }"""
     )
@@ -92,14 +119,23 @@ def _assert_relative_positions_match(before, after):
     assert before["height"] == pytest.approx(after["height"], abs=0.02)
 
 
-def _video_and_annotation_box_rects(page):
-    return page.evaluate(
+def _assert_annotation_box_covers_the_picture(page):
+    # The load-bearing invariant of the whole feature: the annotation overlay is exactly the
+    # visible picture, so a stored percentage means "percent of what the viewer can see".
+    rects = page.evaluate(
         """() => {
-            const video = document.querySelector('.annotation-player-container video');
-            const box = document.querySelector('.annotation-box');
-            return {video: video.getBoundingClientRect(), box: box.getBoundingClientRect()};
+            """
+        + _CONTENT_RECT_JS
+        + """
+            const box = document.querySelector('.annotation-box').getBoundingClientRect();
+            return {frame: frame, box: {x: box.x, y: box.y, width: box.width, height: box.height}};
         }"""
     )
+    frame, box = rects["frame"], rects["box"]
+    assert box["x"] == pytest.approx(frame["x"], abs=1)
+    assert box["y"] == pytest.approx(frame["y"], abs=1)
+    assert box["width"] == pytest.approx(frame["width"], abs=1)
+    assert box["height"] == pytest.approx(frame["height"], abs=1)
 
 
 def test_blur_annotation_stays_aligned_when_window_shrinks_in_both_directions(
@@ -136,12 +172,9 @@ def test_video_is_pillarboxed_and_blur_stays_aligned_in_fullscreen(
     page, live_server, seeded_demo_data
 ):
     # birds.mp4 is 16:9. A viewport proportionally *wider* than that (here
-    # roughly 2.67:1) is the mirror image of the other fullscreen test: the
-    # container is now wider than the video needs, so height - not width -
-    # is the constraining dimension, and .video-wrapper must switch into its
-    # "full-height" branch (width: auto) to pillarbox on the sides instead of
-    # stretching to the container's full width. Nothing else in this file
-    # exercises that branch.
+    # roughly 2.67:1) is the mirror image of the other fullscreen test: height,
+    # not width, is the constraining dimension, so the picture must pillarbox
+    # with bars down the left and right rather than stretching edge to edge.
     _open_player(page, live_server, viewport={"width": 1600, "height": 600})
     _inject_blur_annotation(page)
 
@@ -151,32 +184,17 @@ def test_video_is_pillarboxed_and_blur_stays_aligned_in_fullscreen(
     page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
     page.wait_for_timeout(300)
 
-    has_full_height = page.evaluate(
-        "() => document.querySelector('.video-wrapper').classList.contains('full-height')"
-    )
-    assert has_full_height, (
-        "expected the height-constrained branch to engage for a container "
-        "this much wider than the video's own aspect ratio"
-    )
-
-    video_box = page.evaluate(
-        """() => document.querySelector('.annotation-player-container video')
-            .getBoundingClientRect()"""
-    )
+    frame = _video_content_rect(page)
     viewport = page.viewport_size
 
     # Height fills the screen; width is narrower than the screen (proving
     # this didn't just vacuously stretch edge-to-edge) and centered within it.
-    assert video_box["height"] == pytest.approx(viewport["height"], abs=2)
-    assert video_box["width"] < viewport["width"] - 2
-    expected_x = (viewport["width"] - video_box["width"]) / 2
-    assert video_box["x"] == pytest.approx(expected_x, abs=2)
+    assert frame["height"] == pytest.approx(viewport["height"], abs=2)
+    assert frame["width"] < viewport["width"] - 2
+    expected_x = (viewport["width"] - frame["width"]) / 2
+    assert frame["x"] == pytest.approx(expected_x, abs=2)
 
-    rects = _video_and_annotation_box_rects(page)
-    assert rects["box"]["x"] == pytest.approx(rects["video"]["x"], abs=1)
-    assert rects["box"]["y"] == pytest.approx(rects["video"]["y"], abs=1)
-    assert rects["box"]["width"] == pytest.approx(rects["video"]["width"], abs=1)
-    assert rects["box"]["height"] == pytest.approx(rects["video"]["height"], abs=1)
+    _assert_annotation_box_covers_the_picture(page)
 
     after = _blur_position_relative_to_video(page)
     _assert_relative_positions_match(before, after)
@@ -200,25 +218,18 @@ def test_video_is_vertically_centered_and_blur_stays_aligned_in_portrait_fullscr
     page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
     page.wait_for_timeout(300)
 
-    video_box = page.evaluate(
-        """() => document.querySelector('.annotation-player-container video')
-            .getBoundingClientRect()"""
-    )
+    frame = _video_content_rect(page)
     viewport = page.viewport_size
 
-    assert video_box["width"] == pytest.approx(viewport["width"], abs=2)
-    assert video_box["height"] < viewport["height"] - 2
-    expected_y = (viewport["height"] - video_box["height"]) / 2
-    assert video_box["y"] == pytest.approx(expected_y, abs=2), (
+    assert frame["width"] == pytest.approx(viewport["width"], abs=2)
+    assert frame["height"] < viewport["height"] - 2
+    expected_y = (viewport["height"] - frame["height"]) / 2
+    assert frame["y"] == pytest.approx(expected_y, abs=2), (
         "video should be vertically centered in the letterboxed space, not "
         "pinned to the top of the screen"
     )
 
-    rects = _video_and_annotation_box_rects(page)
-    assert rects["box"]["x"] == pytest.approx(rects["video"]["x"], abs=1)
-    assert rects["box"]["y"] == pytest.approx(rects["video"]["y"], abs=1)
-    assert rects["box"]["width"] == pytest.approx(rects["video"]["width"], abs=1)
-    assert rects["box"]["height"] == pytest.approx(rects["video"]["height"], abs=1)
+    _assert_annotation_box_covers_the_picture(page)
 
     after = _blur_position_relative_to_video(page)
     _assert_relative_positions_match(before, after)
@@ -280,11 +291,12 @@ def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(
 ):
     # birds.mp4 is exactly 16:9 (1280x720). Use a 16:9 viewport *larger* than
     # that native resolution, so "fills the screen" can be asserted as an
-    # exact match (no letterboxing) while also proving the video actually
-    # scales up past its native pixel size - a video-wrapper with no
-    # explicit width shrinks to fit a smaller viewport fine, but without a
-    # width forcing it to use all available space, it caps out at the
-    # video's own intrinsic size and never grows any larger than that.
+    # exact match (no letterboxing) while also proving the picture actually
+    # scales up past its native pixel size rather than capping out at 1280px.
+    #
+    # Note this is asserted on the *picture*, not the video element's box: under
+    # `object-fit: contain` the element box always fills its wrapper, so an
+    # element-box assertion here would pass vacuously.
     _open_player(page, live_server, viewport={"width": 2000, "height": 1125})
     _inject_blur_annotation(page)
 
@@ -294,19 +306,110 @@ def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(
     page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
     page.wait_for_timeout(300)
 
-    video_box = page.evaluate(
-        """() => document.querySelector('.annotation-player-container video')
-            .getBoundingClientRect()"""
-    )
+    frame = _video_content_rect(page)
     viewport = page.viewport_size
 
-    # The video itself - not just the player container - must occupy the
-    # entire screen; a black canvas with a small video floating in a corner
-    # would satisfy a container-only check but not this one.
-    assert video_box["width"] == pytest.approx(viewport["width"], abs=2)
-    assert video_box["height"] == pytest.approx(viewport["height"], abs=2)
-    assert video_box["x"] == pytest.approx(0, abs=2)
-    assert video_box["y"] == pytest.approx(0, abs=2)
+    assert frame["width"] == pytest.approx(viewport["width"], abs=2)
+    assert frame["height"] == pytest.approx(viewport["height"], abs=2)
+    assert frame["x"] == pytest.approx(0, abs=2)
+    assert frame["y"] == pytest.approx(0, abs=2)
+    assert frame["width"] > 1280, (
+        "picture did not scale past the source's native width, so this would "
+        "pass vacuously on a viewport smaller than the source"
+    )
+
+    # With no bars to leave room for, the overlay should be flush to the element.
+    inset = page.evaluate("() => document.querySelector('.annotation-box').style.inset")
+    assert inset in ("0px", "0px 0px"), inset
 
     after = _blur_position_relative_to_video(page)
     _assert_relative_positions_match(before, after)
+
+
+@pytest.mark.parametrize(
+    "viewport",
+    [
+        {"width": 1600, "height": 600},
+        {"width": 300, "height": 1600},
+        {"width": 900, "height": 900},
+    ],
+    ids=["ultrawide", "portrait", "square"],
+)
+def test_the_picture_is_never_distorted(page, live_server, seeded_demo_data, viewport):
+    """The guarantee the whole sizing approach exists to provide.
+
+    The video is `object-fit: contain`, so the browser - not our layout code - owns the
+    aspect ratio, and the overlay is sized to the resulting picture. Together those mean a
+    sizing mistake can only ever misplace the overlay slightly; it can never stretch the
+    picture. This asserts both halves at aspect ratios far from the source's own 16:9.
+    """
+    _open_player(page, live_server, viewport=viewport)
+    _inject_blur_annotation(page)
+
+    measured = page.evaluate(
+        """() => {
+            const video = document.querySelector('.annotation-player-container video');
+            const box = document.querySelector('.annotation-box').getBoundingClientRect();
+            return {
+                objectFit: getComputedStyle(video).objectFit,
+                intrinsicRatio: video.videoWidth / video.videoHeight,
+                boxRatio: box.width / box.height,
+            };
+        }"""
+    )
+
+    assert measured["objectFit"] == "contain", (
+        "the picture's aspect ratio must be the browser's responsibility, not ours"
+    )
+    # And the overlay must track that undistorted picture, not the element box.
+    assert measured["boxRatio"] == pytest.approx(measured["intrinsicRatio"], rel=0.01)
+
+
+def test_blur_radius_scales_with_the_rendered_frame(
+    page, live_server, seeded_demo_data
+):
+    # A fixed pixel radius obscures proportionally less of the picture the larger the video is
+    # rendered, so blur strength is derived from frame height instead.
+    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    _inject_blur_annotation(page)
+
+    read_radius = """() => {
+        const value = getComputedStyle(document.querySelector('#blur0')).backdropFilter;
+        const match = value.match(/blur\\(([\\d.]+)px\\)/);
+        return match ? parseFloat(match[1]) : null;
+    }"""
+
+    large = page.evaluate(read_radius)
+    assert large, f"expected a px blur radius, got {large}"
+
+    page.set_viewport_size({"width": 500, "height": 380})
+    page.wait_for_timeout(200)
+    small = page.evaluate(read_radius)
+
+    assert small < large, (
+        f"blur radius did not shrink with the frame ({small} vs {large})"
+    )
+
+
+def test_blur_stays_aligned_with_the_subtitle_sidebar_open(
+    page, live_server, seeded_demo_data
+):
+    # Opening the sidebar shrinks the video via a margin on .video-wrapper, animated over
+    # 0.3s. The overlay has to follow it, which is why the wrapper uses `align-self: stretch`
+    # (stretch fills the container minus margins) rather than an explicit width.
+    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    _inject_blur_annotation(page)
+
+    before = _blur_position_relative_to_video(page)
+    width_before = _video_content_rect(page)["width"]
+
+    page.locator(".subtitle-sidebar-btn").click()
+    page.wait_for_timeout(600)  # outlast the 0.3s margin transition
+
+    width_after = _video_content_rect(page)["width"]
+    assert width_after < width_before, (
+        "the sidebar did not actually shrink the video, so this would pass vacuously"
+    )
+
+    _assert_annotation_box_covers_the_picture(page)
+    _assert_relative_positions_match(before, _blur_position_relative_to_video(page))

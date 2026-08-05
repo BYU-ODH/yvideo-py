@@ -58,18 +58,25 @@
   background-color: black;
 }
 
+/* The wrapper is the box the video fills; the video's own `object-fit: contain` handles
+   letterboxing inside it, and JS narrows .annotation-box to the resulting picture. That
+   replaces the old JS aspect-ratio heuristic (a .full-height class toggle whose height half
+   lived in style.css) with these two declarations.
+
+   `align-self: stretch` rather than `width: 100%`: stretch fills the container's width *minus
+   margins*, so the sidebar's `margin-right` simply shrinks the wrapper. `width: 100%` plus
+   that margin would overflow by the margin's width.
+
+   `height: 100%` covers both cases without a branch. Where the container's height is definite
+   (fullscreen, the editor) it resolves to that height and `contain` letterboxes within it;
+   where it is indefinite (the player page) it computes to `auto`, so the wrapper is sized by
+   the video, the video by its intrinsic ratio, and `contain` is a no-op. */
 .video-wrapper {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  align-self: stretch;
+  height: 100%;
   transition: margin-right 0.3s ease;
   min-width: 0;
-  width: 100%;
-}
-
-.video-wrapper.full-height {
-  width: auto;
 }
 
 .video-title {
@@ -82,7 +89,6 @@
 }
 
 .annotation-player-container.subtitle-sidebar-open .video-wrapper {
-  width: auto;
   margin-right: 320px;
 }
 
@@ -154,7 +160,10 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: fill;
+  /* `contain`, never `fill`. The browser owns the aspect ratio, so the picture cannot be
+     stretched no matter how the wrapper is sized -- and if the wrapper is ever sized wrong,
+     the worst outcome is a slightly misplaced overlay instead of a distorted video. */
+  object-fit: contain;
 }
 
 .annotation-player-container video.blanked {
@@ -162,23 +171,18 @@
 }
 
 .annotation-player-container video.screen-blurred {
-  filter: blur(80px);
+  filter: blur(var(--blur-radius, 80px));
 }
 
 /* Annotation Container */
+/* `inset: 0` is only the starting point: AnnotationPlayer._syncOverlayToFrame narrows this to
+   the rectangle the picture actually occupies inside the video element, so a blur's stored
+   percentages are always percentages of the visible frame. */
 .annotation-box {
   position: absolute;
   pointer-events: none;
   z-index: 10;
-  height: 100%;
-  width: 100%;
-  /* the subsequent 2 rules prevent the video from showing a 1 px line on any side.
-  Sometimes during and after resizing, a 1px vertical or horizontal line at the edges
-  of the video would appear. adding a black border around the annotation-box content
-  prevents this. content-box forces the annotation box to copy the exact dimensions
-  of the video element while allowing for a border to trace around the outside. */
-  /*border: 1px solid black;
-  box-sizing: content-box;*/
+  inset: 0;
 }
 
 .annotation-box .blur {
@@ -193,8 +197,11 @@
   background-color: red;
 }
 
+/* --blur-radius is set by AnnotationPlayer._syncOverlayToFrame as a fraction of the rendered
+   frame height, so a blur obscures the same proportion of the picture at every size. The 80px
+   fallback is the previous fixed value, used only if the sync has not run yet. */
 .annotation-box .blur-position.blur {
-  backdrop-filter: blur(80px);  /* eslint-disable-line css/use-baseline */
+  backdrop-filter: blur(var(--blur-radius, 80px));  /* eslint-disable-line css/use-baseline */
 }
 
 .annotation-box-blur-editor {

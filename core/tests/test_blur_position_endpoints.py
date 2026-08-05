@@ -10,7 +10,6 @@ are the tests that keep that hole closed.
 
 import json
 
-from django.test import RequestFactory
 from django.test import TestCase
 from django.urls import reverse
 
@@ -20,7 +19,6 @@ from core.factories import BlurAnnotationPositionFactory
 from core.factories import TrackFactory
 from core.factories import UserFactory
 from core.models import BlurAnnotationPosition
-from core.views_video_editor import delete_blur_position
 
 
 class BlurPositionEndpointTests(TestCase):
@@ -125,16 +123,16 @@ class BlurPositionEndpointTests(TestCase):
     def test_delete_rejects_get(self):
         """The view is DELETE-only; it used to carry no method decorator at all.
 
-        Called through the view function rather than self.client because
-        mozilla_django_oidc's SessionRefresh middleware intercepts GET (and only GET)
-        requests to bounce them to the SSO endpoint, so a client-level GET never reaches
-        the view to have its method checked.
+        Logged in with an explicitly non-OIDC backend because mozilla_django_oidc's
+        SessionRefresh middleware intercepts GET (and only GET) requests to bounce them to
+        the SSO endpoint, which would mask the 405.
         """
-        request = RequestFactory().get(
+        self.client.force_login(
+            self.owner, backend="django.contrib.auth.backends.ModelBackend"
+        )
+        response = self.client.get(
             reverse("delete_blur_position", args=[self.position.pk])
         )
-        request.user = self.owner
-        response = delete_blur_position(request, self.position.pk)
         self.assertEqual(response.status_code, 405)
         self.assertTrue(
             BlurAnnotationPosition.objects.filter(pk=self.position.pk).exists()

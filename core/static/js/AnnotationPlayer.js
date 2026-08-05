@@ -1,5 +1,6 @@
 import { SubtitleSidebar } from "./SubtitleSidebar.js";
 import { formatSecondsToString, animateDuringPlayback } from "./utils.js";
+import { contentRect } from "./video-geometry.js";
 
 export class AnnotationPlayer {
   constructor(options = {}) {
@@ -132,35 +133,42 @@ export class AnnotationPlayer {
     }
   };
 
-  setAspectRatio() {
-    this.videoHeight = this.videoElem.videoHeight;
-    this.videoWidth = this.videoElem.videoWidth;
-    this.aspectRatio;
-    if (this.videoHeight == 0) {
-      this.aspectRatio = 0;
-    } else {
-      this.aspectRatio = this.videoWidth / this.videoHeight;
+  // Narrow the annotation overlay to the rectangle the picture actually occupies, so that a
+  // blur's stored percentages mean "percent of the visible frame" in every layout: window
+  // resize, aspect extremes, fullscreen, rotation, sidebar open.
+  //
+  // The <video> is width:100%/height:100% of .video-wrapper, so its element box IS the
+  // wrapper's content box, and the overlay is a sibling filling that same box. All the overlay
+  // owes it, then, is the letterbox pad that `object-fit: contain` leaves around the picture --
+  // one number pair, one style write, no offset arithmetic against ancestors.
+  //
+  // Pass the dimensions in when a ResizeObserver already measured them; omitting them costs a
+  // layout read.
+  _syncOverlayToFrame(elemWidth, elemHeight) {
+    if (!this.annotationBox) return;
+
+    if (elemWidth === undefined || elemHeight === undefined) {
+      const box = this.videoElem.getBoundingClientRect();
+      elemWidth = box.width;
+      elemHeight = box.height;
     }
-  }
 
-  setVidWrapperToWide() {
-    this.videoWrapper.classList.remove("full-height");
-  }
-
-  setVidWrapperToTall() {
-    this.videoWrapper.classList.add("full-height");
-  }
-
-  setVideoWrapperStyling() {
-    const containerDim = this.container.getBoundingClientRect();
-    const containerAspectRatio = containerDim.width / containerDim.height;
-
-    if (containerAspectRatio > this.aspectRatio) {
-      this.setVidWrapperToTall();
-    }
-    else {
-      this.setVidWrapperToWide();
-    }
+    const frame = contentRect(
+      elemWidth,
+      elemHeight,
+      this.videoElem.videoWidth,
+      this.videoElem.videoHeight,
+    );
+    this.annotationBox.style.inset = `${frame.y}px ${frame.x}px`;
+    // Blur strength as a fraction of frame height rather than a fixed pixel radius, so a blur
+    // obscures just as much of the picture on a phone as it does in fullscreen. CSS still owns
+    // the visual; this only supplies the scale. Set on the wrapper, not the overlay, so that
+    // both the overlay's blur boxes and the <video> (for whole-screen blur) inherit it -- they
+    // are siblings, so the overlay could not pass it to the video.
+    this.videoWrapper.style.setProperty(
+      "--blur-radius",
+      `${frame.height * 0.1}px`,
+    );
   }
 
   _getElement(selector) {
@@ -388,12 +396,43 @@ export class AnnotationPlayer {
         type: type,
         details: icAnno.options["details"],
       };
-      if (annotation.type === "blur" && annotation.details.interpolate) {
-        this.interpolateBlur(annotation);
+      if (annotation.type === "blur") {
+        annotation.positions = this.icPositionsToCanonical(
+          annotation.details.position,
+        );
       }
       annotations.push(annotation);
     }
     return annotations;
+  }
+
+  // The IC format stores blur geometry as { "<time>": [x, y, width?, height?] }, keyed by
+  // time, where a two-element entry means "same size as the position before it". Flatten it to
+  // the canonical time-ascending array the renderer reads.
+  //
+  // This is what makes IC-legacy blurs render at all: the parser above only ever produced
+  // `details.position`, while applyAnnotations reads `positions`, so until now these
+  // annotations were silently skipped. `details.interpolate` is deliberately not carried
+  // over -- the renderer interpolates between positions unconditionally.
+  icPositionsToCanonical(positionMap) {
+    const times = Object.keys(positionMap || {}).sort(
+      (a, b) => parseFloat(a) - parseFloat(b),
+    );
+    const positions = [];
+    for (const timeKey of times) {
+      const [x, y, width, height] = positionMap[timeKey];
+      const previous = positions[positions.length - 1];
+      positions.push({
+        time: parseFloat(timeKey),
+        x,
+        y,
+        // A size-less first position has nothing to inherit from. 15% square matches the
+        // fallback the original IC player used for exactly this malformed case.
+        width: width ?? previous?.width ?? 15,
+        height: height ?? previous?.height ?? 15,
+      });
+    }
+    return positions;
   }
 
   parseYvideoV1Annotations(annotationObj) {
@@ -809,8 +848,10 @@ export class AnnotationPlayer {
               blur.style.height = firstPosition["height"] + "%";
               blur.style.left = firstPosition["x"] + "%";
               blur.style.top = firstPosition["y"] + "%";
-              blur.style.backdropFilter =
-                "blur(" + firstPosition["blur_amount"] + ")";
+              // Blur strength deliberately not set here. It used to emit
+              // `blur(60)` from the model's integer default -- unitless, invalid, silently
+              // discarded -- so the stylesheet was always the real source. It now scales with
+              // the frame via --blur-radius, and an inline value here would override that.
               this.annotationBox.appendChild(blur);
             } else {
               const blur = this.annotationBox.querySelector(
@@ -984,54 +1025,6 @@ export class AnnotationPlayer {
       } else {
         this.controls.volumeSlider.classList.remove('inactive');
         this.controls.volumeSlider.disabled = false;
-      }
-    }
-  }
-
-  interpolateBlur(annotation) {
-    annotation.details["intPositions"] = {};
-    let position = annotation.details.position;
-    let timeKeys = Object.keys(position).sort(
-      (a, b) => parseFloat(a) - parseFloat(b),
-    );
-    for (let i = 0; i < timeKeys.length; i++) {
-      if (!timeKeys[i + 1]) {
-        annotation.details["intPositions"][timeKeys[i]] = position[timeKeys[i]];
-        break;
-      }
-      let t1 = timeKeys[i];
-      let t2 = timeKeys[i + 1];
-      annotation.details["intPositions"][t1] = position[t1];
-      let maxTimeInterval = 1 / 30;
-      let tdiff = parseFloat(t2) - parseFloat(t1);
-      let incr = Math.floor(tdiff / maxTimeInterval);
-      if (tdiff <= maxTimeInterval) continue;
-      let xincr = (position[t2][0] - position[t1][0]) / incr;
-      let yincr = (position[t2][1] - position[t1][1]) / incr;
-      let wincr = null,
-        hincr = null;
-      if (
-        position[t1][2] &&
-        position[t1][3] &&
-        position[t2][2] &&
-        position[t2][3]
-      ) {
-        wincr = (position[t2][2] - position[t1][2]) / incr;
-        hincr = (position[t2][3] - position[t1][3]) / incr;
-      }
-      for (let j = 1; j < incr; j++) {
-        let tmid = parseFloat(t1) + j * maxTimeInterval;
-        let xmid = position[t1][0] + j * xincr;
-        let ymid = position[t1][1] + j * yincr;
-        if (wincr && hincr) {
-          let wmid = position[t1][2] + j * wincr;
-          if (xmid + wmid > 100) wmid = 100 - xmid;
-          let hmid = position[t1][3] + j * hincr;
-          if (ymid + hmid > 100) hmid = 100 - ymid;
-          annotation.details["intPositions"][tmid] = [xmid, ymid, wmid, hmid];
-        } else {
-          annotation.details["intPositions"][tmid] = [xmid, ymid];
-        }
       }
     }
   }
@@ -1290,6 +1283,10 @@ export class AnnotationPlayer {
       this.state.fullscreen = isFullscreen;
       this._updateFullscreenIcon();
     }
+    // The ResizeObserver normally handles this, but its timing across iOS Safari's native
+    // fullscreen transition is unreliable, and a stale overlay there means a blur sitting off
+    // the content it is meant to cover. Re-syncing here is idempotent.
+    this._syncOverlayToFrame();
   }
 
   _updateFullscreenIcon() {
@@ -1650,6 +1647,9 @@ export class AnnotationPlayer {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
       this._conditionallyUpdateControlsIconVisibility();
+      // Belt and braces alongside the media `resize` event: idempotent, and cheap insurance
+      // that the overlay is correct before the first frame can paint.
+      this._syncOverlayToFrame();
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.onProgress());
@@ -1781,17 +1781,30 @@ export class AnnotationPlayer {
 
     document.addEventListener('keydown', (e) => this.onKeydown(e));
 
+    // Two triggers cover every way the frame can move or change shape:
+    //
+    //   1. The video element's box changed. A ResizeObserver on the element catches window
+    //      resizes, fullscreen transitions, device rotation, and the sidebar's margin
+    //      animation alike -- they are all just the box resizing. `contentRect` here is the
+    //      observer entry's own measurement, so this costs no extra layout read.
+    //   2. The media's intrinsic size changed -- the media element's `resize` event. This is
+    //      the standard hook for it and covers metadata arriving, a source swap, and adaptive
+    //      track changes.
+    //
+    // `orientationchange` is deliberately absent: it fires before layout, so a handler there
+    // would measure the pre-rotation box. The observer picks the rotation up correctly.
     const resizeObserver = new ResizeObserver((entries) => {
-      if (!this.aspectRatio) {
-        this.setAspectRatio();
-      }
-      for (let entry of entries) {
-        if (entry.target == this.container) {
-          this.setVideoWrapperStyling();
+      for (const entry of entries) {
+        if (entry.target === this.videoElem) {
+          this._syncOverlayToFrame(
+            entry.contentRect.width,
+            entry.contentRect.height,
+          );
         }
       }
     });
-    resizeObserver.observe(this.container);
+    resizeObserver.observe(this.videoElem);
+    this.videoElem.addEventListener('resize', () => this._syncOverlayToFrame());
 
     if (this.controls.speedBtn && this.controls.speedMenu) {
       this._renderSpeedMenu();
