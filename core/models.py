@@ -24,7 +24,7 @@ HMS_VALIDATOR = RegexValidator(
 
 BCP47_VALIDATOR = RegexValidator(
     regex=r"^[a-z]{2,3}$",
-    message="Must be a 2- or 3-letter lowercase BCP 47 language subtag (e.g., en, spa).",
+    message="Must be a 2- or 3-letter lowercase BCP 47 language subtag (e.g., en, ceb).",
     code="invalid_bcp47",
 )
 
