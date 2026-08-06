@@ -37,9 +37,6 @@
     --dark-mode-border-color: #5a5a5a;
     --dark-mode-text-color: #dedede;
     --dark-mode-text-color-muted: #848484;
-    /* Reads as greyed-out against --dark-mode-text-color while still clearing 4.5:1 on
-       --dark-mode-background-light (it lands at 5:1). --dark-mode-text-color-muted above is 3.2:1
-       there, which is fine for decoration but not for a value someone has to read. */
     --dark-mode-text-color-dimmed: #a8a8a8;
     --zoom-thumb-width: 100%;
 }
@@ -755,8 +752,6 @@
     margin: 0.25rem 0 0;
     min-height: 1.1rem;
     font-size: 0.8rem;
-    /* Reserving the line's height rather than letting it appear and disappear: a status that
-       reflows the panel every time it changes moves the rows the user is aiming at. */
     opacity: 0.85;
 }
 
@@ -764,35 +759,19 @@
     overflow-x: auto;
 }
 
-/* Focusable because it scrolls: that is the only way to reach the far columns without a mouse,
-   and axe's scrollable-region-focusable rule requires it. */
 #positions-list:focus-visible {
     outline: 2px solid var(--blur-type-color, white);
     outline-offset: 2px;
 }
 
-/* Seven columns: the row number, time, x, y, w, h, and the delete button.
- *
- * `table-layout: fixed` rather than `display: grid`, which is what this was before it became a real
- * table: changing `display` on a table element strips its implicit ARIA role, so a grid here would
- * cost exactly the semantics the table exists to provide. Fixed layout gives the same even columns,
- * and takes their widths from the colgroup instead of a template.
- *
- * min-width is what makes #positions-list scroll sideways rather than crushing five numeric fields
- * into a panel that is never wide enough for them - x and y are worth reading even at that cost,
- * since they are the only numeric view of where the box actually is. */
 #blur-positions-table {
     width: 100%;
     min-width: 23rem;
     table-layout: fixed;
-    /* `separate` with zero spacing, not `collapse`: border-radius is ignored in collapsed mode, and
-       the active row's rounded highlight below needs it on the end cells. */
     border-collapse: separate;
     border-spacing: 0;
 }
 
-/* The two columns with no heading: just wide enough for a row number and a trash icon. Everything
-   left over is split evenly between the five value columns by the fixed layout. */
 .position-column-number {
     width: 1.5rem;
 }
@@ -809,24 +788,11 @@
 }
 
 .position-input-group input {
-    /* Overriding the UA's intrinsic `size` width, which ignores the column it sits in. */
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
 }
 
-/* The first point's time is derived - it always equals the blur's start time - so it is readonly,
-   and it should look it. Sitting in a row of otherwise identical filled fields, an unstyled readonly
-   input invites a click and then silently refuses the keystrokes.
- *
- * The fill deliberately stays. Dropping it to make the field read as plain text also exposes the
- * value to whatever is behind the row - and the active row's highlight is a semi-transparent purple,
- * which took the contrast down to 2.7:1. An opaque fill is what keeps that predictable whatever
- * state the row is in, so the greying is done with the text colour, at a ratio that holds.
- *
- * The `#annotation-update-form` prefix is load-bearing: the form-wide input rule above is an id
- * selector, so a class-only rule here loses to it on colour while quietly winning on cursor.
- * Keyed off [readonly] rather than the first row, so the styling cannot drift from the state. */
 #annotation-update-form .position-input-group input[readonly] {
     color: var(--dark-mode-text-color-dimmed);
     cursor: default;
@@ -835,9 +801,6 @@
 .blur-position-delete-button {
     padding: 0;
     margin: 0;
-    /* Sized explicitly now that the cell no longer centres it for us: a percentage-height image in
-       an auto-height table cell resolves to auto, so the icon would render at whatever the SVG's
-       intrinsic size happens to be and stretch the row. */
     width: 1.2rem;
     height: 1.2rem;
     background-color: #ffffff00;
@@ -857,8 +820,6 @@
     border-radius: 4px;
 }
 
-/* On the cells rather than the row: a `<tr>` paints behind its cells, but border-radius does not
-   apply to table rows at all, so rounding the highlight means rounding the two end cells. */
 .active-position-entry th, .active-position-entry td {
     background-color: var(--blur-type-color-transparent);
 }
@@ -877,33 +838,16 @@
     display: block;
 }
 
-/* The blur editing rig: the editor's own element, laid exactly over the blur it is editing.
-   Separate from the player's `.blur-position` div so that div can stay `pointer-events: none` -
-   nothing here can make a blur interceptable during playback.
-
-   `outline` rather than `border`, because a border is part of the box and would inflate the
-   element past the percentages in `style.width`, so every drag read its geometry back a pixel
-   up-and-left of where it was written and the box crept across the frame. */
 #blur-edit-rig {
     position: absolute;
     pointer-events: auto;
     cursor: move;
-    /* Placing a blur is a drag, and without this a touch browser may claim the gesture as a page
-       scroll and fire `pointercancel` instead - BlurEditor cancels cleanly, so nothing corrupts,
-       but the drag silently does nothing. `preventDefault()` on pointerdown is not a substitute:
-       the spec makes `touch-action` the mechanism, and scroll arbitration happens on the
-       compositor thread before the handler runs. */
     touch-action: none;
     outline: 1px dashed white;
     outline-offset: -1px;
-    /* Above both the blur boxes (z-index 1) and the comment boxes (2) in AnnotationPlayer.css.
-       This is editor chrome for the one annotation being manipulated, not an annotation itself:
-       its handles have to stay grabbable even where a comment happens to overlap them. */
     z-index: 3;
 }
 
-/* An author `display` would beat the UA stylesheet's `[hidden]` rule, so state it here: the rig
-   is hidden whenever the playhead sits outside the blur's time range. */
 #blur-edit-rig[hidden] {
     display: none;
 }
@@ -913,14 +857,6 @@
     outline-offset: -2px;
 }
 
-/* Eight handles: four corners and four edge midpoints, so a box can be adjusted in one axis
-   without disturbing the other.
- *
- * Deliberately not sharing `.resize-point` with the comment editor. These sit on top of the very
- * thing the user is trying to cover, so they are less than half its area - a handle big enough to
- * be comfortable elsewhere hides the subject here, which for a blur is the whole job. The hit
- * target is widened past the paint with a transparent border instead, so they stay grabbable.
- */
 .blur-rig-handle {
     position: absolute;
     box-sizing: content-box;
@@ -928,12 +864,9 @@
     height: 5px;
     border-radius: 50%;
     background-color: white;
-    /* Paints 5px, catches the pointer across 15px. */
     border: 5px solid #00000000;
     background-clip: padding-box;
     z-index: 2;
-    /* Resizing is a drag too, and a handle sits inside the rig's own touch-action region only
-       incidentally - state it here so it holds wherever a handle is rendered. */
     touch-action: none;
 }
 
@@ -985,9 +918,6 @@
     border-radius: 50%;
     background-color: var(--dark-mode-light-gray);
     z-index: 2;
-    /* Dragged along the item bar to retime a point, so the same scroll-arbitration problem as the
-       rig's handles applies - and here the gesture is horizontal, which is exactly what a touch
-       browser is most willing to read as a swipe. */
     touch-action: none;
 }
 
@@ -1001,8 +931,6 @@
     outline-offset: 1px;
 }
 
-/* Dragging a dot retimes its point, and that is only offered on the selected blur - so the grab
-   cursor is scoped to the selected item too, rather than promising a gesture that will not fire. */
 .active-track-item .blur-position-locator:hover {
     cursor: grab;
 }

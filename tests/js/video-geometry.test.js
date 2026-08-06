@@ -1,8 +1,7 @@
 // Run with:  node --test tests/js/
 //
-// These cover the only arithmetic in the blur feature. They need no browser, so they run in
-// milliseconds and can afford to be exhaustive about the edge cases that would otherwise
-// surface as a misplaced blur over copyrighted or explicit content.
+// These cover the only arithmetic in the blur feature. They need no browser, so they can afford to
+// be exhaustive about the edge cases that would otherwise surface as a misplaced blur.
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -47,7 +46,7 @@ test("contentRect letterboxes a portrait source in a landscape box", () => {
 });
 
 test("contentRect preserves the source aspect ratio at aspect extremes", () => {
-  // The property the whole redesign exists to guarantee: the picture is never distorted.
+  // The property that matters most: the picture is never distorted.
   for (const [boxWidth, boxHeight] of [
     [1600, 600],
     [300, 1600],
@@ -212,8 +211,7 @@ test("clampRect does not mutate its input", () => {
 // --- percentWithin ---------------------------------------------------------
 
 test("percentWithin converts a pixel rect into frame percentages", () => {
-  // A letterboxed frame: the reference box does not start at the viewport origin, which is
-  // the case the old `e.layerX` code got wrong.
+  // A letterboxed frame: the reference box does not start at the viewport origin.
   const frame = { x: 40, y: 100, width: 800, height: 450 };
   assert.deepEqual(percentWithin({ x: 140, y: 145, width: 200, height: 90 }, frame), {
     x: 12.5,
@@ -285,9 +283,8 @@ test("resizeRect anchors the opposite edge for the other two corners", () => {
   assert.deepEqual(bottomLeft, { x: 30, y: 30, width: 30, height: 30 });
 });
 
-// The four edge handles. This is the case an "else it must be the opposite edge" model cannot
-// express at all: with movesRight derived from !movesLeft, every handle is a corner and the
-// untouched axis is dragged along with the one the user grabbed.
+// The four edge handles: the case an "else it must be the opposite edge" model cannot express, since
+// deriving movesRight from !movesLeft makes every handle a corner.
 test("resizeRect leaves the vertical axis alone for the left and right edges", () => {
   const east = resizeRect(ORIGIN, { x: 75, y: 999 }, { movesRight: true });
   assert.deepEqual(east, { x: 20, y: 30, width: 55, height: 20 });
@@ -310,7 +307,7 @@ test("resizeRect with no edges named is the identity", () => {
 
 test("resizeRect refuses to invert when the pointer crosses the anchored edge", () => {
   // A negative width in a style is dropped, so the box would freeze at its old size while the
-  // pointer kept going -- it would look like the handle had come off.
+  // pointer kept going.
   const limits = { minWidth: 3, minHeight: 4 };
   const pastLeft = resizeRect(ORIGIN, { x: 95, y: 95 }, { ...CORNER_NW, ...limits });
   assert.equal(pastLeft.width, 3);

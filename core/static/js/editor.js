@@ -46,15 +46,13 @@ export class Editor {
         this.dragGhostImage = new Image();  // Used to avoid browser's default globe icon
         this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
-        // BlurEditor owns every gesture inside the video frame and replaces the blur panel and
-        // item HTML itself; all this side has to do afterwards is re-place what it owns.
         this.blurEditor = new BlurEditor({
           video: this.video,
           player: window.videoPlayer,
           timelineWrapper: this.timelineWrapper,
-          // Deliberately not dispatching annotationUpdated here: that refetches every annotation
-          // on the page, and BlurEditor has already patched the player with the positions the
-          // save returned. Reloading on every nudge is what made dragging feel like a page load.
+          // Deliberately not dispatching annotationUpdated: that refetches every annotation on the
+          // page, and BlurEditor has already patched the player with the positions the save
+          // returned, so reloading on every nudge would make dragging feel like a page load.
           onPositionsSaved: () => {
             this.placeTrackItems();
             this.setupItems();
@@ -350,8 +348,6 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
-      // Blur position locators are handled by BlurEditor, delegated from the timeline: this item's
-      // HTML is replaced wholesale after every blur edit, so per-dot listeners would not survive.
     }
 
     blockTrackItemPointerEvents() {
@@ -408,17 +404,12 @@ export class Editor {
       }
     }
 
-    // The form's named values as one comparable string. Fields without a `name` are absent from
-    // FormData, which is what keeps the blur point inputs out of this: they save themselves, one
-    // row at a time, straight to the blur-position endpoint.
+    // Fields without a `name` are absent from FormData, which is what keeps the blur point inputs out
+    // of this: they save themselves, one row at a time, straight to the blur-position endpoint.
     serializeItemForm(itemForm) {
       return new URLSearchParams(new FormData(itemForm)).toString();
     }
 
-    // There is no Save button. Everything else in the app puts state on the server as it changes,
-    // and a button that has to be found and pressed before an edit counts is both a step to forget
-    // and a second, invisible copy of the truth sitting in the form.
-    //
     // `change`, not `input`: it fires once a field is committed (blurred, stepped, picked) rather
     // than per keystroke, so a name being typed is one save and not twenty.
     autoSaveItemForm() {
@@ -428,46 +419,42 @@ export class Editor {
       }
       const annotationId = itemForm.dataset["annotationId"];
       const annotationType = itemForm.dataset["annotationType"];
-      // What the server already holds, so tabbing through the form without editing saves nothing -
-      // and so a field that has its own live-preview handler (the comment box coordinates) is not
-      // saved twice for one edit.
+      // What the server already holds, so tabbing through the form without editing saves nothing, and
+      // a field with its own live-preview handler is not saved twice for one edit.
       this.lastSavedItemFormState = this.serializeItemForm(itemForm);
 
       const save = async () => {
         const state = this.serializeItemForm(itemForm);
         if (state === this.lastSavedItemFormState) return;
 
-        // Changing these two is the other way to shrink a blur's time range, and it prunes points
-        // exactly as a resize handle does. They carry plain seconds, so no parsing is needed.
+        // Typing a new time range prunes points exactly as a resize handle does.
         if (annotationType == "blur") {
           const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
           const newStart = parseFloat(itemForm.querySelector("#start_time")?.value);
           const newEnd = parseFloat(itemForm.querySelector("#end_time")?.value);
           if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
               !this.confirmBlurPointLoss(item, newStart, newEnd)) {
-            // Declined, so put the stored times back: leaving the typed ones in place would show a
-            // range that is not the one in effect.
+            // Declined, so put the stored times back rather than showing a range not in effect.
             itemForm.querySelector("#start_time").value = item.dataset["start"];
             itemForm.querySelector("#end_time").value = item.dataset["end"];
             return;
           }
         }
 
-        // Recorded before the request, not after, so a second `change` arriving while this one is
-        // in flight does not send the same values again.
+        // Recorded before the request, so a second `change` arriving while this one is in flight does
+        // not send the same values again.
         this.lastSavedItemFormState = state;
-        // autoUpdateForm: false, because replacing the form's HTML mid-edit would take the caret
-        // out of whatever field the user moved on to. The pieces that must reflect server state are
-        // patched below instead.
+        // autoUpdateForm: false, because replacing the form's HTML mid-edit would take the caret out
+        // of whatever field the user moved on to; refreshItemFormFromServerState patches instead.
         const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
         if (!updated) {
-          // It is not on the server after all, so forget the record and let the next change retry.
+          // Not on the server after all, so forget the record and let the next change retry.
           this.lastSavedItemFormState = null;
           return;
         }
         this.refreshItemFormFromServerState(itemForm, annotationType, annotationId, updated);
-        // The player holds its own copy of every annotation, so it has to re-read after a change to
-        // a time range or a comment's text. This is the same refresh the Save button used to cause.
+        // The player holds its own copy of every annotation, so it has to re-read after a change to a
+        // time range or a comment's text.
         window.dispatchEvent(this.annotationUpdatedEvent);
       };
 
@@ -478,10 +465,10 @@ export class Editor {
       });
 
       itemForm.addEventListener("submit", (e) => {
-        // Unreachable as the form stands, and kept deliberately. With the submit button gone,
-        // implicit submission is aborted because more than one field blocks it - Enter fires
-        // `change` instead, which is what actually commits the edit. Lose a field or two and it
-        // would start firing, and a submit with no handler navigates away from the editor.
+        // Unreachable as the form stands: with no submit button, implicit submission is aborted
+        // because more than one field blocks it, and Enter fires `change` instead. Kept because
+        // losing a field or two would start it firing, and a submit with no handler navigates away
+        // from the editor.
         e.preventDefault();
         // A blur position's delete button is handled by BlurEditor, not by saving the annotation.
         if (e.submitter?.classList.contains("blur-position-delete-button")) {
@@ -491,16 +478,13 @@ export class Editor {
       });
     }
 
-    // After an auto-save: bring the parts of the form that the server may have rewritten back in
-    // line, without rebuilding the form and losing the user's place in it.
+    // Bring the parts of the form the server may have rewritten back in line, without rebuilding the
+    // form and losing the user's place in it. The stored times can differ from what was typed:
+    // save() rounds them to 2dp, and a blur's range is reconciled against its points.
     refreshItemFormFromServerState(itemForm, annotationType, annotationId, responseData) {
-      // The item bar was just re-rendered by the server, so its dataset is the stored truth. The
-      // times can differ from what was typed: save() rounds them to 2dp, and a blur's range is
-      // reconciled against its points.
       const item = document.getElementById(`${annotationType}-${annotationId}`);
-      // Replacing the bar dropped its selected highlight, and markItemAsActive is not an option
-      // here: it also seeks the playhead to the item's start, which would throw away the frame the
-      // user is working on. The class alone is what selection looks like.
+      // Replacing the bar dropped its selected highlight. markItemAsActive is not an option here: it
+      // also seeks the playhead to the item's start, throwing away the frame the user is working on.
       item?.classList.add("active-track-item");
       for (const [fieldId, datasetKey] of [["start_time", "start"], ["end_time", "end"]]) {
         const input = itemForm.querySelector(`#${fieldId}`);
@@ -512,9 +496,8 @@ export class Editor {
       }
 
       if (annotationType != "blur") return;
-      // Retiming a blur reconciles its points server-side, so the rows have changed. Swapping just
-      // the points table out of the returned form keeps the help text and the aria-live status line
-      // alive, for the same reason BlurEditor does it that way.
+      // Retiming a blur reconciles its points server-side, so the rows have changed. Swapping just the
+      // points table keeps the help text and the aria-live status line alive, as BlurEditor does.
       const incoming = createElementFromHTMLString(responseData["form_html"]);
       const rows = incoming?.querySelector("#positions-list");
       const list = document.getElementById("positions-list");
@@ -598,7 +581,7 @@ export class Editor {
       return (event) => {
         const referenceRect = elementToMove.parentElement.getBoundingClientRect();
         if (lastEvent && referenceRect.width > 0 && referenceRect.height > 0) {
-          // Clamped, so a box can no longer be dragged off the frame and out of reach.
+          // Clamped, so a box cannot be dragged off the frame and out of reach.
           const moved = clampRect({
             x: (parseFloat(elementToMove.style.left) || 0) + (event.clientX - lastEvent.x) / referenceRect.width * 100,
             y: (parseFloat(elementToMove.style.top) || 0) + (event.clientY - lastEvent.y) / referenceRect.height * 100,
@@ -629,8 +612,7 @@ export class Editor {
           width: parseFloat(elementToResize.style.width) || 0,
           height: parseFloat(elementToResize.style.height) || 0,
         };
-        // The comment editor still has only the four corners, so every handle moves one edge on
-        // each axis. The blur rig names its edges individually - see BlurEditor's HANDLES.
+        // The comment editor has only the four corners, so every handle moves one edge on each axis.
         const movesLeft = event.target.classList.contains("resize-point-left");
         const movesTop = event.target.classList.contains("resize-point-top");
         const resized = clampRect(resizeRect(origin, pointer, {
@@ -733,7 +715,7 @@ export class Editor {
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
       // The response, not a bare `true`: callers that suppressed autoUpdateItem still need the
-      // server's rendered item. Truthy either way, so `if (success)` callers are unaffected.
+      // server's rendered item.
       return responseData;
     }
 
@@ -778,8 +760,8 @@ export class Editor {
         if (!this.confirmBlurPointLoss(item, newStartTime, newEndTime)) {
           item.dataset.deltaLeft = '0';
           item.dataset.deltaWidth = '0';
-          // placeTrackItems recomputes left and width from data-start/data-end, which the drag
-          // never touched - so this puts the bar and its dots back without restoring them by hand.
+          // placeTrackItems recomputes left and width from data-start/data-end, which the drag never
+          // touched, so the bar and its dots go back without restoring them by hand.
           this.placeTrackItems();
           return;
         }
@@ -787,13 +769,9 @@ export class Editor {
         this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
     }
 
-    // How many of a blur's points a new time range would discard, read off the item bar.
-    //
-    // Only the reading is here; the decision itself is pointsLostByRetiming, which is pure and
-    // parity-tested against the server that actually does the deleting.
-    //
-    // The bar's dots carry every point's time except the first, which reconcile_positions always
-    // re-pins to start_time and so never drops - hence data-start standing in for it here.
+    // How many of a blur's points a new time range would discard, read off the item bar. The bar's
+    // dots carry every point's time except the first, which reconcile_positions always re-pins to
+    // start_time and so never drops - hence data-start standing in for it here.
     blurPointsLostByRetiming(item, newStart, newEnd) {
       if (item.dataset["annotationType"] !== "blur") return 0;
       const oldStart = parseFloat(item.dataset["start"]);
@@ -1004,8 +982,6 @@ export class Editor {
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
-      // setUpItemForm -> changeAnnotationInFocus hands a blur to BlurEditor, which listens for its
-      // own panel clicks by delegation and so needs nothing re-attached here.
       this.setUpItemForm();
       if (annotationType == "comment") {
         this.setUpCommentChangeListeners(detailForm);
@@ -1295,17 +1271,16 @@ export class Editor {
         }
 
         if (updated) {
-          // Place the item the *server* just rendered, not the dragged payload. The payload is a
-          // snapshot from before the drop, so its start/end and its track are whatever they were,
-          // and for a blur its position dots still carry the pre-move times - which put every dot
-          // at the left edge of the bar. Falling back to the payload only if that fails to parse.
+          // Place the item the *server* just rendered, falling back to the dragged payload only if
+          // that fails to parse: the payload is a snapshot from before the drop, so its start/end and
+          // track are stale and a blur's dots still carry pre-move times.
           const itemToPlace = createElementFromHTMLString(updated["item_html"]) || replacementItem;
           itemToPlace.dataset["setup"] = "false";
           itemToPlace.classList.remove("is-dragging");
           originalItem.remove();
           annotationContainer.appendChild(itemToPlace);
           this.placeTrackItems();
-          // Reapply `active` class now that itemToPlace is the one actually left in the DOM.
+          // Reapply `active` now that itemToPlace is the element left in the DOM.
           this.markItemAsActive(annotationType, annotationId);
         }
       });
@@ -1718,12 +1693,10 @@ export class Editor {
             let startTime = 0;
             let endTime = 0;
             if (this.video) {
-                // Floored to the hundredth of a second annotations are stored at, rather than
-                // handed over raw. BaseAnnotation.save() rounds, so a raw playhead of 7.3066
-                // becomes a start of 7.31 - a few milliseconds *after* the playhead that asked
-                // for it, which means the annotation is not active yet and nothing is drawn until
-                // the user happens to scrub. That happened for roughly half of all playhead
-                // positions. Flooring keeps the stored start at or before the playhead.
+                // Floored to the hundredth annotations are stored at, not handed over raw:
+                // BaseAnnotation.save() rounds, so a playhead of 7.3066 would store a start of 7.31,
+                // a few milliseconds *after* the playhead that asked for it, leaving the annotation
+                // inactive and undrawn until the user happens to scrub.
                 startTime = Math.floor(this.video.currentTime * 100) / 100;
                 // Make sure new item can fit on the page
                 const itemDuration = Math.min(this.duration * 0.2, 10);
@@ -1752,10 +1725,9 @@ export class Editor {
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
               const newNode = createElementFromHTMLString(newTrackItemHtml);
               // Deliberately not overwriting data-start/data-end with the values requested above:
-              // item.html already carries what was *stored*, and the two differ by the rounding
-              // in BaseAnnotation.save(). Overwriting them left the bar claiming a window the
-              // database disagreed with, so the blur editor showed its rig at creation and then
-              // hid it the moment a save replaced this element with the server's own HTML.
+              // item.html already carries what was *stored*, and the two differ by the rounding in
+              // BaseAnnotation.save(), which would leave the bar claiming a window the database
+              // disagrees with.
               trackContainer.appendChild(newNode);
               this.placeTrackItems();
 

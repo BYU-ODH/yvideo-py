@@ -80,23 +80,20 @@ UNTRUSTWORTHY_LEGACY_LANGUAGE_BCP47 = "cak"
 def blur_positions_from_legacy(position_map, start_time, end_time):
     """A legacy censor's keyframes, in this app's coordinate space and obeying its invariants.
 
-    Legacy stored `{key: [time, centerX, centerY, width, height]}` with the geometry anchored at
-    the box's **center**; BlurAnnotationPosition stores the top-left corner, one row per time.
-    Nothing converted between the two until this function existed. Importing the numbers verbatim
-    puts every box `width/2` right and `height/2` down from where its author placed it, leaving
-    the bottom-right of whatever it covered exposed. No content had been imported from the legacy
-    server before the conversion landed, so there are no such rows to correct - but the first
-    real migration is also the first time this runs against anything but fixtures.
+    Legacy stored `{key: [time, centerX, centerY, width, height]}` with the geometry anchored at the
+    box's **center**; BlurAnnotationPosition stores the top-left corner, one row per time. Importing
+    the numbers verbatim would put every box `width/2` right and `height/2` down from where its author
+    placed it, leaving the bottom-right of whatever it covered exposed.
 
-    The keys were arbitrary ids, so they carry no ordering and nothing stopped two keyframes
-    sharing a moment. That was harmless in an unordered JSON blob and is not here: the unique
+    The keys were arbitrary ids, so they carry no ordering and nothing stopped two keyframes sharing a
+    moment. That was harmless in an unordered JSON blob and is not here: the unique
     (blur_annotation, time) index added in migration 0004 makes it an IntegrityError, and
     _import_annotations runs outside a transaction, so an unhandled one abandons a migration job
     part-way through a playlist.
 
-    Returns creation kwargs sorted by time. Corners that convert to negatives are left as they
-    are - BlurAnnotationPosition.save clamps them onto the frame, and leaving that to save keeps
-    a single definition of what a valid box is.
+    Returns creation kwargs sorted by time. Corners that convert to negatives are left as they are -
+    BlurAnnotationPosition.save clamps them onto the frame, which keeps a single definition of what a
+    valid box is.
     """
     by_quantized_time = {}
     for values in (position_map or {}).values():
@@ -107,17 +104,15 @@ def blur_positions_from_legacy(position_map, start_time, end_time):
                 float(value or 0) for value in values[:5]
             )
         except (TypeError, ValueError):
-            # Legacy annotations are a free-form blob written by another application, so a
-            # non-numeric entry is bad data to skip - the same way the shape checks above treat
-            # it - rather than a reason to fail the import.
+            # Legacy annotations are a free-form blob written by another application, so a non-numeric
+            # entry is bad data to skip rather than a reason to fail the import.
             continue
         if time > end_time:
-            # It could never have been reached, and its locator dot would be placed past the
-            # end of the item's bar on the timeline.
+            # Unreachable, and its locator dot would sit past the end of the item's bar.
             continue
-        # Quantized here as well as in save(), because the rounded time is what a collision
-        # happens on. Among exact ties the last one encountered wins, arbitrarily: legacy keys
-        # are ids, so there is no ordering to appeal to.
+        # Quantized here as well as in save(), because the rounded time is what a collision happens
+        # on. Among exact ties the last one encountered wins, arbitrarily: legacy keys are ids, so
+        # there is no ordering to appeal to.
         by_quantized_time[round(time, BLUR_TIME_PRECISION)] = {
             "time": time,
             "x": center_x - width / 2,
@@ -128,9 +123,8 @@ def blur_positions_from_legacy(position_map, start_time, end_time):
 
     positions = [by_quantized_time[time] for time in sorted(by_quantized_time)]
     # Of the keyframes before the censor starts, only the last was still showing when it began;
-    # ensure_first_position pins that one to start_time. This is the rule migration 0004 applied
-    # to blurs imported before the conversion existed, so a re-import cannot reintroduce data
-    # the migration was written to clean up.
+    # ensure_first_position pins that one to start_time. Migration 0004 applies the same rule, so a
+    # re-import cannot reintroduce data that migration was written to clean up.
     started_early = sum(1 for position in positions if position["time"] < start_time)
     return positions[max(0, started_early - 1) :]
 
@@ -1470,13 +1464,10 @@ class LegacyMigrationService:
                     BlurAnnotationPosition.objects.create(
                         blur_annotation=annotation, **position_kwargs
                     )
-                # A censor created from the legacy timeline's + button had `position: {}`, and
-                # the earliest keyframe of one that did have them was never required to
-                # coincide with its start. Either way the result is a blur no user can repair:
-                # with no positions it has no geometry to render and the editor has no
-                # create-a-region gesture, and a first position after start_time is skipped by
-                # get_position_locators and rendered readonly in the panel, so it can be
-                # neither retimed nor deleted.
+                # Legacy censors could arrive with `position: {}` or with an earliest keyframe after
+                # their start, and either leaves a blur no user can repair: with no positions there is
+                # no geometry to render and no create-a-region gesture, and a first position after
+                # start_time is skipped by get_position_locators and readonly in the panel.
                 annotation.ensure_first_position()
             else:
                 annotation = model_class.objects.create(**common_kwargs)

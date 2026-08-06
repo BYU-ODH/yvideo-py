@@ -357,9 +357,6 @@ export class SubtitleSidebar {
     }
 
     this._updateVideoWrapperMargin();
-    // No annotation-box reposition needed here: AnnotationPlayer observes the video element,
-    // so it re-syncs on every frame of the margin transition rather than once after a
-    // hardcoded delay.
   }
 
   hide() {

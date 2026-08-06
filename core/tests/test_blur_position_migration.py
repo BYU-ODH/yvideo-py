@@ -194,9 +194,8 @@ class NormalizeBlurPositionsTests(TestCase):
 
     # --- geometry ------------------------------------------------------------
     #
-    # BlurAnnotationPosition.save() is the only thing enforcing these rules and there is no
-    # database constraint behind it, so rows written before this migration can violate all of
-    # them. Nothing on the read path corrects a stored box, which is why they are fixed here.
+    # BlurAnnotationPosition.save() is the only thing enforcing these rules and there is no database
+    # constraint behind it, so rows written before this migration can violate all of them.
 
     def test_a_box_hanging_off_the_frame_is_pulled_back_on(self):
         _add(self.blur, 15.0, x=95.0, y=90.0, width=30.0, height=40.0)

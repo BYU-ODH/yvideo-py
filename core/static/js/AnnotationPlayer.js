@@ -133,20 +133,6 @@ export class AnnotationPlayer {
     }
   };
 
-  // Narrow the annotation overlay to the rectangle the picture actually occupies, so that a
-  // blur's stored percentages mean "percent of the visible frame" in every layout: window
-  // resize, aspect extremes, fullscreen, rotation, sidebar open.
-  //
-  // Lay the overlay exactly over the picture: the video element's own position inside
-  // .video-wrapper, plus the letterbox pad that `object-fit: contain` leaves around the picture.
-  //
-  // The offset used to be assumed away, on the grounds that the <video> is width:100%/height:100%
-  // of the wrapper and so occupies the whole thing. That is no longer true in the editor, where
-  // the controls are laid out below the picture instead of over it -- and an assumption like that
-  // fails silently, as an overlay that is the right size in the wrong place.
-  //
-  // Pass the dimensions in when a ResizeObserver already measured them; omitting them costs a
-  // layout read.
   _syncOverlayToFrame(elemWidth, elemHeight) {
     if (!this.annotationBox) return;
 
@@ -162,18 +148,10 @@ export class AnnotationPlayer {
       this.videoElem.videoWidth,
       this.videoElem.videoHeight,
     );
-    // .video-wrapper is the overlay's containing block, so these offsets are what `left`/`top`
-    // are relative to. Written as four explicit sides rather than a symmetric `inset`, which
-    // silently assumed the pad above the picture equalled the pad below it.
     this.annotationBox.style.left = `${this.videoElem.offsetLeft + frame.x}px`;
     this.annotationBox.style.top = `${this.videoElem.offsetTop + frame.y}px`;
     this.annotationBox.style.width = `${frame.width}px`;
     this.annotationBox.style.height = `${frame.height}px`;
-    // Blur strength as a fraction of frame height rather than a fixed pixel radius, so a blur
-    // obscures just as much of the picture on a phone as it does in fullscreen. CSS still owns
-    // the visual; this only supplies the scale. Set on the wrapper, not the overlay, so that
-    // both the overlay's blur boxes and the <video> (for whole-screen blur) inherit it -- they
-    // are siblings, so the overlay could not pass it to the video.
     this.videoWrapper.style.setProperty(
       "--blur-radius",
       `${frame.height * 0.1}px`,
@@ -415,14 +393,6 @@ export class AnnotationPlayer {
     return annotations;
   }
 
-  // The IC format stores blur geometry as { "<time>": [x, y, width?, height?] }, keyed by
-  // time, where a two-element entry means "same size as the position before it". Flatten it to
-  // the canonical time-ascending array the renderer reads.
-  //
-  // This is what makes IC-legacy blurs render at all: the parser above only ever produced
-  // `details.position`, while applyAnnotations reads `positions`, so until now these
-  // annotations were silently skipped. `details.interpolate` is deliberately not carried
-  // over -- the renderer interpolates between positions unconditionally.
   icPositionsToCanonical(positionMap) {
     const times = Object.keys(positionMap || {}).sort(
       (a, b) => parseFloat(a) - parseFloat(b),
@@ -435,8 +405,6 @@ export class AnnotationPlayer {
         time: parseFloat(timeKey),
         x,
         y,
-        // A size-less first position has nothing to inherit from. 15% square matches the
-        // fallback the original IC player used for exactly this malformed case.
         width: width ?? previous?.width ?? 15,
         height: height ?? previous?.height ?? 15,
       });
@@ -756,10 +724,6 @@ export class AnnotationPlayer {
       let aEnd = a["end"];
       let aType = a["type"];
       let aPositions = a["positions"];
-      // Half-open deliberately. The skip branch below seeks to aEnd, and skipTo schedules another
-      // applyAnnotations; if the skip were still active at aEnd it would pause, seek to where it
-      // already is, and requeue itself every frame forever. The blur branch opts into a closed
-      // interval locally, because that is the only type that needs to paint at aEnd.
       const isActiveNow = time >= aStart && time < aEnd
       switch (aType) {
         case "skip":
@@ -838,32 +802,12 @@ export class AnnotationPlayer {
           }
           break;
         case "blur": {
-          // Keyed by annotation id, not loop index: loadData re-parses on every edit, so an
-          // index-keyed div would silently start representing a different annotation if the
-          // ordering ever changed.
-          //
-          // "blur-overlay-" and not "blur-": the editor's timeline items are already
-          // id="<type>-<id>", so a plain "blur-3" here is a duplicate id on the editor page.
-          // getElementById then returns whichever comes first in tree order - this one - and the
-          // editor's item drag read its (absent) data-annotation-id and posted to
-          // /annotations/blur/undefined/update/. Intermittent, because it depended on whether
-          // this div happened to be painted at the time.
           const blurId = "blur-overlay-" + a.id;
           const existingBlur = this.annotationBox.querySelector("#" + blurId);
-
-          // The box glides between positions rather than snapping to the last one passed.
-          // With snapping it lags behind whatever it is covering and briefly exposes it, so
-          // this is what makes a handful of positions enough to keep a moving subject hidden.
-          //
-          // Closed at aEnd, unlike isActiveNow: this is concealment, so the final geometry has to
-          // survive the annotation's last frame rather than blinking off a frame early. Kept local
-          // to this branch - see the comment on isActiveNow for why sharing it breaks skip.
           const isBlurVisible = time >= aStart && time <= aEnd;
           const rect = isBlurVisible ? rectAtTime(aPositions, time) : null;
 
           if (!rect) {
-            // Either outside the annotation's window, or it has no positions at all - which
-            // an import can produce, and which used to throw here on aPositions[0].
             if (existingBlur) {
               existingBlur.remove();
             }
@@ -875,16 +819,8 @@ export class AnnotationPlayer {
             blur.id = blurId;
             blur.className = "blur-position blur";
             blur.style.position = "absolute";
-            // Blur strength deliberately not set inline. It used to emit `blur(60)` from the
-            // model's integer default -- unitless, invalid, silently discarded -- so the
-            // stylesheet was always the real source. It now scales with the frame via
-            // --blur-radius, which an inline value here would override.
             this.annotationBox.appendChild(blur);
           }
-          // Only the annotation id is published, deliberately. There is no `blurPositionId` to
-          // publish any more: the rendered box is usually a tween between two positions, so no
-          // single row owns it. The editor must decide which position a drag applies to from
-          // the playhead, not from a stale id on this element.
           blur.dataset["annotationId"] = a.id;
           blur.style.left = rect.x + "%";
           blur.style.top = rect.y + "%";
@@ -928,12 +864,6 @@ export class AnnotationPlayer {
     requestAnimationFrame(() => this.applyAnnotations());
   }
 
-  // Drop overlay elements belonging to annotations that no longer exist.
-  //
-  // applyAnnotations only ever cleans up an element while iterating the annotation it belongs to,
-  // so a deleted annotation is never reached and its box stays on screen -- covering part of the
-  // video with no way to select or remove it -- until the page is reloaded. This runs from
-  // loadData, which is the only place the set of annotations can change.
   _removeOverlaysForDeletedAnnotations() {
     if (!this.annotationBox) return;
     const live = new Set((this.annotations || []).map((a) => String(a["id"])));
@@ -944,10 +874,9 @@ export class AnnotationPlayer {
     }
   }
 
-  // Swap in a fresh set of positions for one blur, for the editor to call after a save.
-  //
-  // Patching in place rather than reloading every annotation on the page keeps a drag cheap, and
-  // keeps the playhead and every other annotation's state untouched by what is a local edit.
+  // Swap in a fresh set of positions for one blur, for the editor to call after a save. Patching in
+  // place rather than reloading every annotation keeps a drag cheap and leaves the playhead and
+  // every other annotation's state untouched by what is a local edit.
   replaceAnnotationPositions(annotationId, positions) {
     const annotation = this.annotations?.find(
       (candidate) =>
@@ -956,9 +885,8 @@ export class AnnotationPlayer {
     );
     if (!annotation) return false;
     annotation["positions"] = positions;
-    // Only repaint when paused. While playing, applyAnnotations reschedules itself every frame,
-    // so it will pick this up on its own -- calling it here would start a second rAF chain that
-    // never stops, and each subsequent save would add another.
+    // Only when paused: while playing, applyAnnotations reschedules itself every frame and will pick
+    // this up on its own, so calling it here would start a second rAF chain that never stops.
     if (this.videoElem.paused) {
       this.applyAnnotations();
     }
@@ -969,8 +897,8 @@ export class AnnotationPlayer {
     this.videoElem.removeEventListener("playing", this._onPlaying);
     this.videoElem.classList.remove("blanked");
     this.videoElem.classList.remove("screen-blurred");
-    // Select by class, not an "[id^=blur]" prefix match: the id is now `blur-<annotationId>`,
-    // and a prefix match would also sweep up anything else whose id merely starts with "blur".
+    // By class, not an "[id^=blur]" prefix match, which would also sweep up anything else whose id
+    // merely starts with "blur".
     Array.from(
       this.annotationBox.querySelectorAll(".blur-position"),
     ).forEach((el) => el.remove());
@@ -1341,9 +1269,8 @@ export class AnnotationPlayer {
       this.state.fullscreen = isFullscreen;
       this._updateFullscreenIcon();
     }
-    // The ResizeObserver normally handles this, but its timing across iOS Safari's native
-    // fullscreen transition is unreliable, and a stale overlay there means a blur sitting off
-    // the content it is meant to cover. Re-syncing here is idempotent.
+    // The ResizeObserver normally handles this, but its timing across iOS Safari's native fullscreen
+    // transition is unreliable, and a stale overlay leaves a blur off the content it must cover.
     this._syncOverlayToFrame();
   }
 
@@ -1705,20 +1632,14 @@ export class AnnotationPlayer {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
       this._conditionallyUpdateControlsIconVisibility();
-      // Belt and braces alongside the media `resize` event: idempotent, and cheap insurance
-      // that the overlay is correct before the first frame can paint.
       this._syncOverlayToFrame();
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.onProgress());
-    // Repaint annotations after a seek that did not come from skipTo - the editor's timeline,
-    // keyboard scrubbing, or a direct currentTime assignment. Without this, dragging the
-    // playhead while paused leaves a gliding blur showing its geometry from the old time.
-    //
-    // Only when paused, which is also the only case that needs it: while playing,
-    // applyAnnotations reschedules itself every frame and will pick the new time up on its own.
-    // Calling it here would start a second rAF chain that never stops, and every subsequent seek
-    // would add another - the same failure mode replaceAnnotationPositions guards against.
+    // Repaint after a seek that did not come from skipTo - the editor's timeline, keyboard scrubbing,
+    // or a direct currentTime assignment - otherwise dragging the playhead while paused leaves a
+    // gliding blur showing its geometry from the old time. Only when paused: while playing,
+    // applyAnnotations reschedules itself every frame, and a second rAF chain would never stop.
     this.videoElem.addEventListener('seeked', () => {
       if (this.videoElem.paused) this.applyAnnotations();
     });
@@ -1850,18 +1771,14 @@ export class AnnotationPlayer {
 
     document.addEventListener('keydown', (e) => this.onKeydown(e));
 
-    // Two triggers cover every way the frame can move or change shape:
+    // Two triggers cover every way the frame can move or change shape: a ResizeObserver on the
+    // element for its box (window resizes, fullscreen, rotation, and the sidebar's margin animation
+    // are all just the box resizing), and the media `resize` event for the intrinsic size (metadata
+    // arriving, a source swap, adaptive track changes). `entry.contentRect` is the observer's own
+    // measurement, so it costs no extra layout read.
     //
-    //   1. The video element's box changed. A ResizeObserver on the element catches window
-    //      resizes, fullscreen transitions, device rotation, and the sidebar's margin
-    //      animation alike -- they are all just the box resizing. `contentRect` here is the
-    //      observer entry's own measurement, so this costs no extra layout read.
-    //   2. The media's intrinsic size changed -- the media element's `resize` event. This is
-    //      the standard hook for it and covers metadata arriving, a source swap, and adaptive
-    //      track changes.
-    //
-    // `orientationchange` is deliberately absent: it fires before layout, so a handler there
-    // would measure the pre-rotation box. The observer picks the rotation up correctly.
+    // `orientationchange` is deliberately absent: it fires before layout, so a handler there would
+    // measure the pre-rotation box.
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.target === this.videoElem) {

@@ -198,9 +198,9 @@ def _drag_item_right(page, annotation, seconds):
             "y": item_box["y"] - target_box["y"] + item_box["height"] / 2,
         },
     )
-    # Wait on the item bar, not a fixed delay: a move is two sequential requests (the update, then
-    # the reloaded form), and its data-start is rewritten from the server's response. This timing
-    # out means the drop was rejected -- it is how the duplicate-id bug above showed itself.
+    # Wait on the item bar, not a fixed delay: a move is two sequential requests (the update, then the
+    # reloaded form), and its data-start is rewritten from the server's response. Timing out here
+    # means the drop was rejected.
     page.wait_for_function(
         """(args) => {
             const item = document.querySelector(args.selector);
@@ -220,11 +220,8 @@ def _saved_points(page, name, expected_count):
 
 # --- moving and resizing the box --------------------------------------------
 #
-# There is nothing here that creates a blur region. A blur arrives with its box already on the
-# frame (ensure_first_position), and every gesture moves or resizes that box. Rubber-banding a new
-# rectangle out of empty picture, and a click that dropped a default box, both used to live here;
-# they read as "add a blur", which is exactly the confusion that left users of the old system unable
-# to work out how to get two blurs on screen at once.
+# There is nothing here that creates a blur region: a blur arrives with its box already on the frame
+# (ensure_first_position), and every gesture moves or resizes that box.
 
 
 def test_dragging_on_empty_frame_does_nothing(page, open_editor):
@@ -702,7 +699,7 @@ def test_timeline_dots_land_at_their_points_relative_offsets(page, open_editor):
     assert offsets[0] != pytest.approx(offsets[1], abs=0.05), "dots are stacked"
 
 
-# --- the item bar: #322 items 2 and 3 ---------------------------------------
+# --- the item bar ------------------------------------------------------------
 #
 # core/tests/test_blur_position_reconcile_endpoint.py covers the same two behaviours against the
 # update endpoint. What these add is the path the user actually takes to reach it - the resize
@@ -1270,7 +1267,7 @@ def test_dots_hold_their_times_while_a_resize_handle_is_dragged(page, open_edito
         assert settled == pytest.approx(mid, abs=3), f"dot {index} snapped on release"
 
 
-# --- Phase 5: the panel, the dots, the copy and the keyboard -----------------
+# --- the panel, the dots, the copy and the keyboard --------------------------
 #
 # Everything below is an affordance for reaching a blur point *without* a drag on the frame: by
 # number, by keyboard, or by grabbing its dot. They matter because the frame gesture alone cannot
@@ -1457,9 +1454,7 @@ def test_the_points_panel_is_a_real_table(page, open_editor):
 
 
 # Two-decimal rendering is covered without a browser, and more strictly, by
-# core/tests/test_blur_positions.py: PanelRenderingTests renders the same partial from rows written
-# past 2dp via queryset.update() - a state a drag cannot produce - and GeometryPrecisionTests pins
-# save()'s rounding. Nothing between them and the panel formats a value.
+# core/tests/test_blur_positions.py: PanelRenderingTests and GeometryPrecisionTests.
 
 
 def test_the_time_field_retimes_its_point(page, open_editor):
@@ -1892,9 +1887,7 @@ def test_a_resize_that_keeps_every_point_asks_nothing(page, open_editor):
 
 # --- no Save button ----------------------------------------------------------
 #
-# The rest of the app puts state on the server as it changes. A Save button is a second, invisible
-# copy of the truth sitting in the form, and a step to forget before an edit counts - so every field
-# saves itself on `change`, once committed rather than once per keystroke.
+# Every field saves itself on `change`, once committed rather than once per keystroke.
 
 
 def test_editing_a_field_saves_it_without_being_asked(page, open_editor):

@@ -60,11 +60,9 @@ class BlurReconcileThroughEndpointTests(TestCase):
         self.blur.refresh_from_db()
         return [p.time for p in self.blur.positions.all()]
 
-    # One reconcile outcome, not four. The move, right-prune and at-least-one cases asserted
-    # exactly what ReconcilePositionsTests already asserts against the same fixture, only more
-    # slowly and through a view. This one stays because it is the outcome that *discriminates* a
-    # resize from a move, which is the wiring the module docstring is about: capture the old window
-    # before reassigning, or the model gets told the wrong thing and does the wrong thing correctly.
+    # The one outcome that *discriminates* a resize from a move, which is the wiring this module is
+    # about: capture the old window before reassigning, or the model is told the wrong thing and does
+    # the wrong thing correctly. ReconcilePositionsTests covers the rest against the model directly.
     def test_dragging_the_left_handle_moves_the_first_position(self):
         """#322 item 2: the *start* time updates, and later positions are left alone."""
         self.assertEqual(self._update(13.0, 15.0), [13.0, 15.0])

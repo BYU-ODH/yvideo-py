@@ -587,19 +587,17 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
 def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
     """Everything the page needs to redraw one blur's points after a write.
 
-    Three projections of a single list, because three parts of the page consume it differently:
-    the points panel (`blurPositions`), the timeline bar's dots (`trackItem`), and the player's own
-    copy of the annotation (`positions`, the only one that is data rather than markup).
+    Three projections of a single list, because three parts of the page consume it differently: the
+    points panel (`blurPositions`), the timeline bar's dots (`trackItem`), and the player's own copy
+    of the annotation (`positions`, the only one that is data rather than markup).
 
-    That is already one representation more than anyone wants to keep in step. Anything new that
-    needs these positions should read one of the two client-side copies - the player's array, or
-    the panel's row `data-*` attributes, which BlurEditor._positions() treats as canonical - rather
-    than becoming a fourth thing to patch on every save.
+    Anything new that needs these positions should read one of the two client-side copies - the
+    player's array, or the panel's row `data-*` attributes, which BlurEditor._positions() treats as
+    canonical - rather than becoming a fourth thing to patch on every save.
     """
     try:
-        # Prefetched, so the three projections below share one read of the relation. Each of them
-        # calls positions.all() independently - one directly, one inside get_position_locators, one
-        # in the comprehension - and without this that is three identical queries per point edit.
+        # Prefetched so the three projections below share one read of the relation; each calls
+        # positions.all() independently, which is otherwise three identical queries per point edit.
         parent_annotation = BlurAnnotation.objects.prefetch_related("positions").get(
             pk=parent_annotation_id
         )
@@ -624,8 +622,6 @@ def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
         return {
             "blurPositions": blur_positions_html,
             "trackItem": track_item_html,
-            # The player patches its own copy of the positions from this rather than refetching
-            # every annotation on the page after each nudge.
             "positions": [
                 position.to_json() for position in parent_annotation.positions.all()
             ],
@@ -642,18 +638,17 @@ def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
 def upsert_blur_position(request, annotation_id):
     """Write the geometry of one blur position, creating it if there isn't one yet.
 
-    One endpoint for create and update because the editor cannot tell the difference: a drag
-    means "the blur belongs *here* at the time I'm looking at", and whether that is a new point
-    or an existing one is a fact about stored data, not about the gesture. Deciding it here -
-    where the stored times actually are - is what stops a drag at a new time from silently
-    retiming the point the user last touched, which is what the old two-endpoint split did.
+    One endpoint for create and update because the editor cannot tell the difference: a drag means
+    "the blur belongs *here* at the time I'm looking at", and whether that is a new point or an
+    existing one is a fact about stored data, not about the gesture. Deciding it here - where the
+    stored times are - stops a drag at a new time from silently retiming the last point touched.
 
     `position_id` is optional and means "this exact row", for the numeric inputs and for
     dragging a timeline dot, where the user is deliberately naming a point rather than a time.
     """
-    # `active=True` for the same reason every other editor endpoint filters on it: a deleted
-    # annotation is one delete_with_history() marked inactive, and undo() can bring it back. A
-    # write accepted in between would resurrect it carrying points nobody placed deliberately.
+    # `active=True` because a deleted annotation is one delete_with_history() marked inactive, and
+    # undo() can bring it back; a write accepted in between would resurrect it carrying points nobody
+    # placed deliberately.
     annotation = get_object_or_404(BlurAnnotation, pk=annotation_id, active=True)
     if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
@@ -669,8 +664,8 @@ def upsert_blur_position(request, annotation_id):
         logger.error(f"Unable to parse data for writing a blur position: {e}")
         return HttpResponseBadRequest()
 
-    # `is None` rather than a falsy test: 0 is legitimate for every one of these. x=0 or y=0 is a
-    # box flush against the left or top edge, and time=0 is a position at the very start.
+    # `is None` rather than a falsy test: 0 is legitimate for every one of these - a box flush against
+    # the left or top edge, or a position at the very start.
     if position_time is None or any(value is None for value in geometry.values()):
         return HttpResponseBadRequest()
 
@@ -680,9 +675,9 @@ def upsert_blur_position(request, annotation_id):
     except (TypeError, ValueError):
         return HttpResponseBadRequest()
 
-    # Clamp instead of rejecting. The editor only offers the rig while the playhead is inside
-    # the blur's window, so an out-of-range time here is rounding at a boundary or a stale
-    # request - neither is worth failing an edit over, and the model clamps geometry the same way.
+    # Clamped instead of rejected: the editor only offers the rig while the playhead is inside the
+    # blur's window, so an out-of-range time is rounding at a boundary or a stale request. The model
+    # clamps geometry the same way.
     position_time = min(annotation.end_time, max(annotation.start_time, position_time))
 
     if position_id is not None:
@@ -693,14 +688,12 @@ def upsert_blur_position(request, annotation_id):
         )
         position.time = position_time
     else:
-        # A point already sitting within a frame or two of the playhead *is* the point the user
-        # is editing, so keep its time and only move the box. Anything else creates a point.
+        # A point already sitting within a frame or two of the playhead *is* the point the user is
+        # editing, so keep its time and only move the box. Anything else creates a point.
         #
-        # The *nearest* of the candidates, not the earliest. Positions are ordered by time, so
-        # taking .first() here picked the lowest time in the window while BlurEditor._pointAt
-        # picks the closest - and two points less than BLUR_SNAP_SECONDS apart (which the panel's
-        # time field allows) made the two disagree. The drag then landed on a neighbour: the box
-        # the user had just placed sprang back and a point they were not looking at moved instead.
+        # The *nearest* candidate, not the earliest, because BlurEditor._pointAt picks the closest and
+        # the two have to agree: two points less than BLUR_SNAP_SECONDS apart (which the panel's time
+        # field allows) would otherwise land a drag on a neighbour.
         nearby = annotation.positions.filter(
             time__gte=position_time - BLUR_SNAP_SECONDS,
             time__lte=position_time + BLUR_SNAP_SECONDS,
@@ -711,8 +704,8 @@ def upsert_blur_position(request, annotation_id):
             default=None,
         ) or BlurAnnotationPosition(blur_annotation=annotation, time=position_time)
 
-    # Recorded before save() gives it a pk. Only this side of the request knows whether a drag
-    # added a point or moved one, and the editor has to tell the user which of the two happened.
+    # Recorded before save() gives it a pk. Only this side of the request knows whether a drag added a
+    # point or moved one, and the editor reports that to the user.
     created = position.pk is None
 
     for field, value in geometry.items():
@@ -740,9 +733,9 @@ def upsert_blur_position(request, annotation_id):
     )
     if item_and_positions_html is False:
         return HttpResponseServerError()
-    # Read back rather than reported from the request: the time is clamped into the blur's window
-    # and may snap onto a nearby point, and ensure_first_position above can retime this very row.
-    # The editor puts this in front of the user, so it has to be the time that was actually stored.
+    # Read back rather than echoed from the request: the time is clamped into the blur's window, may
+    # snap onto a nearby point, and ensure_first_position above can retime this very row. The editor
+    # puts this in front of the user, so it has to be the time that was actually stored.
     saved_time = (
         BlurAnnotationPosition.objects.filter(pk=position.pk)
         .values_list("time", flat=True)
@@ -770,9 +763,9 @@ def delete_blur_position(request, position_id):
     if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
-    # A blur with no positions has no geometry and cannot render at all, and the earliest
-    # position is the one that supplies the geometry the blur starts with. 409 rather than 400:
-    # the request is well-formed, it just conflicts with that invariant.
+    # A blur with no positions has no geometry and cannot render, and the earliest position is the one
+    # that supplies the geometry the blur starts with. 409, not 400: the request is well-formed, it
+    # just conflicts with that invariant.
     if position.pk == annotation.positions.values_list("pk", flat=True).first():
         return HttpResponse("A blur's first position cannot be deleted", status=409)
 

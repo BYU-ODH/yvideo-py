@@ -14,17 +14,13 @@ DEMO_CONTENT_TITLE = "Birds Overview"
 
 VIDEO_SELECTOR = ".annotation-player-container video"
 
-# Generous on purpose. This is a cold page load in a real browser - video metadata over the live
-# server, a player-data fetch, and on the editor a timeline render - and a tight ceiling here buys
-# nothing: a shorter timeout does not make a passing test faster, it only makes a slow machine
-# report a flake instead of a failure. The files these fixtures replaced had drifted to four
-# different values (1s to 10s) for the same wait.
+# Generous on purpose: this is a cold page load in a real browser, and a shorter timeout does not
+# make a passing test faster, it only makes a slow machine report a flake instead of a failure.
 READY_TIMEOUT_MS = 10_000
 
-# window.videoPlayer and the video's duration load via two independent async paths (a player-data
-# fetch vs. the browser's own media loading) with no ordering guarantee between them. Waiting on
-# duration alone races window.videoPlayer.loadData, which several tests call immediately -
-# fast/warm machines usually win that race, CI does not.
+# window.videoPlayer and the video's duration load via two independent async paths with no ordering
+# guarantee between them, so waiting on duration alone races window.videoPlayer.loadData, which
+# several tests call immediately.
 _PLAYER_READY = """(video) => {
     const element = document.querySelector(video);
     return Boolean(window.videoPlayer && element && !isNaN(element.duration)

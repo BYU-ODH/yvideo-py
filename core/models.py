@@ -1220,37 +1220,29 @@ class CommentAnnotation(BaseAnnotation):
         return new_annotation
 
 
-# Blur positions are the geometry that hides copyrighted or explicit content, so the rules
-# about what a valid position is live here, in one place, and are enforced in
-# BlurAnnotationPosition.save() and BlurAnnotation.reconcile_positions().
-#
-# Matches the rounding BaseAnnotation.save() applies to start_time/end_time, so a position's
-# time and its annotation's bounds are always comparable at the same precision.
+# Matches the rounding BaseAnnotation.save() applies to start_time/end_time, so a position's time
+# and its annotation's bounds are always comparable at the same precision.
 BLUR_TIME_PRECISION = 2
-# Geometry is a percentage of the video frame, so the second decimal is already a hundredth of a
-# percent - well under a pixel on any real display. Beyond that the digits are float noise from
-# dividing pixels by a frame width, and they are put in front of the user in the points panel.
+# Geometry is a percentage of the video frame, so a hundredth of a percent is already well under a
+# pixel on any real display; beyond that the digits are float noise, and they are shown to the user
+# in the points panel.
 BLUR_GEOMETRY_PRECISION = 2
-# How close a requested time has to be to an existing position to mean "that one". Slightly
-# coarser than the stored precision so two rapid edits at the same playhead can't race into
-# two rows a hundredth of a second apart.
+# How close a requested time has to be to an existing position to mean "that one". Slightly coarser
+# than the stored precision so two rapid edits at the same playhead can't race into two rows a
+# hundredth of a second apart.
 BLUR_SNAP_SECONDS = 0.05
-# How much a duration may change and still count as a move rather than a resize, in
-# reconcile_positions - the distinction decides whether positions travel with the annotation or
-# get dropped. Looser than the stored precision because it absorbs the client computing end as
-# `originalEnd - originalStart + newStart` while save() rounds start and end to 2dp
-# independently, which can leave the duration off by a hundredth.
+# How much a duration may change and still count as a move rather than a resize in
+# reconcile_positions, which decides whether positions travel with the annotation or get dropped.
+# Looser than the stored precision because it absorbs the client computing end as
+# `originalEnd - originalStart + newStart` while save() rounds start and end to 2dp independently.
 #
-# The browser warns about the points a resize is about to delete before asking the server to do
-# it, so pointsLostByRetiming in core/static/js/video-geometry.js classifies on this same value.
-# The two are held to it by the parity tests named there.
+# pointsLostByRetiming in core/static/js/video-geometry.js classifies on this same value so the
+# browser can warn before a resize deletes points; parity tests named there hold the two together.
 BLUR_RETIME_TOLERANCE_SECONDS = 0.02
-# Floors, not defaults: a box smaller than this is impossible to grab and almost certainly a
-# mis-drag rather than an intent.
+# Floors, not defaults: a box smaller than this is impossible to grab.
 BLUR_MIN_WIDTH = 3.0
 BLUR_MIN_HEIGHT = 4.0
-# Percentages of the video frame, top-left anchored. Big enough to see and grab immediately -
-# the previous 4x3 seed rendered as an all-but-invisible smudge.
+# Percentages of the video frame, top-left anchored, big enough to see and grab immediately.
 BLUR_DEFAULT_GEOMETRY = {"x": 40.0, "y": 42.5, "width": 20.0, "height": 15.0}
 
 
@@ -1305,9 +1297,9 @@ class BlurAnnotation(BaseAnnotation):
         if first.time == target:
             return first
 
-        # A position already sitting exactly at start_time supplies the geometry there, so an
-        # earlier one is redundant rather than something to retime onto it - which would also
-        # collide with the unique (blur_annotation, time) index.
+        # A position already sitting exactly at start_time supplies the geometry there, so an earlier
+        # one is redundant rather than something to retime onto it - which would also collide with the
+        # unique (blur_annotation, time) index.
         occupant = self.positions.filter(time=target).exclude(pk=first.pk).first()
         if occupant is not None:
             first.delete()
@@ -1368,23 +1360,22 @@ class BlurAnnotation(BaseAnnotation):
         old_duration = old_end - old_start
         new_duration = self.end_time - self.start_time
         delta = self.start_time - old_start
-        # Sampled before anything is mutated: this is what the person dragging can see at the new
-        # start time, and it is generally a tween rather than any stored position.
+        # Sampled before anything is mutated: what the person dragging can see at the new start time,
+        # which is generally a tween rather than any stored position.
         showing_at_new_start = self.geometry_at(self.start_time)
 
         if abs(new_duration - old_duration) <= BLUR_RETIME_TOLERANCE_SECONDS and delta:
-            # Shift the positions furthest along the direction of travel first. The unique
-            # (blur_annotation, time) index is checked per-row, so moving a position onto a
-            # time a sibling still occupies would collide even though the final state is fine.
+            # Furthest along the direction of travel first: the unique (blur_annotation, time) index
+            # is checked per-row, so moving a position onto a time a sibling still occupies would
+            # collide even though the final state is fine.
             ordering = "-time" if delta > 0 else "time"
             for position in self.positions.order_by(ordering):
                 position.time = position.time + delta
                 position.save()
         else:
             # Give the position that will survive at the new start the geometry that was actually
-            # showing there. Retiming it without this leaves the blur's opening frames covering
-            # where the subject *used to be*, which for a blur is exposure rather than a cosmetic
-            # pop. Done before the pruning below, which is what retimes it.
+            # showing there. Retiming it without this leaves the blur's opening frames covering where
+            # the subject *used to be*, which for a blur is exposure, not a cosmetic pop.
             stale = list(self.positions.filter(time__lt=self.start_time))
             if stale and showing_at_new_start:
                 survivor = stale[-1]
@@ -1392,11 +1383,10 @@ class BlurAnnotation(BaseAnnotation):
                     setattr(survivor, field, value)
                 survivor.save()
 
-        # start_time <= time <= end_time belongs to the annotation, not to either branch above, so
-        # enforce it for both. The move branch classifies on a tolerance looser than the stored
-        # precision, so a start-only edit of a single hundredth reads as a move and shifts every
-        # position - which lands the last one past end_time, where geometry_at interpolates toward
-        # geometry that playback can never reach.
+        # start_time <= time <= end_time is the annotation's own invariant, so it is enforced for both
+        # branches: a start-only edit of a single hundredth reads as a move under the tolerance and
+        # shifts every position, landing the last one past end_time where geometry_at would
+        # interpolate toward geometry playback can never reach.
         self.positions.filter(time__gt=self.end_time).delete()
         # Of the positions before the window, keep the last one - ensure_first_position pins it to
         # start_time below - and discard the rest.
@@ -1459,8 +1449,8 @@ class BlurAnnotationPosition(models.Model):
     blur_amount = models.IntegerField(null=False, blank=False, default=60)
 
     class Meta:
-        # Ordered by time everywhere, unconditionally: interpolating between positions is only
-        # correct on a sorted sequence, so no caller should have to remember to sort.
+        # Interpolating between positions is only correct on a sorted sequence, so no caller should
+        # have to remember to sort.
         ordering = ["time"]
         constraints = [
             models.UniqueConstraint(

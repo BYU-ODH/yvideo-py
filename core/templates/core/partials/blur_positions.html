@@ -1,38 +1,24 @@
 {% load static %}
 <div id="blur-positions-wrapper">
     <h4>Blur Points</h4>
-    {% comment %}
-       The method, not the mechanism. A blur always arrives with a box already on the frame, so
-       there is nothing to create and nothing to add - the user only ever moves the one that is
-       there. Saying so is what stops "blur point" being read as "another blur".
-
-       The procedure for a moving target is bisection, and it is worth spelling out because it
-       converges fast and is not obvious: the worst error after two points is always somewhere in
-       between, so fixing the worst spot repeatedly is the shortest route to a blur that tracks.
-    {% endcomment %}
     <p class="blur-positions-help">
         Drag the blur on the video to move it, or its handles to resize it. For moving targets,
         adjust the blur at the beginning, then adjust the blur at the end, then repeatedly find
         where the blur is farthest from the target and adjust its position there.
     </p>
     {% comment %}
-       #positions-list is the scroll container, not the table: the table has seven real columns and
-       the panel is never wide enough for them, so it scrolls sideways. tabindex makes it reachable
-       by keyboard, which is both the only way to scroll it without a mouse and what axe requires of
-       any scrollable region.
+       #positions-list is the scroll container, not the table: seven columns never fit the panel, so
+       it scrolls sideways, and tabindex makes it scrollable by keyboard as axe requires.
 
-       It is also the only part of this wrapper that a save replaces - the help text above and the
-       status line below survive, which is what lets that status line work as a live region at all.
-       A live region removed and re-inserted with its message already inside is not announced.
+       It is also the only part of this wrapper a save replaces: a live region removed and
+       re-inserted with its message already inside is not announced, so the status line survives.
     {% endcomment %}
     <div id="positions-list" tabindex="0" role="group" aria-label="Blur points">
         {% comment %}
-           A real table, because this is tabular data: each row is one point and each column is one
-           of its values, and the header cells are what tell a screen reader which value a given
-           field holds. That also rules out laying it out with `display: grid` - changing `display`
-           on a table element strips its implicit ARIA role in every major browser, which would
-           leave the markup semantic and the semantics gone. `table-layout: fixed` does the column
-           alignment the grid used to.
+           A real table, because the header cells are what tell a screen reader which value a field
+           holds. That rules out `display: grid` for layout: changing `display` on a table element
+           strips its implicit ARIA role in every major browser, so `table-layout: fixed` does the
+           column alignment instead.
         {% endcomment %}
         <table id="blur-positions-table">
             <colgroup>
@@ -58,12 +44,10 @@
             <tbody>
             {% for position in item_positions %}
                 {% comment %}
-                   data-* is the client's source of truth for this point's geometry - BlurEditor
-                   reads these rows rather than the player's blur div, so the player is free to
-                   rebuild that div whenever the playhead leaves the blur's window. The inputs are
-                   views onto the same values. floatformat matches the 2dp that
-                   BlurAnnotationPosition.save() now stores, so rows written before that still read
-                   cleanly here.
+                   data-* is the client's source of truth for this point's geometry: BlurEditor reads
+                   these rows rather than the player's blur div, which the player is free to rebuild
+                   whenever the playhead leaves the blur's window. floatformat matches the 2dp
+                   BlurAnnotationPosition.save() stores, so older rows still read cleanly.
                 {% endcomment %}
                 <tr class="position-entry"
                     data-position-id="{{position.pk}}"
@@ -75,21 +59,16 @@
                     <th scope="row" class="position-counter">{{forloop.counter}}.</th>
                     <td class="position-input-group">
                         {% comment %}
-                           No `name` on any of these. They are saved one at a time by BlurEditor,
-                           straight to the blur-position endpoint; leaving them in the annotation
-                           form's FormData would collapse every row's value into a single key and
-                           send whichever row happened to be last.
-
-                           Each still carries an aria-label as well as sitting under a column
-                           header, because the header alone does not say which point the field
-                           belongs to - and five identically-labelled fields per row is exactly the
-                           case where that matters.
+                           No `name` on any of these: BlurEditor saves them one row at a time to the
+                           blur-position endpoint, and leaving them in the annotation form's FormData
+                           would collapse every row into a single key. The aria-labels name the point
+                           as well as the column, which the column header alone cannot do.
                         {% endcomment %}
                         {% if forloop.counter == 1 %}
                         {% comment %}
                            The first point always sits at the blur's start time, so its time is
-                           derived rather than entered - readonly (not disabled) so it still shows
-                           the real value instead of a placeholder that cannot be parsed.
+                           derived rather than entered - readonly, not disabled, so it still shows
+                           the real value.
                         {% endcomment %}
                         <input class="position-time-input" type="text" value="{{position.time|floatformat:2}}" readonly
                                title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."

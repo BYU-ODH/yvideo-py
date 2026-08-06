@@ -64,10 +64,9 @@ class BlurPositionEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self.blur.positions.count(), 1)
 
-    # No separate case for an upsert carrying a position_id: can_edit is checked on the annotation
-    # from the URL before position_id is looked at at all, so the named path cannot be authorized
-    # differently from the unnamed one. What a position_id *can* do - reach across to another
-    # blur - is test_a_position_id_from_another_blur_is_not_a_way_in below.
+    # can_edit is checked on the annotation from the URL before position_id is looked at, so the
+    # named path cannot be authorized differently from the unnamed one. What a position_id *can* do -
+    # reach across to another blur - is test_a_position_id_from_another_blur_is_not_a_way_in below.
 
     def test_delete_requires_edit_permission(self):
         deletable = BlurAnnotationPositionFactory(blur_annotation=self.blur, time=8.0)
@@ -245,7 +244,7 @@ class BlurPositionEndpointTests(TestCase):
         ]
         # The write path legitimately reads the table before rendering: the upsert looks for a point
         # to land on, ensure_first_position checks the earliest, and the response reads back the
-        # stored time. What must not be here is one read per projection of the response.
+        # stored time. What must not appear is one read per projection of the response.
         self.assertLessEqual(
             len(selects),
             4,

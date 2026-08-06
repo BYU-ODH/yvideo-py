@@ -7,26 +7,24 @@ data satisfies it:
   2. Order positions by time by default.
   3. Require (blur_annotation, time) to be unique.
 
-Geometry is normalized here as well as timing. BlurAnnotationPosition.save() is the only place
-the geometry rules are enforced and there is no database constraint behind it, so rows written
-before this migration keep whatever they had - boxes hanging off the right edge, boxes too
-small to grab - and nothing on the read path corrects them. Since this is already walking every
-row, clamping here is what makes the invariants true of the *data* rather than only of writes
-made from now on.
+Geometry is normalized here as well as timing. BlurAnnotationPosition.save() is the only place the
+geometry rules are enforced and there is no database constraint behind it, so rows written before
+this migration keep whatever they had - boxes hanging off the right edge, boxes too small to grab -
+and nothing on the read path corrects them.
 
-The interesting case is the "sentinel" position. Until now `create_annotation` seeded every
-new blur with a `time=0, x=50, y=50, width=4, height=3` row regardless of where the blur
-actually started, and five different code paths had special cases to keep that row alive and
-hidden from the user. The invariant that replaces all of it is simply: the earliest position
-sits at the blur's start_time. So sentinels get dropped where a real position exists, and
-promoted to start_time where they are all a blur has.
+The interesting case is the "sentinel" position. `create_annotation` used to seed every new blur
+with a `time=0, x=50, y=50, width=4, height=3` row regardless of where the blur actually started,
+and several code paths had special cases to keep that row alive and hidden from the user. The
+invariant that replaces all of it is simply: the earliest position sits at the blur's start_time. So
+sentinels get dropped where a real position exists, and promoted to start_time where they are all a
+blur has.
 """
 
 from django.db import migrations
 from django.db import models
 
-# Inlined rather than imported from core.models: migrations must keep working when the
-# constants they were written against later change or move.
+# Inlined rather than imported from core.models: migrations must keep working when the constants they
+# were written against later change or move.
 TIME_PRECISION = 2
 GEOMETRY_PRECISION = 2
 MIN_WIDTH = 3.0
@@ -83,9 +81,8 @@ def _normalize(apps, schema_editor):
     for blur in BlurAnnotation.objects.all().iterator():
         positions = list(blur.positions.all().order_by("time", "pk"))
 
-        # Round times and collapse duplicates together, in one pass per group. Rounding is
-        # what *creates* most collisions (18.001 and 18.004 both become 18.0), so the losers
-        # have to be deleted before the survivor is retimed onto the shared value - otherwise
+        # Rounding is what *creates* most collisions (18.001 and 18.004 both become 18.0), so the
+        # losers have to be deleted before the survivor is retimed onto the shared value - otherwise
         # the write collides with a row that is about to be removed.
         groups = {}
         for position in positions:
@@ -135,10 +132,9 @@ def _normalize(apps, schema_editor):
             )
             continue
 
-        # A sentinel that is all a blur has is not a box the user placed - it is the seed row, and
-        # 4x3 of the frame is the all-but-invisible smudge DEFAULT_GEOMETRY exists to replace.
-        # Repinning it and stopping there would leave the blur exactly as unusable after this
-        # migration as before it, so there is nothing here worth preserving.
+        # A sentinel that is all a blur has is the seed row, not a box the user placed, and 4x3 of the
+        # frame is the all-but-invisible smudge DEFAULT_GEOMETRY exists to replace - so repinning it
+        # and stopping there would leave the blur as unusable as before.
         if len(positions) == 1 and _is_sentinel(positions[0]):
             for field, value in DEFAULT_GEOMETRY.items():
                 setattr(positions[0], field, value)
@@ -156,8 +152,8 @@ def _normalize(apps, schema_editor):
                 earliest.time = target
                 earliest.save(update_fields=["time"])
 
-        # Finally the geometry, on whatever survived. Last because the steps above decide *which*
-        # rows exist, and clamping one that is about to be deleted is wasted work.
+        # Last, because the steps above decide *which* rows exist and clamping one that is about to be
+        # deleted is wasted work.
         for position in positions:
             _clamp_geometry(position)
 
@@ -168,8 +164,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Reversing this cannot restore sentinels, and nothing depends on them once the
-        # invariants hold, so the backwards direction is a deliberate no-op.
+        # Reversing cannot restore sentinels, and nothing depends on them once the invariants hold.
         migrations.RunPython(_normalize, migrations.RunPython.noop),
         migrations.AlterModelOptions(
             name="blurannotationposition",
