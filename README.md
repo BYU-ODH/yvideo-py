@@ -106,19 +106,24 @@ uv run pre-commit run --all-files
 
 For local database-backed Django tests, run:
 ```bash
+uv run manage.py collectstatic --noinput
 uv run manage.py test
 ```
 
-That uses the normal project settings and migration graph.
+That uses the normal project settings and migration graph. The `collectstatic` is needed once
+after any change to `core/static/`: static files are served through a
+`ManifestStaticFilesStorage`, so tests that render a template resolve `{% static %}` against
+`staticfiles.json` and fail if it is missing or stale. It is cheap and safe to re-run.
 
 For the pure-arithmetic Javascript unit tests, run:
 ```bash
-node --test tests/js/
+node --test tests/js/*.test.js
 ```
 
 These use Node's built-in test runner and need no npm install. They cover
 `core/static/js/video-geometry.js`, which decides where every blur annotation is drawn, and
-run as their own CI job.
+run as their own CI job. Pass the files rather than the `tests/js/` directory — Node 24 treats a
+bare directory argument as a module to load, not a directory to walk.
 
 For browser-backed end-to-end tests against the deterministic demo dataset, run:
 ```bash

@@ -48,6 +48,19 @@ jobs:
     - name: Install python dependencies
       run: uv sync
 
+    # STORAGES["staticfiles"] is a ManifestStaticFilesStorage, which resolves {% static %} through
+    # staticfiles.json and raises for anything missing from it. Tests that *render* a template -
+    # the blur-position endpoints return rendered HTML - therefore need that manifest to exist, and
+    # nothing else in this job creates it. Without this step every such test 500s in CI while
+    # passing on any developer machine that has ever run collectstatic, which is exactly how this
+    # went unnoticed.
+    #
+    # Kept as a real collectstatic rather than swapped for a lenient storage backend in test
+    # settings: a template naming a static file that does not exist is a genuine bug, and this is
+    # the only thing that catches it before deploy.
+    - name: Collect static files
+      run: uv run python manage.py collectstatic --noinput
+
     - name: Run Django tests
       run: uv run python manage.py test core
 
@@ -64,8 +77,12 @@ jobs:
       with:
         node-version: '24'
 
+    # Explicit file paths, not the `tests/js/` directory: Node 24 treats a bare positional argument
+    # as a module to load rather than a directory to walk, so the directory form fails here with
+    # MODULE_NOT_FOUND while still working on the Node 20/22 a developer may have locally. The shell
+    # expands this glob, so it behaves the same on every version.
     - name: Run JS unit tests
-      run: node --test tests/js/
+      run: node --test tests/js/*.test.js
 
   e2e:
     runs-on: ubuntu-latest
