@@ -13,6 +13,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
 
+from ..models import BLUR_TIME_PRECISION
 from ..models import AnnotationSet
 from ..models import BlankAnnotation
 from ..models import BlurAnnotation
@@ -74,6 +75,62 @@ logger = logging.getLogger(__name__)
 # as unresolved so migration always forces an admin to pick the real
 # language instead of silently importing it.
 UNTRUSTWORTHY_LEGACY_LANGUAGE_BCP47 = "cak"
+
+
+def blur_positions_from_legacy(position_map, start_time, end_time):
+    """A legacy censor's keyframes, in this app's coordinate space and obeying its invariants.
+
+    Legacy stored `{key: [time, centerX, centerY, width, height]}` with the geometry anchored at
+    the box's **center**; BlurAnnotationPosition stores the top-left corner, one row per time.
+    Nothing converted between the two, so every legacy blur imported before this existed sits
+    `width/2` right and `height/2` down from where its author put it - the bottom-right of
+    whatever it was covering is exposed.
+
+    The keys were arbitrary ids, so they carry no ordering and nothing stopped two keyframes
+    sharing a moment. That was harmless in an unordered JSON blob and is not here: the unique
+    (blur_annotation, time) index added in migration 0004 makes it an IntegrityError, and
+    _import_annotations runs outside a transaction, so an unhandled one abandons a migration job
+    part-way through a playlist.
+
+    Returns creation kwargs sorted by time. Corners that convert to negatives are left as they
+    are - BlurAnnotationPosition.save clamps them onto the frame, and leaving that to save keeps
+    a single definition of what a valid box is.
+    """
+    by_quantized_time = {}
+    for values in (position_map or {}).values():
+        if not isinstance(values, list) or len(values) < 5:
+            continue
+        try:
+            time, center_x, center_y, width, height = (
+                float(value or 0) for value in values[:5]
+            )
+        except (TypeError, ValueError):
+            # Legacy annotations are a free-form blob written by another application, so a
+            # non-numeric entry is bad data to skip - the same way the shape checks above treat
+            # it - rather than a reason to fail the import.
+            continue
+        if time > end_time:
+            # It could never have been reached, and its locator dot would be placed past the
+            # end of the item's bar on the timeline.
+            continue
+        # Quantized here as well as in save(), because the rounded time is what a collision
+        # happens on. Among exact ties the last one encountered wins, arbitrarily: legacy keys
+        # are ids, so there is no ordering to appeal to.
+        by_quantized_time[round(time, BLUR_TIME_PRECISION)] = {
+            "time": time,
+            "x": center_x - width / 2,
+            "y": center_y - height / 2,
+            "width": width,
+            "height": height,
+        }
+
+    positions = [by_quantized_time[time] for time in sorted(by_quantized_time)]
+    # Of the keyframes before the censor starts, only the last was still showing when it began;
+    # ensure_first_position pins that one to start_time. This is the rule migration 0004 applied
+    # to blurs imported before the conversion existed, so a re-import cannot reintroduce data
+    # the migration was written to clean up.
+    started_early = sum(1 for position in positions if position["time"] < start_time)
+    return positions[max(0, started_early - 1) :]
 
 
 class LegacyMigrationJobCanceled(Exception):
@@ -1405,20 +1462,20 @@ class LegacyMigrationService:
                 annotation = model_class.objects.create(type="k", **common_kwargs)
             elif model_class is BlurAnnotation:
                 annotation = model_class.objects.create(**common_kwargs)
-                for position_values in (legacy_event.get("position") or {}).values():
-                    if (
-                        not isinstance(position_values, list)
-                        or len(position_values) < 5
-                    ):
-                        continue
+                for position_kwargs in blur_positions_from_legacy(
+                    legacy_event.get("position"), start_time, end_time
+                ):
                     BlurAnnotationPosition.objects.create(
-                        blur_annotation=annotation,
-                        time=float(position_values[0] or 0),
-                        x=float(position_values[1] or 0),
-                        y=float(position_values[2] or 0),
-                        width=float(position_values[3] or 0),
-                        height=float(position_values[4] or 0),
+                        blur_annotation=annotation, **position_kwargs
                     )
+                # A censor created from the legacy timeline's + button had `position: {}`, and
+                # the earliest keyframe of one that did have them was never required to
+                # coincide with its start. Either way the result is a blur no user can repair:
+                # with no positions it has no geometry to render and the editor has no
+                # create-a-region gesture, and a first position after start_time is skipped by
+                # get_position_locators and rendered readonly in the panel, so it can be
+                # neither retimed nor deleted.
+                annotation.ensure_first_position()
             else:
                 annotation = model_class.objects.create(**common_kwargs)
 

@@ -21,6 +21,7 @@ presence, not behaviour, so nobody mistakes one for the other.
 | 3 | [Blur editing by touch](#3-blur-editing-by-touch) | Medium | Never |
 | 4 | [Blur announcements in a screen reader](#4-blur-announcements-in-a-screen-reader) | Medium | Never |
 | 5 | [A blur actually obscures what is under it](#5-a-blur-actually-obscures-what-is-under-it) | **Critical** | Never |
+| 6 | [Imported legacy blurs land on their subjects](#6-imported-legacy-blurs-land-on-their-subjects) | **Critical** | Never |
 
 Severity reflects what a silent failure would expose. Blurs exist to cover copyrighted,
 violent, and explicit content, so a blur that does not render — or renders but does not
@@ -200,6 +201,41 @@ hold.
 - [ ] Confirm on a wide window and a narrow one that the blur still covers the subject — this
       exercises the pillarbox and letterbox padding, which is where a coordinate-space error
       would show up as a blur sliding off its target.
+
+---
+
+## 6. Imported legacy blurs land on their subjects
+
+The legacy app anchored a censor's geometry at the box's **center**; this app stores the
+**top-left** corner. Nothing converted between the two until Phase 6 of the blur work, so every
+blur imported before that sits `width/2` percent right and `height/2` percent down from where
+its author put it — the bottom-right of whatever it covered is exposed.
+
+**Why it cannot be automated:** the arithmetic *is* automated, thoroughly — see
+[core/tests/test_legacy_blur_import.py](core/tests/test_legacy_blur_import.py). What no test can
+do is confirm that the resulting box covers **the thing the original author meant to cover**.
+That requires the real legacy video, the real legacy censor, and someone who can look at the
+frame and say whether the face is hidden. Our fixtures assert coordinates against expected
+numbers; they cannot assert intent.
+
+**After running a legacy migration**, for a sample of imported blurs:
+
+- [ ] Open each in the video editor and play through its time range. The blur covers its subject
+      for the whole range, not just at the first point.
+- [ ] Compare against the same censor in the legacy app if it is still reachable. The box is in
+      the same place, not offset down-and-right.
+- [ ] Check a censor whose box sat near an edge of the frame. Converting can push the corner
+      negative, and `BlurAnnotationPosition.save()` clamps it back onto the frame — so the box
+      may be a little larger or shifted relative to the original. Confirm it still covers the
+      subject rather than having slid off it.
+- [ ] Check a censor that had several keyframes. It glides between them rather than jumping, and
+      the timeline shows one dot per point after the first.
+
+**Also worth knowing:** blurs imported *before* the Phase 6 fix are still offset in the database.
+They are identifiable through `LegacySourceMap`, but nothing records whether a position has been
+edited in the editor since import — and an edited one is already correct, so a blanket
+correction would break it. If a migration was run against real data before this fix landed,
+deciding what to do about those rows is an open question, not something the import path handles.
 
 ---
 
