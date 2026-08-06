@@ -51,6 +51,22 @@ jobs:
     - name: Run Django tests
       run: uv run python manage.py test core
 
+  js-tests:
+    # Pure-arithmetic unit tests for core/static/js/video-geometry.js, which decides where every
+    # blur annotation is drawn. Node's built-in runner, so no npm install is needed: the suite
+    # imports only node:test, node:assert and the module under test.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+
+    - name: Run JS unit tests
+      run: node --test tests/js/
+
   e2e:
     runs-on: ubuntu-latest
     steps:

@@ -2,10 +2,13 @@
 
 The legacy app anchored a censor's geometry at the box's **center** and stored its keyframes as
 `{arbitrary_key: [time, centerX, centerY, width, height]}`. This app stores the **top-left**
-corner, one row per time, ordered by time. Nothing converted between the two, so every legacy
-blur imported to date sits `width/2` percent right and `height/2` percent down from where its
-author put it - which for a feature whose entire job is covering copyrighted, violent, or
-explicit content means the bottom-right of the subject is exposed.
+corner, one row per time, ordered by time. Nothing converted between the two until the importer
+learned to, and taking the numbers verbatim puts every box `width/2` percent right and `height/2`
+percent down from where its author placed it - which for a feature whose entire job is covering
+copyrighted, violent, or explicit content means the bottom-right of the subject is exposed.
+
+Nothing had been imported from the legacy server before the conversion landed, so these tests
+guard the path rather than describing damage already in the database.
 
 The other cases here are legacy quirks that the invariants added in migration 0004 turned into
 hard failures or dead ends: arbitrary keys mean two keyframes can share a time (now a unique

@@ -82,9 +82,11 @@ def blur_positions_from_legacy(position_map, start_time, end_time):
 
     Legacy stored `{key: [time, centerX, centerY, width, height]}` with the geometry anchored at
     the box's **center**; BlurAnnotationPosition stores the top-left corner, one row per time.
-    Nothing converted between the two, so every legacy blur imported before this existed sits
-    `width/2` right and `height/2` down from where its author put it - the bottom-right of
-    whatever it was covering is exposed.
+    Nothing converted between the two until this function existed. Importing the numbers verbatim
+    puts every box `width/2` right and `height/2` down from where its author placed it, leaving
+    the bottom-right of whatever it covered exposed. No content had been imported from the legacy
+    server before the conversion landed, so there are no such rows to correct - but the first
+    real migration is also the first time this runs against anything but fixtures.
 
     The keys were arbitrary ids, so they carry no ordering and nothing stopped two keyframes
     sharing a moment. That was harmless in an unordered JSON blob and is not here: the unique

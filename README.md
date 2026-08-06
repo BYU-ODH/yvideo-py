@@ -111,6 +111,15 @@ uv run manage.py test
 
 That uses the normal project settings and migration graph.
 
+For the pure-arithmetic Javascript unit tests, run:
+```bash
+node --test tests/js/
+```
+
+These use Node's built-in test runner and need no npm install. They cover
+`core/static/js/video-geometry.js`, which decides where every blur annotation is drawn, and
+run as their own CI job.
+
 For browser-backed end-to-end tests against the deterministic demo dataset, run:
 ```bash
 uv run pytest tests/e2e --browser chromium

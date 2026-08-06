@@ -231,11 +231,11 @@ numbers; they cannot assert intent.
 - [ ] Check a censor that had several keyframes. It glides between them rather than jumping, and
       the timeline shows one dot per point after the first.
 
-**Also worth knowing:** blurs imported *before* the Phase 6 fix are still offset in the database.
-They are identifiable through `LegacySourceMap`, but nothing records whether a position has been
-edited in the editor since import — and an edited one is already correct, so a blanket
-correction would break it. If a migration was run against real data before this fix landed,
-deciding what to do about those rows is an open question, not something the import path handles.
+**No back-fill is needed.** The conversion landed before any content had been imported from the
+legacy server, so there is no corpus of offset blurs in the database and nothing to correct. That
+also means **the first real migration is the first time this code meets real legacy data** — the
+checks above have only ever run against fixtures, which is exactly why they are worth doing by
+hand rather than trusting the arithmetic tests alone.
 
 ---
 
