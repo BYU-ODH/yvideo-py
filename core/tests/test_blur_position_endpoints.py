@@ -62,12 +62,10 @@ class BlurPositionEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self.blur.positions.count(), 1)
 
-    def test_upsert_of_a_named_position_requires_edit_permission(self):
-        self.client.force_login(self.stranger)
-        response = self._upsert(position_id=self.position.pk)
-        self.assertEqual(response.status_code, 403)
-        self.position.refresh_from_db()
-        self.assertEqual(self.position.x, 12.5)
+    # No separate case for an upsert carrying a position_id: can_edit is checked on the annotation
+    # from the URL before position_id is looked at at all, so the named path cannot be authorized
+    # differently from the unnamed one. What a position_id *can* do - reach across to another
+    # blur - is test_a_position_id_from_another_blur_is_not_a_way_in below.
 
     def test_delete_requires_edit_permission(self):
         deletable = BlurAnnotationPositionFactory(blur_annotation=self.blur, time=8.0)

@@ -888,6 +888,12 @@
     position: absolute;
     pointer-events: auto;
     cursor: move;
+    /* Placing a blur is a drag, and without this a touch browser may claim the gesture as a page
+       scroll and fire `pointercancel` instead - BlurEditor cancels cleanly, so nothing corrupts,
+       but the drag silently does nothing. `preventDefault()` on pointerdown is not a substitute:
+       the spec makes `touch-action` the mechanism, and scroll arbitration happens on the
+       compositor thread before the handler runs. */
+    touch-action: none;
     outline: 1px dashed white;
     outline-offset: -1px;
     /* Above both the blur boxes (z-index 1) and the comment boxes (2) in AnnotationPlayer.css.
@@ -926,6 +932,9 @@
     border: 5px solid #00000000;
     background-clip: padding-box;
     z-index: 2;
+    /* Resizing is a drag too, and a handle sits inside the rig's own touch-action region only
+       incidentally - state it here so it holds wherever a handle is rendered. */
+    touch-action: none;
 }
 
 .blur-rig-handle[data-handle="nw"], .blur-rig-handle[data-handle="n"], .blur-rig-handle[data-handle="ne"] {
@@ -976,6 +985,10 @@
     border-radius: 50%;
     background-color: var(--dark-mode-light-gray);
     z-index: 2;
+    /* Dragged along the item bar to retime a point, so the same scroll-arbitration problem as the
+       rig's handles applies - and here the gesture is horizontal, which is exactly what a touch
+       browser is most willing to read as a swipe. */
+    touch-action: none;
 }
 
 .blur-position-locator:hover {

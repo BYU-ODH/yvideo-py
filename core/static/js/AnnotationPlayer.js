@@ -756,7 +756,11 @@ export class AnnotationPlayer {
       let aEnd = a["end"];
       let aType = a["type"];
       let aPositions = a["positions"];
-      const isActiveNow = time >= aStart && time <= aEnd
+      // Half-open deliberately. The skip branch below seeks to aEnd, and skipTo schedules another
+      // applyAnnotations; if the skip were still active at aEnd it would pause, seek to where it
+      // already is, and requeue itself every frame forever. The blur branch opts into a closed
+      // interval locally, because that is the only type that needs to paint at aEnd.
+      const isActiveNow = time >= aStart && time < aEnd
       switch (aType) {
         case "skip":
           if (isActiveNow) {
@@ -850,7 +854,12 @@ export class AnnotationPlayer {
           // The box glides between positions rather than snapping to the last one passed.
           // With snapping it lags behind whatever it is covering and briefly exposes it, so
           // this is what makes a handful of positions enough to keep a moving subject hidden.
-          const rect = isActiveNow ? rectAtTime(aPositions, time) : null;
+          //
+          // Closed at aEnd, unlike isActiveNow: this is concealment, so the final geometry has to
+          // survive the annotation's last frame rather than blinking off a frame early. Kept local
+          // to this branch - see the comment on isActiveNow for why sharing it breaks skip.
+          const isBlurVisible = time >= aStart && time <= aEnd;
+          const rect = isBlurVisible ? rectAtTime(aPositions, time) : null;
 
           if (!rect) {
             // Either outside the annotation's window, or it has no positions at all - which
@@ -1705,7 +1714,14 @@ export class AnnotationPlayer {
     // Repaint annotations after a seek that did not come from skipTo - the editor's timeline,
     // keyboard scrubbing, or a direct currentTime assignment. Without this, dragging the
     // playhead while paused leaves a gliding blur showing its geometry from the old time.
-    this.videoElem.addEventListener('seeked', () => this.applyAnnotations());
+    //
+    // Only when paused, which is also the only case that needs it: while playing,
+    // applyAnnotations reschedules itself every frame and will pick the new time up on its own.
+    // Calling it here would start a second rAF chain that never stops, and every subsequent seek
+    // would add another - the same failure mode replaceAnnotationPositions guards against.
+    this.videoElem.addEventListener('seeked', () => {
+      if (this.videoElem.paused) this.applyAnnotations();
+    });
     // Move the scrubber every animation frame while playing so it glides
     // instead of lurching between timeupdate events (shared with the editor).
     animateDuringPlayback(this.videoElem, () => this.paintProgress());

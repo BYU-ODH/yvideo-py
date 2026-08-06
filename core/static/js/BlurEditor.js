@@ -277,9 +277,11 @@ export class BlurEditor {
 
   // --- reading the current state --------------------------------------------
 
-  _itemElement() {
+  // Takes an id rather than always reading this.annotationId, because a save can outlive its
+  // selection: _applySaved still has to find the bar belonging to the blur the response describes.
+  _itemElement(annotationId = this.annotationId) {
     return this.timelineWrapper?.querySelector(
-      `.track-item[data-annotation-type="blur"][data-annotation-id="${this.annotationId}"]`,
+      `.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`,
     );
   }
 
@@ -720,8 +722,29 @@ export class BlurEditor {
 
   /** @returns {boolean} whether the response was still describing the selected blur. */
   _applySaved(annotationId, payload) {
-    // The user may have selected something else while the request was in flight, in which case
-    // this response describes a panel that is no longer on screen.
+    // Canonical state first, and unconditionally. The save happened, so the player's copy of the
+    // positions and the bar's locators have to reflect it even if the selection has already moved
+    // on - deselect() flushes a pending nudge, so a saved edit routinely lands after annotationId
+    // has been cleared. Gating these behind the identity check below left the server holding the
+    // edit while playback used the old path for the rest of the session.
+    //
+    // Addressed to the id the request was made for, never to this.annotationId.
+    const item = this._itemElement(annotationId);
+    if (item && payload["trackItem"]) {
+      const wasActive = item.classList.contains("active-track-item");
+      item.outerHTML = payload["trackItem"];
+      // Re-applying just the class, rather than calling markItemAsActive, which would also seek
+      // the playhead back to the blur's start and throw away the frame being edited.
+      if (wasActive) this._itemElement(annotationId)?.classList.add("active-track-item");
+    }
+
+    this.player.replaceAnnotationPositions(annotationId, payload["positions"]);
+    // After the bar is replaced, because it re-places the locators from that DOM.
+    this.onPositionsSaved(annotationId);
+
+    // Everything below is specific to the blur on screen: the panel is a singleton belonging to
+    // whatever is selected, and the rig paints only the selection. A response for a blur the user
+    // has left says nothing about either.
     if (annotationId !== this.annotationId) return false;
 
     // Only the table, not the whole wrapper. The help text and the status line sit outside
@@ -740,17 +763,6 @@ export class BlurEditor {
       if (wrapper && payload["blurPositions"]) wrapper.outerHTML = payload["blurPositions"];
     }
 
-    const item = this._itemElement();
-    if (item && payload["trackItem"]) {
-      const wasActive = item.classList.contains("active-track-item");
-      item.outerHTML = payload["trackItem"];
-      // Re-applying just the class, rather than calling markItemAsActive, which would also seek
-      // the playhead back to the blur's start and throw away the frame being edited.
-      if (wasActive) this._itemElement()?.classList.add("active-track-item");
-    }
-
-    this.player.replaceAnnotationPositions(annotationId, payload["positions"]);
-    this.onPositionsSaved(annotationId);
     this._readWindow();
     this._render();
     return true;

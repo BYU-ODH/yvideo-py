@@ -798,13 +798,6 @@ export class Editor {
       const oldStart = parseFloat(item.dataset["start"]);
       const oldEnd = parseFloat(item.dataset["end"]);
       if (!Number.isFinite(oldStart) || !Number.isFinite(oldEnd)) return 0;
-      // A move carries the whole motion path with it; only a change of duration can drop points.
-      // Same 0.02s tolerance as reconcile_positions, which decides this for real.
-      if (Math.abs((newEnd - newStart) - (oldEnd - oldStart)) <= 0.02) return 0;
-
-      const dots = item.querySelectorAll(".blur-position-locator");
-      const times = [oldStart, ...Array.from(dots, (dot) => parseFloat(dot.dataset["positionTime"]))]
-        .filter(Number.isFinite);
       // Rounded to 2dp first, because BaseAnnotation.save() stores start and end at that precision
       // and reconcile_positions compares against the stored values. Dragging the left handle
       // computes the right edge as left+width, which lands a hair under a whole number - so
@@ -812,6 +805,16 @@ export class Editor {
       // holding 11.00, is never going to inflict.
       const start = Math.round(newStart * 100) / 100;
       const end = Math.round(newEnd * 100) / 100;
+      // A move carries the whole motion path with it, so only a change of duration can drop points.
+      // Both halves of reconcile_positions' test, which decides this for real: the same 0.02s
+      // tolerance *and* a start that actually moved. Without the second half, dragging the right
+      // handle in by a hundredth promises no loss here while the server takes its resize branch
+      // and deletes the trailing point.
+      if (Math.abs((end - start) - (oldEnd - oldStart)) <= 0.02 && start !== oldStart) return 0;
+
+      const dots = item.querySelectorAll(".blur-position-locator");
+      const times = [oldStart, ...Array.from(dots, (dot) => parseFloat(dot.dataset["positionTime"]))]
+        .filter(Number.isFinite);
       // Of the points now before the window, the latest survives as the blur's new first point.
       const leading = times.filter((time) => time < start).length;
       const trailing = times.filter((time) => time > end).length;

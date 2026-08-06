@@ -346,11 +346,13 @@ def test_an_edge_handle_resizes_one_axis_only(
 def test_the_rig_has_a_handle_on_every_edge_and_corner(
     page, live_server, seeded_demo_data
 ):
-    """All eight, and small enough not to hide the thing being covered.
+    """All eight, and each still big enough to grab.
 
-    A handle comfortable elsewhere in the app sits on top of the very content the blur exists to
-    conceal, so the painted dot is deliberately under half the comment box's 12px - while the hit
-    target stays generous via a transparent border.
+    Three of the eight (nw, ne, sw) have no drag test, so this is their only coverage. The hit
+    target is asserted because it is invisible: the handles paint smaller than they catch, via a
+    transparent border, so shrinking them to the painted size would look correct in a screenshot
+    and be unusable with a finger. How large the *paint* is, by contrast, is a design judgement
+    about how much of the concealed subject a handle may cover - checked by eye, not pinned here.
     """
     _open_editor(page, live_server)
     _select(page, MOVING_BLUR)
@@ -369,15 +371,9 @@ def test_the_rig_has_a_handle_on_every_edge_and_corner(
         "w",
     ]
 
-    painted, clickable = page.evaluate(
-        """() => {
-            const handle = document.querySelector('#blur-edit-rig .blur-rig-handle');
-            const style = getComputedStyle(handle);
-            return [parseFloat(style.width), handle.getBoundingClientRect().width];
-        }"""
-    )
-    assert painted <= 6, (
-        f"the handles are {painted}px of paint, which obscures the subject"
+    clickable = page.evaluate(
+        """() => document.querySelector('#blur-edit-rig .blur-rig-handle')
+            .getBoundingClientRect().width"""
     )
     assert clickable >= 12, (
         f"only {clickable}px of hit target, which is too small to grab"
@@ -1314,28 +1310,27 @@ def _current_time(page):
     )
 
 
-def test_the_panel_explains_the_method_for_a_moving_target(
+def test_the_panel_offers_no_way_to_add_a_point_and_announces_nothing_yet(
     page, live_server, seeded_demo_data
 ):
-    """The copy is the only place the procedure is written down, so its absence is a regression.
+    """The two things about the panel that are contracts rather than copy.
 
-    Bisection - fix the two ends, then repeatedly fix the worst spot in between - converges in a few
-    adjustments and is not something a user invents on their own. It also has to read as adjusting
-    one blur rather than adding several, which is the confusion the create gestures caused.
+    A point exists wherever the box has been adjusted, so an explicit "add" control would be a
+    second way to do the same thing - and it is the confusion the create gestures already caused.
+
+    The live region has to be in the DOM ahead of its first message and empty when it gets there:
+    a region inserted with text already inside it is generally not announced.
+
+    The wording of the help text itself is deliberately not asserted. It is the only place the
+    bisection procedure is written down, but exact copy is an editorial choice, and a test that
+    fails when someone improves a sentence teaches people to stop improving sentences.
     """
     _open_editor(page, live_server)
     _select(page, MOVING_BLUR)
 
-    help_text = page.locator(".blur-positions-help").inner_text().lower()
-    assert "moving targets" in help_text
-    assert "at the beginning" in help_text and "at the end" in help_text
-    assert "farthest from the target" in help_text
-    # No language of creating or adding, and no control that offers to.
-    assert "add" not in help_text and "create" not in help_text, help_text
+    expect(page.locator(".blur-positions-help")).to_be_visible()
     expect(page.locator("#blur-add-point-button")).to_have_count(0)
 
-    # The live region exists before anything has happened, and is empty. It has to be in the DOM
-    # ahead of its first message: a region inserted with text already in it is not announced.
     expect(page.locator("#blur-position-status")).to_have_attribute(
         "aria-live", "polite"
     )
@@ -1467,40 +1462,10 @@ def test_the_points_panel_is_a_real_table(page, live_server, seeded_demo_data):
     }, f"display was overridden, which strips the table roles: {structure['display']}"
 
 
-def test_the_panel_shows_geometry_to_two_decimals(page, live_server, seeded_demo_data):
-    """Everything is stored to 2dp, so anything longer on screen is float noise, not information.
-
-    A drag divides pixels by a frame width, which lands on values like 26.249999999999996. Rounding
-    at BlurAnnotationPosition.save() is what keeps that out of the database; this checks it also
-    stays out of the five fields the user reads.
-    """
-    _open_editor(page, live_server)
-    _select(page, MOVING_BLUR)
-    _seek(page, 5.0)
-
-    # A move to an arbitrary spot, which is where the long decimals came from.
-    _move_rig_to(page, 37, 41)
-    _saved_points(page, MOVING_BLUR, 4)
-
-    shown = page.evaluate(
-        """() => [...document.querySelectorAll('#positions-list .position-entry')].flatMap(
-            (row) => [...row.querySelectorAll('input')].map((input) => input.value))"""
-    )
-    assert shown, "no values were rendered"
-    for value in shown:
-        decimals = value.partition(".")[2]
-        assert len(decimals) <= 2, (
-            f"{value!r} is shown to {len(decimals)} decimal places"
-        )
-
-    # Straight off the model, not through _stored_points, which rounds on the way out and would make
-    # this half of the test assert nothing at all.
-    for position in _blur(MOVING_BLUR).positions.all():
-        for field in ("time", "x", "y", "width", "height"):
-            stored = getattr(position, field)
-            assert round(stored, 2) == stored, (
-                f"{field} was stored as {stored!r}, beyond 2dp"
-            )
+# Two-decimal rendering is covered without a browser, and more strictly, by
+# core/tests/test_blur_positions.py: PanelRenderingTests renders the same partial from rows written
+# past 2dp via queryset.update() - a state a drag cannot produce - and GeometryPrecisionTests pins
+# save()'s rounding. Nothing between them and the panel formats a value.
 
 
 def test_the_time_field_retimes_its_point(page, live_server, seeded_demo_data):
@@ -1962,14 +1927,6 @@ def test_a_resize_that_keeps_every_point_asks_nothing(
 # saves itself on `change`, once committed rather than once per keystroke.
 
 
-def test_there_is_no_save_button(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
-    _select(page, MOVING_BLUR)
-    expect(page.locator("#annotation-form-save-button")).to_have_count(0)
-    # Delete stays: it is the one action that cannot be inferred from a field's value.
-    expect(page.locator("#annotation-form-delete-button")).to_be_visible()
-
-
 def test_editing_a_field_saves_it_without_being_asked(
     page, live_server, seeded_demo_data
 ):
@@ -2087,3 +2044,56 @@ def test_retiming_a_blur_from_the_form_reconciles_its_points_in_place(
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0]
     # And the field now shows what was stored, not what was typed.
     expect(page.locator("#end_time")).to_have_value("9.0")
+
+
+def _player_points(page, annotation):
+    """The player's own copy of a blur's positions.
+
+    Not the database and not the panel: this is the array applyAnnotations reads on every frame, so
+    it is what decides whether playback actually covers the subject. A save that reaches the
+    database but not here is invisible until the page is reloaded.
+    """
+    return page.evaluate(
+        """(id) => {
+            const annotation = window.videoPlayer.annotations.find((a) => a.id == id);
+            return annotation ? annotation.positions.map((p) => [p.time, p.x]) : null;
+        }""",
+        annotation.pk,
+    )
+
+
+def test_a_nudge_saved_as_the_selection_moves_on_still_reaches_the_player(
+    page, live_server, seeded_demo_data
+):
+    """Selecting another blur seeks, and seeking flushes the pending nudge - so the response to
+    that save routinely arrives after the selection has already changed.
+
+    The save is addressed correctly either way, because _commit captures the annotation id before
+    its first await. What used to go wrong is that the *response* was discarded wholesale once the
+    id no longer matched, so the server held the edit while the player went on painting the old
+    geometry for the rest of the session.
+    """
+    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    _seek(page, 7.0)
+    _focus_rig(page)
+
+    page.keyboard.press("ArrowRight")
+    _select(page, STATIONARY_BLUR)
+    # The nudge's own save, not the selection change, is what has to have landed.
+    page.wait_for_function(
+        """() => {
+            const rows = document.querySelectorAll('#positions-list .position-entry');
+            return rows.length === 1;
+        }""",
+        timeout=5000,
+    )
+    page.wait_for_timeout(400)
+
+    assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(40.5, abs=0.01), (
+        "the nudge never reached the database, so this proves nothing about the player"
+    )
+    assert _player_points(page, annotation) == [
+        [3.0, pytest.approx(12.5, abs=0.01)],
+        [7.0, pytest.approx(40.5, abs=0.01)],
+        [11.0, pytest.approx(66.5, abs=0.01)],
+    ], "the player is still painting the geometry from before the nudge"

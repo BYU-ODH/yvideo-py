@@ -23,6 +23,24 @@ def _times(blur):
     return [position.time for position in blur.positions.all()]
 
 
+def assert_positions_within_window(test, blur):
+    """Every stored position obeys start_time <= time <= end_time.
+
+    Asserted after every reconcile rather than in the tests that happen to be about pruning,
+    because a position outside the window is not a pruning bug - it is geometry that
+    geometry_at() will interpolate toward and playback can never reach.
+    """
+    for time in _times(blur):
+        test.assertGreaterEqual(
+            time,
+            blur.start_time,
+            f"position at {time} precedes start_time {blur.start_time}",
+        )
+        test.assertLessEqual(
+            time, blur.end_time, f"position at {time} follows end_time {blur.end_time}"
+        )
+
+
 class ReconcilePositionsTests(TestCase):
     """Moving or resizing a blur item on the timeline."""
 
@@ -41,6 +59,8 @@ class ReconcilePositionsTests(TestCase):
         self.blur.start_time, self.blur.end_time = start, end
         self.blur.save()
         self.blur.reconcile_positions(old_start, old_end)
+        # Checked here rather than per test, so every reconcile in this class asserts it.
+        assert_positions_within_window(self, self.blur)
 
     def test_moving_the_item_shifts_every_position_by_the_same_delta(self):
         original_ids = [p.pk for p in self.blur.positions.all()]
@@ -130,6 +150,28 @@ class ReconcilePositionsTests(TestCase):
         before = _times(self.blur)
         self.blur.reconcile_positions(self.blur.start_time, self.blur.end_time)
         self.assertEqual(_times(self.blur), before)
+
+    def test_a_start_only_edit_of_one_hundredth_does_not_push_a_position_past_the_end(
+        self,
+    ):
+        """The move/resize test tolerates 0.02s, which is looser than the 0.01s stored precision.
+
+        So this start-only resize is classified as a move and every position shifts by 0.01 -
+        which without the unconditional window check at the end of reconcile_positions leaves
+        the position authored at 15.0 sitting at 15.01, past an end_time of 15.0.
+        """
+        self._move_to(10.01, 15.0)
+
+        self.assertEqual(_times(self.blur), [10.01, 12.01])
+
+    def test_a_right_handle_edit_of_one_hundredth_prunes_the_position_it_excludes(self):
+        """The mirror of the case above, which takes the resize branch instead because the start
+        did not move. blurPointsLostByRetiming() has to agree that this loses a point, since the
+        user is warned from the client but the deletion happens here.
+        """
+        self._move_to(10.0, 14.99)
+
+        self.assertEqual(_times(self.blur), [10.0, 12.0])
 
 
 class EnsureFirstPositionTests(TestCase):

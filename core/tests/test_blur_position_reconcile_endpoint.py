@@ -60,10 +60,11 @@ class BlurReconcileThroughEndpointTests(TestCase):
         self.blur.refresh_from_db()
         return [p.time for p in self.blur.positions.all()]
 
-    def test_dragging_the_item_along_the_timeline_shifts_all_positions(self):
-        """#322 item 3."""
-        self.assertEqual(self._update(20.0, 25.0), [20.0, 22.0, 25.0])
-
+    # One reconcile outcome, not four. The move, right-prune and at-least-one cases asserted
+    # exactly what ReconcilePositionsTests already asserts against the same fixture, only more
+    # slowly and through a view. This one stays because it is the outcome that *discriminates* a
+    # resize from a move, which is the wiring the module docstring is about: capture the old window
+    # before reassigning, or the model gets told the wrong thing and does the wrong thing correctly.
     def test_dragging_the_left_handle_moves_the_first_position(self):
         """#322 item 2: the *start* time updates, and later positions are left alone."""
         self.assertEqual(self._update(13.0, 15.0), [13.0, 15.0])
@@ -75,12 +76,6 @@ class BlurReconcileThroughEndpointTests(TestCase):
             2,
             "the first position should carry the geometry that was showing at the new start",
         )
-
-    def test_dragging_the_right_handle_prunes_positions_past_the_new_end(self):
-        self.assertEqual(self._update(10.0, 11.0), [10.0])
-
-    def test_a_blur_always_keeps_at_least_one_position(self):
-        self.assertGreaterEqual(len(self._update(40.0, 41.0)), 1)
 
     def test_creating_a_blur_seeds_one_position_at_its_start_time(self):
         response = self.client.post(

@@ -111,20 +111,20 @@ expose no remote playback targets, so the code path is never entered.
 ## 3. Blur editing by touch
 
 Placing a blur is a drag gesture. The editor uses Pointer Events with `setPointerCapture`, which
-is the right API for this, but **no `touch-action` is set** on the rig or its handles. Without
-it a browser may claim a touch drag as a page scroll and fire `pointercancel` instead;
-`BlurEditor` handles that event and cancels the gesture cleanly, so nothing is corrupted, but
-the drag silently does nothing. `preventDefault()` on `pointerdown` is not a reliable substitute
-for `touch-action` — the spec makes `touch-action` the mechanism, and Chrome ignores
-`preventDefault` for scroll suppression in some cases.
+is the right API for this. Without `touch-action` a browser may still claim a touch drag as a page
+scroll and fire `pointercancel` instead; `BlurEditor` handles that event and cancels the gesture
+cleanly, so nothing is corrupted, but the drag silently does nothing. `preventDefault()` on
+`pointerdown` is not a reliable substitute — the spec makes `touch-action` the mechanism, and
+scroll arbitration happens before the handler runs.
 
-This is a plausible failure, not a known one. If it does fail, the fix is a `touch-action: none`
-rule on `#blur-edit-rig` and `.blur-rig-handle`.
+`touch-action: none` is therefore set on all three drag surfaces: `#blur-edit-rig`,
+`.blur-rig-handle`, and `.blur-position-locator`. What remains to verify on real hardware is
+whether that is sufficient in practice, and whether the hit targets are usable with a fingertip.
 
 **Why it cannot be automated:** Playwright can synthesise touch events, but the
 scroll-vs-drag arbitration that would break this is done by the browser's compositor thread
 against real touch input. Synthesised events bypass it, so the test would pass while a finger
-fails.
+fails — which is also why the `touch-action` rules above are not covered by the suite.
 
 **On a phone or tablet**, at `/video-editor/<content_id>/`, with a blur selected:
 

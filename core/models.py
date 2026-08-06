@@ -1372,21 +1372,27 @@ class BlurAnnotation(BaseAnnotation):
                 position.time = position.time + delta
                 position.save()
         else:
-            self.positions.filter(time__gt=self.end_time).delete()
-            # Of the positions now before the window, keep the last one - ensure_first_position
-            # pins it to start_time below - and discard the rest.
+            # Give the position that will survive at the new start the geometry that was actually
+            # showing there. Retiming it without this leaves the blur's opening frames covering
+            # where the subject *used to be*, which for a blur is exposure rather than a cosmetic
+            # pop. Done before the pruning below, which is what retimes it.
             stale = list(self.positions.filter(time__lt=self.start_time))
-            for position in stale[:-1]:
-                position.delete()
-
-            # Then give it the geometry that was actually showing there. Retiming the surviving
-            # position without this leaves the blur's opening frames covering where the subject
-            # *used to be*, which for a blur is exposure rather than a cosmetic pop.
             if stale and showing_at_new_start:
                 survivor = stale[-1]
                 for field, value in showing_at_new_start.items():
                     setattr(survivor, field, value)
                 survivor.save()
+
+        # start_time <= time <= end_time belongs to the annotation, not to either branch above, so
+        # enforce it for both. The move branch classifies on a tolerance looser than the stored
+        # precision, so a start-only edit of a single hundredth reads as a move and shifts every
+        # position - which lands the last one past end_time, where geometry_at interpolates toward
+        # geometry that playback can never reach.
+        self.positions.filter(time__gt=self.end_time).delete()
+        # Of the positions before the window, keep the last one - ensure_first_position pins it to
+        # start_time below - and discard the rest.
+        for position in list(self.positions.filter(time__lt=self.start_time))[:-1]:
+            position.delete()
 
         self.ensure_first_position()
 

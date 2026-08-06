@@ -64,17 +64,14 @@ class LegacyCensorImportTests(TestCase):
 
     # --- the coordinate conversion -------------------------------------------
 
-    def test_center_anchored_legacy_geometry_becomes_top_left(self):
-        """The headline fix. Legacy center (40, 50) of a 20x30 box is top-left (30, 35).
-
-        Deliberately asymmetric - x != y, width != height, and neither offset equals the other -
-        so swapping x/y or width/height cannot produce the expected answer by accident.
-        """
-        blur = self._import(_censor({"0": [2, 40, 50, 20, 30]}))
-
-        self.assertEqual(self._stored(blur), [(2.0, 30.0, 35.0, 20.0, 30.0)])
-
     def test_each_keyframe_is_converted_independently(self):
+        """The headline fix: legacy center (40, 50) of a 20x30 box is top-left (30, 35).
+
+        Both keyframes are deliberately asymmetric - x != y, width != height, and no offset equals
+        another - so swapping x/y or width/height cannot produce the expected answer by accident.
+        A second, differently shaped keyframe also rules out a conversion that happens to work on
+        whichever one it saw first.
+        """
         blur = self._import(
             _censor({"0": [2, 40, 50, 20, 30], "1": [4, 60, 70, 10, 50]})
         )
