@@ -97,6 +97,29 @@ class BlurPositionEndpointTests(TestCase):
         foreign.refresh_from_db()
         self.assertNotEqual(foreign.x, 10.0)
 
+    def test_a_deleted_blur_takes_no_more_points(self):
+        """`active=False` is what a deleted annotation looks like, and undo() can restore it.
+
+        A write accepted in between would bring it back carrying points nobody placed
+        deliberately. Every neighbouring editor view filters on `active`; these now do too.
+        """
+        self.blur.delete_with_history()
+        self.client.force_login(self.owner)
+
+        self.assertEqual(self._upsert(time=9.0).status_code, 404)
+        self.assertEqual([p.time for p in self.blur.positions.all()], [5.0])
+
+    def test_a_point_on_a_deleted_blur_cannot_be_deleted_either(self):
+        deletable = BlurAnnotationPositionFactory(blur_annotation=self.blur, time=8.0)
+        self.blur.delete_with_history()
+        self.client.force_login(self.owner)
+
+        response = self.client.delete(
+            reverse("delete_blur_position", args=[deletable.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(BlurAnnotationPosition.objects.filter(pk=deletable.pk).exists())
+
     # --- upsert semantics ----------------------------------------------------
 
     def test_a_write_at_a_new_time_adds_a_point(self):
@@ -116,6 +139,44 @@ class BlurPositionEndpointTests(TestCase):
 
         self.assertEqual([p.time for p in self.blur.positions.all()], [5.0, 9.02])
         self.assertEqual(self.blur.positions.get(time=9.02).x, 10.0)
+
+    def test_a_write_between_two_close_points_lands_on_the_nearer_one(self):
+        """With two points inside the snap window, the earlier one is not automatically it.
+
+        Positions are ordered by time, so taking the first match here picked the lowest time in
+        the window while the editor's own _pointAt picks the closest. The user dragged the box at
+        9.03, the geometry was filed under 9.00, and the response said so - the box sprang back
+        and a point they were not looking at had moved. Two points this close are reachable
+        through the panel's time field, which accepts any value.
+        """
+        near = BlurAnnotationPositionFactory(
+            blur_annotation=self.blur, time=9.03, x=1.0
+        )
+        far = BlurAnnotationPositionFactory(blur_annotation=self.blur, time=9.0, x=2.0)
+        self.client.force_login(self.owner)
+
+        payload = self._upsert(time=9.03).json()
+
+        near.refresh_from_db()
+        far.refresh_from_db()
+        self.assertEqual(near.x, 10.0, "the nearest point should have taken the write")
+        self.assertEqual(far.x, 2.0, "the further point must not be touched")
+        self.assertEqual(payload["time"], 9.03)
+        self.assertFalse(payload["created"])
+
+    def test_the_nearer_point_wins_from_either_side(self):
+        """The same, approaching from below, so the fix cannot be an ordering coincidence."""
+        far = BlurAnnotationPositionFactory(blur_annotation=self.blur, time=9.04, x=2.0)
+        near = BlurAnnotationPositionFactory(blur_annotation=self.blur, time=9.0, x=1.0)
+        self.client.force_login(self.owner)
+
+        payload = self._upsert(time=9.01).json()
+
+        near.refresh_from_db()
+        far.refresh_from_db()
+        self.assertEqual(near.x, 10.0)
+        self.assertEqual(far.x, 2.0)
+        self.assertEqual(payload["time"], 9.0)
 
     def test_a_named_position_can_be_retimed(self):
         """What the panel's time input and dragging a timeline dot need."""

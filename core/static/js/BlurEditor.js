@@ -283,8 +283,9 @@ export class BlurEditor {
     );
   }
 
-  // The item bar's dataset, not the form inputs: it carries plain seconds, while the form's time
-  // fields are written as HH:MM:SS by the "set time" buttons.
+  // The item bar's dataset, not the form inputs. Both carry plain seconds, but the bar is what the
+  // server just re-rendered - the form's fields are whatever the user has typed so far, which
+  // during an edit is not yet the stored window.
   _readWindow() {
     const item = this._itemElement();
     if (!item) return;

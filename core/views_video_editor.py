@@ -635,7 +635,10 @@ def upsert_blur_position(request, annotation_id):
     `position_id` is optional and means "this exact row", for the numeric inputs and for
     dragging a timeline dot, where the user is deliberately naming a point rather than a time.
     """
-    annotation = get_object_or_404(BlurAnnotation, pk=annotation_id)
+    # `active=True` for the same reason every other editor endpoint filters on it: a deleted
+    # annotation is one delete_with_history() marked inactive, and undo() can bring it back. A
+    # write accepted in between would resurrect it carrying points nobody placed deliberately.
+    annotation = get_object_or_404(BlurAnnotation, pk=annotation_id, active=True)
     if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
@@ -676,12 +679,21 @@ def upsert_blur_position(request, annotation_id):
     else:
         # A point already sitting within a frame or two of the playhead *is* the point the user
         # is editing, so keep its time and only move the box. Anything else creates a point.
-        position = annotation.positions.filter(
+        #
+        # The *nearest* of the candidates, not the earliest. Positions are ordered by time, so
+        # taking .first() here picked the lowest time in the window while BlurEditor._pointAt
+        # picks the closest - and two points less than BLUR_SNAP_SECONDS apart (which the panel's
+        # time field allows) made the two disagree. The drag then landed on a neighbour: the box
+        # the user had just placed sprang back and a point they were not looking at moved instead.
+        nearby = annotation.positions.filter(
             time__gte=position_time - BLUR_SNAP_SECONDS,
             time__lte=position_time + BLUR_SNAP_SECONDS,
-        ).first() or BlurAnnotationPosition(
-            blur_annotation=annotation, time=position_time
         )
+        position = min(
+            nearby,
+            key=lambda candidate: abs(candidate.time - position_time),
+            default=None,
+        ) or BlurAnnotationPosition(blur_annotation=annotation, time=position_time)
 
     # Recorded before save() gives it a pk. Only this side of the request knows whether a drag
     # added a point or moved one, and the editor has to tell the user which of the two happened.
@@ -733,7 +745,11 @@ def upsert_blur_position(request, annotation_id):
 @login_required
 @transaction.atomic
 def delete_blur_position(request, position_id):
-    position = get_object_or_404(BlurAnnotationPosition, pk=position_id)
+    # Scoped to a live annotation, matching upsert_blur_position: an inactive blur is deleted as
+    # far as the editor is concerned, and its points are the record undo() restores.
+    position = get_object_or_404(
+        BlurAnnotationPosition, pk=position_id, blur_annotation__active=True
+    )
     annotation = position.blur_annotation
     if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)

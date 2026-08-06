@@ -72,12 +72,6 @@ export class Editor {
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
         document.addEventListener('mouseup', this.handleMouseUp.bind(this));
 
-        // Listen for "set time" button clicks
-        document.addEventListener('click', (e) => {
-            if (e.target.dataset.setTime) {
-                this.setTimeFromVideo(e.target.dataset.setTime);
-            }
-        });
         this.placeTrackItems();
         document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
 
@@ -830,28 +824,6 @@ export class Editor {
       const subject = lost === 1 ? "1 blur point falls" : `${lost} blur points fall`;
       return window.confirm(`${subject} outside the new time range and will be removed. Continue?`);
     }
-
-    setTimeFromVideo(fieldName) {
-        const video = document.querySelector('.annotation-player-container video');
-        if (!video) return;
-
-        const currentTime = video.currentTime;
-        const timeString = this.secondsToHMS(currentTime);
-
-        // Update the form field
-        const input = document.getElementById(fieldName);
-        if (input) {
-            input.value = timeString;
-        }
-    }
-
-    secondsToHMS(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    }
-
 
     setUpCommentChangeListeners(formElement) {
       // You may wonder why commentTextBox is declared in both event listeners instead of
