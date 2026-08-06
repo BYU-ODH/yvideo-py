@@ -795,9 +795,34 @@
     display: block;
 }
 
-.active-blur-position {
+/* The blur editing rig: the editor's own element, laid exactly over the blur it is editing.
+   Separate from the player's `.blur-position` div so that div can stay `pointer-events: none` -
+   nothing here can make a blur interceptable during playback.
+
+   `outline` rather than `border`, because a border is part of the box and would inflate the
+   element past the percentages in `style.width`, so every drag read its geometry back a pixel
+   up-and-left of where it was written and the box crept across the frame. */
+#blur-edit-rig {
+    position: absolute;
+    pointer-events: auto;
+    cursor: move;
     outline: 1px dashed white;
     outline-offset: -1px;
+    /* Above both the blur boxes (z-index 1) and the comment boxes (2) in AnnotationPlayer.css.
+       This is editor chrome for the one annotation being manipulated, not an annotation itself:
+       its handles have to stay grabbable even where a comment happens to overlap them. */
+    z-index: 3;
+}
+
+/* An author `display` would beat the UA stylesheet's `[hidden]` rule, so state it here: the rig
+   is hidden whenever the playhead sits outside the blur's time range. */
+#blur-edit-rig[hidden] {
+    display: none;
+}
+
+#blur-edit-rig:focus-visible {
+    outline: 2px solid var(--blur-type-color, white);
+    outline-offset: -2px;
 }
 
 .blur-position-locator {

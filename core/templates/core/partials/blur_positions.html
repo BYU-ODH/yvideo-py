@@ -22,9 +22,11 @@
             </p>
             <div class="position-input-group">
                 {% if forloop.counter == 1 %}
-                {# The first point always sits at the blur's start time, so its time is derived
+                {% comment %}
+                   The first point always sits at the blur's start time, so its time is derived
                    rather than entered - readonly (not disabled) so it still shows the real
-                   value instead of a placeholder that cannot be parsed. #}
+                   value instead of a placeholder that cannot be parsed.
+                {% endcomment %}
                 <input class="position-time-input" name="position-time" type="text" value="{{position.time}}" readonly
                        title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
                        aria-label="position time in seconds (follows the blur's start time)">

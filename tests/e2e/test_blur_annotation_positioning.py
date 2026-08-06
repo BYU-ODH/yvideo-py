@@ -61,7 +61,7 @@ def _inject_blur_annotation(page):
         }""",
         BLUR_POSITION,
     )
-    page.wait_for_selector("#blur-1", state="attached")
+    page.wait_for_selector("#blur-overlay-1", state="attached")
 
 
 # The rectangle the picture actually occupies inside the video element. Since the video is
@@ -101,7 +101,7 @@ def _blur_position_relative_to_video(page):
             """
         + _CONTENT_RECT_JS
         + """
-            const b = document.querySelector('#blur-1').getBoundingClientRect();
+            const b = document.querySelector('#blur-overlay-1').getBoundingClientRect();
             return {
                 x: (b.left - frame.x) / frame.width,
                 y: (b.top - frame.y) / frame.height,
@@ -318,9 +318,24 @@ def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(
         "pass vacuously on a viewport smaller than the source"
     )
 
-    # With no bars to leave room for, the overlay should be flush to the element.
-    inset = page.evaluate("() => document.querySelector('.annotation-box').style.inset")
-    assert inset in ("0px", "0px 0px"), inset
+    # With no bars to leave room for, the overlay should be flush to the video element. Asserted
+    # against the measured boxes rather than the inline `inset` string, because the overlay is
+    # positioned by explicit left/top/width/height now -- the video element is not always the same
+    # rectangle as its wrapper, so a symmetric inset could not express where the picture is.
+    offsets = page.evaluate(
+        """() => {
+            const video = document.querySelector('.annotation-player-container video')
+                .getBoundingClientRect();
+            const box = document.querySelector('.annotation-box').getBoundingClientRect();
+            return {left: box.x - video.x, top: box.y - video.y,
+                    right: (video.x + video.width) - (box.x + box.width),
+                    bottom: (video.y + video.height) - (box.y + box.height)};
+        }"""
+    )
+    for side, value in offsets.items():
+        assert value == pytest.approx(0, abs=1), (
+            f"{side} pad of {value} with no bars to leave"
+        )
 
     after = _blur_position_relative_to_video(page)
     _assert_relative_positions_match(before, after)
@@ -374,7 +389,7 @@ def test_blur_radius_scales_with_the_rendered_frame(
     _inject_blur_annotation(page)
 
     read_radius = """() => {
-        const value = getComputedStyle(document.querySelector('#blur-1')).backdropFilter;
+        const value = getComputedStyle(document.querySelector('#blur-overlay-1')).backdropFilter;
         const match = value.match(/blur\\(([\\d.]+)px\\)/);
         return match ? parseFloat(match[1]) : null;
     }"""
@@ -418,7 +433,7 @@ def test_the_blur_glides_between_positions(page, live_server, seeded_demo_data):
             });
         }"""
     )
-    page.wait_for_selector("#blur-1", state="attached")
+    page.wait_for_selector("#blur-overlay-1", state="attached")
 
     def seek_and_measure(time):
         page.evaluate(f"() => window.videoPlayer.setCurrentTime({time})")

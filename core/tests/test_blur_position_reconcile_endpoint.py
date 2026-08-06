@@ -67,9 +67,12 @@ class BlurReconcileThroughEndpointTests(TestCase):
     def test_dragging_the_left_handle_moves_the_first_position(self):
         """#322 item 2: the *start* time updates, and later positions are left alone."""
         self.assertEqual(self._update(13.0, 15.0), [13.0, 15.0])
-        self.assertEqual(
+        # The tween at t=13 between the positions at 12 (x=20) and 15 (x=30) - what was on screen
+        # there before the resize - rather than either stored position's geometry.
+        self.assertAlmostEqual(
             self.blur.positions.first().x,
-            20.0,
+            23.333,
+            2,
             "the first position should carry the geometry that was showing at the new start",
         )
 

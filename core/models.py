@@ -1303,6 +1303,40 @@ class BlurAnnotation(BaseAnnotation):
         first.save()
         return first
 
+    def geometry_at(self, time):
+        """The rect on screen at `time`, interpolated between the positions bracketing it.
+
+        The server needs this to reconcile a resize; the browser needs it to render. That makes
+        this a deliberate second implementation of rectAtTime in
+        core/static/js/video-geometry.js, so the two are held to the same case table -
+        core/tests/test_blur_positions.py and tests/js/video-geometry.test.js.
+        """
+        positions = list(self.positions.all())
+        if not positions:
+            return None
+
+        fields = ("x", "y", "width", "height")
+
+        def rect(position):
+            return {field: getattr(position, field) for field in fields}
+
+        if len(positions) == 1 or time <= positions[0].time:
+            return rect(positions[0])
+        if time >= positions[-1].time:
+            return rect(positions[-1])
+
+        for later, earlier in zip(positions[1:], positions):
+            if later.time < time:
+                continue
+            span = later.time - earlier.time
+            fraction = (time - earlier.time) / span if span > 0 else 1
+            return {
+                field: getattr(earlier, field)
+                + (getattr(later, field) - getattr(earlier, field)) * fraction
+                for field in fields
+            }
+        return rect(positions[-1])
+
     def reconcile_positions(self, old_start, old_end):
         """Bring positions back in line with start_time/end_time after the annotation moved.
 
@@ -1321,6 +1355,9 @@ class BlurAnnotation(BaseAnnotation):
         old_duration = old_end - old_start
         new_duration = self.end_time - self.start_time
         delta = self.start_time - old_start
+        # Sampled before anything is mutated: this is what the person dragging can see at the new
+        # start time, and it is generally a tween rather than any stored position.
+        showing_at_new_start = self.geometry_at(self.start_time)
 
         if abs(new_duration - old_duration) <= 0.02 and delta:
             # Shift the positions furthest along the direction of travel first. The unique
@@ -1332,12 +1369,20 @@ class BlurAnnotation(BaseAnnotation):
                 position.save()
         else:
             self.positions.filter(time__gt=self.end_time).delete()
-            # Of the positions now before the window, the last one is the geometry that was on
-            # screen at the new start time - keep it (ensure_first_position pins it to
-            # start_time below) and discard the rest.
+            # Of the positions now before the window, keep the last one - ensure_first_position
+            # pins it to start_time below - and discard the rest.
             stale = list(self.positions.filter(time__lt=self.start_time))
             for position in stale[:-1]:
                 position.delete()
+
+            # Then give it the geometry that was actually showing there. Retiming the surviving
+            # position without this leaves the blur's opening frames covering where the subject
+            # *used to be*, which for a blur is exposure rather than a cosmetic pop.
+            if stale and showing_at_new_start:
+                survivor = stale[-1]
+                for field, value in showing_at_new_start.items():
+                    setattr(survivor, field, value)
+                survivor.save()
 
         self.ensure_first_position()
 

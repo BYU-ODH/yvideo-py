@@ -72,13 +72,19 @@ class ReconcilePositionsTests(TestCase):
 
     def test_dragging_the_left_handle_rightwards_repins_the_first_position(self):
         """#322 item 2. The first position's *time* moves, carrying the geometry that was
-        showing at the new start rather than resetting to a default box."""
+        showing at the new start rather than resetting to a default box.
+
+        "Showing" means the interpolated rect, not the nearest stored position: at t=13 the box
+        was a third of the way from the one at 12 (x=20) to the one at 15 (x=30). Retiming the
+        position at 12 without re-deriving its geometry would leave the blur's first frames
+        covering where the subject was a second earlier, which is exposure.
+        """
         self._move_to(13.0, 15.0)
 
         self.assertEqual(_times(self.blur), [13.0, 15.0])
         first = self.blur.positions.first()
-        self.assertEqual(
-            first.x, 20.0, "should carry the geometry of the position at time 12"
+        self.assertAlmostEqual(
+            first.x, 23.333, 2, "should carry the interpolated geometry at time 13"
         )
 
     def test_dragging_the_left_handle_leftwards_extends_the_first_position(self):
@@ -194,4 +200,70 @@ class PositionInvariantTests(TestCase):
             position.to_json(),
             self.blur.to_player_json()["positions"][0],
             "the editor's responses and the player payload must not drift apart",
+        )
+
+
+class GeometryAtTests(TestCase):
+    """BlurAnnotation.geometry_at, the server's copy of the browser's rectAtTime.
+
+    The case table is deliberately the same one tests/js/video-geometry.test.js uses, because two
+    implementations of interpolation in two languages is exactly the kind of duplication that
+    drifts silently. Asymmetric on every axis so an x/y or width/height mix-up cannot cancel out.
+    """
+
+    def setUp(self):
+        self.blur = BlurAnnotationFactory(start_time=2.0, end_time=6.0)
+        self.blur.positions.all().delete()
+        for time, x, y, width, height in (
+            (2.0, 10.0, 20.0, 30.0, 40.0),
+            (6.0, 50.0, 24.0, 22.0, 48.0),
+        ):
+            BlurAnnotationPositionFactory(
+                blur_annotation=self.blur,
+                time=time,
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+            )
+
+    def test_no_positions_has_no_geometry(self):
+        self.blur.positions.all().delete()
+        self.assertIsNone(self.blur.geometry_at(3.0))
+
+    def test_a_lone_position_holds_at_every_time(self):
+        self.blur.positions.filter(time=6.0).delete()
+        expected = {"x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0}
+        for time in (-100.0, 0.0, 2.0, 1000.0):
+            self.assertEqual(self.blur.geometry_at(time), expected)
+
+    def test_every_field_interpolates_independently_at_the_midpoint(self):
+        self.assertEqual(
+            self.blur.geometry_at(4.0),
+            {"x": 30.0, "y": 22.0, "width": 26.0, "height": 44.0},
+        )
+
+    def test_off_center_interpolation(self):
+        self.assertEqual(
+            self.blur.geometry_at(3.0),
+            {"x": 20.0, "y": 21.0, "width": 28.0, "height": 42.0},
+        )
+
+    def test_it_holds_constant_outside_the_first_and_last_position(self):
+        """Never extrapolate: a blur must not drift somewhere its author never put it."""
+        first = {"x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0}
+        last = {"x": 50.0, "y": 24.0, "width": 22.0, "height": 48.0}
+        self.assertEqual(self.blur.geometry_at(-5.0), first)
+        self.assertEqual(self.blur.geometry_at(2.0), first)
+        self.assertEqual(self.blur.geometry_at(6.0), last)
+        self.assertEqual(self.blur.geometry_at(9999.0), last)
+
+    def test_it_walks_past_intermediate_positions_to_the_right_bracket(self):
+        BlurAnnotationPositionFactory(
+            blur_annotation=self.blur, time=4.0, x=0.0, y=0.0, width=10.0, height=10.0
+        )
+        # Between the new position at 4.0 and the one at 6.0, not the original 2.0-to-6.0 span.
+        self.assertEqual(
+            self.blur.geometry_at(5.0),
+            {"x": 25.0, "y": 12.0, "width": 16.0, "height": 29.0},
         )

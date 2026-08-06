@@ -1,4 +1,6 @@
 import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback } from "./utils.js";
+import { BlurEditor, placeLocators } from "./BlurEditor.js";
+import { clampRect, percentWithin, resizeRect } from "./video-geometry.js";
 
 // Clicking or dragging inside these regions seeks the video: the ticks/scrubber
 // row and every track row's right-hand (scrollable) area. Clicks on a
@@ -19,13 +21,11 @@ export class Editor {
     constructor() {
         this.video = document.querySelector('.annotation-player-container video');
         this.duration = this.video.duration;
-        this.annotationBox = window.videoPlayer.annotationBox;
         this.dragState = null;
         this.contentId = null;
         this.listenForNewItemCreation();
         this.typeOfAnnotationInFocus = null;
         this.annotationIdInFocus = null;
-        this.activeBlurPosition = null;
         this.tickMarksContainer = document.querySelector('#tick-marks-container');
         this.timelineTicksContent = document.getElementById('timeline-ticks-content');
         this.timelineWrapper = document.getElementById('timeline-wrapper');
@@ -43,6 +43,21 @@ export class Editor {
         this.activeTrackId = null;
         this.dragGhostImage = new Image();  // Used to avoid browser's default globe icon
         this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+        // BlurEditor owns every gesture inside the video frame and replaces the blur panel and
+        // item HTML itself; all this side has to do afterwards is re-place what it owns.
+        this.blurEditor = new BlurEditor({
+          video: this.video,
+          player: window.videoPlayer,
+          timelineWrapper: this.timelineWrapper,
+          // Deliberately not dispatching annotationUpdated here: that refetches every annotation
+          // on the page, and BlurEditor has already patched the player with the positions the
+          // save returned. Reloading on every nudge is what made dragging feel like a page load.
+          onPositionsSaved: () => {
+            this.placeTrackItems();
+            this.setupItems();
+          },
+        });
 
         this.init();
     }
@@ -256,6 +271,24 @@ export class Editor {
 
             this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
         }
+
+        this.updateBlurLocatorsDuringResize();
+    }
+
+    // Read back from the styles just written, rather than recomputed per branch, so the dots
+    // cannot disagree with the bar they sit on.
+    updateBlurLocatorsDuringResize() {
+        const item = this.dragState?.item;
+        if (!item || item.dataset.annotationType !== "blur") return;
+
+        const leftPercent = parseFloat(item.style.left);
+        const widthPercent = parseFloat(item.style.width);
+        if (!Number.isFinite(leftPercent) || !Number.isFinite(widthPercent)) return;
+
+        placeLocators(item, {
+            start: (leftPercent / 100) * this.duration,
+            end: ((leftPercent + widthPercent) / 100) * this.duration,
+        });
     }
 
     seekToHandlePosition(isLeft, leftPercent, widthPercent) {
@@ -321,25 +354,8 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
-
-      // set up blur position locator listeners
-      if (annotationType == "blur") {
-        const positionLocators = element.querySelectorAll(".blur-position-locator");
-        for (let positionLocator of positionLocators) {
-          positionLocator.addEventListener("click", (e) => {
-            // allow propagation only if the parent item is not active
-            const parentItem = element.closest(".track-item");
-            if (parentItem.className.includes("active-track-item")) {
-              e.stopPropagation();
-              this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-              this.markBlurPositionAsActive(positionLocator.dataset["positionId"]);
-              return;
-            }
-            this.video.currentTime = parseFloat(positionLocator.dataset["positionTime"]);
-            this.markBlurPositionAsActive(positionLocator.dataset["positionId"]);
-          })
-        }
-      }
+      // Blur position locators are handled by BlurEditor, delegated from the timeline: this item's
+      // HTML is replaced wholesale after every blur edit, so per-dot listeners would not survive.
     }
 
     blockTrackItemPointerEvents() {
@@ -426,7 +442,7 @@ export class Editor {
       }
 
       if(this.typeOfAnnotationInFocus == "blur") {
-        this.handleFocusChangeAwayFromBlurType();
+        this.blurEditor.deselect();
       }
       window.dispatchEvent(this.annotationUpdatedEvent);
 
@@ -483,357 +499,54 @@ export class Editor {
       this.changeAnnotationInFocus();
     }
 
-    getBlurPositions() {
-      if (this.typeOfAnnotationInFocus != "blur") {
-        return;
-      }
-      const positionsWrapper = document.getElementById("blur-positions-wrapper");
-      const positionEls = positionsWrapper.querySelectorAll(".position-entry");
-      const positions = [];
-      for (let positionEl of positionEls) {
-        const timeInput = positionEl.querySelector(".position-time-input");
-        let time = 0.0;
-        if (timeInput) {
-          time = parseFloat(timeInput.value).toFixed(2);
-        }
-        positions.push({
-          "id": positionEl.dataset["positionId"],
-          "time": time
-        });
-      }
-      return positions;
-    }
-
-    placeNewBlurPositionHtml(blur_parent_id, itemAndPositionsHtml) {
-      const annotationUpdateForm = document.getElementById("existing-item-form");
-      const currentFormId = annotationUpdateForm.dataset["annotationId"];
-      const blurPositionWrapperEl = document.getElementById("blur-positions-wrapper");
-      // don't do anything if the user has moved onto a different item
-      if (!blurPositionWrapperEl || blur_parent_id != currentFormId) {
-        return;
-      }
-      blurPositionWrapperEl.outerHTML = itemAndPositionsHtml["blurPositions"];
-
-      const trackItemToUpdate = this.timelineWrapper.querySelector(`.track-item[data-annotation-id='${blur_parent_id}']`);
-      trackItemToUpdate.outerHTML = itemAndPositionsHtml["trackItem"];
-      this.placeTrackItems();
-      this.setUpBlurPositionDeleteListeners(blur_parent_id)
-      this.setupBlurPositionSeekListeners();
-      return;
-    }
-
-    async createBlurPosition(parentBlurId, time, x, y, width, height, parentStartTime, parentEndTime) {
-      if (parseFloat(parentStartTime) > parseFloat(time) || parseFloat(parentEndTime) < parseFloat(time)) {
-        return;
-      }
-      const response = await fetch("/annotations/blur-position/create", {
-        method: "POST",
-        headers: {"X-CSRFToken": getCSRFToken(), "Content-Type": "application/json"},
-        body: JSON.stringify({parent_annotation_id: parentBlurId, time, x, y, width, height})
-      });
-      if (response.ok) {
-        const responseHtmlMap = await response.json();
-        this.placeNewBlurPositionHtml(parentBlurId, responseHtmlMap)
-        window.dispatchEvent(this.annotationUpdatedEvent);
-      }
-      else if (!response.ok) {
-        console.error("Failed to create blur position");
-      }
-    }
-
-    async updateBlurPosition(positionId, time, x, y, width, height, parentAnnotationId) {
-      const response = await fetch("/annotations/blur-position/update", {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({position_id: positionId, time, x, y, width, height})
-      });
-      if (response.ok) {
-        const responseHtmlMap = await response.json();
-        this.placeNewBlurPositionHtml(parentAnnotationId, responseHtmlMap)
-        window.dispatchEvent(this.annotationUpdatedEvent);
-      }
-      else {
-        console.error("Failed to update blur position");
-      }
-    }
-
-    async deleteBlurPosition(parentAnnotationId, positionId) {
-      const response = await fetch(`/annotations/blur-position/delete/${positionId}`, {
-        method: "DELETE",
-        headers: {"X-CSRFToken": getCSRFToken()}
-      });
-      if (response.status == 200) {
-        const blurPositionLocatorToDelete = document.querySelector(`.blur-position-locator[data-position-id='${positionId}']`);
-        const blurPositionEntryToDelete = document.querySelector(`.position-entry[data-position-id='${positionId}']`);
-        blurPositionLocatorToDelete.remove();
-        blurPositionEntryToDelete.remove();
-      }
-      else if (!response.ok) {
-        console.error("Failed to delete blur position");
-      }
-    }
-
-    async handleBlurAnnotationBoxClick(e) {
-      if (e.target.className.includes("blur-position")) {
-        return;
-      }
-      const annotationBoxDim = e.target.getBoundingClientRect();
-      let x = e.layerX / annotationBoxDim.width * 100;
-      let y = e.layerY / annotationBoxDim.height * 100;
-      const width = Math.min(100 - x, 12);
-      x = x - width / 2;
-      const height = Math.min(100 - y, 9);
-      y = y - height / 2;
-      const time = parseFloat(this.video.currentTime).toFixed(2);
-
-      const itemForm = document.getElementById("existing-item-form");
-      const annotationId = itemForm.dataset["annotationId"];
-
-      const currentPositions = this.getBlurPositions();
-      const existingPosition = currentPositions.find(position => Math.abs(position.time - time) < 0.01);
-
-      if (existingPosition?.id) {
-        await this.updateBlurPosition(existingPosition.id, time, x, y, width, height, annotationId)
-      }
-      else {
-        const startTimeEl = document.getElementById("start_time");
-        const parentStartTime = parseFloat(startTimeEl.value).toFixed(2);
-        const endTimeEl = document.getElementById("end_time");
-        const parentEndTime = parseFloat(endTimeEl.value).toFixed(2);
-        await this.createBlurPosition(annotationId, time, x, y, width, height, parentStartTime, parentEndTime)
-      }
-    }
-
+    // Drag `elementToMove` around inside its parent, in the parent's percentage coordinates.
+    // Used by the comment-box editor; the blur rig has its own gestures in BlurEditor.js.
     buildMoveHandler(elementToMove) {
-      let lastEventClientX;
-      let lastEventClientY;
+      let lastEvent;
       return (event) => {
-        if (lastEventClientX !== undefined && lastEventClientY !== undefined) {
-          // look at difference in last event's position vs this events position
-          const xChange = event.clientX - lastEventClientX;
-          const yChange = event.clientY - lastEventClientY;
-          const referenceRect = elementToMove.parentElement.getBoundingClientRect();
-          const xPercentChange = xChange / referenceRect.width * 100;
-          const yPercentChange = yChange / referenceRect.height * 100;
-
-          const elementLeft = parseFloat(elementToMove.style.left);
-          const elementTop = parseFloat(elementToMove.style.top);
-
-          const newLeft = (elementLeft + xPercentChange) + '%';
-          const newTop = (elementTop + yPercentChange) + '%';
-
-          elementToMove.style.left = newLeft;
-          elementToMove.style.top = newTop;
+        const referenceRect = elementToMove.parentElement.getBoundingClientRect();
+        if (lastEvent && referenceRect.width > 0 && referenceRect.height > 0) {
+          // Clamped, so a box can no longer be dragged off the frame and out of reach.
+          const moved = clampRect({
+            x: (parseFloat(elementToMove.style.left) || 0) + (event.clientX - lastEvent.x) / referenceRect.width * 100,
+            y: (parseFloat(elementToMove.style.top) || 0) + (event.clientY - lastEvent.y) / referenceRect.height * 100,
+            width: parseFloat(elementToMove.style.width) || 0,
+            height: parseFloat(elementToMove.style.height) || 0,
+          });
+          elementToMove.style.left = `${moved.x}%`;
+          elementToMove.style.top = `${moved.y}%`;
         }
-        lastEventClientX = event.clientX;
-        lastEventClientY = event.clientY;
+        lastEvent = {x: event.clientX, y: event.clientY};
       }
     }
 
-    buildResizePointMoveHandler(minHeightPercent = 4, minWidthPercent = 3) {
+    // Resize a handle's parent by dragging one corner, over the same shared geometry the blur rig
+    // uses, so there is one definition of what a corner drag means.
+    buildResizePointMoveHandler(minHeight = 4, minWidth = 3) {
       return (event) => {
         event.stopPropagation();
-        const annotationBox = event.target.closest(".annotation-box");
-        const boxRect = annotationBox.getBoundingClientRect();
-        const parentEl = event.target.parentElement;
-        const newX = (event.clientX - boxRect.left) / boxRect.width * 100;
-        const newY = (event.clientY - boxRect.top) / boxRect.height * 100;
-        const curLeft = parseFloat(parentEl.style.left);
-        const curTop = parseFloat(parentEl.style.top);
-        const curWidth = parseFloat(parentEl.style.width);
-        const curHeight = parseFloat(parentEl.style.height);
-        const fixedRight = curLeft + curWidth;
-        const fixedBottom = curTop + curHeight;
-        const movesLeft = event.target.classList.contains("resize-point-left");
-        const movesTop = event.target.classList.contains("resize-point-top");
-
-        if (movesLeft) {
-          const newLeft = Math.max(0, Math.min(newX, fixedRight - minWidthPercent));
-          parentEl.style.left = `${newLeft}%`;
-          parentEl.style.width = `${fixedRight - newLeft}%`;
-        } else {
-          parentEl.style.width = `${Math.max(minWidthPercent, Math.min(newX - curLeft, 100 - curLeft))}%`;
-        }
-
-        if (movesTop) {
-          const newTop = Math.max(0, Math.min(newY, fixedBottom - minHeightPercent));
-          parentEl.style.top = `${newTop}%`;
-          parentEl.style.height = `${fixedBottom - newTop}%`;
-        } else {
-          parentEl.style.height = `${Math.max(minHeightPercent, Math.min(newY - curTop, 100 - curTop))}%`;
-        }
+        const elementToResize = event.target.parentElement;
+        const limits = {minWidth, minHeight};
+        const pointer = percentWithin(
+          {x: event.clientX, y: event.clientY, width: 0, height: 0},
+          event.target.closest(".annotation-box").getBoundingClientRect(),
+        );
+        const origin = {
+          x: parseFloat(elementToResize.style.left) || 0,
+          y: parseFloat(elementToResize.style.top) || 0,
+          width: parseFloat(elementToResize.style.width) || 0,
+          height: parseFloat(elementToResize.style.height) || 0,
+        };
+        const resized = clampRect(resizeRect(origin, pointer, {
+          movesLeft: event.target.classList.contains("resize-point-left"),
+          movesTop: event.target.classList.contains("resize-point-top"),
+          ...limits,
+        }), limits);
+        elementToResize.style.left = `${resized.x}%`;
+        elementToResize.style.top = `${resized.y}%`;
+        elementToResize.style.width = `${resized.width}%`;
+        elementToResize.style.height = `${resized.height}%`;
       }
-    }
-
-    handleBlurPointerDown(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      const blurEl = e.currentTarget;
-      const blurLeftStart = blurEl.style.left;
-      const blurTopStart = blurEl.style.top;
-      const blurPointerId = e.pointerId;
-      blurEl.setPointerCapture(blurPointerId);
-      const annotationBox = blurEl.closest("#annotation-box");
-      const boxRect = annotationBox.getBoundingClientRect();
-      const widthPercent = parseFloat(blurEl.style.width);
-      const heightPercent = parseFloat(blurEl.style.height);
-
-      async function onPointerUp(upEvent) {
-        const positionEl = upEvent.target;
-        const positionRect = positionEl.getBoundingClientRect();
-        const blurPositionId = positionEl.dataset["blurPositionId"];
-        const parentBlurId = positionEl.dataset["blurPositionParentId"];
-        const newX = ((positionRect.left - boxRect.left) / boxRect.width) * 100;
-        const newY = ((positionRect.top - boxRect.top) / boxRect.height) * 100;
-        await this.updateBlurPosition(blurPositionId, this.video.currentTime, newX, newY, widthPercent, heightPercent, parentBlurId);
-        handleCleanup();
-      }
-
-      function handleMoveCancel() {
-        handleCleanup();
-        blurEl.style.left = blurLeftStart;
-        blurEl.style.top = blurTopStart;
-      }
-
-      function handleEscKeyPress(keyupEvent) {
-        if (keyupEvent.defaultPrevented) {
-          return;
-        }
-
-        if (keyupEvent.key == "Escape") {
-          handleMoveCancel();
-        }
-      }
-
-      const pointerUpCallback = onPointerUp.bind(this);
-
-      const handleBlurMove = this.buildMoveHandler(blurEl);
-      function handleCleanup() {
-        blurEl.releasePointerCapture(blurPointerId);
-        blurEl.removeEventListener('pointermove', handleBlurMove);
-        blurEl.removeEventListener('pointerup', pointerUpCallback);
-        blurEl.removeEventListener('pointercancel', handleMoveCancel);
-        document.removeEventListener("keyup", handleEscKeyPress);
-      }
-
-      document.addEventListener("keyup", handleEscKeyPress);
-      blurEl.addEventListener('pointercancel', handleMoveCancel);
-      blurEl.addEventListener('pointerup', pointerUpCallback);
-      blurEl.addEventListener('pointermove', handleBlurMove);
-    }
-
-
-    handleFocusChangeToBlurType() {
-      this.annotationBox.className = "annotation-box annotation-box-blur-editor";
-      this.annotationBoxBlurListener = this.handleBlurAnnotationBoxClick.bind(this);
-      this.annotationBox.addEventListener("click", this.annotationBoxBlurListener);
-      const blurPositions = document.getElementsByClassName("blur-position");
-      for (let position of blurPositions) {
-        if (position.dataset["blurPositionParentId"] == this.annotationIdInFocus) {
-          this.activeBlurPosition = position;
-          this.activeBlurPosition.classList.add("active-blur-position");
-          break;
-        } else {
-          position.classList.remove("active-blur-position");
-        }
-      }
-
-      // build resize points on corners
-      if (this.activeBlurPosition) {
-        const cornerData = ["resize-point-top resize-point-left", "resize-point-top", "resize-point-left", ""];
-
-        for (const cssClass of cornerData) {
-          const point = document.createElement("div");
-          point.className = `blur-position-adjustment-point ${cssClass} resize-point`;
-
-          point.addEventListener("pointerdown", (ptrDownEvent) => {
-            ptrDownEvent.stopPropagation();
-            ptrDownEvent.preventDefault();
-            point.setPointerCapture(ptrDownEvent.pointerId);
-
-            const startLeft = this.activeBlurPosition.style.left;
-            const startTop = this.activeBlurPosition.style.top;
-            const startWidth = this.activeBlurPosition.style.width;
-            const startHeight = this.activeBlurPosition.style.height;
-            let resizeCancelled = false;
-
-            const onMove = this.buildResizePointMoveHandler();
-
-            function handleCleanup() {
-              point.releasePointerCapture(ptrDownEvent.pointerId);
-              point.removeEventListener("pointermove", onMove);
-              point.removeEventListener("pointerup", onPointerUp);
-              point.removeEventListener("pointercancel", onCancel);
-              document.removeEventListener("keyup", handleEscKeyPress);
-            }
-
-            async function onPointerUp() {
-              handleCleanup();
-              if (resizeCancelled) return;
-
-              const newLeft = parseFloat(this.activeBlurPosition.style.left);
-              const newTop = parseFloat(this.activeBlurPosition.style.top);
-              const newWidth = parseFloat(this.activeBlurPosition.style.width);
-              const newHeight = parseFloat(this.activeBlurPosition.style.height);
-              const positionId = this.activeBlurPosition.dataset["blurPositionId"];
-              const parentId = this.activeBlurPosition.dataset["blurPositionParentId"];
-              await this.updateBlurPosition(positionId, this.video.currentTime, newLeft, newTop, newWidth, newHeight, parentId);
-            }
-
-            function onCancel() {
-              this.activeBlurPosition.style.left = startLeft;
-              this.activeBlurPosition.style.top = startTop;
-              this.activeBlurPosition.style.width = startWidth;
-              this.activeBlurPosition.style.height = startHeight;
-              handleCleanup();
-            }
-
-            function handleEscKeyPress(keyupEvent) {
-              if (keyupEvent.defaultPrevented) {
-                return;
-              }
-              if (keyupEvent.key === "Escape") {
-                resizeCancelled = true;
-                this.activeBlurPosition.style.left = startLeft;
-                this.activeBlurPosition.style.top = startTop;
-                this.activeBlurPosition.style.width = startWidth;
-                this.activeBlurPosition.style.height = startHeight;
-                point.removeEventListener("pointermove", onMove);
-                document.removeEventListener("keyup", handleEscKeyPress);
-              }
-            }
-
-            document.addEventListener("keyup", handleEscKeyPress.bind(this));
-            point.addEventListener("pointercancel", onCancel.bind(this));
-            point.addEventListener("pointerup", onPointerUp.bind(this));
-            point.addEventListener("pointermove", onMove);
-          });
-
-          this.activeBlurPosition.appendChild(point);
-        }
-
-        this.activeBlurPosition.addEventListener("pointerdown", this.handleBlurPointerDown.bind(this));
-      }
-    }
-
-    handleFocusChangeAwayFromBlurType() {
-      this.annotationBox.removeEventListener("click", this.annotationBoxBlurListener);
-      this.annotationBox.className = "annotation-box";
-      if (this.activeBlurPosition) {
-        this.activeBlurPosition.removeEventListener("pointerdown", this.handleBlurPointerDown);
-        this.activeBlurPosition.classList.toggle("active-blur-position");
-      }
-      const blurPositionAdjustmentPoints = document.getElementsByClassName("blur-position-adjustment-point");
-      // iteration by index prevents unexpected behavior from deleting earlier elements
-      // in the array.
-      for (let pointI = blurPositionAdjustmentPoints.length - 1; pointI >= 0; pointI--) {
-        const pointToRemove = blurPositionAdjustmentPoints[pointI];
-        pointToRemove.remove();
-      }
-      this.activeBlurPosition = null;
     }
 
     changeAnnotationInFocus() {
@@ -841,6 +554,7 @@ export class Editor {
       const itemForm = document.getElementById("existing-item-form");
       if (itemForm == null) {
         this.typeOfAnnotationInFocus = null;
+        this.blurEditor.deselect();
         return;
       }
 
@@ -848,11 +562,11 @@ export class Editor {
       this.annotationIdInFocus = itemForm.dataset["annotationId"];
 
       if (previousTypeInFocus == "blur") {
-        this.handleFocusChangeAwayFromBlurType();
+        this.blurEditor.deselect();
       }
 
       if (this.typeOfAnnotationInFocus == "blur" ) {
-        this.handleFocusChangeToBlurType();
+        this.blurEditor.select(this.annotationIdInFocus);
       }
     }
 
@@ -913,9 +627,16 @@ export class Editor {
         const targetForm = document.getElementById("detail-form");
         targetForm.innerHTML = formHtml;
         this.markItemAsActive(annotationType, annotationId);
+        // Moving or resizing a blur reconciles its points server-side, so both the rig's time
+        // window and the panel rows it reads have just changed underneath it.
+        if (annotationType == "blur") {
+          this.blurEditor.syncFromPanel();
+        }
         window.dispatchEvent(this.annotationUpdatedEvent);
       }
-      return true;
+      // The response, not a bare `true`: callers that suppressed autoUpdateItem still need the
+      // server's rendered item. Truthy either way, so `if (success)` callers are unaffected.
+      return responseData;
     }
 
     triggerSave(state) {
@@ -979,71 +700,6 @@ export class Editor {
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
-
-    markBlurPositionAsActive(positionId) {
-      // inactivate any active form elements
-      const activeFormPositionCSSClass = "active-position-entry";
-      const currentActiveFormPositions = document.querySelectorAll(`.${activeFormPositionCSSClass}`);
-      for (let activePosition of currentActiveFormPositions) {
-        activePosition.classList.remove(activeFormPositionCSSClass);
-      }
-
-      // activate form element
-      const formPositionToActivate = document.querySelector(`.position-entry[data-position-id="${positionId}"]`);
-      if (formPositionToActivate) {
-        formPositionToActivate.classList.add(activeFormPositionCSSClass);
-      }
-
-      // inactivate any active position locators
-      const activePositionLocatorCSSClass = "active-blur-position-locator";
-      const currentActivePositionLocators = document.querySelectorAll(`.${activePositionLocatorCSSClass}`);
-      for (let activePositionLocator of currentActivePositionLocators) {
-        activePositionLocator.classList.remove(activePositionLocatorCSSClass);
-      }
-
-      // activeate position locator
-      const positionLocatorToActivate = document.querySelector(`.blur-position-locator[data-position-id="${positionId}"]`);
-      if (positionLocatorToActivate) {
-        positionLocatorToActivate.classList.add(activePositionLocatorCSSClass);
-      }
-    }
-
-    setupBlurPositionSeekListeners() {
-      const handler = (clickEvent) => {
-        const parent = clickEvent.target.closest(".position-entry");
-        if (!parent) {
-          return;
-        }
-        const timeInput = parent.querySelector(".position-time-input");
-        let time = 0;
-        if (timeInput) {
-          time = timeInput.value;
-          if (isNaN(Number(time))) {
-            const form = clickEvent.target.closest("#annotation-update-form");
-            const annotationStartInput = form.querySelector("#start_time");
-            time = annotationStartInput.value;
-          }
-        }
-        this.video.currentTime = time;
-        this.markBlurPositionAsActive(parent.dataset["positionId"]);
-      }
-      const positionEntries = document.getElementsByClassName("position-entry");
-      for (let positionEntry of positionEntries) {
-        positionEntry.addEventListener("click", handler);
-      }
-    }
-
-    setUpBlurPositionDeleteListeners(parentAnnotationId) {
-      const buttons = document.getElementsByClassName("blur-position-delete-button");
-      for (let button of buttons) {
-        const buttonParent = button.parentElement;
-        const positionId = buttonParent.dataset["positionId"];
-
-        button.addEventListener("click", async () => {
-          await this.deleteBlurPosition(parentAnnotationId, positionId);
-        });
-      }
-    }
 
     setUpCommentChangeListeners(formElement) {
       // You may wonder why commentTextBox is declared in both event listeners instead of
@@ -1239,12 +895,10 @@ export class Editor {
       });
       const detailForm = document.getElementById("detail-form");
       detailForm.innerHTML = await response.text();
+      // setUpItemForm -> changeAnnotationInFocus hands a blur to BlurEditor, which listens for its
+      // own panel clicks by delegation and so needs nothing re-attached here.
       this.setUpItemForm();
-      if (annotationType == "blur") {
-        this.setUpBlurPositionDeleteListeners(annotationId);
-        this.setupBlurPositionSeekListeners();
-      }
-      else if (annotationType == "comment") {
+      if (annotationType == "comment") {
         this.setUpCommentChangeListeners(detailForm);
         this.presentCommentBoxPositionAndSizeControls(annotationId);
       }
@@ -1515,14 +1169,10 @@ export class Editor {
         if (originalItem.dataset["end"]) {
           originalEndTime = parseFloat(originalItem.dataset["end"]);
         }
-        let success;
+        let updated;
         if (trackId != originalTrackId) {
           // transfer item to new track
-
-          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
-          if (success) {
-            replacementItem.dataset["originalTrackId"] = trackId;
-          }
+          updated = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
         } else {
           // move item to new position within same track (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
@@ -1532,37 +1182,21 @@ export class Editor {
           if (originalEndTime) {
             endTime = originalEndTime - originalStartTime + startTime;
           }
-          success = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
-          if (success) {
-            replacementItem.dataset["start"] = startTime;
-            if (endTime) {
-              replacementItem.dataset["end"] = endTime;
-            }
-            replacementItem.style.left = newLeftRatio * 100 + '%';
-            if (annotationType == "blur") {
-              const blurPositions = replacementItem.querySelectorAll(".blur-position-locator");
-              const positionsToDelete = [];
-              for (let position of blurPositions) {
-                if (position.dataset["positionTime"] < startTime) {
-                  positionsToDelete.push(position);
-                }
-              }
-
-              for (let i = positionsToDelete.length - 1; i > -1; i--) {
-                positionsToDelete[i].remove();
-              }
-            }
-          }
+          updated = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
         }
 
-        if (success) {
-          replacementItem.dataset["setup"] = "false";
+        if (updated) {
+          // Place the item the *server* just rendered, not the dragged payload. The payload is a
+          // snapshot from before the drop, so its start/end and its track are whatever they were,
+          // and for a blur its position dots still carry the pre-move times - which put every dot
+          // at the left edge of the bar. Falling back to the payload only if that fails to parse.
+          const itemToPlace = createElementFromHTMLString(updated["item_html"]) || replacementItem;
+          itemToPlace.dataset["setup"] = "false";
+          itemToPlace.classList.remove("is-dragging");
           originalItem.remove();
-          replacementItem.classList.remove("is-dragging");
-          annotationContainer.appendChild(replacementItem);
+          annotationContainer.appendChild(itemToPlace);
           this.placeTrackItems();
-          // Reapply `active` class now that replacementItem is the one
-          // actually left in the DOM.
+          // Reapply `active` class now that itemToPlace is the one actually left in the DOM.
           this.markItemAsActive(annotationType, annotationId);
         }
       });
@@ -1911,16 +1545,8 @@ export class Editor {
               const itemLeftValue = parseFloat(item.dataset["start"]) / this.duration * 100
               item.style.setProperty("left", `${itemLeftValue}%`);
 
-              // apply postion styling to blur positions
               if (item.dataset.annotationType == "blur") {
-                const blurPositionLocators = item.querySelectorAll(".blur-position-locator");
-                for (let positionLocator of blurPositionLocators) {
-                  const positionLocatorDim = positionLocator.getBoundingClientRect();
-                  const positionWidth = positionLocatorDim.width;
-                  const positionTime = positionLocator.dataset["positionTime"];
-                  const leftValue = ((positionTime - itemStart) / (itemEnd - itemStart)) * 100;
-                  positionLocator.style.setProperty("left", `calc(${leftValue}% - ${positionWidth / 2 - 2}px`);
-                }
+                placeLocators(item);
               }
             }
             // Assign each item (already sorted by start time above) to the first row
@@ -1983,7 +1609,13 @@ export class Editor {
             let startTime = 0;
             let endTime = 0;
             if (this.video) {
-                startTime = this.video.currentTime;
+                // Floored to the hundredth of a second annotations are stored at, rather than
+                // handed over raw. BaseAnnotation.save() rounds, so a raw playhead of 7.3066
+                // becomes a start of 7.31 - a few milliseconds *after* the playhead that asked
+                // for it, which means the annotation is not active yet and nothing is drawn until
+                // the user happens to scrub. That happened for roughly half of all playhead
+                // positions. Flooring keeps the stored start at or before the playhead.
+                startTime = Math.floor(this.video.currentTime * 100) / 100;
                 // Make sure new item can fit on the page
                 const itemDuration = Math.min(this.duration * 0.2, 10);
                 endTime = Math.min(startTime + itemDuration, this.duration);
@@ -2010,8 +1642,11 @@ export class Editor {
               const newTrackItemHtml = parsedResponse["track_item_html"];
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
               const newNode = createElementFromHTMLString(newTrackItemHtml);
-              newNode.dataset["start"] = startTime;
-              newNode.dataset["end"] = endTime;
+              // Deliberately not overwriting data-start/data-end with the values requested above:
+              // item.html already carries what was *stored*, and the two differ by the rounding
+              // in BaseAnnotation.save(). Overwriting them left the bar claiming a window the
+              // database disagreed with, so the blur editor showed its rig at creation and then
+              // hid it the moment a save replaced this element with the server's own HTML.
               trackContainer.appendChild(newNode);
               this.placeTrackItems();
 

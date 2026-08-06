@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
+from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
@@ -20,6 +21,8 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .forms import SubtitleForm
+from .models import BLUR_SNAP_SECONDS
+from .models import BLUR_TIME_PRECISION
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -602,7 +605,15 @@ def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
             # item.html contains {% csrf_token %}, which renders empty without a request.
             request=request,
         )
-        return {"blurPositions": blur_positions_html, "trackItem": track_item_html}
+        return {
+            "blurPositions": blur_positions_html,
+            "trackItem": track_item_html,
+            # The player patches its own copy of the positions from this rather than refetching
+            # every annotation on the page after each nudge.
+            "positions": [
+                position.to_json() for position in parent_annotation.positions.all()
+            ],
+        }
 
     except Exception as e:
         logger.error(f"Failed to generate blur_postion html. Exception: {e}")
@@ -612,115 +623,88 @@ def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
 @require_POST
 @login_required
 @transaction.atomic
-def create_blur_position(request):
+def upsert_blur_position(request, annotation_id):
+    """Write the geometry of one blur position, creating it if there isn't one yet.
+
+    One endpoint for create and update because the editor cannot tell the difference: a drag
+    means "the blur belongs *here* at the time I'm looking at", and whether that is a new point
+    or an existing one is a fact about stored data, not about the gesture. Deciding it here -
+    where the stored times actually are - is what stops a drag at a new time from silently
+    retiming the point the user last touched, which is what the old two-endpoint split did.
+
+    `position_id` is optional and means "this exact row", for the numeric inputs and for
+    dragging a timeline dot, where the user is deliberately naming a point rather than a time.
+    """
+    annotation = get_object_or_404(BlurAnnotation, pk=annotation_id)
+    if not annotation.track.annotation_set.can_edit(request.user):
+        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+
     try:
         parsed_body = json.loads(request.body)
-        parent_annotation_id = parsed_body["parent_annotation_id"]
+        geometry = {
+            field: parsed_body[field] for field in ("x", "y", "width", "height")
+        }
         position_time = parsed_body["time"]
-        position_x = parsed_body["x"]
-        position_y = parsed_body["y"]
-        position_width = parsed_body["width"]
-        position_height = parsed_body["height"]
+        position_id = parsed_body.get("position_id")
     except Exception as e:
-        logger.error(
-            f"Unable to parse data for updating or creating blur positions: {e}"
-        )
+        logger.error(f"Unable to parse data for writing a blur position: {e}")
         return HttpResponseBadRequest()
 
     # `is None` rather than a falsy test: 0 is legitimate for every one of these. x=0 or y=0 is a
     # box flush against the left or top edge, and time=0 is a position at the very start.
-    if parent_annotation_id is None or any(
-        value is None
-        for value in (
-            position_time,
-            position_x,
-            position_y,
-            position_width,
-            position_height,
-        )
-    ):
+    if position_time is None or any(value is None for value in geometry.values()):
         return HttpResponseBadRequest()
 
-    parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
-    if not parent_annotation.track.annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
-
-    # check if the position already exists
     try:
-        num_of_pre_existing_objs = BlurAnnotationPosition.objects.filter(
-            blur_annotation=parent_annotation, time=position_time
-        ).count()
-        if num_of_pre_existing_objs > 0:
-            return HttpResponse(status=200)
-    except Exception as e:
-        logger.error(f"Failed to query BlurAnnotationPositions. Exception: {e}")
-        return HttpResponseServerError()
-
-    try:
-        if parent_annotation.end_time < round(float(position_time), 2):
-            return HttpResponseBadRequest(
-                "New blur position cannot occur at a time greater than the blur annotation's end time"
-            )
-        elif parent_annotation.start_time > round(float(position_time), 2):
-            return HttpResponseBadRequest(
-                "New blur position cannot occur before the start time of the parent blur annotation"
-            )
-        BlurAnnotationPosition.objects.create(
-            blur_annotation=parent_annotation,
-            time=position_time,
-            x=position_x,
-            y=position_y,
-            width=position_width,
-            height=position_height,
-        )
-    except Exception as e:
-        logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
-        return HttpResponseServerError()
-
-    item_and_position_html = generate_blur_item_and_positions_html(
-        parent_annotation_id, request=request
-    )
-    if item_and_position_html is False:
-        return HttpResponseServerError()
-    return JsonResponse(item_and_position_html)
-
-
-@require_POST
-@login_required
-@transaction.atomic
-def update_blur_position(request):
-    try:
-        parsed_body = json.loads(request.body)
-        position_id = parsed_body["position_id"]
-        position_time = parsed_body["time"]
-        position_x = parsed_body["x"]
-        position_y = parsed_body["y"]
-        position_height = parsed_body["height"]
-        position_width = parsed_body["width"]
-    except Exception as e:
-        logger.error(
-            f"Unable to parse data for updating or creating blur positions: {e}"
-        )
+        position_time = round(float(position_time), BLUR_TIME_PRECISION)
+        geometry = {field: float(value) for field, value in geometry.items()}
+    except (TypeError, ValueError):
         return HttpResponseBadRequest()
 
-    this_blur_position = get_object_or_404(BlurAnnotationPosition, pk=position_id)
-    parent_annotation = this_blur_position.blur_annotation
-    if not parent_annotation.track.annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+    # Clamp instead of rejecting. The editor only offers the rig while the playhead is inside
+    # the blur's window, so an out-of-range time here is rounding at a boundary or a stale
+    # request - neither is worth failing an edit over, and the model clamps geometry the same way.
+    position_time = min(annotation.end_time, max(annotation.start_time, position_time))
+
+    if position_id is not None:
+        # Scoped to this annotation: an id belonging to someone else's blur is a 404, not an
+        # opening to write through it.
+        position = get_object_or_404(
+            BlurAnnotationPosition, pk=position_id, blur_annotation=annotation
+        )
+        position.time = position_time
+    else:
+        # A point already sitting within a frame or two of the playhead *is* the point the user
+        # is editing, so keep its time and only move the box. Anything else creates a point.
+        position = annotation.positions.filter(
+            time__gte=position_time - BLUR_SNAP_SECONDS,
+            time__lte=position_time + BLUR_SNAP_SECONDS,
+        ).first() or BlurAnnotationPosition(
+            blur_annotation=annotation, time=position_time
+        )
+
+    for field, value in geometry.items():
+        setattr(position, field, value)
 
     try:
-        this_blur_position.time = position_time
-        this_blur_position.x = position_x
-        this_blur_position.y = position_y
-        this_blur_position.height = position_height
-        this_blur_position.width = position_width
-        this_blur_position.save()
+        # An inner savepoint so a rejected retime does not poison the outer transaction: the
+        # views below this line still have to query to rebuild the panel.
+        with transaction.atomic():
+            position.save()
+    except IntegrityError:
+        # Only reachable by retiming a named position onto another one's time, which the panel's
+        # time input allows. The request is well-formed, so 409 rather than 400.
+        return HttpResponse("Another blur point already sits at that time", status=409)
     except Exception as e:
-        logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
+        logger.error(f"Failed to save BlurAnnotationPosition. Exception: {e}")
         return HttpResponseServerError()
+
+    # A retime could have moved some other point ahead of the earliest one, and the first point
+    # is the geometry in effect when the blur starts, so it has to stay pinned to start_time.
+    annotation.ensure_first_position()
 
     item_and_positions_html = generate_blur_item_and_positions_html(
-        parent_annotation.pk, request=request
+        annotation.pk, request=request
     )
     if item_and_positions_html is False:
         return HttpResponseServerError()
@@ -732,11 +716,15 @@ def update_blur_position(request):
 @transaction.atomic
 def delete_blur_position(request, position_id):
     position = get_object_or_404(BlurAnnotationPosition, pk=position_id)
-    if not position.blur_annotation.track.annotation_set.can_edit(request.user):
+    annotation = position.blur_annotation
+    if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse("Cannot edit this AnnotationSet", status=403)
 
-    if position.time <= 0:
-        return HttpResponseBadRequest()
+    # A blur with no positions has no geometry and cannot render at all, and the earliest
+    # position is the one that supplies the geometry the blur starts with. 409 rather than 400:
+    # the request is well-formed, it just conflicts with that invariant.
+    if position.pk == annotation.positions.values_list("pk", flat=True).first():
+        return HttpResponse("A blur's first position cannot be deleted", status=409)
 
     try:
         position.delete()
@@ -744,7 +732,12 @@ def delete_blur_position(request, position_id):
         logger.error(f"Failed to delete blur position. Exception: {e}")
         return HttpResponseServerError()
 
-    return HttpResponse()
+    item_and_positions_html = generate_blur_item_and_positions_html(
+        annotation.pk, request=request
+    )
+    if item_and_positions_html is False:
+        return HttpResponseServerError()
+    return JsonResponse(item_and_positions_html)
 
 
 def generate_annotation_updated_html(

@@ -137,10 +137,13 @@ export class AnnotationPlayer {
   // blur's stored percentages mean "percent of the visible frame" in every layout: window
   // resize, aspect extremes, fullscreen, rotation, sidebar open.
   //
-  // The <video> is width:100%/height:100% of .video-wrapper, so its element box IS the
-  // wrapper's content box, and the overlay is a sibling filling that same box. All the overlay
-  // owes it, then, is the letterbox pad that `object-fit: contain` leaves around the picture --
-  // one number pair, one style write, no offset arithmetic against ancestors.
+  // Lay the overlay exactly over the picture: the video element's own position inside
+  // .video-wrapper, plus the letterbox pad that `object-fit: contain` leaves around the picture.
+  //
+  // The offset used to be assumed away, on the grounds that the <video> is width:100%/height:100%
+  // of the wrapper and so occupies the whole thing. That is no longer true in the editor, where
+  // the controls are laid out below the picture instead of over it -- and an assumption like that
+  // fails silently, as an overlay that is the right size in the wrong place.
   //
   // Pass the dimensions in when a ResizeObserver already measured them; omitting them costs a
   // layout read.
@@ -159,7 +162,13 @@ export class AnnotationPlayer {
       this.videoElem.videoWidth,
       this.videoElem.videoHeight,
     );
-    this.annotationBox.style.inset = `${frame.y}px ${frame.x}px`;
+    // .video-wrapper is the overlay's containing block, so these offsets are what `left`/`top`
+    // are relative to. Written as four explicit sides rather than a symmetric `inset`, which
+    // silently assumed the pad above the picture equalled the pad below it.
+    this.annotationBox.style.left = `${this.videoElem.offsetLeft + frame.x}px`;
+    this.annotationBox.style.top = `${this.videoElem.offsetTop + frame.y}px`;
+    this.annotationBox.style.width = `${frame.width}px`;
+    this.annotationBox.style.height = `${frame.height}px`;
     // Blur strength as a fraction of frame height rather than a fixed pixel radius, so a blur
     // obscures just as much of the picture on a phone as it does in fullscreen. CSS still owns
     // the visual; this only supplies the scale. Set on the wrapper, not the overlay, so that
@@ -487,6 +496,7 @@ export class AnnotationPlayer {
         this.annotations = [];
       }
     }
+    this._removeOverlaysForDeletedAnnotations();
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
     this.renderClipsOnScrubber();
@@ -827,7 +837,14 @@ export class AnnotationPlayer {
           // Keyed by annotation id, not loop index: loadData re-parses on every edit, so an
           // index-keyed div would silently start representing a different annotation if the
           // ordering ever changed.
-          const blurId = "blur-" + a.id;
+          //
+          // "blur-overlay-" and not "blur-": the editor's timeline items are already
+          // id="<type>-<id>", so a plain "blur-3" here is a duplicate id on the editor page.
+          // getElementById then returns whichever comes first in tree order - this one - and the
+          // editor's item drag read its (absent) data-annotation-id and posted to
+          // /annotations/blur/undefined/update/. Intermittent, because it depended on whether
+          // this div happened to be painted at the time.
+          const blurId = "blur-overlay-" + a.id;
           const existingBlur = this.annotationBox.querySelector("#" + blurId);
 
           // The box glides between positions rather than snapping to the last one passed.
@@ -855,11 +872,11 @@ export class AnnotationPlayer {
             // --blur-radius, which an inline value here would override.
             this.annotationBox.appendChild(blur);
           }
-          // Only the parent id is published, deliberately. There is no `blurPositionId` to
+          // Only the annotation id is published, deliberately. There is no `blurPositionId` to
           // publish any more: the rendered box is usually a tween between two positions, so no
           // single row owns it. The editor must decide which position a drag applies to from
           // the playhead, not from a stale id on this element.
-          blur.dataset["blurPositionParentId"] = a.id;
+          blur.dataset["annotationId"] = a.id;
           blur.style.left = rect.x + "%";
           blur.style.top = rect.y + "%";
           blur.style.width = rect.width + "%";
@@ -876,6 +893,7 @@ export class AnnotationPlayer {
               commentPara.innerText = a.text;
               commentTextBox.appendChild(commentPara);
               commentTextBox.id = "comment-text-box-" + a.id;
+              commentTextBox.dataset["annotationId"] = a.id;
               commentTextBox.classList.add("comment-text-box");
               commentTextBox.style.top = a.top_left_y + '%';
               commentTextBox.style.left = a.top_left_x + '%';
@@ -899,6 +917,43 @@ export class AnnotationPlayer {
 
     if (this.videoElem.paused) return;
     requestAnimationFrame(() => this.applyAnnotations());
+  }
+
+  // Drop overlay elements belonging to annotations that no longer exist.
+  //
+  // applyAnnotations only ever cleans up an element while iterating the annotation it belongs to,
+  // so a deleted annotation is never reached and its box stays on screen -- covering part of the
+  // video with no way to select or remove it -- until the page is reloaded. This runs from
+  // loadData, which is the only place the set of annotations can change.
+  _removeOverlaysForDeletedAnnotations() {
+    if (!this.annotationBox) return;
+    const live = new Set((this.annotations || []).map((a) => String(a["id"])));
+    for (const element of this.annotationBox.querySelectorAll("[data-annotation-id]")) {
+      if (!live.has(element.dataset["annotationId"])) {
+        element.remove();
+      }
+    }
+  }
+
+  // Swap in a fresh set of positions for one blur, for the editor to call after a save.
+  //
+  // Patching in place rather than reloading every annotation on the page keeps a drag cheap, and
+  // keeps the playhead and every other annotation's state untouched by what is a local edit.
+  replaceAnnotationPositions(annotationId, positions) {
+    const annotation = this.annotations?.find(
+      (candidate) =>
+        candidate["type"] === "blur" &&
+        String(candidate["id"]) === String(annotationId),
+    );
+    if (!annotation) return false;
+    annotation["positions"] = positions;
+    // Only repaint when paused. While playing, applyAnnotations reschedules itself every frame,
+    // so it will pick this up on its own -- calling it here would start a second rAF chain that
+    // never stops, and each subsequent save would add another.
+    if (this.videoElem.paused) {
+      this.applyAnnotations();
+    }
+    return true;
   }
 
   resetAnnotations() {

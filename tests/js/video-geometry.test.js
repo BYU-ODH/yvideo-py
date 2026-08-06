@@ -6,7 +6,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { contentRect, rectAtTime } from "../../core/static/js/video-geometry.js";
+import {
+  clampRect,
+  contentRect,
+  percentWithin,
+  rectAtTime,
+  resizeRect,
+} from "../../core/static/js/video-geometry.js";
 
 test("contentRect pillarboxes a 16:9 video in a wider box", () => {
   // 1000x400 box, 16:9 source: height is the binding dimension.
@@ -160,4 +166,135 @@ test("rectAtTime does not mutate its input", () => {
   const snapshot = structuredClone(POSITIONS);
   rectAtTime(POSITIONS, 4);
   assert.deepEqual(POSITIONS, snapshot);
+});
+
+// --- clampRect -------------------------------------------------------------
+//
+// These mirror BlurAnnotationPosition.save(); core/tests/test_blur_positions.py asserts the
+// same cases against the server. Any divergence shows up as a box that jumps on release.
+
+test("clampRect leaves a rect that is already inside the frame alone", () => {
+  const rect = { x: 12.5, y: 30, width: 22, height: 14 };
+  assert.deepEqual(clampRect(rect, { minWidth: 3, minHeight: 4 }), rect);
+});
+
+test("clampRect pulls a rect back inside the frame instead of shrinking it", () => {
+  // Dragging past the right/bottom edge must slide the box, not squash it: the user is
+  // covering something of a fixed size and silently narrowing the box would expose it.
+  const rect = clampRect({ x: 95, y: 92, width: 22, height: 14 });
+  assert.deepEqual(rect, { x: 78, y: 86, width: 22, height: 14 });
+});
+
+test("clampRect clamps a negative origin to the top-left edge", () => {
+  assert.deepEqual(clampRect({ x: -20, y: -5, width: 30, height: 10 }), {
+    x: 0,
+    y: 0,
+    width: 30,
+    height: 10,
+  });
+});
+
+test("clampRect enforces the minimum size and caps at the full frame", () => {
+  const tiny = clampRect({ x: 50, y: 50, width: 0.4, height: 0 }, { minWidth: 3, minHeight: 4 });
+  assert.equal(tiny.width, 3);
+  assert.equal(tiny.height, 4);
+
+  const huge = clampRect({ x: 10, y: 10, width: 250, height: 180 });
+  assert.deepEqual(huge, { x: 0, y: 0, width: 100, height: 100 });
+});
+
+test("clampRect does not mutate its input", () => {
+  const rect = { x: 95, y: 92, width: 22, height: 14 };
+  clampRect(rect);
+  assert.deepEqual(rect, { x: 95, y: 92, width: 22, height: 14 });
+});
+
+// --- percentWithin ---------------------------------------------------------
+
+test("percentWithin converts a pixel rect into frame percentages", () => {
+  // A letterboxed frame: the reference box does not start at the viewport origin, which is
+  // the case the old `e.layerX` code got wrong.
+  const frame = { x: 40, y: 100, width: 800, height: 450 };
+  assert.deepEqual(percentWithin({ x: 140, y: 145, width: 200, height: 90 }, frame), {
+    x: 12.5,
+    y: 10,
+    width: 25,
+    height: 20,
+  });
+});
+
+test("percentWithin round-trips through the frame origin", () => {
+  const frame = { x: 227.61, y: 0, width: 1444.78, height: 812.69 };
+  const original = { x: 12.5, y: 30, width: 22, height: 14 };
+  const pixels = {
+    x: frame.x + (original.x / 100) * frame.width,
+    y: frame.y + (original.y / 100) * frame.height,
+    width: (original.width / 100) * frame.width,
+    height: (original.height / 100) * frame.height,
+  };
+  const roundTripped = percentWithin(pixels, frame);
+  for (const key of Object.keys(original)) {
+    assert.ok(
+      Math.abs(roundTripped[key] - original[key]) < 1e-9,
+      `${key} drifted: ${roundTripped[key]} vs ${original[key]}`,
+    );
+  }
+});
+
+test("percentWithin returns zeros rather than NaN for an unlaid-out box", () => {
+  assert.deepEqual(percentWithin({ x: 5, y: 5, width: 10, height: 10 }, { x: 0, y: 0, width: 0, height: 0 }), {
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+  });
+});
+
+// --- resizeRect ------------------------------------------------------------
+//
+// Shared by the blur rig and the comment box, which is the point: one definition of what
+// dragging a corner means, so the two cannot drift apart.
+
+const ORIGIN = { x: 20, y: 30, width: 40, height: 20 };
+
+test("resizeRect drags the bottom-right corner and leaves the origin alone", () => {
+  const resized = resizeRect(ORIGIN, { x: 80, y: 70 });
+  assert.deepEqual(resized, { x: 20, y: 30, width: 60, height: 40 });
+});
+
+test("resizeRect drags the top-left corner and holds the far corner still", () => {
+  const resized = resizeRect(ORIGIN, { x: 10, y: 25 }, { movesLeft: true, movesTop: true });
+  assert.deepEqual(resized, { x: 10, y: 25, width: 50, height: 25 });
+  assert.equal(resized.x + resized.width, ORIGIN.x + ORIGIN.width, "right edge moved");
+  assert.equal(resized.y + resized.height, ORIGIN.y + ORIGIN.height, "bottom edge moved");
+});
+
+test("resizeRect resizes on one axis at a time for the other two corners", () => {
+  const topRight = resizeRect(ORIGIN, { x: 75, y: 35 }, { movesTop: true });
+  assert.equal(topRight.x, ORIGIN.x, "left edge should be anchored");
+  assert.deepEqual(topRight, { x: 20, y: 35, width: 55, height: 15 });
+
+  const bottomLeft = resizeRect(ORIGIN, { x: 30, y: 60 }, { movesLeft: true });
+  assert.equal(bottomLeft.y, ORIGIN.y, "top edge should be anchored");
+  assert.deepEqual(bottomLeft, { x: 30, y: 30, width: 30, height: 30 });
+});
+
+test("resizeRect refuses to invert when the pointer crosses the anchored edge", () => {
+  // A negative width in a style is dropped, so the box would freeze at its old size while the
+  // pointer kept going -- it would look like the handle had come off.
+  const limits = { minWidth: 3, minHeight: 4 };
+  const pastLeft = resizeRect(ORIGIN, { x: 95, y: 95 }, { movesLeft: true, movesTop: true, ...limits });
+  assert.equal(pastLeft.width, 3);
+  assert.equal(pastLeft.height, 4);
+  assert.equal(pastLeft.x, 57, "pinned just short of the anchored right edge");
+  assert.equal(pastLeft.y, 46);
+
+  const pastRight = resizeRect(ORIGIN, { x: 5, y: 5 }, limits);
+  assert.deepEqual(pastRight, { x: 20, y: 30, width: 3, height: 4 });
+});
+
+test("resizeRect does not mutate its input", () => {
+  const origin = { ...ORIGIN };
+  resizeRect(origin, { x: 5, y: 5 }, { movesLeft: true, movesTop: true });
+  assert.deepEqual(origin, ORIGIN);
 });

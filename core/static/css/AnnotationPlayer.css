@@ -185,8 +185,55 @@
   inset: 0;
 }
 
+/* In the editor the controls sit *below* the picture instead of over it.
+   The bottom of the frame is where subtitles and burned-in captions live - the single most common
+   thing a blur has to cover - and while the controls overlaid it, that strip could not be edited
+   at all: .video-controls is z-index 20 against this overlay's 10, so it took every pointer event
+   there, and the rig's bottom handles were unreachable.
+   Raising the overlay above the controls instead would have been worse: the overlay accepts
+   pointer events while a blur is selected, so it would have swallowed the scrubber - and scrubbing
+   between points is the whole multi-point workflow.
+   Laying the wrapper out as a column costs no hard-coded controls height. The video element
+   shrinks, _syncOverlayToFrame recomputes the overlay from the video's own box, and every stored
+   percentage stays a percentage of the visible picture. */
+.annotation-player-container[data-editor-mode="true"] .video-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.annotation-player-container[data-editor-mode="true"] .video-wrapper video {
+  flex: 1;
+  /* A flex item defaults to min-height: auto, which for a replaced element is its intrinsic
+     height - it would refuse to shrink and push the controls back out of view. */
+  min-height: 0;
+  height: auto;
+}
+
+/* Back into normal flow, so the controls take their natural height below the video. Their
+   popover menus are positioned against their own wrappers, not this element, so they are
+   unaffected. The margin preserves the 12px inset the absolute positioning gave them. */
+.annotation-player-container[data-editor-mode="true"] .video-controls {
+  position: static;
+  margin: 0 12px;
+}
+
 .annotation-box .blur {
   pointer-events: none;
+}
+
+/* Stacking order *within* the overlay, stated rather than left to DOM order.
+   A blur exists to conceal the picture, so it belongs at the bottom of the annotation stack; a
+   comment is text the viewer has to be able to read, so it goes above. Until this was explicit,
+   the two were both position:absolute with no z-index, which meant whichever annotation
+   applyAnnotations happened to append last won - so a blur could cover a comment purely because
+   of the order the annotations came back in.
+   The overlay as a whole stays at z-index 10, below the video controls at 20. */
+.annotation-box .blur-position {
+  z-index: 1;
+}
+
+.annotation-box .comment-text-box {
+  z-index: 2;
 }
 
 .annotation-box .blur.black {
@@ -204,24 +251,15 @@
   backdrop-filter: blur(var(--blur-radius, 80px));  /* eslint-disable-line css/use-baseline */
 }
 
+/* The one place the overlay accepts input, and only while a blur is selected in the editor: a
+   drag on empty frame is how a new blur region gets framed. Selection chrome and the drag handles
+   themselves live on #blur-edit-rig in editor.css, so nothing student-facing is affected.
+
+   `.blur-position` above stays pointer-events: none. Cursor and hover styling for it used to live
+   here, back when the editor tried to drag the player's own blur div. */
 .annotation-box-blur-editor {
     pointer-events: auto;
-}
-
-.blur-position:hover {
-    cursor: move;
-}
-
-.blur-position .dragging {
-    cursor: grabbing;
-}
-
-.active-blur-position {
-    z-index: 1;
-}
-
-.annotation-box-blur-editor {
-    display: block;
+    cursor: crosshair;
 }
 
 /* Video Controls */
