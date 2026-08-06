@@ -252,49 +252,82 @@ test("percentWithin returns zeros rather than NaN for an unlaid-out box", () => 
 
 // --- resizeRect ------------------------------------------------------------
 //
-// Shared by the blur rig and the comment box, which is the point: one definition of what
-// dragging a corner means, so the two cannot drift apart.
+// Shared by the blur rig and the comment box, which is the point: one definition of what dragging
+// an edge means, so the two cannot drift apart. Each edge is named independently, so a corner
+// handle and an edge handle are the same call with different flags.
 
 const ORIGIN = { x: 20, y: 30, width: 40, height: 20 };
+// The rig's eight handles, as BlurEditor's HANDLES declares them.
+const CORNER_SE = { movesRight: true, movesBottom: true };
+const CORNER_NW = { movesLeft: true, movesTop: true };
+const CORNER_NE = { movesRight: true, movesTop: true };
+const CORNER_SW = { movesLeft: true, movesBottom: true };
 
 test("resizeRect drags the bottom-right corner and leaves the origin alone", () => {
-  const resized = resizeRect(ORIGIN, { x: 80, y: 70 });
+  const resized = resizeRect(ORIGIN, { x: 80, y: 70 }, CORNER_SE);
   assert.deepEqual(resized, { x: 20, y: 30, width: 60, height: 40 });
 });
 
 test("resizeRect drags the top-left corner and holds the far corner still", () => {
-  const resized = resizeRect(ORIGIN, { x: 10, y: 25 }, { movesLeft: true, movesTop: true });
+  const resized = resizeRect(ORIGIN, { x: 10, y: 25 }, CORNER_NW);
   assert.deepEqual(resized, { x: 10, y: 25, width: 50, height: 25 });
   assert.equal(resized.x + resized.width, ORIGIN.x + ORIGIN.width, "right edge moved");
   assert.equal(resized.y + resized.height, ORIGIN.y + ORIGIN.height, "bottom edge moved");
 });
 
-test("resizeRect resizes on one axis at a time for the other two corners", () => {
-  const topRight = resizeRect(ORIGIN, { x: 75, y: 35 }, { movesTop: true });
+test("resizeRect anchors the opposite edge for the other two corners", () => {
+  const topRight = resizeRect(ORIGIN, { x: 75, y: 35 }, CORNER_NE);
   assert.equal(topRight.x, ORIGIN.x, "left edge should be anchored");
   assert.deepEqual(topRight, { x: 20, y: 35, width: 55, height: 15 });
 
-  const bottomLeft = resizeRect(ORIGIN, { x: 30, y: 60 }, { movesLeft: true });
+  const bottomLeft = resizeRect(ORIGIN, { x: 30, y: 60 }, CORNER_SW);
   assert.equal(bottomLeft.y, ORIGIN.y, "top edge should be anchored");
   assert.deepEqual(bottomLeft, { x: 30, y: 30, width: 30, height: 30 });
+});
+
+// The four edge handles. This is the case an "else it must be the opposite edge" model cannot
+// express at all: with movesRight derived from !movesLeft, every handle is a corner and the
+// untouched axis is dragged along with the one the user grabbed.
+test("resizeRect leaves the vertical axis alone for the left and right edges", () => {
+  const east = resizeRect(ORIGIN, { x: 75, y: 999 }, { movesRight: true });
+  assert.deepEqual(east, { x: 20, y: 30, width: 55, height: 20 });
+
+  const west = resizeRect(ORIGIN, { x: 10, y: -999 }, { movesLeft: true });
+  assert.deepEqual(west, { x: 10, y: 30, width: 50, height: 20 });
+});
+
+test("resizeRect leaves the horizontal axis alone for the top and bottom edges", () => {
+  const south = resizeRect(ORIGIN, { x: 999, y: 70 }, { movesBottom: true });
+  assert.deepEqual(south, { x: 20, y: 30, width: 40, height: 40 });
+
+  const north = resizeRect(ORIGIN, { x: -999, y: 25 }, { movesTop: true });
+  assert.deepEqual(north, { x: 20, y: 25, width: 40, height: 25 });
+});
+
+test("resizeRect with no edges named is the identity", () => {
+  assert.deepEqual(resizeRect(ORIGIN, { x: 99, y: 99 }), { ...ORIGIN });
 });
 
 test("resizeRect refuses to invert when the pointer crosses the anchored edge", () => {
   // A negative width in a style is dropped, so the box would freeze at its old size while the
   // pointer kept going -- it would look like the handle had come off.
   const limits = { minWidth: 3, minHeight: 4 };
-  const pastLeft = resizeRect(ORIGIN, { x: 95, y: 95 }, { movesLeft: true, movesTop: true, ...limits });
+  const pastLeft = resizeRect(ORIGIN, { x: 95, y: 95 }, { ...CORNER_NW, ...limits });
   assert.equal(pastLeft.width, 3);
   assert.equal(pastLeft.height, 4);
   assert.equal(pastLeft.x, 57, "pinned just short of the anchored right edge");
   assert.equal(pastLeft.y, 46);
 
-  const pastRight = resizeRect(ORIGIN, { x: 5, y: 5 }, limits);
+  const pastRight = resizeRect(ORIGIN, { x: 5, y: 5 }, { ...CORNER_SE, ...limits });
   assert.deepEqual(pastRight, { x: 20, y: 30, width: 3, height: 4 });
+
+  // And an edge handle collapses only its own axis.
+  const pastTop = resizeRect(ORIGIN, { x: 40, y: 95 }, { movesTop: true, ...limits });
+  assert.deepEqual(pastTop, { x: 20, y: 46, width: 40, height: 4 });
 });
 
 test("resizeRect does not mutate its input", () => {
   const origin = { ...ORIGIN };
-  resizeRect(origin, { x: 5, y: 5 }, { movesLeft: true, movesTop: true });
+  resizeRect(origin, { x: 5, y: 5 }, CORNER_NW);
   assert.deepEqual(origin, ORIGIN);
 });

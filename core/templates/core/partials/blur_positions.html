@@ -1,53 +1,126 @@
 {% load static %}
 <div id="blur-positions-wrapper">
     <h4>Blur Points</h4>
-    <div id="positions-list">
-        <div class="position-headers">
-            <div></div>
-            <p>Time (s)</p>
-            <p>Size (%)</p>
-            <div></div>
-            <div></div>
-        </div>
-    {% for position in item_positions %}
-        <div class="position-entry"
-             data-position-id="{{position.pk}}"
-             data-time="{{position.time}}"
-             data-x="{{position.x}}"
-             data-y="{{position.y}}"
-             data-width="{{position.width}}"
-             data-height="{{position.height}}">
-            <p class="position-counter">
-                {{forloop.counter}}.
-            </p>
-            <div class="position-input-group">
-                {% if forloop.counter == 1 %}
+    {% comment %}
+       The method, not the mechanism. A blur always arrives with a box already on the frame, so
+       there is nothing to create and nothing to add - the user only ever moves the one that is
+       there. Saying so is what stops "blur point" being read as "another blur".
+
+       The procedure for a moving target is bisection, and it is worth spelling out because it
+       converges fast and is not obvious: the worst error after two points is always somewhere in
+       between, so fixing the worst spot repeatedly is the shortest route to a blur that tracks.
+    {% endcomment %}
+    <p class="blur-positions-help">
+        Drag the blur on the video to move it, or its handles to resize it. For moving targets,
+        adjust the blur at the beginning, then adjust the blur at the end, then repeatedly find
+        where the blur is farthest from the target and adjust its position there.
+    </p>
+    {% comment %}
+       #positions-list is the scroll container, not the table: the table has seven real columns and
+       the panel is never wide enough for them, so it scrolls sideways. tabindex makes it reachable
+       by keyboard, which is both the only way to scroll it without a mouse and what axe requires of
+       any scrollable region.
+
+       It is also the only part of this wrapper that a save replaces - the help text above and the
+       status line below survive, which is what lets that status line work as a live region at all.
+       A live region removed and re-inserted with its message already inside is not announced.
+    {% endcomment %}
+    <div id="positions-list" tabindex="0" role="group" aria-label="Blur points">
+        {% comment %}
+           A real table, because this is tabular data: each row is one point and each column is one
+           of its values, and the header cells are what tell a screen reader which value a given
+           field holds. That also rules out laying it out with `display: grid` - changing `display`
+           on a table element strips its implicit ARIA role in every major browser, which would
+           leave the markup semantic and the semantics gone. `table-layout: fixed` does the column
+           alignment the grid used to.
+        {% endcomment %}
+        <table id="blur-positions-table">
+            <colgroup>
+                <col class="position-column-number">
+                <col span="5">
+                <col class="position-column-actions">
+            </colgroup>
+            <thead>
+                <tr>
+                    {% comment %}
+                       td, not th, for the two columns that have no heading: an empty th is a header
+                       that names nothing, and axe reports it as one.
+                    {% endcomment %}
+                    <td></td>
+                    <th scope="col">Time (s)</th>
+                    <th scope="col">X (%)</th>
+                    <th scope="col">Y (%)</th>
+                    <th scope="col">W (%)</th>
+                    <th scope="col">H (%)</th>
+                    <td></td>
+                </tr>
+            </thead>
+            <tbody>
+            {% for position in item_positions %}
                 {% comment %}
-                   The first point always sits at the blur's start time, so its time is derived
-                   rather than entered - readonly (not disabled) so it still shows the real
-                   value instead of a placeholder that cannot be parsed.
+                   data-* is the client's source of truth for this point's geometry - BlurEditor
+                   reads these rows rather than the player's blur div, so the player is free to
+                   rebuild that div whenever the playhead leaves the blur's window. The inputs are
+                   views onto the same values. floatformat matches the 2dp that
+                   BlurAnnotationPosition.save() now stores, so rows written before that still read
+                   cleanly here.
                 {% endcomment %}
-                <input class="position-time-input" name="position-time" type="text" value="{{position.time}}" readonly
-                       title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
-                       aria-label="position time in seconds (follows the blur's start time)">
-                {% else %}
-                <input class="position-time-input" name="position-time" type="text" value="{{position.time}}" aria-label="position time in seconds">
-                {% endif %}
-            </div>
-            <div class="position-input-group">
-                <label for="position-width">W</label>
-                <input class="position-width-input" name="position-width" type="text" value="{{position.width}}" aria-label="position width as a percentage of the video window">
-            </div>
-            <div class="position-input-group">
-                <label for="position-height">H</label>
-                <input class="position-height-input" name="position-height" type="text" value="{{position.height}}" aria-label="position height as a percentage of the video window">
-            </div>
-            {% if forloop.counter != 1 %}
-            <button class="blur-position-delete-button">
-                <img src="{% static 'img/white-trash-can.svg' %}"></img>
-            </button>
-            {% endif %}
-        </div>
-    {% endfor %}
+                <tr class="position-entry"
+                    data-position-id="{{position.pk}}"
+                    data-time="{{position.time|floatformat:2}}"
+                    data-x="{{position.x|floatformat:2}}"
+                    data-y="{{position.y|floatformat:2}}"
+                    data-width="{{position.width|floatformat:2}}"
+                    data-height="{{position.height|floatformat:2}}">
+                    <th scope="row" class="position-counter">{{forloop.counter}}.</th>
+                    <td class="position-input-group">
+                        {% comment %}
+                           No `name` on any of these. They are saved one at a time by BlurEditor,
+                           straight to the blur-position endpoint; leaving them in the annotation
+                           form's FormData would collapse every row's value into a single key and
+                           send whichever row happened to be last.
+
+                           Each still carries an aria-label as well as sitting under a column
+                           header, because the header alone does not say which point the field
+                           belongs to - and five identically-labelled fields per row is exactly the
+                           case where that matters.
+                        {% endcomment %}
+                        {% if forloop.counter == 1 %}
+                        {% comment %}
+                           The first point always sits at the blur's start time, so its time is
+                           derived rather than entered - readonly (not disabled) so it still shows
+                           the real value instead of a placeholder that cannot be parsed.
+                        {% endcomment %}
+                        <input class="position-time-input" type="text" value="{{position.time|floatformat:2}}" readonly
+                               title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
+                               aria-label="point {{forloop.counter}} time in seconds (follows the blur's start time)">
+                        {% else %}
+                        <input class="position-time-input" type="text" value="{{position.time|floatformat:2}}" aria-label="point {{forloop.counter}} time in seconds">
+                        {% endif %}
+                    </td>
+                    <td class="position-input-group">
+                        <input class="position-x-input" type="text" value="{{position.x|floatformat:2}}" aria-label="point {{forloop.counter}} x as a percentage of the video window, from the left edge">
+                    </td>
+                    <td class="position-input-group">
+                        <input class="position-y-input" type="text" value="{{position.y|floatformat:2}}" aria-label="point {{forloop.counter}} y as a percentage of the video window, from the top edge">
+                    </td>
+                    <td class="position-input-group">
+                        <input class="position-width-input" type="text" value="{{position.width|floatformat:2}}" aria-label="point {{forloop.counter}} width as a percentage of the video window">
+                    </td>
+                    <td class="position-input-group">
+                        <input class="position-height-input" type="text" value="{{position.height|floatformat:2}}" aria-label="point {{forloop.counter}} height as a percentage of the video window">
+                    </td>
+                    <td>
+                        {% if forloop.counter != 1 %}
+                        <button type="button" class="blur-position-delete-button" aria-label="delete blur point {{forloop.counter}}">
+                            <img src="{% static 'img/white-trash-can.svg' %}" alt=""></img>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
+    <p id="blur-position-status" class="blur-position-status" role="status" aria-live="polite"></p>
 </div>

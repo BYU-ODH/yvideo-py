@@ -24,8 +24,20 @@
         <img class="track-item-type-icon" src="{% static item.annotation_type|annotation_icon %}" alt="" aria-hidden="true">
         <span class="track-item-label">{{ item.name }}</span>
         {% if item.annotation_type == "blur" %}
+        {% comment %}
+           One dot per blur point after the first, placed along the bar by placeLocators in
+           BlurEditor.js. Focusable and labelled because these are the only handle a keyboard user
+           has on an individual point: Enter seeks to it, Delete removes it, and once the blur is
+           selected they can be dragged to retime it.
+        {% endcomment %}
         {% for position_locator in item.get_position_locators %}
-            <div class="blur-position-locator" data-position-id="{{position_locator.id}}" data-position-time="{{position_locator.time}}">
+            <div class="blur-position-locator"
+                 data-position-id="{{position_locator.id}}"
+                 data-position-time="{{position_locator.time}}"
+                 tabindex="0"
+                 role="button"
+                 aria-label="blur point at {{position_locator.time}} seconds"
+                 title="Blur point at {{position_locator.time}}s. Drag to retime, Delete to remove.">
             </div>
         {% endfor %}
         {% endif %}

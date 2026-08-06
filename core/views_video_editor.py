@@ -683,6 +683,10 @@ def upsert_blur_position(request, annotation_id):
             blur_annotation=annotation, time=position_time
         )
 
+    # Recorded before save() gives it a pk. Only this side of the request knows whether a drag
+    # added a point or moved one, and the editor has to tell the user which of the two happened.
+    created = position.pk is None
+
     for field, value in geometry.items():
         setattr(position, field, value)
 
@@ -708,7 +712,21 @@ def upsert_blur_position(request, annotation_id):
     )
     if item_and_positions_html is False:
         return HttpResponseServerError()
-    return JsonResponse(item_and_positions_html)
+    # Read back rather than reported from the request: the time is clamped into the blur's window
+    # and may snap onto a nearby point, and ensure_first_position above can retime this very row.
+    # The editor puts this in front of the user, so it has to be the time that was actually stored.
+    saved_time = (
+        BlurAnnotationPosition.objects.filter(pk=position.pk)
+        .values_list("time", flat=True)
+        .first()
+    )
+    return JsonResponse(
+        {
+            **item_and_positions_html,
+            "created": created,
+            "time": position_time if saved_time is None else saved_time,
+        }
+    )
 
 
 @require_http_methods(["DELETE"])

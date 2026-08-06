@@ -7,27 +7,39 @@
 // rebuild its blur div whenever the playhead leaves the annotation's window - the rig simply
 // reattaches (see _ensureRig).
 //
+// A blur always arrives with a box already on the frame (BlurAnnotation.ensure_first_position), so
+// there is nothing here that creates one. Every gesture moves or resizes the box that is there.
+// That is the whole metaphor, and it is deliberate: gestures that read as "add a blur" are what
+// left users of the old system unable to work out how to get two blurs on screen at once, since
+// the thing being added was really a point on one blur's path.
+//
 // One rule governs every gesture: a commit says "the blur belongs here, at the time I am looking
 // at". It never names a position id. The server decides whether that is a new point or an
 // existing one, because only the server knows where the stored points are. That is what turns
-// "drag the box at a new time" into an added point rather than a silent retime of whichever
+// "move the box at a new time" into an added point rather than a silent retime of whichever
 // point happened to be selected, and it is required now that the rendered box is usually a tween
 // between two points and so has no single owning row.
 
 import { clampRect, percentWithin, rectAtTime, resizeRect } from "./video-geometry.js";
-import { getCSRFToken } from "./utils.js";
+import { createElementFromHTMLString, getCSRFToken } from "./utils.js";
 
 // Mirrors BLUR_MIN_WIDTH / BLUR_MIN_HEIGHT in core/models.py, which remains the authority - the
 // server clamps whatever it is sent. Matching here is what keeps the box from jumping on release.
 const MIN_WIDTH = 3;
 const MIN_HEIGHT = 4;
 
-// The box a plain click drops, matching BLUR_DEFAULT_GEOMETRY's size in core/models.py.
-const DEFAULT_WIDTH = 20;
-const DEFAULT_HEIGHT = 15;
-
-// Under this much travel the user was pointing at something, not framing it.
-const DRAW_THRESHOLD_PX = 8;
+// The eight handles, and which edges each one drags. Corners move one edge on each axis; the four
+// midpoints move a single edge, so a box can be adjusted in one axis without disturbing the other.
+const HANDLES = [
+  ["nw", { movesLeft: true, movesTop: true }],
+  ["n", { movesTop: true }],
+  ["ne", { movesRight: true, movesTop: true }],
+  ["e", { movesRight: true }],
+  ["se", { movesRight: true, movesBottom: true }],
+  ["s", { movesBottom: true }],
+  ["sw", { movesLeft: true, movesBottom: true }],
+  ["w", { movesLeft: true }],
+];
 
 // Mirrors BLUR_SNAP_SECONDS in core/models.py: a playhead within a frame or two of a stored point
 // is editing *that point*, not the moment between points. The server applies the same rule when
@@ -36,6 +48,30 @@ const DRAW_THRESHOLD_PX = 8;
 const SNAP_SECONDS = 0.05;
 
 const CLAMP_LIMITS = { minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT };
+
+// Arrow-key nudges, in percent of the frame. The small step is about a pixel or two on a desktop
+// frame - fine enough to tuck an edge against a subject without a mouse.
+const NUDGE_PERCENT = 0.5;
+const NUDGE_PERCENT_LARGE = 5;
+// How long the box has to sit still before a nudge is written. Arrow keys arrive in bursts, and a
+// request per keystroke would both flood the endpoint and store every intermediate position as
+// though the user had meant to stop there.
+const NUDGE_COMMIT_MS = 400;
+// `,` and `.` step the playhead by this much. The arrow keys the player uses for frame-stepping
+// belong to the box once the rig has focus, so this is what replaces them.
+const SCRUB_SECONDS = 0.1;
+// Two ways to say "the same instant": times are stored to 2dp, so anything closer than half of
+// that last digit is the same time expressed differently, not a change.
+const SAME_TIME_SECONDS = 0.005;
+// The panel's editable fields, and which value each one carries.
+const POSITION_INPUTS = [
+  ["position-time-input", "time"],
+  ["position-x-input", "x"],
+  ["position-y-input", "y"],
+  ["position-width-input", "width"],
+  ["position-height-input", "height"],
+];
+const POSITION_INPUT_SELECTOR = POSITION_INPUTS.map(([name]) => `.${name}`).join(", ");
 
 function applyRect(element, rect) {
   element.style.left = `${rect.x}%`;
@@ -58,29 +94,7 @@ function pointerPercent(event, frame) {
   };
 }
 
-// --- the three gestures, as pure functions of where the pointer went ---------
-
-// Drag a rectangle out of nothing, the gesture every screenshot tool has trained users on. A
-// gesture too small to be a drag drops a default-size box centered on the point instead of a
-// sliver, so a plain click is a usable shortcut rather than a mistake to undo.
-function drawnRect(startPoint, currentPoint, threshold) {
-  const width = Math.abs(currentPoint.x - startPoint.x);
-  const height = Math.abs(currentPoint.y - startPoint.y);
-  if (width < threshold.x && height < threshold.y) {
-    return {
-      x: startPoint.x - DEFAULT_WIDTH / 2,
-      y: startPoint.y - DEFAULT_HEIGHT / 2,
-      width: DEFAULT_WIDTH,
-      height: DEFAULT_HEIGHT,
-    };
-  }
-  return {
-    x: Math.min(startPoint.x, currentPoint.x),
-    y: Math.min(startPoint.y, currentPoint.y),
-    width,
-    height,
-  };
-}
+// --- the two gestures, as pure functions of where the pointer went -----------
 
 // Translating by the pointer's travel, rather than centering the box on the pointer, is what lets
 // a user grab a corner of the box and keep the same grip on it.
@@ -151,20 +165,33 @@ export class BlurEditor {
     // Non-null only while a pointer is down. Its presence stops _render from overwriting the
     // geometry the user is actively dragging.
     this.gesture = null;
+    // A keyboard nudge that has been painted but not written yet - see _nudge. Held separately
+    // from `gesture` because the two end differently: a cancelled pointer drag is discarded, but a
+    // nudge the user can see on screen is an edit they have made, so it is flushed.
+    this.nudge = null;
+    // True only while a timeline dot is being dragged, so the track item's own HTML5 drag can be
+    // suppressed for the duration.
+    this.draggingLocator = false;
 
-    this._onBoxPointerDown = this._onBoxPointerDown.bind(this);
     this._onRigPointerDown = this._onRigPointerDown.bind(this);
+    this._onRigKeyDown = this._onRigKeyDown.bind(this);
     this._render = this._render.bind(this);
 
     // The rig tracks the playhead so it stays on top of the blur it is editing, which is also
     // what makes it show the interpolated geometry between two points.
     this.video.addEventListener("timeupdate", this._render);
     this.video.addEventListener("seeked", this._render);
+    // A pending nudge carries the time it was made at, so a seek can safely write it out - and
+    // doing so is what lets the rig go back to following the playhead instead of holding a rect
+    // from a frame that is no longer on screen.
+    this.video.addEventListener("seeking", () => this._flushNudge());
 
-    // Delegated listeners, attached once. Every save replaces the panel and the track item
-    // wholesale, so per-element listeners would need re-attaching each time and any miss would
-    // leave a dead control behind.
+    // Delegated listeners, attached once. Every save replaces the panel rows and the track item,
+    // so per-element listeners would need re-attaching each time and any miss would leave a dead
+    // control behind.
     document.addEventListener("click", this._onPanelClick.bind(this));
+    document.addEventListener("change", this._onPanelInputChange.bind(this));
+    document.addEventListener("keydown", this._onPanelInputKeyDown.bind(this));
     if (this.timelineWrapper) {
       // Capture phase, deliberately. #timeline-wrapper is an *ancestor* of the track items, so a
       // bubbling listener here would run only after the item's own click handler had already
@@ -172,6 +199,28 @@ export class BlurEditor {
       this.timelineWrapper.addEventListener(
         "click",
         this._onLocatorClick.bind(this),
+        true,
+      );
+      this.timelineWrapper.addEventListener(
+        "pointerdown",
+        this._onLocatorPointerDown.bind(this),
+        true,
+      );
+      this.timelineWrapper.addEventListener(
+        "keydown",
+        this._onLocatorKeyDown.bind(this),
+        true,
+      );
+      // A dot sits inside a `draggable="true"` track item, so if the native drag ever escapes the
+      // dot gesture it moves the whole annotation along the timeline instead of retiming one point
+      // - a far more destructive outcome than the one the user asked for. Taking the pointer
+      // (setPointerCapture, plus preventDefault on pointerdown) is what suppresses it in practice;
+      // this is the explicit backstop, since neither of those is specified to.
+      this.timelineWrapper.addEventListener(
+        "dragstart",
+        (event) => {
+          if (this.draggingLocator) event.preventDefault();
+        },
         true,
       );
     }
@@ -183,7 +232,6 @@ export class BlurEditor {
     this.annotationId = String(annotationId);
     this._readWindow();
     this.annotationBox.classList.add("annotation-box-blur-editor");
-    this.annotationBox.addEventListener("pointerdown", this._onBoxPointerDown);
 
     const requested = this.pendingSeek;
     this.pendingSeek = null;
@@ -196,16 +244,19 @@ export class BlurEditor {
       this.video.currentTime < this.startTime ||
       this.video.currentTime > this.endTime
     ) {
-      // There has to be something on screen to edit. With the playhead outside the blur's window
-      // the frame is empty and the first gesture would have nothing to aim at.
+      // There has to be a box on screen to move. With the playhead outside the blur's window the
+      // frame is empty and there is nothing to grab.
       this.video.currentTime = this.startTime;
     }
     this._render();
   }
 
   deselect() {
+    // Flushed, not cancelled: a nudge is already visible on screen, so discarding it would throw
+    // away an edit the user made. _commit captures the annotation id synchronously, so this is
+    // still addressed to the blur being deselected.
+    this._flushNudge();
     this.gesture?.cancel();
-    this.annotationBox.removeEventListener("pointerdown", this._onBoxPointerDown);
     // Toggling the one class, rather than assigning className, so the player's
     // annotation-box-showing-message state survives a selection change.
     this.annotationBox.classList.remove("annotation-box-blur-editor");
@@ -263,7 +314,7 @@ export class BlurEditor {
     return rectAtTime(this._positions(), this.video.currentTime);
   }
 
-  // The stored point the playhead is sitting on, within the snap window, or null between points.
+  // The stored point `time` is sitting on, within the snap window, or null between points.
   //
   // This is what a gesture has to be measured against, and it is not the same thing as
   // _currentRect(). Parked 20ms past a point, the rig shows the interpolated rect for *that*
@@ -272,8 +323,10 @@ export class BlurEditor {
   // which walked it a little toward its neighbour. The next drag then started from the moved
   // value and walked a little further, so the box visibly crept in width and height on every
   // release, in whichever direction the neighbouring point happened to lie.
-  _pointAtPlayhead() {
-    const time = this.video.currentTime;
+  //
+  // Takes a time rather than reading the playhead, because a keyboard nudge is written after a
+  // delay and has to be filed under the moment it was made at, not the one the playhead reached.
+  _pointAt(time) {
     let nearest = null;
     for (const position of this._positions()) {
       const distance = Math.abs(position.time - time);
@@ -287,7 +340,10 @@ export class BlurEditor {
   // Where a gesture starts from: the point being edited, if there is one, otherwise the tween the
   // rig is showing (which a commit will turn into a new point at the playhead).
   _gestureOrigin() {
-    const point = this._pointAtPlayhead();
+    // A nudge that has not been written yet is still what the user can see, so it is what the next
+    // gesture has to build on - otherwise grabbing the box after arrowing it would snap it back.
+    if (this.nudge) return { ...this.nudge.rect };
+    const point = this._pointAt(this.video.currentTime);
     if (!point) return this._currentRect();
     return {
       x: point.x,
@@ -307,25 +363,31 @@ export class BlurEditor {
     rig.tabIndex = 0;
     rig.setAttribute("role", "group");
     rig.setAttribute("aria-label", "Blur region");
-    // Same corner set, and the same CSS, as the comment box's handles.
-    for (const edges of [
-      "resize-point-top resize-point-left",
-      "resize-point-top",
-      "resize-point-left",
-      "",
-    ]) {
+    rig.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown ArrowLeft ArrowRight Comma Period");
+    rig.title =
+      "Drag to move, handles to resize. Arrow keys nudge (Shift for bigger steps); " +
+      ", and . step the video.";
+    for (const [name] of HANDLES) {
       const handle = document.createElement("div");
-      handle.className = `blur-rig-handle resize-point ${edges}`.trim();
+      handle.className = "blur-rig-handle";
+      handle.dataset["handle"] = name;
       rig.appendChild(handle);
     }
     rig.addEventListener("pointerdown", this._onRigPointerDown);
+    rig.addEventListener("keydown", this._onRigKeyDown);
     this.annotationBox.appendChild(rig);
     this.rig = rig;
     return rig;
   }
 
   _paint(rect) {
-    applyRect(this._ensureRig(), rect);
+    const rig = this._ensureRig();
+    applyRect(rig, rect);
+    // There is a rect, so there is something to show. Stated here rather than left to _render
+    // because a gesture can start with the rig hidden - dragging a dot seeks the playhead into the
+    // blur's window - and a gesture that paints an invisible box is indistinguishable from a
+    // broken one.
+    rig.hidden = false;
     // Paint the player's blur too, so a drag previews the blurred result instead of an outline
     // that the blurred pixels lag behind. The player owns that element the rest of the time and
     // recomputes it from stored data on its next pass - which is also what silently undoes a
@@ -335,7 +397,7 @@ export class BlurEditor {
   }
 
   _render() {
-    if (!this.annotationId || this.gesture) return;
+    if (!this.annotationId || this.gesture || this.nudge) return;
     const rig = this._ensureRig();
     const time = this.video.currentTime;
     const rect =
@@ -349,38 +411,21 @@ export class BlurEditor {
     // from the playhead rather than remembered from the last click, so it stays right when the
     // form is reloaded (which replaces the rows, losing any class set on them), when a save
     // rebuilds the panel, and when the user simply scrubs onto a point.
-    this._markPositionActive(this._pointAtPlayhead()?.id);
+    this._markPositionActive(this._pointAt(this.video.currentTime)?.id);
   }
 
   // --- gestures --------------------------------------------------------------
 
-  _onBoxPointerDown(event) {
-    if (!this.annotationId || event.button !== 0 || this.rig?.hidden) return;
-    // Anywhere on the frame that is not the existing box: frame a new region there.
-    const frame = this.annotationBox.getBoundingClientRect();
-    const threshold = {
-      x: (DRAW_THRESHOLD_PX / frame.width) * 100,
-      y: (DRAW_THRESHOLD_PX / frame.height) * 100,
-    };
-    this._beginGesture(event, (startPoint, currentPoint) =>
-      drawnRect(startPoint, currentPoint, threshold),
-    );
-  }
-
   _onRigPointerDown(event) {
     if (!this.annotationId || event.button !== 0) return;
-    // Without this the annotation box would also start a draw underneath the move.
-    event.stopPropagation();
     const origin = this._gestureOrigin();
     if (!origin) return;
 
     const handle = event.target.closest(".blur-rig-handle");
     if (handle) {
-      const options = {
-        movesLeft: handle.classList.contains("resize-point-left"),
-        movesTop: handle.classList.contains("resize-point-top"),
-        ...CLAMP_LIMITS,
-      };
+      const edges = HANDLES.find(([name]) => name === handle.dataset["handle"])?.[1];
+      if (!edges) return;
+      const options = { ...edges, ...CLAMP_LIMITS };
       this._beginGesture(event, (_startPoint, currentPoint) =>
         resizeRect(origin, currentPoint, options),
       );
@@ -402,6 +447,11 @@ export class BlurEditor {
     // the geometry being painted below. Playback is deliberately not resumed afterwards; it
     // would immediately glide the box away from where the user just put it.
     if (!this.video.paused) this.video.pause();
+
+    // Dropped rather than flushed: the gesture starts from the nudged rect (see _gestureOrigin)
+    // and will write it, so writing it separately first would store an intermediate position and
+    // spend a request doing it.
+    this._discardNudge();
 
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
@@ -449,6 +499,111 @@ export class BlurEditor {
     document.addEventListener("keydown", onKeyDown);
   }
 
+  // --- keyboard --------------------------------------------------------------
+
+  // Move the box by `dx`/`dy` percent. Painted at once and written only after the keystrokes stop,
+  // so holding a key glides the box instead of queueing one request and one stored point per
+  // repeat - and so the intermediate positions never become data.
+  _nudge(dx, dy) {
+    // Outside the blur's window the rig is hidden and a draw is refused, so a nudge there would be
+    // an edit to something the user cannot see - which the server would then clamp onto whichever
+    // end of the window is nearest.
+    if (!this.rig || this.rig.hidden) return;
+    const origin = this._gestureOrigin();
+    if (!origin) return;
+
+    const rect = clampRect(
+      { x: origin.x + dx, y: origin.y + dy, width: origin.width, height: origin.height },
+      CLAMP_LIMITS,
+    );
+    this._paint(rect);
+
+    // Held against _render for as long as more keys may arrive: a timeupdate in the gap would
+    // otherwise repaint from the stored points and undo the nudge halfway through it.
+    //
+    // The time is captured now, not read at flush time. A nudge describes the frame on screen when
+    // the key was pressed, and the playhead can move in the 400ms before it is written - by a
+    // click on a panel row, by playback, by anything. Carrying the time is what keeps the geometry
+    // and the moment it belongs to together.
+    if (this.nudge) clearTimeout(this.nudge.timer);
+    this.nudge = {
+      rect,
+      time: this.nudge ? this.nudge.time : Math.round(this.video.currentTime * 100) / 100,
+      timer: setTimeout(() => this._flushNudge(), NUDGE_COMMIT_MS),
+    };
+  }
+
+  _flushNudge() {
+    const pending = this.nudge;
+    if (!pending) return;
+    this._discardNudge();
+    this._commit(pending.rect, { time: pending.time });
+  }
+
+  /** Forget a pending nudge without writing it. Does not repaint - callers decide that. */
+  _discardNudge() {
+    if (!this.nudge) return;
+    clearTimeout(this.nudge.timer);
+    this.nudge = null;
+  }
+
+  _onRigKeyDown(event) {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const step = event.shiftKey ? NUDGE_PERCENT_LARGE : NUDGE_PERCENT;
+
+    switch (event.key) {
+      case "ArrowLeft":
+        this._nudge(-step, 0);
+        break;
+      case "ArrowRight":
+        this._nudge(step, 0);
+        break;
+      case "ArrowUp":
+        this._nudge(0, -step);
+        break;
+      case "ArrowDown":
+        this._nudge(0, step);
+        break;
+      case ",":
+        this._scrub(-SCRUB_SECONDS);
+        break;
+      case ".":
+        this._scrub(SCRUB_SECONDS);
+        break;
+      case "Enter":
+        // Writes a nudge without waiting out the commit delay. There is nothing for Enter to do on
+        // a box sitting still: a point exists wherever the box has been adjusted, so "commit the
+        // current position" and "do nothing" are the same instruction.
+        this._flushNudge();
+        break;
+      case "Escape":
+        this._discardNudge();
+        this._render();
+        this.rig?.blur();
+        break;
+      default:
+        return;
+    }
+
+    // Every key handled above is one the player also binds, from a listener on `document` that
+    // only steps aside for inputs and textareas. Without this, arrowing the box would also seek
+    // the video or change the volume underneath it.
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  _scrub(delta) {
+    // Flushed first, because _commit reads the playhead to decide which point a write lands on -
+    // and the nudge belongs to the frame the user was looking at, not the one they are moving to.
+    this._flushNudge();
+    // Clamped to the blur's own window: scrubbing from the rig is for finding the next moment
+    // *within* this blur, and leaving the window would just hide the thing being edited.
+    this.video.currentTime = Math.min(
+      this.endTime,
+      Math.max(this.startTime, this.video.currentTime + delta),
+    );
+  }
+
   // --- persistence -----------------------------------------------------------
 
   /**
@@ -464,23 +619,30 @@ export class BlurEditor {
     const annotationId = this.annotationId;
     if (!annotationId) return false;
 
+    // The moment this write is about: whatever the caller named, or the playhead for a gesture on
+    // the frame.
+    const requested =
+      time !== undefined ? time : Math.round(this.video.currentTime * 100) / 100;
     // The point's own time when one is being edited, so client and server cannot disagree about
     // which moment this write belongs to. Sending the raw playhead and letting the server snap it
     // meant the geometry described one instant and was filed under another.
-    const editing = positionId === undefined ? this._pointAtPlayhead() : null;
+    const editing = positionId === undefined ? this._pointAt(requested) : null;
     const body = {
-      time:
-        time !== undefined
-          ? time
-          : editing
-            ? editing.time
-            : Math.round(this.video.currentTime * 100) / 100,
+      time: editing ? editing.time : requested,
       x: rect.x,
       y: rect.y,
       width: rect.width,
       height: rect.height,
     };
     if (positionId !== undefined) body.position_id = positionId;
+
+    // Where this point sat before the write, so the status line can tell a retime from a resize by
+    // comparing against where it ended up. Derived rather than declared by the caller: what
+    // actually changed is a better thing to report than what the caller believed it was doing.
+    const previousTime =
+      positionId === undefined
+        ? editing?.time
+        : this._positions().find((position) => position.id === String(positionId))?.time;
 
     let response;
     try {
@@ -491,19 +653,35 @@ export class BlurEditor {
       });
     } catch (error) {
       console.error("Failed to reach the server to save a blur point", error);
-      this._render();
+      this._reportFailure(annotationId, "The blur point could not be saved - no reply from the server.");
       return false;
     }
 
     if (!response.ok) {
       console.error(`Failed to save blur point (${response.status})`);
-      // Put the box back where the stored points say it is, rather than leaving the user looking
-      // at geometry that was not saved.
-      this._render();
+      this._reportFailure(
+        annotationId,
+        response.status === 409
+          ? "Another blur point is already at that time."
+          : "That blur point could not be saved.",
+      );
       return false;
     }
 
-    this._applySaved(annotationId, await response.json());
+    const payload = await response.json();
+    if (this._applySaved(annotationId, payload)) {
+      const at = `${Number(payload["time"]).toFixed(2)}s`;
+      const retimed =
+        previousTime !== undefined &&
+        Math.abs(payload["time"] - previousTime) > SAME_TIME_SECONDS;
+      this._status(
+        payload["created"]
+          ? `Point added at ${at}`
+          : retimed
+            ? `Point moved to ${at}`
+            : `Point updated at ${at}`,
+      );
+    }
     return true;
   }
 
@@ -515,20 +693,50 @@ export class BlurEditor {
     });
     if (!response.ok) {
       console.error(`Failed to delete blur point (${response.status})`);
+      this._status(
+        response.status === 409
+          ? "The first point follows the blur's start time and cannot be deleted."
+          : "That blur point could not be deleted.",
+      );
       return false;
     }
-    this._applySaved(annotationId, await response.json());
+    if (this._applySaved(annotationId, await response.json())) {
+      this._status("Point deleted");
+    }
     return true;
   }
 
+  // A save that failed. Both halves are addressed to the blur the request was made for, because a
+  // request can outlive its selection: reporting into whichever panel happens to be on screen would
+  // put an error about one annotation in front of another, and repaint a blur nobody asked about.
+  _reportFailure(annotationId, message) {
+    if (annotationId !== this.annotationId) return;
+    this._status(message);
+    // Put the box back where the stored points say it is, rather than leaving the user looking at
+    // geometry that was not saved.
+    this._render();
+  }
+
+  /** @returns {boolean} whether the response was still describing the selected blur. */
   _applySaved(annotationId, payload) {
     // The user may have selected something else while the request was in flight, in which case
     // this response describes a panel that is no longer on screen.
-    if (annotationId !== this.annotationId) return;
+    if (annotationId !== this.annotationId) return false;
 
-    const wrapper = document.getElementById("blur-positions-wrapper");
-    if (wrapper && payload["blurPositions"]) {
-      wrapper.outerHTML = payload["blurPositions"];
+    // Only the table, not the whole wrapper. The help text and the status line sit outside
+    // #positions-list precisely so a save leaves them alone: replacing the status line would mean
+    // re-inserting a live region with its message already inside it, which screen readers generally
+    // do not announce. The full-wrapper path stays as the fallback for a payload whose shape this
+    // does not recognise.
+    const incomingList = payload["blurPositions"]
+      ? createElementFromHTMLString(payload["blurPositions"])?.querySelector("#positions-list")
+      : null;
+    const list = document.getElementById("positions-list");
+    if (incomingList && list) {
+      list.replaceWith(incomingList);
+    } else {
+      const wrapper = document.getElementById("blur-positions-wrapper");
+      if (wrapper && payload["blurPositions"]) wrapper.outerHTML = payload["blurPositions"];
     }
 
     const item = this._itemElement();
@@ -544,9 +752,18 @@ export class BlurEditor {
     this.onPositionsSaved(annotationId);
     this._readWindow();
     this._render();
+    return true;
   }
 
   // --- panel and timeline ----------------------------------------------------
+
+  // What just happened, for the panel's live region. Written from here rather than rendered by the
+  // server because it reports an action, not the state of the data - and the rows next to it are
+  // already the record of the state.
+  _status(message) {
+    const status = document.getElementById("blur-position-status");
+    if (status) status.textContent = message;
+  }
 
   // A null id clears the highlight, which is the honest state between two points.
   _markPositionActive(positionId) {
@@ -581,6 +798,56 @@ export class BlurEditor {
     this._markPositionActive(row.dataset["positionId"]);
   }
 
+  // The panel's time/x/y/W/H fields. These name a point by id, so a numeric edit lands on that
+  // exact row wherever the playhead happens to be - the mirror image of a gesture on the frame,
+  // which names a moment and lets the server work out which row that is.
+  _onPanelInputChange(event) {
+    const input = event.target;
+    if (!this.annotationId || !input.matches?.(POSITION_INPUT_SELECTOR)) return;
+    const row = input.closest(".position-entry");
+    if (!row) return;
+
+    const field = POSITION_INPUTS.find(([name]) => input.classList.contains(name))?.[1];
+    if (!field) return;
+    const entered = input.value;
+    const value = parseFloat(entered);
+    if (!Number.isFinite(value)) {
+      // Put the stored value back rather than sending NaN for the server to reject: the row's
+      // data-* is the last thing that was actually saved, so it is what the field should show.
+      input.value = row.dataset[field];
+      this._status(`"${entered}" is not a number, so nothing changed.`);
+      return;
+    }
+
+    // The whole row, with the one edited value substituted: the endpoint writes a complete
+    // position, so the other four have to come from somewhere, and the row is the client's record
+    // of what was last saved.
+    const edited = { time: parseFloat(row.dataset["time"]) };
+    for (const name of ["x", "y", "width", "height"]) {
+      edited[name] = parseFloat(row.dataset[name]);
+    }
+    edited[field] = value;
+
+    this._commit(edited, {
+      positionId: row.dataset["positionId"],
+      // A time is always sent, even when only the geometry changed: leaving it out would mean
+      // "wherever the playhead is", which is not what editing a numbered row asks for.
+      time: edited.time,
+    });
+  }
+
+  _onPanelInputKeyDown(event) {
+    if (event.key !== "Enter" || !event.target.matches?.(POSITION_INPUT_SELECTOR)) return;
+    // These fields sit inside the annotation form, where Enter would otherwise submit the whole
+    // annotation - reconciling the points and reloading the detail form as a side effect of
+    // committing one number.
+    event.preventDefault();
+    // Blurring is what fires `change`, so there is one path into _onPanelInputChange rather than
+    // two that could disagree about what a committed edit means. It also happens to be what really
+    // stops the implicit submission above, since browsers key that off the focused element.
+    event.target.blur();
+  }
+
   _onLocatorClick(event) {
     const locator = event.target.closest(".blur-position-locator");
     if (!locator) return;
@@ -598,5 +865,128 @@ export class BlurEditor {
     // A different blur: let the click through so the item's handler selects it and loads its
     // form, but ask select() to land on the point that was clicked instead of the blur's start.
     this.pendingSeek = Number.isFinite(time) ? time : null;
+  }
+
+  // Drag a dot along the bar to retime its point. Only on the selected blur, because the panel
+  // rows this reads for geometry and the annotation a write is addressed to both belong to the
+  // current selection - and a dot on any other blur has to keep behaving like a plain click, which
+  // is what selects that blur in the first place.
+  _onLocatorPointerDown(event) {
+    if (event.button !== 0) return;
+    const locator = event.target.closest?.(".blur-position-locator");
+    if (!locator) return;
+    const item = locator.closest(".track-item");
+    if (!item || item.dataset["annotationId"] !== this.annotationId) return;
+
+    const positionId = locator.dataset["positionId"];
+    const point = this._positions().find((position) => position.id === positionId);
+    const bar = item.getBoundingClientRect();
+    const itemStart = parseFloat(item.dataset["start"]);
+    const itemEnd = parseFloat(item.dataset["end"]);
+    if (!point || !(bar.width > 0) || !(itemEnd > itemStart)) return;
+
+    // Part of keeping the track item's own HTML5 drag out of this gesture; see the dragstart
+    // backstop in the constructor for the rest of it.
+    event.preventDefault();
+
+    // The point keeps its geometry; only its time changes. Captured once, so a repaint partway
+    // through the drag cannot substitute an interpolated rect for the point's real one.
+    const rect = { x: point.x, y: point.y, width: point.width, height: point.height };
+    const originalPositionTime = locator.dataset["positionTime"];
+    let time = point.time;
+
+    const timeAt = (pointerEvent) => {
+      const fraction = (pointerEvent.clientX - bar.left) / bar.width;
+      return Math.min(
+        itemEnd,
+        Math.max(itemStart, itemStart + fraction * (itemEnd - itemStart)),
+      );
+    };
+
+    locator.setPointerCapture(event.pointerId);
+    locator.classList.add("dragging-blur-position-locator");
+    this.draggingLocator = true;
+    if (!this.video.paused) this.video.pause();
+
+    const cleanup = () => {
+      // Listeners first, capture second: releasing capture fires lostpointercapture, and that is
+      // wired to onCancel below, so a release with the listener still attached would cancel a
+      // gesture that had already committed.
+      locator.removeEventListener("pointermove", onMove);
+      locator.removeEventListener("pointerup", onUp);
+      locator.removeEventListener("pointercancel", onCancel);
+      locator.removeEventListener("lostpointercapture", onCancel);
+      if (locator.hasPointerCapture(event.pointerId)) {
+        locator.releasePointerCapture(event.pointerId);
+      }
+      locator.classList.remove("dragging-blur-position-locator");
+      this.draggingLocator = false;
+      this.gesture = null;
+    };
+
+    const onMove = (moveEvent) => {
+      time = timeAt(moveEvent);
+      // Retimed in place and re-placed through placeLocators, so the dot follows the pointer by
+      // the same arithmetic that will position it once this is saved.
+      locator.dataset["positionTime"] = String(time);
+      placeLocators(item);
+      // Seeking is what makes this a retime the user can aim: they see the frame the point will
+      // land on, with the point's own geometry over it - which is exactly what will show there
+      // afterwards, and not the interpolation that _render would otherwise draw.
+      this.video.currentTime = time;
+      this._paint(rect);
+    };
+
+    const onUp = () => {
+      const settled = Math.round(time * 100) / 100;
+      cleanup();
+      if (Math.abs(settled - point.time) <= SAME_TIME_SECONDS) {
+        // A click, not a drag. Nothing to save; the click event that follows seeks to the point.
+        locator.dataset["positionTime"] = originalPositionTime;
+        placeLocators(item);
+        this._render();
+        return;
+      }
+      this._commit(rect, { positionId, time: settled });
+    };
+
+    const onCancel = () => {
+      cleanup();
+      locator.dataset["positionTime"] = originalPositionTime;
+      placeLocators(item);
+      this._render();
+    };
+
+    // Registered as a gesture so _render leaves the painted rect and the moving dot alone.
+    this.gesture = { cancel: onCancel };
+    locator.addEventListener("pointermove", onMove);
+    locator.addEventListener("pointerup", onUp);
+    locator.addEventListener("pointercancel", onCancel);
+    // The dot is the capture target and it lives in the track item, which any save replaces
+    // wholesale. Losing capture that way would strand the drag: pointerup would go somewhere else,
+    // cleanup would never run, and `gesture` would stay set - freezing the rig for good.
+    locator.addEventListener("lostpointercapture", onCancel);
+  }
+
+  _onLocatorKeyDown(event) {
+    const locator = event.target.closest?.(".blur-position-locator");
+    if (!locator) return;
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.stopPropagation();
+      const time = parseFloat(locator.dataset["positionTime"]);
+      if (Number.isFinite(time)) this.video.currentTime = time;
+      this._markPositionActive(locator.dataset["positionId"]);
+      return;
+    }
+
+    if (event.key !== "Delete" && event.key !== "Backspace") return;
+    event.preventDefault();
+    event.stopPropagation();
+    // Deleting a point on an unselected blur would rebuild a panel belonging to some other
+    // annotation, so this stays with the selection - the same rule as dragging a dot.
+    if (locator.closest(".track-item")?.dataset["annotationId"] !== this.annotationId) return;
+    this._delete(locator.dataset["positionId"]);
   }
 }

@@ -88,8 +88,13 @@ export function percentWithin(rect, boxRect) {
   };
 }
 
-// A rect with one corner dragged to `point`, in the same percentage space. The corner opposite
-// the dragged one stays put, which is what makes a corner handle feel anchored.
+// A rect with some of its edges dragged to `point`, in the same percentage space. Each edge is
+// named independently, so this covers a corner handle (two edges) and an edge handle (one) with the
+// same arithmetic: whatever is not named does not move, which is what makes both feel anchored.
+//
+// An edge handle has to be able to leave one axis completely alone. Deriving "moves right" from
+// "does not move left" cannot express that -- it makes every handle a corner -- so all four edges
+// are explicit.
 //
 // The minimums stop the box from inverting as the pointer crosses the far edge -- without them a
 // drag past the anchor produces a negative width, and a negative width in a style is dropped, so
@@ -97,7 +102,14 @@ export function percentWithin(rect, boxRect) {
 export function resizeRect(
   origin,
   point,
-  { movesLeft = false, movesTop = false, minWidth = 0, minHeight = 0 } = {},
+  {
+    movesLeft = false,
+    movesRight = false,
+    movesTop = false,
+    movesBottom = false,
+    minWidth = 0,
+    minHeight = 0,
+  } = {},
 ) {
   const right = origin.x + origin.width;
   const bottom = origin.y + origin.height;
@@ -106,8 +118,16 @@ export function resizeRect(
   return {
     x,
     y,
-    width: movesLeft ? right - x : Math.max(minWidth, point.x - x),
-    height: movesTop ? bottom - y : Math.max(minHeight, point.y - y),
+    width: movesLeft
+      ? right - x
+      : movesRight
+        ? Math.max(minWidth, point.x - x)
+        : origin.width,
+    height: movesTop
+      ? bottom - y
+      : movesBottom
+        ? Math.max(minHeight, point.y - y)
+        : origin.height,
   };
 }
 

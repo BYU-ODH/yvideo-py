@@ -126,11 +126,13 @@
         </div>
 
         {% if can_edit %}
+        {% comment %}
+           No Save button: every field saves itself as it is committed (see autoSaveItemForm in
+           editor.js), which is how the rest of the app already behaves. A Save button is a second
+           copy of the truth sitting in the form, and a step to forget before an edit counts.
+        {% endcomment %}
         <div class="form-actions column-flex">
             <div class="row-flex flex-apart-aligned">
-                <button id="annotation-form-save-button" type="submit">
-                    Save
-                </button>
                 <button id="annotation-form-delete-button" type="button">
                     Delete
                 </button>

@@ -190,9 +190,8 @@
    thing a blur has to cover - and while the controls overlaid it, that strip could not be edited
    at all: .video-controls is z-index 20 against this overlay's 10, so it took every pointer event
    there, and the rig's bottom handles were unreachable.
-   Raising the overlay above the controls instead would have been worse: the overlay accepts
-   pointer events while a blur is selected, so it would have swallowed the scrubber - and scrubbing
-   between points is the whole multi-point workflow.
+   Raising the overlay above the controls instead would have put the rig's own handles over the
+   scrubber, and scrubbing between points is the whole multi-point workflow.
    Laying the wrapper out as a column costs no hard-coded controls height. The video element
    shrinks, _syncOverlayToFrame recomputes the overlay from the video's own box, and every stored
    percentage stays a percentage of the visible picture. */
@@ -251,15 +250,19 @@
   backdrop-filter: blur(var(--blur-radius, 80px));  /* eslint-disable-line css/use-baseline */
 }
 
-/* The one place the overlay accepts input, and only while a blur is selected in the editor: a
-   drag on empty frame is how a new blur region gets framed. Selection chrome and the drag handles
-   themselves live on #blur-edit-rig in editor.css, so nothing student-facing is affected.
+/* While a blur is selected the frame belongs to that blur, and to nothing else.
 
-   `.blur-position` above stays pointer-events: none. Cursor and hover styling for it used to live
-   here, back when the editor tried to drag the player's own blur div. */
+   The overlay takes pointer events not to answer them - there is no gesture on empty picture any
+   more, now that a blur arrives with its box already placed - but to *absorb* them. Left
+   transparent, a stray click on the frame reaches the video element and toggles playback, and the
+   playhead then glides the box away from where the user was aiming it mid-edit. Swallowing the
+   click is the honest behaviour: the frame is inert, the controls below still play the video.
+
+   Selection chrome and the eight resize handles live on #blur-edit-rig in editor.css, so nothing
+   student-facing is affected. `.blur-position` also stays pointer-events: none - cursor and hover
+   styling for it used to live here, back when the editor tried to drag the player's own blur div. */
 .annotation-box-blur-editor {
     pointer-events: auto;
-    cursor: crosshair;
 }
 
 /* Video Controls */

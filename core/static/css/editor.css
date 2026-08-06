@@ -37,6 +37,10 @@
     --dark-mode-border-color: #5a5a5a;
     --dark-mode-text-color: #dedede;
     --dark-mode-text-color-muted: #848484;
+    /* Reads as greyed-out against --dark-mode-text-color while still clearing 4.5:1 on
+       --dark-mode-background-light (it lands at 5:1). --dark-mode-text-color-muted above is 3.2:1
+       there, which is fine for decoration but not for a value someone has to read. */
+    --dark-mode-text-color-dimmed: #a8a8a8;
     --zoom-thumb-width: 100%;
 }
 
@@ -683,7 +687,7 @@
     margin-bottom: 1rem;
 }
 
-#annotation-form-save-button, #annotation-form-delete-button, .clip-change-button {
+#annotation-form-delete-button, .clip-change-button {
     background-color: var(--dark-mode-dark-gray);
     color: var(--dark-mode-very-light-gray);
     padding: 0.4rem 1rem;
@@ -692,7 +696,7 @@
     border-radius: 5px;
 }
 
-#annotation-form-save-button:hover, #annotation-form-delete-button:hover, .clip-change-button:hover {
+#annotation-form-delete-button:hover, .clip-change-button:hover {
     cursor: pointer;
     background-color: var(--dark-mode-very-dark-gray);
 }
@@ -740,37 +744,102 @@
 }
 
 /* blur-positions */
-#positions-list p {
-    margin: 0;
+.blur-positions-help {
+    margin: 0.25rem 0 0.5rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    opacity: 0.8;
 }
 
-.position-headers, .position-entry {
-    display: grid;
-    grid-template-columns: minmax(0, 0.5fr) minmax(0, 2.5fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 0.5fr);
-    column-gap: 0.25rem;
-    padding: 6px;
-    align-items: center;
+.blur-position-status {
+    margin: 0.25rem 0 0;
+    min-height: 1.1rem;
+    font-size: 0.8rem;
+    /* Reserving the line's height rather than letting it appear and disappear: a status that
+       reflows the panel every time it changes moves the rows the user is aiming at. */
+    opacity: 0.85;
 }
 
-.position-entry {
-    border-radius: 8px;
+#positions-list {
+    overflow-x: auto;
 }
 
-.position-input-group {
-    display: flex;
-    flex-direction: row;
-    column-gap: 4px;
-    align-items: center;
+/* Focusable because it scrolls: that is the only way to reach the far columns without a mouse,
+   and axe's scrollable-region-focusable rule requires it. */
+#positions-list:focus-visible {
+    outline: 2px solid var(--blur-type-color, white);
+    outline-offset: 2px;
+}
+
+/* Seven columns: the row number, time, x, y, w, h, and the delete button.
+ *
+ * `table-layout: fixed` rather than `display: grid`, which is what this was before it became a real
+ * table: changing `display` on a table element strips its implicit ARIA role, so a grid here would
+ * cost exactly the semantics the table exists to provide. Fixed layout gives the same even columns,
+ * and takes their widths from the colgroup instead of a template.
+ *
+ * min-width is what makes #positions-list scroll sideways rather than crushing five numeric fields
+ * into a panel that is never wide enough for them - x and y are worth reading even at that cost,
+ * since they are the only numeric view of where the box actually is. */
+#blur-positions-table {
+    width: 100%;
+    min-width: 23rem;
+    table-layout: fixed;
+    /* `separate` with zero spacing, not `collapse`: border-radius is ignored in collapsed mode, and
+       the active row's rounded highlight below needs it on the end cells. */
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* The two columns with no heading: just wide enough for a row number and a trash icon. Everything
+   left over is split evenly between the five value columns by the fixed layout. */
+.position-column-number {
+    width: 1.5rem;
+}
+
+.position-column-actions {
+    width: 1.4rem;
+}
+
+#blur-positions-table th, #blur-positions-table td {
+    padding: 6px 2px;
+    font-size: 0.8rem;
+    font-weight: normal;
+    text-align: left;
 }
 
 .position-input-group input {
+    /* Overriding the UA's intrinsic `size` width, which ignores the column it sits in. */
+    width: 100%;
     min-width: 0;
-    flex: 1;
+    box-sizing: border-box;
+}
+
+/* The first point's time is derived - it always equals the blur's start time - so it is readonly,
+   and it should look it. Sitting in a row of otherwise identical filled fields, an unstyled readonly
+   input invites a click and then silently refuses the keystrokes.
+ *
+ * The fill deliberately stays. Dropping it to make the field read as plain text also exposes the
+ * value to whatever is behind the row - and the active row's highlight is a semi-transparent purple,
+ * which took the contrast down to 2.7:1. An opaque fill is what keeps that predictable whatever
+ * state the row is in, so the greying is done with the text colour, at a ratio that holds.
+ *
+ * The `#annotation-update-form` prefix is load-bearing: the form-wide input rule above is an id
+ * selector, so a class-only rule here loses to it on colour while quietly winning on cursor.
+ * Keyed off [readonly] rather than the first row, so the styling cannot drift from the state. */
+#annotation-update-form .position-input-group input[readonly] {
+    color: var(--dark-mode-text-color-dimmed);
+    cursor: default;
 }
 
 .blur-position-delete-button {
     padding: 0;
     margin: 0;
+    /* Sized explicitly now that the cell no longer centres it for us: a percentage-height image in
+       an auto-height table cell resolves to auto, so the icon would render at whatever the SVG's
+       intrinsic size happens to be and stretch the row. */
+    width: 1.2rem;
+    height: 1.2rem;
     background-color: #ffffff00;
     border: none;
     display: none;
@@ -780,6 +849,7 @@
     height: 100%;
     width: 100%;
     padding: 3px;
+    box-sizing: border-box;
 }
 
 .blur-position-delete-button img:hover {
@@ -787,8 +857,20 @@
     border-radius: 4px;
 }
 
-.active-position-entry {
+/* On the cells rather than the row: a `<tr>` paints behind its cells, but border-radius does not
+   apply to table rows at all, so rounding the highlight means rounding the two end cells. */
+.active-position-entry th, .active-position-entry td {
     background-color: var(--blur-type-color-transparent);
+}
+
+.active-position-entry th:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+.active-position-entry td:last-child {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
 }
 
 .active-position-entry .blur-position-delete-button {
@@ -825,6 +907,67 @@
     outline-offset: -2px;
 }
 
+/* Eight handles: four corners and four edge midpoints, so a box can be adjusted in one axis
+   without disturbing the other.
+ *
+ * Deliberately not sharing `.resize-point` with the comment editor. These sit on top of the very
+ * thing the user is trying to cover, so they are less than half its area - a handle big enough to
+ * be comfortable elsewhere hides the subject here, which for a blur is the whole job. The hit
+ * target is widened past the paint with a transparent border instead, so they stay grabbable.
+ */
+.blur-rig-handle {
+    position: absolute;
+    box-sizing: content-box;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: white;
+    /* Paints 5px, catches the pointer across 15px. */
+    border: 5px solid #00000000;
+    background-clip: padding-box;
+    z-index: 2;
+}
+
+.blur-rig-handle[data-handle="nw"], .blur-rig-handle[data-handle="n"], .blur-rig-handle[data-handle="ne"] {
+    top: -7px;
+}
+
+.blur-rig-handle[data-handle="w"], .blur-rig-handle[data-handle="e"] {
+    top: calc(50% - 7px);
+}
+
+.blur-rig-handle[data-handle="sw"], .blur-rig-handle[data-handle="s"], .blur-rig-handle[data-handle="se"] {
+    top: calc(100% - 8px);
+}
+
+.blur-rig-handle[data-handle="nw"], .blur-rig-handle[data-handle="w"], .blur-rig-handle[data-handle="sw"] {
+    left: -7px;
+}
+
+.blur-rig-handle[data-handle="n"], .blur-rig-handle[data-handle="s"] {
+    left: calc(50% - 7px);
+}
+
+.blur-rig-handle[data-handle="ne"], .blur-rig-handle[data-handle="e"], .blur-rig-handle[data-handle="se"] {
+    left: calc(100% - 8px);
+}
+
+.blur-rig-handle[data-handle="nw"], .blur-rig-handle[data-handle="se"] {
+    cursor: nwse-resize;
+}
+
+.blur-rig-handle[data-handle="ne"], .blur-rig-handle[data-handle="sw"] {
+    cursor: nesw-resize;
+}
+
+.blur-rig-handle[data-handle="n"], .blur-rig-handle[data-handle="s"] {
+    cursor: ns-resize;
+}
+
+.blur-rig-handle[data-handle="w"], .blur-rig-handle[data-handle="e"] {
+    cursor: ew-resize;
+}
+
 .blur-position-locator {
     position: absolute;
     bottom: 2px;
@@ -837,6 +980,23 @@
 
 .blur-position-locator:hover {
     cursor: pointer;
+    box-shadow: 0px 3px 6px #00000075;
+}
+
+.blur-position-locator:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 1px;
+}
+
+/* Dragging a dot retimes its point, and that is only offered on the selected blur - so the grab
+   cursor is scoped to the selected item too, rather than promising a gesture that will not fire. */
+.active-track-item .blur-position-locator:hover {
+    cursor: grab;
+}
+
+.dragging-blur-position-locator,
+.active-track-item .dragging-blur-position-locator:hover {
+    cursor: grabbing;
     box-shadow: 0px 3px 6px #00000075;
 }
 

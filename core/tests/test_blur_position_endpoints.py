@@ -159,6 +159,30 @@ class BlurPositionEndpointTests(TestCase):
         self.assertIn("blurPositions", payload)
         self.assertIn("trackItem", payload)
 
+    def test_the_response_says_whether_a_point_was_added_or_moved(self):
+        """Only this side can tell the two apart, and the editor has to say which happened.
+
+        The client deliberately never sends a position id from a drag, so it cannot know whether
+        its write created a row or landed on one - that depends on where the stored points are.
+        """
+        self.client.force_login(self.owner)
+        self.assertIs(self._upsert(time=9.0).json()["created"], True)
+        self.assertIs(self._upsert(time=9.0, x=44.0).json()["created"], False)
+
+    def test_the_response_reports_the_time_the_write_actually_landed_on(self):
+        """Not the time that was requested: it is clamped into the window and snapped onto a point.
+
+        The editor puts this number in front of the user ("Point added at 12.00s"), so reporting
+        the request back would tell them the write went somewhere it did not.
+        """
+        self.client.force_login(self.owner)
+        # Past end_time, so it clamps to 12.0.
+        self.assertEqual(self._upsert(time=30.0).json()["time"], 12.0)
+        # Within BLUR_SNAP_SECONDS of the existing point at 5.0, so it lands on that point.
+        payload = self._upsert(time=5.03).json()
+        self.assertEqual(payload["time"], 5.0)
+        self.assertIs(payload["created"], False)
+
     # --- input handling ------------------------------------------------------
 
     def test_zero_x_and_y_are_accepted(self):

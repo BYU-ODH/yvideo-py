@@ -1227,6 +1227,10 @@ class CommentAnnotation(BaseAnnotation):
 # Matches the rounding BaseAnnotation.save() applies to start_time/end_time, so a position's
 # time and its annotation's bounds are always comparable at the same precision.
 BLUR_TIME_PRECISION = 2
+# Geometry is a percentage of the video frame, so the second decimal is already a hundredth of a
+# percent - well under a pixel on any real display. Beyond that the digits are float noise from
+# dividing pixels by a frame width, and they are put in front of the user in the points panel.
+BLUR_GEOMETRY_PRECISION = 2
 # How close a requested time has to be to an existing position to mean "that one". Slightly
 # coarser than the stored precision so two rapid edits at the same playhead can't race into
 # two rows a hundredth of a second apart.
@@ -1460,12 +1464,26 @@ class BlurAnnotationPosition(models.Model):
         a perfectly clear instruction ("put it against the edge"), and refusing it would lose
         the user's work; a rejection here would also have to be surfaced mid-drag, which there
         is nowhere good to do.
+
+        Rounding is applied to the *result* of each clamp rather than to the incoming value, so
+        the guarantee is about what gets stored: whatever the clamp arithmetic produces, the
+        column ends up at 2dp. x and y are clamped against the already rounded width and height,
+        which is what keeps `x + width` landing on exactly 100 for a box against the right edge.
         """
         self.time = round(float(self.time), BLUR_TIME_PRECISION)
-        self.width = min(100.0, max(BLUR_MIN_WIDTH, float(self.width)))
-        self.height = min(100.0, max(BLUR_MIN_HEIGHT, float(self.height)))
-        self.x = min(100.0 - self.width, max(0.0, float(self.x)))
-        self.y = min(100.0 - self.height, max(0.0, float(self.y)))
+        self.width = round(
+            min(100.0, max(BLUR_MIN_WIDTH, float(self.width))), BLUR_GEOMETRY_PRECISION
+        )
+        self.height = round(
+            min(100.0, max(BLUR_MIN_HEIGHT, float(self.height))),
+            BLUR_GEOMETRY_PRECISION,
+        )
+        self.x = round(
+            min(100.0 - self.width, max(0.0, float(self.x))), BLUR_GEOMETRY_PRECISION
+        )
+        self.y = round(
+            min(100.0 - self.height, max(0.0, float(self.y))), BLUR_GEOMETRY_PRECISION
+        )
         super().save(*args, **kwargs)
 
     def to_json(self):

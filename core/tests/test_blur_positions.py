@@ -6,13 +6,17 @@ time when the item's left handle is dragged, and updating all positions when the
 dragged along the timeline.
 """
 
+import re
+
 from django.db.utils import IntegrityError
+from django.template.loader import render_to_string
 from django.test import TestCase
 
 from core.factories import BlurAnnotationFactory
 from core.factories import BlurAnnotationPositionFactory
 from core.models import BLUR_MIN_HEIGHT
 from core.models import BLUR_MIN_WIDTH
+from core.models import BlurAnnotationPosition
 
 
 def _times(blur):
@@ -266,4 +270,106 @@ class GeometryAtTests(TestCase):
         self.assertEqual(
             self.blur.geometry_at(5.0),
             {"x": 25.0, "y": 12.0, "width": 16.0, "height": 29.0},
+        )
+
+
+class GeometryPrecisionTests(TestCase):
+    """Geometry is rounded to 2dp on the way in, like time already was.
+
+    A hundredth of a percent is well under a pixel on any display, so the digits past it carry no
+    information - they are float noise from dividing pixels by a frame width. They were not
+    harmless, though: the points panel puts all five numbers in front of the user, where
+    `26.249999999999996` is clutter that reads like precision.
+    """
+
+    def setUp(self):
+        self.blur = BlurAnnotationFactory(start_time=5.0, end_time=12.0)
+
+    def _position(self, time=6.0, **geometry):
+        position = BlurAnnotationPositionFactory(
+            blur_annotation=self.blur, time=time, **geometry
+        )
+        position.refresh_from_db()
+        return position
+
+    def test_geometry_is_stored_to_two_decimals(self):
+        position = self._position(
+            x=26.249999999999996, y=1 / 3 * 100, width=40.005, height=19.994
+        )
+        self.assertEqual(position.x, 26.25)
+        self.assertEqual(position.y, 33.33)
+        self.assertEqual(position.height, 19.99)
+        # Half-way values are whatever Python's banker's rounding does; what matters is 2dp.
+        self.assertEqual(round(position.width, 2), position.width)
+
+    def test_a_box_against_the_right_edge_still_lands_exactly_on_100(self):
+        """Rounding must not leave a box a hundredth of a percent short of, or past, the edge.
+
+        The invariant holds because x is clamped against the *already rounded* width, so both
+        halves of the sum come from the same grid.
+        """
+        position = self._position(x=99.0, y=0.0, width=30.33, height=10.0)
+        self.assertEqual(position.x, 69.67)
+        self.assertEqual(position.x + position.width, 100.0)
+
+    def test_rounding_never_pushes_a_box_off_the_frame(self):
+        # A distinct time each, because one blur cannot hold two points at the same instant.
+        for offset, width in enumerate((30.33, 33.333333, 66.666666, 7.77, 0.005)):
+            with self.subTest(width=width):
+                position = self._position(
+                    time=6.0 + offset, x=100.0, y=100.0, width=width, height=width
+                )
+                self.assertLessEqual(position.x + position.width, 100.0)
+                self.assertLessEqual(position.y + position.height, 100.0)
+
+    def test_the_minimums_are_not_rounded_away(self):
+        position = self._position(x=0.0, y=0.0, width=0.001, height=0.001)
+        self.assertEqual(position.width, BLUR_MIN_WIDTH)
+        self.assertEqual(position.height, BLUR_MIN_HEIGHT)
+
+
+class PanelRenderingTests(TestCase):
+    """The points panel renders at 2dp even for rows written before save() rounded.
+
+    Every row created from now on is already 2dp, so `floatformat:2` in the template looks
+    redundant against fresh data - and is not. Blurs imported from the legacy app, and every row
+    written before this change, hold values like 26.249999999999996, and the panel is where a user
+    reads them. queryset.update() is how that state is reachable at all: it bypasses save(), which
+    is the only place the rounding happens.
+    """
+
+    def setUp(self):
+        self.blur = BlurAnnotationFactory(start_time=5.0, end_time=12.0)
+        self.position = BlurAnnotationPositionFactory(
+            blur_annotation=self.blur, time=6.0
+        )
+        BlurAnnotationPosition.objects.filter(pk=self.position.pk).update(
+            x=26.249999999999996,
+            y=33.33333333333333,
+            width=40.005000000000003,
+            height=19.994999999999997,
+        )
+
+    def _rendered_values(self):
+        html = render_to_string(
+            "core/partials/blur_positions.html",
+            {"item_positions": self.blur.positions.all()},
+        )
+        return re.findall(
+            r'class="position-[a-z]+-input" type="text" value="([^"]*)"', html
+        )
+
+    def test_no_field_is_rendered_beyond_two_decimals(self):
+        values = self._rendered_values()
+        self.assertEqual(len(values), 5, values)
+        for value in values:
+            _, _, decimals = value.partition(".")
+            self.assertLessEqual(
+                len(decimals), 2, f"{value!r} is rendered to {len(decimals)} decimals"
+            )
+
+    def test_the_rendered_values_are_the_stored_ones_rounded(self):
+        # Not blanked, not truncated to integers: the panel is a view onto the real geometry.
+        self.assertEqual(
+            self._rendered_values(), ["6.00", "26.25", "33.33", "40.01", "19.99"]
         )
