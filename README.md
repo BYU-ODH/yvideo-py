@@ -120,6 +120,12 @@ The pytest Playwright e2e suite runs headless Chromium, enables the local dev qu
 route for the test server, seeds demo data before each test, and runs in CI as a separate
 job instead of inside pre-commit.
 
+A few behaviours cannot be covered by either suite, because they depend on a platform the
+test browsers do not have — iOS media handling, a screen reader, real display hardware.
+See [MANUAL_TESTING.md](MANUAL_TESTING.md) for what those are, how to check them by hand,
+and why each one resists automation. Check it before releasing anything that touches video
+playback or blur annotations.
+
 To upgrade dependency versions, use the following commands:
 
 ```console
