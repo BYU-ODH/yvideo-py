@@ -186,3 +186,64 @@ export function rectAtTime(positions, time) {
 
   return asRect(last);
 }
+
+// Mirrors BLUR_TIME_PRECISION in core/models.py: BaseAnnotation.save() stores start_time and
+// end_time to this many decimals, so a client-side prediction about what the server will do has
+// to compare at the same precision.
+const TIME_PRECISION = 2;
+// Mirrors BLUR_RETIME_TOLERANCE_SECONDS in core/models.py. See there for why it is looser than
+// the stored precision.
+const RETIME_TOLERANCE_SECONDS = 0.02;
+
+function roundToStoredTime(seconds) {
+  const scale = 10 ** TIME_PRECISION;
+  return Math.round(seconds * scale) / scale;
+}
+
+// How many of a blur's points a new time range would discard, given the times of its current
+// points. Blurs exist to cover content that must not be seen, so losing a point silently is
+// worse than the interruption of asking: it leaves a blur that glides somewhere it was never
+// aimed. The editor calls this to decide whether to warn before a retiming save.
+//
+// This is a prediction of what BlurAnnotation.reconcile_positions will do, which means it is the
+// same decision written twice in two languages - the exact duplication that drifts silently and
+// here drifts into either a warning about nothing or, worse, an unannounced deletion. Kept here,
+// pure and DOM-free, so tests/js/blur-retiming.test.js and the RetimingPointLossTests case table
+// in core/tests/test_blur_positions.py can hold the two implementations to the same answers.
+export function pointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd) {
+  if (!Number.isFinite(oldStart) || !Number.isFinite(oldEnd)) return 0;
+  // Rounded to stored precision first. Dragging the left handle computes the right edge as
+  // left+width, which lands a hair under a whole number - so comparing the raw 10.99999 against
+  // a point at 11.0 warns about a loss that the server, holding 11.00, is never going to inflict.
+  const start = roundToStoredTime(newStart);
+  const end = roundToStoredTime(newEnd);
+  // Both halves of reconcile_positions' move test: the same tolerance *and* a start that actually
+  // moved. Without the second half, dragging the right handle in by a hundredth promises no loss
+  // here while the server takes its resize branch and deletes the trailing point.
+  //
+  // The comparison is left float-exact, matching the server rather than being defended against,
+  // because a duration change near the tolerance has to fall the same side of it in both places.
+  const durationChange = Math.abs(end - start - (oldEnd - oldStart));
+  const isMove = durationChange <= RETIME_TOLERANCE_SECONDS && start !== oldStart;
+
+  // A move carries the whole motion path with it - but the window pruning below applies to both
+  // branches, so a move is not automatically lossless. A start-only nudge of a hundredth reads as
+  // a move under the tolerance and shifts every point, which pushes the last one past an end that
+  // did not move. Predicting 0 for every move is what let that deletion happen unannounced.
+  const delta = isMove ? start - oldStart : 0;
+  const points = (times || [])
+    .filter(Number.isFinite)
+    .map((time) => (isMove ? roundToStoredTime(time + delta) : time));
+
+  const leading = points.filter((time) => time < start).length;
+  const trailing = points.filter((time) => time > end).length;
+  // Of the points before the window, the latest normally survives: ensure_first_position re-pins
+  // it to start_time rather than deleting it. Unless a point already sits exactly on the new
+  // start, in which case that one supplies the geometry there and the survivor is redundant, so
+  // ensure_first_position deletes it instead of retiming it onto an occupied time.
+  //
+  // Exact equality is safe: a stored time is already at TIME_PRECISION and `start` has just been
+  // rounded to it, so two times that should match are both k/100 and are the identical double.
+  const survivors = points.some((time) => time === start) ? 0 : Math.min(1, leading);
+  return trailing + leading - survivors;
+}

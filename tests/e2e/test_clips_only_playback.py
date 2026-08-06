@@ -27,18 +27,8 @@ def _enable_clips_only_on_content_with_no_clips():
     return content
 
 
-def _wait_for_video_ready(page):
-    page.wait_for_function(
-        """() => {
-            const video = document.querySelector('.annotation-player-container video');
-            return video && !isNaN(video.duration) && video.duration > 0;
-        }""",
-        timeout=5000,
-    )
-
-
 def test_clips_only_playback_pauses_at_the_end_of_a_clip_without_flashing_a_violation_warning(
-    page, live_server, seeded_demo_data
+    page, open_player
 ):
     # Distinguishes ordinary playback reaching the natural end of a clip from
     # a deliberate out-of-clip seek (see the scrubber-click test below): the
@@ -46,9 +36,7 @@ def test_clips_only_playback_pauses_at_the_end_of_a_clip_without_flashing_a_viol
     # go somewhere disallowed, not every time a clip's playback simply ends.
     content = _enable_clips_only_on_birds_overview()
 
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
-    _wait_for_video_ready(page)
+    open_player(content)
 
     result = page.evaluate(
         """async () => {
@@ -84,13 +72,11 @@ def test_clips_only_playback_pauses_at_the_end_of_a_clip_without_flashing_a_viol
 
 
 def test_clips_only_scrubber_click_outside_clip_snaps_into_it_and_flashes_highlights(
-    page, live_server, seeded_demo_data
+    page, open_player
 ):
     content = _enable_clips_only_on_birds_overview()
 
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
-    _wait_for_video_ready(page)
+    open_player(content)
 
     scrubber = page.locator(".annotation-player-container .scrubber")
     box = scrubber.bounding_box()
@@ -130,16 +116,12 @@ def test_clips_only_scrubber_click_outside_clip_snaps_into_it_and_flashes_highli
     )
 
 
-def test_clips_only_does_not_restrict_playback_in_the_editor(
-    page, live_server, seeded_demo_data
-):
+def test_clips_only_does_not_restrict_playback_in_the_editor(page, open_editor):
     # clips_only is a student-facing playback constraint; the editor must
     # always be able to play/scrub the full video regardless of it.
     content = _enable_clips_only_on_birds_overview()
 
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/video-editor/{content.pk}/")
-    _wait_for_video_ready(page)
+    open_editor(content)
 
     result = page.evaluate(
         """async () => {
@@ -163,13 +145,11 @@ def test_clips_only_does_not_restrict_playback_in_the_editor(
 
 
 def test_clips_only_with_no_clips_defined_blocks_playback_with_a_message(
-    page, live_server, seeded_demo_data
+    page, open_player
 ):
     content = _enable_clips_only_on_content_with_no_clips()
 
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
-    _wait_for_video_ready(page)
+    open_player(content)
 
     result = page.evaluate(
         """async () => {

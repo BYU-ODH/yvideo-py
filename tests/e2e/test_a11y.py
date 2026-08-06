@@ -67,10 +67,9 @@ def _format_violations(violations: list[dict]) -> str:
 
 @pytest.mark.parametrize("view_name", FULL_PAGE_VIEWS)
 def test_full_page_view_has_no_a11y_violations(
-    view_name: str, page: Page, live_server, seeded_demo_data
+    view_name: str, logged_in_page: Page, live_server
 ):
-    # Authenticate as the demo admin, then navigate to the page under test.
-    page.goto(f"{live_server.url}/login/dev/quick/")
+    page = logged_in_page
     response = page.goto(f"{live_server.url}{_resolve_path(view_name)}")
     assert response is not None and response.ok, f"{view_name} did not load"
 
@@ -80,9 +79,7 @@ def test_full_page_view_has_no_a11y_violations(
     assert not violations, _format_violations(violations)
 
 
-def test_the_blur_editing_ui_has_no_a11y_violations(
-    page: Page, live_server, seeded_demo_data
-):
+def test_the_blur_editing_ui_has_no_a11y_violations(page: Page, open_editor):
     """The blur points panel and the editable video frame, with a blur selected.
 
     Scoped to those two subtrees rather than added to FULL_PAGE_VIEWS above, because the video
@@ -97,9 +94,7 @@ def test_the_blur_editing_ui_has_no_a11y_violations(
     """
     from core.models import BlurAnnotation
 
-    content = Content.objects.get(title="Birds Overview")
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/video-editor/{content.pk}/")
+    open_editor()
 
     blur = BlurAnnotation.objects.get(name="Bird Flight Path")
     item = page.locator(

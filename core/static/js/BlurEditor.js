@@ -21,7 +21,11 @@
 // between two points and so has no single owning row.
 
 import { clampRect, percentWithin, rectAtTime, resizeRect } from "./video-geometry.js";
-import { createElementFromHTMLString, getCSRFToken } from "./utils.js";
+import {
+  animateDuringPlayback,
+  createElementFromHTMLString,
+  getCSRFToken,
+} from "./utils.js";
 
 // Mirrors BLUR_MIN_WIDTH / BLUR_MIN_HEIGHT in core/models.py, which remains the authority - the
 // server clamps whatever it is sent. Matching here is what keeps the box from jumping on release.
@@ -176,11 +180,22 @@ export class BlurEditor {
     this._onRigPointerDown = this._onRigPointerDown.bind(this);
     this._onRigKeyDown = this._onRigKeyDown.bind(this);
     this._render = this._render.bind(this);
+    this._trackPlayhead = this._trackPlayhead.bind(this);
 
     // The rig tracks the playhead so it stays on top of the blur it is editing, which is also
     // what makes it show the interpolated geometry between two points.
+    //
+    // Two cadences, the same split the editor's scrubber and the player's progress bar already
+    // use: `timeupdate` and `seeked` cover scrubbing and the paused case, and animateDuringPlayback
+    // runs the rig every animation frame while playing, because that is the rate at which the
+    // player moves the blur underneath it.
     this.video.addEventListener("timeupdate", this._render);
     this.video.addEventListener("seeked", this._render);
+    // Kept even though nothing calls it: deselect() is not a teardown - it drops the rig but leaves
+    // every listener in place, which is harmless because editor.js constructs exactly one
+    // BlurEditor for the life of the page and _trackPlayhead returns early with nothing selected.
+    // Whoever makes this destroyable needs this handle, and it is easy to forget it is returned.
+    this._stopPlaybackTracking = animateDuringPlayback(this.video, this._trackPlayhead);
     // A pending nudge carries the time it was made at, so a seek can safely write it out - and
     // doing so is what lets the rig go back to following the playhead instead of holding a rect
     // from a frame that is no longer on screen.
@@ -399,7 +414,14 @@ export class BlurEditor {
     if (blur) applyRect(blur, rect);
   }
 
-  _render() {
+  // Move the rig onto the geometry for the current playhead. Split out of _render because this is
+  // the half that has to keep up with playback: the player interpolates its blur every animation
+  // frame, so a rig that only moved on `timeupdate` (a few times a second) trailed visibly behind
+  // the very region it is drawn around.
+  //
+  // Everything here has to stay cheap enough to run per frame. Deliberately not included: the
+  // active-point bookkeeping, which writes classes onto panel rows and timeline dots.
+  _trackPlayhead() {
     if (!this.annotationId || this.gesture || this.nudge) return;
     const rig = this._ensureRig();
     const time = this.video.currentTime;
@@ -408,8 +430,16 @@ export class BlurEditor {
     // Hidden rather than removed outside the blur's window: an editable box at a time when the
     // blur does not exist would invite an edit that cannot be stored.
     rig.hidden = rect === null;
-    if (rect) this._paint(rect);
+    // Only the rig - not _paint, which also writes the player's blur element. That write is a
+    // gesture preview, and doing it per frame would put two writers on one element: the player
+    // paints it from its own copy of the positions while this reads the panel's data-* rows, so
+    // any disagreement between the two would show up as a flicker rather than as stale geometry.
+    if (rect) applyRect(rig, rect);
+  }
 
+  _render() {
+    this._trackPlayhead();
+    if (!this.annotationId || this.gesture || this.nudge) return;
     // Highlight whichever point the playhead is on, in both the panel and the timeline. Derived
     // from the playhead rather than remembered from the last click, so it stays right when the
     // form is reloaded (which replaces the rows, losing any class set on them), when a save

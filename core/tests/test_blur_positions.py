@@ -315,6 +315,116 @@ class GeometryAtTests(TestCase):
         )
 
 
+class RetimingPointLossTests(TestCase):
+    """What a retiming actually deletes, against what the browser promised it would.
+
+    The editor warns before a retiming that will discard blur points, and it has to decide that
+    without asking the server - so pointsLostByRetiming in core/static/js/video-geometry.js
+    predicts what reconcile_positions is about to do. Two implementations of one destructive
+    decision in two languages is the duplication that drifts silently, and here it drifts into
+    either a warning about nothing or a point deleted without being announced.
+
+    CASES is deliberately the same table tests/js/blur-retiming.test.js runs, with the same case
+    names. A case added to one belongs in the other.
+    """
+
+    # (name, point times, new window, points the browser predicts will be lost)
+    CASES = [
+        ("a pure move keeps every point", [10.0, 12.0, 15.0], (20.0, 25.0), 0),
+        ("a move backward keeps every point", [10.0, 12.0, 15.0], (2.0, 7.0), 0),
+        (
+            "shrinking the right edge drops the trailing point",
+            [10.0, 12.0, 15.0],
+            (10.0, 13.0),
+            1,
+        ),
+        (
+            "shrinking the left edge keeps the last point before it",
+            [10.0, 12.0, 15.0],
+            (13.0, 15.0),
+            1,
+        ),
+        (
+            "shrinking the left edge onto an existing point drops the redundant one",
+            [10.0, 12.0, 15.0],
+            (12.0, 15.0),
+            1,
+        ),
+        (
+            "shrinking both edges drops one at each end but keeps a leading survivor",
+            [10.0, 12.0, 15.0],
+            (11.0, 13.0),
+            1,
+        ),
+        (
+            "several leading points collapse to one survivor",
+            [10.0, 11.0, 12.0, 15.0],
+            (13.0, 15.0),
+            2,
+        ),
+        (
+            "a start-only nudge inside the tolerance still shifts the last point out",
+            [10.0, 12.0, 15.0],
+            (10.01, 15.0),
+            1,
+        ),
+        (
+            "a duration change at the tolerance boundary reads as a move in both languages",
+            [10.0, 12.0, 15.0],
+            (10.02, 15.0),
+            1,
+        ),
+        (
+            "a duration change past the tolerance is a resize and keeps the survivor",
+            [10.0, 12.0, 15.0],
+            (10.03, 15.0),
+            0,
+        ),
+        (
+            "a window clear of every point loses the whole path",
+            [10.0, 12.0, 15.0],
+            (5.0, 8.0),
+            3,
+        ),
+    ]
+
+    def _reconcile(self, times, new_window):
+        """Run one case, returning how many of the original points reconcile deleted.
+
+        Counted as pks that disappeared rather than as a drop in the row count, because
+        ensure_first_position *creates* a position when a retiming clears them all - which would
+        otherwise net out and read as one fewer loss than the user suffered.
+        """
+        blur = BlurAnnotationFactory(start_time=10.0, end_time=15.0)
+        blur.positions.all().delete()
+        # Distinct geometry per point, so a case that keeps the wrong survivor is a visible
+        # difference rather than an off-by-one in a count.
+        for index, time in enumerate(times):
+            BlurAnnotationPositionFactory(
+                blur_annotation=blur, time=time, x=10.0 + index * 10, y=5.0
+            )
+        original = set(blur.positions.values_list("pk", flat=True))
+
+        old_start, old_end = blur.start_time, blur.end_time
+        blur.start_time, blur.end_time = new_window
+        blur.save()
+        blur.reconcile_positions(old_start, old_end)
+
+        assert_positions_within_window(self, blur)
+        surviving = set(blur.positions.values_list("pk", flat=True))
+        return len(original - surviving)
+
+    def test_the_browsers_prediction_matches_what_the_server_deletes(self):
+        for name, times, new_window, predicted in self.CASES:
+            with self.subTest(name):
+                self.assertEqual(
+                    self._reconcile(times, new_window),
+                    predicted,
+                    f"pointsLostByRetiming promises {predicted} for this case; "
+                    "reconcile_positions disagrees, so the warning is wrong",
+                )
+
+
 class GeometryPrecisionTests(TestCase):
     """Geometry is rounded to 2dp on the way in, like time already was.
 

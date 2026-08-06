@@ -1235,6 +1235,16 @@ BLUR_GEOMETRY_PRECISION = 2
 # coarser than the stored precision so two rapid edits at the same playhead can't race into
 # two rows a hundredth of a second apart.
 BLUR_SNAP_SECONDS = 0.05
+# How much a duration may change and still count as a move rather than a resize, in
+# reconcile_positions - the distinction decides whether positions travel with the annotation or
+# get dropped. Looser than the stored precision because it absorbs the client computing end as
+# `originalEnd - originalStart + newStart` while save() rounds start and end to 2dp
+# independently, which can leave the duration off by a hundredth.
+#
+# The browser warns about the points a resize is about to delete before asking the server to do
+# it, so pointsLostByRetiming in core/static/js/video-geometry.js classifies on this same value.
+# The two are held to it by the parity tests named there.
+BLUR_RETIME_TOLERANCE_SECONDS = 0.02
 # Floors, not defaults: a box smaller than this is impossible to grab and almost certainly a
 # mis-drag rather than an intent.
 BLUR_MIN_WIDTH = 3.0
@@ -1352,9 +1362,8 @@ class BlurAnnotation(BaseAnnotation):
         * The item was *resized* - the path stays where it is in the video and the window that
           exposes it changes, so positions outside the new window are dropped.
 
-        The tolerance absorbs the client computing end as
-        `originalEnd - originalStart + newStart` while save() rounds start and end to 2dp
-        independently, which can leave the duration off by a hundredth.
+        See BLUR_RETIME_TOLERANCE_SECONDS for why the two are told apart on a tolerance rather
+        than on equality, and for the browser-side copy of that decision.
         """
         old_duration = old_end - old_start
         new_duration = self.end_time - self.start_time
@@ -1363,7 +1372,7 @@ class BlurAnnotation(BaseAnnotation):
         # start time, and it is generally a tween rather than any stored position.
         showing_at_new_start = self.geometry_at(self.start_time)
 
-        if abs(new_duration - old_duration) <= 0.02 and delta:
+        if abs(new_duration - old_duration) <= BLUR_RETIME_TOLERANCE_SECONDS and delta:
             # Shift the positions furthest along the direction of travel first. The unique
             # (blur_annotation, time) index is checked per-row, so moving a position onto a
             # time a sibling still occupies would collide even though the final state is fine.

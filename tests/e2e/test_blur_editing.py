@@ -31,24 +31,6 @@ STATIONARY_BLUR = "Bird Watermark"
 MOVING_BLUR = "Bird Flight Path"
 
 
-def _open_editor(page, live_server):
-    from core.models import Content
-
-    content = Content.objects.get(title="Birds Overview")
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/video-editor/{content.pk}/")
-    page.wait_for_function(
-        """() => {
-            const video = document.querySelector('.annotation-player-container video');
-            const ticks = document.getElementById('tick-marks-container');
-            return window.videoPlayer && video && !isNaN(video.duration) && video.duration > 0
-                && ticks && ticks.children.length > 0;
-        }""",
-        timeout=10000,
-    )
-    return content
-
-
 def _item_selector(annotation):
     # data-annotation-id is only unique per type - every annotation type numbers from 1.
     return f'.track-item[data-annotation-type="blur"][data-annotation-id="{annotation.pk}"]'
@@ -245,13 +227,13 @@ def _saved_points(page, name, expected_count):
 # to work out how to get two blurs on screen at once.
 
 
-def test_dragging_on_empty_frame_does_nothing(page, live_server, seeded_demo_data):
+def test_dragging_on_empty_frame_does_nothing(page, open_editor):
     """The frame is not a canvas. This is the removed create gesture, asserted absent.
 
     A drag on empty picture used to rubber-band a new rectangle over the existing box. Nothing
     should answer it now: not a new point, not a changed one, not a resized box.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
     before = _stored_points(MOVING_BLUR)
@@ -269,11 +251,9 @@ def test_dragging_on_empty_frame_does_nothing(page, live_server, seeded_demo_dat
     assert after["width"] == pytest.approx(box_before["width"], abs=1)
 
 
-def test_the_rig_survives_the_response_it_triggered(
-    page, live_server, seeded_demo_data
-):
+def test_the_rig_survives_the_response_it_triggered(page, open_editor):
     """The box must not snap back once the save lands and the panel rows are replaced."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, STATIONARY_BLUR)
     _seek(page, _blur(STATIONARY_BLUR).start_time)
 
@@ -288,11 +268,9 @@ def test_the_rig_survives_the_response_it_triggered(
     assert after["width"] == pytest.approx(26, abs=2)
 
 
-def test_a_corner_handle_resizes_from_the_opposite_corner(
-    page, live_server, seeded_demo_data
-):
+def test_a_corner_handle_resizes_from_the_opposite_corner(page, open_editor):
     """Proves the pointer-events blocker is gone: this handler could not fire at all before."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, STATIONARY_BLUR)
     _seek(page, _blur(STATIONARY_BLUR).start_time)
     _move_rig_to(page, 20, 20)
@@ -319,14 +297,14 @@ def test_a_corner_handle_resizes_from_the_opposite_corner(
     ],
 )
 def test_an_edge_handle_resizes_one_axis_only(
-    page, live_server, seeded_demo_data, handle, target, expected
+    page, open_editor, handle, target, expected
 ):
     """Corners alone force a user to change both dimensions to correct one of them.
 
     The far coordinate passed to each drag is deliberately absurd - the pointer is taken well off
     the handle's axis - because the whole point of an edge handle is that the other axis ignores it.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, STATIONARY_BLUR)
     _seek(page, _blur(STATIONARY_BLUR).start_time)
     _move_rig_to(page, 20, 20)
@@ -343,9 +321,7 @@ def test_an_edge_handle_resizes_one_axis_only(
         )
 
 
-def test_the_rig_has_a_handle_on_every_edge_and_corner(
-    page, live_server, seeded_demo_data
-):
+def test_the_rig_has_a_handle_on_every_edge_and_corner(page, open_editor):
     """All eight, and each still big enough to grab.
 
     Three of the eight (nw, ne, sw) have no drag test, so this is their only coverage. The hit
@@ -354,7 +330,7 @@ def test_the_rig_has_a_handle_on_every_edge_and_corner(
     and be unusable with a finger. How large the *paint* is, by contrast, is a design judgement
     about how much of the concealed subject a handle may cover - checked by eye, not pinned here.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
 
@@ -380,15 +356,13 @@ def test_the_rig_has_a_handle_on_every_edge_and_corner(
     )
 
 
-def test_dragging_inside_the_box_moves_it_without_resizing_it(
-    page, live_server, seeded_demo_data
-):
+def test_dragging_inside_the_box_moves_it_without_resizing_it(page, open_editor):
     """A move translates by the pointer's travel, so the user keeps the same grip on the box.
 
     Centring the box on the pointer instead would work for a grab in the middle and jump the box
     sideways for a grab anywhere else - so this grabs off-centre on purpose.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     before = _rig_percent(page)
@@ -405,8 +379,8 @@ def test_dragging_inside_the_box_moves_it_without_resizing_it(
     assert y == pytest.approx(32.0, abs=2)
 
 
-def test_the_box_cannot_be_dragged_off_the_frame(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_the_box_cannot_be_dragged_off_the_frame(page, open_editor):
+    open_editor()
     _select(page, STATIONARY_BLUR)
     _seek(page, _blur(STATIONARY_BLUR).start_time)
 
@@ -422,7 +396,7 @@ def test_the_box_cannot_be_dragged_off_the_frame(page, live_server, seeded_demo_
 
 
 def test_dragging_at_a_new_time_adds_a_point_and_leaves_the_others_alone(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
     """The bug this phase exists to kill.
 
@@ -433,7 +407,7 @@ def test_dragging_at_a_new_time_adds_a_point_and_leaves_the_others_alone(
     This is also the only way a point is ever added, now that the create gestures are gone: move
     the box somewhere the blur has no point yet and one appears there.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     before = _stored_points(MOVING_BLUR)
     assert [point[0] for point in before] == [3.0, 7.0, 11.0]
@@ -453,10 +427,8 @@ def test_dragging_at_a_new_time_adds_a_point_and_leaves_the_others_alone(
     assert added[3:] == pytest.approx((24.0, 15.5), abs=0.6)
 
 
-def test_dragging_at_an_existing_point_updates_it_without_adding_one(
-    page, live_server, seeded_demo_data
-):
-    _open_editor(page, live_server)
+def test_dragging_at_an_existing_point_updates_it_without_adding_one(page, open_editor):
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
 
@@ -471,14 +443,12 @@ def test_dragging_at_an_existing_point_updates_it_without_adding_one(
     assert (width, height) == pytest.approx((26.0, 17.0), abs=0.6)
 
 
-def test_the_rig_shows_the_interpolated_box_between_points(
-    page, live_server, seeded_demo_data
-):
+def test_the_rig_shows_the_interpolated_box_between_points(page, open_editor):
     """The rig has to sit on the blur it is editing, or the user drags the wrong thing.
 
     At t=5.0, halfway between the seeded points at t=3.0 and t=7.0, that means the tween.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
 
@@ -489,15 +459,65 @@ def test_the_rig_shows_the_interpolated_box_between_points(
     assert rig["height"] == pytest.approx(15.5, abs=0.6)
 
 
-def test_the_rig_hides_outside_the_blurs_time_range_and_comes_back(
-    page, live_server, seeded_demo_data
-):
+def test_the_rig_keeps_up_with_the_blur_during_playback(page, open_editor):
+    """The rig has to move at the rate the player moves the blur, not the rate of `timeupdate`.
+
+    The player interpolates its blur every animation frame (applyAnnotations reschedules itself
+    while playing), so a rig driven only by `timeupdate` - which browsers fire a few times a second
+    - visibly trailed the region it is drawn around, on exactly the moving blurs where being able
+    to see what is covered matters most.
+
+    Counting distinct positions is the same measure test_editor_scrubbing.py uses for the two
+    scrubbers, and for the same reason: it distinguishes "updated per frame" from "updated on
+    timeupdate" without asserting anything about a particular frame's geometry.
+    """
+    open_editor()
+    _select(page, MOVING_BLUR)
+
+    # Plays across the seeded path's 3.0-7.0 leg, where the box travels 12.5% -> 40.0%, so every
+    # frame has a visibly different position to land on.
+    result = page.evaluate(
+        """async () => {
+            const video = document.querySelector('.annotation-player-container video');
+            const rig = document.getElementById('blur-edit-rig');
+            video.muted = true;
+            video.currentTime = 3.2;
+            await video.play();
+            const startTime = video.currentTime;
+            const lefts = new Set();
+            await new Promise((resolve) => {
+                const startTs = performance.now();
+                const tick = () => {
+                    lefts.add(rig.style.left);
+                    if (performance.now() - startTs > 800) resolve();
+                    else requestAnimationFrame(tick);
+                };
+                requestAnimationFrame(tick);
+            });
+            const advanced = video.currentTime - startTime;
+            video.pause();
+            return { distinct: lefts.size, advanced, hidden: rig.hidden };
+        }"""
+    )
+
+    assert result["advanced"] > 0.2, "video did not actually play"
+    assert not result["hidden"], (
+        "the rig was hidden during playback inside the blur's window"
+    )
+    # timeupdate alone would give roughly one position per 250ms, so about 4 across this window.
+    assert result["distinct"] > 10, (
+        f"the rig moved to only {result['distinct']} distinct positions while the player "
+        "repainted the blur every frame, so the outline lags behind what it covers"
+    )
+
+
+def test_the_rig_hides_outside_the_blurs_time_range_and_comes_back(page, open_editor):
     """The player destroys and rebuilds its blur div around the window; the rig must not care.
 
     An editable box at a time when the blur does not exist would also invite an edit that cannot
     be stored, so it is hidden rather than left showing stale geometry.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
     expect(page.locator("#blur-edit-rig")).to_be_visible()
@@ -511,8 +531,8 @@ def test_the_rig_hides_outside_the_blurs_time_range_and_comes_back(
     assert rig["x"] == pytest.approx(53.25, abs=0.6)
 
 
-def test_escape_abandons_a_drag_without_saving(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_escape_abandons_a_drag_without_saving(page, open_editor):
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     before = _stored_points(MOVING_BLUR)
@@ -537,10 +557,8 @@ def test_escape_abandons_a_drag_without_saving(page, live_server, seeded_demo_da
 # --- the points panel and the timeline dots ---------------------------------
 
 
-def test_deleting_a_point_updates_the_frame_without_a_reload(
-    page, live_server, seeded_demo_data
-):
-    _open_editor(page, live_server)
+def test_deleting_a_point_updates_the_frame_without_a_reload(page, open_editor):
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
 
@@ -560,9 +578,9 @@ def test_deleting_a_point_updates_the_frame_without_a_reload(
     assert rig["x"] == pytest.approx(12.5 + (66.5 - 12.5) * 0.5, abs=1)
 
 
-def test_the_first_point_cannot_be_deleted(page, live_server, seeded_demo_data):
+def test_the_first_point_cannot_be_deleted(page, open_editor):
     """It supplies the geometry the blur starts with, and a blur with none cannot render."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     first_row = page.locator("#blur-positions-wrapper .position-entry").first
@@ -570,9 +588,7 @@ def test_the_first_point_cannot_be_deleted(page, live_server, seeded_demo_data):
     expect(first_row.locator(".position-time-input")).to_have_attribute("readonly", "")
 
 
-def test_the_first_points_time_looks_as_uneditable_as_it_is(
-    page, live_server, seeded_demo_data
-):
+def test_the_first_points_time_looks_as_uneditable_as_it_is(page, open_editor):
     """It always equals the blur's start time, so it is derived rather than entered.
 
     `readonly` alone is invisible: in a row of otherwise identical fields it invites a click and then
@@ -581,7 +597,7 @@ def test_the_first_points_time_looks_as_uneditable_as_it_is(
     field keeps its opaque fill for that reason: without one, the text sits on the active row's
     semi-transparent highlight and drops to 2.7:1.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     appearance = page.evaluate(
@@ -642,8 +658,8 @@ def test_the_first_points_time_looks_as_uneditable_as_it_is(
     ).to_have_value("3.00")
 
 
-def test_clicking_a_panel_row_seeks_to_that_point(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_clicking_a_panel_row_seeks_to_that_point(page, open_editor):
+    open_editor()
     _select(page, MOVING_BLUR)
 
     page.locator("#blur-positions-wrapper .position-entry").nth(1).click()
@@ -653,11 +669,9 @@ def test_clicking_a_panel_row_seeks_to_that_point(page, live_server, seeded_demo
     ) == pytest.approx(7.0, abs=0.3)
 
 
-def test_clicking_a_timeline_dot_seeks_to_that_point(
-    page, live_server, seeded_demo_data
-):
+def test_clicking_a_timeline_dot_seeks_to_that_point(page, open_editor):
     """The dots are delegated from the timeline now, because the item HTML is replaced on save."""
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
 
     dots = page.locator(f"{_item_selector(annotation)} .blur-position-locator")
     # The first point's dot is deliberately omitted: it would sit on the item's resize handle.
@@ -669,12 +683,10 @@ def test_clicking_a_timeline_dot_seeks_to_that_point(
     ) == pytest.approx(11.0, abs=0.3)
 
 
-def test_timeline_dots_land_at_their_points_relative_offsets(
-    page, live_server, seeded_demo_data
-):
+def test_timeline_dots_land_at_their_points_relative_offsets(page, open_editor):
     """The `calc()` in the dot's `left` was missing its closing paren, so CSS dropped it and every
     dot stacked at the left edge of the bar."""
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
 
     item = page.locator(_item_selector(annotation))
     item_box = item.bounding_box()
@@ -697,15 +709,13 @@ def test_timeline_dots_land_at_their_points_relative_offsets(
 # handles and the timeline drag - plus the dots landing where the retimed points now are.
 
 
-def test_dragging_the_left_handle_moves_the_first_point(
-    page, live_server, seeded_demo_data
-):
+def test_dragging_the_left_handle_moves_the_first_point(page, open_editor):
     """#322 item 2: the left handle sets the *start*, so the first point has to follow it.
 
     Before this, dragging the left handle changed the item's start while its first point stayed
     behind, leaving the blur's opening frames covered by geometry from somewhere else entirely.
     """
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0, 11.0]
 
     item = page.locator(_item_selector(annotation))
@@ -752,7 +762,7 @@ def test_dragging_the_left_handle_moves_the_first_point(
 
 
 def test_the_player_overlay_does_not_share_an_id_with_the_timeline_item(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
     """A duplicate id made dragging a blur item fail roughly one time in ten.
 
@@ -761,7 +771,7 @@ def test_the_player_overlay_does_not_share_an_id_with_the_timeline_item(
     no data-annotation-id, and the item drag posted to /annotations/blur/undefined/update/. It
     looked random because it depended on whether the overlay was painted at that moment.
     """
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     _seek(page, 5.0)
 
     found = page.evaluate(
@@ -781,11 +791,9 @@ def test_the_player_overlay_does_not_share_an_id_with_the_timeline_item(
     assert found["resolvesTo"] == str(annotation.pk)
 
 
-def test_dragging_the_item_shifts_every_point_and_its_dot(
-    page, live_server, seeded_demo_data
-):
+def test_dragging_the_item_shifts_every_point_and_its_dot(page, open_editor):
     """#322 item 3, and the `calc()` fix: after a move the dots must still mark their points."""
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     before = _stored_points(MOVING_BLUR)
 
     _drag_item_right(page, annotation, seconds=4.0)
@@ -829,7 +837,7 @@ def test_dragging_the_item_shifts_every_point_and_its_dot(
     ],
 )
 def test_a_newly_created_blur_is_drawn_and_survives_its_first_drag(
-    page, live_server, seeded_demo_data, playhead
+    page, open_editor, playhead
 ):
     """Creating a blur at an arbitrary playhead, then dragging it, used to make it vanish.
 
@@ -841,7 +849,7 @@ def test_a_newly_created_blur_is_drawn_and_survives_its_first_drag(
 
     Parametrised over the playhead because that is the whole bug: every round number passes.
     """
-    _open_editor(page, live_server)
+    open_editor()
     page.evaluate("(t) => window.videoPlayer.setCurrentTime(t)", playhead)
     page.wait_for_timeout(300)
 
@@ -891,9 +899,7 @@ def test_a_newly_created_blur_is_drawn_and_survives_its_first_drag(
 # --- the overlay's place in the stack ----------------------------------------
 
 
-def test_the_controls_do_not_cover_the_editable_frame(
-    page, live_server, seeded_demo_data
-):
+def test_the_controls_do_not_cover_the_editable_frame(page, open_editor):
     """The bottom of the picture has to be reachable, because that is where subtitles are.
 
     .video-controls is z-index 20 against the overlay's 10, so while the controls sat on top of the
@@ -902,7 +908,7 @@ def test_the_controls_do_not_cover_the_editable_frame(
     laid out below the picture instead. Raising the overlay above them would have put the rig's own
     handles over the scrubber.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
 
@@ -938,11 +944,9 @@ def test_the_controls_do_not_cover_the_editable_frame(
     assert y + height > 95, f"could not reach the bottom of the frame: {y} + {height}"
 
 
-def test_the_scrubber_is_still_clickable_while_a_blur_is_selected(
-    page, live_server, seeded_demo_data
-):
+def test_the_scrubber_is_still_clickable_while_a_blur_is_selected(page, open_editor):
     """Scrubbing between points is the entire multi-point workflow, so it cannot be blocked."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 4.0)
 
@@ -957,13 +961,13 @@ def test_the_scrubber_is_still_clickable_while_a_blur_is_selected(
     assert moved > 6.0, f"clicking the scrubber did not seek (still at {moved})"
 
 
-def test_a_blur_is_drawn_behind_a_comment(page, live_server, seeded_demo_data):
+def test_a_blur_is_drawn_behind_a_comment(page, open_editor):
     """A comment is text the viewer has to read; a blur exists to conceal. Order matters.
 
     Both are position:absolute inside the overlay, so before this was stated explicitly the
     winner was whichever annotation applyAnnotations happened to append last.
     """
-    _open_editor(page, live_server)
+    open_editor()
     # Bird Notes 1 (8.0-15.0) and Bird Flight Path (3.0-11.0) are both live at t=9.
     _select(page, MOVING_BLUR)
     _seek(page, 9.0)
@@ -983,15 +987,13 @@ def test_a_blur_is_drawn_behind_a_comment(page, live_server, seeded_demo_data):
     assert stacking["blur"] < stacking["comment"], stacking
 
 
-def test_deleting_a_blur_removes_it_from_the_player(
-    page, live_server, seeded_demo_data
-):
+def test_deleting_a_blur_removes_it_from_the_player(page, open_editor):
     """It used to stay on screen until a reload, concealing video with nothing to select.
 
     applyAnnotations only cleans up an element while iterating the annotation it belongs to, so a
     deleted annotation is never reached and its box is orphaned.
     """
-    _open_editor(page, live_server)
+    open_editor()
     annotation = _select(page, MOVING_BLUR)
     _seek(page, 5.0)
     assert page.locator(f"#blur-overlay-{annotation.pk}").count() == 1
@@ -1008,7 +1010,7 @@ def test_deleting_a_blur_removes_it_from_the_player(
     expect(page.locator("#blur-edit-rig")).to_have_count(0)
 
 
-def test_the_editor_layout_survives_fullscreen(page, live_server, seeded_demo_data):
+def test_the_editor_layout_survives_fullscreen(page, open_editor):
     """Entering fullscreen re-lays out the player, and the controls must stay clear of the picture.
 
     Issue #322 calls out the normal-to-fullscreen transition specifically, and this is the layout
@@ -1017,7 +1019,7 @@ def test_the_editor_layout_survives_fullscreen(page, live_server, seeded_demo_da
     # Larger than the 1280-wide source, so "fullscreen enlarged the picture" below is a real check
     # rather than one the default viewport makes impossible.
     page.set_viewport_size({"width": 1600, "height": 1000})
-    _open_editor(page, live_server)
+    open_editor()
     annotation = _select(page, MOVING_BLUR)
     _seek(page, 5.0)
     before = _rig_percent(page)
@@ -1059,9 +1061,7 @@ def test_the_editor_layout_survives_fullscreen(page, live_server, seeded_demo_da
 
 
 @pytest.mark.parametrize("playhead", [7.0, 7.02, 6.98])
-def test_moving_a_point_repeatedly_never_changes_its_size(
-    page, live_server, seeded_demo_data, playhead
-):
+def test_moving_a_point_repeatedly_never_changes_its_size(page, open_editor, playhead):
     """A move must be exactly a move, however many times it is repeated.
 
     Parked a few milliseconds off a stored point, the rig correctly shows the *interpolated* rect
@@ -1072,7 +1072,7 @@ def test_moving_a_point_repeatedly_never_changes_its_size(
     the neighbouring point lay. The off-by-a-frame playheads here are the whole test: 7.0 exactly
     always passed.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, playhead)
 
@@ -1114,14 +1114,14 @@ def _highlighted(page):
     )
 
 
-def test_selecting_a_dot_highlights_its_panel_row(page, live_server, seeded_demo_data):
+def test_selecting_a_dot_highlights_its_panel_row(page, open_editor):
     """The two views of a point have to agree, whichever one is clicked.
 
     Clicking a row highlighted its dot, but not the reverse: #timeline-wrapper is an *ancestor* of
     the track items, so the delegated dot handler ran only after the item's own click handler had
     already begun reloading the detail form - and the new rows came back with no highlight on them.
     """
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     dot = page.locator(f"{_item_selector(annotation)} .blur-position-locator").first
     expected = dot.get_attribute("data-position-id")
 
@@ -1133,9 +1133,9 @@ def test_selecting_a_dot_highlights_its_panel_row(page, live_server, seeded_demo
     assert highlighted["rows"] == [expected], "the dot's row was not highlighted"
 
 
-def test_selecting_a_panel_row_highlights_its_dot(page, live_server, seeded_demo_data):
+def test_selecting_a_panel_row_highlights_its_dot(page, open_editor):
     """The direction that already worked, kept honest."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     row = page.locator("#blur-positions-wrapper .position-entry").nth(1)
@@ -1149,12 +1149,12 @@ def test_selecting_a_panel_row_highlights_its_dot(page, live_server, seeded_demo
 
 
 def test_clicking_a_dot_on_an_unselected_blur_selects_both_the_blur_and_the_point(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
     """Selecting an item seeks to its start, so landing on the clicked point needs care."""
     from core.models import BlurAnnotation
 
-    _open_editor(page, live_server)
+    open_editor()
     annotation = BlurAnnotation.objects.get(name=MOVING_BLUR)
     dot = page.locator(f"{_item_selector(annotation)} .blur-position-locator").first
     expected = dot.get_attribute("data-position-id")
@@ -1172,13 +1172,13 @@ def test_clicking_a_dot_on_an_unselected_blur_selects_both_the_blur_and_the_poin
     )
 
 
-def test_scrubbing_onto_a_point_highlights_it(page, live_server, seeded_demo_data):
+def test_scrubbing_onto_a_point_highlights_it(page, open_editor):
     """The highlight follows the playhead, not the last thing clicked.
 
     That is what makes it survive a form reload, and it also answers "which point am I editing?"
     while scrubbing - the question the panel exists to answer.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     _seek(page, 5.0)  # between points
@@ -1192,15 +1192,13 @@ def test_scrubbing_onto_a_point_highlights_it(page, live_server, seeded_demo_dat
     assert on_point["rows"] == on_point["dots"]
 
 
-def test_the_highlight_clears_when_the_blur_loses_focus(
-    page, live_server, seeded_demo_data
-):
+def test_the_highlight_clears_when_the_blur_loses_focus(page, open_editor):
     """A dot left lit on an unselected blur claims a point is being edited when none is.
 
     The panel rows vanish with the detail form, so the row half of the highlight cleaned itself up
     and hid this: the dots live in the track item, which outlives the selection.
     """
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     page.locator(f"{_item_selector(annotation)} .blur-position-locator").first.click()
     page.wait_for_timeout(400)
     assert _highlighted(page)["dots"] != [], "nothing was lit, so nothing was proven"
@@ -1217,9 +1215,7 @@ def test_the_highlight_clears_when_the_blur_loses_focus(
     )
 
 
-def test_dots_hold_their_times_while_a_resize_handle_is_dragged(
-    page, live_server, seeded_demo_data
-):
+def test_dots_hold_their_times_while_a_resize_handle_is_dragged(page, open_editor):
     """A dot marks an absolute time, so stretching the bar must not drag it along.
 
     Its `left` is a percentage *of the item*, so while the item's width was in flux the dots slid
@@ -1227,7 +1223,7 @@ def test_dots_hold_their_times_while_a_resize_handle_is_dragged(
     assertions here are taken mid-drag, before the mouse is released - which is the only moment the
     bug existed.
     """
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     selector = _item_selector(annotation)
 
     def measure():
@@ -1311,7 +1307,7 @@ def _current_time(page):
 
 
 def test_the_panel_offers_no_way_to_add_a_point_and_announces_nothing_yet(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
     """The two things about the panel that are contracts rather than copy.
 
@@ -1325,7 +1321,7 @@ def test_the_panel_offers_no_way_to_add_a_point_and_announces_nothing_yet(
     bisection procedure is written down, but exact copy is an editorial choice, and a test that
     fails when someone improves a sentence teaches people to stop improving sentences.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     expect(page.locator(".blur-positions-help")).to_be_visible()
@@ -1337,11 +1333,9 @@ def test_the_panel_offers_no_way_to_add_a_point_and_announces_nothing_yet(
     assert _status(page) == ""
 
 
-def test_a_save_leaves_the_help_text_and_status_line_in_place(
-    page, live_server, seeded_demo_data
-):
+def test_a_save_leaves_the_help_text_and_status_line_in_place(page, open_editor):
     """Only the rows are replaced, which is what lets the status line work as a live region."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 3.0)
 
@@ -1371,7 +1365,7 @@ GEOMETRY_FIELDS = [
 
 @pytest.mark.parametrize("field,entered,index,was", GEOMETRY_FIELDS)
 def test_a_geometry_field_changes_only_the_value_it_names(
-    page, live_server, seeded_demo_data, field, entered, index, was
+    page, open_editor, field, entered, index, was
 ):
     """None of these inputs did anything before. update_annotation never read them, and the form
     flattened repeated names so every row collapsed into one value anyway.
@@ -1379,7 +1373,7 @@ def test_a_geometry_field_changes_only_the_value_it_names(
     x and y are here because a number is sometimes the only way to say what a drag cannot: line two
     blurs up on the same edge, or nudge one by a hundredth of a percent.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     _mark_panel(page)
@@ -1401,7 +1395,7 @@ def test_a_geometry_field_changes_only_the_value_it_names(
     assert _status(page) == "Point updated at 7.00s"
 
 
-def test_the_points_panel_is_a_real_table(page, live_server, seeded_demo_data):
+def test_the_points_panel_is_a_real_table(page, open_editor):
     """Each row is one point and each column is one of its values, so it is tabular data.
 
     The header cells are what tell a screen reader which value a field holds - without them, five
@@ -1410,7 +1404,7 @@ def test_the_points_panel_is_a_real_table(page, live_server, seeded_demo_data):
     implicit ARIA role in every major browser, so the markup can be semantic while the semantics are
     gone. The computed display values below are the mechanism, not a style preference.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     structure = page.evaluate(
@@ -1468,8 +1462,8 @@ def test_the_points_panel_is_a_real_table(page, live_server, seeded_demo_data):
 # save()'s rounding. Nothing between them and the panel formats a value.
 
 
-def test_the_time_field_retimes_its_point(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_the_time_field_retimes_its_point(page, open_editor):
+    open_editor()
     _select(page, MOVING_BLUR)
 
     _mark_panel(page)
@@ -1486,12 +1480,10 @@ def test_the_time_field_retimes_its_point(page, live_server, seeded_demo_data):
     assert _status(page) == "Point moved to 8.50s"
 
 
-def test_retiming_a_point_onto_another_one_reports_the_conflict(
-    page, live_server, seeded_demo_data
-):
+def test_retiming_a_point_onto_another_one_reports_the_conflict(page, open_editor):
     """Two points at one time is the invariant the unique index exists to hold. The endpoint answers
     409, and the user has to be told why nothing happened."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     row = _row_for(page, 1)
@@ -1504,11 +1496,9 @@ def test_retiming_a_point_onto_another_one_reports_the_conflict(
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0, 11.0]
 
 
-def test_a_non_numeric_entry_is_refused_and_the_field_goes_back(
-    page, live_server, seeded_demo_data
-):
+def test_a_non_numeric_entry_is_refused_and_the_field_goes_back(page, open_editor):
     """The row's data-* is the last thing actually saved, so it is what the field should show."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     row = _row_for(page, 1)
@@ -1521,9 +1511,7 @@ def test_a_non_numeric_entry_is_refused_and_the_field_goes_back(
     assert _point_at(MOVING_BLUR, 7.0)[3] == pytest.approx(26.0, abs=0.01)
 
 
-def test_enter_in_a_size_field_does_not_submit_the_whole_annotation(
-    page, live_server, seeded_demo_data
-):
+def test_enter_in_a_size_field_does_not_submit_the_whole_annotation(page, open_editor):
     """Implicit form submission would fire update_annotation, reconcile the points, and reload the
     detail form - all as a side effect of committing one number."""
     submits = []
@@ -1535,7 +1523,7 @@ def test_enter_in_a_size_field_does_not_submit_the_whole_annotation(
             else None
         ),
     )
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     _mark_panel(page)
@@ -1569,11 +1557,11 @@ def _drag_dot(page, annotation, index, seconds):
 
 
 def test_dragging_a_dot_retimes_its_point_and_leaves_its_geometry_alone(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
     """A dot is a point's position *in time*. Grabbing it names that row, unlike a drag on the frame
     which names a moment - so this is the one gesture that may send a position id."""
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
 
     _mark_panel(page)
     _drag_dot(page, annotation, 0, 1.5)  # the point at t=7.0, later by 1.5s
@@ -1587,12 +1575,10 @@ def test_dragging_a_dot_retimes_its_point_and_leaves_its_geometry_alone(
     assert "Point moved to" in _status(page)
 
 
-def test_dragging_a_dot_does_not_drag_the_whole_annotation(
-    page, live_server, seeded_demo_data
-):
+def test_dragging_a_dot_does_not_drag_the_whole_annotation(page, open_editor):
     """The dot sits inside a `draggable="true"` track item, so a missed suppression would move the
     entire blur along the timeline instead of retiming one of its points."""
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
 
     _mark_panel(page)
     _drag_dot(page, annotation, 0, 1.5)
@@ -1602,9 +1588,7 @@ def test_dragging_a_dot_does_not_drag_the_whole_annotation(
     assert (blur.start_time, blur.end_time) == (3.0, 11.0)
 
 
-def test_clicking_a_dot_without_moving_it_saves_nothing(
-    page, live_server, seeded_demo_data
-):
+def test_clicking_a_dot_without_moving_it_saves_nothing(page, open_editor):
     """A click has to keep meaning "seek here". Writing on every mouseup would file a point under a
     time it was already at and spend a request doing it."""
     writes = []
@@ -1616,7 +1600,7 @@ def test_clicking_a_dot_without_moving_it_saves_nothing(
             else None
         ),
     )
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
 
     page.locator(f"{_item_selector(annotation)} .blur-position-locator").first.click()
     page.wait_for_timeout(500)
@@ -1625,9 +1609,9 @@ def test_clicking_a_dot_without_moving_it_saves_nothing(
     assert _current_time(page) == pytest.approx(7.0, abs=0.3)
 
 
-def test_delete_on_a_focused_dot_removes_its_point(page, live_server, seeded_demo_data):
+def test_delete_on_a_focused_dot_removes_its_point(page, open_editor):
     """The dots are the only handle a keyboard user has on an individual point."""
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
 
     _mark_panel(page)
     page.locator(f"{_item_selector(annotation)} .blur-position-locator").first.focus()
@@ -1637,8 +1621,8 @@ def test_delete_on_a_focused_dot_removes_its_point(page, live_server, seeded_dem
     assert _status(page) == "Point deleted"
 
 
-def test_enter_on_a_focused_dot_seeks_to_its_point(page, live_server, seeded_demo_data):
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+def test_enter_on_a_focused_dot_seeks_to_its_point(page, open_editor):
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     _seek(page, 3.0)
 
     page.locator(f"{_item_selector(annotation)} .blur-position-locator").last.focus()
@@ -1651,8 +1635,8 @@ def test_enter_on_a_focused_dot_seeks_to_its_point(page, live_server, seeded_dem
 # --- the keyboard on the rig -------------------------------------------------
 
 
-def test_arrow_keys_nudge_the_box(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_arrow_keys_nudge_the_box(page, open_editor):
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     _focus_rig(page)
@@ -1669,8 +1653,8 @@ def test_arrow_keys_nudge_the_box(page, live_server, seeded_demo_data):
     )
 
 
-def test_shift_arrow_takes_a_coarser_step(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_shift_arrow_takes_a_coarser_step(page, open_editor):
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     _focus_rig(page)
@@ -1682,7 +1666,7 @@ def test_shift_arrow_takes_a_coarser_step(page, live_server, seeded_demo_data):
     assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(35.0, abs=0.01)
 
 
-def test_a_burst_of_nudges_is_written_once(page, live_server, seeded_demo_data):
+def test_a_burst_of_nudges_is_written_once(page, open_editor):
     """One request and one stored point per keystroke would flood the endpoint and record every
     intermediate position as though the user had meant to stop there."""
     writes = []
@@ -1694,7 +1678,7 @@ def test_a_burst_of_nudges_is_written_once(page, live_server, seeded_demo_data):
             else None
         ),
     )
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     _focus_rig(page)
@@ -1710,12 +1694,10 @@ def test_a_burst_of_nudges_is_written_once(page, live_server, seeded_demo_data):
     assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(42.0, abs=0.01)
 
 
-def test_the_rig_keeps_the_arrow_keys_away_from_the_player(
-    page, live_server, seeded_demo_data
-):
+def test_the_rig_keeps_the_arrow_keys_away_from_the_player(page, open_editor):
     """The player binds bare arrows on `document` and only steps aside for inputs and textareas, so
     without stopPropagation a nudge would also seek the video and change the volume under it."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
 
@@ -1739,11 +1721,9 @@ def test_the_rig_keeps_the_arrow_keys_away_from_the_player(
     )
 
 
-def test_comma_and_period_step_the_playhead_from_the_rig(
-    page, live_server, seeded_demo_data
-):
+def test_comma_and_period_step_the_playhead_from_the_rig(page, open_editor):
     """The arrow keys belong to the box now, so these are what is left for frame-stepping."""
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     _focus_rig(page)
@@ -1758,15 +1738,13 @@ def test_comma_and_period_step_the_playhead_from_the_rig(
     assert _current_time(page) == pytest.approx(6.9, abs=0.03)
 
 
-def test_enter_writes_a_nudge_without_waiting_out_the_delay(
-    page, live_server, seeded_demo_data
-):
+def test_enter_writes_a_nudge_without_waiting_out_the_delay(page, open_editor):
     """Enter is a commit, not a create: it exists so a keyboard user need not wait 400ms.
 
     On a box that has not been nudged it does nothing, which is correct - there is no such thing as
     "add a point here" any more, only "the box is here now".
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
     _focus_rig(page)
@@ -1786,14 +1764,12 @@ def test_enter_writes_a_nudge_without_waiting_out_the_delay(
     assert _point_at(MOVING_BLUR, 5.0)[1] == pytest.approx(26.75, abs=0.01)
 
 
-def test_a_seek_writes_a_pending_nudge_at_the_time_it_was_made(
-    page, live_server, seeded_demo_data
-):
+def test_a_seek_writes_a_pending_nudge_at_the_time_it_was_made(page, open_editor):
     """A nudge is painted at once and written 400ms later, so the playhead can move in between - by
     a click on a panel row, by playback, by anything. The geometry has to stay filed under the frame
     the user was looking at, or it lands on a point they never touched.
     """
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     _focus_rig(page)
@@ -1816,16 +1792,14 @@ def test_a_seek_writes_a_pending_nudge_at_the_time_it_was_made(
 # --- warning before points are pruned ----------------------------------------
 
 
-def test_shrinking_a_blurs_range_warns_before_dropping_points(
-    page, live_server, seeded_demo_data
-):
+def test_shrinking_a_blurs_range_warns_before_dropping_points(page, open_editor):
     """reconcile_positions drops points outside the new window, which is right - the window that
     exposes the motion path shrank. But for a feature whose job is covering content that must not
     be seen, losing part of the path silently is worse than the interruption of asking."""
     asked = []
     page.on("dialog", lambda dialog: (asked.append(dialog.message), dialog.accept()))
 
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     handle = page.locator(
         f"{_item_selector(annotation)} .resize-handle-right"
     ).bounding_box()
@@ -1852,12 +1826,10 @@ def test_shrinking_a_blurs_range_warns_before_dropping_points(
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0]
 
 
-def test_declining_the_warning_leaves_the_blur_untouched(
-    page, live_server, seeded_demo_data
-):
+def test_declining_the_warning_leaves_the_blur_untouched(page, open_editor):
     page.on("dialog", lambda dialog: dialog.dismiss())
 
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     item = page.locator(_item_selector(annotation))
     width_before = item.bounding_box()["width"]
     handle = item.locator(".resize-handle-right").bounding_box()
@@ -1885,15 +1857,13 @@ def test_declining_the_warning_leaves_the_blur_untouched(
     assert item.bounding_box()["width"] == pytest.approx(width_before, abs=2)
 
 
-def test_a_resize_that_keeps_every_point_asks_nothing(
-    page, live_server, seeded_demo_data
-):
+def test_a_resize_that_keeps_every_point_asks_nothing(page, open_editor):
     """The vacuity guard for the two tests above: the warning must not fire on an ordinary resize,
     or a user would learn to click through it."""
     asked = []
     page.on("dialog", lambda dialog: (asked.append(dialog.message), dialog.accept()))
 
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     handle = page.locator(
         f"{_item_selector(annotation)} .resize-handle-right"
     ).bounding_box()
@@ -1927,10 +1897,8 @@ def test_a_resize_that_keeps_every_point_asks_nothing(
 # saves itself on `change`, once committed rather than once per keystroke.
 
 
-def test_editing_a_field_saves_it_without_being_asked(
-    page, live_server, seeded_demo_data
-):
-    _open_editor(page, live_server)
+def test_editing_a_field_saves_it_without_being_asked(page, open_editor):
+    open_editor()
     annotation = _select(page, MOVING_BLUR)
 
     page.locator("#annotation_name").fill("Renamed by autosave")
@@ -1946,9 +1914,7 @@ def test_editing_a_field_saves_it_without_being_asked(
     assert _blur("Renamed by autosave").pk == annotation.pk
 
 
-def test_typing_a_name_is_one_save_not_one_per_keystroke(
-    page, live_server, seeded_demo_data
-):
+def test_typing_a_name_is_one_save_not_one_per_keystroke(page, open_editor):
     """`change` rather than `input`. A save per character would be twenty requests for one rename,
     and twenty entries in the annotation's undo history."""
     writes = []
@@ -1960,7 +1926,7 @@ def test_typing_a_name_is_one_save_not_one_per_keystroke(
             else None
         ),
     )
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     page.locator("#annotation_name").click()
@@ -1971,9 +1937,7 @@ def test_typing_a_name_is_one_save_not_one_per_keystroke(
     assert len(writes) == 1, f"{len(writes)} saves for one rename: {writes}"
 
 
-def test_moving_through_the_form_without_editing_saves_nothing(
-    page, live_server, seeded_demo_data
-):
+def test_moving_through_the_form_without_editing_saves_nothing(page, open_editor):
     """The vacuity guard for the two above: focus alone must not write.
 
     Without it, merely selecting an annotation and tabbing past a field would add an entry to its
@@ -1988,7 +1952,7 @@ def test_moving_through_the_form_without_editing_saves_nothing(
             else None
         ),
     )
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     page.locator("#annotation_name").click()
@@ -2001,9 +1965,7 @@ def test_moving_through_the_form_without_editing_saves_nothing(
     assert writes == [], f"focus alone triggered a save: {writes}"
 
 
-def test_enter_commits_a_field_without_leaving_the_editor(
-    page, live_server, seeded_demo_data
-):
+def test_enter_commits_a_field_without_leaving_the_editor(page, open_editor):
     """Enter is the obvious way to say "done" in a text field, so it has to mean save.
 
     It does, and by the same route as any other commit: the browser fires `change` on Enter. That
@@ -2013,7 +1975,7 @@ def test_enter_commits_a_field_without_leaving_the_editor(
     asserted anyway, because losing a field would start the submissions and a submit with no
     handler takes the user out of the editor mid-session.
     """
-    _open_editor(page, live_server)
+    open_editor()
     annotation = _select(page, MOVING_BLUR)
     was = page.url
 
@@ -2026,12 +1988,12 @@ def test_enter_commits_a_field_without_leaving_the_editor(
 
 
 def test_retiming_a_blur_from_the_form_reconciles_its_points_in_place(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
     """The form is not rebuilt after an auto-save - that would move the caret out of the field the
     user went on to - so the blur's point rows have to be patched from the response instead."""
     page.on("dialog", lambda dialog: dialog.accept())
-    _open_editor(page, live_server)
+    open_editor()
     _select(page, MOVING_BLUR)
 
     page.locator("#end_time").fill("9")
@@ -2063,7 +2025,7 @@ def _player_points(page, annotation):
 
 
 def test_a_nudge_saved_as_the_selection_moves_on_still_reaches_the_player(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
     """Selecting another blur seeks, and seeking flushes the pending nudge - so the response to
     that save routinely arrives after the selection has already changed.
@@ -2073,7 +2035,7 @@ def test_a_nudge_saved_as_the_selection_moves_on_still_reaches_the_player(
     id no longer matched, so the server held the edit while the player went on painting the old
     geometry for the rest of the session.
     """
-    annotation = _open_editor(page, live_server) and _select(page, MOVING_BLUR)
+    annotation = open_editor() and _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     _focus_rig(page)
 

@@ -1,6 +1,6 @@
 import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback } from "./utils.js";
 import { BlurEditor, placeLocators } from "./BlurEditor.js";
-import { clampRect, percentWithin, resizeRect } from "./video-geometry.js";
+import { clampRect, percentWithin, pointsLostByRetiming, resizeRect } from "./video-geometry.js";
 
 // Clicking or dragging inside these regions seeks the video: the ticks/scrubber
 // row and every track row's right-hand (scrollable) area. Clicks on a
@@ -787,9 +787,10 @@ export class Editor {
         this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
     }
 
-    // How many of a blur's points a new time range would discard. Blurs exist to cover content
-    // that must not be seen, so losing a point silently is worse than the interruption of asking:
-    // it leaves a blur that glides somewhere it was never aimed.
+    // How many of a blur's points a new time range would discard, read off the item bar.
+    //
+    // Only the reading is here; the decision itself is pointsLostByRetiming, which is pure and
+    // parity-tested against the server that actually does the deleting.
     //
     // The bar's dots carry every point's time except the first, which reconcile_positions always
     // re-pins to start_time and so never drops - hence data-start standing in for it here.
@@ -797,28 +798,9 @@ export class Editor {
       if (item.dataset["annotationType"] !== "blur") return 0;
       const oldStart = parseFloat(item.dataset["start"]);
       const oldEnd = parseFloat(item.dataset["end"]);
-      if (!Number.isFinite(oldStart) || !Number.isFinite(oldEnd)) return 0;
-      // Rounded to 2dp first, because BaseAnnotation.save() stores start and end at that precision
-      // and reconcile_positions compares against the stored values. Dragging the left handle
-      // computes the right edge as left+width, which lands a hair under a whole number - so
-      // comparing the raw 10.99999 against a point at 11.0 warns about a loss that the server,
-      // holding 11.00, is never going to inflict.
-      const start = Math.round(newStart * 100) / 100;
-      const end = Math.round(newEnd * 100) / 100;
-      // A move carries the whole motion path with it, so only a change of duration can drop points.
-      // Both halves of reconcile_positions' test, which decides this for real: the same 0.02s
-      // tolerance *and* a start that actually moved. Without the second half, dragging the right
-      // handle in by a hundredth promises no loss here while the server takes its resize branch
-      // and deletes the trailing point.
-      if (Math.abs((end - start) - (oldEnd - oldStart)) <= 0.02 && start !== oldStart) return 0;
-
       const dots = item.querySelectorAll(".blur-position-locator");
-      const times = [oldStart, ...Array.from(dots, (dot) => parseFloat(dot.dataset["positionTime"]))]
-        .filter(Number.isFinite);
-      // Of the points now before the window, the latest survives as the blur's new first point.
-      const leading = times.filter((time) => time < start).length;
-      const trailing = times.filter((time) => time > end).length;
-      return trailing + Math.max(0, leading - 1);
+      const times = [oldStart, ...Array.from(dots, (dot) => parseFloat(dot.dataset["positionTime"]))];
+      return pointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd);
     }
 
     confirmBlurPointLoss(item, newStart, newEnd) {

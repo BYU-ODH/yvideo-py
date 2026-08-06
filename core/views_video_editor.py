@@ -585,11 +585,27 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
 
 
 def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
+    """Everything the page needs to redraw one blur's points after a write.
+
+    Three projections of a single list, because three parts of the page consume it differently:
+    the points panel (`blurPositions`), the timeline bar's dots (`trackItem`), and the player's own
+    copy of the annotation (`positions`, the only one that is data rather than markup).
+
+    That is already one representation more than anyone wants to keep in step. Anything new that
+    needs these positions should read one of the two client-side copies - the player's array, or
+    the panel's row `data-*` attributes, which BlurEditor._positions() treats as canonical - rather
+    than becoming a fourth thing to patch on every save.
+    """
     try:
-        parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
+        # Prefetched, so the three projections below share one read of the relation. Each of them
+        # calls positions.all() independently - one directly, one inside get_position_locators, one
+        # in the comprehension - and without this that is three identical queries per point edit.
+        parent_annotation = BlurAnnotation.objects.prefetch_related("positions").get(
+            pk=parent_annotation_id
+        )
     except Exception as e:
         logger.error(
-            f"Failed to get parent_annotation while updateing blur positions html. Exception: {e}"
+            f"Failed to get parent_annotation while updating blur positions html. Exception: {e}"
         )
         return False
 
@@ -616,7 +632,7 @@ def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
         }
 
     except Exception as e:
-        logger.error(f"Failed to generate blur_postion html. Exception: {e}")
+        logger.error(f"Failed to generate blur_position html. Exception: {e}")
         return False
 
 

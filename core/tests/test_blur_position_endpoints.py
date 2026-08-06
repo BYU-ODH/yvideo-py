@@ -15,7 +15,9 @@ covered below, since getting them wrong retimes a point the user did not touch.
 
 import json
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from core.factories import AnnotationSetFactory
@@ -217,6 +219,40 @@ class BlurPositionEndpointTests(TestCase):
         # has to reconstruct row numbering or dot placement itself.
         self.assertIn("blurPositions", payload)
         self.assertIn("trackItem", payload)
+
+    def test_the_three_projections_share_one_read_of_the_positions(self):
+        """The response describes the same points three ways; it should not fetch them three times.
+
+        generate_blur_item_and_positions_html prefetches for exactly this reason, and the saving is
+        invisible from the response - so without an assertion here, dropping the prefetch (or adding
+        a fourth projection that calls positions.all() again) is a silent regression.
+
+        Counts the reads of the positions table specifically rather than the whole request, so
+        session and permission queries cannot drift the number and turn this into the test that
+        fails for unrelated reasons.
+        """
+        self.client.force_login(self.owner)
+        BlurAnnotationPositionFactory(blur_annotation=self.blur, time=8.0)
+
+        with CaptureQueriesContext(connection) as queries:
+            self._upsert(time=9.5)
+
+        selects = [
+            query["sql"]
+            for query in queries.captured_queries
+            if "core_blurannotationposition" in query["sql"]
+            and query["sql"].lstrip().upper().startswith("SELECT")
+        ]
+        # The write path legitimately reads the table before rendering: the upsert looks for a point
+        # to land on, ensure_first_position checks the earliest, and the response reads back the
+        # stored time. What must not be here is one read per projection of the response.
+        self.assertLessEqual(
+            len(selects),
+            4,
+            "the positions table is being read once per projection of the response; "
+            "generate_blur_item_and_positions_html prefetches so they can share one read:\n"
+            + "\n".join(selects),
+        )
 
     def test_the_response_says_whether_a_point_was_added_or_moved(self):
         """Only this side can tell the two apart, and the editor has to say which happened.

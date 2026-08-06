@@ -1,8 +1,6 @@
 from playwright.sync_api import expect
 import pytest
 
-from core.models import Content
-
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.django_db(transaction=True),
@@ -16,7 +14,6 @@ def _spoof_as(page, live_server, search_text):
     # condition behind the regression below: header.html only renders the
     # CSRF-token-bearing spoof form for admins who are *not* currently
     # spoofing, so once spoofing starts, that input disappears from the page.
-    page.goto(f"{live_server.url}/login/dev/quick/")
     page.goto(f"{live_server.url}/")
 
     page.locator("#spoof-user-input").fill(search_text)
@@ -56,20 +53,17 @@ def _assert_video_plays(page, console_errors):
     assert not console_errors, f"unexpected page errors: {console_errors}"
 
 
-def test_video_can_be_played_on_the_player_page(page, live_server, seeded_demo_data):
+def test_video_can_be_played_on_the_player_page(page, open_player):
     console_errors = []
     page.on("pageerror", lambda exc: console_errors.append(str(exc)))
 
-    content = Content.objects.get(title="Birds Overview")
-
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
+    open_player()
 
     _assert_video_plays(page, console_errors)
 
 
 def test_video_can_be_played_by_a_spoofed_non_admin_user(
-    page, live_server, seeded_demo_data
+    logged_in_page, live_server, demo_content
 ):
     # Regression coverage: player-wrapper.js used to fetch the CSRF token
     # from a `[name=csrfmiddlewaretoken]` form input that only exists on the
@@ -78,13 +72,15 @@ def test_video_can_be_played_by_a_spoofed_non_admin_user(
     # production - had no such input anywhere on the page, so
     # `document.querySelector(...).value` threw and the player never
     # initialized. Reproduce that exact viewer state via real spoofing.
+    page = logged_in_page
     console_errors = []
     page.on("pageerror", lambda exc: console_errors.append(str(exc)))
 
-    content = Content.objects.get(title="Birds Overview")
-
+    # Not open_player: that fixture waits for window.videoPlayer, which is exactly what the
+    # regression prevented from ever being set. Waiting on it here would turn the bug this test
+    # exists to catch into a timeout in the bootstrap instead of the assertion below.
     _spoof_as(page, live_server, "Alice")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
+    page.goto(f"{live_server.url}/player/{demo_content.pk}/")
 
     assert not page.locator("[name=csrfmiddlewaretoken]").count(), (
         "test no longer reproduces the regression: a csrfmiddlewaretoken "

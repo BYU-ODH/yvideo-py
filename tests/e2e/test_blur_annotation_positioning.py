@@ -1,7 +1,5 @@
 import pytest
 
-from core.models import Content
-
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.django_db(transaction=True),
@@ -18,28 +16,6 @@ BLUR_POSITION = {
     "width": 22,
     "height": 14,
 }
-
-
-def _open_player(page, live_server, viewport=None):
-    if viewport:
-        page.set_viewport_size(viewport)
-
-    content = Content.objects.get(title="Birds Overview")
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/player/{content.pk}/")
-    page.wait_for_function(
-        """() => {
-            const video = document.querySelector('.annotation-player-container video');
-            // window.videoPlayer and the video's duration load via two
-            // independent async paths (a player-data fetch vs. the browser's
-            // own media loading) with no ordering guarantee between them.
-            // Waiting on duration alone races window.videoPlayer.loadData
-            // below - fast/warm machines usually win the race, CI doesn't.
-            return window.videoPlayer && video && !isNaN(video.duration) && video.duration > 0;
-        }""",
-        timeout=5000,
-    )
-    return content
 
 
 def _inject_blur_annotation(page):
@@ -139,9 +115,9 @@ def _assert_annotation_box_covers_the_picture(page):
 
 
 def test_blur_annotation_stays_aligned_when_window_shrinks_in_both_directions(
-    page, live_server, seeded_demo_data
+    page, open_player
 ):
-    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    open_player(viewport={"width": 1280, "height": 720})
     _inject_blur_annotation(page)
 
     before = _blur_position_relative_to_video(page)
@@ -168,14 +144,12 @@ def test_blur_annotation_stays_aligned_when_window_shrinks_in_both_directions(
     _assert_relative_positions_match(before, after)
 
 
-def test_video_is_pillarboxed_and_blur_stays_aligned_in_fullscreen(
-    page, live_server, seeded_demo_data
-):
+def test_video_is_pillarboxed_and_blur_stays_aligned_in_fullscreen(page, open_player):
     # birds.mp4 is 16:9. A viewport proportionally *wider* than that (here
     # roughly 2.67:1) is the mirror image of the other fullscreen test: height,
     # not width, is the constraining dimension, so the picture must pillarbox
     # with bars down the left and right rather than stretching edge to edge.
-    _open_player(page, live_server, viewport={"width": 1600, "height": 600})
+    open_player(viewport={"width": 1600, "height": 600})
     _inject_blur_annotation(page)
 
     before = _blur_position_relative_to_video(page)
@@ -201,7 +175,7 @@ def test_video_is_pillarboxed_and_blur_stays_aligned_in_fullscreen(
 
 
 def test_video_is_vertically_centered_and_blur_stays_aligned_in_portrait_fullscreen(
-    page, live_server, seeded_demo_data
+    page, open_player
 ):
     # A viewport much narrower than the video's own 16:9 - e.g. a phone held
     # upright - is width-constrained, so the video letterboxes top/bottom
@@ -209,7 +183,7 @@ def test_video_is_vertically_centered_and_blur_stays_aligned_in_portrait_fullscr
     # centered in that leftover vertical space, not pinned to the top edge,
     # and the blur/annotation container must track the video exactly
     # regardless of where it ends up on screen.
-    _open_player(page, live_server, viewport={"width": 300, "height": 1600})
+    open_player(viewport={"width": 300, "height": 1600})
     _inject_blur_annotation(page)
 
     before = _blur_position_relative_to_video(page)
@@ -235,9 +209,7 @@ def test_video_is_vertically_centered_and_blur_stays_aligned_in_portrait_fullscr
     _assert_relative_positions_match(before, after)
 
 
-def test_blur_stays_aligned_after_exiting_fullscreen(
-    page, live_server, seeded_demo_data
-):
+def test_blur_stays_aligned_after_exiting_fullscreen(page, open_player):
     # Fullscreen escapes the normal page flow (position: fixed, top: 0), so
     # the video's on-screen y-offset reliably differs from windowed mode
     # (which sits below the page header) regardless of viewport size - a
@@ -246,7 +218,7 @@ def test_blur_stays_aligned_after_exiting_fullscreen(
     # :fullscreen styling while some other stale sizing lingers, and the
     # blur must still track the video correctly once back in the normal
     # page flow.
-    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    open_player(viewport={"width": 1280, "height": 720})
     _inject_blur_annotation(page)
 
     before = _blur_position_relative_to_video(page)
@@ -286,9 +258,7 @@ def test_blur_stays_aligned_after_exiting_fullscreen(
     _assert_relative_positions_match(before, after)
 
 
-def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(
-    page, live_server, seeded_demo_data
-):
+def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(page, open_player):
     # birds.mp4 is exactly 16:9 (1280x720). Use a 16:9 viewport *larger* than
     # that native resolution, so "fills the screen" can be asserted as an
     # exact match (no letterboxing) while also proving the picture actually
@@ -297,7 +267,7 @@ def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(
     # Note this is asserted on the *picture*, not the video element's box: under
     # `object-fit: contain` the element box always fills its wrapper, so an
     # element-box assertion here would pass vacuously.
-    _open_player(page, live_server, viewport={"width": 2000, "height": 1125})
+    open_player(viewport={"width": 2000, "height": 1125})
     _inject_blur_annotation(page)
 
     before = _blur_position_relative_to_video(page)
@@ -350,7 +320,7 @@ def test_video_fills_the_screen_and_blur_stays_aligned_in_fullscreen(
     ],
     ids=["ultrawide", "portrait", "square"],
 )
-def test_the_picture_is_never_distorted(page, live_server, seeded_demo_data, viewport):
+def test_the_picture_is_never_distorted(page, open_player, viewport):
     """The guarantee the whole sizing approach exists to provide.
 
     The video is `object-fit: contain`, so the browser - not our layout code - owns the
@@ -358,7 +328,7 @@ def test_the_picture_is_never_distorted(page, live_server, seeded_demo_data, vie
     sizing mistake can only ever misplace the overlay slightly; it can never stretch the
     picture. This asserts both halves at aspect ratios far from the source's own 16:9.
     """
-    _open_player(page, live_server, viewport=viewport)
+    open_player(viewport=viewport)
     _inject_blur_annotation(page)
 
     measured = page.evaluate(
@@ -380,12 +350,10 @@ def test_the_picture_is_never_distorted(page, live_server, seeded_demo_data, vie
     assert measured["boxRatio"] == pytest.approx(measured["intrinsicRatio"], rel=0.01)
 
 
-def test_blur_radius_scales_with_the_rendered_frame(
-    page, live_server, seeded_demo_data
-):
+def test_blur_radius_scales_with_the_rendered_frame(page, open_player):
     # A fixed pixel radius obscures proportionally less of the picture the larger the video is
     # rendered, so blur strength is derived from frame height instead.
-    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    open_player(viewport={"width": 1280, "height": 720})
     _inject_blur_annotation(page)
 
     read_radius = """() => {
@@ -406,14 +374,14 @@ def test_blur_radius_scales_with_the_rendered_frame(
     )
 
 
-def test_the_blur_glides_between_positions(page, live_server, seeded_demo_data):
+def test_the_blur_glides_between_positions(page, open_player):
     """A blur with several positions interpolates between them rather than snapping.
 
     This is a safety property, not a nicety: a box that snaps to the last position passed lags
     behind whatever it is covering, briefly exposing it. Interpolating is what makes a handful
     of positions sufficient to keep a moving subject hidden.
     """
-    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    open_player(viewport={"width": 1280, "height": 720})
 
     # Two positions four seconds apart, moving right and growing. Every field differs so a
     # field mix-up cannot cancel out.
@@ -458,13 +426,11 @@ def test_the_blur_glides_between_positions(page, live_server, seeded_demo_data):
     assert beyond["width"] == pytest.approx(0.30, abs=0.01)
 
 
-def test_blur_stays_aligned_with_the_subtitle_sidebar_open(
-    page, live_server, seeded_demo_data
-):
+def test_blur_stays_aligned_with_the_subtitle_sidebar_open(page, open_player):
     # Opening the sidebar shrinks the video via a margin on .video-wrapper, animated over
     # 0.3s. The overlay has to follow it, which is why the wrapper uses `align-self: stretch`
     # (stretch fills the container minus margins) rather than an explicit width.
-    _open_player(page, live_server, viewport={"width": 1280, "height": 720})
+    open_player(viewport={"width": 1280, "height": 720})
     _inject_blur_annotation(page)
 
     before = _blur_position_relative_to_video(page)
