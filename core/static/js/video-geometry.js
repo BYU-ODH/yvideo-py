@@ -110,6 +110,9 @@ export function resizeRect(
   };
 }
 
+/*
+Linear interpolation
+*/
 function lerp(from, to, fraction) {
   return from + (to - from) * fraction;
 }
