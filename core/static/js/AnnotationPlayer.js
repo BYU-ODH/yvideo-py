@@ -874,9 +874,6 @@ export class AnnotationPlayer {
     }
   }
 
-  // Swap in a fresh set of positions for one blur, for the editor to call after a save. Patching in
-  // place rather than reloading every annotation keeps a drag cheap and leaves the playhead and
-  // every other annotation's state untouched by what is a local edit.
   replaceAnnotationPositions(annotationId, positions) {
     const annotation = this.annotations?.find(
       (candidate) =>
@@ -897,8 +894,6 @@ export class AnnotationPlayer {
     this.videoElem.removeEventListener("playing", this._onPlaying);
     this.videoElem.classList.remove("blanked");
     this.videoElem.classList.remove("screen-blurred");
-    // By class, not an "[id^=blur]" prefix match, which would also sweep up anything else whose id
-    // merely starts with "blur".
     Array.from(
       this.annotationBox.querySelectorAll(".blur-position"),
     ).forEach((el) => el.remove());
@@ -1269,8 +1264,6 @@ export class AnnotationPlayer {
       this.state.fullscreen = isFullscreen;
       this._updateFullscreenIcon();
     }
-    // The ResizeObserver normally handles this, but its timing across iOS Safari's native fullscreen
-    // transition is unreliable, and a stale overlay leaves a blur off the content it must cover.
     this._syncOverlayToFrame();
   }
 
@@ -1636,15 +1629,9 @@ export class AnnotationPlayer {
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.onProgress());
-    // Repaint after a seek that did not come from skipTo - the editor's timeline, keyboard scrubbing,
-    // or a direct currentTime assignment - otherwise dragging the playhead while paused leaves a
-    // gliding blur showing its geometry from the old time. Only when paused: while playing,
-    // applyAnnotations reschedules itself every frame, and a second rAF chain would never stop.
     this.videoElem.addEventListener('seeked', () => {
       if (this.videoElem.paused) this.applyAnnotations();
     });
-    // Move the scrubber every animation frame while playing so it glides
-    // instead of lurching between timeupdate events (shared with the editor).
     animateDuringPlayback(this.videoElem, () => this.paintProgress());
 
     this.videoElem.addEventListener('play', () => {
@@ -1771,14 +1758,6 @@ export class AnnotationPlayer {
 
     document.addEventListener('keydown', (e) => this.onKeydown(e));
 
-    // Two triggers cover every way the frame can move or change shape: a ResizeObserver on the
-    // element for its box (window resizes, fullscreen, rotation, and the sidebar's margin animation
-    // are all just the box resizing), and the media `resize` event for the intrinsic size (metadata
-    // arriving, a source swap, adaptive track changes). `entry.contentRect` is the observer's own
-    // measurement, so it costs no extra layout read.
-    //
-    // `orientationchange` is deliberately absent: it fires before layout, so a handler there would
-    // measure the pre-rotation box.
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.target === this.videoElem) {
