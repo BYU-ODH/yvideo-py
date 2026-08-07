@@ -106,14 +106,14 @@ uv run pre-commit run --all-files
 
 For local database-backed Django tests, run:
 ```bash
-uv run manage.py collectstatic --noinput
 uv run manage.py test
 ```
 
-That uses the normal project settings and migration graph. The `collectstatic` is needed once
-after any change to `core/static/`: static files are served through a
-`ManifestStaticFilesStorage`, so tests that render a template resolve `{% static %}` against
-`staticfiles.json` and fail if it is missing or stale. It is cheap and safe to re-run.
+That uses the normal project settings and migration graph. No `collectstatic` is required:
+with `DEBUG = True` in `secret_settings.py` (the development and CI default), `{% static %}`
+resolves against `core/static/` directly. `collectstatic` and the hashed-filename
+`ManifestStaticFilesStorage` are production-only, where the deploy entrypoint runs them for you
+— see [DEPLOY.md](DEPLOY.md).
 
 For the pure-arithmetic Javascript unit tests, run:
 ```bash

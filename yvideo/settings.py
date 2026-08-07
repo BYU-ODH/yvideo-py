@@ -220,12 +220,18 @@ OIDC_PKCE_CODE_CHALLENGE_METHOD = secret_settings.OIDC_PKCE_CODE_CHALLENGE_METHO
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# production (DEBUG=False) requires `manage.py collectstatic`
+# dev and CI (DEBUG=True) serves static straight out of `core/static/`
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "yvideo.storage.ManifestStaticFilesStorage",
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "yvideo.storage.ManifestStaticFilesStorage"
+        ),
     },
 }
 
