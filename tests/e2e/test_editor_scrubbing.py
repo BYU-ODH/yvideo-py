@@ -7,28 +7,6 @@ pytestmark = [
 ]
 
 
-def _open_editor(page, live_server):
-    from core.models import Content
-
-    content = Content.objects.get(title="Birds Overview")
-
-    page.goto(f"{live_server.url}/login/dev/quick/")
-    page.goto(f"{live_server.url}/video-editor/{content.pk}/")
-
-    # Wait until the video metadata has loaded and the Editor has rendered ticks
-    # (renderTickMarksAndLabels + attachTimelineListeners run together in init).
-    page.wait_for_function(
-        """() => {
-            const video = document.querySelector('.annotation-player-container video');
-            const ticks = document.getElementById('tick-marks-container');
-            return video && !isNaN(video.duration) && video.duration > 0
-                && ticks && ticks.children.length > 0;
-        }""",
-        timeout=1000,
-    )
-    return content
-
-
 def _current_time(page):
     return page.evaluate(
         "() => document.querySelector('.annotation-player-container video').currentTime"
@@ -41,8 +19,8 @@ def _duration(page):
     )
 
 
-def test_clicking_ticks_row_seeks_to_that_time(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_clicking_ticks_row_seeks_to_that_time(page, open_editor):
+    open_editor()
 
     assert _current_time(page) == pytest.approx(0, abs=0.5)
 
@@ -57,8 +35,8 @@ def test_clicking_ticks_row_seeks_to_that_time(page, live_server, seeded_demo_da
     assert _current_time(page) == pytest.approx(expected, abs=duration * 0.02)
 
 
-def test_clicking_empty_track_row_seeks(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_clicking_empty_track_row_seeks(page, open_editor):
+    open_editor()
 
     row = page.locator(".timeline-track-row-right").first
     box = row.bounding_box()
@@ -76,9 +54,9 @@ def test_clicking_empty_track_row_seeks(page, live_server, seeded_demo_data):
 
 
 def test_clicking_annotation_content_seeks_to_its_start_not_click_position(
-    page, live_server, seeded_demo_data
+    page, open_editor
 ):
-    _open_editor(page, live_server)
+    open_editor()
 
     item = page.locator(".track-item").first
     content = item.locator(".track-item-content")
@@ -104,8 +82,8 @@ def test_clicking_annotation_content_seeks_to_its_start_not_click_position(
     assert _current_time(page) == pytest.approx(start_time, abs=0.2)
 
 
-def test_scrubber_moves_smoothly_during_playback(page, live_server, seeded_demo_data):
-    _open_editor(page, live_server)
+def test_scrubber_moves_smoothly_during_playback(page, open_editor):
+    open_editor()
 
     # Play for a short window and record the scrubber's position on every
     # animation frame. A timeupdate-only scrubber lurches (only ~4 distinct
@@ -140,12 +118,10 @@ def test_scrubber_moves_smoothly_during_playback(page, live_server, seeded_demo_
     assert result["distinct"] > 10
 
 
-def test_player_progress_scrubber_moves_smoothly_during_playback(
-    page, live_server, seeded_demo_data
-):
+def test_player_progress_scrubber_moves_smoothly_during_playback(page, open_editor):
     # The AnnotationPlayer's control bar (with .scrubber-progress) is embedded in
     # the editor page, so we can exercise the shared per-frame animation here.
-    _open_editor(page, live_server)
+    open_editor()
 
     result = page.evaluate(
         """async () => {
@@ -176,13 +152,11 @@ def test_player_progress_scrubber_moves_smoothly_during_playback(
     assert result["distinct"] > 10
 
 
-def test_player_scrubber_stops_immediately_on_pause(
-    page, live_server, seeded_demo_data
-):
+def test_player_scrubber_stops_immediately_on_pause(page, open_editor):
     # Regression: the dot/fill are positioned from --played with no CSS
     # transition, so they must freeze the instant playback pauses rather than
     # gliding to catch up (which a transition on `left`/`width` would cause).
-    _open_editor(page, live_server)
+    open_editor()
 
     result = page.evaluate(
         """async () => {

@@ -1,7 +1,12 @@
 {% load static %}
 
 <div id="annotation-player-container" data-contentid="{{content_id}}" data-editor-mode="{{ editor_mode|yesno:'true,false' }}" class="annotation-player-container">
-    <video id="video-player" preload="auto">
+    {% comment %}
+    playsinline (+ the legacy webkit- spelling) keeps iOS from handing playback to the OS
+    fullscreen player, where our #annotation-box overlay is not composited and blurs would
+    silently not apply. disableRemotePlayback does the same for AirPlay/Cast.
+    {% endcomment %}
+    <video id="video-player" preload="auto" playsinline webkit-playsinline disableRemotePlayback>
         {% if resource_file_key_id %}
             <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">
         {% elif content_source_url %} {# TODO - actually handle Youtube and Vimeo properly #}

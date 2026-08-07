@@ -67,10 +67,9 @@ def _format_violations(violations: list[dict]) -> str:
 
 @pytest.mark.parametrize("view_name", FULL_PAGE_VIEWS)
 def test_full_page_view_has_no_a11y_violations(
-    view_name: str, page: Page, live_server, seeded_demo_data
+    view_name: str, logged_in_page: Page, live_server
 ):
-    # Authenticate as the demo admin, then navigate to the page under test.
-    page.goto(f"{live_server.url}/login/dev/quick/")
+    page = logged_in_page
     response = page.goto(f"{live_server.url}{_resolve_path(view_name)}")
     assert response is not None and response.ok, f"{view_name} did not load"
 
@@ -78,3 +77,42 @@ def test_full_page_view_has_no_a11y_violations(
 
     violations = results["violations"]
     assert not violations, _format_violations(violations)
+
+
+def test_the_blur_editing_ui_has_no_a11y_violations(page: Page, open_editor):
+    """The blur points panel and the editable video frame, with a blur selected.
+
+    Scoped to those two subtrees rather than added to FULL_PAGE_VIEWS above, because the video
+    editor page as a whole carries violations that predate this feature (contrast, unlabelled
+    controls, and ~50 nodes outside any landmark). Asserting the whole page would fail for reasons
+    no blur change can fix, and would then be disabled - so this asserts what the feature owns and
+    keeps failing for real when it regresses.
+
+    Worth having because a blur is placed by dragging, and dragging is the one interaction a
+    keyboard user cannot perform: the rig's arrow keys, the focusable timeline dots and the panel's
+    numeric fields are the whole of their access to the feature.
+    """
+    from core.models import BlurAnnotation
+
+    open_editor()
+
+    blur = BlurAnnotation.objects.get(name="Bird Flight Path")
+    item = page.locator(
+        f'.track-item[data-annotation-type="blur"][data-annotation-id="{blur.pk}"]'
+    )
+    item.locator(".track-item-content").click()
+    page.wait_for_selector("#blur-edit-rig", state="attached")
+
+    # Select a row, because a point's delete button is `display: none` until its row is the active
+    # one - and axe skips hidden elements, so without this the buttons are never audited at all.
+    page.locator("#blur-positions-wrapper .position-entry").nth(1).click()
+    page.wait_for_selector(".active-position-entry .blur-position-delete-button")
+
+    page.add_script_tag(content=AXE_MIN_JS.read_text(encoding="utf-8"))
+    results = page.evaluate(
+        """async () => await axe.run({
+            include: [['#blur-positions-wrapper'], ['#annotation-box']],
+        })"""
+    )
+
+    assert not results["violations"], _format_violations(results["violations"])

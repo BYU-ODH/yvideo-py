@@ -888,9 +888,13 @@ class LegacyMigrationTests(TestCase):
                             "layer": 1,
                             "start": 2,
                             "end": 6,
+                            # [time, centerX, centerY, width, height] - legacy geometry is
+                            # center-anchored. Values chosen so the converted top-left corner
+                            # stays on the frame, since a clamp to 0 would hide whether the
+                            # conversion happened at all.
                             "position": {
-                                "0": [2, 10, 20, 30, 40],
-                                "1": [4, 11, 21, 30, 40],
+                                "0": [2, 40, 50, 20, 30],
+                                "1": [4, 65, 60, 10, 20],
                             },
                         },
                     ]
@@ -996,11 +1000,17 @@ class LegacyMigrationTests(TestCase):
             ).count(),
             1,
         )
+        # Center-anchored legacy geometry converted to this app's top-left corner, through the
+        # whole job rather than through _import_annotations alone: center (40, 50) of a 20x30
+        # box is top-left (30, 35). See core/tests/test_legacy_blur_import.py for the cases.
         self.assertEqual(
-            BlurAnnotationPosition.objects.filter(
-                blur_annotation__track__annotation_set=imported_video.annotation_set
-            ).count(),
-            2,
+            [
+                (position.time, position.x, position.y, position.width, position.height)
+                for position in BlurAnnotationPosition.objects.filter(
+                    blur_annotation__track__annotation_set=imported_video.annotation_set
+                )
+            ],
+            [(2.0, 30.0, 35.0, 20.0, 30.0), (4.0, 60.0, 50.0, 10.0, 20.0)],
         )
 
         subtitle = Subtitle.objects.get(resource=imported_video.resource)

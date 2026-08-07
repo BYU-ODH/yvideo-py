@@ -12,13 +12,13 @@ pytestmark = [
 
 
 def test_clips_only_checkbox_shows_warning_live_when_no_clips_are_defined(
-    page, live_server, seeded_demo_data
+    logged_in_page, live_server
 ):
+    page = logged_in_page
     # "Birds Draft Discussion" shares the real birds.mp4 file but has no
     # annotation_set at all, so it has zero clips.
     content = Content.objects.get(title="Birds Draft Discussion")
 
-    page.goto(f"{live_server.url}/login/dev/quick/")
     page.goto(f"{live_server.url}/content/display-settings/{content.pk}/")
 
     checkbox = page.locator("#clips-only")

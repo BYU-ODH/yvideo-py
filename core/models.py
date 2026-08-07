@@ -1220,29 +1220,48 @@ class CommentAnnotation(BaseAnnotation):
         return new_annotation
 
 
+# Matches the rounding BaseAnnotation.save() applies to start_time/end_time, so a position's time
+# and its annotation's bounds are always comparable at the same precision.
+BLUR_TIME_PRECISION = 2
+# Geometry is a percentage of the video frame, so a hundredth of a percent is already well under a
+# pixel on any real display; beyond that the digits are float noise, and they are shown to the user
+# in the points panel.
+BLUR_GEOMETRY_PRECISION = 2
+# How close a requested time has to be to an existing position to mean "that one". Slightly coarser
+# than the stored precision so two rapid edits at the same playhead can't race into two rows a
+# hundredth of a second apart.
+BLUR_SNAP_SECONDS = 0.05
+# How much a duration may change and still count as a move rather than a resize in
+# reconcile_positions, which decides whether positions travel with the annotation or get dropped.
+# Looser than the stored precision because it absorbs the client computing end as
+# `originalEnd - originalStart + newStart` while save() rounds start and end to 2dp independently.
+#
+# pointsLostByRetiming in core/static/js/video-geometry.js classifies on this same value so the
+# browser can warn before a resize deletes points; parity tests named there hold the two together.
+BLUR_RETIME_TOLERANCE_SECONDS = 0.02
+# Floors, not defaults: a box smaller than this is impossible to grab.
+BLUR_MIN_WIDTH = 3.0
+BLUR_MIN_HEIGHT = 4.0
+# Percentages of the video frame, top-left anchored, big enough to see and grab immediately.
+BLUR_DEFAULT_GEOMETRY = {"x": 40.0, "y": 42.5, "width": 20.0, "height": 15.0}
+
+
 class BlurAnnotation(BaseAnnotation):
     def to_player_json(self):
         """Override: include positions data."""
         data = super().to_player_json()
-        positions_query_set = self.positions.all().order_by("time")
-        positions = []
-        for position in positions_query_set:
-            positions.append(
-                {
-                    "id": position.pk,
-                    "time": position.time,
-                    "x": position.x,
-                    "y": position.y,
-                    "width": position.width,
-                    "height": position.height,
-                    "blur_amount": position.blur_amount,
-                }
-            )
+        positions = [position.to_json() for position in self.positions.all()]
         data.update({"positions": positions, "type": "blur"})
         return data
 
     def get_position_locators(self):
-        positions = self.positions.all().order_by("time")
+        """Timeline tick marks for this blur's positions.
+
+        The first position is skipped deliberately: its time is always start_time, so a tick
+        for it would sit exactly on the item's left edge and cover the resize handle there.
+        Dragging that edge is how its time is changed.
+        """
+        positions = self.positions.all()
         locators = []
         normalized_duration = self.end_time - self.start_time
         if normalized_duration <= 0:
@@ -1260,16 +1279,121 @@ class BlurAnnotation(BaseAnnotation):
             )
         return locators
 
-    def remove_positions_outside_of_timebox(self):
+    def ensure_first_position(self):
+        """Guarantee at least one position, with the earliest of them pinned to start_time.
+
+        A blur with no positions has no geometry and cannot render, and the earliest position
+        is by definition the geometry in effect when the blur begins - so anchoring it to
+        start_time is what makes "the first row" a meaningful thing to show a user, and what
+        makes dragging the item's left edge change that row's time.
+        """
+        first = self.positions.first()
+        if first is None:
+            return BlurAnnotationPosition.objects.create(
+                blur_annotation=self, time=self.start_time, **BLUR_DEFAULT_GEOMETRY
+            )
+
+        target = round(float(self.start_time), BLUR_TIME_PRECISION)
+        if first.time == target:
+            return first
+
+        # A position already sitting exactly at start_time supplies the geometry there, so an earlier
+        # one is redundant rather than something to retime onto it - which would also collide with the
+        # unique (blur_annotation, time) index.
+        occupant = self.positions.filter(time=target).exclude(pk=first.pk).first()
+        if occupant is not None:
+            first.delete()
+            return occupant
+
+        first.time = self.start_time
+        first.save()
+        return first
+
+    def geometry_at(self, time):
+        """The rect on screen at `time`, interpolated between the positions bracketing it.
+
+        The server needs this to reconcile a resize; the browser needs it to render. That makes
+        this a deliberate second implementation of rectAtTime in
+        core/static/js/video-geometry.js, so the two are held to the same case table -
+        core/tests/test_blur_positions.py and tests/js/video-geometry.test.js.
+        """
         positions = list(self.positions.all())
-        position_index = len(positions) - 1
-        while position_index >= 0:
-            position = positions[position_index]
-            if position.time != 0 and (
-                position.time < self.start_time or position.time > self.end_time
-            ):
-                position.delete()
-            position_index = position_index - 1
+        if not positions:
+            return None
+
+        fields = ("x", "y", "width", "height")
+
+        def rect(position):
+            return {field: getattr(position, field) for field in fields}
+
+        if len(positions) == 1 or time <= positions[0].time:
+            return rect(positions[0])
+        if time >= positions[-1].time:
+            return rect(positions[-1])
+
+        for later, earlier in zip(positions[1:], positions):
+            if later.time < time:
+                continue
+            span = later.time - earlier.time
+            fraction = (time - earlier.time) / span if span > 0 else 1
+            return {
+                field: getattr(earlier, field)
+                + (getattr(later, field) - getattr(earlier, field)) * fraction
+                for field in fields
+            }
+        return rect(positions[-1])
+
+    def reconcile_positions(self, old_start, old_end):
+        """Bring positions back in line with start_time/end_time after the annotation moved.
+
+        Call after saving the annotation. Two distinct cases, because they mean different
+        things to the person dragging:
+
+        * The item was *moved* along the timeline (duration unchanged) - the whole motion path
+          should travel with it, so every time shifts by the same delta.
+        * The item was *resized* - the path stays where it is in the video and the window that
+          exposes it changes, so positions outside the new window are dropped.
+
+        See BLUR_RETIME_TOLERANCE_SECONDS for why the two are told apart on a tolerance rather
+        than on equality, and for the browser-side copy of that decision.
+        """
+        old_duration = old_end - old_start
+        new_duration = self.end_time - self.start_time
+        delta = self.start_time - old_start
+        # Sampled before anything is mutated: what the person dragging can see at the new start time,
+        # which is generally a tween rather than any stored position.
+        showing_at_new_start = self.geometry_at(self.start_time)
+
+        if abs(new_duration - old_duration) <= BLUR_RETIME_TOLERANCE_SECONDS and delta:
+            # Furthest along the direction of travel first: the unique (blur_annotation, time) index
+            # is checked per-row, so moving a position onto a time a sibling still occupies would
+            # collide even though the final state is fine.
+            ordering = "-time" if delta > 0 else "time"
+            for position in self.positions.order_by(ordering):
+                position.time = position.time + delta
+                position.save()
+        else:
+            # Give the position that will survive at the new start the geometry that was actually
+            # showing there. Retiming it without this leaves the blur's opening frames covering where
+            # the subject *used to be*, which for a blur is exposure, not a cosmetic pop.
+            stale = list(self.positions.filter(time__lt=self.start_time))
+            if stale and showing_at_new_start:
+                survivor = stale[-1]
+                for field, value in showing_at_new_start.items():
+                    setattr(survivor, field, value)
+                survivor.save()
+
+        # start_time <= time <= end_time is the annotation's own invariant, so it is enforced for both
+        # branches: a start-only edit of a single hundredth reads as a move under the tolerance and
+        # shifts every position, landing the last one past end_time where geometry_at would
+        # interpolate toward geometry playback can never reach.
+        self.positions.filter(time__gt=self.end_time).delete()
+        # Of the positions before the window, keep the last one - ensure_first_position pins it to
+        # start_time below - and discard the rest.
+        for position in list(self.positions.filter(time__lt=self.start_time))[:-1]:
+            position.delete()
+
+        self.ensure_first_position()
 
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
@@ -1304,6 +1428,12 @@ class BlurAnnotation(BaseAnnotation):
 
 
 class BlurAnnotationPosition(models.Model):
+    """One keyframe of a blur's geometry: where the box is at a given moment.
+
+    x/y are the box's TOP-LEFT corner and every value is a percentage of the rendered video
+    frame, so the same numbers are correct at any window size, in fullscreen, and on mobile.
+    """
+
     blur_annotation = models.ForeignKey(
         BlurAnnotation,
         on_delete=models.CASCADE,
@@ -1318,23 +1448,63 @@ class BlurAnnotationPosition(models.Model):
     height = models.FloatField(null=False, blank=False)
     blur_amount = models.IntegerField(null=False, blank=False, default=60)
 
-    @classmethod
-    def validate(cls, data_dict):
-        try:
-            if data_dict["time"] < cls.blur_annotation.start_time:
-                return (False, "Position cannot be before the annotation starts.")
-            if data_dict["time"] > cls.blur_annotation.end_time:
-                return (False, "Position cannot be after the annotation ends.")
-            if (
-                data_dict["x"] < 0
-                or data_dict["y"] < 0
-                or data_dict["width"] < 0
-                or data_dict["height"] < 0
-            ):
-                return (False, "Position x, y, width, and height cannot be less than 0")
-            return True, None
-        except Exception as e:
-            return False, f"Invalid position: {e}"
+    class Meta:
+        # Interpolating between positions is only correct on a sorted sequence, so no caller should
+        # have to remember to sort.
+        ordering = ["time"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["blur_annotation", "time"],
+                name="unique_blur_annotation_position_time",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        """Quantize and clamp on the way in - the single choke point for valid geometry.
+
+        Doing this in save() rather than in a view means every writer is covered: the editor's
+        endpoints, annotation-set copies, imports, and reconcile_positions alike.
+
+        Values are clamped rather than rejected. A drag that ends past the edge of the frame is
+        a perfectly clear instruction ("put it against the edge"), and refusing it would lose
+        the user's work; a rejection here would also have to be surfaced mid-drag, which there
+        is nowhere good to do.
+
+        Rounding is applied to the *result* of each clamp rather than to the incoming value, so
+        the guarantee is about what gets stored: whatever the clamp arithmetic produces, the
+        column ends up at 2dp. x and y are clamped against the already rounded width and height,
+        which is what keeps `x + width` landing on exactly 100 for a box against the right edge.
+        """
+        self.time = round(float(self.time), BLUR_TIME_PRECISION)
+        self.width = round(
+            min(100.0, max(BLUR_MIN_WIDTH, float(self.width))), BLUR_GEOMETRY_PRECISION
+        )
+        self.height = round(
+            min(100.0, max(BLUR_MIN_HEIGHT, float(self.height))),
+            BLUR_GEOMETRY_PRECISION,
+        )
+        self.x = round(
+            min(100.0 - self.width, max(0.0, float(self.x))), BLUR_GEOMETRY_PRECISION
+        )
+        self.y = round(
+            min(100.0 - self.height, max(0.0, float(self.y))), BLUR_GEOMETRY_PRECISION
+        )
+        super().save(*args, **kwargs)
+
+    def to_json(self):
+        """The wire shape for both the player payload and the editor's responses.
+
+        Shared so the two cannot drift into disagreeing about the same row.
+        """
+        return {
+            "id": self.pk,
+            "time": self.time,
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "blur_amount": self.blur_amount,
+        }
 
 
 class Clip(BaseAnnotation):
