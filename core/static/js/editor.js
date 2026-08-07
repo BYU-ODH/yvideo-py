@@ -537,11 +537,15 @@ export class Editor {
         return;
       }
 
-      const annotationType = itemForm.dataset["annotationType"];
-      const annotationId = itemForm.dataset["annotationId"];
       deleteItemButton.addEventListener("click", async (e) => {
         e.preventDefault();
-        await this.deleteItem(annotationType, annotationId);
+        // Read at click time: an autosave since the form was loaded has advanced the dataset to a
+        // new version, and the id captured when the button was wired would delete the old one -
+        // leaving the annotation the user is looking at on screen and in the database.
+        await this.deleteItem(
+          itemForm.dataset["annotationType"],
+          itemForm.dataset["annotationId"],
+        );
       });
     }
 

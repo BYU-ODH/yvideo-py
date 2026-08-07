@@ -1,7 +1,7 @@
 {% load static %}
 <div class="undo-redo-toolbar" role="toolbar" aria-label="Edit history">
     <button type="button"
-            class="annotation-history-button undo-btn"
+            class="item-form-icon-button annotation-history-button undo-btn"
             data-history-action="undo"
             data-history-url="{% url 'undo_annotation' content.id %}"
             data-annotation-id="{{ instance.id }}"
@@ -13,7 +13,7 @@
     </button>
 
     <button type="button"
-            class="annotation-history-button redo-btn"
+            class="item-form-icon-button annotation-history-button redo-btn"
             data-history-action="redo"
             data-history-url="{% url 'redo_annotation' content.id %}"
             data-annotation-id="{{ instance.id }}"

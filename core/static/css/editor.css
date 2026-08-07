@@ -589,38 +589,44 @@
     margin: 0;
 }
 
+.item-form-header-actions,
 .undo-redo-toolbar {
     display: flex;
     gap: 0.25rem;
 }
 
-.annotation-history-button {
+.item-form-icon-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 2.25rem;
     height: 2.25rem;
     padding: 0;
-    border: 1px solid var(--dark-mode-very-light-gray);
+    border: none;
     border-radius: 4px;
     color: var(--dark-mode-text-color);
     background: transparent;
     cursor: pointer;
 }
 
-.annotation-history-button:hover:not(:disabled),
-.annotation-history-button:focus-visible {
+.item-form-icon-button:hover:not(:disabled),
+.item-form-icon-button:focus-visible {
     background: var(--dark-mode-background-light);
 }
 
-.annotation-history-button:disabled {
+.item-form-icon-button:disabled {
     opacity: 0.35;
     cursor: not-allowed;
 }
 
-.annotation-history-button img {
+.item-form-icon-button img {
     width: 1.25rem;
     height: 1.25rem;
+}
+
+/* The trash is drawn taller than it is wide, so matching the arrows' width would shrink it. */
+#annotation-form-delete-button img {
+    width: auto;
 }
 
 #annotation-update-form {
@@ -716,17 +722,11 @@
     background: #357abd;
 }
 
-.form-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: auto;
-}
-
 #clip-next-last-buttons {
     margin-bottom: 1rem;
 }
 
-#annotation-form-delete-button, .clip-change-button {
+.clip-change-button {
     background-color: var(--dark-mode-dark-gray);
     color: var(--dark-mode-very-light-gray);
     padding: 0.4rem 1rem;
@@ -735,7 +735,7 @@
     border-radius: 5px;
 }
 
-#annotation-form-delete-button:hover, .clip-change-button:hover {
+.clip-change-button:hover {
     cursor: pointer;
     background-color: var(--dark-mode-very-dark-gray);
 }
