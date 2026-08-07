@@ -6,20 +6,7 @@
         adjust the blur at the beginning, then adjust the blur at the end, then repeatedly find
         where the blur is farthest from the target and adjust its position there.
     </p>
-    {% comment %}
-       #positions-list is the scroll container, not the table: seven columns never fit the panel, so
-       it scrolls sideways, and tabindex makes it scrollable by keyboard as axe requires.
-
-       It is also the only part of this wrapper a save replaces: a live region removed and
-       re-inserted with its message already inside is not announced, so the status line survives.
-    {% endcomment %}
     <div id="positions-list" tabindex="0" role="group" aria-label="Blur points">
-        {% comment %}
-           A real table, because the header cells are what tell a screen reader which value a field
-           holds. That rules out `display: grid` for layout: changing `display` on a table element
-           strips its implicit ARIA role in every major browser, so `table-layout: fixed` does the
-           column alignment instead.
-        {% endcomment %}
         <table id="blur-positions-table">
             <colgroup>
                 <col class="position-column-number">
@@ -28,10 +15,6 @@
             </colgroup>
             <thead>
                 <tr>
-                    {% comment %}
-                       td, not th, for the two columns that have no heading: an empty th is a header
-                       that names nothing, and axe reports it as one.
-                    {% endcomment %}
                     <td></td>
                     <th scope="col">Time (s)</th>
                     <th scope="col">X (%)</th>
@@ -43,12 +26,6 @@
             </thead>
             <tbody>
             {% for position in item_positions %}
-                {% comment %}
-                   data-* is the client's source of truth for this point's geometry: BlurEditor reads
-                   these rows rather than the player's blur div, which the player is free to rebuild
-                   whenever the playhead leaves the blur's window. floatformat matches the 2dp
-                   BlurAnnotationPosition.save() stores, so older rows still read cleanly.
-                {% endcomment %}
                 <tr class="position-entry"
                     data-position-id="{{position.pk}}"
                     data-time="{{position.time|floatformat:2}}"
@@ -58,17 +35,10 @@
                     data-height="{{position.height|floatformat:2}}">
                     <th scope="row" class="position-counter">{{forloop.counter}}.</th>
                     <td class="position-input-group">
-                        {% comment %}
-                           No `name` on any of these: BlurEditor saves them one row at a time to the
-                           blur-position endpoint, and leaving them in the annotation form's FormData
-                           would collapse every row into a single key. The aria-labels name the point
-                           as well as the column, which the column header alone cannot do.
-                        {% endcomment %}
                         {% if forloop.counter == 1 %}
                         {% comment %}
                            The first point always sits at the blur's start time, so its time is
-                           derived rather than entered - readonly, not disabled, so it still shows
-                           the real value.
+                           derived rather than entered - readonly.
                         {% endcomment %}
                         <input class="position-time-input" type="text" value="{{position.time|floatformat:2}}" readonly
                                title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
@@ -91,14 +61,6 @@
                     </td>
                     <td>
                         {% if forloop.counter != 1 %}
-                        {% comment %}
-                           The endpoint rides on the button rather than being assembled in
-                           JavaScript: reverse() is the only thing that knows the route, so renaming
-                           it in core/urls.py cannot leave the editor deleting through a path that no
-                           longer exists. On the control itself, so the row the server will not let
-                           anyone delete - the first - carries no URL for deleting it either. The
-                           timeline's dots carry the same attribute for the same reason.
-                        {% endcomment %}
                         <button type="button" class="blur-position-delete-button"
                                 data-delete-url="{% url 'delete_blur_position' position.pk %}"
                                 aria-label="delete blur point {{forloop.counter}}">

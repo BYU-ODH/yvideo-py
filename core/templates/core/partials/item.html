@@ -13,12 +13,6 @@
      data-delta-left="0"
      data-delta-width="0"
      {% if item.annotation_type == "blur" %}
-     {% comment %}
-        Where BlurEditor writes this blur's points, rather than a path built in JavaScript: reverse()
-        is the only thing that knows the route, and a rename here travels with it. The bar is the
-        anchor because it is per-annotation and always in the timeline - the points panel is a
-        singleton belonging to whatever is selected, and a save can land after the selection moved.
-     {% endcomment %}
      data-positions-url="{% url 'upsert_blur_position' item.id %}"
      {% endif %}
      tabindex="0">
@@ -33,11 +27,6 @@
         <img class="track-item-type-icon" src="{% static item.annotation_type|annotation_icon %}" alt="" aria-hidden="true">
         <span class="track-item-label">{{ item.name }}</span>
         {% if item.annotation_type == "blur" %}
-        {% comment %}
-           Placed along the bar by placeLocators in BlurEditor.js. Focusable and labelled because
-           these are the only handle a keyboard user has on an individual point: Enter seeks to it,
-           Delete removes it, and once the blur is selected they can be dragged to retime it.
-        {% endcomment %}
         {% for position_locator in item.get_position_locators %}
             <div class="blur-position-locator"
                  data-position-id="{{position_locator.id}}"

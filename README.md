@@ -122,8 +122,7 @@ node --test tests/js/*.test.js
 
 These use Node's built-in test runner and need no npm install. They cover
 `core/static/js/video-geometry.js`, which decides where every blur annotation is drawn, and
-run as their own CI job. Pass the files rather than the `tests/js/` directory — Node 24 treats a
-bare directory argument as a module to load, not a directory to walk.
+run as their own CI job.
 
 For browser-backed end-to-end tests against the deterministic demo dataset, run:
 ```bash
