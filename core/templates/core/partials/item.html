@@ -12,6 +12,15 @@
      data-label="{{ item.name }}"
      data-delta-left="0"
      data-delta-width="0"
+     {% if item.annotation_type == "blur" %}
+     {% comment %}
+        Where BlurEditor writes this blur's points, rather than a path built in JavaScript: reverse()
+        is the only thing that knows the route, and a rename here travels with it. The bar is the
+        anchor because it is per-annotation and always in the timeline - the points panel is a
+        singleton belonging to whatever is selected, and a save can land after the selection moved.
+     {% endcomment %}
+     data-positions-url="{% url 'upsert_blur_position' item.id %}"
+     {% endif %}
      tabindex="0">
 
     {% if item.annotation_type != "pause" %}
@@ -33,6 +42,7 @@
             <div class="blur-position-locator"
                  data-position-id="{{position_locator.id}}"
                  data-position-time="{{position_locator.time}}"
+                 data-delete-url="{% url 'delete_blur_position' position_locator.id %}"
                  tabindex="0"
                  role="button"
                  aria-label="blur point at {{position_locator.time}} seconds"

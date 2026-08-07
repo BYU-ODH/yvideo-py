@@ -7,6 +7,14 @@
 // A commit says "the blur belongs here, at the time I am looking at" and never names a position id:
 // only the server knows where the stored points are, so only it can decide whether that is a new
 // point or an existing one, and the rendered box is usually a tween with no single owning row.
+//
+// Two things this module deliberately does not hold its own copy of, because the server sends both
+// and a second copy is a second thing to keep in step:
+//   - endpoints, which arrive as `data-positions-url` on the track item and `data-delete-url` on
+//     each point (rendered by reverse(), so a route rename in core/urls.py travels with them);
+//   - the wording of a refused write, which is the response body - see serverMessage.
+// The numeric constants below are the exception, and core/tests/test_js_constant_parity.py holds
+// them to the values in core/models.py.
 
 import { clampRect, percentWithin, rectAtTime, resizeRect } from "./video-geometry.js";
 import {
@@ -57,6 +65,36 @@ const POSITION_INPUTS = [
   ["position-height-input", "height"],
 ];
 const POSITION_INPUT_SELECTOR = POSITION_INPUTS.map(([name]) => `.${name}`).join(", ");
+
+// Long enough for the sentences the blur-position views word, short enough that anything which is
+// really a page rather than a message is rejected. See serverMessage.
+const MAX_SERVER_MESSAGE_LENGTH = 200;
+
+/**
+ * The message to show for a failed request: the server's own words when it wrote any.
+ *
+ * The blur-position views word their 4xx bodies for the user (see BLUR_POSITION_* in
+ * core/views_video_editor.py), so repeating that wording here would be a second copy of one string
+ * to keep in step - and the copy the user actually reads. A new refusal added server-side then
+ * reports itself correctly rather than as whatever the client last guessed.
+ *
+ * 5xx and network failures are the other way round: the body is a stack trace, a proxy's error page,
+ * or nothing, so the caller's wording is all there is.
+ */
+async function serverMessage(response, fallback) {
+  if (response.status < 400 || response.status >= 500) return fallback;
+  let body;
+  try {
+    body = (await response.text()).trim();
+  } catch {
+    return fallback;
+  }
+  // Markup means Django's debug page or something in front of it answered, not one of our views.
+  if (!body || body.startsWith("<") || body.length > MAX_SERVER_MESSAGE_LENGTH) {
+    return fallback;
+  }
+  return body;
+}
 
 function applyRect(element, rect) {
   element.style.left = `${rect.x}%`;
@@ -582,6 +620,15 @@ export class BlurEditor {
     const annotationId = this.annotationId;
     if (!annotationId) return false;
 
+    // From the bar the server rendered, not built here: see the data-positions-url comment in
+    // core/templates/core/partials/item.html. Its absence means the bar for this blur is gone, in
+    // which case there is nothing to save against.
+    const url = this._itemElement(annotationId)?.dataset["positionsUrl"];
+    if (!url) {
+      console.error(`No blur-position endpoint on the bar for annotation ${annotationId}`);
+      return false;
+    }
+
     const requested =
       time !== undefined ? time : Math.round(this.video.currentTime * 100) / 100;
     // Send the point's own time when one is being edited, so client and server cannot disagree
@@ -605,7 +652,7 @@ export class BlurEditor {
 
     let response;
     try {
-      response = await fetch(`/annotations/blur/${annotationId}/positions/`, {
+      response = await fetch(url, {
         method: "POST",
         headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -620,9 +667,7 @@ export class BlurEditor {
       console.error(`Failed to save blur point (${response.status})`);
       this._reportFailure(
         annotationId,
-        response.status === 409
-          ? "Another blur point is already at that time."
-          : "That blur point could not be saved.",
+        await serverMessage(response, "That blur point could not be saved."),
       );
       return false;
     }
@@ -644,19 +689,26 @@ export class BlurEditor {
     return true;
   }
 
-  async _delete(positionId) {
+  /**
+   * @param {HTMLElement} control the panel's delete button or the point's timeline dot, whichever
+   *   was used. Each carries its own `data-delete-url`, rendered by reverse() - see
+   *   blur_positions.html. Taking the control rather than an id is what keeps the URL out of this
+   *   file, and means a point the server will refuse to delete offers nothing to delete it with.
+   */
+  async _delete(control) {
     const annotationId = this.annotationId;
-    const response = await fetch(`/annotations/blur/positions/${positionId}/`, {
+    const url = control?.dataset["deleteUrl"];
+    if (!url) {
+      console.error("No delete endpoint on the control for the blur point being deleted");
+      return false;
+    }
+    const response = await fetch(url, {
       method: "DELETE",
       headers: { "X-CSRFToken": getCSRFToken() },
     });
     if (!response.ok) {
       console.error(`Failed to delete blur point (${response.status})`);
-      this._status(
-        response.status === 409
-          ? "The first point follows the blur's start time and cannot be deleted."
-          : "That blur point could not be deleted.",
-      );
+      this._status(await serverMessage(response, "That blur point could not be deleted."));
       return false;
     }
     if (this._applySaved(annotationId, await response.json())) {
@@ -742,8 +794,7 @@ export class BlurEditor {
     if (deleteButton) {
       // The button lives inside the annotation form; without this the form submits.
       event.preventDefault();
-      const positionId = deleteButton.closest(".position-entry")?.dataset["positionId"];
-      if (positionId) this._delete(positionId);
+      this._delete(deleteButton);
       return;
     }
 
@@ -936,6 +987,6 @@ export class BlurEditor {
     // Deleting a point on an unselected blur would rebuild a panel belonging to some other
     // annotation, so this stays with the selection - the same rule as dragging a dot.
     if (locator.closest(".track-item")?.dataset["annotationId"] !== this.annotationId) return;
-    this._delete(locator.dataset["positionId"]);
+    this._delete(locator);
   }
 }

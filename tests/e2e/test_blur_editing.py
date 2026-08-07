@@ -1477,16 +1477,21 @@ def test_the_time_field_retimes_its_point(page, open_editor):
 
 def test_retiming_a_point_onto_another_one_reports_the_conflict(page, open_editor):
     """Two points at one time is the invariant the unique index exists to hold. The endpoint answers
-    409, and the user has to be told why nothing happened."""
+    409, and the user has to be told why nothing happened.
+
+    Asserted against the server's own constant, because the wording lives there and nowhere else:
+    BlurEditor shows the response body rather than keeping a copy of the sentence. This is the test
+    that fails if the client goes back to guessing the message from the status code.
+    """
+    from core.views_video_editor import BLUR_POSITION_TIME_TAKEN
+
     open_editor()
     _select(page, MOVING_BLUR)
 
     row = _row_for(page, 1)
     row.locator(".position-time-input").fill("11.0")
     row.locator(".position-time-input").press("Enter")
-    expect(page.locator("#blur-position-status")).to_contain_text(
-        "already at that time"
-    )
+    expect(page.locator("#blur-position-status")).to_have_text(BLUR_POSITION_TIME_TAKEN)
 
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0, 11.0]
 

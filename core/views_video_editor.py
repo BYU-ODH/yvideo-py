@@ -584,6 +584,20 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
     return {"success": True, "result": annotation}
 
 
+# The 4xx bodies below are shown to the user verbatim - BlurEditor puts the response body in the
+# points panel's status line (see serverMessage in core/static/js/BlurEditor.js) rather than keeping
+# its own copy of the wording. So these are user-facing copy, not developer strings, and they are the
+# only copy of it.
+#
+# 400s deliberately have no body: a malformed request is a bug in the editor, not something the user
+# did, and there is nothing to tell them beyond the generic failure the client falls back to.
+BLUR_POSITION_FORBIDDEN = "You do not have permission to edit this annotation set."
+BLUR_POSITION_TIME_TAKEN = "Another blur point is already at that time."
+BLUR_POSITION_FIRST_UNDELETABLE = (
+    "The first point follows the blur's start time and cannot be deleted."
+)
+
+
 def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
     """Everything the page needs to redraw one blur's points after a write.
 
@@ -651,7 +665,7 @@ def upsert_blur_position(request, annotation_id):
     # placed deliberately.
     annotation = get_object_or_404(BlurAnnotation, pk=annotation_id, active=True)
     if not annotation.track.annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+        return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
 
     try:
         parsed_body = json.loads(request.body)
@@ -719,7 +733,7 @@ def upsert_blur_position(request, annotation_id):
     except IntegrityError:
         # Only reachable by retiming a named position onto another one's time, which the panel's
         # time input allows. The request is well-formed, so 409 rather than 400.
-        return HttpResponse("Another blur point already sits at that time", status=409)
+        return HttpResponse(BLUR_POSITION_TIME_TAKEN, status=409)
     except Exception as e:
         logger.error(f"Failed to save BlurAnnotationPosition. Exception: {e}")
         return HttpResponseServerError()
@@ -761,13 +775,13 @@ def delete_blur_position(request, position_id):
     )
     annotation = position.blur_annotation
     if not annotation.track.annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+        return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
 
     # A blur with no positions has no geometry and cannot render, and the earliest position is the one
     # that supplies the geometry the blur starts with. 409, not 400: the request is well-formed, it
     # just conflicts with that invariant.
     if position.pk == annotation.positions.values_list("pk", flat=True).first():
-        return HttpResponse("A blur's first position cannot be deleted", status=409)
+        return HttpResponse(BLUR_POSITION_FIRST_UNDELETABLE, status=409)
 
     try:
         position.delete()

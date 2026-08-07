@@ -91,7 +91,17 @@
                     </td>
                     <td>
                         {% if forloop.counter != 1 %}
-                        <button type="button" class="blur-position-delete-button" aria-label="delete blur point {{forloop.counter}}">
+                        {% comment %}
+                           The endpoint rides on the button rather than being assembled in
+                           JavaScript: reverse() is the only thing that knows the route, so renaming
+                           it in core/urls.py cannot leave the editor deleting through a path that no
+                           longer exists. On the control itself, so the row the server will not let
+                           anyone delete - the first - carries no URL for deleting it either. The
+                           timeline's dots carry the same attribute for the same reason.
+                        {% endcomment %}
+                        <button type="button" class="blur-position-delete-button"
+                                data-delete-url="{% url 'delete_blur_position' position.pk %}"
+                                aria-label="delete blur point {{forloop.counter}}">
                             <img src="{% static 'img/white-trash-can.svg' %}" alt=""></img>
                         </button>
                         {% endif %}

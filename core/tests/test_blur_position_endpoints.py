@@ -26,6 +26,10 @@ from core.factories import BlurAnnotationPositionFactory
 from core.factories import TrackFactory
 from core.factories import UserFactory
 from core.models import BlurAnnotationPosition
+from core.tests.test_js_constant_parity import read_js_constant
+from core.views_video_editor import BLUR_POSITION_FIRST_UNDELETABLE
+from core.views_video_editor import BLUR_POSITION_FORBIDDEN
+from core.views_video_editor import BLUR_POSITION_TIME_TAKEN
 
 
 class BlurPositionEndpointTests(TestCase):
@@ -62,6 +66,7 @@ class BlurPositionEndpointTests(TestCase):
         self.client.force_login(self.stranger)
         response = self._upsert()
         self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), BLUR_POSITION_FORBIDDEN)
         self.assertEqual(self.blur.positions.count(), 1)
 
     # can_edit is checked on the annotation from the URL before position_id is looked at, so the
@@ -75,6 +80,7 @@ class BlurPositionEndpointTests(TestCase):
             reverse("delete_blur_position", args=[deletable.pk])
         )
         self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), BLUR_POSITION_FORBIDDEN)
         self.assertTrue(BlurAnnotationPosition.objects.filter(pk=deletable.pk).exists())
 
     def test_an_editor_on_the_set_may_edit(self):
@@ -192,6 +198,7 @@ class BlurPositionEndpointTests(TestCase):
         self.client.force_login(self.owner)
         response = self._upsert(position_id=occupied.pk, time=11.0)
         self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.content.decode(), BLUR_POSITION_TIME_TAKEN)
         # The rejected save must not have poisoned the transaction, and nothing may be lost.
         self.assertEqual([p.time for p in self.blur.positions.all()], [5.0, 9.0, 11.0])
 
@@ -218,6 +225,67 @@ class BlurPositionEndpointTests(TestCase):
         # has to reconstruct row numbering or dot placement itself.
         self.assertIn("blurPositions", payload)
         self.assertIn("trackItem", payload)
+
+    def test_the_returned_markup_carries_the_endpoints_for_the_next_write(self):
+        """The editor reads its URLs out of this markup instead of assembling paths.
+
+        BlurEditor posts to the bar's data-positions-url and deletes through each point's
+        data-delete-url, so reverse() is the only thing that knows these routes and renaming one in
+        core/urls.py travels with them. Asserting the reversed URLs rather than just the presence of
+        the attributes is what makes this fail if a template starts hardcoding them again.
+        """
+        self.client.force_login(self.owner)
+        deletable = BlurAnnotationPositionFactory(blur_annotation=self.blur, time=8.0)
+        payload = self._upsert(time=9.0).json()
+
+        upsert_url = reverse("upsert_blur_position", args=[self.blur.pk])
+        self.assertIn(f'data-positions-url="{upsert_url}"', payload["trackItem"])
+
+        # The panel offers the button and the bar offers the dot; both are ways to delete this point,
+        # so both carry its endpoint.
+        delete_url = reverse("delete_blur_position", args=[deletable.pk])
+        self.assertIn(f'data-delete-url="{delete_url}"', payload["blurPositions"])
+        self.assertIn(f'data-delete-url="{delete_url}"', payload["trackItem"])
+
+    def test_the_undeletable_first_point_is_offered_no_way_to_delete_it(self):
+        """A control the server would refuse is not rendered, so its URL is not either.
+
+        The first point's row has no delete button and the bar draws no dot for it - putting the
+        endpoint on those controls rather than on the row is what keeps that true without a second
+        rule saying which rows may use it.
+        """
+        self.client.force_login(self.owner)
+        BlurAnnotationPositionFactory(blur_annotation=self.blur, time=8.0)
+        payload = self._upsert(time=9.0).json()
+
+        first_delete_url = reverse("delete_blur_position", args=[self.position.pk])
+        self.assertNotIn(first_delete_url, payload["blurPositions"])
+        self.assertNotIn(first_delete_url, payload["trackItem"])
+
+    def test_a_refusal_says_something_the_editor_can_show_the_user(self):
+        """The response body *is* the message; see serverMessage in BlurEditor.js.
+
+        The client shows the body verbatim for a 4xx rather than keeping its own copy of the wording.
+        But it only does that for a body that looks like a message - non-empty, not markup, and short
+        enough for a status line - and falls back to a generic "could not be saved" otherwise. So
+        these are the properties that decide whether the wording above ever reaches anyone.
+        """
+        cap = read_js_constant(
+            "core/static/js/BlurEditor.js", "MAX_SERVER_MESSAGE_LENGTH"
+        )
+        self.assertIsNotNone(cap, "serverMessage no longer declares a length cap")
+        for message in (
+            BLUR_POSITION_FORBIDDEN,
+            BLUR_POSITION_TIME_TAKEN,
+            BLUR_POSITION_FIRST_UNDELETABLE,
+        ):
+            with self.subTest(message=message):
+                self.assertTrue(message.strip(), "an empty body says nothing")
+                self.assertFalse(
+                    message.lstrip().startswith("<"),
+                    "a body starting with markup is read as an error page, not a message",
+                )
+                self.assertLessEqual(len(message), cap)
 
     def test_the_three_projections_share_one_read_of_the_positions(self):
         """The response describes the same points three ways; it should not fetch them three times.
@@ -324,6 +392,7 @@ class BlurPositionEndpointTests(TestCase):
             reverse("delete_blur_position", args=[self.position.pk])
         )
         self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.content.decode(), BLUR_POSITION_FIRST_UNDELETABLE)
         self.assertTrue(
             BlurAnnotationPosition.objects.filter(pk=self.position.pk).exists()
         )
