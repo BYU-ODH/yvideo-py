@@ -39,9 +39,7 @@ def _active_form_id(page):
     return page.locator("#existing-item-form").get_attribute("data-annotation-id")
 
 
-def test_edit_undo_redo_and_branching_stay_in_sync(
-    page, live_server, seeded_demo_data
-):
+def test_edit_undo_redo_and_branching_stay_in_sync(page, live_server, seeded_demo_data):
     annotation = _open_editor_with_annotation(page, live_server)
     original_id = str(annotation.id)
     original_name = annotation.name
@@ -54,12 +52,16 @@ def test_edit_undo_redo_and_branching_stay_in_sync(
     expect(toolbar.locator(".redo-btn img")).to_have_attribute(
         "src", re.compile(r"redo(?:\.[a-z0-9]+)?\.svg$")
     )
-    assert toolbar.bounding_box()["y"] < page.locator(".form-group").first.bounding_box()["y"]
+    assert (
+        toolbar.bounding_box()["y"]
+        < page.locator(".form-group").first.bounding_box()["y"]
+    )
     expect(toolbar.locator(".undo-btn")).to_be_disabled()
     expect(toolbar.locator(".redo-btn")).to_be_disabled()
 
     page.locator("#annotation_name").fill("History edit")
-    page.locator("#annotation-form-save-button").click()
+    # There is no save button: fields save themselves on `change`, which fires when focus leaves.
+    page.locator("#description").click()
     page.wait_for_function(
         f"() => document.querySelector('#existing-item-form')?.dataset.annotationId !== '{original_id}'"
     )
@@ -93,7 +95,7 @@ def test_edit_undo_redo_and_branching_stay_in_sync(
         "data-annotation-id", original_id
     )
     page.locator("#annotation_name").fill("Replacement edit")
-    page.locator("#annotation-form-save-button").click()
+    page.locator("#description").click()
     page.wait_for_function(
         f"() => document.querySelector('#existing-item-form')?.dataset.annotationId !== '{original_id}'"
     )
@@ -102,4 +104,3 @@ def test_edit_undo_redo_and_branching_stay_in_sync(
     assert replacement_id != edited_id
     expect(page.locator("#annotation_name")).to_have_value("Replacement edit")
     expect(page.locator(".redo-btn")).to_be_disabled()
-

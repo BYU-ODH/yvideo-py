@@ -211,12 +211,8 @@ class AnnotationHistoryViewTests(TestCase):
         self.assertEqual(updated.text, "After")
         self.assertEqual(data["track_id"], second_track.id)
         self.assertIn(f'id="comment-{updated.id}"', data["item_html"])
-        self.assertIn(
-            f'id="comment-panel-item-{updated.id}"', data["panel_item_html"]
-        )
-        self.assertIn(
-            f'data-annotation-id="{updated.id}"', data["form_html"]
-        )
+        self.assertIn(f'id="comment-panel-item-{updated.id}"', data["panel_item_html"])
+        self.assertIn(f'data-annotation-id="{updated.id}"', data["form_html"])
 
     def test_undo_and_redo_return_the_new_active_version(self):
         update_response = self.update_annotation()
@@ -278,4 +274,6 @@ class AnnotationHistoryViewTests(TestCase):
         self.assertIn('aria-label="Redo last undone change"', html)
         self.assertIn("img/undo", html)
         self.assertIn("img/redo", html)
-        self.assertLess(html.index("undo-redo-toolbar"), html.index("annotation-update-form"))
+        self.assertLess(
+            html.index("undo-redo-toolbar"), html.index("annotation-update-form")
+        )

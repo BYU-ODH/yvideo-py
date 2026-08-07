@@ -1,5 +1,6 @@
 import { SubtitleSidebar } from "./SubtitleSidebar.js";
 import { formatSecondsToString, animateDuringPlayback } from "./utils.js";
+import { contentRect, rectAtTime } from "./video-geometry.js";
 
 export class AnnotationPlayer {
   constructor(options = {}) {
@@ -132,35 +133,29 @@ export class AnnotationPlayer {
     }
   };
 
-  setAspectRatio() {
-    this.videoHeight = this.videoElem.videoHeight;
-    this.videoWidth = this.videoElem.videoWidth;
-    this.aspectRatio;
-    if (this.videoHeight == 0) {
-      this.aspectRatio = 0;
-    } else {
-      this.aspectRatio = this.videoWidth / this.videoHeight;
+  _syncOverlayToFrame(elemWidth, elemHeight) {
+    if (!this.annotationBox) return;
+
+    if (elemWidth === undefined || elemHeight === undefined) {
+      const box = this.videoElem.getBoundingClientRect();
+      elemWidth = box.width;
+      elemHeight = box.height;
     }
-  }
 
-  setVidWrapperToWide() {
-    this.videoWrapper.classList.remove("full-height");
-  }
-
-  setVidWrapperToTall() {
-    this.videoWrapper.classList.add("full-height");
-  }
-
-  setVideoWrapperStyling() {
-    const containerDim = this.container.getBoundingClientRect();
-    const containerAspectRatio = containerDim.width / containerDim.height;
-
-    if (containerAspectRatio > this.aspectRatio) {
-      this.setVidWrapperToTall();
-    }
-    else {
-      this.setVidWrapperToWide();
-    }
+    const frame = contentRect(
+      elemWidth,
+      elemHeight,
+      this.videoElem.videoWidth,
+      this.videoElem.videoHeight,
+    );
+    this.annotationBox.style.left = `${this.videoElem.offsetLeft + frame.x}px`;
+    this.annotationBox.style.top = `${this.videoElem.offsetTop + frame.y}px`;
+    this.annotationBox.style.width = `${frame.width}px`;
+    this.annotationBox.style.height = `${frame.height}px`;
+    this.videoWrapper.style.setProperty(
+      "--blur-radius",
+      `${frame.height * 0.1}px`,
+    );
   }
 
   _getElement(selector) {
@@ -388,12 +383,33 @@ export class AnnotationPlayer {
         type: type,
         details: icAnno.options["details"],
       };
-      if (annotation.type === "blur" && annotation.details.interpolate) {
-        this.interpolateBlur(annotation);
+      if (annotation.type === "blur") {
+        annotation.positions = this.icPositionsToCanonical(
+          annotation.details.position,
+        );
       }
       annotations.push(annotation);
     }
     return annotations;
+  }
+
+  icPositionsToCanonical(positionMap) {
+    const times = Object.keys(positionMap || {}).sort(
+      (a, b) => parseFloat(a) - parseFloat(b),
+    );
+    const positions = [];
+    for (const timeKey of times) {
+      const [x, y, width, height] = positionMap[timeKey];
+      const previous = positions[positions.length - 1];
+      positions.push({
+        time: parseFloat(timeKey),
+        x,
+        y,
+        width: width ?? previous?.width ?? 15,
+        height: height ?? previous?.height ?? 15,
+      });
+    }
+    return positions;
   }
 
   parseYvideoV1Annotations(annotationObj) {
@@ -448,6 +464,7 @@ export class AnnotationPlayer {
         this.annotations = [];
       }
     }
+    this._removeOverlaysForDeletedAnnotations();
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
     this.renderClipsOnScrubber();
@@ -784,55 +801,33 @@ export class AnnotationPlayer {
             }
           }
           break;
-        case "blur":
-          if (isActiveNow) {
-            function determineWhichBlurPositionToShow(positions) {
-              let desiredPosition = positions[0];
-              for (let i = 1; i < positions.length; i++) {
-                const positionToEvaluate = positions[i];
-                if (positionToEvaluate["time"] <= time) {
-                  desiredPosition = positionToEvaluate;
-                }
-              }
-              return desiredPosition;
-            }
+        case "blur": {
+          const blurId = "blur-overlay-" + a.id;
+          const existingBlur = this.annotationBox.querySelector("#" + blurId);
+          const isBlurVisible = time >= aStart && time <= aEnd;
+          const rect = isBlurVisible ? rectAtTime(aPositions, time) : null;
 
-            if (!this.annotationBox.querySelector("#blur" + i)) {
-              const firstPosition = aPositions[0];
-              const blur = document.createElement("div");
-              blur.dataset["blurPositionParentId"] = a.id;
-              blur.dataset["blurPositionId"] = firstPosition.id;
-              blur.id = "blur" + i;
-              blur.className = "blur-position blur";
-              blur.style.position = "absolute";
-              blur.style.width =  firstPosition["width"] + "%";
-              blur.style.height = firstPosition["height"] + "%";
-              blur.style.left = firstPosition["x"] + "%";
-              blur.style.top = firstPosition["y"] + "%";
-              blur.style.backdropFilter =
-                "blur(" + firstPosition["blur_amount"] + ")";
-              this.annotationBox.appendChild(blur);
-            } else {
-              const blur = this.annotationBox.querySelector(
-                "#blur" + i,
-              );
-              const positionToShow = determineWhichBlurPositionToShow(aPositions);
-              blur.dataset["blurPositionParentId"] = a.id;
-              blur.dataset["blurPositionId"] = positionToShow.id;
-              blur.style.width =  positionToShow["width"] + "%";
-              blur.style.height = positionToShow["height"] + "%";
-              blur.style.left = positionToShow["x"] + "%";
-              blur.style.top = positionToShow["y"] + "%";
-            }
-          } else {
-            const existingBlur = this.annotationBox.querySelector(
-              "#blur" + i,
-            );
+          if (!rect) {
             if (existingBlur) {
               existingBlur.remove();
             }
+            break;
           }
+
+          const blur = existingBlur || document.createElement("div");
+          if (!existingBlur) {
+            blur.id = blurId;
+            blur.className = "blur-position blur";
+            blur.style.position = "absolute";
+            this.annotationBox.appendChild(blur);
+          }
+          blur.dataset["annotationId"] = a.id;
+          blur.style.left = rect.x + "%";
+          blur.style.top = rect.y + "%";
+          blur.style.width = rect.width + "%";
+          blur.style.height = rect.height + "%";
           break;
+        }
         case "comment":
           if (isActiveNow) {
             let commentTextBox = this.annotationBox.querySelector("#comment-text-box-" + a.id);
@@ -843,6 +838,7 @@ export class AnnotationPlayer {
               commentPara.innerText = a.text;
               commentTextBox.appendChild(commentPara);
               commentTextBox.id = "comment-text-box-" + a.id;
+              commentTextBox.dataset["annotationId"] = a.id;
               commentTextBox.classList.add("comment-text-box");
               commentTextBox.style.top = a.top_left_y + '%';
               commentTextBox.style.left = a.top_left_x + '%';
@@ -868,12 +864,38 @@ export class AnnotationPlayer {
     requestAnimationFrame(() => this.applyAnnotations());
   }
 
+  _removeOverlaysForDeletedAnnotations() {
+    if (!this.annotationBox) return;
+    const live = new Set((this.annotations || []).map((a) => String(a["id"])));
+    for (const element of this.annotationBox.querySelectorAll("[data-annotation-id]")) {
+      if (!live.has(element.dataset["annotationId"])) {
+        element.remove();
+      }
+    }
+  }
+
+  replaceAnnotationPositions(annotationId, positions) {
+    const annotation = this.annotations?.find(
+      (candidate) =>
+        candidate["type"] === "blur" &&
+        String(candidate["id"]) === String(annotationId),
+    );
+    if (!annotation) return false;
+    annotation["positions"] = positions;
+    // Only when paused: while playing, applyAnnotations reschedules itself every frame and will pick
+    // this up on its own, so calling it here would start a second rAF chain that never stops.
+    if (this.videoElem.paused) {
+      this.applyAnnotations();
+    }
+    return true;
+  }
+
   resetAnnotations() {
     this.videoElem.removeEventListener("playing", this._onPlaying);
     this.videoElem.classList.remove("blanked");
     this.videoElem.classList.remove("screen-blurred");
     Array.from(
-      this.annotationBox.querySelectorAll("[id^=blur]"),
+      this.annotationBox.querySelectorAll(".blur-position"),
     ).forEach((el) => el.remove());
     this.unmute();
   }
@@ -984,54 +1006,6 @@ export class AnnotationPlayer {
       } else {
         this.controls.volumeSlider.classList.remove('inactive');
         this.controls.volumeSlider.disabled = false;
-      }
-    }
-  }
-
-  interpolateBlur(annotation) {
-    annotation.details["intPositions"] = {};
-    let position = annotation.details.position;
-    let timeKeys = Object.keys(position).sort(
-      (a, b) => parseFloat(a) - parseFloat(b),
-    );
-    for (let i = 0; i < timeKeys.length; i++) {
-      if (!timeKeys[i + 1]) {
-        annotation.details["intPositions"][timeKeys[i]] = position[timeKeys[i]];
-        break;
-      }
-      let t1 = timeKeys[i];
-      let t2 = timeKeys[i + 1];
-      annotation.details["intPositions"][t1] = position[t1];
-      let maxTimeInterval = 1 / 30;
-      let tdiff = parseFloat(t2) - parseFloat(t1);
-      let incr = Math.floor(tdiff / maxTimeInterval);
-      if (tdiff <= maxTimeInterval) continue;
-      let xincr = (position[t2][0] - position[t1][0]) / incr;
-      let yincr = (position[t2][1] - position[t1][1]) / incr;
-      let wincr = null,
-        hincr = null;
-      if (
-        position[t1][2] &&
-        position[t1][3] &&
-        position[t2][2] &&
-        position[t2][3]
-      ) {
-        wincr = (position[t2][2] - position[t1][2]) / incr;
-        hincr = (position[t2][3] - position[t1][3]) / incr;
-      }
-      for (let j = 1; j < incr; j++) {
-        let tmid = parseFloat(t1) + j * maxTimeInterval;
-        let xmid = position[t1][0] + j * xincr;
-        let ymid = position[t1][1] + j * yincr;
-        if (wincr && hincr) {
-          let wmid = position[t1][2] + j * wincr;
-          if (xmid + wmid > 100) wmid = 100 - xmid;
-          let hmid = position[t1][3] + j * hincr;
-          if (ymid + hmid > 100) hmid = 100 - ymid;
-          annotation.details["intPositions"][tmid] = [xmid, ymid, wmid, hmid];
-        } else {
-          annotation.details["intPositions"][tmid] = [xmid, ymid];
-        }
       }
     }
   }
@@ -1290,6 +1264,7 @@ export class AnnotationPlayer {
       this.state.fullscreen = isFullscreen;
       this._updateFullscreenIcon();
     }
+    this._syncOverlayToFrame();
   }
 
   _updateFullscreenIcon() {
@@ -1650,11 +1625,13 @@ export class AnnotationPlayer {
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
       this._conditionallyUpdateControlsIconVisibility();
+      this._syncOverlayToFrame();
     });
 
     this.videoElem.addEventListener('timeupdate', () => this.onProgress());
-    // Move the scrubber every animation frame while playing so it glides
-    // instead of lurching between timeupdate events (shared with the editor).
+    this.videoElem.addEventListener('seeked', () => {
+      if (this.videoElem.paused) this.applyAnnotations();
+    });
     animateDuringPlayback(this.videoElem, () => this.paintProgress());
 
     this.videoElem.addEventListener('play', () => {
@@ -1782,16 +1759,17 @@ export class AnnotationPlayer {
     document.addEventListener('keydown', (e) => this.onKeydown(e));
 
     const resizeObserver = new ResizeObserver((entries) => {
-      if (!this.aspectRatio) {
-        this.setAspectRatio();
-      }
-      for (let entry of entries) {
-        if (entry.target == this.container) {
-          this.setVideoWrapperStyling();
+      for (const entry of entries) {
+        if (entry.target === this.videoElem) {
+          this._syncOverlayToFrame(
+            entry.contentRect.width,
+            entry.contentRect.height,
+          );
         }
       }
     });
-    resizeObserver.observe(this.container);
+    resizeObserver.observe(this.videoElem);
+    this.videoElem.addEventListener('resize', () => this._syncOverlayToFrame());
 
     if (this.controls.speedBtn && this.controls.speedMenu) {
       this._renderSpeedMenu();

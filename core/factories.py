@@ -7,6 +7,8 @@ import factory
 from .models import LAB_ASSISTANT_GROUP_NAME
 from .models import AnnotationSet
 from .models import BlankAnnotation
+from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
@@ -237,6 +239,33 @@ class BlankAnnotationFactory(factory.django.DjangoModelFactory):
     end_time = 20.0
     description = "Hide distracting visual content"
     type = "#"
+
+
+class BlurAnnotationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BlurAnnotation
+
+    track = factory.SubFactory(TrackFactory)
+    name = factory.Sequence(lambda n: f"Blur {n}")
+    start_time = 5.0
+    end_time = 12.0
+    description = "Blur sensitive on-screen content"
+
+
+class BlurAnnotationPositionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BlurAnnotationPosition
+
+    blur_annotation = factory.SubFactory(BlurAnnotationFactory)
+    # Default to the parent's start_time rather than 0: the first position is the geometry in
+    # effect when the blur begins, so pinning it there is what makes it meaningful.
+    time = factory.SelfAttribute("blur_annotation.start_time")
+    # Deliberately asymmetric (x != y, width != height) so that an axis or dimension mix-up
+    # anywhere in the pipeline cannot cancel itself out and pass unnoticed.
+    x = 12.5
+    y = 30.0
+    width = 22.0
+    height = 14.0
 
 
 class CommentAnnotationFactory(factory.django.DjangoModelFactory):
