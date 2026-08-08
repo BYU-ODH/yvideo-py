@@ -130,7 +130,10 @@ def return_annotation_if_authorized_and_exists(
         }
 
     try:
-        annotation = model_class.objects.select_for_update().get(
+        # of=("self",) so only the annotation row is locked: the annotation-set scoping joins
+        # Track, and a plain FOR UPDATE would lock the track's row too, serializing edits to
+        # unrelated annotations that happen to share it.
+        annotation = model_class.objects.select_for_update(of=("self",)).get(
             id=annotation_id,
             active=True,
             track__annotation_set=annotation_set,
@@ -562,7 +565,9 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
         }
 
     try:
-        annotation = model_class.objects.select_for_update().get(
+        # of=("self",) for the same reason as in return_annotation_if_authorized_and_exists: the
+        # join to Track is only there to scope the lookup, not something to lock.
+        annotation = model_class.objects.select_for_update(of=("self",)).get(
             id=annotation_id,
             active=True,
             track__annotation_set=content.annotation_set,

@@ -73,6 +73,27 @@ export function percentWithin(rect, boxRect) {
   };
 }
 
+// The eight handles of a resizable box, in clockwise order from the top left, each naming the edges
+// it moves. Shared so that every resizable overlay in the editor - the blur rig, the comment box -
+// offers the same eight grips and resizes by the same rule; the name doubles as the `data-handle`
+// attribute the CSS positions each grip by.
+export const RESIZE_HANDLES = [
+  ["nw", { movesLeft: true, movesTop: true }],
+  ["n", { movesTop: true }],
+  ["ne", { movesRight: true, movesTop: true }],
+  ["e", { movesRight: true }],
+  ["se", { movesRight: true, movesBottom: true }],
+  ["s", { movesBottom: true }],
+  ["sw", { movesLeft: true, movesBottom: true }],
+  ["w", { movesLeft: true }],
+];
+
+// Undefined for anything that is not a handle name, which callers use to tell a grab of a handle
+// apart from a grab of the box itself.
+export function edgesForHandle(name) {
+  return RESIZE_HANDLES.find(([handle]) => handle === name)?.[1];
+}
+
 // All four edges are named independently, so a corner handle (two edges) and an edge handle (one)
 // share the same arithmetic and an edge handle can leave one axis completely alone.
 //

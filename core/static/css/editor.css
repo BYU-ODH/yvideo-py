@@ -748,38 +748,66 @@
     padding: 0.2rem 1rem;
 }
 
-/* resize-points */
-.resize-point {
+/* Resize handles, shared by every resizable overlay on the video - the blur rig and the comment
+   box - so that a grip looks and behaves the same wherever it is grabbed. Where each one sits and
+   what cursor it shows follow from its data-handle, which is the same name the JS resizes by
+   (RESIZE_HANDLES in video-geometry.js).
+
+   The dot is small but the transparent border makes it 15px to hit: a grip has to be easy to grab
+   without covering the thing being framed. --handle-inset is half that, so the grips straddle the
+   box's edge; an overlay that needs a different size overrides it alongside the width and height. */
+.overlay-resize-handle {
+    --handle-inset: 7px;
     position: absolute;
-    width: 12px;
-    height: 12px;
+    box-sizing: content-box;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background-color: white;
+    border: 5px solid #00000000;
+    background-clip: padding-box;
     z-index: 2;
+    touch-action: none;
 }
 
-.resize-point-top {
-    top: -5px;
+.overlay-resize-handle[data-handle="nw"], .overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="ne"] {
+    top: calc(-1 * var(--handle-inset));
 }
 
-.resize-point-left {
-    left: -5px;
+.overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="e"] {
+    top: calc(50% - var(--handle-inset));
 }
 
-.resize-point:not(.resize-point-top) {
-    top: calc(100% - 6px);
+.overlay-resize-handle[data-handle="sw"], .overlay-resize-handle[data-handle="s"], .overlay-resize-handle[data-handle="se"] {
+    top: calc(100% - var(--handle-inset) - 1px);
 }
 
-.resize-point:not(.resize-point-left) {
-    left: calc(100% - 6px);
+.overlay-resize-handle[data-handle="nw"], .overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="sw"] {
+    left: calc(-1 * var(--handle-inset));
 }
 
-.resize-point-top.resize-point-left, .resize-point:not(.resize-point-top, .resize-point-left) {
+.overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="s"] {
+    left: calc(50% - var(--handle-inset));
+}
+
+.overlay-resize-handle[data-handle="ne"], .overlay-resize-handle[data-handle="e"], .overlay-resize-handle[data-handle="se"] {
+    left: calc(100% - var(--handle-inset) - 1px);
+}
+
+.overlay-resize-handle[data-handle="nw"], .overlay-resize-handle[data-handle="se"] {
     cursor: nwse-resize;
 }
 
-.resize-point-left.resize-point:not(.resize-point-top), .resize-point-top.resize-point:not(.resize-point-left) {
+.overlay-resize-handle[data-handle="ne"], .overlay-resize-handle[data-handle="sw"] {
     cursor: nesw-resize;
+}
+
+.overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="s"] {
+    cursor: ns-resize;
+}
+
+.overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="e"] {
+    cursor: ew-resize;
 }
 
 /* blur-positions */
@@ -897,59 +925,6 @@
 #blur-edit-rig:focus-visible {
     outline: 2px solid var(--blur-type-color, white);
     outline-offset: -2px;
-}
-
-.blur-rig-handle {
-    position: absolute;
-    box-sizing: content-box;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background-color: white;
-    border: 5px solid #00000000;
-    background-clip: padding-box;
-    z-index: 2;
-    touch-action: none;
-}
-
-.blur-rig-handle[data-handle="nw"], .blur-rig-handle[data-handle="n"], .blur-rig-handle[data-handle="ne"] {
-    top: -7px;
-}
-
-.blur-rig-handle[data-handle="w"], .blur-rig-handle[data-handle="e"] {
-    top: calc(50% - 7px);
-}
-
-.blur-rig-handle[data-handle="sw"], .blur-rig-handle[data-handle="s"], .blur-rig-handle[data-handle="se"] {
-    top: calc(100% - 8px);
-}
-
-.blur-rig-handle[data-handle="nw"], .blur-rig-handle[data-handle="w"], .blur-rig-handle[data-handle="sw"] {
-    left: -7px;
-}
-
-.blur-rig-handle[data-handle="n"], .blur-rig-handle[data-handle="s"] {
-    left: calc(50% - 7px);
-}
-
-.blur-rig-handle[data-handle="ne"], .blur-rig-handle[data-handle="e"], .blur-rig-handle[data-handle="se"] {
-    left: calc(100% - 8px);
-}
-
-.blur-rig-handle[data-handle="nw"], .blur-rig-handle[data-handle="se"] {
-    cursor: nwse-resize;
-}
-
-.blur-rig-handle[data-handle="ne"], .blur-rig-handle[data-handle="sw"] {
-    cursor: nesw-resize;
-}
-
-.blur-rig-handle[data-handle="n"], .blur-rig-handle[data-handle="s"] {
-    cursor: ns-resize;
-}
-
-.blur-rig-handle[data-handle="w"], .blur-rig-handle[data-handle="e"] {
-    cursor: ew-resize;
 }
 
 .blur-position-locator {

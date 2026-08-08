@@ -1006,6 +1006,8 @@ def test_deleting_a_blur_removes_it_from_the_player(page, open_editor):
     _seek(page, 5.0)
     assert page.locator(f"#blur-overlay-{annotation.pk}").count() == 1
 
+    # Deleting asks first - see test_deleting_an_annotation_asks_first in test_editor_history.py.
+    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("#annotation-form-delete-button").click()
     page.wait_for_timeout(1200)
 

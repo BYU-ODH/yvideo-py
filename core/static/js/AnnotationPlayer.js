@@ -822,6 +822,7 @@ export class AnnotationPlayer {
             this.annotationBox.appendChild(blur);
           }
           blur.dataset["annotationId"] = a.id;
+          blur.dataset["annotationType"] = a.type;
           blur.style.left = rect.x + "%";
           blur.style.top = rect.y + "%";
           blur.style.width = rect.width + "%";
@@ -839,6 +840,7 @@ export class AnnotationPlayer {
               commentTextBox.appendChild(commentPara);
               commentTextBox.id = "comment-text-box-" + a.id;
               commentTextBox.dataset["annotationId"] = a.id;
+              commentTextBox.dataset["annotationType"] = a.type;
               commentTextBox.classList.add("comment-text-box");
               commentTextBox.style.top = a.top_left_y + '%';
               commentTextBox.style.left = a.top_left_x + '%';
@@ -864,11 +866,27 @@ export class AnnotationPlayer {
     requestAnimationFrame(() => this.applyAnnotations());
   }
 
+  // Keyed by type *and* id: ids are allocated per annotation table, so a comment and a blur can
+  // both be id 7. Matching on the id alone let a superseded comment's box stay on screen forever
+  // whenever some other annotation happened to share its number - and since every save now writes
+  // a new version with a new id, the stale boxes stack up over an editing session.
+  static _overlayKey(annotationType, annotationId) {
+    return `${annotationType}:${annotationId}`;
+  }
+
   _removeOverlaysForDeletedAnnotations() {
     if (!this.annotationBox) return;
-    const live = new Set((this.annotations || []).map((a) => String(a["id"])));
+    const live = new Set(
+      (this.annotations || []).map((a) =>
+        AnnotationPlayer._overlayKey(a["type"], a["id"])
+      )
+    );
     for (const element of this.annotationBox.querySelectorAll("[data-annotation-id]")) {
-      if (!live.has(element.dataset["annotationId"])) {
+      const key = AnnotationPlayer._overlayKey(
+        element.dataset["annotationType"],
+        element.dataset["annotationId"]
+      );
+      if (!live.has(key)) {
         element.remove();
       }
     }

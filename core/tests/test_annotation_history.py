@@ -259,6 +259,99 @@ class AnnotationHistoryViewTests(TestCase):
         other_updated.refresh_from_db()
         self.assertTrue(other_updated.active)
 
+    def test_history_endpoints_reject_a_user_who_cannot_edit_the_set(self):
+        updated = self.annotation.edit(name="Updated")
+        self.annotation.refresh_from_db()
+        outsider = UserFactory(instructor=True)
+        self.client.force_login(
+            outsider,
+            backend="django.contrib.auth.backends.ModelBackend",
+        )
+
+        for url_name, annotation_id in [
+            ("undo_annotation", updated.id),
+            ("redo_annotation", self.annotation.id),
+        ]:
+            with self.subTest(url_name=url_name):
+                response = self.client.post(
+                    reverse(url_name, args=[self.content.id]),
+                    {"annotation_id": annotation_id, "annotation_type": "comment"},
+                )
+
+                self.assertEqual(response.status_code, 403)
+
+        # Not merely refused - the chain is untouched, so the owner's active version is still
+        # the one it was before the outsider tried.
+        updated.refresh_from_db()
+        self.annotation.refresh_from_db()
+        self.assertTrue(updated.active)
+        self.assertFalse(self.annotation.active)
+
+    def test_form_endpoint_rejects_an_annotation_belonging_to_other_content(self):
+        other_set = AnnotationSetFactory(owner=self.owner, resource=self.resource)
+        other_annotation = CommentAnnotationFactory(
+            track=TrackFactory(annotation_set=other_set)
+        )
+
+        response = self.client.get(
+            reverse("load_annotation_form", args=["comment", other_annotation.id]),
+            {"content_id": self.content.id},
+        )
+
+        # Owned by the same user, so this is not about permissions: the annotation simply is not
+        # part of the content whose editor is asking for it.
+        self.assertEqual(response.status_code, 404)
+
+    def test_undo_restores_the_previous_versions_blur_positions(self):
+        blur = BlurAnnotation.objects.create(
+            track=self.track,
+            name="Logo",
+            start_time=0,
+            end_time=10,
+            active=True,
+        )
+        for time in (2, 6):
+            BlurAnnotationPosition.objects.create(
+                blur_annotation=blur, time=time, x=10, y=20, width=30, height=40
+            )
+        original_times = [position.time for position in blur.positions.all()]
+
+        # A resize, which reconciles the new version's points against the smaller window.
+        update_response = self.client.post(
+            reverse("update_annotation", args=["blur", blur.id]),
+            data=json.dumps(
+                {
+                    "content_id": self.content.id,
+                    "start_time": 4,
+                    "end_time": 10,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        updated_id = update_response.json()["annotation_id"]
+        updated = BlurAnnotation.objects.get(id=updated_id)
+        updated_times = [position.time for position in updated.positions.all()]
+        self.assertNotEqual(updated_times, original_times)
+        # The superseded version keeps its own copy - that copy is the whole point of undo.
+        self.assertEqual(
+            [position.time for position in blur.positions.all()], original_times
+        )
+
+        undo_response = self.client.post(
+            reverse("undo_annotation", args=[self.content.id]),
+            {"annotation_id": updated_id, "annotation_type": "blur"},
+        )
+
+        self.assertEqual(undo_response.status_code, 200)
+        restored = BlurAnnotation.objects.get(id=undo_response.json()["annotation_id"])
+        self.assertEqual(restored.id, blur.id)
+        self.assertTrue(restored.active)
+        self.assertEqual(
+            [position.time for position in restored.positions.all()], original_times
+        )
+
     def test_detail_form_has_icon_history_buttons_at_the_top(self):
         updated = self.annotation.edit(name="Updated")
         response = self.client.get(
