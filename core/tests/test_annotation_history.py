@@ -352,6 +352,71 @@ class AnnotationHistoryViewTests(TestCase):
             [position.time for position in restored.positions.all()], original_times
         )
 
+    def test_undo_discards_rig_edits_made_since_the_version_was_created(self):
+        """Pins a known limitation rather than asserting desired behaviour.
+
+        Blur geometry is written by upsert_blur_position, which edits the active version's
+        positions in place and never calls edit(). Only a field save creates a version. So a rig
+        drag made *after* a field save lands on the active version alone, and the next undo -
+        which the user means as "take back that field save" - reverts the drag along with it.
+        No history step ever corresponded to the drag, so nothing warns them.
+
+        Order matters: dragging *before* a field save is safe, because edit() then snapshots the
+        dragged geometry into the version it creates. It is the drag that follows a save that is
+        exposed.
+
+        Change this test when rig edits join the version chain; it exists so that change is a
+        deliberate one and not a silent behaviour swap.
+        """
+        blur = BlurAnnotation.objects.create(
+            track=self.track, name="Logo", start_time=0, end_time=10, active=True
+        )
+        # At time 0 so it is the point ensure_first_position pins to start_time; the drag below
+        # then updates this row rather than adding a second one.
+        BlurAnnotationPosition.objects.create(
+            blur_annotation=blur, time=0, x=10, y=20, width=30, height=40
+        )
+
+        # A field save, which is the only thing that creates a version.
+        rename = self.client.post(
+            reverse("update_annotation", args=["blur", blur.id]),
+            data=json.dumps(
+                {
+                    "content_id": self.content.id,
+                    "annotation_name": "Renamed logo",
+                    "start_time": 0,
+                    "end_time": 10,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(rename.status_code, 200)
+        renamed = BlurAnnotation.objects.get(id=rename.json()["annotation_id"])
+        self.assertEqual(renamed.positions.get().x, 10)
+
+        # Now a rig drag on the new active version: geometry only, no version created. Kept
+        # inside the frame so the model's clamping does not rewrite the value asserted on.
+        drag = self.client.post(
+            reverse("upsert_blur_position", args=[renamed.id]),
+            data=json.dumps({"time": 0, "x": 55, "y": 50, "width": 30, "height": 40}),
+            content_type="application/json",
+        )
+        self.assertEqual(drag.status_code, 200)
+        renamed.refresh_from_db()
+        self.assertIsNone(renamed.next_id)
+        self.assertEqual(renamed.positions.get().x, 55)
+
+        # One undo, meaning "take back the rename", silently takes the drag with it.
+        undo = self.client.post(
+            reverse("undo_annotation", args=[self.content.id]),
+            {"annotation_id": renamed.id, "annotation_type": "blur"},
+        )
+        self.assertEqual(undo.status_code, 200)
+        restored = BlurAnnotation.objects.get(id=undo.json()["annotation_id"])
+        self.assertEqual(restored.id, blur.id)
+        self.assertEqual(restored.name, "Logo")
+        self.assertEqual(restored.positions.get().x, 10)
+
     def test_detail_form_has_icon_history_buttons_at_the_top(self):
         updated = self.annotation.edit(name="Updated")
         response = self.client.get(

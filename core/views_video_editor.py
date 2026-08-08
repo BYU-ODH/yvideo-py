@@ -130,9 +130,16 @@ def return_annotation_if_authorized_and_exists(
         }
 
     try:
-        # of=("self",) so only the annotation row is locked: the annotation-set scoping joins
-        # Track, and a plain FOR UPDATE would lock the track's row too, serializing edits to
-        # unrelated annotations that happen to share it.
+        # NOTE: select_for_update does nothing on SQLite, which is the only backend this project
+        # configures - Django drops the whole FOR UPDATE clause when the backend reports
+        # has_select_for_update = False, so this compiles to a plain SELECT and no row is locked.
+        # It is here so the intent is recorded and the lookup is already correct if we ever move
+        # to a backend that supports it; of=("self",) then keeps the lock off the Track row that
+        # the annotation-set scoping below joins in. Concurrency on SQLite is currently protected
+        # only by its single-writer rule - see issue #181.
+        #
+        # The track__annotation_set filter, unlike the lock, is load-bearing today: without it any
+        # valid annotation id could be operated on through content the user can edit.
         annotation = model_class.objects.select_for_update(of=("self",)).get(
             id=annotation_id,
             active=True,
@@ -565,8 +572,9 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
         }
 
     try:
-        # of=("self",) for the same reason as in return_annotation_if_authorized_and_exists: the
-        # join to Track is only there to scope the lookup, not something to lock.
+        # Same as in return_annotation_if_authorized_and_exists: the lock is a no-op on SQLite and
+        # is kept for intent and future backends, while the track__annotation_set scoping is what
+        # actually protects this lookup today.
         annotation = model_class.objects.select_for_update(of=("self",)).get(
             id=annotation_id,
             active=True,

@@ -41,6 +41,10 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.lastSavedItemFormState = null;
+        this.historyRequestInFlight = false;
+        // Set by autoSaveItemForm so the comment-specific listeners can commit through the same
+        // save path the rest of the form uses. Null whenever no item form is open.
+        this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
@@ -415,41 +419,66 @@ export class Editor {
     autoSaveItemForm() {
       const itemForm = document.getElementById("annotation-update-form");
       if (!itemForm) {
+        // Cleared, so a later caller cannot commit through a closure over a form that is no
+        // longer on the page.
+        this.saveItemForm = null;
         return;
       }
       this.lastSavedItemFormState = this.serializeItemForm(itemForm);
 
-      const save = async () => {
-        const state = this.serializeItemForm(itemForm);
-        if (state === this.lastSavedItemFormState) return;
+      // Only one save may be in flight at a time. Each save supersedes the annotation's id, so a
+      // second request sent before the first returns would address the version the first just
+      // retired and come back 404. A trailing re-run rather than a queue of pending states: the
+      // body re-reads both the id and the form below, so one final pass picks up the new id and
+      // the latest values, which is what a form autosave means by saving.
+      let saveInFlight = false;
+      let saveQueued = false;
 
-        // Read per save rather than captured once: each save creates a new version with a new
-        // id, and syncOpenFormToVersion advances the form's dataset to it. A stale id here
-        // would address the version this edit just superseded.
-        const annotationId = itemForm.dataset["annotationId"];
-        const annotationType = itemForm.dataset["annotationType"];
-
-        if (annotationType == "blur") {
-          const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
-          const newStart = parseFloat(itemForm.querySelector("#start_time")?.value);
-          const newEnd = parseFloat(itemForm.querySelector("#end_time")?.value);
-          if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
-              !this.confirmBlurPointLoss(item, newStart, newEnd)) {
-            itemForm.querySelector("#start_time").value = item.dataset["start"];
-            itemForm.querySelector("#end_time").value = item.dataset["end"];
-            return;
-          }
-        }
-
-        this.lastSavedItemFormState = state;
-        // autoUpdateForm false keeps the open form - and whatever the user is typing in it -
-        // in place; updateAnnotation still repoints it at the new version.
-        const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
-        if (!updated) {
-          this.lastSavedItemFormState = null;
+      const save = this.saveItemForm = async () => {
+        if (saveInFlight) {
+          saveQueued = true;
           return;
         }
-        this.refreshItemFormFromServerState(itemForm, updated);
+        saveInFlight = true;
+        try {
+          const state = this.serializeItemForm(itemForm);
+          if (state === this.lastSavedItemFormState) return;
+
+          // Read per save rather than captured once: each save creates a new version with a new
+          // id, and syncOpenFormToVersion advances the form's dataset to it. A stale id here
+          // would address the version this edit just superseded.
+          const annotationId = itemForm.dataset["annotationId"];
+          const annotationType = itemForm.dataset["annotationType"];
+
+          if (annotationType == "blur") {
+            const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
+            const newStart = parseFloat(itemForm.querySelector("#start_time")?.value);
+            const newEnd = parseFloat(itemForm.querySelector("#end_time")?.value);
+            if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
+                !this.confirmBlurPointLoss(item, newStart, newEnd)) {
+              itemForm.querySelector("#start_time").value = item.dataset["start"];
+              itemForm.querySelector("#end_time").value = item.dataset["end"];
+              return;
+            }
+          }
+
+          this.lastSavedItemFormState = state;
+          // autoUpdateForm false keeps the open form - and whatever the user is typing in it -
+          // in place; updateAnnotation still repoints it at the new version.
+          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
+          if (!updated) {
+            this.lastSavedItemFormState = null;
+            return;
+          }
+          this.refreshItemFormFromServerState(itemForm, updated);
+        } finally {
+          // finally, not the end of the body: the early returns above must not strand the flag.
+          saveInFlight = false;
+          if (saveQueued) {
+            saveQueued = false;
+            save();
+          }
+        }
       };
 
       itemForm.addEventListener("change", (e) => {
@@ -827,7 +856,11 @@ export class Editor {
       if (!placed) {
         return false;
       }
-      this.markItemAsActive(annotationType, annotationId);
+      // The styling has to be re-applied either way - the item and panel elements were just
+      // replaced - but only a save that also replaces the form is the user asking to go to this
+      // annotation. A background autosave that scrolled the panel and seeked the video would
+      // throw away the moment the user is editing at.
+      this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
       return true;
     }
 
@@ -971,8 +1004,12 @@ export class Editor {
           if (!itemForm.isConnected) {
             return;
           }
-          const annotationId = itemForm.dataset["annotationId"];
-          this.updateAnnotation({annotationType: "comment", annotationId, autoUpdateForm: false});
+          // Through the shared save rather than straight to updateAnnotation: these inputs live
+          // inside #annotation-update-form, so blurring one also fires the `change` that
+          // autoSaveItemForm listens for. Saving directly here left that listener comparing
+          // against a stale baseline, and one edit committed two identical versions - which the
+          // user then had to undo twice.
+          this.saveItemForm?.();
         }, 250);
       }
 
@@ -1227,7 +1264,12 @@ export class Editor {
       return true;
     }
 
-    markItemAsActive(annotationType, annotationId) {
+    // `navigate` separates showing which annotation is selected from going to it. Selecting an
+    // annotation should scroll it into view and seek the video to it; a background save should
+    // not, even though it still has to re-apply the styling because the timeline and panel
+    // elements were just replaced with new ones carrying the new version's id. BlurEditor.js
+    // re-applies the class by hand for exactly this reason - see its _applySaved.
+    markItemAsActive(annotationType, annotationId, {navigate = true} = {}) {
       if (!annotationType || !annotationId) {
         console.error("Invalid annotation type of annotation id");
         return;
@@ -1268,7 +1310,9 @@ export class Editor {
       const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
       const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
       thisGroupArrow.classList.add(arrowRotationClass);
-      thisPanelItem.scrollIntoView({behavior: "smooth", block: "nearest"});
+      if (navigate) {
+        thisPanelItem.scrollIntoView({behavior: "smooth", block: "nearest"});
+      }
 
       // handle track item style
       const activeTrackItemCSSClass = "active-track-item";
@@ -1284,6 +1328,10 @@ export class Editor {
         return;
       }
       trackItem.classList.add(activeTrackItemCSSClass);
+
+      if (!navigate) {
+        return;
+      }
 
       const parentTrackRow = trackItem.closest(".track-row");
       if (parentTrackRow) {

@@ -135,6 +135,89 @@ def test_keyboard_shortcut_undoes_the_open_annotation(page, open_editor):
     expect(page.locator("#annotation_name")).to_have_value(annotation.name)
 
 
+def test_autosave_does_not_move_the_playhead(page, open_editor):
+    """A background save must not double as "go to this annotation".
+
+    Saving re-renders the timeline item and panel item under a new id, so their active styling has
+    to be re-applied - but re-applying it by way of the full selection path also seeks the video to
+    the annotation's start, throwing away the frame the user is working at. BlurEditor avoids this
+    by re-applying the class by hand; the version-response path has to avoid it too.
+    """
+    content = open_editor()
+    annotation = _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+
+    # Part-way into the annotation rather than at its start, so a seek back to the start is
+    # measurable at all.
+    target = float(annotation.start_time) + 3
+    page.evaluate("(t) => { document.querySelector('video').currentTime = t; }", target)
+    page.wait_for_function(
+        "(t) => Math.abs(document.querySelector('video').currentTime - t) < 0.3",
+        arg=target,
+    )
+
+    _commit_name(page, "Renamed without seeking", str(annotation.id))
+
+    assert page.evaluate(
+        "() => document.querySelector('video').currentTime"
+    ) == pytest.approx(target, abs=0.5), (
+        "the autosave seeked the video away from the frame being edited"
+    )
+
+
+def test_editing_a_comment_field_creates_exactly_one_version(page, open_editor):
+    """The comment inputs save on `input` (debounced) and the form saves on `change`.
+
+    Both commit the same edit, so unless they share one save path a single change to one of these
+    fields writes two identical versions - and the user has to press undo twice to take back what
+    they did once.
+    """
+    content = open_editor()
+    annotation = _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+    original_id = str(annotation.id)
+
+    def version_count():
+        return CommentAnnotation.objects.filter(
+            track__annotation_set=content.annotation_set, name=annotation.name
+        ).count()
+
+    # The comment inputs only save while the player is drawing the box, so wait for it.
+    expect(page.locator(f"#comment-text-box-{original_id}")).to_be_visible()
+    before = version_count()
+
+    # Typed, then left alone long enough for the 250 ms debounce to commit, and only then blurred.
+    # The pause is the point: it separates the two save paths, so the `change` that follows is
+    # judged against whatever baseline the debounced save left behind. Blurring immediately
+    # instead overlaps the two requests, and the second is then rejected for addressing a
+    # superseded id - a different bug, and one that hides this one.
+    page.locator("#font-size").fill("2.5")
+    page.wait_for_timeout(800)
+    page.locator("#description").click()
+    page.wait_for_timeout(1200)
+
+    added = version_count() - before
+    assert added == 1, f"one edit should add one version, added {added}"
+
+    # And one undo is enough to get back to where they started.
+    page.locator(".undo-btn").click()
+    expect(page.locator("#existing-item-form")).to_have_attribute(
+        "data-annotation-id", original_id
+    )
+
+
 def test_comment_box_is_still_editable_after_a_save_makes_a_new_version(
     page, open_editor
 ):
