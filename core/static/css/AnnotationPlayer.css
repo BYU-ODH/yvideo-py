@@ -151,21 +151,11 @@
   object-fit: contain;
 }
 
-/* youtube-video is a custom element with no intrinsic size of its own, so it
-   would collapse to 0 height anywhere the rules above resolve to `height:
-   auto`. The ratio is only that fallback: where a height is available the box
-   fills it, and AnnotationPlayer positions the overlay onto the picture inside
-   that box (see _syncOverlayToFrame) rather than assuming box == picture. */
 .annotation-player-container youtube-video {
   aspect-ratio: 16 / 9;
   position: relative;
 }
 
-/* The YouTube IFrame API sizes its generated <iframe> (or the placeholder
-   div before it's ready) in pixels, independent of this element's own box.
-   Force whatever it renders to absolutely fill youtube-video's box; the
-   YouTube player then letterboxes the picture within that iframe the same way
-   object-fit: contain does for a real <video>. */
 .annotation-player-container youtube-video > * {
   position: absolute;
   inset: 0;
