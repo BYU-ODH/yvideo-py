@@ -47,7 +47,9 @@
         </div>
         {% endfor %}
     </div>
-    <button id="annotation-panel-switch" class="white-button-with-border editor-panel-switch">
-        Switch to Subtitle Editor
-    </button>
+    {% if not youtube_video_id %}
+        <button id="annotation-panel-switch" class="white-button-with-border editor-panel-switch">
+            Switch to Subtitle Editor
+        </button>
+    {% endif %}
 </div>

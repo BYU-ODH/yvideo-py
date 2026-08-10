@@ -32,6 +32,7 @@ from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
 from ..models import Content
 from ..models import PauseAnnotation
+from ..models import Resource
 from ..models import ResourceFileKey
 from ..models import SkipAnnotation
 from ..models import validate_font_color
@@ -41,6 +42,28 @@ from ..utils import build_vtt_file_string_from_cues
 from ..utils import estimate_current_yearterm
 from ..utils import nudge_cue_times
 from ..utils import seconds2hms
+
+
+class ResourceImdbIdGenerationTests(TestCase):
+    def test_omitted_imdb_id_is_auto_generated(self):
+        resource = Resource.objects.create(
+            name="Test Resource", requester_username="req00001"
+        )
+        self.assertRegex(resource.imdb_id, r"^BYU\d{10}$")
+
+    def test_blank_imdb_id_is_auto_generated(self):
+        resource = Resource.objects.create(
+            name="Test Resource 2", requester_username="req00002", imdb_id=""
+        )
+        self.assertRegex(resource.imdb_id, r"^BYU\d{10}$")
+
+    def test_field_allows_null_so_blank_placeholders_never_collide(self):
+        # Resource.save() normalizes a missing/blank imdb_id to None before the
+        # initial insert (rather than saving ""), so two Resources created
+        # without an explicit imdb_id can't collide on the unique constraint
+        # before generate_internal_imdb_id assigns each its real, pk-derived
+        # value. That requires the field itself to allow NULL.
+        self.assertTrue(Resource._meta.get_field("imdb_id").null)
 
 
 class ApiTests(TestCase):

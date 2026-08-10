@@ -11,7 +11,7 @@
 
 {% block content %}
     <div class="player-page">
-        {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id %}
+        {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=resource_file_key_id content_source_url=content_source_url youtube_video_id=youtube_video_id %}
 
         <div class="video-title">
             <h2>{{ content.title }}</h2>

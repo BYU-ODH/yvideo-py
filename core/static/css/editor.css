@@ -41,6 +41,35 @@
     --zoom-thumb-width: 100%;
 }
 
+/* YouTube Editor Warning Banner */
+.youtube-editor-warning-banner {
+    flex-shrink: 0;
+    background-color: #fff3cd;
+    color: #664d03;
+    border-bottom: 3px solid #d89b00;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+.youtube-editor-warning-banner strong {
+    margin-right: 0.35rem;
+}
+
+.editor-video-error-banner {
+    flex-shrink: 0;
+    background-color: #f8d7da;
+    color: #58151c;
+    border-bottom: 3px solid #b02a37;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+.editor-video-error-banner strong {
+    margin-right: 0.35rem;
+}
+
 /* Editor Container */
 #editor-container {
     flex: 1;

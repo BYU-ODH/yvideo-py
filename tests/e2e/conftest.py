@@ -2,7 +2,10 @@ from io import StringIO
 import os
 
 from django.core.management import call_command
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 import pytest
+
+from tests.e2e import live_youtube as live_youtube_api
 
 # pytest-playwright initializes an event loop before Django's test DB setup.
 # These browser tests intentionally use Django's sync ORM and live server.
@@ -52,6 +55,102 @@ def seeded_demo_data(settings, tmp_path, transactional_db):
     call_command("seed_demo_data", stdout=StringIO())
 
     return media_root
+
+
+@pytest.fixture(scope="session")
+def live_youtube():
+    """The live video id, or a skip explaining why the real API cannot be reached.
+
+    Request this from any test that talks to youtube.com, so an offline machine reports "skipped:
+    youtube.com is unreachable" instead of a failure that looks like a bug here.
+
+    Reachable is not the same as playable: see `require_live_embed`, which is the other half of this
+    gate and the one a blocked network actually trips.
+    """
+    reason = live_youtube_api.unavailable_reason()
+    if reason:
+        pytest.skip(f"needs the live YouTube API: {reason}")
+    return live_youtube_api.LIVE_YOUTUBE_VIDEO_ID
+
+
+@pytest.fixture
+def require_live_embed(page):
+    """Wait until the real embed is playable here, or skip saying it is not.
+
+    `live_youtube` asks whether youtube.com answers HTTP. This asks the only question a browser test
+    cares about - does the embed load and run - which is a different question wherever YouTube
+    declines to serve video to the machine asking. See live_youtube.LIVE_EMBED_REFUSED_MESSAGE.
+    """
+
+    def _require():
+        try:
+            page.wait_for_function(
+                f"() => ({live_youtube_api.EMBED_OUTCOME_JS})() !== null",
+                timeout=live_youtube_api.LIVE_EMBED_TIMEOUT_MS,
+            )
+        except PlaywrightTimeoutError:
+            pytest.skip(
+                f"{live_youtube_api.LIVE_EMBED_REFUSED_MESSAGE} "
+                "(the embed never finished loading at all)"
+            )
+        page.wait_for_timeout(live_youtube_api.LIVE_EMBED_SETTLE_MS)
+        if page.evaluate(live_youtube_api.EMBED_OUTCOME_JS) == "refused":
+            pytest.skip(
+                f"{live_youtube_api.LIVE_EMBED_REFUSED_MESSAGE} "
+                "(the player raised an error)"
+            )
+
+    return _require
+
+
+@pytest.fixture
+def fake_youtube(page):
+    """Install the stand-in IFrame Player API before any navigation.
+
+    Request this in place of reaching youtube.com. See tests/e2e/fake_youtube.py for what it does
+    and does not stand in for.
+
+    Also asserts that nothing in the test reached youtube.com, which is the point of the fake: the
+    stub only avoids the network as long as YouTubeVideoElement keeps checking for an existing
+    `window.YT` before injecting the API script, and a silent regression there would leave these
+    tests quietly network-dependent again.
+    """
+    from tests.e2e.fake_youtube import install_fake_youtube
+
+    install_fake_youtube(page)
+    reached_youtube = []
+
+    def _record(request):
+        if "youtube.com" in request.url or "youtu.be" in request.url:
+            reached_youtube.append(request.url)
+
+    page.on("request", _record)
+    yield page
+    page.remove_listener("request", _record)
+    assert not reached_youtube, (
+        "these tests are meant to run without the network, but the page requested: "
+        f"{reached_youtube}"
+    )
+
+
+@pytest.fixture
+def youtube_content(seeded_demo_data):
+    """A YouTube-backed Content in the demo playlist, created the way the app creates one."""
+    from core.models import Content
+    from core.models import Playlist
+    from core.youtube_utils import get_or_create_youtube_resource
+
+    def _create(title="YouTube Content", video_id="eHEsJyVQn3w"):
+        playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+        resource = get_or_create_youtube_resource(video_id, playlist.owner.username)
+        return Content.objects.create(
+            playlist=playlist,
+            title=title,
+            url=f"https://www.youtube.com/watch?v={video_id}",
+            resource=resource,
+        )
+
+    return _create
 
 
 @pytest.fixture

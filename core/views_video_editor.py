@@ -42,6 +42,7 @@ from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_content_to_vtt
 from .utils import generate_vtt_cues_from_file_path
 from .utils import nudge_cue_times
+from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
 
@@ -199,11 +200,16 @@ def video_editor(request, content_id):
             get_annotation_groups(annotations) if annotation_set is not None else []
         )
 
+        content_source_url = request.user.get_content_source_url(content)
+
         context = {
             "content": content,
             "content_id": content_id,
             "file_key": file_key.id if file_key else None,
-            "content_source_url": request.user.get_content_source_url(content),
+            "content_source_url": content_source_url,
+            "youtube_video_id": youtube_video_id_for_content(
+                content, content_source_url
+            ),
             "allow_events": True,
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,
@@ -269,6 +275,7 @@ def get_player_wrapper_html(request):
 
     try:
         resource_file_key = request.user.get_resource_filekey(content)
+        content_source_url = request.user.get_content_source_url(content)
         video_html = render_to_string(
             "core/partials/player-wrapper.html",
             {
@@ -276,7 +283,10 @@ def get_player_wrapper_html(request):
                 "resource_file_key_id": resource_file_key.pk
                 if resource_file_key
                 else None,
-                "content_source_url": request.user.get_content_source_url(content),
+                "content_source_url": content_source_url,
+                "youtube_video_id": youtube_video_id_for_content(
+                    content, content_source_url
+                ),
                 "editor_mode": True,
             },
             request=request,

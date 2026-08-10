@@ -39,6 +39,9 @@ python_files = ["test_*.py", "*_test.py"]
 addopts = "--strict-markers"
 markers = [
     "e2e: browser-backed end-to-end tests",
+    # Deselect with `-m 'not live_youtube'`; these also skip themselves when youtube.com is
+    # unreachable or the video they embed has been unpublished (see tests/e2e/conftest.py).
+    "live_youtube: needs the real YouTube IFrame Player API over the network",
 ]
 
 [tool.uv]

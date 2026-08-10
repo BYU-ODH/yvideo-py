@@ -66,6 +66,8 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    env:
+      SKIP_LIVE_YOUTUBE_TESTS: "1"
     steps:
     - uses: actions/checkout@v6
 

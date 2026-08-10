@@ -216,6 +216,7 @@ BYU_EXTRA_LANGUAGES = [
 # Languages that appear in the legacy database dump
 # (var/legacy_migration/legacy_dump.sqlite3) but aren't covered above, so
 # legacy subtitles can still resolve to a Language row after migration.
+# TODO delete this after legacy migration is over
 LEGACY_DATA_LANGUAGES = [
     ("Cakchiquel", "cak"),
 ]
