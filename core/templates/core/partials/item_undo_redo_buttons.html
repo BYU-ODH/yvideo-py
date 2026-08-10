@@ -1,19 +1,26 @@
-<div class="undo-redo-toolbar">
-    <button hx-post="{% url 'undo_annotation' content.id %}"
-            hx-target="#annotation-timeline"
-            hx-swap="innerHTML"
+{% load static %}
+<div class="undo-redo-toolbar" role="toolbar" aria-label="Edit history">
+    <button type="button"
+            class="item-form-icon-button annotation-history-button undo-btn"
+            data-history-action="undo"
+            data-history-url="{% url 'undo_annotation' content.id %}"
+            data-annotation-id="{{ instance.id }}"
+            data-annotation-type="{{ item_type }}"
             {% if not can_undo or not can_edit %}disabled{% endif %}
-            class="undo-btn"
+            aria-label="Undo last change"
             title="Undo last change (Ctrl+Z)">
-        ← Undo
+        <img src="{% static 'img/undo.svg' %}" alt="" aria-hidden="true">
     </button>
 
-    <button hx-post="{% url 'redo_annotation' content.id %}"
-            hx-target="#annotation-timeline"
-            hx-swap="innerHTML"
+    <button type="button"
+            class="item-form-icon-button annotation-history-button redo-btn"
+            data-history-action="redo"
+            data-history-url="{% url 'redo_annotation' content.id %}"
+            data-annotation-id="{{ instance.id }}"
+            data-annotation-type="{{ item_type }}"
             {% if not can_redo or not can_edit %}disabled{% endif %}
-            class="redo-btn"
+            aria-label="Redo last undone change"
             title="Redo last undone change (Ctrl+Shift+Z)">
-        Redo →
+        <img src="{% static 'img/redo.svg' %}" alt="" aria-hidden="true">
     </button>
 </div>

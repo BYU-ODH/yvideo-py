@@ -1,7 +1,20 @@
 {% load static %}
 <div class="item-form" id="existing-item-form" data-annotation-type="{{item_type}}" data-annotation-id="{{instance.id}}">
-
-    <h3>Edit {{ item_type_label }}</h3>
+    <div class="item-form-header">
+        <h3>Edit {{ item_type_label }}</h3>
+        <div class="item-form-header-actions">
+            {% include "core/partials/item_undo_redo_buttons.html" with can_undo=instance.prev_id can_redo=instance.next_id %}
+            {% if can_edit %}
+            <button id="annotation-form-delete-button"
+                    class="item-form-icon-button"
+                    type="button"
+                    aria-label="Delete this {{ item_type_label|lower }}"
+                    title="Delete this {{ item_type_label|lower }}">
+                <img src="{% static 'img/white-trash-can.svg' %}" alt="" aria-hidden="true">
+            </button>
+            {% endif %}
+        </div>
+    </div>
 
     {% if item_type == "clip" %}
         <div id="clip-next-last-buttons" class="row-flex flex-apart-aligned">
@@ -102,41 +115,5 @@
                     name="description"
                     {% if not can_edit %}readonly{% endif %}>{{ instance.description }}</textarea>
         </div>
-        <div class="undo-redo-controls">
-            <button type="button"
-                    hx-post="{% url 'undo_annotation' content.id %}"
-                    hx-vals='{"annotation_id": "{{ instance.id }}", "annotation_type": "{{ item_type }}"}'
-                    hx-target="#annotation-timeline"
-                    hx-swap="innerHTML"
-                    {% if not instance.prev %}disabled{% endif %}
-                    class="btn-secondary"
-                    title="Undo last change (Ctrl+Z)">
-                ← Undo
-            </button>
-            <button type="button"
-                    hx-post="{% url 'redo_annotation' content.id %}"
-                    hx-vals='{"annotation_id": "{{ instance.id }}", "annotation_type": "{{ item_type }}"}'
-                    hx-target="#annotation-timeline"
-                    hx-swap="innerHTML"
-                    {% if not instance.next %}disabled{% endif %}
-                    class="btn-secondary"
-                    title="Redo (Ctrl+Shift+Z)">
-                Redo →
-            </button>
-        </div>
-
-        {% if can_edit %}
-        {% comment %}
-           No Save button: every field saves itself as it is committed (see autoSaveItemForm in
-           editor.js), which is how the rest of the app already behaves.
-        {% endcomment %}
-        <div class="form-actions column-flex">
-            <div class="row-flex flex-apart-aligned">
-                <button id="annotation-form-delete-button" type="button">
-                    Delete
-                </button>
-            </div>
-        </div>
-        {% endif %}
     </form>
 </div>

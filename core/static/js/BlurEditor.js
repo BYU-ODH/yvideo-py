@@ -16,9 +16,17 @@
 // The numeric constants below are the exception, and core/tests/test_js_constant_parity.py holds
 // them to the values in core/models.py.
 
-import { clampRect, percentWithin, rectAtTime, resizeRect } from "./video-geometry.js";
+import {
+  RESIZE_HANDLES,
+  clampRect,
+  edgesForHandle,
+  percentWithin,
+  rectAtTime,
+  resizeRect,
+} from "./video-geometry.js";
 import {
   animateDuringPlayback,
+  applyRect,
   createElementFromHTMLString,
   getCSRFToken,
 } from "./utils.js";
@@ -27,17 +35,6 @@ import {
 // Matching here keeps the box from jumping on release.
 const MIN_WIDTH = 3;
 const MIN_HEIGHT = 4;
-
-const HANDLES = [
-  ["nw", { movesLeft: true, movesTop: true }],
-  ["n", { movesTop: true }],
-  ["ne", { movesRight: true, movesTop: true }],
-  ["e", { movesRight: true }],
-  ["se", { movesRight: true, movesBottom: true }],
-  ["s", { movesBottom: true }],
-  ["sw", { movesLeft: true, movesBottom: true }],
-  ["w", { movesLeft: true }],
-];
 
 // Mirrors BLUR_SNAP_SECONDS in core/models.py: a playhead within a frame or two of a stored point
 // is editing *that point*, not the moment between points. The server applies the same rule when
@@ -94,13 +91,6 @@ async function serverMessage(response, fallback) {
     return fallback;
   }
   return body;
-}
-
-function applyRect(element, rect) {
-  element.style.left = `${rect.x}%`;
-  element.style.top = `${rect.y}%`;
-  element.style.width = `${rect.width}%`;
-  element.style.height = `${rect.height}%`;
 }
 
 // Clamping here rather than in each gesture means a pointer dragged past the edge of the window
@@ -285,6 +275,15 @@ export class BlurEditor {
     this._render();
   }
 
+  // Saving an annotation writes a new version with a new id, so the selected blur's item bar and
+  // panel are re-rendered under that id. Follow it rather than re-running select(), which would
+  // seek the video out from under an edit in progress.
+  retarget(annotationId) {
+    if (!this.annotationId) return;
+    this.annotationId = String(annotationId);
+    this.syncFromPanel();
+  }
+
   // --- reading the current state --------------------------------------------
 
   // Takes an id rather than always reading this.annotationId, because a save can outlive its
@@ -373,9 +372,9 @@ export class BlurEditor {
     rig.title =
       "Drag to move, handles to resize. Arrow keys nudge (Shift for bigger steps); " +
       ", and . step the video.";
-    for (const [name] of HANDLES) {
+    for (const [name] of RESIZE_HANDLES) {
       const handle = document.createElement("div");
-      handle.className = "blur-rig-handle";
+      handle.className = "overlay-resize-handle blur-rig-handle";
       handle.dataset["handle"] = name;
       rig.appendChild(handle);
     }
@@ -435,7 +434,7 @@ export class BlurEditor {
 
     const handle = event.target.closest(".blur-rig-handle");
     if (handle) {
-      const edges = HANDLES.find(([name]) => name === handle.dataset["handle"])?.[1];
+      const edges = edgesForHandle(handle.dataset["handle"]);
       if (!edges) return;
       const options = { ...edges, ...CLAMP_LIMITS };
       this._beginGesture(event, (_startPoint, currentPoint) =>

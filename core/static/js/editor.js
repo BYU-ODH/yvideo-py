@@ -1,8 +1,17 @@
-import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback } from "./utils.js";
+import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
 import { BlurEditor, placeLocators } from "./BlurEditor.js";
-import { clampRect, percentWithin, pointsLostByRetiming, resizeRect } from "./video-geometry.js";
+import {
+  RESIZE_HANDLES,
+  clampRect,
+  edgesForHandle,
+  percentWithin,
+  pointsLostByRetiming,
+  resizeRect,
+} from "./video-geometry.js";
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
+const COMMENT_MIN_WIDTH = 3;
+const COMMENT_MIN_HEIGHT = 4;
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -34,12 +43,31 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.lastSavedItemFormState = null;
+        this.historyRequestInFlight = false;
+        this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
         this.dragGhostImage = new Image();  // Used to avoid browser's default globe icon
         this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+        // The comment editor's own overlay - see _ensureCommentRig for why it is not the player's box.
+        this.commentRig = null;
+        this.commentRigAnnotationId = null;
+        this.commentRigWindow = null;
+        // Set while a pointer is down, so the render below cannot overwrite the geometry the user is
+        // actively dragging.
+        this.commentRigDragging = false;
+        this.renderCommentRig = this.renderCommentRig.bind(this);
+        // The same two cadences BlurEditor uses: timeupdate/seeked cover scrubbing and the paused
+        // case, while animateDuringPlayback runs every animation frame, the rate at which the player
+        // adds and removes the comment box the rig is drawn around.
+        this.video.addEventListener("timeupdate", this.renderCommentRig);
+        this.video.addEventListener("seeked", this.renderCommentRig);
+        animateDuringPlayback(this.video, this.renderCommentRig);
+
+        this.annotationBox = window.videoPlayer.annotationBox;
 
         this.blurEditor = new BlurEditor({
           video: this.video,
@@ -78,6 +106,7 @@ export class Editor {
         this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
         this.setupAnnotationSetOptionsModal();
+        this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.attachRemoveEditorListeners();
         this.watchForEditorSearchInputAndHandleIt();
@@ -331,6 +360,9 @@ export class Editor {
     }
 
     setUpItemClickListeners(element) {
+      if (element.dataset.clickSetup === "true") {
+        return;
+      }
       const annotationType = element.dataset["annotationType"];
       const annotationId = element.dataset["annotationId"];
       element.addEventListener("click", async (e) => {
@@ -338,6 +370,7 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
+      element.dataset.clickSetup = "true";
     }
 
     blockTrackItemPointerEvents() {
@@ -401,36 +434,53 @@ export class Editor {
     autoSaveItemForm() {
       const itemForm = document.getElementById("annotation-update-form");
       if (!itemForm) {
+        this.saveItemForm = null;
         return;
       }
-      const annotationId = itemForm.dataset["annotationId"];
-      const annotationType = itemForm.dataset["annotationType"];
       this.lastSavedItemFormState = this.serializeItemForm(itemForm);
 
-      const save = async () => {
-        const state = this.serializeItemForm(itemForm);
-        if (state === this.lastSavedItemFormState) return;
+      let saveInFlight = false;
+      let saveQueued = false;
 
-        if (annotationType == "blur") {
-          const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
-          const newStart = parseFloat(itemForm.querySelector("#start_time")?.value);
-          const newEnd = parseFloat(itemForm.querySelector("#end_time")?.value);
-          if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
-              !this.confirmBlurPointLoss(item, newStart, newEnd)) {
-            itemForm.querySelector("#start_time").value = item.dataset["start"];
-            itemForm.querySelector("#end_time").value = item.dataset["end"];
-            return;
-          }
-        }
-
-        this.lastSavedItemFormState = state;
-        const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
-        if (!updated) {
-          this.lastSavedItemFormState = null;
+      const save = this.saveItemForm = async () => {
+        if (saveInFlight) {
+          saveQueued = true;
           return;
         }
-        this.refreshItemFormFromServerState(itemForm, annotationType, annotationId, updated);
-        window.dispatchEvent(this.annotationUpdatedEvent);
+        saveInFlight = true;
+        try {
+          const state = this.serializeItemForm(itemForm);
+          if (state === this.lastSavedItemFormState) return;
+
+          const annotationId = itemForm.dataset["annotationId"];
+          const annotationType = itemForm.dataset["annotationType"];
+
+          if (annotationType == "blur") {
+            const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
+            const newStart = parseFloat(itemForm.querySelector("#start_time")?.value);
+            const newEnd = parseFloat(itemForm.querySelector("#end_time")?.value);
+            if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
+                !this.confirmBlurPointLoss(item, newStart, newEnd)) {
+              itemForm.querySelector("#start_time").value = item.dataset["start"];
+              itemForm.querySelector("#end_time").value = item.dataset["end"];
+              return;
+            }
+          }
+
+          this.lastSavedItemFormState = state;
+          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
+          if (!updated) {
+            this.lastSavedItemFormState = null;
+            return;
+          }
+          this.refreshItemFormFromServerState(itemForm, updated);
+        } finally {
+          saveInFlight = false;
+          if (saveQueued) {
+            saveQueued = false;
+            save();
+          }
+        }
       };
 
       itemForm.addEventListener("change", (e) => {
@@ -447,9 +497,10 @@ export class Editor {
       });
     }
 
-    refreshItemFormFromServerState(itemForm, annotationType, annotationId, responseData) {
+    refreshItemFormFromServerState(itemForm, responseData) {
+      const annotationType = responseData["annotation_type"];
+      const annotationId = responseData["annotation_id"];
       const item = document.getElementById(`${annotationType}-${annotationId}`);
-      item?.classList.add("active-track-item");
       for (const [fieldId, datasetKey] of [["start_time", "start"], ["end_time", "end"]]) {
         const input = itemForm.querySelector(`#${fieldId}`);
         const stored = item?.dataset[datasetKey];
@@ -521,10 +572,14 @@ export class Editor {
         return;
       }
 
-      const annotationType = itemForm.dataset["annotationType"];
-      const annotationId = itemForm.dataset["annotationId"];
       deleteItemButton.addEventListener("click", async (e) => {
         e.preventDefault();
+        const annotationType = itemForm.dataset["annotationType"];
+        const annotationId = itemForm.dataset["annotationId"];
+
+        if (!window.confirm(`Delete this ${annotationType} annotation? This cannot be undone.`)) {
+          return;
+        }
         await this.deleteItem(annotationType, annotationId);
       });
     }
@@ -554,7 +609,7 @@ export class Editor {
       }
     }
 
-    buildResizePointMoveHandler(minHeight = 4, minWidth = 3) {
+    buildResizePointMoveHandler(minHeight = COMMENT_MIN_HEIGHT, minWidth = COMMENT_MIN_WIDTH) {
       return (event) => {
         event.stopPropagation();
         const elementToResize = event.target.parentElement;
@@ -569,15 +624,10 @@ export class Editor {
           width: parseFloat(elementToResize.style.width) || 0,
           height: parseFloat(elementToResize.style.height) || 0,
         };
-        // The comment editor has only the four corners, so every handle moves one edge on each axis.
-        // TODO Give comment editor eight handles?
-        const movesLeft = event.target.classList.contains("resize-point-left");
-        const movesTop = event.target.classList.contains("resize-point-top");
+        const edges = edgesForHandle(event.target.dataset["handle"]);
+        if (!edges) return;
         const resized = clampRect(resizeRect(origin, pointer, {
-          movesLeft,
-          movesRight: !movesLeft,
-          movesTop,
-          movesBottom: !movesTop,
+          ...edges,
           ...limits,
         }), limits);
         elementToResize.style.left = `${resized.x}%`;
@@ -593,6 +643,7 @@ export class Editor {
       if (itemForm == null) {
         this.typeOfAnnotationInFocus = null;
         this.blurEditor.deselect();
+        this.removeCommentRig();
         return;
       }
 
@@ -603,18 +654,206 @@ export class Editor {
         this.blurEditor.deselect();
       }
 
+      if (previousTypeInFocus == "comment" && this.typeOfAnnotationInFocus != "comment") {
+        this.removeCommentRig();
+      }
+
       if (this.typeOfAnnotationInFocus == "blur" ) {
         this.blurEditor.select(this.annotationIdInFocus);
       }
     }
 
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateItem=true, autoUpdateForm=true}) {
+    listenForHistoryControls() {
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest(".annotation-history-button");
+        if (!button || button.disabled) {
+          return;
+        }
+        event.preventDefault();
+        this.changeAnnotationVersion(button);
+      });
+
+      document.addEventListener("keydown", (event) => {
+        const target = event.target;
+        const isTextEntry = target.matches?.("input, textarea, select, [contenteditable='true']");
+        if (isTextEntry || !(event.ctrlKey || event.metaKey) || event.key?.toLowerCase() !== "z") {
+          return;
+        }
+
+        // Scoped to the open form rather than the document: the shortcut has to act on the
+        // annotation the user is looking at, not on whichever toolbar happens to be first.
+        const action = event.shiftKey ? "redo" : "undo";
+        const button = document.querySelector(
+          `#existing-item-form .annotation-history-button[data-history-action="${action}"]:not(:disabled)`
+        );
+        if (!button) {
+          return;
+        }
+        event.preventDefault();
+        this.changeAnnotationVersion(button);
+      });
+    }
+
+    async changeAnnotationVersion(button) {
+      if (this.historyRequestInFlight) {
+        return false;
+      }
+      this.historyRequestInFlight = true;
+      button.disabled = true;
+
+      try {
+        const response = await fetch(button.dataset.historyUrl, {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": getCSRFToken(),
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            annotation_id: button.dataset.annotationId,
+            annotation_type: button.dataset.annotationType,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to ${button.dataset.historyAction} annotation history`);
+          if (button.isConnected) {
+            button.disabled = false;
+          }
+          return false;
+        }
+
+        const responseData = await response.json();
+        const applied = this.applyAnnotationVersionResponse(
+          responseData,
+          button.dataset.annotationId,
+          true,
+        );
+        window.dispatchEvent(this.annotationUpdatedEvent);
+        if (!applied && button.isConnected) {
+          // The version did change on the server, but the timeline could not be updated to show
+          // it. Leaving the button disabled would strand the user in a state they cannot undo
+          // their way out of.
+          button.disabled = false;
+        }
+        return applied;
+      } catch (error) {
+        console.error(`Failed to ${button.dataset.historyAction} annotation history`, error);
+        if (button.isConnected) {
+          button.disabled = false;
+        }
+        return false;
+      } finally {
+        this.historyRequestInFlight = false;
+      }
+    }
+
+    replaceAnnotationVersionElements(responseData, previousAnnotationId) {
+      const annotationType = responseData.annotation_type;
+      const annotationId = String(responseData.annotation_id);
+      const trackId = String(responseData.track_id);
+      const previousItem = document.getElementById(`${annotationType}-${previousAnnotationId}`);
+      const destination = document.querySelector(
+        `.track-row[data-track-id="${trackId}"] .track-row-annotations-container`
+      );
+
+      if (!destination) {
+        console.error("Could not place the active annotation version in the timeline");
+        return false;
+      }
+
+      // A missing previous item is not fatal: the new version still belongs on the timeline, and
+      // dropping it would leave the annotation invisible even though the save succeeded.
+      const newItem = createElementFromHTMLString(responseData.item_html);
+      if (previousItem?.parentElement === destination) {
+        previousItem.replaceWith(newItem);
+      } else {
+        previousItem?.remove();
+        destination.appendChild(newItem);
+      }
+
+      const previousPanelItem = document.getElementById(
+        `${annotationType}-panel-item-${previousAnnotationId}`
+      );
+      if (previousPanelItem) {
+        previousPanelItem.replaceWith(
+          createElementFromHTMLString(responseData.panel_item_html)
+        );
+      }
+
+      this.placeTrackItems();
+      return annotationId;
+    }
+
+    syncOpenFormToVersion(responseData, previousAnnotationId) {
+      const itemForm = document.getElementById("existing-item-form");
+      const updateForm = document.getElementById("annotation-update-form");
+      if (!itemForm || !updateForm) {
+        return false;
+      }
+
+      if (String(itemForm.dataset.annotationId) !== String(previousAnnotationId)) {
+        return false;
+      }
+
+      const annotationType = responseData.annotation_type;
+      const annotationId = String(responseData.annotation_id);
+      // Asked of the rig rather than of the player's box, which is why this no longer has to wait:
+      // the rig is this module's own element and outlives the save, so whether controls were on
+      // screen is a fact already in hand instead of one the player's next reload decides.
+      const hadCommentRig =
+        annotationType == "comment" &&
+        this.commentRigAnnotationId === String(previousAnnotationId);
+
+      itemForm.dataset.annotationId = annotationId;
+      updateForm.dataset.annotationId = annotationId;
+      this.annotationIdInFocus = annotationId;
+
+      const renderedForm = createElementFromHTMLString(responseData.form_html);
+      const renderedToolbar = renderedForm.querySelector(".undo-redo-toolbar");
+      const currentToolbar = itemForm.querySelector(".undo-redo-toolbar");
+      if (renderedToolbar && currentToolbar) {
+        currentToolbar.replaceWith(renderedToolbar);
+      }
+
+      if (annotationType == "blur") {
+        this.blurEditor.retarget(annotationId);
+      }
+      if (hadCommentRig) {
+        this.presentCommentBoxPositionAndSizeControls(annotationId);
+      }
+      return true;
+    }
+
+    applyAnnotationVersionResponse(responseData, previousAnnotationId, replaceForm) {
+      const placed = this.replaceAnnotationVersionElements(
+        responseData,
+        previousAnnotationId,
+      );
+
+      const annotationType = responseData.annotation_type;
+      const annotationId = String(responseData.annotation_id);
+      const detailForm = document.getElementById("detail-form");
+      if (replaceForm) {
+        detailForm.innerHTML = responseData.form_html;
+        this.setUpLoadedItemForm(annotationType, annotationId);
+      } else {
+        this.syncOpenFormToVersion(responseData, previousAnnotationId);
+      }
+
+      if (!placed) {
+        return false;
+      }
+      this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      return true;
+    }
+
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true}) {
 
       let requestBody, contentType;
       if (isFromItem) {
         requestBody = JSON.stringify({
           "content_id": this.contentId,
-          "name": name,
+          "annotation_name": name,
           "description": description,
           "start_time": startTime,
           "end_time": endTime,
@@ -648,28 +887,9 @@ export class Editor {
         return false;
       }
 
-
       const responseData = await response.json();
-
-      const itemHtml = responseData["item_html"];
-      const formHtml = responseData["form_html"];
-
-      if (autoUpdateItem) {
-        const targetItem = document.getElementById(`${annotationType}-${annotationId}`);
-        targetItem.outerHTML = itemHtml;
-
-        this.placeTrackItems();
-      }
-
-      if (autoUpdateForm) {
-        const targetForm = document.getElementById("detail-form");
-        targetForm.innerHTML = formHtml;
-        this.markItemAsActive(annotationType, annotationId);
-        if (annotationType == "blur") {
-          this.blurEditor.syncFromPanel();
-        }
-        window.dispatchEvent(this.annotationUpdatedEvent);
-      }
+      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
+      window.dispatchEvent(this.annotationUpdatedEvent);
       return responseData;
     }
 
@@ -738,14 +958,10 @@ export class Editor {
     }
 
     setUpCommentChangeListeners(formElement) {
-      // You may wonder why commentTextBox is declared in both event listeners instead of
-      // outside them. This is because the box often does not generate quickly enough for
-      // it to be defined before we query for it in the outer function. If you wait to get
-      // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
       const itemForm = formElement.querySelector("#existing-item-form");
-      const annotationId = itemForm.dataset["annotationId"];
       const fontSizeInput = formElement.querySelector("#font-size");
       function getCommentBoxOrWriteError() {
+        const annotationId = itemForm.dataset["annotationId"];
         const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
         if (!commentTextBox) {
           console.error("could not find comment text box with annotation id: " + annotationId);
@@ -753,8 +969,15 @@ export class Editor {
         }
         return commentTextBox;
       }
-      const update = async () => {
-        await this.updateAnnotation({annotationType: "comment", annotationId, autoUpdateForm: false})
+      let updateTimerId;
+      const update = () => {
+        clearTimeout(updateTimerId);
+        updateTimerId = setTimeout(() => {
+          if (!itemForm.isConnected) {
+            return;
+          }
+          this.saveItemForm?.();
+        }, 250);
       }
 
       // handle font size change
@@ -786,67 +1009,35 @@ export class Editor {
         }
       });
 
-      // handle top left x change
-      const topX = itemForm.querySelector("#top-x");
-      topX.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.left = parseFloat(topX.value) + '%';
+      const repaintFromForm = () => {
+        this.renderCommentRig();
+        this._previewCommentBox();
         update();
-      });
-
-      // handle top left y change
-      const topY = itemForm.querySelector("#top-y");
-      topY.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.top = parseFloat(topY.value) + '%';
-        update();
-      });
-
-      // handle bottom right x change
-      const bottomX = itemForm.querySelector("#bottom-x");
-      bottomX.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.width = (parseFloat(bottomX.value) - parseFloat(commentTextBox.style.left)) + '%';
-        update();
-      });
-
-      // handle bottom right y change
-      const bottomY = itemForm.querySelector("#bottom-y");
-      bottomY.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.height = (parseFloat(bottomY.value) - parseFloat(commentTextBox.style.top)) + '%';
-        update();
-      });
-    }
-
-    cleanUpActiveCommentBoxes() {
-      const commentBoxes = document.getElementsByClassName("comment-text-box");
-      for (let box of commentBoxes) {
-        box.classList.remove("comment-text-box-editor-active");
-        const sizeControls = box.querySelectorAll(".comment-text-box-size-control");
-        for (let control of sizeControls) {
-          control.remove();
-        }
+      };
+      for (const selector of ["#top-x", "#top-y", "#bottom-x", "#bottom-y"]) {
+        itemForm.querySelector(selector)?.addEventListener("input", repaintFromForm);
       }
     }
 
-    updateCommentBoxPositionAndSize(annotationId) {
-      // validate that the box exists and we are editing the correct one
-      const commentBox = document.getElementById("comment-text-box-" + annotationId);
+    removeCommentRig() {
+      this.commentRig?.remove();
+      this.commentRig = null;
+      this.commentRigAnnotationId = null;
+      this.commentRigWindow = null;
+      this.commentRigDragging = false;
+    }
+
+    updateCommentBoxPositionAndSize() {
       const updateForm = document.getElementById("annotation-update-form");
-      if (!commentBox || !updateForm || updateForm.dataset["annotationId"] != annotationId) return;
+      const rig = this.commentRig;
+      if (!rig || rig.hidden || !updateForm) return;
+
+      const annotationId = updateForm.dataset["annotationId"];
+      if (this.commentRigAnnotationId !== String(annotationId)) return;
 
       // update the form and save
-      const boxTop = parseFloat(commentBox.style.top);
-      const boxLeft = parseFloat(commentBox.style.left);
+      const boxTop = parseFloat(rig.style.top);
+      const boxLeft = parseFloat(rig.style.left);
 
       const formTopX = updateForm.querySelector("#top-x");
       const formTopY = updateForm.querySelector("#top-y");
@@ -861,76 +1052,126 @@ export class Editor {
 
       formTopX.value = boxLeft;
       formTopY.value = boxTop;
-      formBottomX.value = boxLeft + parseFloat(commentBox.style.width);
-      formBottomY.value = boxTop + parseFloat(commentBox.style.height);
+      formBottomX.value = boxLeft + parseFloat(rig.style.width);
+      formBottomY.value = boxTop + parseFloat(rig.style.height);
 
-      this.updateAnnotation({annotationType:"comment", annotationId, autoUpdateItem: false});
+      this.updateAnnotation({annotationType:"comment", annotationId});
+    }
+
+    _ensureCommentRig() {
+      if (this.commentRig?.isConnected) return this.commentRig;
+
+      const rig = document.createElement("div");
+      rig.id = "comment-edit-rig";
+      rig.setAttribute("role", "group");
+      rig.setAttribute("aria-label", "Comment box");
+      rig.title = "Drag to move, handles to resize.";
+      rig.hidden = true;
+      this._onCommentRigGesture(rig, () => this.buildMoveHandler(rig));
+
+      // The same eight grips the blur rig offers, positioned by data-handle.
+      for (const [handleName] of RESIZE_HANDLES) {
+        const handle = document.createElement("div");
+        handle.classList.add("overlay-resize-handle");
+        handle.classList.add("comment-rig-handle");
+        handle.dataset["handle"] = handleName;
+        this._onCommentRigGesture(handle, () => this.buildResizePointMoveHandler());
+        rig.appendChild(handle);
+      }
+
+      this.annotationBox.appendChild(rig);
+      this.commentRig = rig;
+      return rig;
+    }
+
+    _onCommentRigGesture(target, buildHandler) {
+      target.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        target.setPointerCapture(event.pointerId);
+        this.commentRigDragging = true;
+
+        const moveHandler = buildHandler();
+        const onMove = (moveEvent) => {
+          moveHandler(moveEvent);
+          this._previewCommentBox();
+        };
+        const finish = (save) => {
+          target.removeEventListener("pointermove", onMove);
+          target.removeEventListener("pointerup", onUp);
+          target.removeEventListener("pointercancel", onCancel);
+          this.commentRigDragging = false;
+          if (save) {
+            this.updateCommentBoxPositionAndSize();
+          } else {
+            this.renderCommentRig();
+            this._previewCommentBox();
+          }
+        };
+        const onUp = () => finish(true);
+        const onCancel = () => finish(false);
+
+        target.addEventListener("pointermove", onMove);
+        target.addEventListener("pointerup", onUp);
+        target.addEventListener("pointercancel", onCancel);
+      });
+    }
+
+    _previewCommentBox() {
+      const box = document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
+      if (!box || !this.commentRig) return;
+      box.style.left = this.commentRig.style.left;
+      box.style.top = this.commentRig.style.top;
+      box.style.width = this.commentRig.style.width;
+      box.style.height = this.commentRig.style.height;
+    }
+
+    _commentRectFromForm() {
+      const updateForm = document.getElementById("annotation-update-form");
+      if (!updateForm) return null;
+      const read = (selector) => parseFloat(updateForm.querySelector(selector)?.value);
+      const x = read("#top-x");
+      const y = read("#top-y");
+      const right = read("#bottom-x");
+      const bottom = read("#bottom-y");
+      if (![x, y, right, bottom].every(Number.isFinite)) return null;
+      return {x, y, width: right - x, height: bottom - y};
+    }
+
+    _readCommentWindow(annotationId) {
+      const item = this.timelineWrapper?.querySelector(
+        `.track-item[data-annotation-type="comment"][data-annotation-id="${annotationId}"]`,
+      );
+      const start = parseFloat(item?.dataset["start"]);
+      const end = parseFloat(item?.dataset["end"]);
+      this.commentRigWindow =
+        Number.isFinite(start) && Number.isFinite(end) ? {start, end} : null;
     }
 
     presentCommentBoxPositionAndSizeControls(annotationId) {
-      this.cleanUpActiveCommentBoxes();
-      const commentBox = document.getElementById("comment-text-box-" + annotationId);
-      if (!commentBox) {
-        return;
-      }
-      commentBox.classList.add("comment-text-box-editor-active");
-      if (!commentBox) {
-        console.log("No comment text box found for annotation id: " + annotationId);
-        return;
-      }
+      this.commentRigAnnotationId = String(annotationId);
+      this._readCommentWindow(this.commentRigAnnotationId);
+      this.renderCommentRig();
+    }
 
-      // set up commentBoxDrag
-      if (commentBox.dataset["setup"] == "false") {
-        commentBox.addEventListener("pointerdown", (event) => {
-          event.stopPropagation();
-          commentBox.setPointerCapture(event.pointerId);
-          const moveHandler = this.buildMoveHandler(commentBox);
-          commentBox.addEventListener("pointermove", moveHandler);
-          commentBox.addEventListener("pointerup", (event) => {
-            this.updateCommentBoxPositionAndSize(annotationId);
-            event.target.removeEventListener("pointermove", moveHandler);
-          }, {once: true});
-        });
-        commentBox.dataset["setup"] = "true";
-      }
-
-      // set up controls
-      const topControlClass = "resize-point-top";
-      const leftControlClass = "resize-point-left";
-      for (let i = 0; i < 4; i++) {
-        // the box will have 4 controls, one in each corner. The top two (from left to right) are
-        // i = 0 and i = 1. The bottom two (from left to right) are i = 2 and i = 3
-        const isTop = i < 2;
-        const isLeft = !(i % 2);
-        const newDragControl = document.createElement("div");
-        commentBox.appendChild(newDragControl);
-        newDragControl.classList.add("comment-text-box-size-control");
-        newDragControl.classList.add("resize-point");
-        if (isTop) {
-          newDragControl.classList.add(topControlClass);
-        }
-        if (isLeft) {
-          newDragControl.classList.add(leftControlClass);
-        }
-        const moveHandler = this.buildResizePointMoveHandler();
-        newDragControl.addEventListener("pointerdown", (event) => {
-          event.stopPropagation();
-          newDragControl.setPointerCapture(event.pointerId);
-          newDragControl.addEventListener("pointermove", moveHandler);
-          newDragControl.addEventListener("pointerup", () => {
-            this.updateCommentBoxPositionAndSize(annotationId);
-            newDragControl.removeEventListener("pointermove", moveHandler)
-          }, {once: true})
-        });
+    renderCommentRig() {
+      if (!this.commentRigAnnotationId || this.commentRigDragging) return;
+      const rig = this._ensureCommentRig();
+      const rect = this._commentRectFromForm();
+      const time = this.video.currentTime;
+      const range = this.commentRigWindow;
+      const inRange = range !== null && time >= range.start && time < range.end;
+      rig.hidden = !inRange || rect === null;
+      if (!rig.hidden) {
+        applyRect(rig, clampRect(rect, {
+          minWidth: COMMENT_MIN_WIDTH,
+          minHeight: COMMENT_MIN_HEIGHT,
+        }));
       }
     }
 
-    async getItemFormDetails(annotationType, annotationId, contentId) {
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
-        method: "GET"
-      });
+    setUpLoadedItemForm(annotationType, annotationId) {
       const detailForm = document.getElementById("detail-form");
-      detailForm.innerHTML = await response.text();
       this.setUpItemForm();
       if (annotationType == "comment") {
         this.setUpCommentChangeListeners(detailForm);
@@ -982,7 +1223,21 @@ export class Editor {
       }
     }
 
-    markItemAsActive(annotationType, annotationId) {
+    async getItemFormDetails(annotationType, annotationId, contentId) {
+      const response = await fetch(`/annotations/${annotationType}/${annotationId}/form/?content_id=${contentId}`, {
+        method: "GET"
+      });
+      if (!response.ok) {
+        console.error("Failed to load the annotation detail form");
+        return false;
+      }
+      const detailForm = document.getElementById("detail-form");
+      detailForm.innerHTML = await response.text();
+      this.setUpLoadedItemForm(annotationType, annotationId);
+      return true;
+    }
+
+    markItemAsActive(annotationType, annotationId, {navigate = true} = {}) {
       if (!annotationType || !annotationId) {
         console.error("Invalid annotation type of annotation id");
         return;
@@ -1023,7 +1278,9 @@ export class Editor {
       const thisGroupWrapper = thisPanelItem.closest(".annotation-type-wrapper");
       const thisGroupArrow = thisGroupWrapper.querySelector(".annotation-type-header-arrow");
       thisGroupArrow.classList.add(arrowRotationClass);
-      thisPanelItem.scrollIntoView({behavior: "smooth", block: "nearest"});
+      if (navigate) {
+        thisPanelItem.scrollIntoView({behavior: "smooth", block: "nearest"});
+      }
 
       // handle track item style
       const activeTrackItemCSSClass = "active-track-item";
@@ -1039,6 +1296,10 @@ export class Editor {
         return;
       }
       trackItem.classList.add(activeTrackItemCSSClass);
+
+      if (!navigate) {
+        return;
+      }
 
       const parentTrackRow = trackItem.closest(".track-row");
       if (parentTrackRow) {
@@ -1180,19 +1441,6 @@ export class Editor {
         }
         const originalItem = document.getElementById(itemId);
 
-        // build new item, and check if we need to move it to a different track.
-        // Parse by selector rather than a fixed child index: native drag-and-drop
-        // payloads are serialized through the OS's clipboard format, and some
-        // platforms wrap the transferred HTML in extra nodes (e.g. a leading
-        // <meta charset>) before it can be read back out.
-        const trackItemHTML = event.dataTransfer.getData("text/html");
-        const htmlTemplate = document.createElement("template");
-        htmlTemplate.innerHTML = trackItemHTML.trim();
-        const replacementItem = htmlTemplate.content.querySelector(".track-item");
-        if (!replacementItem) {
-          console.error("Failed to parse dragged track item from drop payload");
-          return;
-        }
         const trackRowParent = event.target.closest(".track-row");
         const trackId = trackRowParent.dataset["trackId"];
         const originalTrackId = originalItem.dataset["originalTrackId"];
@@ -1203,10 +1451,9 @@ export class Editor {
         if (originalItem.dataset["end"]) {
           originalEndTime = parseFloat(originalItem.dataset["end"]);
         }
-        let updated;
         if (trackId != originalTrackId) {
           // transfer item to new track
-          updated = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, "autoUpdateItem": false});
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime});
         } else {
           // move item to new position within same track (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
@@ -1216,17 +1463,10 @@ export class Editor {
           if (originalEndTime) {
             endTime = originalEndTime - originalStartTime + startTime;
           }
-          updated = await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, "autoUpdateItem": false});
-        }
-
-        if (updated) {
-          const itemToPlace = createElementFromHTMLString(updated["item_html"]) || replacementItem;
-          itemToPlace.dataset["setup"] = "false";
-          itemToPlace.classList.remove("is-dragging");
-          originalItem.remove();
-          annotationContainer.appendChild(itemToPlace);
-          this.placeTrackItems();
-          this.markItemAsActive(annotationType, annotationId);
+          // The dropped item is replaced from the response rather than from the drag payload:
+          // applyAnnotationVersionResponse renders the new version, moves it to the destination
+          // track, and marks it active.
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime});
         }
       });
     }

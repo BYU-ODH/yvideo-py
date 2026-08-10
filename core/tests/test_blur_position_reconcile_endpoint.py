@@ -57,7 +57,10 @@ class BlurReconcileThroughEndpointTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 200, response.content[:300])
-        self.blur.refresh_from_db()
+        # A save writes a new version (BaseAnnotation.edit) and reconciles *its* copy of the
+        # positions; the version posted to keeps the times undo would restore. Follow the
+        # response to the active version rather than refreshing the superseded one.
+        self.blur = self.blur.__class__.objects.get(pk=response.json()["annotation_id"])
         return [p.time for p in self.blur.positions.all()]
 
     # The one outcome that *discriminates* a resize from a move, which is the wiring this module is

@@ -6,8 +6,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  RESIZE_HANDLES,
   clampRect,
   contentRect,
+  edgesForHandle,
   percentWithin,
   rectAtTime,
   resizeRect,
@@ -327,4 +329,52 @@ test("resizeRect does not mutate its input", () => {
   const origin = { ...ORIGIN };
   resizeRect(origin, { x: 5, y: 5 }, CORNER_NW);
   assert.deepEqual(origin, ORIGIN);
+});
+
+// The handle table is shared by every resizable overlay - the blur rig and the comment box both
+// build their grips and resize from it - so a gap here is a gap in both at once.
+test("RESIZE_HANDLES names all eight grips of a box", () => {
+  assert.deepEqual(
+    RESIZE_HANDLES.map(([name]) => name),
+    ["nw", "n", "ne", "e", "se", "s", "sw", "w"],
+  );
+});
+
+test("each handle moves exactly the edges its compass name points at", () => {
+  for (const [name, edges] of RESIZE_HANDLES) {
+    assert.equal(Boolean(edges.movesTop), name.startsWith("n"), name);
+    assert.equal(Boolean(edges.movesBottom), name.startsWith("s"), name);
+    assert.equal(Boolean(edges.movesLeft), name.endsWith("w"), name);
+    assert.equal(Boolean(edges.movesRight), name.endsWith("e"), name);
+  }
+});
+
+test("corner handles move two edges and edge handles exactly one", () => {
+  for (const [name, edges] of RESIZE_HANDLES) {
+    const moved = Object.values(edges).filter(Boolean).length;
+    assert.equal(moved, name.length, `${name} should move ${name.length} edge(s)`);
+  }
+});
+
+test("edgesForHandle finds a handle by name and rejects anything else", () => {
+  assert.deepEqual(edgesForHandle("se"), { movesRight: true, movesBottom: true });
+  assert.equal(edgesForHandle("middle"), undefined);
+  assert.equal(edgesForHandle(undefined), undefined);
+});
+
+test("an edge handle leaves the other axis untouched", () => {
+  const origin = { x: 10, y: 20, width: 30, height: 40 };
+  const pointer = { x: 75, y: 95 };
+
+  const widened = resizeRect(origin, pointer, edgesForHandle("e"));
+  assert.equal(widened.y, origin.y);
+  assert.equal(widened.height, origin.height);
+  assert.equal(widened.x, origin.x);
+  assert.equal(widened.width, pointer.x - origin.x);
+
+  // The same pointer through the corner below it moves both axes, which is the difference the
+  // eight-handle table exists to express.
+  const corner = resizeRect(origin, pointer, edgesForHandle("se"));
+  assert.equal(corner.width, widened.width);
+  assert.equal(corner.height, pointer.y - origin.y);
 });

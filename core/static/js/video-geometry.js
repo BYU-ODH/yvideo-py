@@ -73,11 +73,21 @@ export function percentWithin(rect, boxRect) {
   };
 }
 
-// All four edges are named independently, so a corner handle (two edges) and an edge handle (one)
-// share the same arithmetic and an edge handle can leave one axis completely alone.
-//
-// The minimums stop the box from inverting as the pointer crosses the far edge: a negative width in
-// a style is dropped, so the box would stick at its previous size while the pointer kept going.
+export const RESIZE_HANDLES = [
+  ["nw", { movesLeft: true, movesTop: true }],
+  ["n", { movesTop: true }],
+  ["ne", { movesRight: true, movesTop: true }],
+  ["e", { movesRight: true }],
+  ["se", { movesRight: true, movesBottom: true }],
+  ["s", { movesBottom: true }],
+  ["sw", { movesLeft: true, movesBottom: true }],
+  ["w", { movesLeft: true }],
+];
+
+export function edgesForHandle(name) {
+  return RESIZE_HANDLES.find(([handle]) => handle === name)?.[1];
+}
+
 export function resizeRect(
   origin,
   point,

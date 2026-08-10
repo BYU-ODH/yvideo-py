@@ -37,9 +37,15 @@ def _item_selector(annotation):
 
 
 def _blur(name):
+    """The active version of the blur.
+
+    Saving creates a new version rather than mutating the row (BaseAnnotation.edit), leaving the
+    previous one behind - inactive, with its own copy of the points - for undo to restore. Only
+    the active version is the one on screen, and it is the only one these tests mean.
+    """
     from core.models import BlurAnnotation
 
-    return BlurAnnotation.objects.get(name=name)
+    return BlurAnnotation.objects.get(name=name, active=True)
 
 
 def _stored_points(name):
@@ -201,12 +207,16 @@ def _drag_item_right(page, annotation, seconds):
     # Wait on the item bar, not a fixed delay: a move is two sequential requests (the update, then the
     # reloaded form), and its data-start is rewritten from the server's response. Timing out here
     # means the drop was rejected.
+    #
+    # Found by label rather than by id, because the save replaces the bar with one carrying the new
+    # version's id - so the selector this drag started from stops matching the moment it lands.
     page.wait_for_function(
         """(args) => {
-            const item = document.querySelector(args.selector);
+            const item = [...document.querySelectorAll('.track-item[data-annotation-type="blur"]')]
+                .find((el) => el.querySelector('.track-item-label')?.textContent.trim() === args.name);
             return item && Math.abs(parseFloat(item.dataset.start) - args.was) > 0.2;
         }""",
-        arg={"selector": selector, "was": started_at},
+        arg={"name": annotation.name, "was": started_at},
         timeout=5000,
     )
 
@@ -809,7 +819,8 @@ def test_dragging_the_item_shifts_every_point_and_its_dot(page, open_editor):
         assert new[1:] == old[1:], "a move must not change any geometry"
 
     # And the dots are still at the same offsets within the bar, since the whole item moved.
-    moved_item = page.locator(_item_selector(annotation))
+    # The bar on screen belongs to the version the move created, so it is looked up again.
+    moved_item = page.locator(_item_selector(_blur(MOVING_BLUR)))
     moved_box = moved_item.bounding_box()
     offsets = []
     for index in range(2):
@@ -995,6 +1006,8 @@ def test_deleting_a_blur_removes_it_from_the_player(page, open_editor):
     _seek(page, 5.0)
     assert page.locator(f"#blur-overlay-{annotation.pk}").count() == 1
 
+    # Deleting asks first - see test_deleting_an_annotation_asks_first in test_editor_history.py.
+    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("#annotation-form-delete-button").click()
     page.wait_for_timeout(1200)
 
@@ -1223,7 +1236,7 @@ def test_dots_hold_their_times_while_a_resize_handle_is_dragged(page, open_edito
     annotation = open_editor() and _select(page, MOVING_BLUR)
     selector = _item_selector(annotation)
 
-    def measure():
+    def measure(selector=selector):
         return page.evaluate(
             """(sel) => {
                 const item = document.querySelector(sel);
@@ -1253,7 +1266,8 @@ def test_dots_hold_their_times_while_a_resize_handle_is_dragged(page, open_edito
     during = measure()
     page.mouse.up()
     page.wait_for_timeout(900)
-    after = measure()
+    # The release saved, and the save re-rendered the bar under the new version's id.
+    after = measure(_item_selector(_blur(MOVING_BLUR)))
 
     assert during["barWidth"] > before["barWidth"] + 50, (
         "the bar did not actually stretch, so this proves nothing"
@@ -1907,9 +1921,10 @@ def test_editing_a_field_saves_it_without_being_asked(page, open_editor):
         ".active-track-item .track-item-label')?.textContent.trim() === 'Renamed by autosave'",
         timeout=5000,
     )
-    # The same annotation, renamed - and the bar it re-rendered is still the selected one, which
-    # the wait above depends on: replacing it drops the class unless it is re-applied.
-    assert _blur("Renamed by autosave").pk == annotation.pk
+    # The same annotation, renamed - the next version of the one that was selected, rather than a
+    # second blur. And the bar it re-rendered is still the selected one, which the wait above
+    # depends on: replacing it drops the class unless it is re-applied.
+    assert _blur("Renamed by autosave").prev_id == annotation.pk
 
 
 def test_typing_a_name_is_one_save_not_one_per_keystroke(page, open_editor):
@@ -1982,7 +1997,8 @@ def test_enter_commits_a_field_without_leaving_the_editor(page, open_editor):
     page.wait_for_timeout(900)
 
     assert page.url == was, "Enter navigated away from the editor"
-    assert _blur("Committed with Enter").pk == annotation.pk
+    # The next version of the annotation that was open, not a new one.
+    assert _blur("Committed with Enter").prev_id == annotation.pk
 
 
 def test_retiming_a_blur_from_the_form_reconciles_its_points_in_place(
