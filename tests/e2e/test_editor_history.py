@@ -30,6 +30,18 @@ def _active_form_id(page):
     return page.locator("#existing-item-form").get_attribute("data-annotation-id")
 
 
+def _seek(page, seconds):
+    page.evaluate("(t) => window.videoPlayer.setCurrentTime(t)", seconds)
+    page.wait_for_function(
+        "(t) => Math.abs(document.querySelector('.annotation-player-container video')"
+        ".currentTime - t) < 0.2",
+        arg=seconds,
+        timeout=5000,
+    )
+    # One frame for the seeked handler to settle the rig's visibility.
+    page.wait_for_timeout(150)
+
+
 def _commit_name(page, name, previous_id):
     """Type a name and commit it, then wait for the save to advance the form to a new version.
 
@@ -232,18 +244,82 @@ def test_comment_box_is_still_editable_after_a_save_makes_a_new_version(
     )
     original_id = str(annotation.id)
 
-    box = page.locator(f"#comment-text-box-{original_id}")
-    expect(box).to_have_class(re.compile(r"comment-text-box-editor-active"))
-    expect(box.locator(".comment-text-box-size-control")).to_have_count(8)
+    expect(page.locator(f"#comment-text-box-{original_id}")).to_be_visible()
+    rig = page.locator("#comment-edit-rig")
+    expect(rig).to_be_visible()
+    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
 
     new_id = _commit_name(page, "Renamed comment", original_id)
 
-    # The player keys the box by annotation id, so the save leaves the old box to be removed and a
-    # bare one built under the new id. The drag and resize controls have to follow it there, or the
-    # box the user is looking at silently stops responding until they reselect the annotation.
-    new_box = page.locator(f"#comment-text-box-{new_id}")
-    expect(new_box).to_have_class(re.compile(r"comment-text-box-editor-active"))
-    expect(new_box.locator(".comment-text-box-size-control")).to_have_count(8)
+    # The player keys its box by annotation id, so the save leaves the old one to be removed and a
+    # bare one built under the new id. The rig is the editor's own element and is keyed by nothing,
+    # so it survives that untouched - which is the whole point of it. Before, the controls lived on
+    # the player's box and the box the user was looking at silently stopped responding.
+    expect(page.locator(f"#comment-text-box-{new_id}")).to_be_visible()
+    expect(rig).to_be_visible()
+    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+
+
+def test_comment_rig_is_hidden_while_the_playhead_is_outside_the_comment(
+    page, open_editor
+):
+    """The rig is an editable outline, so it may only be on screen where the box it edits is.
+
+    The player draws its comment box only within [start, end); a rig that outlived it would offer a
+    grip on nothing, and a drag there would write geometry the user could not see.
+    """
+    content = open_editor()
+    _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+    rig = page.locator("#comment-edit-rig")
+    expect(rig).to_be_visible()
+
+    # Seeded at 8.0-15.0, so 2.0 is before it and 20.0 after.
+    _seek(page, 2.0)
+    expect(rig).to_be_hidden()
+    expect(page.locator(".comment-text-box")).to_have_count(0)
+
+    _seek(page, 20.0)
+    expect(rig).to_be_hidden()
+
+    # And it comes back, rather than needing the annotation reselected.
+    _seek(page, 10.0)
+    expect(rig).to_be_visible()
+    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+
+
+def test_selecting_another_annotation_type_takes_the_comment_rig_away(
+    page, open_editor
+):
+    """Nothing used to remove the controls when focus moved to a different type of annotation.
+
+    They were children of the player's comment box, so they stayed on screen - still dragging and
+    saving the comment they were built for, from a form that no longer described it.
+    """
+    content = open_editor()
+    _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+    expect(page.locator("#comment-edit-rig")).to_be_visible()
+
+    _select(
+        page,
+        MuteAnnotation.objects.filter(
+            track__annotation_set=content.annotation_set, active=True
+        ).first(),
+    )
+    expect(page.locator("#comment-edit-rig")).to_have_count(0)
 
 
 def _drag_grip(page, handle_name, by=None, to=None, measure=False):
@@ -258,7 +334,7 @@ def _drag_grip(page, handle_name, by=None, to=None, measure=False):
     """
     previous_id = _active_form_id(page)
     grip = page.locator(
-        f'.comment-text-box-editor-active [data-handle="{handle_name}"]'
+        f'#comment-edit-rig [data-handle="{handle_name}"]'
     ).bounding_box()
     start_x = grip["x"] + grip["width"] / 2
     start_y = grip["y"] + grip["height"] / 2
@@ -280,9 +356,7 @@ def _drag_grip(page, handle_name, by=None, to=None, measure=False):
         " !== previous",
         arg=str(previous_id),
     )
-    expect(
-        page.locator(".comment-text-box-editor-active .comment-text-box-size-control")
-    ).to_have_count(8)
+    expect(page.locator("#comment-edit-rig .comment-rig-handle")).to_have_count(8)
     return dragged
 
 
@@ -293,14 +367,15 @@ def _resize_box(page, previous_id):
 
 
 def _box_rect(page):
+    """The rig's rect - the editor's own arithmetic, and what a release writes to the form."""
     return page.evaluate(
         """() => {
-            const box = document.querySelector('.comment-text-box-editor-active');
+            const rig = document.querySelector('#comment-edit-rig');
             return {
-                left: parseFloat(box.style.left),
-                top: parseFloat(box.style.top),
-                width: parseFloat(box.style.width),
-                height: parseFloat(box.style.height),
+                left: parseFloat(rig.style.left),
+                top: parseFloat(rig.style.top),
+                width: parseFloat(rig.style.width),
+                height: parseFloat(rig.style.height),
             };
         }"""
     )

@@ -25,6 +25,13 @@ export function createElementFromHTMLString(html, nodeIndex=0) {
   return template.content.children[nodeIndex];
 }
 
+export function applyRect(element, rect) {
+  element.style.left = `${rect.x}%`;
+  element.style.top = `${rect.y}%`;
+  element.style.width = `${rect.width}%`;
+  element.style.height = `${rect.height}%`;
+}
+
 // Calls `onFrame` on every animation frame while `video` is playing, so UI
 // bound to playback (scrubbers, progress bars) moves smoothly instead of
 // lurching between the infrequent `timeupdate` events. `onFrame` also runs once

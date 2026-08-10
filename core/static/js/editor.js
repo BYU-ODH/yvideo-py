@@ -1,4 +1,4 @@
-import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback } from "./utils.js";
+import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
 import { BlurEditor, placeLocators } from "./BlurEditor.js";
 import {
   RESIZE_HANDLES,
@@ -10,6 +10,8 @@ import {
 } from "./video-geometry.js";
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
+const COMMENT_MIN_WIDTH = 3;
+const COMMENT_MIN_HEIGHT = 4;
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -42,8 +44,6 @@ export class Editor {
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.lastSavedItemFormState = null;
         this.historyRequestInFlight = false;
-        // Set by autoSaveItemForm so the comment-specific listeners can commit through the same
-        // save path the rest of the form uses. Null whenever no item form is open.
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
         this.itemBeingDragged = null;
@@ -51,6 +51,23 @@ export class Editor {
         this.activeTrackId = null;
         this.dragGhostImage = new Image();  // Used to avoid browser's default globe icon
         this.dragGhostImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+        // The comment editor's own overlay - see _ensureCommentRig for why it is not the player's box.
+        this.commentRig = null;
+        this.commentRigAnnotationId = null;
+        this.commentRigWindow = null;
+        // Set while a pointer is down, so the render below cannot overwrite the geometry the user is
+        // actively dragging.
+        this.commentRigDragging = false;
+        this.renderCommentRig = this.renderCommentRig.bind(this);
+        // The same two cadences BlurEditor uses: timeupdate/seeked cover scrubbing and the paused
+        // case, while animateDuringPlayback runs every animation frame, the rate at which the player
+        // adds and removes the comment box the rig is drawn around.
+        this.video.addEventListener("timeupdate", this.renderCommentRig);
+        this.video.addEventListener("seeked", this.renderCommentRig);
+        animateDuringPlayback(this.video, this.renderCommentRig);
+
+        this.annotationBox = window.videoPlayer.annotationBox;
 
         this.blurEditor = new BlurEditor({
           video: this.video,
@@ -353,8 +370,6 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
-      // Blur position locators are handled by BlurEditor, which delegates from the document
-      // so its listeners outlive the track items the server re-renders on every save.
       element.dataset.clickSetup = "true";
     }
 
@@ -419,18 +434,11 @@ export class Editor {
     autoSaveItemForm() {
       const itemForm = document.getElementById("annotation-update-form");
       if (!itemForm) {
-        // Cleared, so a later caller cannot commit through a closure over a form that is no
-        // longer on the page.
         this.saveItemForm = null;
         return;
       }
       this.lastSavedItemFormState = this.serializeItemForm(itemForm);
 
-      // Only one save may be in flight at a time. Each save supersedes the annotation's id, so a
-      // second request sent before the first returns would address the version the first just
-      // retired and come back 404. A trailing re-run rather than a queue of pending states: the
-      // body re-reads both the id and the form below, so one final pass picks up the new id and
-      // the latest values, which is what a form autosave means by saving.
       let saveInFlight = false;
       let saveQueued = false;
 
@@ -444,9 +452,6 @@ export class Editor {
           const state = this.serializeItemForm(itemForm);
           if (state === this.lastSavedItemFormState) return;
 
-          // Read per save rather than captured once: each save creates a new version with a new
-          // id, and syncOpenFormToVersion advances the form's dataset to it. A stale id here
-          // would address the version this edit just superseded.
           const annotationId = itemForm.dataset["annotationId"];
           const annotationType = itemForm.dataset["annotationType"];
 
@@ -463,8 +468,6 @@ export class Editor {
           }
 
           this.lastSavedItemFormState = state;
-          // autoUpdateForm false keeps the open form - and whatever the user is typing in it -
-          // in place; updateAnnotation still repoints it at the new version.
           const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
           if (!updated) {
             this.lastSavedItemFormState = null;
@@ -472,7 +475,6 @@ export class Editor {
           }
           this.refreshItemFormFromServerState(itemForm, updated);
         } finally {
-          // finally, not the end of the body: the early returns above must not strand the flag.
           saveInFlight = false;
           if (saveQueued) {
             saveQueued = false;
@@ -488,8 +490,6 @@ export class Editor {
 
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        // we don't want to submit the form when a blur position is deleted.
-        // That change is handled in a different way.
         if (e.submitter?.classList.contains("blur-position-delete-button")) {
           return;
         }
@@ -498,7 +498,6 @@ export class Editor {
     }
 
     refreshItemFormFromServerState(itemForm, responseData) {
-      // The saved version's id, not the one the request was addressed to.
       const annotationType = responseData["annotation_type"];
       const annotationId = responseData["annotation_id"];
       const item = document.getElementById(`${annotationType}-${annotationId}`);
@@ -575,15 +574,9 @@ export class Editor {
 
       deleteItemButton.addEventListener("click", async (e) => {
         e.preventDefault();
-        // Read at click time: an autosave since the form was loaded has advanced the dataset to a
-        // new version, and the id captured when the button was wired would delete the old one -
-        // leaving the annotation the user is looking at on screen and in the database.
         const annotationType = itemForm.dataset["annotationType"];
         const annotationId = itemForm.dataset["annotationId"];
 
-        // Confirmed because this one is not recoverable the way the rest of the form is: deleting
-        // takes the item off the timeline, and with it the undo button that could bring it back.
-        // The button also sits directly beside undo/redo now, so a misclick is cheap to make.
         if (!window.confirm(`Delete this ${annotationType} annotation? This cannot be undone.`)) {
           return;
         }
@@ -616,7 +609,7 @@ export class Editor {
       }
     }
 
-    buildResizePointMoveHandler(minHeight = 4, minWidth = 3) {
+    buildResizePointMoveHandler(minHeight = COMMENT_MIN_HEIGHT, minWidth = COMMENT_MIN_WIDTH) {
       return (event) => {
         event.stopPropagation();
         const elementToResize = event.target.parentElement;
@@ -631,8 +624,6 @@ export class Editor {
           width: parseFloat(elementToResize.style.width) || 0,
           height: parseFloat(elementToResize.style.height) || 0,
         };
-        // Which edges this grip moves is the handle's own definition, shared with the blur rig, so
-        // an edge handle leaves the other axis alone instead of dragging a corner with it.
         const edges = edgesForHandle(event.target.dataset["handle"]);
         if (!edges) return;
         const resized = clampRect(resizeRect(origin, pointer, {
@@ -652,6 +643,7 @@ export class Editor {
       if (itemForm == null) {
         this.typeOfAnnotationInFocus = null;
         this.blurEditor.deselect();
+        this.removeCommentRig();
         return;
       }
 
@@ -660,6 +652,10 @@ export class Editor {
 
       if (previousTypeInFocus == "blur") {
         this.blurEditor.deselect();
+      }
+
+      if (previousTypeInFocus == "comment" && this.typeOfAnnotationInFocus != "comment") {
+        this.removeCommentRig();
       }
 
       if (this.typeOfAnnotationInFocus == "blur" ) {
@@ -795,20 +791,18 @@ export class Editor {
         return false;
       }
 
-      // The form on screen can move on while a save is in flight - the user is free to select
-      // another annotation before the response lands. Repointing it then would aim their next
-      // edit at the annotation they just left.
       if (String(itemForm.dataset.annotationId) !== String(previousAnnotationId)) {
         return false;
       }
 
       const annotationType = responseData.annotation_type;
       const annotationId = String(responseData.annotation_id);
-      // Whether the player is currently showing this comment's box decides if its editing
-      // controls have to be rebuilt below, and it has to be read before the id changes.
-      const hadCommentBox =
+      // Asked of the rig rather than of the player's box, which is why this no longer has to wait:
+      // the rig is this module's own element and outlives the save, so whether controls were on
+      // screen is a fact already in hand instead of one the player's next reload decides.
+      const hadCommentRig =
         annotationType == "comment" &&
-        document.getElementById(`comment-text-box-${previousAnnotationId}`) !== null;
+        this.commentRigAnnotationId === String(previousAnnotationId);
 
       itemForm.dataset.annotationId = annotationId;
       updateForm.dataset.annotationId = annotationId;
@@ -821,15 +815,11 @@ export class Editor {
         currentToolbar.replaceWith(renderedToolbar);
       }
 
-      // The form stays put, so changeAnnotationInFocus never runs to re-select the blur.
       if (annotationType == "blur") {
         this.blurEditor.retarget(annotationId);
       }
-      // The player keys the comment box by annotation id, so the save leaves the old box to be
-      // removed and a bare one built under the new id. Its drag and resize controls are only ever
-      // attached here, and without this the box on screen quietly stops being editable.
-      if (hadCommentBox) {
-        this.presentCommentBoxControlsWhenBoxAppears(annotationId);
+      if (hadCommentRig) {
+        this.presentCommentBoxPositionAndSizeControls(annotationId);
       }
       return true;
     }
@@ -842,9 +832,6 @@ export class Editor {
 
       const annotationType = responseData.annotation_type;
       const annotationId = String(responseData.annotation_id);
-      // Done even when the timeline could not be updated: the new version is already the active
-      // one in the database, so a form still addressing the superseded id would make every later
-      // save fail with a 404 the user never sees.
       const detailForm = document.getElementById("detail-form");
       if (replaceForm) {
         detailForm.innerHTML = responseData.form_html;
@@ -856,10 +843,6 @@ export class Editor {
       if (!placed) {
         return false;
       }
-      // The styling has to be re-applied either way - the item and panel elements were just
-      // replaced - but only a save that also replaces the form is the user asking to go to this
-      // annotation. A background autosave that scrolled the panel and seeked the video would
-      // throw away the moment the user is editing at.
       this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
       return true;
     }
@@ -904,16 +887,9 @@ export class Editor {
         return false;
       }
 
-
       const responseData = await response.json();
-
-      // A saved edit creates a new database version with a new ID. Even when
-      // callers do not need a visual refresh, all DOM references must advance
-      // to that ID so subsequent edits address the active version.
       this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
       window.dispatchEvent(this.annotationUpdatedEvent);
-      // The response, not just a success flag: callers that suppressed the form refresh need
-      // the new version's id and HTML to update what they kept on screen.
       return responseData;
     }
 
@@ -982,10 +958,6 @@ export class Editor {
     }
 
     setUpCommentChangeListeners(formElement) {
-      // You may wonder why commentTextBox is declared in both event listeners instead of
-      // outside them. This is because the box often does not generate quickly enough for
-      // it to be defined before we query for it in the outer function. If you wait to get
-      // it when the event fires, AnnotationPlayer.js has plenty of time to build it.
       const itemForm = formElement.querySelector("#existing-item-form");
       const fontSizeInput = formElement.querySelector("#font-size");
       function getCommentBoxOrWriteError() {
@@ -1004,11 +976,6 @@ export class Editor {
           if (!itemForm.isConnected) {
             return;
           }
-          // Through the shared save rather than straight to updateAnnotation: these inputs live
-          // inside #annotation-update-form, so blurring one also fires the `change` that
-          // autoSaveItemForm listens for. Saving directly here left that listener comparing
-          // against a stale baseline, and one edit committed two identical versions - which the
-          // user then had to undo twice.
           this.saveItemForm?.();
         }, 250);
       }
@@ -1042,72 +1009,35 @@ export class Editor {
         }
       });
 
-      // handle top left x change
-      const topX = itemForm.querySelector("#top-x");
-      topX.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.left = parseFloat(topX.value) + '%';
+      const repaintFromForm = () => {
+        this.renderCommentRig();
+        this._previewCommentBox();
         update();
-      });
-
-      // handle top left y change
-      const topY = itemForm.querySelector("#top-y");
-      topY.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.top = parseFloat(topY.value) + '%';
-        update();
-      });
-
-      // handle bottom right x change
-      const bottomX = itemForm.querySelector("#bottom-x");
-      bottomX.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.width = (parseFloat(bottomX.value) - parseFloat(commentTextBox.style.left)) + '%';
-        update();
-      });
-
-      // handle bottom right y change
-      const bottomY = itemForm.querySelector("#bottom-y");
-      bottomY.addEventListener("input", () => {
-        const commentTextBox = getCommentBoxOrWriteError();
-        if (!commentTextBox) return;
-
-        commentTextBox.style.height = (parseFloat(bottomY.value) - parseFloat(commentTextBox.style.top)) + '%';
-        update();
-      });
-    }
-
-    cleanUpActiveCommentBoxes() {
-      const commentBoxes = document.getElementsByClassName("comment-text-box");
-      for (let box of commentBoxes) {
-        box.classList.remove("comment-text-box-editor-active");
-        const sizeControls = box.querySelectorAll(".comment-text-box-size-control");
-        for (let control of sizeControls) {
-          control.remove();
-        }
+      };
+      for (const selector of ["#top-x", "#top-y", "#bottom-x", "#bottom-y"]) {
+        itemForm.querySelector(selector)?.addEventListener("input", repaintFromForm);
       }
     }
 
-    updateCommentBoxPositionAndSize(commentBox) {
-      // The box is passed in rather than looked up by a captured id: these handlers are attached
-      // once per box, and a save since then has advanced the form to a new version of the
-      // annotation. The form's id is the live one, and the box carries the id it belongs to.
-      const updateForm = document.getElementById("annotation-update-form");
-      if (!commentBox || !updateForm) return;
+    removeCommentRig() {
+      this.commentRig?.remove();
+      this.commentRig = null;
+      this.commentRigAnnotationId = null;
+      this.commentRigWindow = null;
+      this.commentRigDragging = false;
+    }
 
-      // validate that we are editing the box the form is actually open on
+    updateCommentBoxPositionAndSize() {
+      const updateForm = document.getElementById("annotation-update-form");
+      const rig = this.commentRig;
+      if (!rig || rig.hidden || !updateForm) return;
+
       const annotationId = updateForm.dataset["annotationId"];
-      if (commentBox.dataset["annotationId"] != annotationId) return;
+      if (this.commentRigAnnotationId !== String(annotationId)) return;
 
       // update the form and save
-      const boxTop = parseFloat(commentBox.style.top);
-      const boxLeft = parseFloat(commentBox.style.left);
+      const boxTop = parseFloat(rig.style.top);
+      const boxLeft = parseFloat(rig.style.left);
 
       const formTopX = updateForm.querySelector("#top-x");
       const formTopY = updateForm.querySelector("#top-y");
@@ -1122,77 +1052,122 @@ export class Editor {
 
       formTopX.value = boxLeft;
       formTopY.value = boxTop;
-      formBottomX.value = boxLeft + parseFloat(commentBox.style.width);
-      formBottomY.value = boxTop + parseFloat(commentBox.style.height);
+      formBottomX.value = boxLeft + parseFloat(rig.style.width);
+      formBottomY.value = boxTop + parseFloat(rig.style.height);
 
       this.updateAnnotation({annotationType:"comment", annotationId});
     }
 
-    // The player only draws a comment's box while the playhead is inside its time range, so a
-    // missing box is an ordinary state rather than an error. Returns whether the controls were
-    // attached, which is what presentCommentBoxControlsWhenBoxAppears waits on.
-    presentCommentBoxPositionAndSizeControls(annotationId) {
-      this.cleanUpActiveCommentBoxes();
-      const commentBox = document.getElementById("comment-text-box-" + annotationId);
-      if (!commentBox) {
-        return false;
-      }
-      commentBox.classList.add("comment-text-box-editor-active");
+    _ensureCommentRig() {
+      if (this.commentRig?.isConnected) return this.commentRig;
 
-      // set up commentBoxDrag
-      if (commentBox.dataset["setup"] == "false") {
-        commentBox.addEventListener("pointerdown", (event) => {
-          event.stopPropagation();
-          commentBox.setPointerCapture(event.pointerId);
-          const moveHandler = this.buildMoveHandler(commentBox);
-          commentBox.addEventListener("pointermove", moveHandler);
-          commentBox.addEventListener("pointerup", (event) => {
-            this.updateCommentBoxPositionAndSize(commentBox);
-            event.target.removeEventListener("pointermove", moveHandler);
-          }, {once: true});
-        });
-        commentBox.dataset["setup"] = "true";
-      }
+      const rig = document.createElement("div");
+      rig.id = "comment-edit-rig";
+      rig.setAttribute("role", "group");
+      rig.setAttribute("aria-label", "Comment box");
+      rig.title = "Drag to move, handles to resize.";
+      rig.hidden = true;
+      this._onCommentRigGesture(rig, () => this.buildMoveHandler(rig));
 
-      // set up controls: the same eight grips the blur rig offers, positioned by data-handle.
+      // The same eight grips the blur rig offers, positioned by data-handle.
       for (const [handleName] of RESIZE_HANDLES) {
-        const newDragControl = document.createElement("div");
-        commentBox.appendChild(newDragControl);
-        newDragControl.classList.add("comment-text-box-size-control");
-        newDragControl.classList.add("overlay-resize-handle");
-        newDragControl.dataset["handle"] = handleName;
-        const moveHandler = this.buildResizePointMoveHandler();
-        newDragControl.addEventListener("pointerdown", (event) => {
-          event.stopPropagation();
-          newDragControl.setPointerCapture(event.pointerId);
-          newDragControl.addEventListener("pointermove", moveHandler);
-          newDragControl.addEventListener("pointerup", () => {
-            this.updateCommentBoxPositionAndSize(commentBox);
-            newDragControl.removeEventListener("pointermove", moveHandler)
-          }, {once: true})
-        });
+        const handle = document.createElement("div");
+        handle.classList.add("overlay-resize-handle");
+        handle.classList.add("comment-rig-handle");
+        handle.dataset["handle"] = handleName;
+        this._onCommentRigGesture(handle, () => this.buildResizePointMoveHandler());
+        rig.appendChild(handle);
       }
-      return true;
+
+      this.annotationBox.appendChild(rig);
+      this.commentRig = rig;
+      return rig;
     }
 
-    // AnnotationPlayer rebuilds the comment box on its own schedule - the annotationUpdated event
-    // starts a fetch, and the box only appears once that resolves - so the box for a version that
-    // was just saved is usually not in the DOM yet. Poll briefly rather than attaching nothing.
-    presentCommentBoxControlsWhenBoxAppears(annotationId, attemptsLeft = 40) {
-      if (this.presentCommentBoxPositionAndSizeControls(annotationId)) {
-        return;
+    _onCommentRigGesture(target, buildHandler) {
+      target.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        target.setPointerCapture(event.pointerId);
+        this.commentRigDragging = true;
+
+        const moveHandler = buildHandler();
+        const onMove = (moveEvent) => {
+          moveHandler(moveEvent);
+          this._previewCommentBox();
+        };
+        const finish = (save) => {
+          target.removeEventListener("pointermove", onMove);
+          target.removeEventListener("pointerup", onUp);
+          target.removeEventListener("pointercancel", onCancel);
+          this.commentRigDragging = false;
+          if (save) {
+            this.updateCommentBoxPositionAndSize();
+          } else {
+            this.renderCommentRig();
+            this._previewCommentBox();
+          }
+        };
+        const onUp = () => finish(true);
+        const onCancel = () => finish(false);
+
+        target.addEventListener("pointermove", onMove);
+        target.addEventListener("pointerup", onUp);
+        target.addEventListener("pointercancel", onCancel);
+      });
+    }
+
+    _previewCommentBox() {
+      const box = document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
+      if (!box || !this.commentRig) return;
+      box.style.left = this.commentRig.style.left;
+      box.style.top = this.commentRig.style.top;
+      box.style.width = this.commentRig.style.width;
+      box.style.height = this.commentRig.style.height;
+    }
+
+    _commentRectFromForm() {
+      const updateForm = document.getElementById("annotation-update-form");
+      if (!updateForm) return null;
+      const read = (selector) => parseFloat(updateForm.querySelector(selector)?.value);
+      const x = read("#top-x");
+      const y = read("#top-y");
+      const right = read("#bottom-x");
+      const bottom = read("#bottom-y");
+      if (![x, y, right, bottom].every(Number.isFinite)) return null;
+      return {x, y, width: right - x, height: bottom - y};
+    }
+
+    _readCommentWindow(annotationId) {
+      const item = this.timelineWrapper?.querySelector(
+        `.track-item[data-annotation-type="comment"][data-annotation-id="${annotationId}"]`,
+      );
+      const start = parseFloat(item?.dataset["start"]);
+      const end = parseFloat(item?.dataset["end"]);
+      this.commentRigWindow =
+        Number.isFinite(start) && Number.isFinite(end) ? {start, end} : null;
+    }
+
+    presentCommentBoxPositionAndSizeControls(annotationId) {
+      this.commentRigAnnotationId = String(annotationId);
+      this._readCommentWindow(this.commentRigAnnotationId);
+      this.renderCommentRig();
+    }
+
+    renderCommentRig() {
+      if (!this.commentRigAnnotationId || this.commentRigDragging) return;
+      const rig = this._ensureCommentRig();
+      const rect = this._commentRectFromForm();
+      const time = this.video.currentTime;
+      const range = this.commentRigWindow;
+      const inRange = range !== null && time >= range.start && time < range.end;
+      rig.hidden = !inRange || rect === null;
+      if (!rig.hidden) {
+        applyRect(rig, clampRect(rect, {
+          minWidth: COMMENT_MIN_WIDTH,
+          minHeight: COMMENT_MIN_HEIGHT,
+        }));
       }
-      if (attemptsLeft <= 0) {
-        // The playhead can leave the annotation's range while we wait, in which case there is
-        // legitimately no box to control any more.
-        return;
-      }
-      setTimeout(() => {
-        if (this.annotationIdInFocus != annotationId) {
-          return;
-        }
-        this.presentCommentBoxControlsWhenBoxAppears(annotationId, attemptsLeft - 1);
-      }, 50);
     }
 
     setUpLoadedItemForm(annotationType, annotationId) {
@@ -1200,9 +1175,7 @@ export class Editor {
       this.setUpItemForm();
       if (annotationType == "comment") {
         this.setUpCommentChangeListeners(detailForm);
-        // Waits, because a form reloaded after a save is asking for a box the player has not
-        // rebuilt under the new version's id yet.
-        this.presentCommentBoxControlsWhenBoxAppears(annotationId);
+        this.presentCommentBoxPositionAndSizeControls(annotationId);
       }
       else if (annotationType == "clip") {
         // set up the next/previous clip buttons each time the form is generated
@@ -1264,11 +1237,6 @@ export class Editor {
       return true;
     }
 
-    // `navigate` separates showing which annotation is selected from going to it. Selecting an
-    // annotation should scroll it into view and seek the video to it; a background save should
-    // not, even though it still has to re-apply the styling because the timeline and panel
-    // elements were just replaced with new ones carrying the new version's id. BlurEditor.js
-    // re-applies the class by hand for exactly this reason - see its _applySaved.
     markItemAsActive(annotationType, annotationId, {navigate = true} = {}) {
       if (!annotationType || !annotationId) {
         console.error("Invalid annotation type of annotation id");

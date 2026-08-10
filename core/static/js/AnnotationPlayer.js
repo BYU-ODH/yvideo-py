@@ -866,10 +866,6 @@ export class AnnotationPlayer {
     requestAnimationFrame(() => this.applyAnnotations());
   }
 
-  // Keyed by type *and* id: ids are allocated per annotation table, so a comment and a blur can
-  // both be id 7. Matching on the id alone let a superseded comment's box stay on screen forever
-  // whenever some other annotation happened to share its number - and since every save now writes
-  // a new version with a new id, the stale boxes stack up over an editing session.
   static _overlayKey(annotationType, annotationId) {
     return `${annotationType}:${annotationId}`;
   }

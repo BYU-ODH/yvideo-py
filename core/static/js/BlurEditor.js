@@ -26,6 +26,7 @@ import {
 } from "./video-geometry.js";
 import {
   animateDuringPlayback,
+  applyRect,
   createElementFromHTMLString,
   getCSRFToken,
 } from "./utils.js";
@@ -90,13 +91,6 @@ async function serverMessage(response, fallback) {
     return fallback;
   }
   return body;
-}
-
-function applyRect(element, rect) {
-  element.style.left = `${rect.x}%`;
-  element.style.top = `${rect.y}%`;
-  element.style.width = `${rect.width}%`;
-  element.style.height = `${rect.height}%`;
 }
 
 // Clamping here rather than in each gesture means a pointer dragged past the edge of the window

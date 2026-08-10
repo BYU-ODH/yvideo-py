@@ -748,14 +748,6 @@
     padding: 0.2rem 1rem;
 }
 
-/* Resize handles, shared by every resizable overlay on the video - the blur rig and the comment
-   box - so that a grip looks and behaves the same wherever it is grabbed. Where each one sits and
-   what cursor it shows follow from its data-handle, which is the same name the JS resizes by
-   (RESIZE_HANDLES in video-geometry.js).
-
-   The dot is small but the transparent border makes it 15px to hit: a grip has to be easy to grab
-   without covering the thing being framed. --handle-inset is half that, so the grips straddle the
-   box's edge; an overlay that needs a different size overrides it alongside the width and height. */
 .overlay-resize-handle {
     --handle-inset: 7px;
     position: absolute;
@@ -967,11 +959,18 @@
     margin: 0;
 }
 
-.comment-text-box-editor-active {
-    border: 1px dashed white;
-    cursor: move;
-    z-index: 2;
+#comment-edit-rig {
+    position: absolute;
     pointer-events: auto;
+    cursor: move;
+    touch-action: none;
+    outline: 1px dashed white;
+    outline-offset: -1px;
+    z-index: 3;
+}
+
+#comment-edit-rig[hidden] {
+    display: none;
 }
 
 .btn {
