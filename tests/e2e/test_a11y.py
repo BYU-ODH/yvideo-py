@@ -116,3 +116,46 @@ def test_the_blur_editing_ui_has_no_a11y_violations(page: Page, open_editor):
     )
 
     assert not results["violations"], _format_violations(results["violations"])
+
+
+def test_the_youtube_editor_banner_has_no_a11y_violations(
+    fake_youtube, live_server, youtube_content, page: Page
+):
+    """The YouTube warning banner, scoped the same way and for the same reason as the test above.
+
+    The video editor page is not in FULL_PAGE_VIEWS because it carries pre-existing violations, so
+    without this the banner - markup that only ever renders for YouTube content - would be audited
+    nowhere.
+    """
+    content = youtube_content("A11y - YouTube Banner")
+
+    page.goto(f"{live_server.url}/login/dev/quick/")
+    page.goto(f"{live_server.url}/video-editor/{content.pk}/")
+    page.wait_for_selector("#youtube-editor-warning-banner")
+
+    page.add_script_tag(content=AXE_MIN_JS.read_text(encoding="utf-8"))
+    results = page.evaluate(
+        """async () => await axe.run({
+            include: [['#youtube-editor-warning-banner']],
+        })"""
+    )
+
+    assert not results["violations"], _format_violations(results["violations"])
+
+
+def test_the_add_video_dialog_has_no_a11y_violations(logged_in_page: Page, live_server):
+    """The add-a-video dialog, which the playlist_info sweep above cannot reach.
+
+    axe skips hidden content, and a <dialog> is hidden until it is opened - so the YouTube form
+    inside it, labels and error region included, is invisible to the page-level audit.
+    """
+    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+    page = logged_in_page
+    page.goto(f"{live_server.url}/playlists/{playlist.id}/")
+    page.locator("[commandfor='add-video-dialog']").first.click()
+    page.wait_for_selector("#add-youtube-video-form", state="visible")
+
+    page.add_script_tag(content=AXE_MIN_JS.read_text(encoding="utf-8"))
+    results = page.evaluate("async () => await axe.run({include: [['dialog[open]']]})")
+
+    assert not results["violations"], _format_violations(results["violations"])

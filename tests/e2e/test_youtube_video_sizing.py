@@ -1,8 +1,14 @@
-import pytest
+"""The annotation overlay sits on the picture, not on the element box, for a YouTube embed too.
 
-from core.models import Content
-from core.models import Playlist
-from core.youtube import get_or_create_youtube_resource
+Run against the fake IFrame Player API. Everything asserted here is our own arithmetic - the
+element box the layout gives `<youtube-video>`, the intrinsic ratio it reports, and where
+AnnotationPlayer puts the overlay from those two - so a real embed adds nothing but flakiness.
+The one thing only a live embed can show, that the API's injected iframe really does fill the
+element box, is asserted in tests/e2e/test_youtube_video_controls.py, and what the YouTube player
+draws inside that iframe is manual item 7 in MANUAL_TESTING.md.
+"""
+
+import pytest
 
 pytestmark = [
     pytest.mark.e2e,
@@ -12,17 +18,6 @@ pytestmark = [
 # The intrinsic ratio youtube-video reports for itself - see YouTubeVideoElement's videoWidth for
 # why it is a constant rather than the real resolution.
 YOUTUBE_ASPECT_RATIO = 16 / 9
-
-
-def _create_youtube_content(title):
-    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
-    resource = get_or_create_youtube_resource("eHEsJyVQn3w", playlist.owner.username)
-    return Content.objects.create(
-        playlist=playlist,
-        title=title,
-        url="https://www.youtube.com/watch?v=eHEsJyVQn3w",
-        resource=resource,
-    )
 
 
 def _open_editor_and_wait_for_video(page, live_server, content):
@@ -95,22 +90,24 @@ def _assert_overlay_tracks_picture(page):
 
 
 def test_youtube_overlay_tracks_picture_in_wide_viewport(
-    page, live_server, seeded_demo_data
+    fake_youtube, live_server, youtube_content, page
 ):
-    content = _create_youtube_content("Sizing - Wide Viewport")
     page.set_viewport_size({"width": 1280, "height": 900})
-    _open_editor_and_wait_for_video(page, live_server, content)
+    _open_editor_and_wait_for_video(
+        page, live_server, youtube_content("Sizing - Wide Viewport")
+    )
 
     _assert_overlay_tracks_picture(page)
 
 
 def test_youtube_overlay_tracks_picture_in_short_viewport(
-    page, live_server, seeded_demo_data
+    fake_youtube, live_server, youtube_content, page
 ):
-    content = _create_youtube_content("Sizing - Short Viewport")
     # Ultra-wide and short, so the element box ends up a different shape than in the test above
     # and the bars fall on the other axis.
     page.set_viewport_size({"width": 1600, "height": 500})
-    _open_editor_and_wait_for_video(page, live_server, content)
+    _open_editor_and_wait_for_video(
+        page, live_server, youtube_content("Sizing - Short Viewport")
+    )
 
     _assert_overlay_tracks_picture(page)

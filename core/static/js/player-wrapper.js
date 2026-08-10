@@ -38,8 +38,11 @@ function attachAnnotationPlayer() {
           return;
         }
 
+        const videoElem = container.querySelector('#video-player');
+        const supportsTextTracks = videoElem.tagName !== 'YOUTUBE-VIDEO';
+
         let tracks = [];
-        if (playerData && playerData.subtitleTracks) {
+        if (supportsTextTracks && playerData && playerData.subtitleTracks) {
             const subtitles = playerData.subtitleTracks;
             const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
             tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
@@ -54,11 +57,7 @@ function attachAnnotationPlayer() {
 
         annotationPlayer = new AnnotationPlayer({
             container: container,
-            // Look up the video element by id rather than relying on
-            // AnnotationPlayer's default `container.querySelector('video')`,
-            // since YouTube-backed content uses a <youtube-video> custom
-            // element instead of a real <video> tag.
-            video: container.querySelector('#video-player'),
+            video: videoElem,
             disabledControls: [],
             tracks: tracks,
             clips: clips,

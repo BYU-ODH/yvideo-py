@@ -1,3 +1,19 @@
+"""The two tests here that assert what only the real YouTube IFrame Player API can answer.
+
+Every other YouTube test runs against tests/e2e/fake_youtube.py, because what they assert is our
+side of the boundary. These two assert the boundary itself, which a fake cannot: that the real API
+is asked for an embed with its own UI turned off, and that the iframe it injects - sized in pixels
+by the API, independent of the element's box - is forced to fill that box by our CSS. The overlay
+geometry in test_youtube_video_sizing.py rests on that last part being true.
+
+Whether the fake still *behaves* like the real API - which is the other reason to keep talking to
+it - is test_youtube_api_contract.py's job.
+
+Consequently this file needs network access and needs one specific third-party video to still
+exist. Neither is a claim about this repo, so when either is missing these skip rather than fail;
+the `live_youtube` fixture reports which.
+"""
+
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
@@ -5,28 +21,33 @@ import pytest
 
 from core.models import Content
 from core.models import Playlist
-from core.youtube import get_or_create_youtube_resource
+from core.youtube_utils import get_or_create_youtube_resource
 
 pytestmark = [
     pytest.mark.e2e,
+    pytest.mark.live_youtube,
     pytest.mark.django_db(transaction=True),
 ]
 
 
-def test_youtube_player_disables_native_controls(page, live_server, seeded_demo_data):
+@pytest.fixture
+def live_youtube_editor(live_youtube, page, live_server, seeded_demo_data):
     playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
-    resource = get_or_create_youtube_resource("eHEsJyVQn3w", playlist.owner.username)
+    resource = get_or_create_youtube_resource(live_youtube, playlist.owner.username)
     content = Content.objects.create(
         playlist=playlist,
-        title="Controls - Disabled",
-        url="https://www.youtube.com/watch?v=eHEsJyVQn3w",
+        title="Live YouTube Embed",
+        url=f"https://www.youtube.com/watch?v={live_youtube}",
         resource=resource,
     )
 
     page.goto(f"{live_server.url}/login/dev/quick/")
     page.goto(f"{live_server.url}/video-editor/{content.pk}/")
-
     page.wait_for_selector("youtube-video iframe", timeout=15000)
+    return content
+
+
+def test_youtube_player_disables_native_controls(live_youtube_editor, page):
     iframe_src = page.eval_on_selector("youtube-video iframe", "el => el.src")
 
     # The YouTube IFrame Player API takes these as query params on the
@@ -37,3 +58,31 @@ def test_youtube_player_disables_native_controls(page, live_server, seeded_demo_
     query = parse_qs(urlparse(iframe_src).query)
     assert query.get("controls") == ["0"]
     assert query.get("disablekb") == ["1"]
+
+
+def test_the_real_embed_fills_the_element_box(live_youtube_editor, page):
+    # The API sizes its iframe in pixels of its own choosing; `.annotation-player-container
+    # youtube-video > *` overrides that to fill the element box. If it ever stopped working, the
+    # annotation overlay would be computed from a box the picture no longer occupies - and the
+    # faked tests could not tell, because the fake builds its own iframe.
+    page.wait_for_function(
+        "() => { const yt = document.querySelector('youtube-video');"
+        " return yt && !isNaN(yt.duration) && yt.duration > 0; }",
+        timeout=15000,
+    )
+    page.wait_for_timeout(300)
+
+    boxes = page.evaluate(
+        """() => {
+            const element = document.querySelector('youtube-video');
+            const iframe = element.querySelector('iframe');
+            return {
+                element: element.getBoundingClientRect().toJSON(),
+                iframe: iframe.getBoundingClientRect().toJSON(),
+            };
+        }"""
+    )
+
+    assert boxes["element"]["width"] > 0 and boxes["element"]["height"] > 0
+    for key in ("x", "y", "width", "height"):
+        assert boxes["iframe"][key] == pytest.approx(boxes["element"][key], abs=1)

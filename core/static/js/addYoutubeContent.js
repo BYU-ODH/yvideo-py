@@ -8,6 +8,13 @@ function setupAddYoutubeVideoForm() {
   const errorEl = document.getElementById("add-youtube-video-error");
   const submitButton = document.getElementById("add-youtube-video-submit");
 
+  function showError(message) {
+    errorEl.textContent = message;
+    // The element is aria-live, so revealing it here is what announces the failure. Moving
+    // focus there instead would take it off the field the user still has to fix.
+    errorEl.hidden = false;
+  }
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -35,12 +42,17 @@ function setupAddYoutubeVideoForm() {
       if (!response.ok) {
         const message = await response.text();
         console.error("Failed to add YouTube video");
-        errorEl.textContent = message || "Failed to add YouTube video. Please try again.";
-        errorEl.hidden = false;
+        showError(message || "Failed to add YouTube video. Please try again.");
         return;
       }
 
       window.location.reload();
+    } catch (error) {
+      // A rejected fetch is the offline//DNS/blocked case, which has no response to read a
+      // message out of. Without this it surfaced only as an unhandled rejection in the console:
+      // the dialog just sat there, re-enabled, looking like nothing had been submitted.
+      console.error("Failed to add YouTube video", error);
+      showError("Could not reach the server. Check your connection and try again.");
     } finally {
       submitButton.disabled = false;
     }

@@ -56,6 +56,23 @@
     margin-right: 0.35rem;
 }
 
+/* Shown in place of an editor that could not start - see showUnplayableVideoNotice in editor.js.
+   Deliberately louder than the warning banner above: that one qualifies a working editor, this
+   one explains why there isn't going to be an editor at all. */
+.editor-video-error-banner {
+    flex-shrink: 0;
+    background-color: #f8d7da;
+    color: #58151c;
+    border-bottom: 3px solid #b02a37;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+.editor-video-error-banner strong {
+    margin-right: 0.35rem;
+}
+
 /* Editor Container */
 #editor-container {
     flex: 1;

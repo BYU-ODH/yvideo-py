@@ -22,6 +22,7 @@ presence, not behaviour, so nobody mistakes one for the other.
 | 4 | [Blur announcements in a screen reader](#4-blur-announcements-in-a-screen-reader) | Medium | Never |
 | 5 | [A blur actually obscures what is under it](#5-a-blur-actually-obscures-what-is-under-it) | **Critical** | Never |
 | 6 | [Imported legacy blurs land on their subjects](#6-imported-legacy-blurs-land-on-their-subjects) | **Critical** | Never |
+| 7 | [What YouTube itself draws over an embed](#7-what-youtube-itself-draws-over-an-embed) | **Critical** | Never |
 
 Severity reflects what a silent failure would expose. Blurs exist to cover copyrighted,
 violent, and explicit content, so a blur that does not render — or renders but does not
@@ -236,6 +237,47 @@ legacy server, so there is no corpus of offset blurs in the database and nothing
 also means **the first real migration is the first time this code meets real legacy data** — the
 checks above have only ever run against fixtures, which is exactly why they are worth doing by
 hand rather than trusting the arithmetic tests alone.
+
+---
+
+## 7. What YouTube itself draws over an embed
+
+A YouTube-backed video is an `<iframe>` this app does not control the inside of. The annotation
+overlay sits *above* that iframe, so blurs still cover the area they are aimed at — but the
+player paints its own UI **inside** the frame, and everything about it belongs to YouTube:
+
+- a title bar with the video title and a link to the channel, shown while paused
+- a share button, and a "More videos" strip of suggested-video thumbnails
+- the end screen, once the video finishes
+
+None of it can be blurred, skipped, muted or hidden by an annotation, and the links are live: a
+student can click through from a curated playlist to arbitrary YouTube content. `rel=0` does not
+prevent this — since 2018 it only restricts suggestions to the same channel — and
+`modestbranding` is a no-op on the current player. For a tool whose purpose includes controlling
+what a class sees, this is the sharpest edge of YouTube-backed content, which is why the editor
+banner says so ([video_editor.html](core/templates/core/video_editor.html)).
+
+**Why it cannot be automated:** it is third-party UI inside a cross-origin iframe. Browsers
+forbid reading into it, so no test can assert what it contains or where; and YouTube changes it
+whenever they like, so a test written against today's layout would fail for reasons that have
+nothing to do with this code.
+
+**In a real browser window, on a YouTube-backed content:**
+
+- [ ] Pause mid-video. Note everything YouTube draws over the frame, and whether any of it sits
+      over something a blur was meant to conceal.
+- [ ] Click the title bar and the "More videos" thumbnails. Confirm where they take the user
+      (new tab, or navigation inside the embed) and decide whether that is acceptable for the
+      classes using this.
+- [ ] Let a video play to the end. The end screen is suggested content chosen by YouTube, not by
+      the instructor.
+- [ ] Check whether a blur placed over the top or bottom strip still conceals during playback,
+      when YouTube's chrome is hidden — the overlay is above the iframe, so it should.
+
+**What is guarded automatically:** nothing about the chrome itself.
+[tests/e2e/test_youtube_video_controls.py](tests/e2e/test_youtube_video_controls.py) asserts only
+that we ask for `controls=0` and `disablekb=1` on the embed URL, which is a request to YouTube,
+not a guarantee about what it renders.
 
 ---
 

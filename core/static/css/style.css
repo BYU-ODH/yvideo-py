@@ -1467,6 +1467,12 @@ h4.video-title {
     margin-top: 0.25rem;
 }
 
+.content-form-help {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #555;
+}
+
 .add-video-modal-columns {
     display: flex;
     flex-direction: row;

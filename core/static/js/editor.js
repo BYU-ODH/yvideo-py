@@ -12,6 +12,7 @@ import {
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 const COMMENT_MIN_WIDTH = 3;
 const COMMENT_MIN_HEIGHT = 4;
+const MIN_ITEM_SECONDS = 0.1;
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -37,6 +38,7 @@ export class Editor {
         this.zoomSliderInput = document.getElementById('timeline-scroll-input');
         this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
+        this.timelineScrollRatio = 0;
         this.scrubberBounds = null;
         this.timelineScrubber = null;
         this.isDragging = false;
@@ -136,8 +138,7 @@ export class Editor {
     startResize(trackItem, handle, e) {
         const isLeft = handle.classList.contains('resize-handle-left');
         const itemContainer = trackItem.closest('.track-row-annotations-container');
-        const rect = itemContainer.getBoundingClientRect();
-        const containerWidth = itemContainer.scrollWidth || rect.width;
+        const containerWidth = itemContainer.getBoundingClientRect().width;
         const itemLeft = this.calculateItemLeftAsDecimal(trackItem);
         const itemWidth = this.calculateItemWidthAsDecimal(trackItem);
 
@@ -251,13 +252,14 @@ export class Editor {
         const deltaX = e.clientX - this.dragState.startX;
         // Don't account for zoom in percent calculation - container width is already adjusted
         const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
+        const minWidthPercent = (MIN_ITEM_SECONDS / this.duration) * 100;
 
         if (this.dragState.isLeft) {
             let newLeft = this.dragState.startLeft + deltaPercent;
             let newWidth = this.dragState.startWidth - deltaPercent;
 
             newLeft = Math.max(0, newLeft);
-            newWidth = Math.max(1, newWidth);
+            newWidth = Math.max(minWidthPercent, newWidth);
 
             if (newLeft + newWidth > 100) {
                 newWidth = 100 - newLeft;
@@ -275,7 +277,7 @@ export class Editor {
         } else {
             let newWidth = this.dragState.startWidth + deltaPercent;
 
-            newWidth = Math.max(1, newWidth);
+            newWidth = Math.max(minWidthPercent, newWidth);
             const maxWidth = 100 - this.dragState.startLeft;
             newWidth = Math.min(newWidth, maxWidth);
 
@@ -1805,8 +1807,8 @@ export class Editor {
                 this.hideOrShowResizeHandles(item);
               }
               else {
-                // Pause items have no real duration - use virtualEnd for visual purposes.
-                const containerWidth = track.scrollWidth || track.getBoundingClientRect().width;
+                // Pause items have no real duration
+                const containerWidth = track.getBoundingClientRect().width;
                 const itemWidth = item.getBoundingClientRect().width;
                 const virtualDuration = containerWidth > 0 ? (itemWidth / containerWidth) * this.duration : 0;
                 item.dataset.virtualEnd = itemStart + virtualDuration;
@@ -2105,10 +2107,7 @@ export class Editor {
       // Zoom changes the visible time window, so recompute the scrubber bounds.
       this.adjustScrubberPosition();
 
-      const trackItems = this.timelineWrapper.querySelectorAll(".track-item");
-      for (let item of trackItems) {
-        this.hideOrShowResizeHandles(item);
-      }
+      this.placeTrackItems();
     }
 
     attachZoomListener() {
@@ -2145,6 +2144,20 @@ export class Editor {
         track.scrollLeft = scrollValue;
       }
       tickMarksWrapper.scrollLeft = scrollValue;
+
+      const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
+      if (contentWidth > 0) {
+        this.timelineScrollRatio = tickMarksWrapper.scrollLeft / contentWidth;
+        if (this.zoomSliderInput) {
+          this.zoomSliderInput.value = this.timelineScrollRatio * 100;
+        }
+      }
+    }
+
+    restoreTimelineScroll() {
+      const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
+      if (!contentWidth || !this.timelineScrollRatio) return;
+      this.scrollTracksToPoint(contentWidth * this.timelineScrollRatio);
     }
 
     watchForTimelineScrollChangeAndHandleIt() {
@@ -2286,7 +2299,10 @@ export class Editor {
         // geometry refresh and keeps the scrubber correct while paused/seeking.
         this.video.addEventListener('timeupdate', () => this.adjustScrubberPosition());
         this.video.addEventListener('seeked', () => this.adjustScrubberPosition());
-        window.addEventListener('resize', () => this.adjustScrubberPosition());
+        window.addEventListener('resize', () => {
+            this.restoreTimelineScroll();
+            this.adjustScrubberPosition();
+        });
         this.adjustScrubberPosition();
         // During playback, interpolate every animation frame for smooth motion
         // (shared mechanism with AnnotationPlayer's progress scrubber).
@@ -2743,20 +2759,27 @@ export class Editor {
     watchAndHandleEditorPanelSwitch() {
       const annotationPanel = document.getElementById("editor-annotation-panel");
       const subtitlesPanel = document.getElementById("subtitle-editor-panel");
+      const annotationPanelSwitchButton = document.getElementById("annotation-panel-switch");
+      const subtitlePanelSwitchButton = document.getElementById("subtitle-panel-switch");
+      // All four are absent for YouTube-backed content, which has no subtitle editor to switch
+      // to - see annotation_panel.html. Returning rather than throwing matters: this runs during
+      // editor init, so a missing button here would take the whole editor down with it.
+      if (!annotationPanel || !subtitlesPanel || !annotationPanelSwitchButton || !subtitlePanelSwitchButton) {
+        return;
+      }
       const togglePanelVisiblity = () => {
         annotationPanel.classList.toggle("editor-annotation-panel-hidden");
         annotationPanel.classList.toggle("editor-annotation-panel-visible");
         subtitlesPanel.classList.toggle("subtitle-editor-panel-visible");
         subtitlesPanel.classList.toggle("subtitle-editor-panel-hidden");
       }
-      const annotationPanelSwitchButton = document.getElementById("annotation-panel-switch");
-      const subtitlePanelSwitchButton = document.getElementById("subtitle-panel-switch");
       annotationPanelSwitchButton.addEventListener("click", togglePanelVisiblity);
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
     }
 
     watchAndHandleSubtitleTrackChange() {
       const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+      if (!subtitleSelectInput) return;
       subtitleSelectInput.addEventListener("change", async () => {
         const newSubtitleTrackId = subtitleSelectInput.value;
         if (subtitleSelectInput == undefined) {
@@ -2897,8 +2920,34 @@ function editorInit() {
   editor.setUpAnnotationPanelClickListeners();
 }
 
+function showUnplayableVideoNotice(video) {
+    if (document.getElementById('editor-video-error-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'editor-video-error-banner';
+    banner.className = 'editor-video-error-banner';
+    banner.setAttribute('role', 'alert');
+    const label = document.createElement('strong');
+    label.textContent = 'This video cannot be played, so the editor could not start.';
+    const youtubeDetail = video?.tagName === 'YOUTUBE-VIDEO'
+        ? ' A YouTube video can be removed, made private, or have embedding turned off by its ' +
+          'owner at any time.'
+        : '';
+    banner.append(
+        label,
+        document.createTextNode(
+            `${youtubeDetail} Annotations already saved for it are unaffected.`
+        )
+    );
+    document.body.prepend(banner);
+}
+
 const checkVideo = setInterval(() => {
     const video = document.querySelector('#video-player');
+    if (video?.error) {
+      clearInterval(checkVideo);
+      showUnplayableVideoNotice(video);
+      return;
+    }
     if (video && !isNaN(video.duration) && window?.videoPlayer) {
       clearInterval(checkVideo);
       editorInit();

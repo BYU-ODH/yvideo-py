@@ -42,7 +42,7 @@ from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_content_to_vtt
 from .utils import generate_vtt_cues_from_file_path
 from .utils import nudge_cue_times
-from .youtube import parse_youtube_video_id
+from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,9 @@ def video_editor(request, content_id):
             "content_id": content_id,
             "file_key": file_key.id if file_key else None,
             "content_source_url": content_source_url,
-            "youtube_video_id": parse_youtube_video_id(content_source_url),
+            "youtube_video_id": youtube_video_id_for_content(
+                content, content_source_url
+            ),
             "allow_events": True,
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,
@@ -282,7 +284,9 @@ def get_player_wrapper_html(request):
                 if resource_file_key
                 else None,
                 "content_source_url": content_source_url,
-                "youtube_video_id": parse_youtube_video_id(content_source_url),
+                "youtube_video_id": youtube_video_id_for_content(
+                    content, content_source_url
+                ),
                 "editor_mode": True,
             },
             request=request,

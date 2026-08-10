@@ -78,8 +78,8 @@ urlpatterns = [
     path("content/create/", views.create_content, name="create_content"),
     path(
         "content/create-from-url/",
-        views.create_content_from_url,
-        name="create_content_from_url",
+        views.create_content_from_youtube_url,
+        name="create_content_from_youtube_url",
     ),
     path(
         "resource-intake-request/",

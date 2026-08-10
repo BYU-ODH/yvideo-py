@@ -6,11 +6,14 @@ from django.urls import reverse
 
 from core.factories import ContentFactory
 from core.factories import PlaylistFactory
+from core.factories import ResourceFactory
 from core.factories import UserFactory
 from core.models import Content
 from core.models import Resource
-from core.youtube import get_or_create_youtube_resource
-from core.youtube import parse_youtube_video_id
+from core.youtube_utils import get_or_create_youtube_resource
+from core.youtube_utils import parse_youtube_video_id
+from core.youtube_utils import youtube_video_id_for_content
+from core.youtube_utils import youtube_video_id_for_resource
 
 
 class ParseYoutubeVideoIdTests(TestCase):
@@ -26,10 +29,13 @@ class ParseYoutubeVideoIdTests(TestCase):
             "3W8pr0tiijs",
         )
 
-    def test_shorts_url(self):
-        self.assertEqual(
-            parse_youtube_video_id("https://www.youtube.com/shorts/abcdefghijk"),
-            "abcdefghijk",
+    def test_shorts_url_is_rejected(self):
+        # Not an oversight: a Short is vertical, and the player reports a constant 16:9 as its
+        # intrinsic size, so contentRect() would place the annotation overlay on a rectangle
+        # roughly three times wider than the picture. Blurs would be stored and drawn against
+        # a frame the video does not occupy. See parse_youtube_video_id's docstring.
+        self.assertIsNone(
+            parse_youtube_video_id("https://www.youtube.com/shorts/abcdefghijk")
         )
 
     def test_embed_url(self):
@@ -80,6 +86,73 @@ class GetOrCreateYoutubeResourceTests(TestCase):
         self.assertNotEqual(first.pk, second.pk)
 
 
+class YoutubeVideoIdForContentTests(TestCase):
+    """Which video an embed shows, when the Content's URL and its Resource disagree.
+
+    They can: only create_content_from_youtube_url ties the two together, and nothing stops a Content's
+    URL being edited afterwards - which keeps the original Resource, and with it the annotation
+    sets authored against the original video.
+    """
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.playlist = PlaylistFactory(owner=self.owner)
+
+    def _content(self, url, resource):
+        return Content.objects.create(
+            playlist=self.playlist, title="Content", url=url, resource=resource
+        )
+
+    def test_resource_wins_when_the_url_points_somewhere_else(self):
+        # The annotations belong to the Resource's sets, so the Resource names the video they
+        # were actually authored against.
+        resource = get_or_create_youtube_resource("eHEsJyVQn3w", self.owner.username)
+        content = self._content("https://www.youtube.com/watch?v=abcdefghijk", resource)
+
+        self.assertEqual(
+            youtube_video_id_for_content(content, content.url), "eHEsJyVQn3w"
+        )
+
+    def test_url_is_used_when_the_resource_is_not_youtube_backed(self):
+        # Covers Content created by any path that did not go through
+        # get_or_create_youtube_resource.
+        resource = ResourceFactory()
+        content = self._content("https://www.youtube.com/watch?v=abcdefghijk", resource)
+
+        self.assertEqual(
+            youtube_video_id_for_content(content, content.url), "abcdefghijk"
+        )
+
+    def test_a_missing_source_url_yields_nothing(self):
+        # The load-bearing one: a falsy source_url means get_content_source_url refused this
+        # user, and the Resource is readable without any such check - so reading the id off it
+        # first would hand the video to someone not allowed to view the content.
+        resource = get_or_create_youtube_resource("eHEsJyVQn3w", self.owner.username)
+        content = self._content("https://www.youtube.com/watch?v=eHEsJyVQn3w", resource)
+
+        self.assertIsNone(youtube_video_id_for_content(content, None))
+
+    def test_non_youtube_content_yields_nothing(self):
+        resource = ResourceFactory()
+        content = self._content("https://vimeo.com/12345", resource)
+
+        self.assertIsNone(youtube_video_id_for_content(content, content.url))
+
+    def test_a_resource_id_that_is_not_a_video_id_is_ignored(self):
+        # "YT" is only a prefix by convention; a BYU/IMDb id must not be mistaken for one.
+        resource = ResourceFactory(imdb_id="BYU0000000001")
+
+        self.assertIsNone(youtube_video_id_for_resource(resource))
+
+    def test_a_resource_with_no_id_is_ignored(self):
+        resource = ResourceFactory()
+        Resource.objects.filter(pk=resource.pk).update(imdb_id=None)
+
+        self.assertIsNone(
+            youtube_video_id_for_resource(Resource.objects.get(pk=resource.pk))
+        )
+
+
 class CreateContentFromUrlViewTests(TestCase):
     def setUp(self):
         self.owner = UserFactory(instructor=True)
@@ -93,7 +166,7 @@ class CreateContentFromUrlViewTests(TestCase):
         }
         data.update(overrides)
         return self.client.post(
-            reverse("create_content_from_url"),
+            reverse("create_content_from_youtube_url"),
             data=json.dumps(data),
             content_type="application/json",
         )
@@ -133,6 +206,37 @@ class CreateContentFromUrlViewTests(TestCase):
         response = self._post(url="https://vimeo.com/12345")
 
         self.assertEqual(response.status_code, 400)
+        self.assertFalse(Content.objects.filter(playlist=self.playlist).exists())
+
+    def test_a_shorts_url_is_rejected_with_an_explanation(self):
+        self.client.force_login(self.owner)
+        response = self._post(url="https://www.youtube.com/shorts/abcdefghijk")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Shorts", response.content.decode())
+        self.assertFalse(Content.objects.filter(playlist=self.playlist).exists())
+
+    def test_a_malformed_body_is_a_bad_request_not_a_server_error(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("create_content_from_youtube_url"),
+            data="not json",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_name_collision_is_reported_rather_than_a_bare_500(self):
+        # Resource.name is unique and get_or_create keys on imdb_id, so a Resource already
+        # holding this video's generated name under a different id makes the create fail. Only
+        # an admin can fix that, so the message has to say so instead of becoming a 500.
+        self.client.force_login(self.owner)
+        ResourceFactory(name="YouTube: eHEsJyVQn3w", imdb_id="tt1234567")
+
+        response = self._post()
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("administrator", response.content.decode())
         self.assertFalse(Content.objects.filter(playlist=self.playlist).exists())
 
     def test_same_video_reused_across_playlists_shares_one_resource(self):

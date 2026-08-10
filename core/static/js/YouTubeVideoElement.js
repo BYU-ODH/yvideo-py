@@ -1,14 +1,37 @@
 // A custom element that wraps the YouTube IFrame Player API and exposes the
 // small subset of the HTMLVideoElement surface that AnnotationPlayer.js
 // actually touches (currentTime/duration/paused/muted/volume/playbackRate,
-// play()/pause(), textTracks/buffered stubs, and the events AnnotationPlayer
-// listens for). This lets AnnotationPlayer treat a YouTube embed exactly like
-// a <video> element without any changes to AnnotationPlayer.js itself.
+// readyState/seeking/ended, play()/pause(), textTracks/buffered stubs, and the
+// events AnnotationPlayer listens for). This lets AnnotationPlayer treat a
+// YouTube embed exactly like a <video> element without any changes to
+// AnnotationPlayer.js itself.
+//
+// The IFrame API's event surface is narrower than a media element's, so some of
+// those events are synthesized here rather than forwarded - see `_beginSeek`,
+// which is the difference between annotations that follow a scrub and
+// annotations that silently describe the wrong frame.
 
 const IFRAME_API_SRC = "https://www.youtube.com/iframe_api";
 const POLL_INTERVAL_MS = 250;
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 720;
+
+// How the synthetic seeking/seeked pair below is timed. The IFrame API has no seek-complete
+// callback, so a seek is considered finished once the player reports a time near the one asked
+// for. The timeout is the backstop: seeking past the end, or to a spot the player snaps away
+// from, would otherwise leave `seeked` pending forever - and every consumer of it waiting.
+const SEEK_POLL_INTERVAL_MS = 50;
+const SEEK_TOLERANCE_SECONDS = 0.5;
+const SEEK_TIMEOUT_MS = 1000;
+
+// Mirrors HTMLMediaElement's readyState constants, the only two values this element can honestly
+// distinguish: the player object exists (so duration and seeking work) or it does not.
+const HAVE_NOTHING = 0;
+const HAVE_METADATA = 1;
+
+// MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: the closest match for "YouTube will not play this",
+// which covers a removed, private or embedding-disabled video alike.
+const MEDIA_ERR_SRC_NOT_SUPPORTED = 4;
 
 let iframeApiPromise = null;
 
@@ -43,11 +66,15 @@ export class YouTubeVideoElement extends HTMLElement {
       volume: 1,
       playbackRate: 1,
       loadedFraction: 0,
+      seeking: false,
+      ended: false,
+      error: null,
     };
     this._player = null;
     this._ready = false;
     this._pending = [];
     this._pollTimer = null;
+    this._seekTimer = null;
     this._initialized = false;
   }
 
@@ -99,6 +126,7 @@ export class YouTubeVideoElement extends HTMLElement {
     queueMicrotask(() => {
       if (this.isConnected) return;
       this._stopPolling();
+      this._clearSeekTimer();
       this._player?.destroy();
       this._player = null;
       this._ready = false;
@@ -126,22 +154,40 @@ export class YouTubeVideoElement extends HTMLElement {
     const YT = window.YT;
     if (event.data === YT.PlayerState.PLAYING) {
       this._state.paused = false;
+      this._state.ended = false;
       this._startPolling();
       this.dispatchEvent(new Event("play"));
       this.dispatchEvent(new Event("playing"));
     } else if (event.data === YT.PlayerState.PAUSED) {
       this._state.paused = true;
+      this._state.ended = false;
       this._stopPolling();
       this.dispatchEvent(new Event("pause"));
     } else if (event.data === YT.PlayerState.ENDED) {
       this._state.paused = true;
+      this._state.ended = true;
       this._stopPolling();
+      // Both, in the order a <video> emits them. `pause` is what stops the animation loops in
+      // utils.js; `ended` is what tells the UI this is a finished video rather than a paused
+      // one, which is the difference between a replay affordance and a play one.
       this.dispatchEvent(new Event("pause"));
+      this.dispatchEvent(new Event("ended"));
     }
   }
 
   _onError() {
     this._stopPolling();
+    this._clearSeekTimer();
+    // Nothing about this player will ever resolve now: duration stays NaN, so anything waiting on
+    // metadata (the editor's boot poll, for one) waits forever unless it can find out. Recorded as
+    // state *and* announced as an event, in that order, because the event can fire before a later
+    // module has attached a listener - a media element's `error` property is what survives that
+    // race, and it lets the same check cover a <video> whose file will not load.
+    this._state.error = {
+      code: MEDIA_ERR_SRC_NOT_SUPPORTED,
+      message: "The YouTube player could not play this video.",
+    };
+    this.dispatchEvent(new Event("error"));
     const videoId = this.dataset.videoId;
 
     const container = document.createElement("div");
@@ -176,6 +222,47 @@ export class YouTubeVideoElement extends HTMLElement {
     }
   }
 
+  _clearSeekTimer() {
+    if (this._seekTimer) {
+      clearTimeout(this._seekTimer);
+      this._seekTimer = null;
+    }
+  }
+
+  // Synthesize the seeking/timeupdate/seeked sequence a <video> emits, because the IFrame API
+  // emits nothing at all for a seek - and, while paused, nothing at any other time either
+  // (`_startPolling` only runs during playback). Without this the whole app keeps painting the
+  // time the playhead used to be at: AnnotationPlayer re-applies annotations on `seeked`,
+  // BlurEditor's rig and active-point highlight track `timeupdate`/`seeked`, its keyboard nudge
+  // is flushed on `seeking`, and the editor's comment rig and scrubber use the same pair. A
+  // stale blur box is not a cosmetic problem: it is an editable box drawn for the wrong frame.
+  _beginSeek(target) {
+    this._clearSeekTimer();
+    this._state.seeking = true;
+    this.dispatchEvent(new Event("seeking"));
+
+    const startedAt = performance.now();
+    const poll = () => {
+      this._state.currentTime = this._player.getCurrentTime();
+      // Every poll, not just the last one, so a slow seek still repaints within ~50ms instead of
+      // holding the old frame's overlays until the whole seek settles.
+      this.dispatchEvent(new Event("timeupdate"));
+
+      const arrived =
+        Math.abs(this._state.currentTime - target) <= SEEK_TOLERANCE_SECONDS;
+      if (!arrived && performance.now() - startedAt < SEEK_TIMEOUT_MS) {
+        this._seekTimer = setTimeout(poll, SEEK_POLL_INTERVAL_MS);
+        return;
+      }
+      this._seekTimer = null;
+      this._state.seeking = false;
+      this.dispatchEvent(new Event("seeked"));
+    };
+    // Deferred rather than called here, so `seeked` is always asynchronous - a listener attached
+    // right after assigning currentTime still sees it, the way it would on a <video>.
+    this._seekTimer = setTimeout(poll, SEEK_POLL_INTERVAL_MS);
+  }
+
   _whenReady(fn) {
     if (this._ready) {
       fn();
@@ -198,7 +285,10 @@ export class YouTubeVideoElement extends HTMLElement {
 
   set currentTime(time) {
     this._state.currentTime = time;
-    this._whenReady(() => this._player.seekTo(time, true));
+    this._whenReady(() => {
+      this._player.seekTo(time, true);
+      this._beginSeek(time);
+    });
   }
 
   get duration() {
@@ -207,6 +297,24 @@ export class YouTubeVideoElement extends HTMLElement {
 
   get paused() {
     return this._state.paused;
+  }
+
+  get seeking() {
+    return this._state.seeking;
+  }
+
+  get ended() {
+    return this._state.ended;
+  }
+
+  get error() {
+    return this._state.error;
+  }
+
+  get readyState() {
+    // Only ever HAVE_NOTHING or HAVE_METADATA: the IFrame API reports nothing about how much of
+    // the video is buffered, so claiming more than "duration and seeking work" would be a guess.
+    return this._ready ? HAVE_METADATA : HAVE_NOTHING;
   }
 
   get muted() {

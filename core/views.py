@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
+from django.db import IntegrityError
 from django.db import connection
 from django.db.models import Q
 from django.http import Http404
@@ -47,8 +48,9 @@ from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
-from .youtube import get_or_create_youtube_resource
-from .youtube import parse_youtube_video_id
+from .youtube_utils import get_or_create_youtube_resource
+from .youtube_utils import parse_youtube_video_id
+from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +149,7 @@ def player(request, content_id):
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
         "content_source_url": content_source_url,
-        "youtube_video_id": parse_youtube_video_id(content_source_url),
+        "youtube_video_id": youtube_video_id_for_content(content, content_source_url),
         "allow_events": True,
     }
 
@@ -736,7 +738,7 @@ def create_content(request):
 
 @require_POST
 @login_required
-def create_content_from_url(request):
+def create_content_from_youtube_url(request):
     """Create URL-only Content from a YouTube URL, self-serve (no lab-assistant/
     admin gate) - see core/youtube.py for the Resource get-or-create logic."""
     try:
@@ -761,7 +763,10 @@ def create_content_from_url(request):
                 "Failed to create new content because the URL was not a "
                 "recognized YouTube URL"
             )
-            return HttpResponseBadRequest("Unrecognized YouTube URL")
+            return HttpResponseBadRequest(
+                "That is not a YouTube video URL we can use. Regular video and "
+                "youtu.be links work; Shorts do not."
+            )
 
         resource = get_or_create_youtube_resource(video_id, request.user.username)
         Content.objects.create(
@@ -771,9 +776,27 @@ def create_content_from_url(request):
             resource=resource,
         )
         return HttpResponse()
+    except json.JSONDecodeError:
+        logger.error(
+            "Failed to create new content from URL because of a malformed body"
+        )
+        return HttpResponseBadRequest()
     except Playlist.DoesNotExist:
         logger.error("Failed to create new content due to missing Playlist")
         return HttpResponseBadRequest()
+    except IntegrityError as e:
+        # Resource.name is unique, and the get-or-create above keys on imdb_id, so a Resource
+        # that already carries this video's generated name under a *different* id lands here.
+        # Reported rather than swallowed as a 500: it is fixable (rename the other Resource),
+        # and only an admin can fix it, so the message has to reach someone.
+        logger.error(
+            f"Could not provision a Resource for YouTube video {video_id}: {e}"
+        )
+        return HttpResponse(
+            "A resource already exists under the name this video would use. An "
+            "administrator needs to rename it before this video can be added.",
+            status=409,
+        )
     except Exception as e:
         logger.error(
             f"An error occured while creating new YouTube content. Exception: {e}"
@@ -860,7 +883,9 @@ def display_content_info(request, content_id):
             "content_id": content.pk,
             "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
             "content_source_url": content_source_url,
-            "youtube_video_id": parse_youtube_video_id(content_source_url),
+            "youtube_video_id": youtube_video_id_for_content(
+                content, content_source_url
+            ),
             "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitle_options(),
         }

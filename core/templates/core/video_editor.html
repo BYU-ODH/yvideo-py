@@ -13,10 +13,12 @@
     </head>
     <body>
         {% if youtube_video_id %}
-            <div id="youtube-editor-warning-banner" class="youtube-editor-warning-banner" role="alert">
+            <div id="youtube-editor-warning-banner" class="youtube-editor-warning-banner" role="note">
                 <strong>Editing a YouTube video:</strong>
-                YouTube videos can be changed or removed without notice, so there is
+                YouTube videos can be changed by their authors without notice, so there is
                 no guarantee that your edits will remain aligned with the video.
+                YouTube also draws its own title, share and "More videos" links over a
+                paused video, and those cannot be blurred, skipped or hidden by this editor.
                 Use this feature at your own risk!
             </div>
         {% endif %}
@@ -24,7 +26,9 @@
             <!-- Top Panel: Video Player (left) and Detail Form (right) -->
             <div class="top-panel">
                 {% include 'core/partials/annotation_panel.html' %}
-                {% include 'core/partials/subtitle_editor_panel.html' %}
+                {% if not youtube_video_id %}
+                    {% include 'core/partials/subtitle_editor_panel.html' %}
+                {% endif %}
 
                 <div id="video-section" class="video-section">
                     {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url youtube_video_id=youtube_video_id editor_mode=True %}

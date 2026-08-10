@@ -54,10 +54,17 @@
                                         type="url"
                                         id="add-youtube-video-url"
                                         placeholder="https://www.youtube.com/watch?v=..."
+                                        aria-describedby="add-youtube-video-url-help"
                                         required
                                     >
+                                    <p id="add-youtube-video-url-help" class="content-form-help">
+                                        Regular video links and youtu.be links. Shorts are not
+                                        supported: annotations would be positioned against the
+                                        wrong shape of picture.
+                                    </p>
                                 </div>
-                                <p id="add-youtube-video-error" class="add-youtube-video-error" hidden></p>
+                                <p id="add-youtube-video-error" class="add-youtube-video-error"
+                                   role="status" aria-live="polite" hidden></p>
                                 <button type="submit" id="add-youtube-video-submit" class="blue-button">
                                     Add YouTube video
                                 </button>

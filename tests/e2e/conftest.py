@@ -1,5 +1,7 @@
+import functools
 from io import StringIO
 import os
+import urllib.request
 
 from django.core.management import call_command
 import pytest
@@ -52,6 +54,120 @@ def seeded_demo_data(settings, tmp_path, transactional_db):
     call_command("seed_demo_data", stdout=StringIO())
 
     return media_root
+
+
+# The video the live-API tests embed. One id, in one place, so the reachability check below and
+# the tests it guards can never be asking about different videos.
+LIVE_YOUTUBE_VIDEO_ID = "eHEsJyVQn3w"
+
+_IFRAME_API_URL = "https://www.youtube.com/iframe_api"
+_OEMBED_URL = (
+    "https://www.youtube.com/oembed?format=json"
+    f"&url=https://www.youtube.com/watch%3Fv%3D{LIVE_YOUTUBE_VIDEO_ID}"
+)
+# Long enough to survive a slow link, short enough that an offline machine is not punished for it.
+_NETWORK_TIMEOUT_SECONDS = 8
+
+
+@functools.cache
+def _live_youtube_unavailable_reason():
+    """Why the live-API tests cannot run here, or None if they can.
+
+    Two things can stop them that are not regressions in this repo: no network, and someone else
+    unpublishing the video we embed. Neither should fail a run, and both should say so in words
+    rather than as an assertion about our own code - which is what an unguarded live test reports.
+
+    oembed is the cheap way to ask the second question: it answers 200 only while the video is
+    published and embeddable, which is exactly the state these tests need it to be in.
+
+    Cached, because it is a network round trip and every live test asks.
+    """
+    if os.environ.get("SKIP_LIVE_YOUTUBE_TESTS"):
+        return "SKIP_LIVE_YOUTUBE_TESTS is set"
+
+    checks = (
+        (_IFRAME_API_URL, "youtube.com is unreachable"),
+        (
+            _OEMBED_URL,
+            f"the pinned video {LIVE_YOUTUBE_VIDEO_ID} is gone or no longer embeddable",
+        ),
+    )
+    for url, failure in checks:
+        request = urllib.request.Request(url, headers={"User-Agent": "yvideo-tests"})
+        try:
+            with urllib.request.urlopen(
+                request, timeout=_NETWORK_TIMEOUT_SECONDS
+            ) as response:
+                if response.status != 200:
+                    return f"{failure} (HTTP {response.status})"
+        # HTTPError included: urllib raises rather than returns for a 404, and a 404 from oembed is
+        # the takedown case this exists to report.
+        except OSError as exc:
+            return f"{failure} ({exc})"
+    return None
+
+
+@pytest.fixture(scope="session")
+def live_youtube():
+    """The live video id, or a skip explaining why the real API cannot be reached.
+
+    Request this from any test that talks to youtube.com, so an offline machine reports "skipped:
+    youtube.com is unreachable" instead of a failure that looks like a bug here.
+    """
+    reason = _live_youtube_unavailable_reason()
+    if reason:
+        pytest.skip(f"needs the live YouTube API: {reason}")
+    return LIVE_YOUTUBE_VIDEO_ID
+
+
+@pytest.fixture
+def fake_youtube(page):
+    """Install the stand-in IFrame Player API before any navigation.
+
+    Request this in place of reaching youtube.com. See tests/e2e/fake_youtube.py for what it does
+    and does not stand in for.
+
+    Also asserts that nothing in the test reached youtube.com, which is the point of the fake: the
+    stub only avoids the network as long as YouTubeVideoElement keeps checking for an existing
+    `window.YT` before injecting the API script, and a silent regression there would leave these
+    tests quietly network-dependent again.
+    """
+    from tests.e2e.fake_youtube import install_fake_youtube
+
+    install_fake_youtube(page)
+    reached_youtube = []
+
+    def _record(request):
+        if "youtube.com" in request.url or "youtu.be" in request.url:
+            reached_youtube.append(request.url)
+
+    page.on("request", _record)
+    yield page
+    page.remove_listener("request", _record)
+    assert not reached_youtube, (
+        "these tests are meant to run without the network, but the page requested: "
+        f"{reached_youtube}"
+    )
+
+
+@pytest.fixture
+def youtube_content(seeded_demo_data):
+    """A YouTube-backed Content in the demo playlist, created the way the app creates one."""
+    from core.models import Content
+    from core.models import Playlist
+    from core.youtube_utils import get_or_create_youtube_resource
+
+    def _create(title="YouTube Content", video_id="eHEsJyVQn3w"):
+        playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+        resource = get_or_create_youtube_resource(video_id, playlist.owner.username)
+        return Content.objects.create(
+            playlist=playlist,
+            title=title,
+            url=f"https://www.youtube.com/watch?v={video_id}",
+            resource=resource,
+        )
+
+    return _create
 
 
 @pytest.fixture
