@@ -111,6 +111,12 @@ async ({videoId, methods}) => {
     return report;
   }
 
+  // The element clears YouTube's splash by playing and immediately pausing
+  // (YouTubeVideoElement._primeFirstFrame). Wait that out before measuring anything: everything
+  // below is about the API's own behaviour, and priming both answers `muted` locally while it runs
+  // and ends with a seek that would race the play phase.
+  report.primingSettles = await waitFor(() => element._priming === false, 15000);
+
   report.metadataEvents = eventOrder("loadedmetadata", "error");
   report.durationIsPositiveFinite =
     Number.isFinite(element.duration) && element.duration > 0;
@@ -158,6 +164,10 @@ async ({videoId, methods}) => {
   report.playStarts = await waitFor(() => !element.paused, 20000);
   report.playAdvancesTime =
     await waitFor(() => element.currentTime > timeBeforePlay + 0.3, 20000);
+  // `currentTime` reads the player directly, but `timeupdate` and `buffered` are both fed by the
+  // element's own POLL_INTERVAL_MS poll - so a warm player can cross the threshold above before the
+  // first poll fires. Waiting for it here is what keeps the next three observations from racing it.
+  await waitFor(() => log.includes("timeupdate"), 5000);
   report.playEvents = eventOrder("play", "playing", "timeupdate");
   report.bufferedLength = element.buffered.length;
   report.loadedFractionIsPositive = element.buffered.end(0) > 0;
@@ -200,6 +210,10 @@ async ({videoId, methods}) => {
 # of this table fails as an unexpected key instead of being quietly collected and never asserted.
 EXPECTED_CONTRACT = {
     "becameReady": True,
+    # Both players let the splash-clearing play/pause round trip complete. On the real API this is
+    # also the only check that autoplay-while-muted is still permitted at all: if a browser policy
+    # or an embed setting refused it, priming would time out here instead of settling.
+    "primingSettles": True,
     "metadataEvents": ["loadedmetadata"],
     "durationIsPositiveFinite": True,
     # HAVE_METADATA. The element promises no more than this, and the API gives it no way to.

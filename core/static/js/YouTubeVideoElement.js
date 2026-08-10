@@ -24,6 +24,8 @@ const SEEK_POLL_INTERVAL_MS = 50;
 const SEEK_TOLERANCE_SECONDS = 0.5;
 const SEEK_TIMEOUT_MS = 1000;
 
+const PRIME_TIMEOUT_MS = 5000;
+
 // Mirrors HTMLMediaElement's readyState constants, the only two values this element can honestly
 // distinguish: the player object exists (so duration and seeking work) or it does not.
 const HAVE_NOTHING = 0;
@@ -76,6 +78,9 @@ export class YouTubeVideoElement extends HTMLElement {
     this._pollTimer = null;
     this._seekTimer = null;
     this._initialized = false;
+    this._priming = false;
+    this._primeTimer = null;
+    this._playRequested = false;
   }
 
   connectedCallback() {
@@ -127,6 +132,8 @@ export class YouTubeVideoElement extends HTMLElement {
       if (this.isConnected) return;
       this._stopPolling();
       this._clearSeekTimer();
+      this._clearPrimeTimer();
+      this._priming = false;
       this._player?.destroy();
       this._player = null;
       this._ready = false;
@@ -148,10 +155,59 @@ export class YouTubeVideoElement extends HTMLElement {
     pending.forEach((fn) => fn());
 
     this.dispatchEvent(new Event("loadedmetadata"));
+    this._primeFirstFrame();
+  }
+
+  _primeFirstFrame() {
+    if (this._playRequested) return;
+    this._priming = true;
+    this._player.mute();
+    this._player.playVideo();
+    this._primeTimer = setTimeout(() => this._cancelPriming(), PRIME_TIMEOUT_MS);
+  }
+
+  _clearPrimeTimer() {
+    if (this._primeTimer) {
+      clearTimeout(this._primeTimer);
+      this._primeTimer = null;
+    }
+  }
+
+  _restoreMuteAfterPriming() {
+    if (this._state.muted) {
+      this._player.mute();
+    } else {
+      this._player.unMute();
+    }
+  }
+
+  _finishPriming() {
+    this._clearPrimeTimer();
+    this._priming = false;
+    this._player.seekTo(this._state.currentTime, true);
+    this._restoreMuteAfterPriming();
+  }
+
+  _cancelPriming() {
+    if (!this._priming) return;
+    this._clearPrimeTimer();
+    this._priming = false;
+    this._restoreMuteAfterPriming();
+    if (this._player.getPlayerState() === window.YT.PlayerState.PLAYING) {
+      this._onStateChange({ data: window.YT.PlayerState.PLAYING });
+    }
   }
 
   _onStateChange(event) {
     const YT = window.YT;
+    if (this._priming) {
+      if (event.data === YT.PlayerState.PLAYING) {
+        this._player.pauseVideo();
+      } else if (event.data === YT.PlayerState.PAUSED) {
+        this._finishPriming();
+      }
+      return;
+    }
     if (event.data === YT.PlayerState.PLAYING) {
       this._state.paused = false;
       this._state.ended = false;
@@ -178,6 +234,8 @@ export class YouTubeVideoElement extends HTMLElement {
   _onError() {
     this._stopPolling();
     this._clearSeekTimer();
+    this._clearPrimeTimer();
+    this._priming = false;
     // Nothing about this player will ever resolve now: duration stays NaN, so anything waiting on
     // metadata (the editor's boot poll, for one) waits forever unless it can find out. Recorded as
     // state *and* announced as an event, in that order, because the event can fire before a later
@@ -272,6 +330,8 @@ export class YouTubeVideoElement extends HTMLElement {
   }
 
   play() {
+    this._playRequested = true;
+    this._cancelPriming();
     this._whenReady(() => this._player.playVideo());
   }
 
@@ -318,7 +378,10 @@ export class YouTubeVideoElement extends HTMLElement {
   }
 
   get muted() {
-    return this._ready ? this._player.isMuted() : this._state.muted;
+    // While priming, the player is muted for reasons of its own (see `_primeFirstFrame`), so the
+    // app's own intent is the honest answer.
+    if (!this._ready || this._priming) return this._state.muted;
+    return this._player.isMuted();
   }
 
   set muted(muted) {
