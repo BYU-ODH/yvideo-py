@@ -18,6 +18,7 @@ from ..factories import ClipFactory
 from ..factories import CommentAnnotationFactory
 from ..factories import ContentFactory
 from ..factories import CourseFactory
+from ..factories import LanguageFactory
 from ..factories import MuteAnnotationFactory
 from ..factories import PlaylistFactory
 from ..factories import ResourceFactory
@@ -1167,6 +1168,40 @@ class DefaultSubtitleTrackTests(TestCase):
         subtitles = content.get_subtitles()
         for sub in subtitles:
             self.assertFalse(sub["default"])
+
+
+class GetSubtitlesSrclangTests(TestCase):
+    """srclang must be a real BCP 47 tag: browsers generate a <track>'s
+    native fallback label and do language matching from `srclang` alone, and
+    BCP 47's preferred form for a language with an ISO 639-1 code is that
+    2-letter code, not a 3-letter ISO 639-3 form."""
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.resource = ResourceFactory()
+        self.resource_file = ResourceFileFactory(resource=self.resource)
+        self.playlist = PlaylistFactory(owner=self.owner)
+        self.content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+
+    def test_srclang_is_the_two_letter_code_for_a_major_language(self):
+        english = LanguageFactory(bcp47="en")
+        SubtitleFactory(resource=self.resource, owner=self.owner, language=english)
+
+        subtitles = self.content.get_subtitles()
+
+        self.assertEqual(len(subtitles), 1)
+        self.assertEqual(subtitles[0]["srclang"], "en")
+
+    def test_srclang_is_the_three_letter_code_with_no_iso_639_1_code(self):
+        asl = LanguageFactory(bcp47="ase")
+        SubtitleFactory(resource=self.resource, owner=self.owner, language=asl)
+
+        subtitles = self.content.get_subtitles()
+
+        self.assertEqual(subtitles[0]["srclang"], "ase")
 
 
 class UpdateContentDefaultSubtitleTrackTests(TestCase):

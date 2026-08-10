@@ -7,6 +7,8 @@ import factory
 from .models import LAB_ASSISTANT_GROUP_NAME
 from .models import AnnotationSet
 from .models import BlankAnnotation
+from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
@@ -65,10 +67,12 @@ class UserFactory(factory.django.DjangoModelFactory):
 class LanguageFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Language
-        django_get_or_create = ("lang_tag",)
+        django_get_or_create = ("bcp47",)
 
     language = factory.Sequence(lambda n: f"Language {n}")
-    lang_tag = factory.Sequence(lambda n: f"l{n:02d}")
+    # "qaa".."qtz" is reserved by ISO 639-3 for private use, so these never
+    # collide with a real seeded language code.
+    bcp47 = factory.Sequence(lambda n: f"q{chr(97 + (n // 26) % 20)}{chr(97 + n % 26)}")
 
 
 class CourseFactory(factory.django.DjangoModelFactory):
@@ -235,6 +239,33 @@ class BlankAnnotationFactory(factory.django.DjangoModelFactory):
     end_time = 20.0
     description = "Hide distracting visual content"
     type = "#"
+
+
+class BlurAnnotationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BlurAnnotation
+
+    track = factory.SubFactory(TrackFactory)
+    name = factory.Sequence(lambda n: f"Blur {n}")
+    start_time = 5.0
+    end_time = 12.0
+    description = "Blur sensitive on-screen content"
+
+
+class BlurAnnotationPositionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = BlurAnnotationPosition
+
+    blur_annotation = factory.SubFactory(BlurAnnotationFactory)
+    # Default to the parent's start_time rather than 0: the first position is the geometry in
+    # effect when the blur begins, so pinning it there is what makes it meaningful.
+    time = factory.SelfAttribute("blur_annotation.start_time")
+    # Deliberately asymmetric (x != y, width != height) so that an axis or dimension mix-up
+    # anywhere in the pipeline cannot cancel itself out and pass unnoticed.
+    x = 12.5
+    y = 30.0
+    width = 22.0
+    height = 14.0
 
 
 class CommentAnnotationFactory(factory.django.DjangoModelFactory):

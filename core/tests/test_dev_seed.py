@@ -10,6 +10,7 @@ from core.dev_features import DEMO_ADMIN_USERNAME
 from core.dev_seed import seed_demo_data
 from core.models import AnnotationSet
 from core.models import BlankAnnotation
+from core.models import BlurAnnotation
 from core.models import CommentAnnotation
 from core.models import Content
 from core.models import MuteAnnotation
@@ -134,11 +135,56 @@ class DemoSeedDataTests(TestCase):
             set(birds_annotation_set.editors.values_list("username", flat=True)),
             {DEMO_ADMIN_USERNAME, "111225555"},
         )
+        # The two seeded blurs are the fixture the blur geometry and editing work is verified
+        # against, so assert their shape here: one stationary, one moving.
+        watermark_blur = BlurAnnotation.objects.get(
+            active=True, track=birds_track, name="Bird Watermark"
+        )
+        flight_blur = BlurAnnotation.objects.get(
+            active=True, track=birds_track, name="Bird Flight Path"
+        )
+        self.assertEqual(
+            list(
+                watermark_blur.positions.order_by("time").values_list(
+                    "time", "x", "y", "width", "height"
+                )
+            ),
+            [(1.0, 68.0, 72.0, 26.0, 12.0)],
+        )
+        self.assertEqual(
+            list(
+                flight_blur.positions.order_by("time").values_list(
+                    "time", "x", "y", "width", "height"
+                )
+            ),
+            [
+                (3.0, 12.5, 30.0, 22.0, 14.0),
+                (7.0, 40.0, 22.0, 26.0, 17.0),
+                (11.0, 66.5, 44.0, 18.0, 11.0),
+            ],
+        )
+        for blur in (watermark_blur, flight_blur):
+            with self.subTest(blur=blur.name):
+                positions = list(blur.positions.order_by("time"))
+                # The first position is the geometry in effect when the blur begins.
+                self.assertEqual(positions[0].time, blur.start_time)
+                for position in positions:
+                    self.assertGreaterEqual(position.time, blur.start_time)
+                    self.assertLessEqual(position.time, blur.end_time)
+                    # Asymmetric on both axes, so an x/y or width/height mix-up anywhere
+                    # downstream cannot cancel itself out and pass unnoticed.
+                    self.assertNotEqual(position.x, position.y)
+                    self.assertNotEqual(position.width, position.height)
+                    # Fully inside the frame.
+                    self.assertGreaterEqual(position.x, 0)
+                    self.assertGreaterEqual(position.y, 0)
+                    self.assertLessEqual(position.x + position.width, 100)
+                    self.assertLessEqual(position.y + position.height, 100)
         self.assertFalse(grid_annotation_set.editors.exists())
         self.assertTrue(
             ResourceFile.objects.filter(
                 resource__name="Grid Overlay",
-                burned_in_subtitles_language__lang_tag="es",
+                burned_in_subtitles_language__bcp47="es",
             ).exists()
         )
         self.assertTrue(ResourceFileKey.objects.filter(user=admin_user).exists())

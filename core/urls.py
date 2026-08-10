@@ -281,17 +281,12 @@ urlpatterns = [
         name="delete_annotation",
     ),
     path(
-        "annotations/blur-position/create",
-        views_video_editor.create_blur_position,
-        name="create_blur_position",
+        "annotations/blur/<int:annotation_id>/positions/",
+        views_video_editor.upsert_blur_position,
+        name="upsert_blur_position",
     ),
     path(
-        "annotations/blur-position/update",
-        views_video_editor.update_blur_position,
-        name="update_blur_position",
-    ),
-    path(
-        "annotations/blur-position/delete/<int:position_id>",
+        "annotations/blur/positions/<int:position_id>/",
         views_video_editor.delete_blur_position,
         name="delete_blur_position",
     ),

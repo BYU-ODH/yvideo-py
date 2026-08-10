@@ -109,7 +109,20 @@ For local database-backed Django tests, run:
 uv run manage.py test
 ```
 
-That uses the normal project settings and migration graph.
+That uses the normal project settings and migration graph. No `collectstatic` is required:
+with `DEBUG = True` in `secret_settings.py` (the development and CI default), `{% static %}`
+resolves against `core/static/` directly. `collectstatic` and the hashed-filename
+`ManifestStaticFilesStorage` are production-only, where the deploy entrypoint runs them for you
+— see [DEPLOY.md](DEPLOY.md).
+
+For the pure-arithmetic Javascript unit tests, run:
+```bash
+node --test tests/js/*.test.js
+```
+
+These use Node's built-in test runner and need no npm install. They cover
+`core/static/js/video-geometry.js`, which decides where every blur annotation is drawn, and
+run as their own CI job.
 
 For browser-backed end-to-end tests against the deterministic demo dataset, run:
 ```bash
@@ -119,6 +132,12 @@ uv run pytest tests/e2e --browser chromium
 The pytest Playwright e2e suite runs headless Chromium, enables the local dev quick-login
 route for the test server, seeds demo data before each test, and runs in CI as a separate
 job instead of inside pre-commit.
+
+A few behaviours cannot be covered by either suite, because they depend on a platform the
+test browsers do not have — iOS media handling, a screen reader, real display hardware.
+See [MANUAL_TESTING.md](MANUAL_TESTING.md) for what those are, how to check them by hand,
+and why each one resists automation. Check it before releasing anything that touches video
+playback or blur annotations.
 
 To upgrade dependency versions, use the following commands:
 

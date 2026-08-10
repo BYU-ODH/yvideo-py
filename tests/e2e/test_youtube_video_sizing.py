@@ -9,6 +9,10 @@ pytestmark = [
     pytest.mark.django_db(transaction=True),
 ]
 
+# The intrinsic ratio youtube-video reports for itself - see YouTubeVideoElement's videoWidth for
+# why it is a constant rather than the real resolution.
+YOUTUBE_ASPECT_RATIO = 16 / 9
+
 
 def _create_youtube_content(title):
     playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
@@ -40,47 +44,73 @@ def _rect(page, selector):
     return page.eval_on_selector(selector, "el => el.getBoundingClientRect().toJSON()")
 
 
+# Where the picture actually sits inside youtube-video's element box. The box fills whatever space
+# the layout gives it, and the YouTube player fits the picture into the iframe the same way
+# `object-fit: contain` does for a real <video> - so the leftover space is letterbox (or pillarbox)
+# bars, and the element box is not what an annotation's percentages are relative to.
+#
+# Re-derived from the element's reported videoWidth/videoHeight here rather than by calling the
+# app's own contentRect(), so it stays an independent oracle instead of a tautology.
+def _picture_rect(page):
+    return page.evaluate(
+        """() => {
+            const el = document.querySelector('youtube-video');
+            const box = el.getBoundingClientRect();
+            const scale = Math.min(box.width / el.videoWidth, box.height / el.videoHeight);
+            const width = el.videoWidth * scale;
+            const height = el.videoHeight * scale;
+            return {
+                x: box.x + (box.width - width) / 2,
+                y: box.y + (box.height - height) / 2,
+                width: width,
+                height: height,
+            };
+        }"""
+    )
+
+
 def _approx_equal_rects(a, b, tol=1.0):
     return all(abs(a[k] - b[k]) <= tol for k in ("x", "y", "width", "height"))
 
 
-def test_youtube_iframe_fills_annotation_box_in_wide_mode(
+def _assert_overlay_tracks_picture(page):
+    youtube_video = _rect(page, "youtube-video")
+    iframe = _rect(page, "youtube-video iframe")
+    annotation_box = _rect(page, ".annotation-box")
+    picture = _picture_rect(page)
+
+    assert youtube_video["width"] > 0 and youtube_video["height"] > 0
+    # The embed fills the custom element's box; the player inside it, not the box, is what
+    # letterboxes.
+    assert _approx_equal_rects(youtube_video, iframe)
+    # So the overlay has to be pinned to the picture rather than to the box, or a blur's
+    # percentages land somewhere other than the frame the viewer sees.
+    assert _approx_equal_rects(annotation_box, picture)
+    assert annotation_box["width"] / annotation_box["height"] == pytest.approx(
+        YOUTUBE_ASPECT_RATIO, abs=0.01
+    )
+    # ...and the picture is inside the box it was measured from, never spilling past it.
+    assert annotation_box["width"] <= youtube_video["width"] + 1
+    assert annotation_box["height"] <= youtube_video["height"] + 1
+
+
+def test_youtube_overlay_tracks_picture_in_wide_viewport(
     page, live_server, seeded_demo_data
 ):
-    content = _create_youtube_content("Sizing - Wide Mode")
+    content = _create_youtube_content("Sizing - Wide Viewport")
     page.set_viewport_size({"width": 1280, "height": 900})
     _open_editor_and_wait_for_video(page, live_server, content)
 
-    wrapper = _rect(page, ".video-wrapper")
-    youtube_video = _rect(page, "youtube-video")
-    iframe = _rect(page, "youtube-video iframe")
-    annotation_box = _rect(page, ".annotation-box")
-
-    assert wrapper["width"] > 0 and wrapper["height"] > 0
-    assert _approx_equal_rects(wrapper, youtube_video)
-    assert _approx_equal_rects(wrapper, iframe)
-    assert _approx_equal_rects(wrapper, annotation_box)
+    _assert_overlay_tracks_picture(page)
 
 
-def test_youtube_iframe_fills_annotation_box_in_full_height_mode(
+def test_youtube_overlay_tracks_picture_in_short_viewport(
     page, live_server, seeded_demo_data
 ):
-    content = _create_youtube_content("Sizing - Full Height Mode")
-    # Ultra-wide, short viewport: the container's aspect ratio exceeds the
-    # assumed 16:9 video ratio, flipping AnnotationPlayer into full-height
-    # (pillarboxed) mode.
+    content = _create_youtube_content("Sizing - Short Viewport")
+    # Ultra-wide and short, so the element box ends up a different shape than in the test above
+    # and the bars fall on the other axis.
     page.set_viewport_size({"width": 1600, "height": 500})
     _open_editor_and_wait_for_video(page, live_server, content)
 
-    wrapper = _rect(page, ".video-wrapper")
-    youtube_video = _rect(page, "youtube-video")
-    iframe = _rect(page, "youtube-video iframe")
-    annotation_box = _rect(page, ".annotation-box")
-
-    assert page.eval_on_selector(
-        ".video-wrapper", "el => el.classList.contains('full-height')"
-    )
-    assert wrapper["width"] > 0 and wrapper["height"] > 0
-    assert _approx_equal_rects(wrapper, youtube_video)
-    assert _approx_equal_rects(wrapper, iframe)
-    assert _approx_equal_rects(wrapper, annotation_box)
+    _assert_overlay_tracks_picture(page)

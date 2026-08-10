@@ -37,6 +37,7 @@
     --dark-mode-border-color: #5a5a5a;
     --dark-mode-text-color: #dedede;
     --dark-mode-text-color-muted: #848484;
+    --dark-mode-text-color-dimmed: #a8a8a8;
     --zoom-thumb-width: 100%;
 }
 
@@ -591,8 +592,56 @@
     flex-direction: column;
 }
 
-.item-form h3 {
-    margin-top: 0;
+.item-form-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.item-form-header h3 {
+    margin: 0;
+}
+
+.item-form-header-actions,
+.undo-redo-toolbar {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.item-form-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    color: var(--dark-mode-text-color);
+    background: transparent;
+    cursor: pointer;
+}
+
+.item-form-icon-button:hover:not(:disabled),
+.item-form-icon-button:focus-visible {
+    background: var(--dark-mode-background-light);
+}
+
+.item-form-icon-button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.item-form-icon-button img {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+/* The trash is drawn taller than it is wide, so matching the arrows' width would shrink it. */
+#annotation-form-delete-button img {
+    width: auto;
 }
 
 #annotation-update-form {
@@ -688,17 +737,11 @@
     background: #357abd;
 }
 
-.form-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: auto;
-}
-
 #clip-next-last-buttons {
     margin-bottom: 1rem;
 }
 
-#annotation-form-save-button, #annotation-form-delete-button, .clip-change-button {
+.clip-change-button {
     background-color: var(--dark-mode-dark-gray);
     color: var(--dark-mode-very-light-gray);
     padding: 0.4rem 1rem;
@@ -707,7 +750,7 @@
     border-radius: 5px;
 }
 
-#annotation-form-save-button:hover, #annotation-form-delete-button:hover, .clip-change-button:hover {
+.clip-change-button:hover {
     cursor: pointer;
     background-color: var(--dark-mode-very-dark-gray);
 }
@@ -720,72 +763,123 @@
     padding: 0.2rem 1rem;
 }
 
-/* resize-points */
-.resize-point {
+.overlay-resize-handle {
+    --handle-inset: 7px;
     position: absolute;
-    width: 12px;
-    height: 12px;
+    box-sizing: content-box;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background-color: white;
+    border: 5px solid #00000000;
+    background-clip: padding-box;
     z-index: 2;
+    touch-action: none;
 }
 
-.resize-point-top {
-    top: -5px;
+.overlay-resize-handle[data-handle="nw"], .overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="ne"] {
+    top: calc(-1 * var(--handle-inset));
 }
 
-.resize-point-left {
-    left: -5px;
+.overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="e"] {
+    top: calc(50% - var(--handle-inset));
 }
 
-.resize-point:not(.resize-point-top) {
-    top: calc(100% - 6px);
+.overlay-resize-handle[data-handle="sw"], .overlay-resize-handle[data-handle="s"], .overlay-resize-handle[data-handle="se"] {
+    top: calc(100% - var(--handle-inset) - 1px);
 }
 
-.resize-point:not(.resize-point-left) {
-    left: calc(100% - 6px);
+.overlay-resize-handle[data-handle="nw"], .overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="sw"] {
+    left: calc(-1 * var(--handle-inset));
 }
 
-.resize-point-top.resize-point-left, .resize-point:not(.resize-point-top, .resize-point-left) {
+.overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="s"] {
+    left: calc(50% - var(--handle-inset));
+}
+
+.overlay-resize-handle[data-handle="ne"], .overlay-resize-handle[data-handle="e"], .overlay-resize-handle[data-handle="se"] {
+    left: calc(100% - var(--handle-inset) - 1px);
+}
+
+.overlay-resize-handle[data-handle="nw"], .overlay-resize-handle[data-handle="se"] {
     cursor: nwse-resize;
 }
 
-.resize-point-left.resize-point:not(.resize-point-top), .resize-point-top.resize-point:not(.resize-point-left) {
+.overlay-resize-handle[data-handle="ne"], .overlay-resize-handle[data-handle="sw"] {
     cursor: nesw-resize;
 }
 
+.overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="s"] {
+    cursor: ns-resize;
+}
+
+.overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="e"] {
+    cursor: ew-resize;
+}
+
 /* blur-positions */
-#positions-list p {
-    margin: 0;
+.blur-positions-help {
+    margin: 0.25rem 0 0.5rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    opacity: 0.8;
 }
 
-.position-headers, .position-entry {
-    display: grid;
-    grid-template-columns: minmax(0, 0.5fr) minmax(0, 2.5fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 0.5fr);
-    column-gap: 0.25rem;
-    padding: 6px;
-    align-items: center;
+.blur-position-status {
+    margin: 0.25rem 0 0;
+    min-height: 1.1rem;
+    font-size: 0.8rem;
+    opacity: 0.85;
 }
 
-.position-entry {
-    border-radius: 8px;
+#positions-list {
+    overflow-x: auto;
 }
 
-.position-input-group {
-    display: flex;
-    flex-direction: row;
-    column-gap: 4px;
-    align-items: center;
+#positions-list:focus-visible {
+    outline: 2px solid var(--blur-type-color, white);
+    outline-offset: 2px;
+}
+
+#blur-positions-table {
+    width: 100%;
+    min-width: 23rem;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.position-column-number {
+    width: 1.5rem;
+}
+
+.position-column-actions {
+    width: 1.4rem;
+}
+
+#blur-positions-table th, #blur-positions-table td {
+    padding: 6px 2px;
+    font-size: 0.8rem;
+    font-weight: normal;
+    text-align: left;
 }
 
 .position-input-group input {
+    width: 100%;
     min-width: 0;
-    flex: 1;
+    box-sizing: border-box;
+}
+
+#annotation-update-form .position-input-group input[readonly] {
+    color: var(--dark-mode-text-color-dimmed);
+    cursor: default;
 }
 
 .blur-position-delete-button {
     padding: 0;
     margin: 0;
+    width: 1.2rem;
+    height: 1.2rem;
     background-color: #ffffff00;
     border: none;
     display: none;
@@ -795,6 +889,7 @@
     height: 100%;
     width: 100%;
     padding: 3px;
+    box-sizing: border-box;
 }
 
 .blur-position-delete-button img:hover {
@@ -802,16 +897,41 @@
     border-radius: 4px;
 }
 
-.active-position-entry {
+.active-position-entry th, .active-position-entry td {
     background-color: var(--blur-type-color-transparent);
+}
+
+.active-position-entry th:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+.active-position-entry td:last-child {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
 }
 
 .active-position-entry .blur-position-delete-button {
     display: block;
 }
 
-.active-blur-position {
-    border: 1px dashed white;
+#blur-edit-rig {
+    position: absolute;
+    pointer-events: auto;
+    cursor: move;
+    touch-action: none;
+    outline: 1px dashed white;
+    outline-offset: -1px;
+    z-index: 3;
+}
+
+#blur-edit-rig[hidden] {
+    display: none;
+}
+
+#blur-edit-rig:focus-visible {
+    outline: 2px solid var(--blur-type-color, white);
+    outline-offset: -2px;
 }
 
 .blur-position-locator {
@@ -822,10 +942,26 @@
     border-radius: 50%;
     background-color: var(--dark-mode-light-gray);
     z-index: 2;
+    touch-action: none;
 }
 
 .blur-position-locator:hover {
     cursor: pointer;
+    box-shadow: 0px 3px 6px #00000075;
+}
+
+.blur-position-locator:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 1px;
+}
+
+.active-track-item .blur-position-locator:hover {
+    cursor: grab;
+}
+
+.dragging-blur-position-locator,
+.active-track-item .dragging-blur-position-locator:hover {
+    cursor: grabbing;
     box-shadow: 0px 3px 6px #00000075;
 }
 
@@ -838,11 +974,18 @@
     margin: 0;
 }
 
-.comment-text-box-editor-active {
-    border: 1px dashed white;
-    cursor: move;
-    z-index: 2;
+#comment-edit-rig {
+    position: absolute;
     pointer-events: auto;
+    cursor: move;
+    touch-action: none;
+    outline: 1px dashed white;
+    outline-offset: -1px;
+    z-index: 3;
+}
+
+#comment-edit-rig[hidden] {
+    display: none;
 }
 
 .btn {

@@ -4,7 +4,12 @@
     {% if youtube_video_id %}
         <youtube-video id="video-player" data-video-id="{{ youtube_video_id }}"></youtube-video>
     {% else %}
-        <video id="video-player" preload="auto">
+        {% comment %}
+        playsinline (+ the legacy webkit- spelling) keeps iOS from handing playback to the OS
+        fullscreen player, where our #annotation-box overlay is not composited and blurs would
+        silently not apply. disableRemotePlayback does the same for AirPlay/Cast.
+        {% endcomment %}
+        <video id="video-player" preload="auto" playsinline webkit-playsinline disableRemotePlayback>
             {% if resource_file_key_id %}
                 <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">
             {% elif content_source_url %}

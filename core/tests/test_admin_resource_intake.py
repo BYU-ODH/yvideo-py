@@ -47,9 +47,15 @@ class ResourceIntakeRequestAdminTests(TestCase):
             last_name="Instructor",
         )
         self.client.force_login(self.admin_user)
-        self.english = Language.objects.create(language="English", lang_tag="en")
-        self.spanish = Language.objects.create(language="Spanish", lang_tag="es")
-        self.french = Language.objects.create(language="French", lang_tag="fr")
+        self.english, _ = Language.objects.get_or_create(
+            bcp47="en", defaults={"language": "English"}
+        )
+        self.spanish, _ = Language.objects.get_or_create(
+            bcp47="es", defaults={"language": "Spanish"}
+        )
+        self.french, _ = Language.objects.get_or_create(
+            bcp47="fr", defaults={"language": "French"}
+        )
 
     def create_request(self, **overrides):
         values = {

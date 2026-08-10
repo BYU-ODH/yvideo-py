@@ -320,6 +320,9 @@ bash deploy/manage.sh shell           # open an interactive Django shell in the 
   `staticfiles.json` to `STATIC_ROOT` (as set in `settings.py`) on the host.
   Apache serves this directory directly at `/static/`. Templates must use
   Django's `{% static %}` tag so deployed pages reference the hashed filenames.
+  This is a deployment-only step: `settings.py` selects the hashed
+  `ManifestStaticFilesStorage` only when `DEBUG` is False, so development and CI
+  serve `core/static/` directly and never need to run `collectstatic`.
 - **Media files**: User uploads go to `media/`, also served directly by Apache at `/media/`.
 - **Apache file access**: Apache must be able to traverse the checkout path and read `staticfiles/` and `media/`. Set ownership, group membership, or ACLs accordingly.
 - **Gunicorn**: Runs with `--preload` and starts one legacy migration job-worker subprocess from the master when legacy migration is enabled. The worker and its interrupted-job recovery write to the same application journal. Set `WORKERS` and `THREADS` in `.env`; tune `WORKERS` based on available CPU cores, and only increase `THREADS` if requests spend significant time waiting on the DB or other I/O.

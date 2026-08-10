@@ -54,6 +54,19 @@ jobs:
     - name: Run Django tests
       run: uv run python manage.py test core
 
+  js-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+
+    - name: Run JS unit tests
+      run: node --test tests/js/*.test.js
+
   e2e:
     runs-on: ubuntu-latest
     steps:

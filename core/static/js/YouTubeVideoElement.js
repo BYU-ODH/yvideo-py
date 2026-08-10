@@ -43,8 +43,6 @@ export class YouTubeVideoElement extends HTMLElement {
       volume: 1,
       playbackRate: 1,
       loadedFraction: 0,
-      videoWidth: 0,
-      videoHeight: 0,
     };
     this._player = null;
     this._ready = false;
@@ -112,16 +110,6 @@ export class YouTubeVideoElement extends HTMLElement {
   _onReady() {
     this._ready = true;
     this._state.duration = this._player.getDuration();
-    // The IFrame Player API has no getter for the underlying video's
-    // intrinsic resolution, so this reports the element's own rendered box
-    // (forced to 16:9 by AnnotationPlayer.css) rather than the true video
-    // dimensions. Fine for standard 16:9 videos; non-16:9 videos (e.g.
-    // Shorts) won't get the same aspect-correct wrapper fit that file-backed
-    // <video> content gets from its real videoWidth/videoHeight.
-    const rect = this.getBoundingClientRect();
-    this._state.videoWidth = rect.width || DEFAULT_WIDTH;
-    this._state.videoHeight = rect.height || DEFAULT_HEIGHT;
-
     this._player.setVolume(this._state.volume * 100);
     if (this._state.muted) {
       this._player.mute();
@@ -248,12 +236,20 @@ export class YouTubeVideoElement extends HTMLElement {
     this._whenReady(() => this._player.setPlaybackRate(rate));
   }
 
+  // AnnotationPlayer treats these as a real <video>'s intrinsic size: it feeds
+  // them to contentRect() to find where the picture sits inside this element's
+  // box and pins the annotation overlay there. The IFrame Player API exposes no
+  // getter for the underlying video's resolution, so report a constant 16:9 -
+  // the shape of a standard YouTube upload - which is also how the YouTube
+  // player itself fits the picture into the iframe, so the overlay lands on it.
+  // A non-16:9 video (a Short, say) gets an overlay aligned to a 16:9 frame
+  // instead of its real one.
   get videoWidth() {
-    return this._state.videoWidth || DEFAULT_WIDTH;
+    return DEFAULT_WIDTH;
   }
 
   get videoHeight() {
-    return this._state.videoHeight || DEFAULT_HEIGHT;
+    return DEFAULT_HEIGHT;
   }
 
   // YouTube's own captions system is separate from the browser-native
