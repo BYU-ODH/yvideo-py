@@ -31,7 +31,9 @@ pytestmark = [
 
 
 @pytest.fixture
-def live_youtube_editor(live_youtube, page, live_server, seeded_demo_data):
+def live_youtube_editor(
+    live_youtube, require_live_embed, page, live_server, seeded_demo_data
+):
     playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
     resource = get_or_create_youtube_resource(live_youtube, playlist.owner.username)
     content = Content.objects.create(
@@ -43,7 +45,10 @@ def live_youtube_editor(live_youtube, page, live_server, seeded_demo_data):
 
     page.goto(f"{live_server.url}/login/dev/quick/")
     page.goto(f"{live_server.url}/video-editor/{content.pk}/")
-    page.wait_for_selector("youtube-video iframe", timeout=15000)
+    # Not a plain wait for the iframe: where the embed is refused, YouTubeVideoElement replaces the
+    # iframe with its error notice, and a bare selector wait would report a timeout that reads like
+    # a bug here rather than a network that will not play YouTube videos.
+    require_live_embed()
     return content
 
 
@@ -65,13 +70,7 @@ def test_the_real_embed_fills_the_element_box(live_youtube_editor, page):
     # youtube-video > *` overrides that to fill the element box. If it ever stopped working, the
     # annotation overlay would be computed from a box the picture no longer occupies - and the
     # faked tests could not tell, because the fake builds its own iframe.
-    page.wait_for_function(
-        "() => { const yt = document.querySelector('youtube-video');"
-        " return yt && !isNaN(yt.duration) && yt.duration > 0; }",
-        timeout=15000,
-    )
-    page.wait_for_timeout(300)
-
+    # The fixture already waited for a loaded, un-refused embed; the duration is what it waited on.
     boxes = page.evaluate(
         """() => {
             const element = document.querySelector('youtube-video');

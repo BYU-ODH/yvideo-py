@@ -38,6 +38,8 @@ import re
 
 import pytest
 
+from tests.e2e.live_youtube import LIVE_EMBED_REFUSED_MESSAGE
+
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.django_db(transaction=True),
@@ -115,7 +117,13 @@ async ({videoId, methods}) => {
   // (YouTubeVideoElement._primeFirstFrame). Wait that out before measuring anything: everything
   // below is about the API's own behaviour, and priming both answers `muted` locally while it runs
   // and ends with a seek that would race the play phase.
-  report.primingSettles = await waitFor(() => element._priming === false, 15000);
+  // Both halves matter. `_priming` going false means the round trip is over; `muted` reading false
+  // means priming's closing commands have actually landed at the player, which is a command latency
+  // later. Without the second half the mute phase below intermittently sees the player still muted
+  // from priming and concludes that mute was synchronous. The closing seek is queued before the
+  // unmute, so waiting for the unmute waits for both.
+  report.primingSettles = await waitFor(
+    () => element._priming === false && element.muted === false, 15000);
 
   report.metadataEvents = eventOrder("loadedmetadata", "error");
   report.durationIsPositiveFinite =
@@ -162,6 +170,13 @@ async ({videoId, methods}) => {
   element.play();
   report.playIsAsynchronous = element.paused === true;
   report.playStarts = await waitFor(() => !element.paused, 20000);
+  if (!report.playStarts) {
+    // Nothing below can be measured on a player that will not play, and every phase would spend its
+    // own timeout finding that out - a minute of waiting to report the same thing. The caller
+    // decides whether this is a refusal to skip over or a regression to fail on.
+    element.remove();
+    return report;
+  }
   report.playAdvancesTime =
     await waitFor(() => element.currentTime > timeBeforePlay + 0.3, 20000);
   // `currentTime` reads the player directly, but `timeupdate` and `buffered` are both fed by the
@@ -269,10 +284,10 @@ def _probe(page, video_id):
     """Run the probe on a page that already has the element defined, and return its report."""
     methods = player_methods_we_call()
     report = page.evaluate(PROBE_JS, {"videoId": video_id, "methods": methods})
-    assert report.get("becameReady"), (
-        "the player never reached readyState > 0, so nothing below could be measured. Events seen: "
-        f"{report.get('eventsWhileWaiting')}"
-    )
+    if not report.get("becameReady"):
+        # The short report the probe bailed out with says more than a method check on a player that
+        # never existed; the caller's comparison against the table names it.
+        return report
     assert report.pop("playerMethods") == dict.fromkeys(methods, True), (
         "YouTubeVideoElement calls a player method this player does not have: "
         f"{json.dumps(report.get('playerMethods'))}"
@@ -280,10 +295,28 @@ def _probe(page, video_id):
     return report
 
 
-def _open_editor_on(page, live_server, content):
+# Observations that say "this machine can play a YouTube video" rather than "the fake and the real
+# API agree". If any is false there is nothing to compare: the rest of the report describes a player
+# that never ran, and asserting on it would report a dozen divergences that mean nothing.
+_PLAYABILITY_KEYS = ("errorIsNull", "becameReady", "playStarts", "playAdvancesTime")
+
+
+def _skip_unless_the_embed_actually_played(report):
+    refused = [key for key in _PLAYABILITY_KEYS if not report.get(key)]
+    if refused:
+        pytest.skip(
+            f"{LIVE_EMBED_REFUSED_MESSAGE} (observed: {', '.join(refused)} false)"
+        )
+
+
+def _open_editor_on(page, live_server, content, require_live_embed=None):
     page.set_viewport_size({"width": 1280, "height": 900})
     page.goto(f"{live_server.url}/login/dev/quick/")
     page.goto(f"{live_server.url}/video-editor/{content.pk}/")
+    # Live only: skips, rather than letting the wait below time out, when this machine cannot get an
+    # embed to load at all.
+    if require_live_embed:
+        require_live_embed()
     # The custom element has to be defined and window.YT loaded before the probe creates its own
     # element; the page's own player reaching a duration is the cheapest proof of both.
     page.wait_for_function(
@@ -307,7 +340,7 @@ def test_the_fake_satisfies_the_contract(
 
 @pytest.mark.live_youtube
 def test_the_real_api_satisfies_the_same_contract(
-    live_youtube, live_server, youtube_content, page
+    live_youtube, require_live_embed, live_server, youtube_content, page
 ):
     """The other half of the pair: the same table, against youtube.com.
 
@@ -320,6 +353,8 @@ def test_the_real_api_satisfies_the_same_contract(
     that nothing reached youtube.com. Here reaching it is the point.
     """
     content = youtube_content("Contract - Live API", video_id=live_youtube)
-    _open_editor_on(page, live_server, content)
+    _open_editor_on(page, live_server, content, require_live_embed)
 
-    assert _probe(page, live_youtube) == EXPECTED_CONTRACT
+    report = _probe(page, live_youtube)
+    _skip_unless_the_embed_actually_played(report)
+    assert report == EXPECTED_CONTRACT

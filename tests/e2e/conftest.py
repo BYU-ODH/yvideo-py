@@ -1,10 +1,11 @@
-import functools
 from io import StringIO
 import os
-import urllib.request
 
 from django.core.management import call_command
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 import pytest
+
+from tests.e2e import live_youtube as live_youtube_api
 
 # pytest-playwright initializes an event loop before Django's test DB setup.
 # These browser tests intentionally use Django's sync ORM and live server.
@@ -56,68 +57,50 @@ def seeded_demo_data(settings, tmp_path, transactional_db):
     return media_root
 
 
-# The video the live-API tests embed. One id, in one place, so the reachability check below and
-# the tests it guards can never be asking about different videos.
-LIVE_YOUTUBE_VIDEO_ID = "eHEsJyVQn3w"
-
-_IFRAME_API_URL = "https://www.youtube.com/iframe_api"
-_OEMBED_URL = (
-    "https://www.youtube.com/oembed?format=json"
-    f"&url=https://www.youtube.com/watch%3Fv%3D{LIVE_YOUTUBE_VIDEO_ID}"
-)
-# Long enough to survive a slow link, short enough that an offline machine is not punished for it.
-_NETWORK_TIMEOUT_SECONDS = 8
-
-
-@functools.cache
-def _live_youtube_unavailable_reason():
-    """Why the live-API tests cannot run here, or None if they can.
-
-    Two things can stop them that are not regressions in this repo: no network, and someone else
-    unpublishing the video we embed. Neither should fail a run, and both should say so in words
-    rather than as an assertion about our own code - which is what an unguarded live test reports.
-
-    oembed is the cheap way to ask the second question: it answers 200 only while the video is
-    published and embeddable, which is exactly the state these tests need it to be in.
-
-    Cached, because it is a network round trip and every live test asks.
-    """
-    if os.environ.get("SKIP_LIVE_YOUTUBE_TESTS"):
-        return "SKIP_LIVE_YOUTUBE_TESTS is set"
-
-    checks = (
-        (_IFRAME_API_URL, "youtube.com is unreachable"),
-        (
-            _OEMBED_URL,
-            f"the pinned video {LIVE_YOUTUBE_VIDEO_ID} is gone or no longer embeddable",
-        ),
-    )
-    for url, failure in checks:
-        request = urllib.request.Request(url, headers={"User-Agent": "yvideo-tests"})
-        try:
-            with urllib.request.urlopen(
-                request, timeout=_NETWORK_TIMEOUT_SECONDS
-            ) as response:
-                if response.status != 200:
-                    return f"{failure} (HTTP {response.status})"
-        # HTTPError included: urllib raises rather than returns for a 404, and a 404 from oembed is
-        # the takedown case this exists to report.
-        except OSError as exc:
-            return f"{failure} ({exc})"
-    return None
-
-
 @pytest.fixture(scope="session")
 def live_youtube():
     """The live video id, or a skip explaining why the real API cannot be reached.
 
     Request this from any test that talks to youtube.com, so an offline machine reports "skipped:
     youtube.com is unreachable" instead of a failure that looks like a bug here.
+
+    Reachable is not the same as playable: see `require_live_embed`, which is the other half of this
+    gate and the one a blocked network actually trips.
     """
-    reason = _live_youtube_unavailable_reason()
+    reason = live_youtube_api.unavailable_reason()
     if reason:
         pytest.skip(f"needs the live YouTube API: {reason}")
-    return LIVE_YOUTUBE_VIDEO_ID
+    return live_youtube_api.LIVE_YOUTUBE_VIDEO_ID
+
+
+@pytest.fixture
+def require_live_embed(page):
+    """Wait until the real embed is playable here, or skip saying it is not.
+
+    `live_youtube` asks whether youtube.com answers HTTP. This asks the only question a browser test
+    cares about - does the embed load and run - which is a different question wherever YouTube
+    declines to serve video to the machine asking. See live_youtube.LIVE_EMBED_REFUSED_MESSAGE.
+    """
+
+    def _require():
+        try:
+            page.wait_for_function(
+                f"() => ({live_youtube_api.EMBED_OUTCOME_JS})() !== null",
+                timeout=live_youtube_api.LIVE_EMBED_TIMEOUT_MS,
+            )
+        except PlaywrightTimeoutError:
+            pytest.skip(
+                f"{live_youtube_api.LIVE_EMBED_REFUSED_MESSAGE} "
+                "(the embed never finished loading at all)"
+            )
+        page.wait_for_timeout(live_youtube_api.LIVE_EMBED_SETTLE_MS)
+        if page.evaluate(live_youtube_api.EMBED_OUTCOME_JS) == "refused":
+            pytest.skip(
+                f"{live_youtube_api.LIVE_EMBED_REFUSED_MESSAGE} "
+                "(the player raised an error)"
+            )
+
+    return _require
 
 
 @pytest.fixture

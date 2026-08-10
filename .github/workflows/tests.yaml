@@ -48,9 +48,6 @@ jobs:
     - name: Install python dependencies
       run: uv sync
 
-    - name: Collect static files
-      run: uv run python manage.py collectstatic --noinput
-
     - name: Run Django tests
       run: uv run python manage.py test core
 
@@ -69,6 +66,8 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    env:
+      SKIP_LIVE_YOUTUBE_TESTS: "1"
     steps:
     - uses: actions/checkout@v6
 

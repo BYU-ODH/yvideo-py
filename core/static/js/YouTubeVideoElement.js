@@ -161,7 +161,7 @@ export class YouTubeVideoElement extends HTMLElement {
   _primeFirstFrame() {
     if (this._playRequested) return;
     this._priming = true;
-    this._player.mute();
+    this._player.mute();  // Youtube does not allow autoplay with sound.
     this._player.playVideo();
     this._primeTimer = setTimeout(() => this._cancelPriming(), PRIME_TIMEOUT_MS);
   }

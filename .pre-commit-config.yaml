@@ -20,7 +20,8 @@ repos:
       - id: mixed-line-ending
       - id: name-tests-test
         args: [--pytest-test-first]
-        exclude: ^tests/e2e/fake_youtube\.py$
+        # Helper modules, not test modules: the YouTube API stand-in and the live-API gate.
+        exclude: ^tests/e2e/(fake_youtube|live_youtube)\.py$
       - id: no-commit-to-branch
       - id: requirements-txt-fixer
       - id: trailing-whitespace
