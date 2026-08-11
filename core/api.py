@@ -276,6 +276,13 @@ class Api:
             return None
 
     def get_student_enrollments(self, net_id, yearterm):
+        """This student's enrollment records for one term, or None if the lookup failed.
+
+        An empty list is an answer -- the student is enrolled in nothing this term --
+        and callers revoke course access on it. None means we do not know, so callers
+        must leave existing access alone. Anything we cannot parse makes the whole
+        lookup a failure for that reason: a partial list reads as a set of drops.
+        """
         url = (
             secret_settings.API_STUDENT_ENROLLMENTS_URL
             + "?net_id="
@@ -285,11 +292,22 @@ class Api:
         )
         headers = {"Authorization": self.build_auth_header()}
         records_request = requests.get(url, headers=headers)
-        records_json_res = records_request.json()
-        records_data = records_json_res["data"]
-        if records_data:
-            parsed_records = []
-            for record in records_data:
+        if records_request.status_code != 200:
+            self.logger.error(
+                f"Failed to get enrollments for {yearterm} because the API responded "
+                f"with {records_request.status_code}"
+            )
+            return None
+
+        try:
+            records_data = records_request.json()["data"]
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.error(f"Could not read the enrollments response: {e}")
+            return None
+
+        parsed_records = []
+        for record in records_data or []:
+            try:
                 parsed_records.append(
                     {
                         key: record[key]
@@ -306,6 +324,7 @@ class Api:
                         ]
                     }
                 )
-            return parsed_records
-        else:
-            return None
+            except (KeyError, TypeError) as e:
+                self.logger.error(f"Unreadable enrollment record {record}: {e}")
+                return None
+        return parsed_records

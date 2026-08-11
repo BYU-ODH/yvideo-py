@@ -521,6 +521,93 @@ class EnrolledStudentTests(TestCase):
         )
 
 
+class UnpublishedContentTests(TestCase):
+    """A draft inside a playlist someone can read is still a draft.
+
+    The playlist page hides unpublished rows from read-only users, but content ids are
+    sequential, so every endpoint that resolves a content has to check for itself.
+    """
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.course = CourseFactory()
+        self.playlist = PlaylistFactory(owner=self.owner, published=True)
+        self.playlist.courses.add(self.course)
+        self.resource_file = ResourceFileFactory()
+        self.draft = ContentFactory(
+            playlist=self.playlist, resource_file=self.resource_file, published=False
+        )
+        self.url_draft = ContentFactory(
+            playlist=self.playlist,
+            resource_file=None,
+            resource=self.resource_file.resource,
+            url="https://example.invalid/video.mp4",
+            published=False,
+        )
+
+        self.enrolled_student = UserFactory(student=True)
+        UserCourseFactory(
+            user=self.enrolled_student,
+            course=self.course,
+            yearterm=self.course.yearterm,
+        )
+        self.granted_student = UserFactory(student=True)
+        PlaylistUserAccessFactory(
+            user=self.granted_student,
+            playlist=self.playlist,
+            playlist_role=PlaylistRole.STUDENT,
+        )
+
+    def assert_draft_is_refused(self, user, content):
+        login(self.client, user)
+
+        self.assertEqual(
+            self.client.get(reverse("player", args=[content.pk])).status_code, 403
+        )
+        self.assertEqual(
+            self.client.post(reverse("get_player_data", args=[content.pk])).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(
+                reverse("display_content_info", args=[content.pk])
+            ).status_code,
+            403,
+        )
+
+    def test_an_enrolled_student_cannot_open_a_draft(self):
+        self.assert_draft_is_refused(self.enrolled_student, self.draft)
+
+    def test_a_granted_student_cannot_open_a_draft(self):
+        self.assert_draft_is_refused(self.granted_student, self.draft)
+
+    def test_an_enrolled_student_cannot_open_a_url_backed_draft(self):
+        self.assert_draft_is_refused(self.enrolled_student, self.url_draft)
+
+    def test_a_draft_mints_no_media_key(self):
+        self.assertIsNone(self.enrolled_student.get_resource_filekey(self.draft))
+        self.assertIsNone(self.granted_student.get_resource_filekey(self.draft))
+
+    def test_a_url_backed_draft_yields_no_source_url(self):
+        self.assertIsNone(self.enrolled_student.get_content_source_url(self.url_draft))
+
+    def test_the_owner_can_still_open_their_draft(self):
+        login(self.client, self.owner)
+
+        self.assertEqual(
+            self.client.get(reverse("player", args=[self.draft.pk])).status_code, 200
+        )
+
+    def test_publishing_the_draft_lets_a_student_in(self):
+        self.draft.published = True
+        self.draft.save()
+        login(self.client, self.enrolled_student)
+
+        self.assertEqual(
+            self.client.get(reverse("player", args=[self.draft.pk])).status_code, 200
+        )
+
+
 class TeachingAssistantTests(TestCase):
     """B1: a TA may do everything an owner may, except delete or promote."""
 

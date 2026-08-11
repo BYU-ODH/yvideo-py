@@ -83,6 +83,44 @@ def create_user_course_association(user, course, yearterm):
     return True
 
 
+def is_withdrawn(enrollment_record):
+    """The API marks a dropped enrollment with a withdraw_flag of "Y"."""
+    return str(enrollment_record.get("withdraw_flag", "")).strip().upper() == "Y"
+
+
+def sync_term_enrollment(user, yearterm, enrollment_records):
+    """Make this user's course associations for one term match `enrollment_records`.
+
+    Courses that are no longer returned are dropped, since course-derived playlist
+    access is supposed to follow current enrollment. `enrollment_records` must be a
+    list the API actually returned; callers check for a failed lookup first, because
+    revoking on one would lock a student out whenever the API is unreachable.
+    Returns False if any record could not be recorded, in which case nothing is
+    revoked either -- a partial list is indistinguishable from a set of drops.
+    """
+    succeeded = True
+    enrolled_course_ids = set()
+    for record in enrollment_records:
+        if is_withdrawn(record):
+            continue
+        course = get_or_create_course(record, yearterm)
+        if course is None:
+            succeeded = False
+            continue
+        if create_user_course_association(user, course, yearterm):
+            enrolled_course_ids.add(course.id)
+        else:
+            succeeded = False
+
+    if not succeeded:
+        return False
+
+    UserCourses.objects.filter(user=user, yearterm=yearterm).exclude(
+        course_id__in=enrolled_course_ids
+    ).delete()
+    return True
+
+
 def update_user_details(user):
     """
     Check if this user is a student or is an employee/faculty member. Update
@@ -171,8 +209,8 @@ def update_user_enrollment(user):
         "is_next_sem_updated": False,
         "result_message": "Failed to update user enrollment",
     }
-    # don't bother if we don't have a netid for the user
-    if user.username is None:
+    # The enrollments endpoint is keyed on netid; username holds the BYU ID.
+    if not user.netid:
         update_result["result_message"] = "Unknown user"
         return update_result
     # get the current yearterm
@@ -183,40 +221,26 @@ def update_user_enrollment(user):
     current_yearterm = current_yearterm_lookup["yearterm"]
     next_yearterm = api.calculate_next_year_term(current_yearterm)
 
-    current_user_enrollments = api.get_student_enrollments(
-        user.username, current_yearterm
-    )
+    current_user_enrollments = api.get_student_enrollments(user.netid, current_yearterm)
 
     updated_current_sem_correctly = True
     if current_user_enrollments is None:
         updated_current_sem_correctly = False
     else:
-        for course in current_user_enrollments:
-            course_obj = get_or_create_course(course, current_yearterm)
-            if course_obj is None:
-                updated_current_sem_correctly = False
-                continue
-
-            if not create_user_course_association(user, course_obj, current_yearterm):
-                updated_current_sem_correctly = False
+        updated_current_sem_correctly = sync_term_enrollment(
+            user, current_yearterm, current_user_enrollments
+        )
 
     updated_next_sem_correctly = True
     if current_yearterm_lookup["is_two_weeks_from_end"]:
-        next_yearterm_courses = api.get_student_enrollments(
-            user.username, next_yearterm
-        )
+        next_yearterm_courses = api.get_student_enrollments(user.netid, next_yearterm)
 
         if next_yearterm_courses is None:
             updated_next_sem_correctly = False
         else:
-            for course in next_yearterm_courses:
-                course_obj = get_or_create_course(course, next_yearterm)
-                if course_obj is None:
-                    updated_next_sem_correctly = False
-                    continue
-
-                if not create_user_course_association(user, course_obj, next_yearterm):
-                    updated_next_sem_correctly = False
+            updated_next_sem_correctly = sync_term_enrollment(
+                user, next_yearterm, next_yearterm_courses
+            )
 
     result_message = ""
     if not updated_current_sem_correctly or not updated_next_sem_correctly:

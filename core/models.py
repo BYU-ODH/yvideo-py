@@ -901,7 +901,18 @@ class Content(models.Model):
         return bool(self.playlist_id) and self.playlist.can_be_edited_by(user)
 
     def can_be_viewed_by(self, user):
-        return bool(self.playlist_id) and self.playlist.can_be_viewed_by(user)
+        """Unpublished content is a draft, so only the people who can edit it see it.
+
+        The playlist listing already hides unpublished rows from read-only users, but
+        content ids are sequential, so that is presentation rather than a boundary.
+        """
+        if self.can_be_edited_by(user):
+            return True
+        return (
+            self.published
+            and bool(self.playlist_id)
+            and self.playlist.can_be_viewed_by(user)
+        )
 
     def get_resource(self):
         if self.resource_id:
