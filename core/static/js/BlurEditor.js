@@ -175,9 +175,8 @@ export class BlurEditor {
     this.startTime = 0;
     this.endTime = 0;
     this.rig = null;
-    // A time to land on once selection settles, set by clicking a dot on a blur that is not the
-    // selected one. See select().
-    this.pendingSeek = null;
+    this.pendingPoint = null;
+    this.selectedPositionId = null;
     // Non-null only while a pointer is down; its presence stops _render from overwriting the
     // geometry the user is actively dragging.
     this.gesture = null;
@@ -190,14 +189,13 @@ export class BlurEditor {
     this._onRigPointerDown = this._onRigPointerDown.bind(this);
     this._onRigKeyDown = this._onRigKeyDown.bind(this);
     this._render = this._render.bind(this);
-    this._trackPlayhead = this._trackPlayhead.bind(this);
 
     // Two cadences, the same split the editor's scrubber and the player's progress bar already use:
     // `timeupdate`/`seeked` cover scrubbing and the paused case, while animateDuringPlayback runs
     // every animation frame, the rate at which the player moves the blur underneath the rig.
     this.video.addEventListener("timeupdate", this._render);
     this.video.addEventListener("seeked", this._render);
-    this._stopPlaybackTracking = animateDuringPlayback(this.video, this._trackPlayhead);
+    this._stopPlaybackTracking = animateDuringPlayback(this.video, this._render);
     // A pending nudge carries the time it was made at, so it can be written out on a seek rather
     // than holding the rig on a rect from a frame that is no longer on screen.
     this.video.addEventListener("seeking", () => this._flushNudge());
@@ -248,12 +246,11 @@ export class BlurEditor {
     this._readWindow();
     this.annotationBox.classList.add("annotation-box-blur-editor");
 
-    const requested = this.pendingSeek;
-    this.pendingSeek = null;
-    if (requested !== null && requested !== undefined) {
-      // Applied here rather than at the click, because selecting an item seeks to its start - and
-      // that happens after the click, so anything set earlier would be overwritten.
-      this.video.currentTime = requested;
+    const requested = this.pendingPoint;
+    this.pendingPoint = null;
+    if (requested) {
+      this.video.currentTime = requested.time;
+      this._selectPosition(requested.positionId);
     } else if (
       this.video.currentTime < this.startTime ||
       this.video.currentTime > this.endTime
@@ -278,13 +275,14 @@ export class BlurEditor {
     this.annotationId = null;
     // The panel rows go away with the form, but the timeline dots live in the track item and
     // outlive it, so the last point would stay lit on a blur that is no longer selected.
-    this._markPositionActive(null);
+    this._selectPosition(null);
   }
 
   syncFromPanel() {
     if (!this.annotationId) return;
     this._readWindow();
     this._render();
+    this._paintSelectedPosition();
   }
 
   // Saving an annotation writes a new version with a new id, so the selected blur's item bar and
@@ -410,11 +408,11 @@ export class BlurEditor {
     if (blur) applyRect(blur, rect);
   }
 
-  // Split out of _render because this is the half that has to keep up with playback: the player
-  // interpolates its blur every animation frame, so a rig that only moved on `timeupdate` trails
-  // visibly behind the region it is drawn around. Everything here has to stay cheap enough to run
-  // per frame, which is why the active-point bookkeeping stays in _render.
-  _trackPlayhead() {
+  // Draw the rig around wherever the blur is at the playhead. Runs every animation frame during
+  // playback, because the player interpolates its blur at that rate and a rig that only moved on
+  // `timeupdate` trails visibly behind the region it is drawn around - so this has to stay cheap.
+  // The selection is not touched here; it is painted where the rows change, not where time passes.
+  _render() {
     if (!this.annotationId || this.gesture || this.nudge) return;
     const rig = this._ensureRig();
     const time = this.video.currentTime;
@@ -427,14 +425,6 @@ export class BlurEditor {
     // would put two writers on one element: the player paints it from its own copy of the positions
     // while this reads the panel's data-* rows, so any disagreement would show up as a flicker.
     if (rect) applyRect(rig, rect);
-  }
-
-  _render() {
-    this._trackPlayhead();
-    if (!this.annotationId || this.gesture || this.nudge) return;
-    // Derived from the playhead rather than remembered from the last click, so the highlight
-    // survives a form reload or a save replacing the rows.
-    this._markPositionActive(this._pointAt(this.video.currentTime)?.id);
   }
 
   // --- gestures --------------------------------------------------------------
@@ -775,6 +765,7 @@ export class BlurEditor {
 
     this._readWindow();
     this._render();
+    this._paintSelectedPosition();
     return true;
   }
 
@@ -785,19 +776,33 @@ export class BlurEditor {
     if (status) status.textContent = message;
   }
 
-  _markPositionActive(positionId) {
-    const active = positionId === null || positionId === undefined ? null : String(positionId);
+  _goToPoint(positionId, time) {
+    const seconds = parseFloat(time);
+    if (Number.isFinite(seconds)) this.video.currentTime = seconds;
+    this._selectPosition(positionId);
+  }
+
+  _selectPosition(positionId) {
+    this.selectedPositionId =
+      positionId === null || positionId === undefined ? null : String(positionId);
+    this._paintSelectedPosition();
+  }
+
+  _paintSelectedPosition() {
+    let found = false;
     for (const [selector, activeClass] of [
       [".position-entry", "active-position-entry"],
       [".blur-position-locator", "active-blur-position-locator"],
     ]) {
       for (const element of document.querySelectorAll(selector)) {
-        element.classList.toggle(
-          activeClass,
-          active !== null && element.dataset["positionId"] === active,
-        );
+        const selected =
+          this.selectedPositionId !== null &&
+          element.dataset["positionId"] === this.selectedPositionId;
+        element.classList.toggle(activeClass, selected);
+        found = found || selected;
       }
     }
+    if (!found) this.selectedPositionId = null;
   }
 
   _onPanelClick(event) {
@@ -812,9 +817,7 @@ export class BlurEditor {
     if (event.button !== 0 || event.target.closest(".blur-position-delete-button")) return;
     const row = event.target.closest(".position-entry");
     if (!row) return;
-    const time = parseFloat(row.dataset["time"]);
-    if (Number.isFinite(time)) this.video.currentTime = time;
-    this._markPositionActive(row.dataset["positionId"]);
+    this._goToPoint(row.dataset["positionId"], row.dataset["time"]);
   }
 
   // The panel's fields name a point by id, so a numeric edit lands on that exact row wherever the
@@ -868,20 +871,18 @@ export class BlurEditor {
   _onLocatorClick(event) {
     const locator = event.target.closest(".blur-position-locator");
     if (!locator) return;
-    const time = parseFloat(locator.dataset["positionTime"]);
 
     if (locator.closest(".track-item")?.classList.contains("active-track-item")) {
-      // Already the selected blur, so keep the click to ourselves rather than letting the item
-      // refetch the form that is already on screen.
       event.stopPropagation();
-      if (Number.isFinite(time)) this.video.currentTime = time;
-      this._markPositionActive(locator.dataset["positionId"]);
       return;
     }
 
     // A different blur: let the click through so the item's handler selects it and loads its form,
     // but ask select() to land on the point that was clicked instead of the blur's start.
-    this.pendingSeek = Number.isFinite(time) ? time : null;
+    const time = parseFloat(locator.dataset["positionTime"]);
+    this.pendingPoint = Number.isFinite(time)
+      ? { time, positionId: locator.dataset["positionId"] }
+      : null;
   }
 
   // Drag a dot along the bar to retime its point. Only on the selected blur, because the panel rows
@@ -904,6 +905,8 @@ export class BlurEditor {
     // Part of keeping the track item's own HTML5 drag out of this gesture; see the dragstart
     // backstop in the constructor for the rest of it.
     event.preventDefault();
+
+    this._goToPoint(positionId, point.time);
 
     // Only the point's time changes. Captured once, so a repaint partway through the drag cannot
     // substitute an interpolated rect for the point's real one.
@@ -988,9 +991,7 @@ export class BlurEditor {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       event.stopPropagation();
-      const time = parseFloat(locator.dataset["positionTime"]);
-      if (Number.isFinite(time)) this.video.currentTime = time;
-      this._markPositionActive(locator.dataset["positionId"]);
+      this._goToPoint(locator.dataset["positionId"], locator.dataset["positionTime"]);
       return;
     }
 

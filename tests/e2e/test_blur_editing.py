@@ -1220,24 +1220,24 @@ def test_clicking_a_dot_on_an_unselected_blur_selects_both_the_blur_and_the_poin
     )
 
 
-def test_scrubbing_onto_a_point_highlights_it(page, open_editor):
-    """The highlight follows the playhead, not the last thing clicked.
-
-    That is what makes it survive a form reload, and it also answers "which point am I editing?"
-    while scrubbing - the question the panel exists to answer.
-    """
+def test_the_selected_point_stays_selected_as_the_playhead_moves(page, open_editor):
     open_editor()
     _select(page, MOVING_BLUR)
 
+    row = _row_for(page, 1)
+    expected = row.get_attribute("data-position-id")
+    row.click()
+    assert _highlighted(page) == {"rows": [expected], "dots": [expected]}
+
     _seek(page, 5.0)  # between points
-    assert _highlighted(page)["rows"] == [], (
-        "a tween is not a point and should highlight nothing"
+    assert _highlighted(page) == {"rows": [expected], "dots": [expected]}, (
+        "moving the playhead off the point unselected it"
     )
 
-    _seek(page, 11.0)  # exactly on the last point
-    on_point = _highlighted(page)
-    assert len(on_point["rows"]) == 1
-    assert on_point["rows"] == on_point["dots"]
+    _seek(page, 11.0)  # onto a different point
+    assert _highlighted(page) == {"rows": [expected], "dots": [expected]}, (
+        "the playhead, rather than the click, decided which point was selected"
+    )
 
 
 def test_the_highlight_clears_when_the_blur_loses_focus(page, open_editor):
