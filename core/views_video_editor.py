@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
+from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
@@ -20,6 +21,8 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
 from .forms import SubtitleForm
+from .models import BLUR_SNAP_SECONDS
+from .models import BLUR_TIME_PRECISION
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnnotation
@@ -39,6 +42,8 @@ from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_content_to_vtt
 from .utils import generate_vtt_cues_from_file_path
 from .utils import nudge_cue_times
+from .utils import time2seconds
+from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +132,21 @@ def return_annotation_if_authorized_and_exists(
         }
 
     try:
-        annotation = model_class.objects.get(id=annotation_id, active=True)
+        # NOTE: select_for_update does nothing on SQLite, which is the only backend this project
+        # configures - Django drops the whole FOR UPDATE clause when the backend reports
+        # has_select_for_update = False, so this compiles to a plain SELECT and no row is locked.
+        # It is here so the intent is recorded and the lookup is already correct if we ever move
+        # to a backend that supports it; of=("self",) then keeps the lock off the Track row that
+        # the annotation-set scoping below joins in. Concurrency on SQLite is currently protected
+        # only by its single-writer rule - see issue #181.
+        #
+        # The track__annotation_set filter, unlike the lock, is load-bearing today: without it any
+        # valid annotation id could be operated on through content the user can edit.
+        annotation = model_class.objects.select_for_update(of=("self",)).get(
+            id=annotation_id,
+            active=True,
+            track__annotation_set=annotation_set,
+        )
     except model_class.DoesNotExist:
         return {
             "success": False,
@@ -182,11 +201,16 @@ def video_editor(request, content_id):
             get_annotation_groups(annotations) if annotation_set is not None else []
         )
 
+        content_source_url = request.user.get_content_source_url(content)
+
         context = {
             "content": content,
             "content_id": content_id,
             "file_key": file_key.id if file_key else None,
-            "content_source_url": request.user.get_content_source_url(content),
+            "content_source_url": content_source_url,
+            "youtube_video_id": youtube_video_id_for_content(
+                content, content_source_url
+            ),
             "allow_events": True,
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,
@@ -252,6 +276,7 @@ def get_player_wrapper_html(request):
 
     try:
         resource_file_key = request.user.get_resource_filekey(content)
+        content_source_url = request.user.get_content_source_url(content)
         video_html = render_to_string(
             "core/partials/player-wrapper.html",
             {
@@ -259,7 +284,10 @@ def get_player_wrapper_html(request):
                 "resource_file_key_id": resource_file_key.pk
                 if resource_file_key
                 else None,
-                "content_source_url": request.user.get_content_source_url(content),
+                "content_source_url": content_source_url,
+                "youtube_video_id": youtube_video_id_for_content(
+                    content, content_source_url
+                ),
                 "editor_mode": True,
             },
             request=request,
@@ -313,25 +341,24 @@ def select_annotation_set(request):
         return HttpResponseServerError()
 
 
-def build_timeline_layers_html(request, content, annotation_set):
-    """Render the timeline track layers for an annotation set.
-
-    Used to refresh the timeline (HTMX target ``#annotation-timeline``) after an
-    undo/redo operation."""
-    tracks = annotation_set.get_tracks() if annotation_set is not None else []
-    return render_to_string(
-        "core/partials/timeline_base.html",
-        {
-            "tracks": tracks,
-            "annotation_set": annotation_set,
-            "content": content,
-        },
-        request,
+def build_annotation_version_response(request, content, annotation):
+    """Build every UI fragment needed after changing the active version."""
+    annotation_type = annotation.annotation_type
+    position = {"start": annotation.start_time, "end": annotation.end_time}
+    return JsonResponse(
+        generate_annotation_updated_html(
+            request,
+            content,
+            annotation,
+            annotation_type,
+            position,
+        )
     )
 
 
 @require_POST
 @login_required
+@transaction.atomic
 def undo_annotation(request, content_id):
     """Undo the last annotation edit for a specific annotation."""
     content = get_object_or_404(Content, id=content_id)
@@ -353,16 +380,12 @@ def undo_annotation(request, content_id):
     if not prev_version:
         return HttpResponse("Nothing to undo for this annotation", status=400)
 
-    # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
-    if timeline_layers_html:
-        return HttpResponse(timeline_layers_html)
-    else:
-        return HttpResponseServerError()
+    return build_annotation_version_response(request, content, prev_version)
 
 
 @require_POST
 @login_required
+@transaction.atomic
 def redo_annotation(request, content_id):
     """Redo the last undone annotation edit for a specific annotation."""
     content = get_object_or_404(Content, id=content_id)
@@ -384,12 +407,7 @@ def redo_annotation(request, content_id):
     if not next_version:
         return HttpResponse("Nothing to redo for this annotation", status=400)
 
-    # Prepare layers for timeline rendering
-    timeline_layers_html = build_timeline_layers_html(request, content, annotation_set)
-    if timeline_layers_html:
-        return HttpResponse(timeline_layers_html)
-    else:
-        return HttpResponseServerError()
+    return build_annotation_version_response(request, content, next_version)
 
 
 @require_POST
@@ -531,9 +549,7 @@ def create_annotation(request, annotation_type, track_id):
 
     annotation = model_class.objects.create(**data)
     if annotation_type == "blur":
-        BlurAnnotationPosition.objects.create(
-            blur_annotation=annotation, time=0, x=50, y=50, width=4, height=3
-        )
+        annotation.ensure_first_position()
 
     # Render item using shared partial
     track_item_html = render_to_string(
@@ -567,7 +583,14 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
         }
 
     try:
-        annotation = model_class.objects.get(id=annotation_id, active=True)
+        # Same as in return_annotation_if_authorized_and_exists: the lock is a no-op on SQLite and
+        # is kept for intent and future backends, while the track__annotation_set scoping is what
+        # actually protects this lookup today.
+        annotation = model_class.objects.select_for_update(of=("self",)).get(
+            id=annotation_id,
+            active=True,
+            track__annotation_set=content.annotation_set,
+        )
     except model_class.DoesNotExist:
         return {
             "success": False,
@@ -583,172 +606,217 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
     return {"success": True, "result": annotation}
 
 
-def get_list_of_blur_annotation_positions(blur_annotation_parent):
+# The 4xx bodies below are shown to the user verbatim - BlurEditor puts the response body in the
+# points panel's status line (see serverMessage in core/static/js/BlurEditor.js) rather than keeping
+# its own copy of the wording. So these are user-facing copy, not developer strings, and they are the
+# only copy of it.
+#
+# 400s deliberately have no body: a malformed request is a bug in the editor, not something the user
+# did, and there is nothing to tell them beyond the generic failure the client falls back to.
+BLUR_POSITION_FORBIDDEN = "You do not have permission to edit this annotation set."
+BLUR_POSITION_TIME_TAKEN = "Another blur point is already at that time."
+BLUR_POSITION_FIRST_UNDELETABLE = (
+    "The first point follows the blur's start time and cannot be deleted."
+)
+
+
+def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
+    """Everything the page needs to redraw one blur's points after a write.
+
+    Three projections of a single list, because three parts of the page consume it differently: the
+    points panel (`blurPositions`), the timeline bar's dots (`trackItem`), and the player's own copy
+    of the annotation (`positions`, the only one that is data rather than markup).
+
+    Anything new that needs these positions should read one of the two client-side copies - the
+    player's array, or the panel's row `data-*` attributes, which BlurEditor._positions() treats as
+    canonical - rather than becoming a fourth thing to patch on every save.
+    """
     try:
-        blur_positions = list(
-            BlurAnnotationPosition.objects.filter(
-                blur_annotation=blur_annotation_parent
-            ).order_by("time")
+        # Prefetched so the three projections below share one read of the relation; each calls
+        # positions.all() independently, which is otherwise three identical queries per point edit.
+        parent_annotation = BlurAnnotation.objects.prefetch_related("positions").get(
+            pk=parent_annotation_id
         )
     except Exception as e:
-        logger.error(f"Failed to get blur positions. Exception: {e}")
-        return []
-    return blur_positions
-
-
-def generate_blur_item_and_positions_html(parent_annotation_id):
-    try:
-        parent_annotation = BlurAnnotation.objects.get(pk=parent_annotation_id)
-    except Exception as e:
         logger.error(
-            f"Failed to get parent_annotation while updateing blur positions html. Exception: {e}"
+            f"Failed to get parent_annotation while updating blur positions html. Exception: {e}"
         )
         return False
 
     try:
-        blur_positions = get_list_of_blur_annotation_positions(parent_annotation)
         blur_positions_html = render_to_string(
-            "core/partials/blur_positions.html", {"item_positions": blur_positions}
+            "core/partials/blur_positions.html",
+            {"item_positions": parent_annotation.positions.all()},
+            request=request,
         )
         track_item_html = render_to_string(
-            "core/partials/item.html", {"item": parent_annotation}
+            "core/partials/item.html",
+            {"item": parent_annotation},
+            # item.html contains {% csrf_token %}, which renders empty without a request.
+            request=request,
         )
-        return {"blurPositions": blur_positions_html, "trackItem": track_item_html}
+        return {
+            "blurPositions": blur_positions_html,
+            "trackItem": track_item_html,
+            "positions": [
+                position.to_json() for position in parent_annotation.positions.all()
+            ],
+        }
 
     except Exception as e:
-        logger.error(f"Failed to generate blur_postion html. Exception: {e}")
+        logger.error(f"Failed to generate blur_position html. Exception: {e}")
         return False
 
 
 @require_POST
-def create_blur_position(request):
+@login_required
+@transaction.atomic
+def upsert_blur_position(request, annotation_id):
+    """Write the geometry of one blur position, creating it if there isn't one yet.
+
+    One endpoint for create and update because the editor cannot tell the difference: a drag means
+    "the blur belongs *here* at the time I'm looking at", and whether that is a new point or an
+    existing one is a fact about stored data, not about the gesture. Deciding it here - where the
+    stored times are - stops a drag at a new time from silently retiming the last point touched.
+
+    `position_id` is optional and means "this exact row", for the numeric inputs and for
+    dragging a timeline dot, where the user is deliberately naming a point rather than a time.
+    """
+    # `active=True` because a deleted annotation is one delete_with_history() marked inactive, and
+    # undo() can bring it back; a write accepted in between would resurrect it carrying points nobody
+    # placed deliberately.
+    annotation = get_object_or_404(BlurAnnotation, pk=annotation_id, active=True)
+    if not annotation.track.annotation_set.can_edit(request.user):
+        return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
+
     try:
         parsed_body = json.loads(request.body)
-        parent_annotation_id = parsed_body["parent_annotation_id"]
+        geometry = {
+            field: parsed_body[field] for field in ("x", "y", "width", "height")
+        }
         position_time = parsed_body["time"]
-        position_x = parsed_body["x"]
-        position_y = parsed_body["y"]
-        position_width = parsed_body["width"]
-        position_height = parsed_body["height"]
+        position_id = parsed_body.get("position_id")
     except Exception as e:
-        logger.error(
-            f"Unable to parse data for updating or creating blur positions: {e}"
-        )
+        logger.error(f"Unable to parse data for writing a blur position: {e}")
         return HttpResponseBadRequest()
 
-    if (
-        not parent_annotation_id
-        or not position_time
-        or not position_x
-        or not position_y
-        or not position_width
-        or not position_height
-    ):
+    # `is None` rather than a falsy test: 0 is legitimate for every one of these - a box flush against
+    # the left or top edge, or a position at the very start.
+    if position_time is None or any(value is None for value in geometry.values()):
         return HttpResponseBadRequest()
 
-    # check if the position already exists
     try:
-        num_of_pre_existing_objs = BlurAnnotationPosition.objects.filter(
-            blur_annotation__pk=parent_annotation_id, time=position_time
-        ).count()
-        if num_of_pre_existing_objs > 0:
-            return HttpResponse(status=200)
-    except Exception as e:
-        logger.error(f"Failed to query BlurAnnotationPositions. Exception: {e}")
-        return HttpResponseServerError()
-
-    try:
-        parent_annotation = get_object_or_404(BlurAnnotation, pk=parent_annotation_id)
-        if parent_annotation.end_time < round(float(position_time), 2):
-            return HttpResponseBadRequest(
-                "New blur position cannot occur at a time greater than the blur annotation's end time"
-            )
-        elif parent_annotation.start_time > round(float(position_time), 2):
-            return HttpResponseBadRequest(
-                "New blur position cannot occur before the start time of the parent blur annotation"
-            )
-        BlurAnnotationPosition.objects.create(
-            blur_annotation=parent_annotation,
-            time=position_time,
-            x=position_x,
-            y=position_y,
-            width=position_width,
-            height=position_height,
-        )
-    except Exception as e:
-        logger.error(f"Failed to create new BlurAnnotationPosition. Exception: {e}")
-        return HttpResponseServerError()
-
-    item_and_position_html = generate_blur_item_and_positions_html(parent_annotation_id)
-    if item_and_position_html is False:
-        return HttpResponseServerError()
-    return JsonResponse(item_and_position_html)
-
-
-@require_POST
-def update_blur_position(request):
-    try:
-        parsed_body = json.loads(request.body)
-        position_id = parsed_body["position_id"]
-        position_time = parsed_body["time"]
-        position_x = parsed_body["x"]
-        position_y = parsed_body["y"]
-        position_height = parsed_body["height"]
-        position_width = parsed_body["width"]
-    except Exception as e:
-        logger.error(
-            f"Unable to parse data for updating or creating blur positions: {e}"
-        )
+        position_time = round(float(position_time), BLUR_TIME_PRECISION)
+        geometry = {field: float(value) for field, value in geometry.items()}
+    except (TypeError, ValueError):
         return HttpResponseBadRequest()
 
-    # update the existing BlurAnnotationPosition
+    # Clamped instead of rejected: the editor only offers the rig while the playhead is inside the
+    # blur's window, so an out-of-range time is rounding at a boundary or a stale request. The model
+    # clamps geometry the same way.
+    position_time = min(annotation.end_time, max(annotation.start_time, position_time))
+
+    if position_id is not None:
+        # Scoped to this annotation: an id belonging to someone else's blur is a 404, not an
+        # opening to write through it.
+        position = get_object_or_404(
+            BlurAnnotationPosition, pk=position_id, blur_annotation=annotation
+        )
+        position.time = position_time
     else:
-        try:
-            this_blur_position = BlurAnnotationPosition.objects.get(pk=position_id)
-            this_blur_position.time = position_time
-            this_blur_position.x = position_x
-            this_blur_position.y = position_y
-            this_blur_position.height = position_height
-            this_blur_position.width = position_width
-            this_blur_position.save()
-            item_and_positions_html = generate_blur_item_and_positions_html(
-                this_blur_position.blur_annotation.pk
-            )
-            if item_and_positions_html is False:
-                return HttpResponseServerError()
-            return JsonResponse(item_and_positions_html)
-        except Exception as e:
-            logger.error(f"Unable to update pre-existing BlurAnnotationPosition: {e}")
-            return HttpResponseServerError()
-
-
-def delete_blur_position(request, position_id):
-    try:
-        position = BlurAnnotationPosition.objects.get(pk=position_id)
-        # I know this looks dumb, but if i used position.blur_annotation to get the parent,
-        # the reference to that parent is deleted once position is deleted. I do this to
-        # allow for access to the parent after the position is deleted
-        blur_annotation_parent = BlurAnnotation.objects.get(
-            pk=position.blur_annotation.pk
+        # A point already sitting within a frame or two of the playhead *is* the point the user is
+        # editing, so keep its time and only move the box. Anything else creates a point.
+        #
+        # The *nearest* candidate, not the earliest, because BlurEditor._pointAt picks the closest and
+        # the two have to agree: two points less than BLUR_SNAP_SECONDS apart (which the panel's time
+        # field allows) would otherwise land a drag on a neighbour.
+        nearby = annotation.positions.filter(
+            time__gte=position_time - BLUR_SNAP_SECONDS,
+            time__lte=position_time + BLUR_SNAP_SECONDS,
         )
+        position = min(
+            nearby,
+            key=lambda candidate: abs(candidate.time - position_time),
+            default=None,
+        ) or BlurAnnotationPosition(blur_annotation=annotation, time=position_time)
+
+    # Recorded before save() gives it a pk. Only this side of the request knows whether a drag added a
+    # point or moved one, and the editor reports that to the user.
+    created = position.pk is None
+
+    for field, value in geometry.items():
+        setattr(position, field, value)
+
+    try:
+        # An inner savepoint so a rejected retime does not poison the outer transaction: the
+        # views below this line still have to query to rebuild the panel.
+        with transaction.atomic():
+            position.save()
+    except IntegrityError:
+        # Only reachable by retiming a named position onto another one's time, which the panel's
+        # time input allows. The request is well-formed, so 409 rather than 400.
+        return HttpResponse(BLUR_POSITION_TIME_TAKEN, status=409)
     except Exception as e:
-        logger.error(
-            f"Failed to get blur annotation parent while deleting annotation. Exception: {e}"
-        )
+        logger.error(f"Failed to save BlurAnnotationPosition. Exception: {e}")
+        return HttpResponseServerError()
+
+    # A retime could have moved some other point ahead of the earliest one, and the first point
+    # is the geometry in effect when the blur starts, so it has to stay pinned to start_time.
+    annotation.ensure_first_position()
+
+    item_and_positions_html = generate_blur_item_and_positions_html(
+        annotation.pk, request=request
+    )
+    if item_and_positions_html is False:
+        return HttpResponseServerError()
+    # Read back rather than echoed from the request: the time is clamped into the blur's window, may
+    # snap onto a nearby point, and ensure_first_position above can retime this very row. The editor
+    # puts this in front of the user, so it has to be the time that was actually stored.
+    saved_time = (
+        BlurAnnotationPosition.objects.filter(pk=position.pk)
+        .values_list("time", flat=True)
+        .first()
+    )
+    return JsonResponse(
+        {
+            **item_and_positions_html,
+            "created": created,
+            "time": position_time if saved_time is None else saved_time,
+        }
+    )
+
+
+@require_http_methods(["DELETE"])
+@login_required
+@transaction.atomic
+def delete_blur_position(request, position_id):
+    # Scoped to a live annotation, matching upsert_blur_position: an inactive blur is deleted as
+    # far as the editor is concerned, and its points are the record undo() restores.
+    position = get_object_or_404(
+        BlurAnnotationPosition, pk=position_id, blur_annotation__active=True
+    )
+    annotation = position.blur_annotation
+    if not annotation.track.annotation_set.can_edit(request.user):
+        return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
+
+    # A blur with no positions has no geometry and cannot render, and the earliest position is the one
+    # that supplies the geometry the blur starts with. 409, not 400: the request is well-formed, it
+    # just conflicts with that invariant.
+    if position.pk == annotation.positions.values_list("pk", flat=True).first():
+        return HttpResponse(BLUR_POSITION_FIRST_UNDELETABLE, status=409)
 
     try:
-        if position.time > 0:
-            position.delete()
-        else:
-            return HttpResponseBadRequest()
+        position.delete()
     except Exception as e:
         logger.error(f"Failed to delete blur position. Exception: {e}")
         return HttpResponseServerError()
 
-    if not blur_annotation_parent:
-        return HttpResponse(status=205)
-    else:
-        return HttpResponse()
+    item_and_positions_html = generate_blur_item_and_positions_html(
+        annotation.pk, request=request
+    )
+    if item_and_positions_html is False:
+        return HttpResponseServerError()
+    return JsonResponse(item_and_positions_html)
 
 
 def generate_annotation_updated_html(
@@ -762,10 +830,7 @@ def generate_annotation_updated_html(
 
     item_positions = []
     if annotation_type == "blur":
-        try:
-            item_positions = get_list_of_blur_annotation_positions(annotation)
-        except Exception as e:
-            logger.error(f"Failed to get blur annotation positions. Exception: {e}")
+        item_positions = annotation.positions.all()
 
     form_html = render_to_string(
         "core/partials/annotation_form.html",
@@ -774,7 +839,7 @@ def generate_annotation_updated_html(
             "instance": annotation,
             "item_type_label": annotation_type.title(),
             "content": content,
-            "can_edit": True,
+            "can_edit": annotation.track.annotation_set.can_edit(request.user),
             "start_seconds": position["start"],
             "end_seconds": position["end"],
             "item_positions": item_positions,
@@ -782,7 +847,24 @@ def generate_annotation_updated_html(
         request=request,
     )
 
-    return {"item_html": item_html, "form_html": form_html}
+    panel_item_html = render_to_string(
+        "core/partials/annotation_list_item.html",
+        {
+            "id": annotation.pk,
+            "type": annotation_type,
+            "name": annotation.name,
+        },
+        request=request,
+    )
+
+    return {
+        "annotation_id": annotation.pk,
+        "annotation_type": annotation_type,
+        "track_id": annotation.track_id,
+        "item_html": item_html,
+        "panel_item_html": panel_item_html,
+        "form_html": form_html,
+    }
 
 
 @require_POST
@@ -804,14 +886,22 @@ def update_annotation(request, annotation_type, annotation_id):
             return validation_result["result"]
         annotation = validation_result["result"]
 
+        # Captured before any field is reassigned: reconcile_positions below needs the window
+        # the positions were authored against to tell a move apart from a resize.
+        old_start = annotation.start_time
+        old_end = getattr(annotation, "end_time", old_start)
+
         fields_to_update = {}
-        fields_to_update["start_time"] = json_data["start_time"]
+        fields_to_update["start_time"] = time2seconds(json_data["start_time"])
         if "annotation_name" in json_data:
             fields_to_update["name"] = json_data["annotation_name"]
 
         if "track_id" in json_data and json_data["track_id"] is not None:
             try:
-                new_track = Track.objects.get(pk=json_data["track_id"])
+                new_track = Track.objects.get(
+                    pk=json_data["track_id"],
+                    annotation_set=annotation.track.annotation_set,
+                )
                 fields_to_update["track"] = new_track
             except Track.DoesNotExist:
                 logger.error(
@@ -826,7 +916,7 @@ def update_annotation(request, annotation_type, annotation_id):
             fields_to_update["description"] = json_data["description"]
 
         if annotation_type != "pause":
-            fields_to_update["end_time"] = json_data["end_time"]
+            fields_to_update["end_time"] = time2seconds(json_data["end_time"])
 
         if (
             annotation_type == "pause" or annotation_type == "skip"
@@ -863,12 +953,10 @@ def update_annotation(request, annotation_type, annotation_id):
             if "font_color" in json_data:
                 fields_to_update["font_color"] = json_data["font_color"]
 
-        for key, value in fields_to_update.items():
-            setattr(annotation, key, value)
-
-        annotation.save()
-        if annotation_type == "blur":
-            annotation.remove_positions_outside_of_timebox()
+        with transaction.atomic():
+            annotation = annotation.edit(**fields_to_update)
+            if annotation_type == "blur":
+                annotation.reconcile_positions(old_start, old_end)
         annotation.refresh_from_db()
 
         new_start_time = annotation.start_time
@@ -878,10 +966,7 @@ def update_annotation(request, annotation_type, annotation_id):
         new_annotation_html = generate_annotation_updated_html(
             request, content, annotation, annotation_type, position
         )
-        item_html = new_annotation_html["item_html"]
-        form_html = new_annotation_html["form_html"]
-
-        return JsonResponse({"item_html": item_html, "form_html": form_html})
+        return JsonResponse(new_annotation_html)
     except Exception as e:
         logger.error(f"Failed to update annotation. Exception: {e}")
         return HttpResponseServerError()
@@ -932,6 +1017,9 @@ def load_annotation_form(request, annotation_type, annotation_id):
 
     content_id = request.GET.get("content_id")
     content = get_object_or_404(Content, id=content_id)
+
+    if annotation.track.annotation_set_id != content.annotation_set_id:
+        return HttpResponseNotFound("Annotation does not belong to this content")
 
     if not annotation.track.annotation_set.can_edit(request.user):
         return HttpResponse(
@@ -1048,19 +1136,20 @@ def create_annotation_set(request):
                 )
                 return HttpResponseBadRequest()
 
-        annotation_set = AnnotationSet.create_for_content(
-            content,
-            request.user,
-            set_name=name,
-            annotation_set_json=annotation_set_json,
-            annotation_set_id_to_copy=annotation_set_id_to_copy,
-        )
+        with transaction.atomic():
+            annotation_set = AnnotationSet.create_for_content(
+                content,
+                request.user,
+                set_name=name,
+                annotation_set_json=annotation_set_json,
+                annotation_set_id_to_copy=annotation_set_id_to_copy,
+            )
 
-        if annotation_set is None:
-            return HttpResponseServerError()
+            if annotation_set is None:
+                return HttpResponseServerError()
 
-        content.annotation_set = annotation_set
-        content.save()
+            content.annotation_set = annotation_set
+            content.save()
 
         return HttpResponse()
 
@@ -1257,12 +1346,13 @@ def update_track_positions_in_set(request):
         return HttpResponseServerError()
 
     try:
-        index = 0
-        for track_id in parsed_data["track_ids"]:
-            track = Track.objects.get(pk=track_id)
-            track.stack_position = index
-            track.save()
-            index += 1
+        with transaction.atomic():
+            index = 0
+            for track_id in parsed_data["track_ids"]:
+                track = Track.objects.get(pk=track_id)
+                track.stack_position = index
+                track.save()
+                index += 1
     except Exception as e:
         logger.error(f"Failed to update track positions. Exception: {e}")
         return HttpResponseServerError()
@@ -1414,15 +1504,16 @@ def update_subtitle_metadata(request):
                 subtitle_obj.is_original = data["is_original"]
             if "words" in request.POST:
                 subtitle_obj.words = data["words"]
-            subtitle_obj.save()
-
-            # remove temp file when main file is updated
-            # this is not included where subtitles_file is set because we want
-            # to ensure we don't over write the temp file unless the main file
-            # is successfully updated.
-            if uploaded_file is not None:
-                subtitle_obj.subtitles_temp_file = None
+            with transaction.atomic():
                 subtitle_obj.save()
+
+                # remove temp file when main file is updated
+                # this is not included where subtitles_file is set because we want
+                # to ensure we don't over write the temp file unless the main file
+                # is successfully updated.
+                if uploaded_file is not None:
+                    subtitle_obj.subtitles_temp_file = None
+                    subtitle_obj.save()
 
             return render(
                 request,

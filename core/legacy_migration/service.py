@@ -13,6 +13,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
 
+from ..models import BLUR_TIME_PRECISION
 from ..models import AnnotationSet
 from ..models import BlankAnnotation
 from ..models import BlurAnnotation
@@ -73,7 +74,59 @@ logger = logging.getLogger(__name__)
 # language, so it's never trustworthy coming out of a legacy dump. Treat it
 # as unresolved so migration always forces an admin to pick the real
 # language instead of silently importing it.
-UNTRUSTWORTHY_LEGACY_LANGUAGE_ISO_639_3 = "cak"
+UNTRUSTWORTHY_LEGACY_LANGUAGE_BCP47 = "cak"
+
+
+def blur_positions_from_legacy(position_map, start_time, end_time):
+    """A legacy censor's keyframes, in this app's coordinate space and obeying its invariants.
+
+    Legacy stored `{key: [time, centerX, centerY, width, height]}` with the geometry anchored at the
+    box's **center**; BlurAnnotationPosition stores the top-left corner, one row per time. Importing
+    the numbers verbatim would put every box `width/2` right and `height/2` down from where its author
+    placed it, leaving the bottom-right of whatever it covered exposed.
+
+    The keys were arbitrary ids, so they carry no ordering and nothing stopped two keyframes sharing a
+    moment. That was harmless in an unordered JSON blob and is not here: the unique
+    (blur_annotation, time) index added in migration 0004 makes it an IntegrityError, and
+    _import_annotations runs outside a transaction, so an unhandled one abandons a migration job
+    part-way through a playlist.
+
+    Returns creation kwargs sorted by time. Corners that convert to negatives are left as they are -
+    BlurAnnotationPosition.save clamps them onto the frame, which keeps a single definition of what a
+    valid box is.
+    """
+    by_quantized_time = {}
+    for values in (position_map or {}).values():
+        if not isinstance(values, list) or len(values) < 5:
+            continue
+        try:
+            time, center_x, center_y, width, height = (
+                float(value or 0) for value in values[:5]
+            )
+        except (TypeError, ValueError):
+            # Legacy annotations are a free-form blob written by another application, so a non-numeric
+            # entry is bad data to skip rather than a reason to fail the import.
+            continue
+        if time > end_time:
+            # Unreachable, and its locator dot would sit past the end of the item's bar.
+            continue
+        # Quantized here as well as in save(), because the rounded time is what a collision happens
+        # on. Among exact ties the last one encountered wins, arbitrarily: legacy keys are ids, so
+        # there is no ordering to appeal to.
+        by_quantized_time[round(time, BLUR_TIME_PRECISION)] = {
+            "time": time,
+            "x": center_x - width / 2,
+            "y": center_y - height / 2,
+            "width": width,
+            "height": height,
+        }
+
+    positions = [by_quantized_time[time] for time in sorted(by_quantized_time)]
+    # Of the keyframes before the censor starts, only the last was still showing when it began;
+    # ensure_first_position pins that one to start_time. Migration 0004 applies the same rule, so a
+    # re-import cannot reintroduce data that migration was written to clean up.
+    started_early = sum(1 for position in positions if position["time"] < start_time)
+    return positions[max(0, started_early - 1) :]
 
 
 class LegacyMigrationJobCanceled(Exception):
@@ -530,6 +583,7 @@ class LegacyMigrationService:
             groups.setdefault(key, []).append(file_decision)
         return [group for group in groups.values() if len(group) > 1]
 
+    @transaction.atomic
     def sync_request_issues(self, request_obj):
         self.sync_resource_reuse_targets(request_obj)
         request_obj.issues.all().delete()
@@ -800,6 +854,7 @@ class LegacyMigrationService:
             LegacyMigrationStatus.SUBMITTED,
         )
 
+    @transaction.atomic
     def _queue_job(self, request_obj, job_type, request_status):
         request_obj.status = request_status
         request_obj.save(update_fields=["status", "updated_at"])
@@ -1006,10 +1061,10 @@ class LegacyMigrationService:
         if not language:
             return None
         resolved = (
-            Language.objects.filter(iso_639_3__iexact=language).first()
+            Language.objects.filter(bcp47__iexact=language).first()
             or Language.objects.filter(language__iexact=language).first()
         )
-        if resolved and resolved.iso_639_3 == UNTRUSTWORTHY_LEGACY_LANGUAGE_ISO_639_3:
+        if resolved and resolved.bcp47 == UNTRUSTWORTHY_LEGACY_LANGUAGE_BCP47:
             return None
         return resolved
 
@@ -1248,15 +1303,17 @@ class LegacyMigrationService:
             ),
         )
         resource_file.file.name = relative_name
-        resource_file.save()
-        self._upsert_source_map(
-            request_obj,
-            "file",
-            file_decision.legacy_file_id,
-            resource_file,
-        )
+        with transaction.atomic():
+            resource_file.save()
+            self._upsert_source_map(
+                request_obj,
+                "file",
+                file_decision.legacy_file_id,
+                resource_file,
+            )
         return resource_file
 
+    @transaction.atomic
     def _ensure_content(
         self, request_obj, playlist, content_row, target_resource, target_file
     ):
@@ -1286,6 +1343,7 @@ class LegacyMigrationService:
             self._upsert_source_map(request_obj, "content", content_row["id"], content)
         return content
 
+    @transaction.atomic
     def _ensure_clip(self, request_obj, content, track, legacy_clip, clip_index):
         source_id = f"{content.pk}:{clip_index}"
         clip = self._get_source_map_target("clip", source_id, Clip)
@@ -1320,6 +1378,7 @@ class LegacyMigrationService:
         }
         return mapping.get(normalized)
 
+    @transaction.atomic
     def _import_annotations(
         self, request_obj, content, legacy_annotations, legacy_clips=None
     ):
@@ -1405,20 +1464,17 @@ class LegacyMigrationService:
                 annotation = model_class.objects.create(type="k", **common_kwargs)
             elif model_class is BlurAnnotation:
                 annotation = model_class.objects.create(**common_kwargs)
-                for position_values in (legacy_event.get("position") or {}).values():
-                    if (
-                        not isinstance(position_values, list)
-                        or len(position_values) < 5
-                    ):
-                        continue
+                for position_kwargs in blur_positions_from_legacy(
+                    legacy_event.get("position"), start_time, end_time
+                ):
                     BlurAnnotationPosition.objects.create(
-                        blur_annotation=annotation,
-                        time=float(position_values[0] or 0),
-                        x=float(position_values[1] or 0),
-                        y=float(position_values[2] or 0),
-                        width=float(position_values[3] or 0),
-                        height=float(position_values[4] or 0),
+                        blur_annotation=annotation, **position_kwargs
                     )
+                # Legacy censors could arrive with `position: {}` or with an earliest keyframe after
+                # their start, and either leaves a blur no user can repair: with no positions there is
+                # no geometry to render and no create-a-region gesture, and a first position after
+                # start_time is skipped by get_position_locators and readonly in the panel.
+                annotation.ensure_first_position()
             else:
                 annotation = model_class.objects.create(**common_kwargs)
 
@@ -1468,28 +1524,29 @@ class LegacyMigrationService:
                 "words": subtitle_row["words"] or "",
             }
             vtt_content = build_subtitle_vtt(subtitle_row["content"])
-            if subtitle:
-                for field_name, value in defaults.items():
-                    setattr(subtitle, field_name, value)
-                subtitle.subtitles_file.save(
-                    f"legacy-{subtitle_row['id']}.vtt",
-                    ContentFile(vtt_content.encode("utf-8")),
-                    save=False,
-                )
-                subtitle.save()
-            else:
-                subtitle = Subtitle(**defaults)
-                subtitle.subtitles_file.save(
-                    f"legacy-{subtitle_row['id']}.vtt",
-                    ContentFile(vtt_content.encode("utf-8")),
-                    save=True,
-                )
-                self._upsert_source_map(
-                    request_obj,
-                    "subtitle",
-                    subtitle_row["id"],
-                    subtitle,
-                )
+            with transaction.atomic():
+                if subtitle:
+                    for field_name, value in defaults.items():
+                        setattr(subtitle, field_name, value)
+                    subtitle.subtitles_file.save(
+                        f"legacy-{subtitle_row['id']}.vtt",
+                        ContentFile(vtt_content.encode("utf-8")),
+                        save=False,
+                    )
+                    subtitle.save()
+                else:
+                    subtitle = Subtitle(**defaults)
+                    subtitle.subtitles_file.save(
+                        f"legacy-{subtitle_row['id']}.vtt",
+                        ContentFile(vtt_content.encode("utf-8")),
+                        save=True,
+                    )
+                    self._upsert_source_map(
+                        request_obj,
+                        "subtitle",
+                        subtitle_row["id"],
+                        subtitle,
+                    )
             imported.append(subtitle)
         return imported
 

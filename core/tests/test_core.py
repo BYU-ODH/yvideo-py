@@ -18,6 +18,7 @@ from ..factories import ClipFactory
 from ..factories import CommentAnnotationFactory
 from ..factories import ContentFactory
 from ..factories import CourseFactory
+from ..factories import LanguageFactory
 from ..factories import MuteAnnotationFactory
 from ..factories import PlaylistFactory
 from ..factories import ResourceFactory
@@ -31,6 +32,7 @@ from ..models import BlurAnnotation
 from ..models import BlurAnnotationPosition
 from ..models import Content
 from ..models import PauseAnnotation
+from ..models import Resource
 from ..models import ResourceFileKey
 from ..models import SkipAnnotation
 from ..models import validate_font_color
@@ -40,6 +42,29 @@ from ..utils import build_vtt_file_string_from_cues
 from ..utils import estimate_current_yearterm
 from ..utils import nudge_cue_times
 from ..utils import seconds2hms
+from ..utils import time2seconds
+
+
+class ResourceImdbIdGenerationTests(TestCase):
+    def test_omitted_imdb_id_is_auto_generated(self):
+        resource = Resource.objects.create(
+            name="Test Resource", requester_username="req00001"
+        )
+        self.assertRegex(resource.imdb_id, r"^BYU\d{10}$")
+
+    def test_blank_imdb_id_is_auto_generated(self):
+        resource = Resource.objects.create(
+            name="Test Resource 2", requester_username="req00002", imdb_id=""
+        )
+        self.assertRegex(resource.imdb_id, r"^BYU\d{10}$")
+
+    def test_field_allows_null_so_blank_placeholders_never_collide(self):
+        # Resource.save() normalizes a missing/blank imdb_id to None before the
+        # initial insert (rather than saving ""), so two Resources created
+        # without an explicit imdb_id can't collide on the unique constraint
+        # before generate_internal_imdb_id assigns each its real, pk-derived
+        # value. That requires the field itself to allow NULL.
+        self.assertTrue(Resource._meta.get_field("imdb_id").null)
 
 
 class ApiTests(TestCase):
@@ -152,6 +177,19 @@ class Seconds2HMSTests(TestCase):
         """Test that negative input raises ValueError."""
         with self.assertRaises(ValueError):
             seconds2hms(-1)
+
+
+class Time2SecondsTests(TestCase):
+    """The editor posts times in whichever shape the gesture produced them."""
+
+    def test_a_formatted_time_from_a_form_field(self):
+        self.assertEqual(time2seconds("1:02:03.50"), 3723.5)
+
+    def test_a_number_from_a_timeline_drag(self):
+        self.assertEqual(time2seconds(8.5), 8.5)
+
+    def test_a_number_that_arrived_as_a_string(self):
+        self.assertEqual(time2seconds("8.5"), 8.5)
 
 
 class SubtitlesTests(TestCase):
@@ -1144,6 +1182,40 @@ class DefaultSubtitleTrackTests(TestCase):
         subtitles = content.get_subtitles()
         for sub in subtitles:
             self.assertFalse(sub["default"])
+
+
+class GetSubtitlesSrclangTests(TestCase):
+    """srclang must be a real BCP 47 tag: browsers generate a <track>'s
+    native fallback label and do language matching from `srclang` alone, and
+    BCP 47's preferred form for a language with an ISO 639-1 code is that
+    2-letter code, not a 3-letter ISO 639-3 form."""
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.resource = ResourceFactory()
+        self.resource_file = ResourceFileFactory(resource=self.resource)
+        self.playlist = PlaylistFactory(owner=self.owner)
+        self.content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+        )
+
+    def test_srclang_is_the_two_letter_code_for_a_major_language(self):
+        english = LanguageFactory(bcp47="en")
+        SubtitleFactory(resource=self.resource, owner=self.owner, language=english)
+
+        subtitles = self.content.get_subtitles()
+
+        self.assertEqual(len(subtitles), 1)
+        self.assertEqual(subtitles[0]["srclang"], "en")
+
+    def test_srclang_is_the_three_letter_code_with_no_iso_639_1_code(self):
+        asl = LanguageFactory(bcp47="ase")
+        SubtitleFactory(resource=self.resource, owner=self.owner, language=asl)
+
+        subtitles = self.content.get_subtitles()
+
+        self.assertEqual(subtitles[0]["srclang"], "ase")
 
 
 class UpdateContentDefaultSubtitleTrackTests(TestCase):

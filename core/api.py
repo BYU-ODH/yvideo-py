@@ -4,6 +4,7 @@ from datetime import datetime
 from datetime import timedelta
 import logging
 
+from django.db import transaction
 from django.utils import timezone
 import requests
 
@@ -40,9 +41,10 @@ class Api:
         else:
             # there are either more than 1 token, or that token is invalid
             # either way, delete everything and generate a new token
-            auth_tokens.delete()
             auth_token = self.generate_auth_token()
-            self.auth_token = AuthToken.objects.create(token=auth_token).token
+            with transaction.atomic():
+                auth_tokens.delete()
+                self.auth_token = AuthToken.objects.create(token=auth_token).token
 
     def generate_auth_token(self):
         # request an auth token from OIT's auth token granting endpoint

@@ -10,6 +10,8 @@ from .dev_features import DEMO_ADMIN_PASSWORD
 from .dev_features import DEMO_ADMIN_USERNAME
 from .factories import AnnotationSetFactory
 from .factories import BlankAnnotationFactory
+from .factories import BlurAnnotationFactory
+from .factories import BlurAnnotationPositionFactory
 from .factories import ClipFactory
 from .factories import CommentAnnotationFactory
 from .factories import ContentFactory
@@ -128,8 +130,8 @@ def create_demo_data():
     # compute once so every demo course and enrollment shares the same term
     demo_yearterm = estimate_current_yearterm()
 
-    english = LanguageFactory(language="English", iso_639_3="eng")
-    spanish = LanguageFactory(language="Spanish", iso_639_3="spa")
+    english = LanguageFactory(language="English", bcp47="en")
+    spanish = LanguageFactory(language="Spanish", bcp47="es")
 
     admin = UserFactory(
         admin=True,
@@ -367,6 +369,47 @@ def create_demo_data():
         description="Blank the display",
         type="#",
     )
+    # Two blurs covering both authoring shapes. Every position is deliberately asymmetric
+    # (x != y, width != height) so an axis or dimension mix-up cannot cancel itself out, and
+    # both stay clear of the 12.0-14.5 full-screen blank above, which would otherwise mask
+    # them and make manual verification impossible.
+    birds_watermark_blur = BlurAnnotationFactory(
+        track=birds_track,
+        name="Bird Watermark",
+        start_time=1.0,
+        end_time=5.0,
+        description="Stationary blur covering a burned-in watermark.",
+    )
+    BlurAnnotationPositionFactory(
+        blur_annotation=birds_watermark_blur,
+        time=1.0,
+        x=68.0,
+        y=72.0,
+        width=26.0,
+        height=12.0,
+    )
+    # Overlaps the watermark from 3.0-5.0 on purpose: two blurs on screen at once is what
+    # catches a renderer that keys its overlay divs by array index instead of annotation id.
+    birds_flight_blur = BlurAnnotationFactory(
+        track=birds_track,
+        name="Bird Flight Path",
+        start_time=3.0,
+        end_time=11.0,
+        description="Moving blur that follows a bird across the frame.",
+    )
+    for position_time, x, y, width, height in (
+        (3.0, 12.5, 30.0, 22.0, 14.0),
+        (7.0, 40.0, 22.0, 26.0, 17.0),
+        (11.0, 66.5, 44.0, 18.0, 11.0),
+    ):
+        BlurAnnotationPositionFactory(
+            blur_annotation=birds_flight_blur,
+            time=position_time,
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+        )
     CommentAnnotationFactory(
         track=birds_track,
         name="Bird Notes 1",

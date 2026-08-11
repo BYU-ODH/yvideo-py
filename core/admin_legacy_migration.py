@@ -4,6 +4,7 @@ import logging
 from django import forms
 from django.contrib import admin
 from django.contrib import messages
+from django.db import transaction
 from django.forms.models import BaseInlineFormSet
 from django.http import HttpResponseRedirect
 from django.urls import NoReverseMatch
@@ -706,9 +707,10 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
             )
             if not latest_failed_job:
                 return None
-            migration_request.queue_job(latest_failed_job.job_type)
-            migration_request.status = LegacyMigrationStatus.QUEUED
-            migration_request.save(update_fields=["status", "updated_at"])
+            with transaction.atomic():
+                migration_request.queue_job(latest_failed_job.job_type)
+                migration_request.status = LegacyMigrationStatus.QUEUED
+                migration_request.save(update_fields=["status", "updated_at"])
         except Exception as exc:
             migration_request.latest_job_error = str(exc)
             migration_request.save(update_fields=["latest_job_error", "updated_at"])
@@ -719,11 +721,12 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
     def _cancel_jobs(self, request, migration_request):
         """Cancel queued/running jobs for a single request. Returns True on success, False on failure."""
         try:
-            migration_request.jobs.filter(status__in=("queued", "running")).update(
-                status="canceled"
-            )
-            migration_request.status = LegacyMigrationStatus.CANCELED
-            migration_request.save(update_fields=["status", "updated_at"])
+            with transaction.atomic():
+                migration_request.jobs.filter(status__in=("queued", "running")).update(
+                    status="canceled"
+                )
+                migration_request.status = LegacyMigrationStatus.CANCELED
+                migration_request.save(update_fields=["status", "updated_at"])
         except Exception as exc:
             migration_request.latest_job_error = str(exc)
             migration_request.save(update_fields=["latest_job_error", "updated_at"])

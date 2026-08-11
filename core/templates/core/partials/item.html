@@ -12,6 +12,9 @@
      data-label="{{ item.name }}"
      data-delta-left="0"
      data-delta-width="0"
+     {% if item.annotation_type == "blur" %}
+     data-positions-url="{% url 'upsert_blur_position' item.id %}"
+     {% endif %}
      tabindex="0">
 
     {% if item.annotation_type != "pause" %}
@@ -25,7 +28,14 @@
         <span class="track-item-label">{{ item.name }}</span>
         {% if item.annotation_type == "blur" %}
         {% for position_locator in item.get_position_locators %}
-            <div class="blur-position-locator" data-position-id="{{position_locator.id}}" data-position-time="{{position_locator.time}}">
+            <div class="blur-position-locator"
+                 data-position-id="{{position_locator.id}}"
+                 data-position-time="{{position_locator.time}}"
+                 data-delete-url="{% url 'delete_blur_position' position_locator.id %}"
+                 tabindex="0"
+                 role="button"
+                 aria-label="blur point at {{position_locator.time|hms_time}}"
+                 title="Blur point at {{position_locator.time|hms_time}}. Drag to retime, Delete to remove.">
             </div>
         {% endfor %}
         {% endif %}

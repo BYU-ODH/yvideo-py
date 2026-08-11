@@ -143,7 +143,7 @@ def _language_matches_request(language, requested_language):
     }
     language_values = {
         _normalize_match_value(language.language),
-        _normalize_match_value(language.iso_639_3),
+        _normalize_match_value(language.bcp47),
     }
     return bool(requested_values & language_values)
 
@@ -618,11 +618,19 @@ class UserAdmin(VersionAdmin):
         "last_name",
         "email",
         "privilege_level",
+        "group_names",
         "date_joined",
     )
-    list_filter = ("privilege_level", "date_joined")
+    list_filter = ("groups", "privilege_level", "date_joined")
     search_fields = ("username", "netid", "first_name", "last_name")
     add_form_template = "admin/core/user/add_form.html"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("groups")
+
+    @admin.display(description="Groups")
+    def group_names(self, user):
+        return ", ".join(group.name for group in user.groups.all()) or "—"
 
     def add_view(self, request, form_url="", extra_context=None):
         # A new user's data (name, netid, permissions) comes entirely from BYU's
@@ -799,7 +807,6 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
             with transaction.atomic():
                 resource = form.cleaned_data["selected_resource"]
                 if resource is None:
-                    resource_not_in_imdb = form.cleaned_data["new_resource_not_in_imdb"]
                     resource = Resource.objects.create(
                         name=obj.resource_title,
                         media_type=Resource.MediaType.VIDEO,
@@ -817,8 +824,6 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                         ),
                         byu_call_number=obj.byu_call_number,
                     )
-                    if resource_not_in_imdb:
-                        resource.generate_internal_imdb_id()
 
                 resource_file = form.cleaned_data["selected_resource_file"]
                 if resource_file is None:
@@ -826,8 +831,6 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                     resource_file.resource = resource
                     resource_file.full_clean()
                     resource_file.save()
-                    if not resource_file.barcode:
-                        resource_file.generate_barcode()
 
                 ResourceAccess.objects.get_or_create(user=obj.owner, resource=resource)
                 obj.generated_resource = resource
@@ -875,18 +878,6 @@ class ResourceFileAdmin(VersionAdmin):
     list_filter = ("full_video", "created_at")
     search_fields = ("file", "version", "resource__name")
     readonly_fields = ("checksum", "checksum_at")
-
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        if obj.barcode is None or not obj.barcode:
-            obj.generate_barcode()
-            try:
-                obj.save()
-            except Exception:
-                # barcode isn't required even though we want it to be filled.
-                # So we can just return if we get an exception and define the
-                # barcode at a later time.
-                return
 
 
 @admin.register(Content)

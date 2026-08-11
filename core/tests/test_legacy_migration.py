@@ -293,7 +293,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_preflight_builds_file_candidates_and_fuzzy_name_issue(self):
         self.create_legacy_schema()
-        language = LanguageFactory(language="English", iso_639_3="eng")
+        language = LanguageFactory(language="English", bcp47="en")
 
         owner = UserFactory(netid="profada", username="123456789", instructor=True)
         ta_user = UserFactory(netid="caseyta", username="987654321", instructor=True)
@@ -580,7 +580,7 @@ class LegacyMigrationTests(TestCase):
         # The legacy system used Cakchiquel as a bogus default subtitle
         # language, so migration must never auto-resolve it, even though a
         # matching Language row exists (an admin may still pick it manually).
-        LanguageFactory(language="Cakchiquel", iso_639_3="cak")
+        LanguageFactory(language="Cakchiquel", bcp47="cak")
         service = LegacyMigrationService(require_catalog=False)
 
         self.assertIsNone(service._resolve_language("Cakchiquel"))
@@ -588,19 +588,20 @@ class LegacyMigrationTests(TestCase):
         self.assertIsNone(service._resolve_language("CAKCHIQUEL"))
 
     def test_resolve_language_still_resolves_trustworthy_languages(self):
-        english = LanguageFactory(language="English", iso_639_3="eng")
+        english = LanguageFactory(language="English", bcp47="en")
 
         service = LegacyMigrationService(require_catalog=False)
 
         self.assertEqual(service._resolve_language("English"), english)
-        self.assertEqual(service._resolve_language("eng"), english)
+        self.assertEqual(service._resolve_language("en"), english)
+        self.assertEqual(service._resolve_language("EN"), english)
 
     def test_preflight_flags_cakchiquel_subtitle_language_for_manual_review(self):
         # A subtitle's raw language must be attached to real, file-backed
         # content: the preflight subtitle-language check is skipped entirely
         # for synthetic (URL-only) content.
         self.create_legacy_schema()
-        LanguageFactory(language="Cakchiquel", iso_639_3="cak")
+        LanguageFactory(language="Cakchiquel", bcp47="cak")
 
         owner = UserFactory(netid="profcak", username="333333333", instructor=True)
         legacy_collection_id = str(uuid.uuid4())
@@ -722,7 +723,7 @@ class LegacyMigrationTests(TestCase):
         self,
     ):
         self.create_legacy_schema()
-        LanguageFactory(language="English", iso_639_3="eng")
+        LanguageFactory(language="English", bcp47="en")
 
         target_owner = UserFactory(
             netid="profben", username="111111111", instructor=True
@@ -887,9 +888,13 @@ class LegacyMigrationTests(TestCase):
                             "layer": 1,
                             "start": 2,
                             "end": 6,
+                            # [time, centerX, centerY, width, height] - legacy geometry is
+                            # center-anchored. Values chosen so the converted top-left corner
+                            # stays on the frame, since a clamp to 0 would hide whether the
+                            # conversion happened at all.
                             "position": {
-                                "0": [2, 10, 20, 30, 40],
-                                "1": [4, 11, 21, 30, 40],
+                                "0": [2, 40, 50, 20, 30],
+                                "1": [4, 65, 60, 10, 20],
                             },
                         },
                     ]
@@ -995,11 +1000,17 @@ class LegacyMigrationTests(TestCase):
             ).count(),
             1,
         )
+        # Center-anchored legacy geometry converted to this app's top-left corner, through the
+        # whole job rather than through _import_annotations alone: center (40, 50) of a 20x30
+        # box is top-left (30, 35). See core/tests/test_legacy_blur_import.py for the cases.
         self.assertEqual(
-            BlurAnnotationPosition.objects.filter(
-                blur_annotation__track__annotation_set=imported_video.annotation_set
-            ).count(),
-            2,
+            [
+                (position.time, position.x, position.y, position.width, position.height)
+                for position in BlurAnnotationPosition.objects.filter(
+                    blur_annotation__track__annotation_set=imported_video.annotation_set
+                )
+            ],
+            [(2.0, 30.0, 35.0, 20.0, 30.0), (4.0, 60.0, 50.0, 10.0, 20.0)],
         )
 
         subtitle = Subtitle.objects.get(resource=imported_video.resource)
@@ -1581,7 +1592,7 @@ class LegacyMigrationTests(TestCase):
 
     def test_import_reuses_selected_existing_resource(self):
         self.create_legacy_schema()
-        LanguageFactory(language="English", iso_639_3="eng")
+        LanguageFactory(language="English", bcp47="en")
 
         owner = UserFactory(netid="profada", username="123456789", instructor=True)
         existing_resource = ResourceFactory(

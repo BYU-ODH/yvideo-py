@@ -168,10 +168,6 @@ export class SubtitleSidebar {
       document.body.style.userSelect = '';
 
       localStorage.setItem('subtitleSidebarWidth', this.sidebarWidth.toString());
-
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
-        window.videoPlayer.placeAnnotationBox();
-      }
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -361,16 +357,6 @@ export class SubtitleSidebar {
     }
 
     this._updateVideoWrapperMargin();
-
-    // Trigger annotation container reposition after transition
-    // TODO make sure this timing (300) dynamically matches CSS transition duration
-    // TODO ... or make sure the annotation box repositions with the same transition
-    // TODO ... better yet, make CSS handle it all automatically!!
-    setTimeout(() => {
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
-        window.videoPlayer.placeAnnotationBox();
-      }
-    }, 300);
   }
 
   hide() {
@@ -388,13 +374,6 @@ export class SubtitleSidebar {
     if (videoWrapper) {
       videoWrapper.style.marginRight = '0px';
     }
-
-    // Trigger annotation container reposition after transition
-    setTimeout(() => {
-      if (window.videoPlayer && window.videoPlayer.placeAnnotationBox) {
-        window.videoPlayer.placeAnnotationBox();
-      }
-    }, 300);
   }
 
   toggle() {

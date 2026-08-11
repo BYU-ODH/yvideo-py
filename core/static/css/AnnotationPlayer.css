@@ -5,16 +5,63 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   transition: none;
   align-items: center;
 }
 
+/* The browser's default fullscreen styling (position: fixed, inset: 0) is
+   overridden by our own `position: relative` above because author styles
+   win over the UA stylesheet at equal specificity. Without this, the
+   container stays sized/positioned as it was in the page flow and never
+   actually grows to fill the screen. Re-declare the fullscreen sizing
+   explicitly for each fullscreen pseudo-class (kept as separate rules
+   rather than one selector list, since older engines invalidate an entire
+   selector list when one selector in it is unrecognized). */
+.annotation-player-container:fullscreen {  /* eslint-disable-line css/use-baseline */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
+}
+
+.annotation-player-container:-webkit-full-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
+}
+
+.annotation-player-container:-moz-full-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
+}
+
+.annotation-player-container:-ms-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background-color: black;
+}
+
 .video-wrapper {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  align-self: stretch;
+  height: 100%;
   transition: margin-right 0.3s ease;
   min-width: 0;
 }
@@ -96,19 +143,48 @@
 }
 
 /* Video Element */
-.annotation-player-container video {
+.annotation-player-container video,
+.annotation-player-container youtube-video {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: fill;
+  object-fit: contain;
 }
 
-.annotation-player-container video.blanked {
+.annotation-player-container youtube-video {
+  aspect-ratio: 16 / 9;
+  position: relative;
+}
+
+.annotation-player-container youtube-video > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.annotation-player-container video.blanked,
+.annotation-player-container youtube-video.blanked {
   filter: brightness(0);
 }
 
-.annotation-player-container video.screen-blurred {
-  filter: blur(80px);
+.annotation-player-container video.screen-blurred,
+.annotation-player-container youtube-video.screen-blurred {
+  filter: blur(var(--blur-radius, 80px));
+}
+
+.youtube-video-error {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: #000;
+  color: #fff;
+  text-align: center;
 }
 
 /* Annotation Container */
@@ -116,19 +192,36 @@
   position: absolute;
   pointer-events: none;
   z-index: 10;
-  height: 100%;
-  width: 100%;
-  /* the subsequent 2 rules prevent the video from showing a 1 px line on any side.
-  Sometimes during and after resizing, a 1px vertical or horizontal line at the edges
-  of the video would appear. adding a black border around the annotation-box content
-  prevents this. content-box forces the annotation box to copy the exact dimensions
-  of the video element while allowing for a border to trace around the outside. */
-  /*border: 1px solid black;
-  box-sizing: content-box;*/
+  inset: 0;
+}
+
+.annotation-player-container[data-editor-mode="true"] .video-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.annotation-player-container[data-editor-mode="true"] .video-wrapper video,
+.annotation-player-container[data-editor-mode="true"] .video-wrapper youtube-video {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.annotation-player-container[data-editor-mode="true"] .video-controls {
+  position: static;
+  margin: 0 12px;
 }
 
 .annotation-box .blur {
   pointer-events: none;
+}
+
+.annotation-box .blur-position {
+  z-index: 1;
+}
+
+.annotation-box .comment-text-box {
+  z-index: 2;
 }
 
 .annotation-box .blur.black {
@@ -140,27 +233,11 @@
 }
 
 .annotation-box .blur-position.blur {
-  backdrop-filter: blur(80px);  /* eslint-disable-line css/use-baseline */
+  backdrop-filter: blur(var(--blur-radius, 80px));  /* eslint-disable-line css/use-baseline */
 }
 
 .annotation-box-blur-editor {
     pointer-events: auto;
-}
-
-.blur-position:hover {
-    cursor: move;
-}
-
-.blur-position .dragging {
-    cursor: grabbing;
-}
-
-.active-blur-position {
-    z-index: 1;
-}
-
-.annotation-box-blur-editor {
-    display: block;
 }
 
 /* Video Controls */

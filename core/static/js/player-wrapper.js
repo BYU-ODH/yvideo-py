@@ -38,8 +38,11 @@ function attachAnnotationPlayer() {
           return;
         }
 
+        const videoElem = container.querySelector('#video-player');
+        const supportsTextTracks = videoElem.tagName !== 'YOUTUBE-VIDEO';
+
         let tracks = [];
-        if (playerData && playerData.subtitleTracks) {
+        if (supportsTextTracks && playerData && playerData.subtitleTracks) {
             const subtitles = playerData.subtitleTracks;
             const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
             tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
@@ -54,6 +57,7 @@ function attachAnnotationPlayer() {
 
         annotationPlayer = new AnnotationPlayer({
             container: container,
+            video: videoElem,
             disabledControls: [],
             tracks: tracks,
             clips: clips,
