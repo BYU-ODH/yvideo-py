@@ -583,6 +583,7 @@ class LegacyMigrationService:
             groups.setdefault(key, []).append(file_decision)
         return [group for group in groups.values() if len(group) > 1]
 
+    @transaction.atomic
     def sync_request_issues(self, request_obj):
         self.sync_resource_reuse_targets(request_obj)
         request_obj.issues.all().delete()
@@ -853,6 +854,7 @@ class LegacyMigrationService:
             LegacyMigrationStatus.SUBMITTED,
         )
 
+    @transaction.atomic
     def _queue_job(self, request_obj, job_type, request_status):
         request_obj.status = request_status
         request_obj.save(update_fields=["status", "updated_at"])
@@ -1301,15 +1303,17 @@ class LegacyMigrationService:
             ),
         )
         resource_file.file.name = relative_name
-        resource_file.save()
-        self._upsert_source_map(
-            request_obj,
-            "file",
-            file_decision.legacy_file_id,
-            resource_file,
-        )
+        with transaction.atomic():
+            resource_file.save()
+            self._upsert_source_map(
+                request_obj,
+                "file",
+                file_decision.legacy_file_id,
+                resource_file,
+            )
         return resource_file
 
+    @transaction.atomic
     def _ensure_content(
         self, request_obj, playlist, content_row, target_resource, target_file
     ):
@@ -1339,6 +1343,7 @@ class LegacyMigrationService:
             self._upsert_source_map(request_obj, "content", content_row["id"], content)
         return content
 
+    @transaction.atomic
     def _ensure_clip(self, request_obj, content, track, legacy_clip, clip_index):
         source_id = f"{content.pk}:{clip_index}"
         clip = self._get_source_map_target("clip", source_id, Clip)
@@ -1373,6 +1378,7 @@ class LegacyMigrationService:
         }
         return mapping.get(normalized)
 
+    @transaction.atomic
     def _import_annotations(
         self, request_obj, content, legacy_annotations, legacy_clips=None
     ):
@@ -1518,28 +1524,29 @@ class LegacyMigrationService:
                 "words": subtitle_row["words"] or "",
             }
             vtt_content = build_subtitle_vtt(subtitle_row["content"])
-            if subtitle:
-                for field_name, value in defaults.items():
-                    setattr(subtitle, field_name, value)
-                subtitle.subtitles_file.save(
-                    f"legacy-{subtitle_row['id']}.vtt",
-                    ContentFile(vtt_content.encode("utf-8")),
-                    save=False,
-                )
-                subtitle.save()
-            else:
-                subtitle = Subtitle(**defaults)
-                subtitle.subtitles_file.save(
-                    f"legacy-{subtitle_row['id']}.vtt",
-                    ContentFile(vtt_content.encode("utf-8")),
-                    save=True,
-                )
-                self._upsert_source_map(
-                    request_obj,
-                    "subtitle",
-                    subtitle_row["id"],
-                    subtitle,
-                )
+            with transaction.atomic():
+                if subtitle:
+                    for field_name, value in defaults.items():
+                        setattr(subtitle, field_name, value)
+                    subtitle.subtitles_file.save(
+                        f"legacy-{subtitle_row['id']}.vtt",
+                        ContentFile(vtt_content.encode("utf-8")),
+                        save=False,
+                    )
+                    subtitle.save()
+                else:
+                    subtitle = Subtitle(**defaults)
+                    subtitle.subtitles_file.save(
+                        f"legacy-{subtitle_row['id']}.vtt",
+                        ContentFile(vtt_content.encode("utf-8")),
+                        save=True,
+                    )
+                    self._upsert_source_map(
+                        request_obj,
+                        "subtitle",
+                        subtitle_row["id"],
+                        subtitle,
+                    )
             imported.append(subtitle)
         return imported
 

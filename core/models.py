@@ -114,6 +114,7 @@ class Resource(models.Model):
     def __str__(self):
         return f"{self.name}"
 
+    @transaction.atomic
     def save(self, *args, **kwargs):
         if not self.imdb_id:
             # Normalize to NULL (rather than saving "" verbatim) so that two
@@ -536,75 +537,86 @@ class AnnotationSet(models.Model):
         """
 
         try:
-            playlist = content.playlist
-            resource = content.get_resource()
+            with transaction.atomic():
+                playlist = content.playlist
+                resource = content.get_resource()
 
-            if not resource:
-                raise ValueError(
-                    "Content must be associated with a resource to create an AnnotationSet"
-                )
-
-            # Create annotation set with user as owner
-            if set_name is not None and set_name != "":
-                name = set_name
-            else:
-                name = f"{user.get_full_name()}'s Annotations"
-
-            # check for set with the same name and resource combination
-            existing_count = cls.objects.filter(
-                name__startswith=name, resource=resource
-            ).count()
-            if existing_count > 0:
-                name = f"{name} ({existing_count + 1})"
-
-            annotation_set = cls.objects.create(
-                name=name, resource=resource, owner=user
-            )
-
-            # Add all playlist instructors/TAs as editors
-            instructors_and_tas = playlist.get_instructors_and_tas()
-            annotation_set.editors.add(*instructors_and_tas)
-
-            # create new annotations if provided (if importing from json, for example)
-            if annotation_set_json is not None and isinstance(annotation_set_json, str):
-                annotation_types = {
-                    "SkipAnnotation": SkipAnnotation,
-                    "MuteAnnotation": MuteAnnotation,
-                    "BlankAnnotation": BlankAnnotation,
-                    "PauseAnnotation": PauseAnnotation,
-                    "BlurAnnotation": BlurAnnotation,
-                    "CommentAnnotation": CommentAnnotation,
-                }
-
-                annotation_set_data = json.loads(annotation_set_json)
-                for track in annotation_set_data.get("tracks", []):
-                    Track.from_import(track, annotation_set)
-
-                for annotation in annotation_set_data.get("annotations", []):
-                    track = annotation_set.tracks.get(name=annotation.get("track_name"))
-                    try:
-                        annotation_class = annotation_types[annotation["class_type"]]
-                        annotation_class.from_import(annotation, track)
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to import annotation. Annotation type: {annotation_class}. Exception: {e}"
-                        )
-                        continue
-
-            # copying from pre-existing annotation set
-            if annotation_set_json is None and annotation_set_id_to_copy is not None:
-                annotation_set_to_copy = AnnotationSet.objects.get(
-                    pk=annotation_set_id_to_copy
-                )
-                if set_name is None or set_name == "":
-                    annotation_set.name = (
-                        annotation_set_to_copy.name + f" (copied by {user.__str__})"
+                if not resource:
+                    raise ValueError(
+                        "Content must be associated with a resource to create an AnnotationSet"
                     )
-                annotations = (
-                    annotation_set_to_copy.get_active_annotations_from_tracks()
+
+                # Create annotation set with user as owner
+                if set_name is not None and set_name != "":
+                    name = set_name
+                else:
+                    name = f"{user.get_full_name()}'s Annotations"
+
+                # check for set with the same name and resource combination
+                existing_count = cls.objects.filter(
+                    name__startswith=name, resource=resource
+                ).count()
+                if existing_count > 0:
+                    name = f"{name} ({existing_count + 1})"
+
+                annotation_set = cls.objects.create(
+                    name=name, resource=resource, owner=user
                 )
-                for annotation in annotations:
-                    annotation.copy_to_new_annotation_set(annotation_set)
+
+                # Add all playlist instructors/TAs as editors
+                instructors_and_tas = playlist.get_instructors_and_tas()
+                annotation_set.editors.add(*instructors_and_tas)
+
+                # create new annotations if provided (if importing from json, for example)
+                if annotation_set_json is not None and isinstance(
+                    annotation_set_json, str
+                ):
+                    annotation_types = {
+                        "SkipAnnotation": SkipAnnotation,
+                        "MuteAnnotation": MuteAnnotation,
+                        "BlankAnnotation": BlankAnnotation,
+                        "PauseAnnotation": PauseAnnotation,
+                        "BlurAnnotation": BlurAnnotation,
+                        "CommentAnnotation": CommentAnnotation,
+                    }
+
+                    annotation_set_data = json.loads(annotation_set_json)
+                    for track in annotation_set_data.get("tracks", []):
+                        Track.from_import(track, annotation_set)
+
+                    for annotation in annotation_set_data.get("annotations", []):
+                        track = annotation_set.tracks.get(
+                            name=annotation.get("track_name")
+                        )
+                        try:
+                            with transaction.atomic():
+                                annotation_class = annotation_types[
+                                    annotation["class_type"]
+                                ]
+                                annotation_class.from_import(annotation, track)
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to import annotation. Annotation type: {annotation_class}. Exception: {e}"
+                            )
+                            continue
+
+                # copying from pre-existing annotation set
+                if (
+                    annotation_set_json is None
+                    and annotation_set_id_to_copy is not None
+                ):
+                    annotation_set_to_copy = AnnotationSet.objects.get(
+                        pk=annotation_set_id_to_copy
+                    )
+                    if set_name is None or set_name == "":
+                        annotation_set.name = (
+                            annotation_set_to_copy.name + f" (copied by {user.__str__})"
+                        )
+                    annotations = (
+                        annotation_set_to_copy.get_active_annotations_from_tracks()
+                    )
+                    for annotation in annotations:
+                        annotation.copy_to_new_annotation_set(annotation_set)
 
             return annotation_set
         except Exception as e:
@@ -1394,6 +1406,7 @@ class BlurAnnotation(BaseAnnotation):
             }
         return rect(positions[-1])
 
+    @transaction.atomic
     def reconcile_positions(self, old_start, old_end):
         """Bring positions back in line with start_time/end_time after the annotation moved.
 

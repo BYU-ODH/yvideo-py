@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import connection
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -102,10 +103,11 @@ def create_legacy_migration_request(request):
     migration_request.target_owner = request.user
     if not migration_request.target_collection_name:
         migration_request.target_collection_name = ""
-    migration_request.save()
-    migration_request.status = LegacyMigrationStatus.SUBMITTED
-    migration_request.save(update_fields=["status", "updated_at"])
-    migration_request.queue_job("preflight")
+    with transaction.atomic():
+        migration_request.save()
+        migration_request.status = LegacyMigrationStatus.SUBMITTED
+        migration_request.save(update_fields=["status", "updated_at"])
+        migration_request.queue_job("preflight")
     return redirect("legacy_migration_request_detail", pk=migration_request.pk)
 
 

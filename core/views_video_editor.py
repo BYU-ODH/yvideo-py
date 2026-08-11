@@ -953,9 +953,10 @@ def update_annotation(request, annotation_type, annotation_id):
             if "font_color" in json_data:
                 fields_to_update["font_color"] = json_data["font_color"]
 
-        annotation = annotation.edit(**fields_to_update)
-        if annotation_type == "blur":
-            annotation.reconcile_positions(old_start, old_end)
+        with transaction.atomic():
+            annotation = annotation.edit(**fields_to_update)
+            if annotation_type == "blur":
+                annotation.reconcile_positions(old_start, old_end)
         annotation.refresh_from_db()
 
         new_start_time = annotation.start_time
@@ -1135,19 +1136,20 @@ def create_annotation_set(request):
                 )
                 return HttpResponseBadRequest()
 
-        annotation_set = AnnotationSet.create_for_content(
-            content,
-            request.user,
-            set_name=name,
-            annotation_set_json=annotation_set_json,
-            annotation_set_id_to_copy=annotation_set_id_to_copy,
-        )
+        with transaction.atomic():
+            annotation_set = AnnotationSet.create_for_content(
+                content,
+                request.user,
+                set_name=name,
+                annotation_set_json=annotation_set_json,
+                annotation_set_id_to_copy=annotation_set_id_to_copy,
+            )
 
-        if annotation_set is None:
-            return HttpResponseServerError()
+            if annotation_set is None:
+                return HttpResponseServerError()
 
-        content.annotation_set = annotation_set
-        content.save()
+            content.annotation_set = annotation_set
+            content.save()
 
         return HttpResponse()
 
@@ -1344,12 +1346,13 @@ def update_track_positions_in_set(request):
         return HttpResponseServerError()
 
     try:
-        index = 0
-        for track_id in parsed_data["track_ids"]:
-            track = Track.objects.get(pk=track_id)
-            track.stack_position = index
-            track.save()
-            index += 1
+        with transaction.atomic():
+            index = 0
+            for track_id in parsed_data["track_ids"]:
+                track = Track.objects.get(pk=track_id)
+                track.stack_position = index
+                track.save()
+                index += 1
     except Exception as e:
         logger.error(f"Failed to update track positions. Exception: {e}")
         return HttpResponseServerError()
@@ -1501,15 +1504,16 @@ def update_subtitle_metadata(request):
                 subtitle_obj.is_original = data["is_original"]
             if "words" in request.POST:
                 subtitle_obj.words = data["words"]
-            subtitle_obj.save()
-
-            # remove temp file when main file is updated
-            # this is not included where subtitles_file is set because we want
-            # to ensure we don't over write the temp file unless the main file
-            # is successfully updated.
-            if uploaded_file is not None:
-                subtitle_obj.subtitles_temp_file = None
+            with transaction.atomic():
                 subtitle_obj.save()
+
+                # remove temp file when main file is updated
+                # this is not included where subtitles_file is set because we want
+                # to ensure we don't over write the temp file unless the main file
+                # is successfully updated.
+                if uploaded_file is not None:
+                    subtitle_obj.subtitles_temp_file = None
+                    subtitle_obj.save()
 
             return render(
                 request,

@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import IntegrityError
 from django.db import connection
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -518,28 +519,29 @@ def assign_playlist_to_course(request):
         catalog_number = parsed_data["catalog_number"]
         section_numbers = parsed_data["sections"]
         yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
-        for section_number in section_numbers:
-            existing_course_filter = Course.objects.filter(
-                dept=dept,
-                catalog_number=catalog_number,
-                section_number=section_number,
-                yearterm=yearterm,
-            )
-            if existing_course_filter.count() < 1:
-                existing_course = Course.objects.create(
+        with transaction.atomic():
+            for section_number in section_numbers:
+                existing_course_filter = Course.objects.filter(
                     dept=dept,
                     catalog_number=catalog_number,
                     section_number=section_number,
                     yearterm=yearterm,
                 )
-            else:
-                if existing_course_filter.count() > 1:
-                    logger.error(
-                        f"More than one course was returned when assigning a playlist ({playlist}) to a course. Assigning to the first result"
+                if existing_course_filter.count() < 1:
+                    existing_course = Course.objects.create(
+                        dept=dept,
+                        catalog_number=catalog_number,
+                        section_number=section_number,
+                        yearterm=yearterm,
                     )
-                existing_course = existing_course_filter.first()
-            playlist.courses.add(existing_course)
-            playlist.save()
+                else:
+                    if existing_course_filter.count() > 1:
+                        logger.error(
+                            f"More than one course was returned when assigning a playlist ({playlist}) to a course. Assigning to the first result"
+                        )
+                    existing_course = existing_course_filter.first()
+                playlist.courses.add(existing_course)
+                playlist.save()
         return render_course_assignment(request)
 
     except Playlist.DoesNotExist:
@@ -576,32 +578,33 @@ def update_playlist_course_sections(request):
             dept=dept, catalog_number=catalog_number, yearterm=yearterm
         )
 
-        # it is possible a course with a provided section_number doesn't exist yet. if that is true,
-        # create it
-        existing_section_numbers = []
-        for course in courses:
-            existing_section_numbers.append(course.section_number)
-        for new_section_number in new_sections_list:
-            if new_section_number not in existing_section_numbers:
-                Course.objects.create(
-                    dept=dept,
-                    catalog_number=catalog_number,
-                    yearterm=yearterm,
-                    section_number=new_section_number,
-                )
+        with transaction.atomic():
+            # it is possible a course with a provided section_number doesn't exist yet. if that is true,
+            # create it
+            existing_section_numbers = []
+            for course in courses:
+                existing_section_numbers.append(course.section_number)
+            for new_section_number in new_sections_list:
+                if new_section_number not in existing_section_numbers:
+                    Course.objects.create(
+                        dept=dept,
+                        catalog_number=catalog_number,
+                        yearterm=yearterm,
+                        section_number=new_section_number,
+                    )
 
-        # Associate the provided sections with the playlist.
-        # We could go through and figure out exactly which should be removed and which should be added,
-        # but it is probably more robust to simply remove all associations for this dept, catalog_number, and yearterm
-        # and then add all the sections provided by the user.
-        playlist.courses.remove(*courses)
-        new_courses = Course.objects.filter(
-            dept=dept,
-            catalog_number=catalog_number,
-            yearterm=yearterm,
-            section_number__in=new_sections_list,
-        )
-        playlist.courses.add(*new_courses)
+            # Associate the provided sections with the playlist.
+            # We could go through and figure out exactly which should be removed and which should be added,
+            # but it is probably more robust to simply remove all associations for this dept, catalog_number, and yearterm
+            # and then add all the sections provided by the user.
+            playlist.courses.remove(*courses)
+            new_courses = Course.objects.filter(
+                dept=dept,
+                catalog_number=catalog_number,
+                yearterm=yearterm,
+                section_number__in=new_sections_list,
+            )
+            playlist.courses.add(*new_courses)
 
         return HttpResponse()
 
