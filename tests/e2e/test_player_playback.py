@@ -62,6 +62,23 @@ def test_video_can_be_played_on_the_player_page(page, open_player):
     _assert_video_plays(page, console_errors)
 
 
+def test_player_time_indicator_includes_hundredths(page, open_player):
+    open_player()
+
+    displayed = page.evaluate(
+        """() => {
+            window.videoPlayer.state.currentTime = 3.456;
+            window.videoPlayer.updateTimeDisplay();
+            return document.querySelector('.play-time').textContent;
+        }"""
+    )
+
+    current, duration = displayed.split(" / ")
+    assert current == "0:00:03.46"
+    assert duration.count(":") == 2
+    assert len(duration.rsplit(".", 1)[-1]) == 2
+
+
 def test_video_can_be_played_by_a_spoofed_non_admin_user(
     logged_in_page, live_server, demo_content
 ):

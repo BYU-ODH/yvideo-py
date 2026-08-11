@@ -735,6 +735,7 @@
 
 .annotation-time-input {
     text-align: center;
+    font-variant-numeric: tabular-nums;
 }
 
 .btn-set-time {
@@ -856,9 +857,6 @@
 }
 
 #blur-positions-table {
-    width: 100%;
-    min-width: 23rem;
-    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
 }
@@ -878,10 +876,23 @@
     text-align: left;
 }
 
-.position-input-group input {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
+#annotation-update-form .position-input-group input {
+    box-sizing: content-box;
+    padding: 4px 3px;
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+.position-time-input {
+    width: 10ch; /* 0:00:00.00, and still room for a video hours long */
+}
+
+.position-x-input, .position-y-input {
+    width: 5ch; /* 97.00 - x and y are clamped to leave room for the box itself */
+}
+
+.position-width-input, .position-height-input {
+    width: 6ch; /* 100.00 */
 }
 
 #annotation-update-form .position-input-group input[readonly] {

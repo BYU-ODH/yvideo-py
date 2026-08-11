@@ -34,8 +34,8 @@
                  data-delete-url="{% url 'delete_blur_position' position_locator.id %}"
                  tabindex="0"
                  role="button"
-                 aria-label="blur point at {{position_locator.time}} seconds"
-                 title="Blur point at {{position_locator.time}}s. Drag to retime, Delete to remove.">
+                 aria-label="blur point at {{position_locator.time|hms_time}}"
+                 title="Blur point at {{position_locator.time|hms_time}}. Drag to retime, Delete to remove.">
             </div>
         {% endfor %}
         {% endif %}

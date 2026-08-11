@@ -1,4 +1,4 @@
-import { formatSecondsToString, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
 import { BlurEditor, placeLocators } from "./BlurEditor.js";
 import {
   RESIZE_HANDLES,
@@ -459,12 +459,12 @@ export class Editor {
 
           if (annotationType == "blur") {
             const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
-            const newStart = parseFloat(itemForm.querySelector("#start_time")?.value);
-            const newEnd = parseFloat(itemForm.querySelector("#end_time")?.value);
+            const newStart = parseTimeStringToSeconds(itemForm.querySelector("#start_time")?.value);
+            const newEnd = parseTimeStringToSeconds(itemForm.querySelector("#end_time")?.value);
             if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
                 !this.confirmBlurPointLoss(item, newStart, newEnd)) {
-              itemForm.querySelector("#start_time").value = item.dataset["start"];
-              itemForm.querySelector("#end_time").value = item.dataset["end"];
+              itemForm.querySelector("#start_time").value = formatSecondsToString(item.dataset["start"]);
+              itemForm.querySelector("#end_time").value = formatSecondsToString(item.dataset["end"]);
               return;
             }
           }
@@ -507,7 +507,7 @@ export class Editor {
         const input = itemForm.querySelector(`#${fieldId}`);
         const stored = item?.dataset[datasetKey];
         if (input && stored !== undefined && input !== document.activeElement) {
-          input.value = stored;
+          input.value = formatSecondsToString(stored);
         }
       }
 
@@ -2868,8 +2868,8 @@ export class Editor {
         // the back end sorts cues, so this will go in its correct place.
         cues.push(
           {
-            start_time: formatSecondsToString(time, true),
-            end_time: formatSecondsToString(time + 2, true),
+            start_time: formatSecondsToString(time),
+            end_time: formatSecondsToString(time + 2),
             type: "CUE",
             payload: "",
             identifier: "",

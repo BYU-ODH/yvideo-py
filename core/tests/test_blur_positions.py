@@ -523,5 +523,6 @@ class PanelRenderingTests(TestCase):
     def test_the_rendered_values_are_the_stored_ones_rounded(self):
         # Not blanked, not truncated to integers: the panel is a view onto the real geometry.
         self.assertEqual(
-            self._rendered_values(), ["6.00", "26.25", "33.33", "40.01", "19.99"]
+            self._rendered_values(),
+            ["0:00:06.00", "26.25", "33.33", "40.01", "19.99"],
         )

@@ -214,6 +214,19 @@ class AnnotationHistoryViewTests(TestCase):
         self.assertIn(f'id="comment-panel-item-{updated.id}"', data["panel_item_html"])
         self.assertIn(f'data-annotation-id="{updated.id}"', data["form_html"])
 
+    def test_update_accepts_and_rerenders_editor_timestamp_values(self):
+        response = self.update_annotation(
+            start_time="0:00:03.50", end_time="0:00:09.50"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        updated = CommentAnnotation.objects.get(id=data["annotation_id"])
+        self.assertEqual(updated.start_time, 3.5)
+        self.assertEqual(updated.end_time, 9.5)
+        self.assertIn('value="0:00:03.50"', data["form_html"])
+        self.assertIn('value="0:00:09.50"', data["form_html"])
+
     def test_undo_and_redo_return_the_new_active_version(self):
         update_response = self.update_annotation()
         updated_id = update_response.json()["annotation_id"]

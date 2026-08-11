@@ -1,22 +1,22 @@
 // This file is not intended to be imported into an html page,
 // use this as a module to extend functionality of other js scripts
-export function formatSecondsToString(timeInSeconds, shouldGiveTimestamp=false) {
-  let time;
-  if (shouldGiveTimestamp) {
-    time = Number(timeInSeconds).toFixed(2);
-  } else {
-    time = Math.round(timeInSeconds);
-  }
-  const hours = Math.floor(time / 3600);
-  const minutes = Math.floor((time % 3600) / 60);
-  const seconds = (time % 60).toFixed(0);
-  let decimal = "";
 
-  if (shouldGiveTimestamp) {
-    decimal = '.' + Math.round(((time * 100) % 100)).toString().padStart(2, '0');
-  }
+export function formatSecondsToString(timeInSeconds) {
+  const numericTime = Number(timeInSeconds);
+  const safeTime = Number.isFinite(numericTime) ? Math.max(0, numericTime) : 0;
+  // Rounded before it is split apart, so 59.999 reaches the next minute instead of reading 0:00:60.00.
+  const seconds = Number(safeTime.toFixed(2));
 
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}${decimal}`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = (seconds % 60).toFixed(2).padStart(5, "0");
+  return `${hours}:${String(minutes).padStart(2, "0")}:${remainder}`;
+}
+
+export function parseTimeStringToSeconds(time) {
+  const parts = String(time).trim().split(":");
+  if (parts.length > 3 || parts.some((part) => part.trim() === "")) return NaN;
+  return parts.reduce((seconds, part) => seconds * 60 + Number(part), 0);
 }
 
 export function createElementFromHTMLString(html, nodeIndex=0) {
