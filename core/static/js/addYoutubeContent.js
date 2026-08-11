@@ -26,18 +26,18 @@ function setupAddYoutubeVideoForm() {
     const urlInput = document.getElementById("add-youtube-video-url");
 
     try {
-      const response = await fetch("/content/create-from-url/", {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          "playlist_id": playlistIdInput.value,
-          "title": titleInput.value,
-          "url": urlInput.value
-        })
-      });
+      const response = await fetch(
+        `/playlists/${playlistIdInput.value}/content/create-from-url/`, {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            "title": titleInput.value,
+            "url": urlInput.value
+          })
+        });
 
       if (!response.ok) {
         const message = await response.text();

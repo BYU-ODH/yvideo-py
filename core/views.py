@@ -8,10 +8,8 @@ import re
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import IntegrityError
-from django.db import connection
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
@@ -33,11 +31,9 @@ from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
-from .models import BlankAnnotation
 from .models import Content
 from .models import Course
 from .models import ImportantWord
-from .models import MuteAnnotation
 from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
@@ -45,10 +41,18 @@ from .models import PrivilegeLevel
 from .models import Resource
 from .models import ResourceFile
 from .models import ResourceFileKey
-from .models import SkipAnnotation
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
+from .models import active_yearterms
+from .permissions import content_read_required
+from .permissions import content_write_required
+from .permissions import forbidden
+from .permissions import important_word_write_required
+from .permissions import instructor_required
+from .permissions import playlist_admin_required
+from .permissions import playlist_read_required
+from .permissions import playlist_write_required
 from .youtube_utils import get_or_create_youtube_resource
 from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
@@ -102,6 +106,7 @@ def display_yearterm(yearterm):
     return f"{term_name} {year_string}"
 
 
+@require_GET
 def index(request):
     if (
         request.user.is_authenticated
@@ -112,8 +117,8 @@ def index(request):
 
 
 @require_POST
-def get_player_data(request, content_id):
-    content = get_object_or_404(Content, id=content_id)
+@content_read_required
+def get_player_data(request, content):
     try:
         player_json = content.get_player_json()
         has_subtitles = bool(
@@ -135,10 +140,10 @@ def get_player_data(request, content_id):
         return HttpResponseServerError()
 
 
-# @login_required  # TODO: Uncomment
-def player(request, content_id):
+@require_GET
+@content_read_required
+def player(request, content):
     """Render the video player page."""
-    content = get_object_or_404(Content, id=content_id)
     resource_file_key = request.user.get_resource_filekey(content)
     content_source_url = request.user.get_content_source_url(content)
     if not resource_file_key and not content_source_url:
@@ -157,13 +162,19 @@ def player(request, content_id):
     return render(request, "core/player.html", context)
 
 
+@require_GET
 def stream_file(request, resource_file_key_id):
     """Stream file content with support for HTTP Range requests (partial content)."""
     try:
-        # Get the ResourceFileKey object
+        # Keys are minted per playback by User.get_resource_filekey, which is where
+        # the permission check happens. Binding the key to its user and expiring it
+        # stops a key id -- sequential, and visible in the page source -- from being
+        # a durable capability anyone can replay (#320).
         resource_file_key_obj = get_object_or_404(
             ResourceFileKey, id=resource_file_key_id
         )
+        if not resource_file_key_obj.can_be_used_by(request.user):
+            return forbidden("This media key is not valid for you, or has expired.")
         file_obj = resource_file_key_obj.resource_file
 
         # Check if file exists
@@ -268,38 +279,38 @@ def stream_file(request, resource_file_key_id):
         return HttpResponse(f"Error streaming file: {str(e)}", status=500)
 
 
+@require_GET
 def playlists(request):
-    # if admin, gather owned playlists
     owned_playlists = []
-    if (
-        request.user.privilege_level == PrivilegeLevel.INSTRUCTOR
-        or request.user.privilege_level_override == PrivilegeLevel.INSTRUCTOR
-        or request.user.is_admin
-    ):
-        owned_playlists_raw = Playlist.objects.filter(owner=request.user)
+    if request.user.is_instructor:
         owned_playlists = [
-            prepare_playlist_for_display(playlist) for playlist in owned_playlists_raw
+            prepare_playlist_for_display(playlist)
+            for playlist in Playlist.objects.filter(owner=request.user)
         ]
 
-    # organize assigned playlists by yearterm and then by course.
-    yearterms = []
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """SELECT yearterm FROM core_usercourses GROUP BY yearterm ORDER BY yearterm"""
-        )
-        yearterms = [result[0] for result in cursor.fetchall()]
+    # Course-derived access expires with the term, so only terms whose grace window
+    # is still open can contribute a playlist the user could actually open.
+    active = active_yearterms()
 
+    # organize assigned playlists by yearterm and then by course.
     playlists_by_course_by_yearterm = []
-    for yearterm in yearterms:
+    for yearterm in sorted(
+        UserCourses.objects.filter(user=request.user, yearterm__in=active)
+        .values_list("yearterm", flat=True)
+        .distinct()
+    ):
         user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
         playlists_by_course = []
         for user_course in user_courses:
-            playlists = Playlist.objects.filter(courses=user_course.course)
+            course_playlists = Playlist.objects.filter(
+                courses=user_course.course, published=True, archived=False
+            )
             playlists_by_course.append(
                 {
                     "course_name": user_course.course.__str__(),
                     "playlists": [
-                        prepare_playlist_for_display(playlist) for playlist in playlists
+                        prepare_playlist_for_display(playlist)
+                        for playlist in course_playlists
                     ],
                 }
             )
@@ -310,20 +321,20 @@ def playlists(request):
             }
         )
 
-    manual_access_playlists = Playlist.objects.filter(
-        playlistuseraccess__user=request.user
-    )
-    manual_playlists = []
-    for playlist in manual_access_playlists:
-        prepared_playlist = prepare_playlist_for_display(playlist)
-        manual_playlists.append(prepared_playlist)
+    # Direct grants are listed whatever the role, but the same published/archived
+    # filter applies, so a card is never shown for a playlist that would 403.
+    manual_playlists = [
+        prepare_playlist_for_display(playlist)
+        for playlist in Playlist.objects.filter(
+            playlistuseraccess__user=request.user, published=True, archived=False
+        ).exclude(owner=request.user)
+    ]
 
     context = {
         "user": request.user,
-        "is_instructor": request.user.privilege_level == PrivilegeLevel.INSTRUCTOR,
+        "is_instructor": request.user.is_instructor,
         "owned_playlists": owned_playlists,
         "assigned_courses_by_yearterm": playlists_by_course_by_yearterm,
-        "public_playlists": [],
         "manual_playlists": manual_playlists,
     }
     return render(request, "core/playlists.html", context)
@@ -338,6 +349,8 @@ def get_playlist_types(user):
     return {"archived": archived, "published": published, "unpublished": unpublished}
 
 
+@require_POST
+@instructor_required
 def create_playlist(request):
     data = json.loads(request.body)
     if data and "name" in data:
@@ -417,10 +430,18 @@ def get_assigned_courses(playlist, yearterm):
     return assigned_courses
 
 
-def playlist_info(request, playlist_id):
+@require_GET
+@playlist_read_required
+def playlist_info(request, playlist):
+    return render_playlist_info(request, playlist)
+
+
+def render_playlist_info(request, playlist):
     try:
-        playlist = Playlist.objects.get(pk=playlist_id)
+        can_edit = playlist.can_be_edited_by(request.user)
         contents = Content.objects.filter(playlist=playlist)
+        if not can_edit:
+            contents = contents.filter(published=True)
         year_and_semester = get_semester_and_year_options()
         assigned_courses = get_assigned_courses(playlist, year_and_semester["yearterm"])
 
@@ -430,25 +451,23 @@ def playlist_info(request, playlist_id):
             {
                 "playlist": playlist,
                 "contents": contents,
+                "can_edit": can_edit,
+                "can_administer": playlist.can_be_administered_by(request.user),
                 "form": PlaylistSettingsForm(instance=playlist),
                 "year_options": year_and_semester["year_options"],
                 "semester": year_and_semester["semester"],
                 "assigned_courses": assigned_courses,
             },
         )
-    except Playlist.DoesNotExist:
-        logger.error(
-            f"Failed to retrieve playlist info because playlist does not exist. Playlist ID: {playlist_id}"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to retrieve playlist info. Exception: {e}")
         return HttpResponseServerError()
 
 
-def display_playlist_settings(request, playlist_id):
+@require_GET
+@playlist_write_required
+def display_playlist_settings(request, playlist):
     try:
-        playlist = Playlist.objects.get(pk=playlist_id)
         form = PlaylistSettingsForm(instance=playlist)
         year_and_semester = get_semester_and_year_options()
 
@@ -464,11 +483,11 @@ def display_playlist_settings(request, playlist_id):
         return HttpResponseServerError()
 
 
-def render_course_assignment(request):
+@require_POST
+@playlist_write_required
+def render_course_assignment(request, playlist):
     try:
         parsed_data = json.loads(request.body)
-        playlist_id = parsed_data["playlist_id"]
-        playlist = Playlist.objects.get(pk=playlist_id)
         semester = parsed_data["semester"]
         year = parsed_data["year"]
 
@@ -476,26 +495,24 @@ def render_course_assignment(request):
         if len(semester) > 1 or len(year) > 4:
             return HttpResponseBadRequest()
 
-        yearterm = f"{year}{semester}"
-        assigned_courses = get_assigned_courses(playlist, yearterm)
+        return render_course_assignment_partial(request, playlist, f"{year}{semester}")
 
-        return render(
-            request,
-            "core/partials/course_assignment.html",
-            {"assigned_courses": assigned_courses},
-        )
-
-    except Playlist.DoesNotExist:
-        logger.error(
-            "Failed to render course assignment information because the playlist does not exist"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to render course assignment information. Exception: {e}")
         return HttpResponseServerError()
 
 
-def assign_playlist_to_course(request):
+def render_course_assignment_partial(request, playlist, yearterm):
+    return render(
+        request,
+        "core/partials/course_assignment.html",
+        {"assigned_courses": get_assigned_courses(playlist, yearterm)},
+    )
+
+
+@require_POST
+@playlist_write_required
+def assign_playlist_to_course(request, playlist):
     # first check if the course already exists. if so, add the playlist to that course.
     # otherwise, create the course and then add the playlist
     try:
@@ -506,14 +523,11 @@ def assign_playlist_to_course(request):
             or "sections" not in parsed_data
             or "year" not in parsed_data
             or "semester" not in parsed_data
-            or "playlist_id" not in parsed_data
         ):
             logger.error(
                 "Failed to assign course to playlist because of insufficient data provided"
             )
             return HttpResponseBadRequest()
-        playlist_id = parsed_data["playlist_id"]
-        playlist = Playlist.objects.get(pk=playlist_id)
 
         dept = parsed_data["dept"]
         catalog_number = parsed_data["catalog_number"]
@@ -542,24 +556,20 @@ def assign_playlist_to_course(request):
                     existing_course = existing_course_filter.first()
                 playlist.courses.add(existing_course)
                 playlist.save()
-        return render_course_assignment(request)
+        return render_course_assignment_partial(request, playlist, yearterm)
 
-    except Playlist.DoesNotExist:
-        logger.error(
-            "Failed to assign course to playlist because the playlist does not exist"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to assign course to playlist. Exception: {e}")
         return HttpResponseServerError()
 
 
-def update_playlist_course_sections(request):
+@require_POST
+@playlist_write_required
+def update_playlist_course_sections(request, playlist):
     try:
         parsed_data = json.loads(request.body)
         if (
-            "playlist_id" not in parsed_data
-            or "sections" not in parsed_data
+            "sections" not in parsed_data
             or "dept" not in parsed_data
             or "catalog_number" not in parsed_data
             or "semester" not in parsed_data
@@ -569,7 +579,6 @@ def update_playlist_course_sections(request):
                 "Failed to update course sections because of insufficient data provided"
             )
             return HttpResponseBadRequest()
-        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
         new_sections_list = parsed_data["sections"]
         dept = parsed_data["dept"]
         catalog_number = parsed_data["catalog_number"]
@@ -608,17 +617,14 @@ def update_playlist_course_sections(request):
 
         return HttpResponse()
 
-    except Playlist.DoesNotExist:
-        logger.error(
-            "Failed to update course sections because the playlist does not exist"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to update course sections. Exception: {e}")
         return HttpResponseServerError()
 
 
-def unassign_playlist_from_course(request):
+@require_POST
+@playlist_write_required
+def unassign_playlist_from_course(request, playlist):
     try:
         parsed_data = json.loads(request.body)
         if (
@@ -626,14 +632,12 @@ def unassign_playlist_from_course(request):
             or "catalog_number" not in parsed_data
             or "semester" not in parsed_data
             or "year" not in parsed_data
-            or "playlist_id" not in parsed_data
         ):
             logger.error(
                 "Failed to remove playlist from course because of insufficient data"
             )
             return HttpResponseBadRequest()
 
-        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
         courses = playlist.courses.all().filter(
             dept=parsed_data["dept"],
             catalog_number=parsed_data["catalog_number"],
@@ -642,27 +646,22 @@ def unassign_playlist_from_course(request):
         playlist.courses.remove(*courses)
         return HttpResponse()
 
-    except Playlist.DoesNotExist:
-        logger.error(
-            "Failed to remove playlist assigned to course because the playlist does not exist"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to remove playlist assigned to course. Exception: {e}")
         return HttpResponseServerError()
 
 
 @require_POST
-def update_playlist_settings(request):
+@playlist_write_required
+def update_playlist_settings(request, playlist):
     form = PlaylistSettingsForm(request.POST)
     if form.is_valid():
         try:
-            playlist = Playlist.objects.get(pk=form.cleaned_data["id"])
             playlist.name = form.cleaned_data["name"]
             playlist.published = form.cleaned_data["published"]
             playlist.archived = form.cleaned_data["archived"]
             playlist.save()
-            return playlist_info(request, playlist.id)
+            return render_playlist_info(request, playlist)
         except Exception as e:
             logger.error(
                 f"An error occured while attempting to update playlist settings. {e}"
@@ -670,6 +669,28 @@ def update_playlist_settings(request):
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
+
+
+def accessible_resources(user):
+    """The resource library as `user` may see it, matching User.can_access_resource."""
+    if user.is_superuser or user.is_lab_assistant:
+        return Resource.objects.all()
+    granted = Q(resourceaccess__user=user)
+    # A TA or co-instructor inherits every grant held by the owner of a playlist
+    # they can write to.
+    inherited = Q(
+        resourceaccess__user__playlists_owned__playlistuseraccess__user=user,
+        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role__in=(
+            PlaylistRole.INSTRUCTOR,
+            PlaylistRole.TA,
+        ),
+    )
+    visible = granted | inherited
+    if user.is_instructor:
+        visible |= Q(checked_out_from_hbll=True) | Q(
+            checked_out_from_other_byu_library=True
+        )
+    return Resource.objects.filter(visible).distinct()
 
 
 def get_playlist_contents(playlist):
@@ -680,51 +701,50 @@ def get_playlist_contents(playlist):
 
 
 @require_http_methods(["DELETE"])
-def delete_playlist(request, playlist_id):
+@playlist_admin_required
+def delete_playlist(request, playlist):
     try:
-        playlist = Playlist.objects.get(pk=playlist_id)
-        if request.user.is_admin or request.user == playlist.owner:
-            playlist.delete()
+        playlist.delete()
         return HttpResponse()
     except Exception as e:
         logger.error(
-            f"An error occured while deleting the playlist with id: {playlist_id}. Exception: {e}"
+            f"An error occured while deleting the playlist with id: {playlist.pk}. Exception: {e}"
         )
         return HttpResponseServerError()
 
 
+# TODO (#335, #352): routed but unreferenced, and broken independently of permissions --
+# create_content.html reverses `display_resources_files`, a URL name that does not exist,
+# so this 500s on every request. The live path for adding content is
+# display_create_from_resource. Delete this view, its template, and its route, or finish it.
 @require_GET
-def display_create_content(request, playlist_id):
-    form = ContentForm()
-    playlist = get_object_or_404(Playlist, pk=playlist_id)
-    resources = Resource.objects.all()
+@playlist_write_required
+def display_create_content(request, playlist):
     return render(
         request,
         "core/partials/create_content.html",
         {
-            "form": form,
+            "form": ContentForm(),
             "playlist": playlist,
-            "resources": resources,
+            "resources": accessible_resources(request.user),
         },
     )
 
 
 @require_POST
-def create_content(request):
+@playlist_write_required
+def create_content(request, playlist):
     try:
         parsed_data = json.loads(request.body)
-        if (
-            "playlist_id" not in parsed_data
-            or "title" not in parsed_data
-            or "resource_file_id" not in parsed_data
-        ):
+        if "title" not in parsed_data or "resource_file_id" not in parsed_data:
             logger.error(
                 "Failed to create new content because of invalid data provided."
             )
             return HttpResponseBadRequest()
 
-        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
         resource_file = ResourceFile.objects.get(pk=parsed_data["resource_file_id"])
+        if not request.user.can_access_resource(resource_file.resource):
+            return forbidden("You do not have access to that resource.")
         Content.objects.create(
             playlist=playlist,
             title=parsed_data["title"],
@@ -740,25 +760,17 @@ def create_content(request):
 
 
 @require_POST
-@login_required
-def create_content_from_youtube_url(request):
+@playlist_write_required
+def create_content_from_youtube_url(request, playlist):
     """Create URL-only Content from a YouTube URL, self-serve (no lab-assistant/
     admin gate) - see core/youtube.py for the Resource get-or-create logic."""
     try:
         parsed_data = json.loads(request.body)
-        if (
-            "playlist_id" not in parsed_data
-            or "title" not in parsed_data
-            or "url" not in parsed_data
-        ):
+        if "title" not in parsed_data or "url" not in parsed_data:
             logger.error(
                 "Failed to create new content from URL because of invalid data provided."
             )
             return HttpResponseBadRequest()
-
-        playlist = Playlist.objects.get(pk=parsed_data["playlist_id"])
-        if not (playlist.owner == request.user or request.user.is_admin):
-            return HttpResponse("Unauthorized", status=403)
 
         video_id = parse_youtube_video_id(parsed_data["url"])
         if not video_id:
@@ -807,23 +819,17 @@ def create_content_from_youtube_url(request):
         return HttpResponseServerError()
 
 
-def display_create_from_resource(request, playlist_id):
-    if playlist_id is None:
-        return HttpResponseBadRequest()
+@require_GET
+@playlist_write_required
+def display_create_from_resource(request, playlist):
     try:
-        Playlist.objects.get(pk=playlist_id)
-    except Exception as e:
-        logger.error(
-            f"Failed to display resources to create a content for the given playlist. Exception: {e}"
-        )
-        return HttpResponseBadRequest()
-
-    try:
-        resources = Resource.objects.all()
         return render(
             request,
             "core/create_from_resource.html",
-            {"resources": resources, "playlist_id": playlist_id},
+            {
+                "resources": accessible_resources(request.user),
+                "playlist_id": playlist.pk,
+            },
         )
     except Exception as e:
         logger.error(
@@ -832,33 +838,27 @@ def display_create_from_resource(request, playlist_id):
         return HttpResponseServerError()
 
 
-def render_create_from_resource_form(request):
+@require_POST
+@playlist_write_required
+def render_create_from_resource_form(request, playlist, resource_id):
     try:
-        parsed_data = json.loads(request.body)
-        if "resource_id" not in parsed_data or "playlist_id" not in parsed_data:
-            return HttpResponseBadRequest()
-
-        resource_id = parsed_data["resource_id"]
-        resource = Resource.objects.get(pk=resource_id)
+        resource = get_object_or_404(Resource, pk=resource_id)
+        if not request.user.can_access_resource(resource):
+            return forbidden("You do not have access to that resource.")
 
         context = {
-            "playlist_id": parsed_data["playlist_id"],
+            "playlist_id": playlist.pk,
             "options": resource.resource_files.all(),
         }
         return render(request, "core/partials/create_from_resource_form.html", context)
-    except Resource.DoesNotExist:
-        logger.error(
-            "Failed to render the create from resource form because no Resource matches the provided resource_id"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to render the create from resource form. Exception: {e}")
         return HttpResponseServerError()
 
 
 @require_http_methods(["DELETE"])
-def delete_content(request, content_id):
-    content = get_object_or_404(Content, pk=content_id)
+@content_write_required
+def delete_content(request, content):
     try:
         contents_count = Content.objects.filter(playlist=content.playlist).count()
         content.delete()
@@ -870,20 +870,21 @@ def delete_content(request, content_id):
             return HttpResponse("", status=200)
     except Exception as e:
         logger.error(
-            f"An error occured while deleting content with id: {content_id}. Exception: {e}"
+            f"An error occured while deleting content with id: {content.pk}. Exception: {e}"
         )
         return HttpResponseServerError()
-    return HttpResponseBadRequest()
 
 
-def display_content_info(request, content_id):
+@require_GET
+@content_read_required
+def display_content_info(request, content):
     try:
-        content = Content.objects.get(pk=content_id)
         resource_file_key = request.user.get_resource_filekey(content)
         content_source_url = request.user.get_content_source_url(content)
         context = {
             "content": content,
             "content_id": content.pk,
+            "can_edit": content.can_be_edited_by(request.user),
             "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
             "content_source_url": content_source_url,
             "youtube_video_id": youtube_video_id_for_content(
@@ -893,61 +894,31 @@ def display_content_info(request, content_id):
             "subtitle_options": content.get_subtitle_options(),
         }
         return render(request, "core/content_info.html", context)
-    except Content.DoesNotExist:
-        logger.error(
-            f"Failed to display content settings because of missing content object. Id provided: {content_id}"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to display content settings. Exception: {e}")
         return HttpResponseServerError()
 
 
-def render_content_settings_form(request, content_id):
+@require_GET
+@content_write_required
+def render_content_settings_form(request, content):
     try:
-        content = Content.objects.get(pk=content_id)
         context = {
             "content": content,
             "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitle_options(),
         }
         return render(request, "core/partials/content_settings_form.html", context)
-    except Content.DoesNotExist:
-        logger.error(
-            "Failed to render content settings form beacuse the requested content does not exist"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to render content settings form. Exception: {e}")
         return HttpResponseServerError()
 
 
-def remove_content_from_playlist(request, content_id):
-    try:
-        content = Content.objects.get(pk=content_id)
-        if request.user.is_admin or request.user == content.playlist.owner:
-            playlist_id = content.playlist.pk
-            content.playlist = None
-            content.save()
-            return HttpResponse(playlist_id)
-        else:
-            return HttpResponse(status=401)
-
-    except Content.DoesNotExist:
-        logger.error(
-            "Failed to remove content from playlist because the content doesn't exist"
-        )
-        return HttpResponseBadRequest()
-    except Exception as e:
-        logger.error(f"Failed to remove content from playlist. Exception: {e}")
-        return HttpResponseServerError()
-
-
 @require_POST
-def update_content(request):
+@content_write_required
+def update_content(request, content):
     try:
         data = json.loads(request.body)
-        content = Content.objects.get(pk=data["id"])
         content.title = data["title"]
         content.description = data["description"]
         content.words = data["words"]
@@ -969,19 +940,14 @@ def update_content(request):
 
         content.save()
         return HttpResponse()
-    except Content.DoesNotExist:
-        logger.error(
-            "Failed to update content because the content object does not exist"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"An error occured while updating content. Exception: {e}")
         return HttpResponseServerError()
 
 
 @require_POST
-def create_important_word(request):
-    content = get_object_or_404(Content, pk=request.POST["content_id"])
+@content_write_required
+def create_important_word(request, content):
     form = ImportantWordForm(request.POST)
     if form.is_valid():
         if not form.cleaned_data["word"]:
@@ -1014,119 +980,61 @@ def create_important_word(request):
 
 
 @require_http_methods(["DELETE"])
-def delete_important_word(request, word_id):
-    word = get_object_or_404(ImportantWord, pk=word_id)
+@important_word_write_required
+def delete_important_word(request, word):
     try:
         word.delete()
         return HttpResponse("", status=200)
     except Exception as e:
         logger.error(
-            f"An error occured while deleting an important word. word_id: {word_id}. Exception: {e}"
+            f"An error occured while deleting an important word. word_id: {word.pk}. Exception: {e}"
         )
         return HttpResponseServerError()
 
 
-def add_annotation(request, content_id, annotation_type):
-    if request.method != "POST":
-        return JsonResponse({"error": "Method not allowed"}, status=405)
-
-    # Map strings to model classes
-    annotation_types = {
-        "skip": SkipAnnotation,
-        "mute": MuteAnnotation,
-        "blank": BlankAnnotation,
-    }
-
-    annotation_class = annotation_types.get(annotation_type.lower())
-
-    content_obj = get_object_or_404(Content, id=content_id)
-
-    # Get POST data
-    annotation_id = request.POST.get("annotation_id")
-    name = request.POST.get("name", "")
-    owner = request.POST.get("owner", "")  # Change to request.user when auth is set up
-    start_time = float(request.POST.get("start_time", 0))
-    end_time = float(request.POST.get("end_time", 0))
-    description = request.POST.get("description", "")
-
-    if annotation_id:
-        # Update existing annotation
-        annotation = get_object_or_404(annotation_class, id=annotation_id)
-        annotation.name = name
-        annotation.start_time = start_time
-        annotation.end_time = end_time
-        annotation.description = description
-        annotation.save()
-    else:
-        # Create new annotation
-        annotation = annotation_class.objects.create(
-            content=content_obj,
-            owner=owner,
-            name=name,
-            start_time=start_time,
-            end_time=end_time,
-            description=description,
-        )
-
-    # Return JSON response
-    return JsonResponse(
-        {
-            "id": annotation.id,
-            "name": annotation.name,
-            "type": annotation.annotation_type,
-            "owner": annotation.owner.username,
-            "start_time": annotation.start_time,
-            "end_time": annotation.end_time,
-            "description": annotation.description,
-        }
-    )
-
-
+@require_GET
 @login_not_required
 def invalid_login(request):
     return render(request, "core/invalid_login.html", {})
 
 
+@require_POST
 @spoof_permission_required
 def spoof_user_start(request):
-    if request.method == "POST":
-        spoof_user_id = request.POST.get("spoof_user_id")
-        if spoof_user_id:
-            actor = _spoof_actor(request)
-            target_user = (
-                User.objects.filter(pk=spoof_user_id).first()
-                if spoof_user_id.isdigit()
-                else None
-            )
-            if target_user and actor.can_spoof_as(target_user):
-                request.session["spoof_user_id"] = target_user.pk
-            else:
-                target_desc = (
-                    f"{target_user.first_name} {target_user.last_name} "
-                    f"({target_user.netid} {target_user.username})"
-                    if target_user
-                    else f"unknown user id {spoof_user_id}"
-                )
-                logger.warning(
-                    f"SPOOF DENIED: {actor.first_name} {actor.last_name} "
-                    f"({actor.netid} {actor.username}) attempted to spoof as {target_desc}"
-                )
-        return redirect(
-            request.POST.get("next") or request.headers.get("Referer") or "/"
+    spoof_user_id = request.POST.get("spoof_user_id")
+    if spoof_user_id:
+        actor = _spoof_actor(request)
+        target_user = (
+            User.objects.filter(pk=spoof_user_id).first()
+            if spoof_user_id.isdigit()
+            else None
         )
-    return redirect("/")
+        if target_user and actor.can_spoof_as(target_user):
+            request.session["spoof_user_id"] = target_user.pk
+        else:
+            target_desc = (
+                f"{target_user.first_name} {target_user.last_name} "
+                f"({target_user.netid} {target_user.username})"
+                if target_user
+                else f"unknown user id {spoof_user_id}"
+            )
+            logger.warning(
+                f"SPOOF DENIED: {actor.first_name} {actor.last_name} "
+                f"({actor.netid} {actor.username}) attempted to spoof as {target_desc}"
+            )
+    return redirect(request.POST.get("next") or request.headers.get("Referer") or "/")
 
 
+@require_POST
 @spoof_permission_required
 def spoof_user_stop(request):
     request.session.pop("spoof_user_id", None)
-    return redirect(request.GET.get("next") or request.headers.get("Referer") or "/")
+    return redirect(request.POST.get("next") or request.headers.get("Referer") or "/")
 
 
+@require_POST
 @spoof_permission_required
 def spoof_user_search(request):
-    if request.method != "POST":
-        return HttpResponse(status=405)
     actor = _spoof_actor(request)
     query = request.POST.get("search", "").strip()
     users = User.objects.filter(
@@ -1147,6 +1055,9 @@ def spoof_user_search(request):
     return HttpResponse(html)
 
 
+# TODO (#335, #352): unrouted and unreferenced. Either delete it or route it behind
+# @content_write_required -- as written it hands out a file key and full subtitle text
+# for any content id.
 @require_GET
 def subtitle_editor(request, content_id):
     try:
@@ -1188,6 +1099,7 @@ def subtitle_editor(request, content_id):
     )
 
 
+@require_http_methods(["GET", "POST"])
 def request_resource(request):
 
     if request.method == "POST":
@@ -1221,33 +1133,26 @@ def request_resource(request):
     )
 
 
-def add_playlist_member(request, playlist_id):
-    if not (
-        request.user.privilege_level == PrivilegeLevel.INSTRUCTOR
-        or request.user.is_admin
-    ):
-        return HttpResponse("Forbidden", status=403)
+# TODO (#335, #352, #361): unrouted. Checks the instructor capability but not playlist
+# ownership, so any instructor could TA themselves onto any playlist if it were wired up.
+# Route it behind Playlist.can_grant_role, which enforces B1's rule that only the owner
+# may grant TA or co-instructor. It also redirects to a `view_playlist` URL name that
+# does not exist.
+@require_POST
+@playlist_write_required
+def add_playlist_member(request, playlist):
+    netid = request.POST.get("netid", "").strip()
+    role = request.POST.get("role", "").strip()
 
-    playlist = get_object_or_404(Playlist, pk=playlist_id)
+    user = get_object_or_404(User, netid=netid)
+    playlist_role = PlaylistRole.TA if role == "TA" else PlaylistRole.AUDITOR
+    if not playlist.can_grant_role(request.user, playlist_role):
+        return forbidden("Only the playlist owner can grant that role.")
 
-    if request.method == "POST":
-        # Get form data
-        netid = request.POST.get("netid", "").strip()
-        role = request.POST.get("role", "").strip()
+    PlaylistUserAccess.objects.create(
+        user=user,
+        playlist=playlist,
+        playlist_role=playlist_role,
+    )
 
-        user = get_object_or_404(User, netid=netid)
-
-        if role == "TA":
-            playlist_role = PlaylistRole.TA
-        else:
-            playlist_role = PlaylistRole.AUDITOR
-
-        PlaylistUserAccess.objects.create(
-            user=user,
-            playlist=playlist,
-            playlist_role=playlist_role,
-        )
-
-        return redirect("view_playlist", pk=playlist.id)
-
-    return HttpResponseBadRequest()
+    return redirect("playlist_info", playlist_id=playlist.pk)

@@ -323,7 +323,6 @@ def create_demo_data():
         name="Professor Ada Birds Annotations",
         resource=birds_resource,
         owner=professor_ada,
-        editors=[teaching_assistant, admin],
     )
     birds_track = TrackFactory(
         annotation_set=birds_annotation_set,

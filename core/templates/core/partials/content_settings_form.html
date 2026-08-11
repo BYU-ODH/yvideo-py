@@ -1,7 +1,8 @@
 {% load static %}
 
-<div id="content-settings-form" class="column-flex" method="post" action="/content/update/">
+<div id="content-settings-form" class="column-flex">
     <input id="content-id-input" hidden disabled value="{{ content.id }}">
+    <input id="playlist-id-input" hidden disabled value="{{ content.playlist_id }}">
     <div class="row-flex">
         <div class="column-flex">
             <div class="content-form-group">

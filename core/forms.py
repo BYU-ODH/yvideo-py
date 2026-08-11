@@ -43,9 +43,7 @@ class PlaylistForm(forms.ModelForm):
 class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
-        fields = ["id", "name", "published", "archived"]
-
-    id = forms.CharField(widget=forms.HiddenInput)
+        fields = ["name", "published", "archived"]
 
 
 class ContentForm(forms.ModelForm):

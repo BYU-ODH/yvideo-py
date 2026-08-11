@@ -6,6 +6,9 @@ from . import views_video_editor
 
 app_name = "core"
 
+# Object ids belong in the path, not the request body: a permission decorator cannot
+# read a JSON body without consuming it, and a body-supplied id is invisible to the
+# routing layer. See core/permissions.py.
 urlpatterns = [
     path("", views.index, name="index"),
     path(
@@ -24,62 +27,71 @@ urlpatterns = [
         name="legacy_migration_request_detail",
     ),
     path("playlists/", views.playlists, name="playlists"),
+    path("playlists/create/", views.create_playlist, name="create_playlist"),
     path(
         "playlists/<int:playlist_id>/",
         views.playlist_info,
         name="playlist_info",
     ),
     path(
-        "playlists/render-course-assignment/",
-        views.render_course_assignment,
-        name="render_course_assignment",
-    ),
-    path("playlists/create/", views.create_playlist, name="create_playlist"),
-    path(
-        "playlists/delete/<int:playlist_id>/",
+        "playlists/<int:playlist_id>/delete/",
         views.delete_playlist,
         name="delete_playlist",
     ),
     path(
-        "playlists/assign-course/",
+        "playlists/<int:playlist_id>/render-course-assignment/",
+        views.render_course_assignment,
+        name="render_course_assignment",
+    ),
+    path(
+        "playlists/<int:playlist_id>/assign-course/",
         views.assign_playlist_to_course,
         name="assign_playlist_to_course",
     ),
     path(
-        "playlists/course/update-sections/",
+        "playlists/<int:playlist_id>/course/update-sections/",
         views.update_playlist_course_sections,
         name="update_playlist_course_sections",
     ),
     path(
-        "playlists/course/unassign/",
+        "playlists/<int:playlist_id>/course/unassign/",
         views.unassign_playlist_from_course,
         name="unassign_playlist_from_course",
     ),
     path(
-        "display-playlist-settings/<int:playlist_id>/",
+        "playlists/<int:playlist_id>/settings/",
         views.display_playlist_settings,
         name="display_playlist_settings",
     ),
     path(
-        "playlist-settings/update/",
+        "playlists/<int:playlist_id>/settings/update/",
         views.update_playlist_settings,
         name="update_playlist_settings",
     ),
     path(
-        "playlist/delete/<int:playlist_id>",
-        views.delete_playlist,
-        name="delete_playlist",
-    ),
-    path(
-        "content/display-create/<int:playlist_id>/",
+        "playlists/<int:playlist_id>/content/display-create/",
         views.display_create_content,
         name="display_create_content",
     ),
-    path("content/create/", views.create_content, name="create_content"),
     path(
-        "content/create-from-url/",
+        "playlists/<int:playlist_id>/content/create/",
+        views.create_content,
+        name="create_content",
+    ),
+    path(
+        "playlists/<int:playlist_id>/content/create-from-url/",
         views.create_content_from_youtube_url,
         name="create_content_from_youtube_url",
+    ),
+    path(
+        "playlists/<int:playlist_id>/create-from-resource/",
+        views.display_create_from_resource,
+        name="display_create_from_resource",
+    ),
+    path(
+        "playlists/<int:playlist_id>/create-from-resource/<int:resource_id>/form/",
+        views.render_create_from_resource_form,
+        name="render_create_from_resource_form",
     ),
     path(
         "resource-intake-request/",
@@ -87,66 +99,49 @@ urlpatterns = [
         name="request_resource",
     ),
     path(
-        "create-from-resource/<int:playlist_id>",
-        views.display_create_from_resource,
-        name="display_create_from_resource",
-    ),
-    path(
-        "create-from-resource-form/",
-        views.render_create_from_resource_form,
-        name="render_create_from_resource_form",
-    ),
-    path(
-        "content/display-settings/<int:content_id>/",
+        "content/<int:content_id>/display-settings/",
         views.display_content_info,
         name="display_content_info",
     ),
     path(
-        "content/render-settings-form/<int:content_id>/",
+        "content/<int:content_id>/render-settings-form/",
         views.render_content_settings_form,
         name="render_content_settings_form",
     ),
-    path("content/update/", views.update_content, name="update_content"),
     path(
-        "content/remove-from-playlist/<int:content_id>/",
-        views.remove_content_from_playlist,
-        name="remove_content_from_playlist",
+        "content/<int:content_id>/update/", views.update_content, name="update_content"
     ),
     path(
-        "content/delete/<int:content_id>", views.delete_content, name="delete_content"
+        "content/<int:content_id>/delete/", views.delete_content, name="delete_content"
     ),
     path(
-        "important-word/create",
+        "content/<int:content_id>/important-word/create/",
         views.create_important_word,
         name="create_important_word",
     ),
     path(
-        "important-word/delete/<int:word_id>/",
+        "important-word/<int:word_id>/delete/",
         views.delete_important_word,
         name="delete_important_word",
     ),
     path(
-        "player-data/<int:content_id>/", views.get_player_data, name="get_player_data"
+        "content/<int:content_id>/player-data/",
+        views.get_player_data,
+        name="get_player_data",
     ),
     path("player/<int:content_id>/", views.player, name="player"),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),
-    path("player/<int:content_id>", views.player, name="player"),
-    path(
-        "add_annotation/<str:annotation_type>/<int:file_id>/",
-        views.add_annotation,
-        name="add_annotation",
-    ),
     path("invalid-login", views.invalid_login, name="invalid_login"),
     path("spoof-user-start/", views.spoof_user_start, name="start_spoofing"),
     path("spoof-user-stop/", views.spoof_user_stop, name="stop_spoofing"),
     path("spoof-user-search/", views.spoof_user_search, name="spoof_user_search"),
     path(
-        "subtitles/get-editable-subtitles/<int:subtitle_id>/",
+        "subtitles/<int:subtitle_id>/editable/",
         views_video_editor.get_editable_subtitles,
         name="get_editable_subtitles",
     ),
     path(
-        "subtitles/update-subtitle-cues",
+        "subtitles/<int:subtitle_id>/update-cues/",
         views_video_editor.update_subtitle_content,
         name="update_subtitle_content",
     ),
@@ -157,25 +152,20 @@ urlpatterns = [
         name="video_editor",
     ),
     path(
-        "video-editor/reload-player",
+        "video-editor/<int:content_id>/reload-player/",
         views_video_editor.get_player_wrapper_html,
         name="reload-video-player",
     ),
     # AnnotationSet management
     path(
-        "select-annotation-set",
+        "content/<int:content_id>/select-annotation-set/",
         views_video_editor.select_annotation_set,
         name="select_annotation_set",
     ),
     path(
-        "annotation-set/add-editor",
-        views_video_editor.add_editor_to_annotation_set,
-        name="add_editor_to_annotation_set",
-    ),
-    path(
-        "annotation-set/<int:annotation_set_id>/remove-editor/<int:user_id>/",
-        views_video_editor.remove_editor_from_annotation_set,
-        name="remove_editor_from_annotation_set",
+        "content/<int:content_id>/annotation-set/create/",
+        views_video_editor.create_annotation_set,
+        name="create_annotation_set",
     ),
     path(
         "annotation-set/<int:annotation_set_id>/settings/",
@@ -183,32 +173,22 @@ urlpatterns = [
         name="load_annotation_set_settings",
     ),
     path(
-        "annotation-set/update-name/",
+        "annotation-set/<int:annotation_set_id>/update-name/",
         views_video_editor.update_annotation_set_name,
         name="update_annotation_set_name",
     ),
     path(
-        "annotation-set/search-for-editor",
-        views_video_editor.search_for_editor,
-        name="search_for_editor",
-    ),
-    path(
-        "annotation-set/create",
-        views_video_editor.create_annotation_set,
-        name="create_annotation_set",
-    ),
-    path(
-        "annotation-set/delete/<int:annotation_set_id>",
+        "annotation-set/<int:annotation_set_id>/delete/",
         views_video_editor.delete_annotation_set,
         name="delete_annotation_set",
     ),
     path(
-        "annotation-set/export/<int:annotation_set_id>",
+        "annotation-set/<int:annotation_set_id>/export/",
         views_video_editor.export_annotation_set,
         name="export_annotation_set",
     ),
     path(
-        "annotation-panel/<int:annotation_set_id>",
+        "annotation-set/<int:annotation_set_id>/panel/",
         views_video_editor.build_annotation_panel,
         name="get_annotation_panel",
     ),
@@ -223,12 +203,12 @@ urlpatterns = [
         name="display_annotation_set_import_option",
     ),
     path(
-        "annotation-options-modal/copy-from-set/<int:content_id>",
+        "annotation-options-modal/copy-from-set/<int:content_id>/",
         views_video_editor.display_copy_from_annotation_set_option,
         name="display_copy_from_annotation_set_option",
     ),
     path(
-        "annotation-options-modal/use-existing/<int:content_id>",
+        "annotation-options-modal/use-existing/<int:content_id>/",
         views_video_editor.display_use_existing_annotation_set_option,
         name="display_use_existing_annotation_set_option",
     ),
@@ -245,33 +225,33 @@ urlpatterns = [
     ),
     # Track CRUD
     path(
-        "track/update",
+        "track/<int:track_id>/update/",
         views_video_editor.update_track,
         name="update_track",
     ),
     path(
-        "tracks/update_stack_positions",
+        "annotation-set/<int:annotation_set_id>/tracks/update_stack_positions/",
         views_video_editor.update_track_positions_in_set,
         name="update_tracks_stack_positions",
     ),
     path(
-        "track/create",
+        "annotation-set/<int:annotation_set_id>/track/create/",
         views_video_editor.create_track,
         name="create_track",
     ),
     path(
-        "track/delete/<int:track_id>",
+        "track/<int:track_id>/delete/",
         views_video_editor.delete_track,
         name="delete_track",
     ),
     # Annotation CRUD
     path(
-        "annotations/<str:annotation_type>/create/track/<int:track_id>",
+        "track/<int:track_id>/annotations/<str:annotation_type>/create/",
         views_video_editor.create_annotation,
         name="create_annotation",
     ),
     path(
-        "annotations/<str:annotation_type>/<int:annotation_id>/update/",
+        "content/<int:content_id>/annotations/<str:annotation_type>/<int:annotation_id>/update/",
         views_video_editor.update_annotation,
         name="update_annotation",
     ),

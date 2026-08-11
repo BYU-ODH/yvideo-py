@@ -3,11 +3,9 @@ import json
 import logging
 from urllib.parse import quote
 
-from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db import transaction
-from django.db.models import Q
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseNotFound
@@ -35,7 +33,15 @@ from .models import PauseAnnotation
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import Track
-from .models import User
+from .permissions import annotation_set_read_required
+from .permissions import annotation_set_write_required
+from .permissions import checks_permission_inline
+from .permissions import content_read_required
+from .permissions import content_write_required
+from .permissions import forbidden
+from .permissions import subtitle_read_required
+from .permissions import subtitle_write_required
+from .permissions import track_write_required
 from .utils import ANNOTATION_ICONS
 from .utils import VTTCue
 from .utils import build_vtt_file_string_from_cues
@@ -80,9 +86,10 @@ def get_annotation_groups(annotations):
     return groups.values()
 
 
-def build_annotation_panel(request, annotation_set_id):
+@require_GET
+@annotation_set_read_required
+def build_annotation_panel(request, annotation_set):
     try:
-        annotation_set = get_object_or_404(AnnotationSet, pk=annotation_set_id)
         annotations = annotation_set.get_active_annotations_from_tracks()
         annotation_groups = get_annotation_groups(annotations)
         annotation_panel_html = render_to_string(
@@ -107,7 +114,7 @@ def return_annotation_if_authorized_and_exists(
         }
 
     # Check edit permissions
-    if not annotation_set.can_edit(user):
+    if not annotation_set.can_be_edited_by(user):
         return {
             "success": False,
             "result": HttpResponse("Cannot edit this AnnotationSet", status=403),
@@ -157,35 +164,31 @@ def return_annotation_if_authorized_and_exists(
 
 
 @require_GET
-@login_required
-def video_editor(request, content_id):
+@content_write_required
+def video_editor(request, content):
     """Main video editor page."""
     try:
-        content = Content.objects.get(pk=content_id)
-
-        # Check if user can view this content
-        if not request.user.can_view_content(content):
-            return HttpResponse("Unauthorized", status=403)
-
         # Get file key for video streaming
         file_key = request.user.get_resource_filekey(content)
 
         subtitle_options = content.get_subtitles()
 
-        # Get available annotation sets
-        available_sets = content.get_available_annotation_sets()
+        available_sets = annotation_set_choices(content, request.user)
 
         # Determine if user can edit the active annotation set
         annotation_set = content.annotation_set
 
         can_edit = (
-            annotation_set.can_edit(request.user)
+            annotation_set.can_be_edited_by(request.user)
             if annotation_set is not None
             else True
         )
 
-        can_edit_annotation_set = annotation_set is not None and (
-            annotation_set.owner == request.user or request.user.is_admin
+        # Renaming and retiring a set are the owner's alone, unlike editing its
+        # contents, which any of that owner's TAs may do.
+        can_administer_annotation_set = (
+            annotation_set is not None
+            and annotation_set.can_be_orphaned_by(request.user)
         )
 
         # Prepare track data for timeline
@@ -205,7 +208,7 @@ def video_editor(request, content_id):
 
         context = {
             "content": content,
-            "content_id": content_id,
+            "content_id": content.pk,
             "file_key": file_key.id if file_key else None,
             "content_source_url": content_source_url,
             "youtube_video_id": youtube_video_id_for_content(
@@ -215,46 +218,55 @@ def video_editor(request, content_id):
             "available_annotation_sets": available_sets,
             "annotation_set": annotation_set,
             "can_edit": can_edit,
-            "can_edit_annotation_set": can_edit_annotation_set,
+            "can_administer_annotation_set": can_administer_annotation_set,
             "annotation_groups": annotation_groups,
             "tracks": tracks,
             "subtitle_options": subtitle_options,
         }
 
         return render(request, "core/video_editor.html", context)
-    except Content.DoesNotExist:
-        logger.error("Failed to load video editor: missing content.")
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to load video editor. Exception: {e}")
         return HttpResponseServerError()
 
 
-@login_required
-def load_annotation_set_form(request, content_id):
+def annotation_set_choices(content, user):
+    """Every set on the resource `user` may read, each marked with whether they may edit it.
+
+    Sets the user cannot edit are deliberately included -- sharing is the point of
+    reference semantics -- so the chooser has to show which are read-only rather than
+    hiding them.
+    """
+    return [
+        {
+            "annotation_set": annotation_set,
+            "can_edit": annotation_set.can_be_edited_by(user),
+            "owner_label": annotation_set.owner_label(),
+            "created_at": annotation_set.created_at,
+        }
+        for annotation_set in content.get_available_annotation_sets(user)
+    ]
+
+
+# TODO (#335, #352): unrouted and unreferenced. Delete it, or route it and keep the
+# context keys in step with video_editor above.
+@require_GET
+@content_write_required
+def load_annotation_set_form(request, content):
     """Load the annotation set selection form."""
-    content = get_object_or_404(Content, id=content_id)
-
-    # Check permissions
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
-
     annotation_set = content.annotation_set
-
-    can_edit = annotation_set.can_edit(request.user) if annotation_set else True
-
-    can_edit_annotation_set = annotation_set is not None and (
-        annotation_set.owner == request.user or request.user.is_admin
-    )
 
     form_html = render_to_string(
         "core/partials/annotation_set_form.html",
         {
             "content": content,
             "annotation_set": annotation_set,
-            "can_edit": can_edit,
-            "can_edit_annotation_set": can_edit_annotation_set,
-            "available_annotation_sets": content.get_available_annotation_sets(),
+            "can_edit": annotation_set.can_be_edited_by(request.user)
+            if annotation_set
+            else True,
+            "can_administer_annotation_set": annotation_set is not None
+            and annotation_set.can_be_orphaned_by(request.user),
+            "available_annotation_sets": annotation_set_choices(content, request.user),
         },
         request=request,
     )
@@ -263,17 +275,10 @@ def load_annotation_set_form(request, content_id):
 
 
 @require_POST
-@login_required
-def get_player_wrapper_html(request):
+@content_read_required
+def get_player_wrapper_html(request, content):
     """Generate the HTML for the video player. This endpoint is intended to be used when
     an annotation is successfully created, deleted, or updated"""
-    body = json.loads(request.body.decode("utf-8"))
-    content_id = body["content_id"]
-    content = get_object_or_404(Content, pk=content_id)
-
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
-
     try:
         resource_file_key = request.user.get_resource_filekey(content)
         content_source_url = request.user.get_content_source_url(content)
@@ -300,37 +305,32 @@ def get_player_wrapper_html(request):
 
 
 @require_POST
-@login_required
-def select_annotation_set(request):
-    """Switch the active AnnotationSet for a content."""
-    body = json.loads(request.body.decode("utf-8"))
-    content_id = body["content_id"]
+@content_write_required
+def select_annotation_set(request, content):
+    """Switch the active AnnotationSet for a content.
+
+    Write access on the content, not read: the active set is what the whole class
+    sees, so an enrolled student must not be able to swap it.
+    """
+    annotation_set_id = None
     try:
-        content = Content.objects.get(pk=content_id)
-
-        # Check permissions
-        if not request.user.can_view_content(content):
-            return HttpResponse("Unauthorized", status=403)
-
-        annotation_set_id = body["annotation_set_id"]
+        body = json.loads(request.body.decode("utf-8"))
+        annotation_set_id = body.get("annotation_set_id")
 
         if not annotation_set_id:
             logger.error(f"Annotation set id was not provided: {annotation_set_id}")
             return HttpResponseBadRequest()
 
         annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
-        if not annotation_set.can_be_viewed_by(request.user):
-            return HttpResponse("Unauthorized", status=403)
+        # Read access is enough to point at a set, which is what makes sharing work.
+        # Editing it afterwards is checked separately, and an orphaned set is frozen.
+        if not annotation_set.can_be_read_by(request.user):
+            return forbidden()
 
         content.annotation_set = annotation_set
         content.save()
 
         return HttpResponse()
-    except Content.DoesNotExist:
-        logger.error(
-            f"Failed to update selected annotation set because Content does not exist. Content id: {content_id}"
-        )
-        return HttpResponseBadRequest()
     except AnnotationSet.DoesNotExist:
         logger.error(
             f"Failed to update selected annotation set becuase AnnotationSet does not exist. AnnotationSet id: {annotation_set_id}"
@@ -357,11 +357,10 @@ def build_annotation_version_response(request, content, annotation):
 
 
 @require_POST
-@login_required
+@content_write_required
 @transaction.atomic
-def undo_annotation(request, content_id):
+def undo_annotation(request, content):
     """Undo the last annotation edit for a specific annotation."""
-    content = get_object_or_404(Content, id=content_id)
     annotation_set = content.annotation_set
 
     # Get both annotation ID and type from POST data
@@ -384,11 +383,10 @@ def undo_annotation(request, content_id):
 
 
 @require_POST
-@login_required
+@content_write_required
 @transaction.atomic
-def redo_annotation(request, content_id):
+def redo_annotation(request, content):
     """Redo the last undone annotation edit for a specific annotation."""
-    content = get_object_or_404(Content, id=content_id)
     annotation_set = content.annotation_set
 
     # Get both annotation ID and type from POST data
@@ -411,120 +409,10 @@ def redo_annotation(request, content_id):
 
 
 @require_POST
-@login_required
-def add_editor_to_annotation_set(request):
-    """Add a user as an editor to an AnnotationSet."""
-    try:
-        parsed_body = json.loads(request.body)
-        if "annotation_set_id" not in parsed_body or "editor_id" not in parsed_body:
-            logger.error(
-                "Failed to add editor to annotaion set; missing annotation_set_id and/or editor_id"
-            )
-            return HttpResponseBadRequest()
-
-        annotation_set_id = parsed_body["annotation_set_id"]
-        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
-
-        # Only owner can add editors
-        if request.user != annotation_set.owner:
-            return HttpResponse("Unauthorized", status=403)
-
-        user_id = parsed_body["editor_id"]
-        user = User.objects.get(pk=user_id)
-
-        annotation_set.editors.add(user)
-
-        form_html = render_to_string(
-            "core/partials/annotation_set_selected_editors.html",
-            {"annotation_set": annotation_set},
-            request=request,
-        )
-
-        return HttpResponse(form_html)
-    except AnnotationSet.DoesNotExist:
-        logger.error(
-            "Failed to add editor to annotation set because the set doesn't exist"
-        )
-        return HttpResponseBadRequest()
-    except User.DoesNotExist:
-        logger.error(
-            "Failed to add editor to annotation set because the editor doesn't exist"
-        )
-        return HttpResponseBadRequest()
-    except Exception as e:
-        logger.error(f"Failed to add editor to annotation set. Exception: {e}")
-        return HttpResponseServerError()
-
-
-@require_POST
-@login_required
-def search_for_editor(request):
-    try:
-        parsed_body = json.loads(request.body)
-        if "search_string" not in parsed_body:
-            logger.error("Failed to search for editors; missing search string")
-            return HttpResponseBadRequest()
-        query = parsed_body["search_string"].strip()
-        editor_results = User.objects.filter(
-            (
-                Q(first_name__icontains=query)
-                | Q(last_name__icontains=query)
-                | Q(username__icontains=query)
-            )
-            & ~Q(id=request.user.id)
-        ).order_by("last_name")[:25]
-        result_html = render_to_string(
-            "core/partials/editor_search_results.html",
-            {"editor_results": editor_results},
-            request,
-        )
-        return HttpResponse(result_html)
-    except Exception as e:
-        logger.error(f"Failed to search for editors. Exception: {e}")
-        return HttpResponseServerError()
-
-
-@require_http_methods(["DELETE"])
-@login_required
-def remove_editor_from_annotation_set(request, annotation_set_id, user_id):
-    """Remove a user as an editor from an AnnotationSet."""
-    try:
-        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
-
-        # Only owner can remove editors
-        if request.user != annotation_set.owner:
-            return HttpResponse("Unauthorized", status=403)
-
-        user = User.objects.get(pk=user_id)
-        annotation_set.editors.remove(user)
-
-        return HttpResponse()
-    except AnnotationSet.DoesNotExist:
-        logger.error(
-            f"Failed to remove user from annotation set because the annotation set doesn't exist. AnnotationSet id: {annotation_set_id}"
-        )
-        return HttpResponseBadRequest()
-    except User.DoesNotExist:
-        logger.error(
-            f"Failed to remove user from annotation set because the User does not exist. User id: {user_id}"
-        )
-        return HttpResponseBadRequest()
-    except Exception as e:
-        logger.error(f"Failed to remove user from annotation set. Exception: {e}")
-        return HttpResponseServerError()
-
-
-@require_POST
-@login_required
+@track_write_required
 @transaction.atomic
-def create_annotation(request, annotation_type, track_id):
+def create_annotation(request, track, annotation_type):
     """Create annotation in the active AnnotationSet."""
-
-    track = get_object_or_404(Track, id=track_id)
-
-    if not track.annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
-
     model_class = ANNOTATION_MODELS.get(annotation_type.lower())
     if not model_class:
         return HttpResponse(f"Unknown annotation type: {annotation_type}", status=400)
@@ -569,8 +457,8 @@ def create_annotation(request, annotation_type, track_id):
 
 
 def validate_annotation_update_request(user, content, annotation_type, annotation_id):
-    if not user.can_view_content(content):
-        return {"success": False, "result": HttpResponse("Unauthorized", status=403)}
+    if not content.can_be_edited_by(user):
+        return {"success": False, "result": forbidden()}
 
     # Use the annotation_type parameter to get the correct model
     model_class = ANNOTATION_MODELS.get(annotation_type.lower())
@@ -597,7 +485,7 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
             "result": HttpResponse("Annotation not found or inactive", status=404),
         }
 
-    if not annotation.track.annotation_set.can_edit(user):
+    if not annotation.track.annotation_set.can_be_edited_by(user):
         return {
             "success": False,
             "result": HttpResponse("Cannot edit this AnnotationSet", status=403),
@@ -669,7 +557,7 @@ def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
 
 
 @require_POST
-@login_required
+@checks_permission_inline("annotation set of the blur annotation")
 @transaction.atomic
 def upsert_blur_position(request, annotation_id):
     """Write the geometry of one blur position, creating it if there isn't one yet.
@@ -686,7 +574,7 @@ def upsert_blur_position(request, annotation_id):
     # undo() can bring it back; a write accepted in between would resurrect it carrying points nobody
     # placed deliberately.
     annotation = get_object_or_404(BlurAnnotation, pk=annotation_id, active=True)
-    if not annotation.track.annotation_set.can_edit(request.user):
+    if not annotation.track.annotation_set.can_be_edited_by(request.user):
         return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
 
     try:
@@ -787,7 +675,7 @@ def upsert_blur_position(request, annotation_id):
 
 
 @require_http_methods(["DELETE"])
-@login_required
+@checks_permission_inline("annotation set of the position's blur annotation")
 @transaction.atomic
 def delete_blur_position(request, position_id):
     # Scoped to a live annotation, matching upsert_blur_position: an inactive blur is deleted as
@@ -796,7 +684,7 @@ def delete_blur_position(request, position_id):
         BlurAnnotationPosition, pk=position_id, blur_annotation__active=True
     )
     annotation = position.blur_annotation
-    if not annotation.track.annotation_set.can_edit(request.user):
+    if not annotation.track.annotation_set.can_be_edited_by(request.user):
         return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
 
     # A blur with no positions has no geometry and cannot render, and the earliest position is the one
@@ -839,7 +727,7 @@ def generate_annotation_updated_html(
             "instance": annotation,
             "item_type_label": annotation_type.title(),
             "content": content,
-            "can_edit": annotation.track.annotation_set.can_edit(request.user),
+            "can_edit": annotation.track.annotation_set.can_be_edited_by(request.user),
             "start_seconds": position["start"],
             "end_seconds": position["end"],
             "item_positions": item_positions,
@@ -868,16 +756,13 @@ def generate_annotation_updated_html(
 
 
 @require_POST
-@login_required
+@content_write_required
 @transaction.atomic
-def update_annotation(request, annotation_type, annotation_id):
+def update_annotation(request, content, annotation_type, annotation_id):
     try:
         json_data = json.loads(request.body)
-        if "content_id" not in json_data or "start_time" not in json_data:
+        if "start_time" not in json_data:
             return HttpResponseBadRequest()
-
-        content_id = json_data["content_id"]
-        content = Content.objects.get(pk=content_id)
 
         validation_result = validate_annotation_update_request(
             request.user, content, annotation_type, annotation_id
@@ -973,7 +858,7 @@ def update_annotation(request, annotation_type, annotation_id):
 
 
 @require_http_methods(["DELETE"])
-@login_required
+@checks_permission_inline("annotation set of the annotation named by annotation_type")
 @transaction.atomic
 def delete_annotation(request, annotation_type, annotation_id):
     """Delete annotation by marking it inactive."""
@@ -988,8 +873,8 @@ def delete_annotation(request, annotation_type, annotation_id):
         return HttpResponse("Annotation not found or inactive", status=404)
 
     # Check edit permissions
-    if not annotation.track.annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+    if not annotation.track.annotation_set.can_be_edited_by(request.user):
+        return forbidden("Cannot edit this AnnotationSet")
 
     # Use delete_with_history() to preserve undo capability
     try:
@@ -1002,7 +887,7 @@ def delete_annotation(request, annotation_type, annotation_id):
 
 
 @require_GET
-@login_required
+@checks_permission_inline("annotation set of the annotation named by annotation_type")
 def load_annotation_form(request, annotation_type, annotation_id):
     """Load form for editing an annotation."""
     # Use the annotation_type parameter to get the correct model
@@ -1021,7 +906,7 @@ def load_annotation_form(request, annotation_type, annotation_id):
     if annotation.track.annotation_set_id != content.annotation_set_id:
         return HttpResponseNotFound("Annotation does not belong to this content")
 
-    if not annotation.track.annotation_set.can_edit(request.user):
+    if not annotation.track.annotation_set.can_be_edited_by(request.user):
         return HttpResponse(
             "You don't have permission to edit this annotation", status=403
         )
@@ -1042,61 +927,45 @@ def load_annotation_form(request, annotation_type, annotation_id):
     return HttpResponse(form_html)
 
 
+# TODO (#335, #352): unrouted and unreferenced -- annotations are created directly.
+# Delete it.
 @require_GET
-def create_annotation_form(request, content_id, annotation_type):
+@content_write_required
+def create_annotation_form(request, content, annotation_type):
     """Load blank form for creating a new annotation."""
-    # This view is no longer needed since we create annotations directly
-    # But keeping it for backward compatibility if any links still reference it
-    content = get_object_or_404(Content, id=content_id)
-
-    # Check permissions
-    if not request.user.can_view_content(content):
-        return HttpResponse("Unauthorized", status=403)
-
     annotation_set = content.annotation_set
-    if not annotation_set or not annotation_set.can_edit(request.user):
-        return HttpResponse("Cannot edit this AnnotationSet", status=403)
+    if not annotation_set or not annotation_set.can_be_edited_by(request.user):
+        return forbidden("Cannot edit this AnnotationSet")
 
-    # Return empty response or redirect to main page
     return HttpResponse("")
 
 
 @require_GET
-@login_required
-def load_annotation_set_settings(request, annotation_set_id):
-    annotation_set = get_object_or_404(AnnotationSet, id=annotation_set_id)
+@annotation_set_write_required
+def load_annotation_set_settings(request, annotation_set):
     content_id = request.GET.get("content_id")
     content = get_object_or_404(Content, id=content_id)
-    if not (request.user == annotation_set.owner or request.user.is_admin):
-        return HttpResponse("Unauthorized", status=403)
     return render(
         request,
         "core/partials/annotation_set_settings_compact.html",
         {
             "annotation_set": annotation_set,
             "content": content,
+            "can_administer_annotation_set": annotation_set.can_be_orphaned_by(
+                request.user
+            ),
         },
     )
 
 
 @require_POST
-@login_required
-def update_annotation_set_name(request):
+@annotation_set_write_required
+def update_annotation_set_name(request, annotation_set):
     try:
         parsed_body = json.loads(request.body)
-        if "annotation_set_id" not in parsed_body:
-            logger.error(
-                "Failed to update annotation set name due to missing annotation_set_id value"
-            )
-            return HttpResponseBadRequest()
         if "name" not in parsed_body:
             logger.error("Failed to update annotation set name; missing name value.")
             return HttpResponseBadRequest()
-
-        annotation_set_id = parsed_body["annotation_set_id"]
-        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
-        if not (request.user == annotation_set.owner or request.user.is_admin):
-            return HttpResponse("Unauthorized", status=403)
 
         name = parsed_body["name"].strip()
         if name:
@@ -1104,25 +973,20 @@ def update_annotation_set_name(request):
             annotation_set.save()
 
         return HttpResponse()
-    except AnnotationSet.DoesNotExist:
-        logger.error(
-            f"Failed to update annotation set name; unknown AnnotationSet. id: {annotation_set_id}"
-        )
-        return HttpResponseBadRequest()
+    except IntegrityError:
+        # Names are unique per (name, resource, owner), so this is the user picking a
+        # name they already used on this resource.
+        return HttpResponse("You already have a set with that name.", status=409)
     except Exception as e:
         logger.error(f"Failed to update annotation set name. Exception: {e}")
         return HttpResponseServerError()
 
 
-def create_annotation_set(request):
+@require_POST
+@content_write_required
+def create_annotation_set(request, content):
     try:
         parsed_body = json.loads(request.body)
-        if "content_id" not in parsed_body:
-            logger.error(
-                "Failed to create new annotation set because content_id is not defined"
-            )
-            return HttpResponseBadRequest()
-        content = Content.objects.get(pk=parsed_body["content_id"])
         name = parsed_body.get("name")
         annotation_set_json = parsed_body.get("annotation_set_json", None)
         annotation_set_id_to_copy = parsed_body.get("annotation_set_id_to_copy", None)
@@ -1135,6 +999,13 @@ def create_annotation_set(request):
                     "Failed to create new annotation set because annotations_json is not valid JSON"
                 )
                 return HttpResponseBadRequest()
+
+        if annotation_set_id_to_copy is not None:
+            # Copying reads every annotation in the source, so read access on the
+            # source is required as well as write access on the destination.
+            source = get_object_or_404(AnnotationSet, pk=annotation_set_id_to_copy)
+            if not source.can_be_read_by(request.user):
+                return forbidden("You do not have access to the set you are copying.")
 
         with transaction.atomic():
             annotation_set = AnnotationSet.create_for_content(
@@ -1158,14 +1029,15 @@ def create_annotation_set(request):
         return HttpResponseServerError()
 
 
-def export_annotation_set(request, annotation_set_id):
+@require_GET
+@annotation_set_read_required
+def export_annotation_set(request, annotation_set):
     """Gets all annotations in the set as a JSON object and allows it to be downloaded
     via the Content-Disposition: attachment HTTP response header. UTF-8 characters are
     allowed in the filename in case non-ASCII/non-english characters are used. Note:
     no file is created from this request, the JSON data is made available as if it was
     a file and is downloaded by the client's browser."""
     try:
-        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
         annotations = annotation_set.to_player_json()
         response = HttpResponse(
             json.dumps(annotations, indent=2),
@@ -1175,30 +1047,31 @@ def export_annotation_set(request, annotation_set_id):
         response["Content-Disposition"] = f"attachment; filename*=UTF-8''{filename}"
         return response
 
-    except AnnotationSet.DoesNotExist:
-        logger.error("Failed to export annotation set because it does not exist")
-        return HttpResponseNotFound()
     except Exception as e:
         logger.error(f"Failed to export annotation set. Exception: {e}")
         return HttpResponseServerError()
 
 
-def delete_annotation_set(request, annotation_set_id):
-    if annotation_set_id is None:
-        return HttpResponseBadRequest()
-    try:
-        annotation_set = AnnotationSet.objects.get(pk=annotation_set_id)
-        annotation_set.delete()
+@require_http_methods(["DELETE"])
+@annotation_set_write_required
+def delete_annotation_set(request, annotation_set):
+    """Retire a set by orphaning it rather than deleting the row.
 
+    Other instructors' content may reference this set, and forcing them into
+    near-identical copies is the clutter this avoids. Orphaning keeps it readable and
+    copyable while freezing it against further edits.
+    """
+    if not annotation_set.can_be_orphaned_by(request.user):
+        return forbidden("Only the owner of an annotation set can retire it.")
+    try:
+        annotation_set.orphan()
         return HttpResponse()
-    except AnnotationSet.DoesNotExist:
-        logger.error("Failed to delete annotation set because it doesn't exist.")
-        return HttpResponseBadRequest()
     except Exception as e:
-        logger.error(f"Failed to delete annotation set. Exception: {e}")
+        logger.error(f"Failed to retire annotation set. Exception: {e}")
         return HttpResponseServerError()
 
 
+@require_GET
 def display_annotation_set_create_option(request):
     try:
         return HttpResponse(
@@ -1213,6 +1086,7 @@ def display_annotation_set_create_option(request):
         return HttpResponseServerError()
 
 
+@require_GET
 def display_annotation_set_import_option(request):
     try:
         return HttpResponse(
@@ -1229,21 +1103,22 @@ def display_annotation_set_import_option(request):
         return HttpResponseServerError()
 
 
-def display_copy_from_annotation_set_option(request, content_id):
+@require_GET
+@content_write_required
+def display_copy_from_annotation_set_option(request, content):
     try:
-        content = Content.objects.get(pk=content_id)
-        available_sets = content.get_available_annotation_sets()
         return HttpResponse(
             render_to_string(
                 "core/partials/annotation_set_options/copy_from_set.html",
-                {"available_annotation_sets": available_sets, "can_edit": True},
+                {
+                    "available_annotation_sets": annotation_set_choices(
+                        content, request.user
+                    )
+                },
                 request,
             )
         )
 
-    except Content.DoesNotExist:
-        logger.error("Failed to retrieve content because it does not exist.")
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(
             f"Failed to return Copy from Annotation Set option template. Exception: {e}"
@@ -1251,28 +1126,21 @@ def display_copy_from_annotation_set_option(request, content_id):
         return HttpResponseServerError()
 
 
-def display_use_existing_annotation_set_option(request, content_id):
+@require_GET
+@content_write_required
+def display_use_existing_annotation_set_option(request, content):
     try:
-        content = Content.objects.get(pk=content_id)
-        available_sets = content.get_available_annotation_sets()
         return HttpResponse(
             render_to_string(
                 "core/partials/annotation_set_options/use_existing_set.html",
                 {
-                    "available_annotation_sets": available_sets,
-                    "can_edit": (
-                        content.playlist.owner == request.user or request.user.is_admin
-                    ),
+                    "available_annotation_sets": annotation_set_choices(
+                        content, request.user
+                    )
                 },
                 request,
             )
         )
-
-    except Content.DoesNotExist:
-        logger.error(
-            "Failed to return Annotation sets associated with this content because the content does not exist"
-        )
-        return HttpResponseBadRequest()
 
     except Exception as e:
         logger.error(
@@ -1281,20 +1149,15 @@ def display_use_existing_annotation_set_option(request, content_id):
         return HttpResponseServerError()
 
 
-@login_required
 @require_POST
-def update_track(request):
+@track_write_required
+def update_track(request, track):
     """Edit track name by changing the track_name attribute of all associated annotations"""
     try:
         parsed_data = json.loads(request.body)
-        track_id = parsed_data["track_id"]
-        track = Track.objects.get(pk=track_id)
-    except Track.DoesNotExist:
-        logger.error("Failed to get track object because it does not exist.")
-        return HttpResponse(status=404)
     except Exception as e:
-        logger.error(f"Failed to get track object. Exception: {e}")
-        return HttpResponseServerError()
+        logger.error(f"Failed to parse the track update request. Exception: {e}")
+        return HttpResponseBadRequest()
 
     try:
         if "new_track_name" in parsed_data:
@@ -1326,9 +1189,9 @@ def convertTracksToHTML(annotation_set, request):
     return JsonResponse({"tracks_html": tracks_html})
 
 
-@login_required
 @require_POST
-def update_track_positions_in_set(request):
+@annotation_set_write_required
+def update_track_positions_in_set(request, annotation_set):
     """Update all track stack positions in an annotation set"""
     parsed_data = json.loads(request.body)
     if "track_ids" not in parsed_data:
@@ -1336,23 +1199,22 @@ def update_track_positions_in_set(request):
         return HttpResponseBadRequest()
 
     try:
-        annotation_set = Track.objects.get(
-            pk=parsed_data["track_ids"][0]
-        ).annotation_set
-    except Exception as e:
-        logger.error(
-            f"Failed to get annotation set from track while updating track positions. Exception: {e}"
-        )
-        return HttpResponseServerError()
-
-    try:
         with transaction.atomic():
-            index = 0
-            for track_id in parsed_data["track_ids"]:
-                track = Track.objects.get(pk=track_id)
+            # Scoped to this set, so a track id from another set cannot be reordered
+            # -- or silently moved -- through this endpoint.
+            tracks = {
+                track.pk: track
+                for track in Track.objects.filter(annotation_set=annotation_set)
+            }
+            if any(track_id not in tracks for track_id in parsed_data["track_ids"]):
+                logger.error(
+                    "Refused to reorder tracks: an id does not belong to this set"
+                )
+                return HttpResponseBadRequest()
+            for index, track_id in enumerate(parsed_data["track_ids"]):
+                track = tracks[track_id]
                 track.stack_position = index
                 track.save()
-                index += 1
     except Exception as e:
         logger.error(f"Failed to update track positions. Exception: {e}")
         return HttpResponseServerError()
@@ -1360,16 +1222,11 @@ def update_track_positions_in_set(request):
     return convertTracksToHTML(annotation_set, request)
 
 
-@login_required
 @require_POST
-def create_track(request):
+@annotation_set_write_required
+def create_track(request, annotation_set):
     try:
         parsed_body = json.loads(request.body)
-        if "annotation_set_id" not in parsed_body:
-            logger.error("Failed to create new track due to missing annotation_set_id")
-            return HttpResponseBadRequest()
-
-        annotation_set = AnnotationSet.objects.get(pk=parsed_body["annotation_set_id"])
         set_has_tracks = annotation_set.tracks.count() > 0
 
         track = {
@@ -1389,47 +1246,45 @@ def create_track(request):
         return HttpResponseServerError()
 
 
-@login_required
-def delete_track(request, track_id):
-    if request.method != "DELETE":
-        return HttpResponseBadRequest()
+@require_http_methods(["DELETE"])
+@track_write_required
+def delete_track(request, track):
     try:
-        track = Track.objects.get(pk=track_id)
         if track.stack_position == 0:
             logger.error(
-                f"Request to delete primary track ignored. Track id: {track_id}"
+                f"Request to delete primary track ignored. Track id: {track.pk}"
             )
             return HttpResponseBadRequest()
         track.delete()
         return HttpResponse()
-    except Track.DoesNotExist:
-        logger.error("Failed to delete track because it does not exist.")
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Failed to delete track. Exception: {e}")
         return HttpResponseServerError()
 
 
 @require_GET
-def get_editable_subtitles(request, subtitle_id):
+@subtitle_read_required
+def get_editable_subtitles(request, subtitle):
     try:
-        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
-        cues = generate_vtt_cues_from_file_path(subtitle_obj.subtitles_file.path)
+        cues = generate_vtt_cues_from_file_path(subtitle.subtitles_file.path)
         return HttpResponse(
             render_to_string(
                 "core/partials/subtitle_panel_content.html",
-                {"subtitle_track": subtitle_obj, "cues": cues},
+                {
+                    "subtitle_track": subtitle,
+                    "cues": cues,
+                    "can_edit": subtitle.can_be_edited_by(request.user),
+                },
             )
         )
 
-    except Subtitle.DoesNotExist:
-        logger.error("Failed to generate subtitle html: missing Subtitle object.")
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Error generating html cues from file path. Exception: {e}")
         return HttpResponseServerError()
 
 
+# TODO (#335, #352): unrouted. It takes `owner` from POST data, i.e. owner spoofing.
+# Delete it, or route it and set owner from request.user.
 @require_POST
 def create_subtitle(request):
     form = SubtitleForm(request.POST, request.FILES)
@@ -1470,6 +1325,8 @@ def create_subtitle(request):
     )
 
 
+# TODO (#335, #352): unrouted. Route it behind @subtitle_write_required -- with the id
+# in the URL rather than request.POST -- or delete it.
 @require_POST
 def update_subtitle_metadata(request):
     form = SubtitleForm(request.POST, request.FILES)
@@ -1530,11 +1387,11 @@ def update_subtitle_metadata(request):
 
 
 @require_POST
-def update_subtitle_content(request):
+@subtitle_write_required
+def update_subtitle_content(request, subtitle):
     try:
         # build VTTCue list
         request_data = json.loads(request.body)
-        subtitle_id = request_data["subtitle_id"]
         dict_cue_list = request_data["cues"]
         cues_list: list[VTTCue] = []
         for dict_cue in dict_cue_list:
@@ -1555,7 +1412,7 @@ def update_subtitle_content(request):
 
         # build and save new vtt file
         new_vtt_string = build_vtt_file_string_from_cues(cues_list)
-        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
+        subtitle_obj = subtitle
         is_autosave = request_data["is_autosave"]
 
         # something is giong on here where part of the path name is being duplicated
@@ -1576,25 +1433,19 @@ def update_subtitle_content(request):
             )
         )
 
-    except Subtitle.DoesNotExist:
-        logger.error(
-            "Failed to update subtitle content: Subtitle object does not exist"
-        )
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(f"Error while updating subtitle content: {e}")
         return HttpResponseServerError()
 
 
+# TODO (#335, #352): unrouted. Route it behind @subtitle_write_required or delete it.
 @require_http_methods(["DELETE"])
-def delete_subtitle(request, subtitle_id):
+@subtitle_write_required
+def delete_subtitle(request, subtitle):
+    subtitle_id = subtitle.pk
     try:
-        subtitle_obj = Subtitle.objects.get(pk=subtitle_id)
-        subtitle_obj.delete()
+        subtitle.delete()
         return HttpResponse("", status=200)
-    except Subtitle.DoesNotExist:
-        logger.error("Failed to delete subtitle: Subtitle object does not exist")
-        return HttpResponseBadRequest()
     except Exception as e:
         logger.error(
             f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"

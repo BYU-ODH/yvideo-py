@@ -1,11 +1,11 @@
-<div id="playlist-settings">
+<div id="playlist-settings" data-playlist-id="{{ playlist.pk }}">
     <div class="column-flex">
         <h3>Settings</h3>
-        <form id="playlist-settings-form" class="column-flex" method="post" action="/playlist-settings/update/">
+        <form id="playlist-settings-form" class="column-flex" method="post"
+              action="{% url 'update_playlist_settings' playlist.pk %}">
             {% csrf_token %}
 
             {{ form.non_field_errors }}
-            {{ form.id }}
             <div class="playlist-form-group">
                 {{ form.name.as_field_group }}
             </div>

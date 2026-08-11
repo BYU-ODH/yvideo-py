@@ -8,7 +8,7 @@
             <h2>Playlist Details</h2>
             <h3>{{ playlist.name }}</h3>
         </header>
-        {% if user == playlist.owner or user.is_admin %}
+        {% if can_edit %}
             {% include 'core/partials/playlist_settings.html' %}
         {% endif %}
         <div id="playlist-videos-content">
@@ -23,7 +23,7 @@
                     >
                     <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
                 </div>
-                {% if user == playlist.owner or user.is_admin %}
+                {% if can_edit %}
                 <dialog id="add-video-dialog" class="user-view-modal">
                     <div class="user-view-modal-header">
                         <h3>Add a New Video</h3>
@@ -32,10 +32,10 @@
                     <div class="user-view-modal-body add-video-modal-columns">
                         <div class="add-video-modal-column column-flex">
                             <h4 class="add-video-modal-column-title">Add video from DVD/Blu-ray/VHS/etc.</h4>
-                            <a href="/create-from-resource/{{ playlist.id }}" class="blue-button">
+                            <a href="{% url 'display_create_from_resource' playlist.id %}" class="blue-button">
                                 Create from existing resource
                             </a>
-                            <a href="/resource-intake-request/" class="blue-button">
+                            <a href="{% url 'request_resource' %}" class="blue-button">
                                 Request creation of a new resource
                             </a>
                         </div>
@@ -82,9 +82,8 @@
             </div>
             <div id="playlist-video-list">
                 {% for content in contents %}
-                    {% if content.published == True or content.published == False and playlist.owner == user or user.is_admin %}
                     <div class="playlist-video tile">
-                        {% if user.is_admin or playlist.owner == user %}
+                        {% if can_edit %}
                         <a href="{% url 'display_content_info' content.id %}" class="playlist-video-tile">
                         {% else %}
                         <a href="{% url 'player' content.id %}" class="playlist-video-tile">
@@ -97,7 +96,6 @@
                             </div>
                         </a>
                     </div>
-                    {% endif %}
                 {% empty %}
                     <p>There are no videos assigned to this playlist</p>
                 {% endfor %}

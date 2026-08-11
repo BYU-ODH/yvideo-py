@@ -1,5 +1,8 @@
 {% load static %}
-<div id="timeline-wrapper" class="editor-container-component-dark" data-annotation-set-id="{{ annotation_set.id }}">
+<div id="timeline-wrapper" class="editor-container-component-dark"
+     data-annotation-set-id="{{ annotation_set.id }}"
+     data-can-edit="{{ can_edit|yesno:"true,false" }}"
+     data-annotation-set-name="{{ annotation_set.name }}">
     <div id="timeline-scrubber-row" class="timeline-row">
         <div class="timeline-row-left">
         </div>

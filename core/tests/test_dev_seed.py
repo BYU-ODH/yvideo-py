@@ -89,7 +89,7 @@ class DemoSeedDataTests(TestCase):
                 user=alice,
             ).exists()
         )
-        self.assertTrue(alice.can_view_content(birds_content))
+        self.assertTrue(birds_content.can_be_viewed_by(alice))
 
     def test_seed_creates_track_based_editor_data_for_fixture_covered_models(self):
         admin_user = User.objects.get(username=DEMO_ADMIN_USERNAME)
@@ -131,10 +131,11 @@ class DemoSeedDataTests(TestCase):
             ),
             {"#", "k"},
         )
-        self.assertEqual(
-            set(birds_annotation_set.editors.values_list("username", flat=True)),
-            {DEMO_ADMIN_USERNAME, "111225555"},
-        )
+        # Edit rights are derived, not stored: the seeded TA holds PlaylistRole.TA on
+        # a playlist Professor Ada owns, which is what makes this set editable for them.
+        teaching_assistant = User.objects.get(username="111225555")
+        self.assertTrue(birds_annotation_set.can_be_edited_by(teaching_assistant))
+        self.assertTrue(birds_annotation_set.can_be_edited_by(admin_user))
         # The two seeded blurs are the fixture the blur geometry and editing work is verified
         # against, so assert their shape here: one stationary, one moving.
         watermark_blur = BlurAnnotation.objects.get(
@@ -180,7 +181,9 @@ class DemoSeedDataTests(TestCase):
                     self.assertGreaterEqual(position.y, 0)
                     self.assertLessEqual(position.x + position.width, 100)
                     self.assertLessEqual(position.y + position.height, 100)
-        self.assertFalse(grid_annotation_set.editors.exists())
+        self.assertFalse(
+            grid_annotation_set.can_be_edited_by(User.objects.get(username="111227777"))
+        )
         self.assertTrue(
             ResourceFile.objects.filter(
                 resource__name="Grid Overlay",
