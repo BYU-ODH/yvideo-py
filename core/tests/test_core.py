@@ -42,6 +42,7 @@ from ..utils import build_vtt_file_string_from_cues
 from ..utils import estimate_current_yearterm
 from ..utils import nudge_cue_times
 from ..utils import seconds2hms
+from ..utils import time2seconds
 
 
 class ResourceImdbIdGenerationTests(TestCase):
@@ -176,6 +177,19 @@ class Seconds2HMSTests(TestCase):
         """Test that negative input raises ValueError."""
         with self.assertRaises(ValueError):
             seconds2hms(-1)
+
+
+class Time2SecondsTests(TestCase):
+    """The editor posts times in whichever shape the gesture produced them."""
+
+    def test_a_formatted_time_from_a_form_field(self):
+        self.assertEqual(time2seconds("1:02:03.50"), 3723.5)
+
+    def test_a_number_from_a_timeline_drag(self):
+        self.assertEqual(time2seconds(8.5), 8.5)
+
+    def test_a_number_that_arrived_as_a_string(self):
+        self.assertEqual(time2seconds("8.5"), 8.5)
 
 
 class SubtitlesTests(TestCase):

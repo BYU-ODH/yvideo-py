@@ -1,4 +1,5 @@
 {% load static %}
+{% load annotation_extras %}
 <div id="blur-positions-wrapper">
     <h4>Blur Points</h4>
     <p class="blur-positions-help">
@@ -16,7 +17,7 @@
             <thead>
                 <tr>
                     <td></td>
-                    <th scope="col">Time (s)</th>
+                    <th scope="col">Time</th>
                     <th scope="col">X (%)</th>
                     <th scope="col">Y (%)</th>
                     <th scope="col">W (%)</th>
@@ -40,11 +41,11 @@
                            The first point always sits at the blur's start time, so its time is
                            derived rather than entered - readonly.
                         {% endcomment %}
-                        <input class="position-time-input" type="text" value="{{position.time|floatformat:2}}" readonly
+                        <input class="position-time-input" type="text" value="{{position.time|hms_time}}" readonly
                                title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
-                               aria-label="point {{forloop.counter}} time in seconds (follows the blur's start time)">
+                               aria-label="point {{forloop.counter}} time (follows the blur's start time)">
                         {% else %}
-                        <input class="position-time-input" type="text" value="{{position.time|floatformat:2}}" aria-label="point {{forloop.counter}} time in seconds">
+                        <input class="position-time-input" type="text" value="{{position.time|hms_time}}" aria-label="point {{forloop.counter}} time">
                         {% endif %}
                     </td>
                     <td class="position-input-group">

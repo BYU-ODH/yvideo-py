@@ -334,7 +334,7 @@ class BlurPositionEndpointTests(TestCase):
     def test_the_response_reports_the_time_the_write_actually_landed_on(self):
         """Not the time that was requested: it is clamped into the window and snapped onto a point.
 
-        The editor puts this number in front of the user ("Point added at 12.00s"), so reporting
+        The editor puts this number in front of the user ("Point added at 0:00:12.00"), so reporting
         the request back would tell them the write went somewhere it did not.
         """
         self.client.force_login(self.owner)

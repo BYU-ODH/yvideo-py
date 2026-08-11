@@ -28,7 +28,9 @@ import {
   animateDuringPlayback,
   applyRect,
   createElementFromHTMLString,
+  formatSecondsToString,
   getCSRFToken,
+  parseTimeStringToSeconds,
 } from "./utils.js";
 
 // Mirrors BLUR_MIN_WIDTH / BLUR_MIN_HEIGHT in core/models.py, which the server clamps against.
@@ -62,6 +64,15 @@ const POSITION_INPUTS = [
   ["position-height-input", "height"],
 ];
 const POSITION_INPUT_SELECTOR = POSITION_INPUTS.map(([name]) => `.${name}`).join(", ");
+
+// How each column reads and writes its field: the time column speaks H:MM:SS.SS, the geometry
+// columns plain percentages. `noun` is what the field is called when what was typed is rejected.
+const TIME_FIELD = {
+  parse: parseTimeStringToSeconds,
+  format: formatSecondsToString,
+  noun: "time",
+};
+const NUMBER_FIELD = { parse: parseFloat, format: String, noun: "number" };
 
 // Long enough for the sentences the blur-position views word, short enough that anything which is
 // really a page rather than a message is rejected. See serverMessage.
@@ -194,6 +205,7 @@ export class BlurEditor {
     // Delegated, because every save replaces the panel rows and the track item, so per-element
     // listeners would need re-attaching each time.
     document.addEventListener("click", this._onPanelClick.bind(this));
+    document.addEventListener("pointerdown", this._onPanelPointerDown.bind(this));
     document.addEventListener("change", this._onPanelInputChange.bind(this));
     document.addEventListener("keydown", this._onPanelInputKeyDown.bind(this));
     if (this.timelineWrapper) {
@@ -673,7 +685,7 @@ export class BlurEditor {
 
     const payload = await response.json();
     if (this._applySaved(annotationId, payload)) {
-      const at = `${Number(payload["time"]).toFixed(2)}s`;
+      const at = formatSecondsToString(payload["time"]);
       const retimed =
         previousTime !== undefined &&
         Math.abs(payload["time"] - previousTime) > SAME_TIME_SECONDS;
@@ -790,13 +802,24 @@ export class BlurEditor {
 
   _onPanelClick(event) {
     const deleteButton = event.target.closest(".blur-position-delete-button");
-    if (deleteButton) {
-      // The button lives inside the annotation form; without this the form submits.
-      event.preventDefault();
-      this._delete(deleteButton);
-      return;
-    }
+    if (!deleteButton) return;
+    // The button lives inside the annotation form; without this the form submits.
+    event.preventDefault();
+    this._delete(deleteButton);
+  }
 
+  /**
+   * Select the point whose row is being pressed.
+   *
+   * On the press rather than the click: leaving an edited field fires `change`, which starts a save
+   * whose response replaces these rows. When that lands between press and release - a slow reply, or
+   * simply an unhurried click - the row under the pointer is detached before the browser has a click
+   * to dispatch, and the press is lost. Pressing the same row again then works, because by that
+   * point there is nothing left to save. Selecting here also puts the playhead on the point before
+   * the save is sent, so the rows that come back are re-highlighted onto the same row by _render.
+   */
+  _onPanelPointerDown(event) {
+    if (event.button !== 0 || event.target.closest(".blur-position-delete-button")) return;
     const row = event.target.closest(".position-entry");
     if (!row) return;
     const time = parseFloat(row.dataset["time"]);
@@ -816,12 +839,13 @@ export class BlurEditor {
     const field = POSITION_INPUTS.find(([name]) => input.classList.contains(name))?.[1];
     if (!field) return;
     const entered = input.value;
-    const value = parseFloat(entered);
+    const column = field === "time" ? TIME_FIELD : NUMBER_FIELD;
+    const value = column.parse(entered);
     if (!Number.isFinite(value)) {
       // The row's data-* is the last thing that was actually saved, so it is what the field should
       // show rather than sending NaN for the server to reject.
-      input.value = row.dataset[field];
-      this._status(`"${entered}" is not a number, so nothing changed.`);
+      input.value = column.format(row.dataset[field]);
+      this._status(`"${entered}" is not a ${column.noun}, so nothing changed.`);
       return;
     }
 

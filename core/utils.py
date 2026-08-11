@@ -52,6 +52,17 @@ def hms2seconds(hms):
         raise ValueError("Time format must be 'HH:MM:SS.SS'")
 
 
+def time2seconds(value):
+    """Seconds from a time as the editor sends it: 'H:MM:SS.SS' from a field, a number from a drag.
+
+    The editor's time fields show what seconds2hms wrote and post back what they show, while the
+    timeline sends the numbers it works in. Mirrors parseTimeStringToSeconds in static/js/utils.js.
+    """
+    if isinstance(value, str) and ":" in value:
+        return hms2seconds(value)
+    return float(value)
+
+
 def seconds2hms(seconds):
     """Convert total seconds to a time string in 'HH:MM:SS.SSS' format."""
     if seconds < 0:

@@ -735,6 +735,7 @@
 
 .annotation-time-input {
     text-align: center;
+    font-variant-numeric: tabular-nums;
 }
 
 .btn-set-time {
@@ -855,10 +856,9 @@
     outline-offset: 2px;
 }
 
+/* Left at its automatic width: a table is already as narrow as its contents allow, and every
+   column below is sized to the widest value it can hold, so that width fits the panel. */
 #blur-positions-table {
-    width: 100%;
-    min-width: 23rem;
-    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
 }
@@ -878,10 +878,28 @@
     text-align: left;
 }
 
-.position-input-group input {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
+/* Five fields side by side in a 400px panel, so they take the form's padding down to what still
+   reads as a field and match the table's smaller type. */
+#annotation-update-form .position-input-group input {
+    box-sizing: content-box;
+    padding: 4px 3px;
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Every value here is written to a fixed number of digits, so each column can be given exactly the
+   characters its widest one needs: 1ch is the width of a digit, and tabular figures hold the rest
+   of them to it. Separators are narrower than digits, which is the slack the caret sits in. */
+.position-time-input {
+    width: 10ch; /* 0:00:00.00, and still room for a video hours long */
+}
+
+.position-x-input, .position-y-input {
+    width: 5ch; /* 97.00 - x and y are clamped to leave room for the box itself */
+}
+
+.position-width-input, .position-height-input {
+    width: 6ch; /* 100.00 */
 }
 
 #annotation-update-form .position-input-group input[readonly] {

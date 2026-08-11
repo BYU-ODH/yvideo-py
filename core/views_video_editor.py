@@ -42,6 +42,7 @@ from .utils import build_vtt_file_string_from_cues
 from .utils import convert_srt_content_to_vtt
 from .utils import generate_vtt_cues_from_file_path
 from .utils import nudge_cue_times
+from .utils import time2seconds
 from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
@@ -891,7 +892,7 @@ def update_annotation(request, annotation_type, annotation_id):
         old_end = getattr(annotation, "end_time", old_start)
 
         fields_to_update = {}
-        fields_to_update["start_time"] = json_data["start_time"]
+        fields_to_update["start_time"] = time2seconds(json_data["start_time"])
         if "annotation_name" in json_data:
             fields_to_update["name"] = json_data["annotation_name"]
 
@@ -915,7 +916,7 @@ def update_annotation(request, annotation_type, annotation_id):
             fields_to_update["description"] = json_data["description"]
 
         if annotation_type != "pause":
-            fields_to_update["end_time"] = json_data["end_time"]
+            fields_to_update["end_time"] = time2seconds(json_data["end_time"])
 
         if (
             annotation_type == "pause" or annotation_type == "skip"

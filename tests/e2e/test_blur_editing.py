@@ -662,7 +662,7 @@ def test_the_first_points_time_looks_as_uneditable_as_it_is(page, open_editor):
         page.locator("#positions-list .position-entry").first.locator(
             ".position-time-input"
         )
-    ).to_have_value("3.00")
+    ).to_have_value("0:00:03.00")
 
 
 def test_clicking_a_panel_row_seeks_to_that_point(page, open_editor):
@@ -1158,6 +1158,44 @@ def test_selecting_a_panel_row_highlights_its_dot(page, open_editor):
     assert highlighted["dots"] == [expected]
 
 
+def test_a_row_pressed_while_its_neighbour_saves_is_still_the_row_that_gets_selected(
+    page, open_editor
+):
+    """Leaving an edited field starts a save whose response replaces every row in the panel.
+
+    Landing between press and release - a slow reply, or an unhurried click - used to detach the row
+    under the pointer before the browser had a click to dispatch, so the press did nothing and only
+    a second press on the same row selected it. The wait below puts the response squarely in that
+    window instead of hoping for the timing.
+    """
+    open_editor()
+    _select(page, MOVING_BLUR)
+
+    target = _row_for(page, 2)
+    expected = target.get_attribute("data-position-id")
+
+    # Keystrokes rather than fill(), so `change` waits for the focus to leave, as it does for a user.
+    edited = _row_for(page, 1).locator(".position-x-input")
+    edited.click()
+    edited.evaluate("input => input.select()")
+    edited.press_sequentially("31.00")
+
+    _mark_panel(page)
+    box = target.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    _wait_for_save(page)
+    page.mouse.up()
+    page.wait_for_timeout(300)
+
+    assert _highlighted(page) == {"rows": [expected], "dots": [expected]}
+    assert page.evaluate(
+        "() => document.querySelector('.annotation-player-container video').currentTime"
+    ) == pytest.approx(11.0, abs=0.3), "the pressed row's point was never seeked to"
+    # The save really was in flight, so the race being tested is the real one.
+    assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(31.0, abs=0.01)
+
+
 def test_clicking_a_dot_on_an_unselected_blur_selects_both_the_blur_and_the_point(
     page, open_editor
 ):
@@ -1403,7 +1441,7 @@ def test_a_geometry_field_changes_only_the_value_it_names(
                 f"field {other} changed from {unchanged} to {point[other]}"
             )
     assert point[0] == pytest.approx(7.0, abs=0.01), "the point was retimed"
-    assert _status(page) == "Point updated at 7.00s"
+    assert _status(page) == "Point updated at 0:00:07.00"
 
 
 def test_the_points_panel_is_a_real_table(page, open_editor):
@@ -1444,7 +1482,7 @@ def test_the_points_panel_is_a_real_table(page, open_editor):
 
     assert structure, "the blur points panel is not a table"
     assert [header["text"] for header in structure["headers"]] == [
-        "Time (s)",
+        "Time",
         "X (%)",
         "Y (%)",
         "W (%)",
@@ -1471,13 +1509,60 @@ def test_the_points_panel_is_a_real_table(page, open_editor):
 # core/tests/test_blur_positions.py: PanelRenderingTests and GeometryPrecisionTests.
 
 
+def test_no_point_value_is_hidden_by_the_width_of_the_panel(page, open_editor):
+    """The detail form is a fixed width, so the table has to fit five fields into it.
+
+    A field a character too narrow clips the number the user came to read, and a table a few pixels
+    too wide moves a whole column behind a scrollbar. Both are checked against the widest value
+    each column can hold rather than the seeded ones, which are shorter than the columns allow.
+    """
+    open_editor()
+    _select(page, MOVING_BLUR)
+
+    measurements = page.evaluate(
+        """() => {
+            const widest = {
+                'position-time-input': '9:59:59.99',
+                'position-x-input': '97.00',
+                'position-y-input': '97.00',
+                'position-width-input': '100.00',
+                'position-height-input': '100.00',
+            };
+            const row = document.querySelector('#positions-list .position-entry');
+            const fields = Object.keys(widest).map((className) => {
+                const input = row.querySelector(`.${className}`);
+                const restore = input.value;
+                // Assigning value fires no event, so nothing is saved and nothing is redrawn.
+                input.value = widest[className];
+                return {className, input, restore};
+            });
+            const list = document.getElementById('positions-list');
+            const result = {
+                clipped: fields
+                    .filter(({input}) => input.scrollWidth > input.clientWidth)
+                    .map(({className}) => className),
+                columnsPastThePanel: list.scrollWidth - list.clientWidth,
+            };
+            fields.forEach(({input, restore}) => { input.value = restore; });
+            return result;
+        }"""
+    )
+
+    assert measurements["clipped"] == [], (
+        "these fields are too narrow for the widest value they can hold"
+    )
+    assert measurements["columnsPastThePanel"] == 0, (
+        "the table is wider than the panel, so a column is only reachable by scrolling"
+    )
+
+
 def test_the_time_field_retimes_its_point(page, open_editor):
     open_editor()
     _select(page, MOVING_BLUR)
 
     _mark_panel(page)
     row = _row_for(page, 1)
-    row.locator(".position-time-input").fill("8.5")
+    row.locator(".position-time-input").fill("0:00:08.50")
     row.locator(".position-time-input").press("Enter")
     points = _saved_points(page, MOVING_BLUR, 3)
 
@@ -1486,7 +1571,7 @@ def test_the_time_field_retimes_its_point(page, open_editor):
     assert _point_at(MOVING_BLUR, 8.5)[1:] == pytest.approx(
         (40.0, 22.0, 26.0, 17.0), abs=0.01
     )
-    assert _status(page) == "Point moved to 8.50s"
+    assert _status(page) == "Point moved to 0:00:08.50"
 
 
 def test_retiming_a_point_onto_another_one_reports_the_conflict(page, open_editor):
@@ -1503,7 +1588,7 @@ def test_retiming_a_point_onto_another_one_reports_the_conflict(page, open_edito
     _select(page, MOVING_BLUR)
 
     row = _row_for(page, 1)
-    row.locator(".position-time-input").fill("11.0")
+    row.locator(".position-time-input").fill("0:00:11.00")
     row.locator(".position-time-input").press("Enter")
     expect(page.locator("#blur-position-status")).to_have_text(BLUR_POSITION_TIME_TAKEN)
 
@@ -2010,7 +2095,7 @@ def test_retiming_a_blur_from_the_form_reconciles_its_points_in_place(
     open_editor()
     _select(page, MOVING_BLUR)
 
-    page.locator("#end_time").fill("9")
+    page.locator("#end_time").fill("0:00:09.00")
     page.locator("#annotation_name").click()
     page.wait_for_function(
         "() => document.querySelectorAll('#positions-list .position-entry').length === 2",
@@ -2019,7 +2104,7 @@ def test_retiming_a_blur_from_the_form_reconciles_its_points_in_place(
 
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0]
     # And the field now shows what was stored, not what was typed.
-    expect(page.locator("#end_time")).to_have_value("9.0")
+    expect(page.locator("#end_time")).to_have_value("0:00:09.00")
 
 
 def _player_points(page, annotation):
