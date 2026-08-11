@@ -36,7 +36,7 @@ known-first-party = ["yvideo", "core"]
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "yvideo.settings"
 python_files = ["test_*.py", "*_test.py"]
-addopts = "--strict-markers"
+addopts = "--strict-markers --durations=0"
 markers = [
     "e2e: browser-backed end-to-end tests",
     # Deselect with `-m 'not live_youtube'`; these also skip themselves when youtube.com is
