@@ -37,7 +37,6 @@ from .models import ImportantWord
 from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
-from .models import PrivilegeLevel
 from .models import Resource
 from .models import ResourceFile
 from .models import ResourceFileKey
@@ -106,14 +105,47 @@ def display_yearterm(yearterm):
     return f"{term_name} {year_string}"
 
 
+def breadcrumb_trail(*crumbs):
+    """(label, url) pairs for partials/breadcrumbs.html, under the Playlists root.
+
+    The last crumb is the current page and renders unlinked, so its url is ignored.
+    """
+    return [
+        {"label": label, "url": url}
+        for label, url in (("Playlists", reverse("playlists")), *crumbs)
+    ]
+
+
+def content_parent_crumbs(content):
+    """Content.playlist is nullable, so the parent crumb is not always available."""
+    if content.playlist_id is None:
+        return ()
+    return (
+        (content.playlist.name, reverse("playlist_info", args=[content.playlist_id])),
+    )
+
+
 @require_GET
 def index(request):
-    if (
-        request.user.is_authenticated
-        and request.user.privilege_level == PrivilegeLevel.INSTRUCTOR
-    ):
-        return HttpResponseRedirect(reverse("playlists"))
-    return render(request, "core/index.html", {})
+    return HttpResponseRedirect(reverse("playlists"))
+
+
+@require_GET
+def about(request):
+    return render(
+        request,
+        "core/about.html",
+        {"breadcrumbs": breadcrumb_trail(("About", None))},
+    )
+
+
+@require_GET
+def whats_new(request):
+    return render(
+        request,
+        "core/whats_new.html",
+        {"breadcrumbs": breadcrumb_trail(("What's new?", None))},
+    )
 
 
 @require_POST
@@ -157,6 +189,9 @@ def player(request, content):
         "content_source_url": content_source_url,
         "youtube_video_id": youtube_video_id_for_content(content, content_source_url),
         "allow_events": True,
+        "breadcrumbs": breadcrumb_trail(
+            *content_parent_crumbs(content), (content.title, None)
+        ),
     }
 
     return render(request, "core/player.html", context)
@@ -336,6 +371,10 @@ def playlists(request):
         "owned_playlists": owned_playlists,
         "assigned_courses_by_yearterm": playlists_by_course_by_yearterm,
         "manual_playlists": manual_playlists,
+        # Lab assistants act on an instructor's behalf, so the legacy differences are
+        # theirs to know too.
+        "show_whats_new": request.user.is_instructor or request.user.is_lab_assistant,
+        "breadcrumbs": breadcrumb_trail(),
     }
     return render(request, "core/playlists.html", context)
 
@@ -457,6 +496,7 @@ def render_playlist_info(request, playlist):
                 "year_options": year_and_semester["year_options"],
                 "semester": year_and_semester["semester"],
                 "assigned_courses": assigned_courses,
+                "breadcrumbs": breadcrumb_trail((playlist.name, None)),
             },
         )
     except Exception as e:
@@ -829,6 +869,10 @@ def display_create_from_resource(request, playlist):
             {
                 "resources": accessible_resources(request.user),
                 "playlist_id": playlist.pk,
+                "breadcrumbs": breadcrumb_trail(
+                    (playlist.name, reverse("playlist_info", args=[playlist.pk])),
+                    ("Add from resource", None),
+                ),
             },
         )
     except Exception as e:
@@ -892,6 +936,11 @@ def display_content_info(request, content):
             ),
             "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitle_options(),
+            "breadcrumbs": breadcrumb_trail(
+                *content_parent_crumbs(content),
+                (content.title, reverse("player", args=[content.pk])),
+                ("Details", None),
+            ),
         }
         return render(request, "core/content_info.html", context)
     except Exception as e:

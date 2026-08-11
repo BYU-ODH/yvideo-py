@@ -1,0 +1,16 @@
+{# A lone root crumb only restates the page heading, so it is not worth a trail. #}
+{% if breadcrumbs|length > 1 %}
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <ol class="breadcrumb-list">
+            {% for crumb in breadcrumbs %}
+                <li class="breadcrumb-item">
+                    {% if forloop.last %}
+                        <span aria-current="page">{{ crumb.label }}</span>
+                    {% else %}
+                        <a href="{{ crumb.url }}">{{ crumb.label }}</a>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ol>
+    </nav>
+{% endif %}

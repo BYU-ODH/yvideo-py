@@ -23,7 +23,8 @@ AXE_MIN_JS = (
 # HTMX fragment or a POST/redirect action endpoint. Names map to functions that
 # build the URL path from the deterministic demo seed data.
 FULL_PAGE_VIEWS = [
-    "index",
+    "about",
+    "whats_new",
     "playlists",
     "playlist_info",
     "content_info",
@@ -31,12 +32,17 @@ FULL_PAGE_VIEWS = [
     "create_from_resource",
 ]
 
+# `index` is not listed: it is a redirect to `playlists`, which is audited on its own.
+STATIC_PATHS = {
+    "about": "/about/",
+    "whats_new": "/whats-new/",
+    "playlists": "/playlists/",
+}
+
 
 def _resolve_path(view_name: str) -> str:
-    if view_name == "index":
-        return "/"
-    if view_name == "playlists":
-        return "/playlists/"
+    if view_name in STATIC_PATHS:
+        return STATIC_PATHS[view_name]
 
     # Owned by the demo admin (the account dev-quick-login authenticates as), so
     # every view-permission check passes.

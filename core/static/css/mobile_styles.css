@@ -105,4 +105,13 @@
     #resource-intake-request-checks {
         column-gap: 30px;
     }
+
+    /* Only the parent and the current page fit beside the logo at this width. */
+    .breadcrumb-item:not(:nth-last-child(-n + 2)) {
+        display: none;
+    }
+
+    .breadcrumb-item:nth-last-child(2)::before {
+        content: none;
+    }
 }
