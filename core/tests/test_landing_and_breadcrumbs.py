@@ -84,6 +84,65 @@ class WhatsNewBannerTests(TestCase):
     MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
 )
 @override_settings(DEBUG=True)
+class LegacyMigrationLinkTests(TestCase):
+    """A link is only offered where the endpoint behind it would actually answer.
+
+    Migration disabled answers 404, and a user without the capability answers 403,
+    so both halves of the gate have to reach the template (#379).
+    """
+
+    def setUp(self):
+        self.instructor = UserFactory(instructor=True, netid="instr4")
+        self.student = UserFactory(student=True, netid="stud4")
+        self.link = reverse("legacy_migration_requests")
+
+    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=False)
+    def test_the_banner_omits_the_link_when_migration_is_disabled(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(reverse("playlists"))
+
+        self.assertContains(response, "whats-new-banner")
+        self.assertNotContains(response, self.link)
+
+    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
+    def test_the_banner_offers_the_link_to_an_instructor_when_enabled(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(reverse("playlists"))
+
+        self.assertContains(response, self.link)
+
+    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
+    def test_whats_new_hides_the_migration_section_from_students(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse("whats_new"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, self.link)
+
+    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
+    def test_whats_new_shows_the_migration_section_to_instructors(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(reverse("whats_new"))
+
+        self.assertContains(response, self.link)
+
+    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
+    def test_the_sidebar_hides_the_link_from_students(self):
+        self.client.force_login(self.student)
+
+        response = self.client.get(reverse("playlists"))
+
+        self.assertNotContains(response, self.link)
+
+
+@modify_settings(
+    MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
+)
+@override_settings(DEBUG=True)
 class BreadcrumbTests(TestCase):
     def setUp(self):
         self.instructor = UserFactory(instructor=True, netid="instr3")

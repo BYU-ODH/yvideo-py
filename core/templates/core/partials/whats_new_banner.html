@@ -4,8 +4,8 @@
 <div id="whats-new-banner" class="whats-new-banner" hidden>
     <p>
         Coming from the <a href="https://yvideo.byu.edu">old Y-Video</a>?
-        <a href="{% url 'whats_new' %}">See what's new</a> or
-        <a href="{% url 'legacy_migration_requests' %}">migrate your old collections</a>.
+        <a href="{% url 'whats_new' %}">See what's new</a>{% if can_request_legacy_migration %} or
+        <a href="{% url 'legacy_migration_requests' %}">migrate your old collections</a>{% endif %}.
     </p>
     <button type="button" id="whats-new-dismiss" class="whats-new-dismiss"
             aria-label="Dismiss the what's new announcement">

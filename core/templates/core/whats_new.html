@@ -61,7 +61,14 @@
             <p>
                 The three editors in the old Y-video (video editor, clip editor, and subtitle editor)
                 are now combined into one, and the new editor is more powerful than any of them.
-                Every action is automatically saved, with undo and redo throughout.
+                Annotation edits save as you make them and can be undone and redone, either with
+                the toolbar buttons or with Ctrl+Z and Ctrl+Shift+Z.
+            </p>
+            <p>
+                Two things still need an explicit action from you: a new track is only created
+                once you press <strong>Save</strong>, and a subtitle cue is only stored once you
+                press <strong>Enter</strong> in the field you edited. Deleting an annotation is
+                permanent &mdash; undo does not bring it back.
             </p>
         </section>
 
@@ -73,7 +80,7 @@
             </p>
         </section>
 
-        {% if legacy_migration_enabled %}
+        {% if can_request_legacy_migration %}
             <section>
                 <h2>Bringing your old collections over</h2>
                 <p>
@@ -97,7 +104,7 @@
                 If something you relied on seems to be missing, it is worth asking! We are actively
                 developing the new system and we can probably implement your requests relatively
                 quickly. Let us know what you think
-                <a href="mailto:Russell Hansen <Russell_Hansen@byu.edu>; Rob Reynolds <robert_reynolds@byu.edu>?subject=Y-Video%20Feedback">here</a>!
+                <a href="mailto:Russell_Hansen@byu.edu,robert_reynolds@byu.edu?subject=Y-Video%20Feedback">here</a>!
             </p>
         </section>
     </div>

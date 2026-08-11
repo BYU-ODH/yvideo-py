@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 from .forms_legacy_migration import LegacyMigrationRequestForm
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationStatus
-from .models import PrivilegeLevel
+from .permissions import can_request_legacy_migration
 from .views import breadcrumb_trail
 
 LEGACY_MIGRATIONS_CRUMB = (
@@ -39,22 +39,12 @@ def _legacy_migration_unavailable_response():
     return None
 
 
-def _can_request_migration(user):
-    return (
-        user.privilege_level == PrivilegeLevel.INSTRUCTOR
-        or user.privilege_level_override == PrivilegeLevel.INSTRUCTOR
-        or user.is_staff
-        or user.is_superuser
-        or user.is_lab_assistant
-    )
-
-
 @require_GET
 def legacy_migration_requests(request):
     unavailable_response = _legacy_migration_unavailable_response()
     if unavailable_response:
         return unavailable_response
-    if not _can_request_migration(request.user):
+    if not can_request_legacy_migration(request.user):
         return HttpResponseForbidden(
             "You do not have permission to request a migration."
         )
@@ -82,7 +72,7 @@ def create_legacy_migration_request(request):
     unavailable_response = _legacy_migration_unavailable_response()
     if unavailable_response:
         return unavailable_response
-    if not _can_request_migration(request.user):
+    if not can_request_legacy_migration(request.user):
         return HttpResponseForbidden(
             "You do not have permission to request a migration."
         )

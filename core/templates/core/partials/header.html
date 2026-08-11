@@ -27,7 +27,7 @@
             {% if user.is_admin %}
                 <a href="{% url 'admin:index' %}">Admin Dashboard</a>
             {% endif %}
-            {% if legacy_migration_enabled %}
+            {% if can_request_legacy_migration %}
                 <a href="{% url 'legacy_migration_requests' %}">Legacy Migration Requests</a>
             {% endif %}
 

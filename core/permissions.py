@@ -20,6 +20,7 @@ from .models import AnnotationSet
 from .models import Content
 from .models import ImportantWord
 from .models import Playlist
+from .models import PrivilegeLevel
 from .models import Subtitle
 from .models import Track
 
@@ -126,6 +127,24 @@ def checks_permission_inline(reason):
         return view_func
 
     return decorator
+
+
+def can_request_legacy_migration(user):
+    """Whether this user may reach the legacy migration pages at all.
+
+    Lives here rather than beside the views so the templates that offer the link and
+    the endpoints that enforce it cannot drift into offering a 403 (#379).
+    """
+    return bool(
+        user.is_authenticated
+        and (
+            user.privilege_level == PrivilegeLevel.INSTRUCTOR
+            or user.privilege_level_override == PrivilegeLevel.INSTRUCTOR
+            or user.is_staff
+            or user.is_superuser
+            or user.is_lab_assistant
+        )
+    )
 
 
 def instructor_required(view_func):
