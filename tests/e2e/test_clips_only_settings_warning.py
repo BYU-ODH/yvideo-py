@@ -19,7 +19,7 @@ def test_clips_only_checkbox_shows_warning_live_when_no_clips_are_defined(
     # annotation_set at all, so it has zero clips.
     content = Content.objects.get(title="Birds Draft Discussion")
 
-    page.goto(f"{live_server.url}/content/display-settings/{content.pk}/")
+    page.goto(f"{live_server.url}/content/{content.pk}/display-settings/")
 
     checkbox = page.locator("#clips-only")
     warning = page.locator("#clips-only-warning")

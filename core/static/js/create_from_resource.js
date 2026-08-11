@@ -11,17 +11,11 @@ function setupOpenModalFunctions() {
       return;
     }
     resourceDetail.addEventListener("click", async () => {
-      const newFormResponse = await fetch("/create-from-resource-form/", {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          resource_id: resourceId,
-          playlist_id: playlistId
-        })
-      });
+      const newFormResponse = await fetch(
+        `/playlists/${playlistId}/create-from-resource/${resourceId}/form/`, {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken() }
+        });
       if (!newFormResponse.ok) {
         console.error("Failed to get create from resource form because of a system error");
         return;
@@ -64,14 +58,13 @@ function setupCreateResourceForm() {
     const titleInput = document.getElementById("content-title-input");
     const resourceFileInput = document.getElementById("resource-file-input");
     if (validateForm(playlistIdInput, titleInput, resourceFileInput)) {
-      const createResponse = await fetch("/content/create/", {
+      const createResponse = await fetch(`/playlists/${playlistIdInput.value}/content/create/`, {
         method: "post",
         headers: {
           "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          "playlist_id": playlistIdInput.value,
           "title": titleInput.value,
           "resource_file_id": resourceFileInput.value
         })
@@ -82,7 +75,7 @@ function setupCreateResourceForm() {
         return;
       }
 
-      window.location.replace(`/playlists/${playlistIdInput.value}`);
+      window.location.replace(`/playlists/${playlistIdInput.value}/`);
     }
   });
 }

@@ -35,9 +35,9 @@
     border-radius: 0.75rem;
 }
 
-/* admin's own #header a:link/:visited rule otherwise wins on color, since
-   its #header ID selector outranks a plain .spoof-warning-stop class. */
-#admin-spoof-bar .spoof-warning-stop:link,
-#admin-spoof-bar .spoof-warning-stop:visited {
+/* admin's own #header rules otherwise win on color, since their #header ID
+   selector outranks a plain .spoof-warning-stop class. Not scoped to :link or
+   :visited: the control is a button, so it never matches either. */
+#admin-spoof-bar .spoof-warning-stop {
     color: #ce0000;
 }

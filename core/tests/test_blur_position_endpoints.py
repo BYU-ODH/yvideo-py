@@ -23,9 +23,12 @@ from django.urls import reverse
 from core.factories import AnnotationSetFactory
 from core.factories import BlurAnnotationFactory
 from core.factories import BlurAnnotationPositionFactory
+from core.factories import PlaylistFactory
+from core.factories import PlaylistUserAccessFactory
 from core.factories import TrackFactory
 from core.factories import UserFactory
 from core.models import BlurAnnotationPosition
+from core.models import PlaylistRole
 from core.tests.test_js_constant_parity import read_js_constant
 from core.views_video_editor import BLUR_POSITION_FIRST_UNDELETABLE
 from core.views_video_editor import BLUR_POSITION_FORBIDDEN
@@ -83,8 +86,13 @@ class BlurPositionEndpointTests(TestCase):
         self.assertEqual(response.content.decode(), BLUR_POSITION_FORBIDDEN)
         self.assertTrue(BlurAnnotationPosition.objects.filter(pk=deletable.pk).exists())
 
-    def test_an_editor_on_the_set_may_edit(self):
-        self.annotation_set.editors.add(self.stranger)
+    def test_a_ta_on_one_of_the_owners_playlists_may_edit(self):
+        """Edit rights are derived from playlist roles rather than stored per set."""
+        PlaylistUserAccessFactory(
+            playlist=PlaylistFactory(owner=self.owner),
+            user=self.stranger,
+            playlist_role=PlaylistRole.TA,
+        )
         self.client.force_login(self.stranger)
         self.assertEqual(self._upsert().status_code, 200)
 

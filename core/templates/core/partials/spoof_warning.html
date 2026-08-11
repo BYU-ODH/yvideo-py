@@ -9,9 +9,10 @@
             </span>
         </span>
     </span>
-    <a
-        class="spoof-warning-stop"
-        href="{% url 'stop_spoofing' %}?next={{ request.get_full_path|urlencode }}"
-    >[Stop]</a>
+    <form method="post" action="{% url 'stop_spoofing' %}" class="spoof-warning-stop-form">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="spoof-warning-stop">[Stop]</button>
+    </form>
 </div>
 {% endif %}

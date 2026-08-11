@@ -1204,11 +1204,6 @@ class LegacyMigrationService:
                 if request_obj.target_collection_archived is not None
                 else snapshot_collection["archived"]
             ),
-            public=(
-                request_obj.target_collection_public
-                if request_obj.target_collection_public is not None
-                else snapshot_collection["public"]
-            ),
         )
         self._upsert_source_map(
             request_obj,

@@ -28,32 +28,25 @@ def log_error(error_message, error_info={}, exception=None):
     )
 
 
-def get_or_create_course(course):
+def get_or_create_course(course, yearterm):
     """
-    Checks if the course already exists, if not, it will create it. The
-    pre-existing course, or new course will be returned unless there is
-    an error. If an error occurs, returns None.
+    Takes an enrollment record as returned by `Api.get_student_enrollments`.
+    Returns the pre-existing or newly created `Course`, or None on error.
     """
     try:
-        course_obj = Course.objects.filter(
+        course_obj, _ = Course.objects.get_or_create(
             dept=course["teaching_area"],
             catalog_number=course["catalog_number"] + course["catalog_suffix"],
             section_number=course["section_number"],
+            yearterm=yearterm,
         )
-    except Course.DoesNotExist:
-        try:
-            course_obj = Course.objects.create(
-                dept=course["teaching_area"],
-                catalog_number=course["catalog_number"] + course["catalog_suffix"],
-                section_number=course["section_number"],
-            )
-        except Exception as e:
-            log_error(
-                "An error occurred while creating a new course",
-                {"course_info": course},
-                e,
-            )
-            return None
+    except Exception as e:
+        log_error(
+            "An error occurred while getting or creating a course",
+            {"course_info": course, "yearterm": yearterm},
+            e,
+        )
+        return None
     return course_obj
 
 
@@ -199,12 +192,12 @@ def update_user_enrollment(user):
         updated_current_sem_correctly = False
     else:
         for course in current_user_enrollments:
-            result = get_or_create_course(course)
-            if result is None:
+            course_obj = get_or_create_course(course, current_yearterm)
+            if course_obj is None:
                 updated_current_sem_correctly = False
                 continue
 
-            if not create_user_course_association(user, course, current_yearterm):
+            if not create_user_course_association(user, course_obj, current_yearterm):
                 updated_current_sem_correctly = False
 
     updated_next_sem_correctly = True
@@ -217,12 +210,12 @@ def update_user_enrollment(user):
             updated_next_sem_correctly = False
         else:
             for course in next_yearterm_courses:
-                result = get_or_create_course(course)
-                if result is None:
+                course_obj = get_or_create_course(course, next_yearterm)
+                if course_obj is None:
                     updated_next_sem_correctly = False
                     continue
 
-                if not create_user_course_association(user, course, current_yearterm):
+                if not create_user_course_association(user, course_obj, next_yearterm):
                     updated_next_sem_correctly = False
 
     result_message = ""

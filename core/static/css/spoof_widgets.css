@@ -148,6 +148,12 @@
     font-size: 0.95rem;
 }
 
+/* Keeps the button a direct flex child of #spoof-warning, so the form wrapper
+   does not become the flex item and the gap and sizing below still apply. */
+.spoof-warning-stop-form {
+    display: contents;
+}
+
 .spoof-warning-stop {
     color: var(--spoof-warning-red);
     font-weight: 600;
@@ -155,6 +161,14 @@
     margin-left: 0.15rem;
     flex: 0 0 auto;
     white-space: nowrap;
+    /* Stripping the user-agent button chrome: this is a button so that ending a
+       spoof is a CSRF-protected POST, but it reads as the link it replaced. */
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
 }
 
 .spoof-warning-stop:hover {

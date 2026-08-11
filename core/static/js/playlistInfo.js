@@ -14,14 +14,10 @@ function setupVideoSearch() {
 }
 
 function getPlaylistIdValue() {
-  const playlistForm = document.getElementById("playlist-settings-form");
-  if (!playlistForm) {
-    return;
-  }
-  const idInput = playlistForm.querySelector("input[name='id']");
-  const idValue = idInput?.value;
-  if (idValue === undefined) {
-    console.error("Failed to get playlist id from form");
+  const settingsEl = document.getElementById("playlist-settings");
+  const idValue = settingsEl?.dataset.playlistId;
+  if (!idValue) {
+    console.error("Failed to get playlist id from the settings panel");
     return;
   }
   return idValue;
@@ -39,7 +35,7 @@ function setupDeletePlaylist() {
       deleteButton.classList.add("disabled");
       return;
     }
-    const deleteResponse = await fetch(`/playlists/delete/${idValue}/`, {
+    const deleteResponse = await fetch(`/playlists/${idValue}/delete/`, {
       method: "DELETE",
       headers: {
         "X-CSRFToken": getCSRFToken()
@@ -61,7 +57,7 @@ function setupResetPlaylistSettings() {
   resetButton.addEventListener("click", async (event) => {
     event.preventDefault();
     const playlistId = getPlaylistIdValue();
-    const resetResponse = await fetch(`/display-playlist-settings/${playlistId}/`);
+    const resetResponse = await fetch(`/playlists/${playlistId}/settings/`);
     if (!resetResponse.ok) {
       console.error("Failed to reset playlist settings");
       return;

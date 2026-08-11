@@ -45,9 +45,9 @@ def _resolve_path(view_name: str) -> str:
 
     return {
         "playlist_info": f"/playlists/{playlist.id}/",
-        "content_info": f"/content/display-settings/{content.id}/",
+        "content_info": f"/content/{content.id}/display-settings/",
         "player": f"/player/{content.id}/",
-        "create_from_resource": f"/create-from-resource/{playlist.id}",
+        "create_from_resource": f"/playlists/{playlist.id}/create-from-resource/",
     }[view_name]
 
 

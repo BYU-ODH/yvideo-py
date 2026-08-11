@@ -187,7 +187,9 @@ class AnnotationHistoryViewTests(TestCase):
         }
         payload.update(overrides)
         return self.client.post(
-            reverse("update_annotation", args=["comment", annotation.id]),
+            reverse(
+                "update_annotation", args=[self.content.id, "comment", annotation.id]
+            ),
             data=json.dumps(payload),
             content_type="application/json",
         )
@@ -331,7 +333,7 @@ class AnnotationHistoryViewTests(TestCase):
 
         # A resize, which reconciles the new version's points against the smaller window.
         update_response = self.client.post(
-            reverse("update_annotation", args=["blur", blur.id]),
+            reverse("update_annotation", args=[self.content.id, "blur", blur.id]),
             data=json.dumps(
                 {
                     "content_id": self.content.id,
@@ -392,7 +394,7 @@ class AnnotationHistoryViewTests(TestCase):
 
         # A field save, which is the only thing that creates a version.
         rename = self.client.post(
-            reverse("update_annotation", args=["blur", blur.id]),
+            reverse("update_annotation", args=[self.content.id, "blur", blur.id]),
             data=json.dumps(
                 {
                     "content_id": self.content.id,

@@ -93,26 +93,47 @@ class Api:
 
         return new_year_string + new_term_string
 
-    def get_current_year_term(self):
-        now = timezone.now()
+    def get_year_terms(self):
+        """Every yearterm the API knows about, with its start and end datetimes.
 
-        # get yearterm information
+        Returns a list of {"yearterm", "start_date_time", "end_date_time"} dicts.
+        Entries the API returns without parseable dates are skipped.
+        """
         url = secret_settings.API_YEARTERM_URL
         headers = {"Authorization": self.build_auth_header()}
         control_date_request = requests.get(url, headers=headers)
         control_date_json_response = control_date_request.json()
         response_data = control_date_json_response["data"]
 
+        year_terms = []
+        for entry in response_data:
+            try:
+                year_terms.append(
+                    {
+                        "yearterm": entry["year_term"],
+                        "start_date_time": self.parse_api_datetime(
+                            entry["start_date_time"]
+                        ),
+                        "end_date_time": self.parse_api_datetime(
+                            entry["end_date_time"]
+                        ),
+                    }
+                )
+            except (KeyError, TypeError, ValueError) as e:
+                self.logger.error(f"Skipping unparseable yearterm entry {entry}: {e}")
+        return year_terms
+
+    def get_current_year_term(self):
+        now = timezone.now()
+
         # determine which yearterm corresponds to current datetime
         yearterm = None
         is_two_weeks_from_end = False
-        for entry in response_data:
-            yearterm_start_datetime = self.parse_api_datetime(entry["start_date_time"])
-            yearterm_end_datetime = self.parse_api_datetime(entry["end_date_time"])
-            if yearterm_start_datetime <= now < yearterm_end_datetime:
-                yearterm = entry["year_term"]
+        for entry in self.get_year_terms():
+            if entry["start_date_time"] <= now < entry["end_date_time"]:
+                yearterm = entry["yearterm"]
                 # determine if the end of the current year term is 2 weeks or less away
-                two_weeks_from_end = yearterm_end_datetime - timedelta(days=14)
+                two_weeks_from_end = entry["end_date_time"] - timedelta(days=14)
                 is_two_weeks_from_end = now >= two_weeks_from_end
 
                 break
