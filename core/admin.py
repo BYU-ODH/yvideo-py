@@ -618,11 +618,19 @@ class UserAdmin(VersionAdmin):
         "last_name",
         "email",
         "privilege_level",
+        "group_names",
         "date_joined",
     )
-    list_filter = ("privilege_level", "date_joined")
+    list_filter = ("groups", "privilege_level", "date_joined")
     search_fields = ("username", "netid", "first_name", "last_name")
     add_form_template = "admin/core/user/add_form.html"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("groups")
+
+    @admin.display(description="Groups")
+    def group_names(self, user):
+        return ", ".join(group.name for group in user.groups.all()) or "—"
 
     def add_view(self, request, form_url="", extra_context=None):
         # A new user's data (name, netid, permissions) comes entirely from BYU's
