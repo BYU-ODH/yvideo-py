@@ -109,9 +109,9 @@ a.blue-button {
 }
 
 .cancel-button {
-    color: white;
-    background-color: var(--dark-grey);
-    border: none;
+    color: var(--dark-primary-blue);
+    background-color: white;
+    border: 2px solid var(--dark-primary-blue);
 }
 
 .cancel-button:hover {
@@ -191,6 +191,8 @@ a.blue-button {
     display: flex;
     flex-direction: column;
     row-gap: 1rem;
+    padding-top: 1rem;
+    column-gap: 3rem;
 }
 
 .column-flex-no-gap {
@@ -1445,19 +1447,18 @@ h4.video-title {
 
 .content-form-group {
     display: flex;
-    flex-direction: column;
+    /* flex-direction: column; */
     row-gap: 0.35rem;
 }
 
 .content-form-group label {
     display: block;
     font-weight: 500;
+    padding-right: 0.5rem;
 }
 
 .content-form-group input {
-    height: 36px;
     padding: 0 10px;
-    border-radius: 4px;
     font-size: 1rem;
 }
 
