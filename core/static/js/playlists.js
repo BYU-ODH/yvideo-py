@@ -18,6 +18,9 @@ function setupPlaylistSearch() {
 
 function setupNewPlaylistSubmit() {
   const form = document.getElementById("new-playlist-form");
+  if (!form) {
+    return;
+  }
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const nameInput = form.querySelector("#new-playlist-name-input");

@@ -15,7 +15,9 @@ import pytest
 # here is a deliberate decision, not an oversight.
 PERMISSION_EXEMPT_VIEWS = {
     # Public or identity-only.
-    "index": "landing page; branches on the viewer's own privilege level",
+    "index": "redirects to the playlists landing page; renders nothing itself",
+    "about": "static marketing copy about the site, identical for every viewer",
+    "whats_new": "static explanation of the differences from legacy Y-video",
     "invalid_login": "login failure page, deliberately unauthenticated",
     "playlists": "lists only what the requester can reach; filters rather than checks",
     "request_resource": "anyone may request a resource; owner is set from request.user",

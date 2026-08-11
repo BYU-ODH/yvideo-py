@@ -8,6 +8,7 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
+from django.urls import reverse_lazy
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
@@ -15,6 +16,12 @@ from .forms_legacy_migration import LegacyMigrationRequestForm
 from .legacy_migration import LegacyMigrationRequest
 from .legacy_migration import LegacyMigrationStatus
 from .models import PrivilegeLevel
+from .views import breadcrumb_trail
+
+LEGACY_MIGRATIONS_CRUMB = (
+    "Legacy migrations",
+    reverse_lazy("legacy_migration_requests"),
+)
 
 
 def _legacy_migration_unavailable_response():
@@ -65,6 +72,7 @@ def legacy_migration_requests(request):
         {
             "form": LegacyMigrationRequestForm(),
             "migration_requests": requests,
+            "breadcrumbs": breadcrumb_trail(("Legacy migrations", None)),
         },
     )
 
@@ -94,6 +102,7 @@ def create_legacy_migration_request(request):
             {
                 "form": form,
                 "migration_requests": requests,
+                "breadcrumbs": breadcrumb_trail(("Legacy migrations", None)),
             },
             status=400,
         )
@@ -131,5 +140,9 @@ def legacy_migration_request_detail(request, pk):
         "core/legacy_migration_request_detail.html",
         {
             "migration_request": migration_request,
+            "breadcrumbs": breadcrumb_trail(
+                LEGACY_MIGRATIONS_CRUMB,
+                (f"Request {migration_request.request_uuid}", None),
+            ),
         },
     )

@@ -630,13 +630,52 @@ a.blue-button {
 }
 
 .breadcrumbs {
-    font-size: 1rem;
-    color: black;
-    margin-top: 0;
     min-width: 0;
+}
+
+.breadcrumb-list {
+    display: flex;
+    align-items: center;
+    column-gap: 0.35rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    font-size: 1rem;
+}
+
+.breadcrumb-item {
+    display: flex;
+    align-items: center;
+    column-gap: 0.35rem;
+    min-width: 0;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "/";
+    color: var(--grey);
+    flex: 0 0 auto;
+}
+
+/* Prefixed with .navbar to beat `.navbar a` on specificity rather than source order. */
+.navbar .breadcrumb-item a {
+    color: var(--dark-grey);
+}
+
+.breadcrumb-item [aria-current="page"] {
+    color: black;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The current page's crumb is the long, title-derived one, so it absorbs the truncation. */
+.breadcrumb-item:last-child {
+    flex: 0 1 auto;
+    min-width: 3rem;
 }
 
 .sidebar-toggle {
@@ -1296,13 +1335,99 @@ p.tile-subtitle {
 }
 
 
-/* index page */
-#index-page {
+/* What's new banner */
+.whats-new-banner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: var(--pale-green);
+    border: 1px solid var(--green);
+    border-radius: 5px;
+    /* Right padding keeps the centred text clear of the absolutely placed close button. */
+    padding: 0.75rem 2.5rem;
+    margin-bottom: 1rem;
+}
+
+/* `display: flex` above would otherwise beat the browser's own [hidden] rule, which
+   is what the dismiss button toggles. */
+.whats-new-banner[hidden] {
+    display: none;
+}
+
+.whats-new-banner p {
+    margin: 0;
+    flex: 1;
+    text-align: center;
+}
+
+.whats-new-banner a {
+    color: var(--deep-blue);
+}
+
+/* Taken out of the flow so the message centres on the banner, not on the space left
+   over beside the button. */
+.whats-new-dismiss {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+    color: var(--darker-grey);
+}
+
+/* Prose pages: What's new, and anything else that is mostly reading */
+.prose-page {
+    max-width: 55rem;
+}
+
+.prose-page section {
+    margin-bottom: 2.5rem;
+}
+
+.prose-page li {
+    margin-bottom: 0.35rem;
+}
+
+.prose-lead {
+    font-size: 1.1rem;
+    color: var(--darker-grey);
+}
+
+.terminology-table {
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+.terminology-table caption {
+    text-align: left;
+    font-weight: 600;
+    padding-bottom: 0.5rem;
+}
+
+.terminology-table th,
+.terminology-table td {
+    border: 1px solid var(--light-grey);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+}
+
+.terminology-table th {
+    background-color: var(--selectable-grey);
+}
+
+
+/* about page */
+#about-page {
     display: flex;
     flex-direction: column;
 }
 
-#index-page-title {
+#about-page-title {
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1311,53 +1436,29 @@ p.tile-subtitle {
     height: 300px;
 }
 
-#index-page-title button {
-    box-shadow: 0px 3px 6px black;
-    font-size: 1.2rem;
-    width: 150px;
-}
-
-#index-page-content-wrapper {
+#about-page-content-wrapper {
     background-color: var(--dark-primary-blue);
     display: flex;
     flex-direction: column;
     align-items: center;
     color: white;
+    flex: 1;
 }
 
-#index-page-content {
+#about-page-content {
     max-width: 1200px;
-    flex: 1;
     display: flex;
     flex-direction: column;
     row-gap: 3rem;
-    padding: 3rem 0rem;
+    padding: 3rem 1.5rem;
 }
 
-.index-page-row {
-    display: flex;
-    flex-direction: row;
-    column-gap: 3rem;
-    height: 200px;
+.about-page-row h2 {
+    margin-top: 0;
 }
 
-.index-page-text-group, .index-page-image {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    flex: 0.5;
-}
-
-.index-page-image {
-    border-radius: 20px;
-    box-shadow: 0px 3px 6px black;
-    overflow: hidden;
-}
-
-.index-page-image img {
-    height: 100%;
-    width: 100%;
-    object-fit: cover;
+.about-page-row p {
+    margin-bottom: 0;
 }
 
 

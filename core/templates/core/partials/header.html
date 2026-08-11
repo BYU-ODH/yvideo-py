@@ -1,19 +1,11 @@
-<body>
-    {% load static %}
+{% load static %}
     <nav class="navbar{% if request.is_spoofing %} navbar-spoofing{% endif %}">
         <div class="navbar-start">
             <a class="navbar-brand" href="{% url 'index' %}">
                 <img class="logo" src="{% static 'img/logo.svg' %}" alt="Logo">
-                <h1>Y-VIDEO</h1>
+                <h1>Y-VIDEO<sup>2</sup></h1>
             </a>
-            <div class="breadcrumbs">
-                <span class="breadcrumb-item">Home</span>
-            </div>
-            <div class="breadcrumbs">
-                <a href="{% url 'playlists' %}" class="breadcrumb-item">
-                    Playlists
-                </a>
-            </div>
+            {% include "core/partials/breadcrumbs.html" %}
         </div>
 
         <div class="navbar-center">
@@ -42,6 +34,10 @@
             <h2>Playlists</h2>
             <a href="{% url 'playlists' %}">Playlists</a>
 
+            <h2>Help</h2>
+            <a href="{% url 'whats_new' %}">What's new?</a>
+            <a href="{% url 'about' %}">About Y-Video</a>
+
             <h2>Connect With Us</h2>
             <a href="https://privacy.byu.edu" target="_blank" rel="noopener noreferrer">Privacy Notice</a>
             <a href="https://infosec.byu.edu/cookie-prefs" target="_blank" rel="noopener noreferrer">Cookie Preferences</a>
@@ -65,4 +61,3 @@
     });
 });
 </script>
-</body>
