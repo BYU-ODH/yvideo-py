@@ -808,16 +808,6 @@ export class BlurEditor {
     this._delete(deleteButton);
   }
 
-  /**
-   * Select the point whose row is being pressed.
-   *
-   * On the press rather than the click: leaving an edited field fires `change`, which starts a save
-   * whose response replaces these rows. When that lands between press and release - a slow reply, or
-   * simply an unhurried click - the row under the pointer is detached before the browser has a click
-   * to dispatch, and the press is lost. Pressing the same row again then works, because by that
-   * point there is nothing left to save. Selecting here also puts the playhead on the point before
-   * the save is sent, so the rows that come back are re-highlighted onto the same row by _render.
-   */
   _onPanelPointerDown(event) {
     if (event.button !== 0 || event.target.closest(".blur-position-delete-button")) return;
     const row = event.target.closest(".position-entry");

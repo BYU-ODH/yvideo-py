@@ -1,7 +1,6 @@
 // This file is not intended to be imported into an html page,
 // use this as a module to extend functionality of other js scripts
-// H:MM:SS.SS, the same shape seconds2hms in core/utils.py writes, so a time reads the same whether
-// the server or the page rendered it.
+
 export function formatSecondsToString(timeInSeconds) {
   const numericTime = Number(timeInSeconds);
   const safeTime = Number.isFinite(numericTime) ? Math.max(0, numericTime) : 0;
@@ -14,8 +13,6 @@ export function formatSecondsToString(timeInSeconds) {
   return `${hours}:${String(minutes).padStart(2, "0")}:${remainder}`;
 }
 
-// Mirrors hms2seconds in core/utils.py. Bare seconds are accepted too, since that is what the
-// timeline's data-* attributes carry and what a user typing into a time field may reach for.
 export function parseTimeStringToSeconds(time) {
   const parts = String(time).trim().split(":");
   if (parts.length > 3 || parts.some((part) => part.trim() === "")) return NaN;

@@ -206,20 +206,6 @@ class SubtitleEditor {
   }
 
   // METHODS FOR SUBTITLE CUES
-  _secondsToHMS(seconds) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${hours}:${minutes}:${secs}`;
-  }
-
-  _hmsToSeconds(hmsString) {
-    const parts = hmsString.split(':');
-    if (parts.length == 3) {
-      return Number(parts[0] * 3600) + Number(parts[1] * 60) + Number(parts[2]);
-    }
-    return null;
-  }
 
   _initialize() {
     this.videoEl = document.getElementById("video-player");
