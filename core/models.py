@@ -1655,7 +1655,6 @@ class BlurAnnotationPosition(models.Model):
     y = models.FloatField(null=False, blank=False)
     width = models.FloatField(null=False, blank=False)
     height = models.FloatField(null=False, blank=False)
-    blur_amount = models.IntegerField(null=False, blank=False, default=60)
 
     class Meta:
         # Interpolating between positions is only correct on a sorted sequence, so no caller should
