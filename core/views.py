@@ -27,7 +27,6 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
-from .forms import ContentForm
 from .forms import ImportantWordForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
@@ -753,24 +752,6 @@ def delete_playlist(request, playlist):
         return HttpResponseServerError()
 
 
-# TODO (#335, #352): routed but unreferenced, and broken independently of permissions --
-# create_content.html reverses `display_resources_files`, a URL name that does not exist,
-# so this 500s on every request. The live path for adding content is
-# display_create_from_resource. Delete this view, its template, and its route, or finish it.
-@require_GET
-@playlist_write_required
-def display_create_content(request, playlist):
-    return render(
-        request,
-        "core/partials/create_content.html",
-        {
-            "form": ContentForm(),
-            "playlist": playlist,
-            "resources": accessible_resources(request.user),
-        },
-    )
-
-
 @require_POST
 @playlist_write_required
 def create_content(request, playlist):
@@ -861,25 +842,12 @@ def create_content_from_youtube_url(request, playlist):
 
 @require_GET
 @playlist_write_required
-def display_create_from_resource(request, playlist):
-    try:
-        return render(
-            request,
-            "core/create_from_resource.html",
-            {
-                "resources": accessible_resources(request.user),
-                "playlist_id": playlist.pk,
-                "breadcrumbs": breadcrumb_trail(
-                    (playlist.name, reverse("playlist_info", args=[playlist.pk])),
-                    ("Add from resource", None),
-                ),
-            },
-        )
-    except Exception as e:
-        logger.error(
-            f"Failed to display resources to create content from. Exception: {e}"
-        )
-        return HttpResponseServerError()
+def render_create_from_resource_resources(request, playlist):
+    return render(
+        request,
+        "core/partials/resource_list.html",
+        {"resources": accessible_resources(request.user)},
+    )
 
 
 @require_POST

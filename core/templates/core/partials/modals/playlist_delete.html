@@ -1,0 +1,14 @@
+{% extends "core/partials/user_view_modal.html" %}
+
+{% block modal_title %}Delete this playlist?{% endblock %}
+
+{% block modal_body_classes %} row-flex flex-apart-aligned{% endblock %}
+
+{% block modal_body %}
+    <button id="playlist-confirm-delete" class="blue-button">
+        Yes
+    </button>
+    <button class="cancel-button" command="close" commandfor="{{ dialog_id }}">
+        No
+    </button>
+{% endblock %}

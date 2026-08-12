@@ -24,54 +24,9 @@
                     <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
                 </div>
                 {% if can_edit %}
-                <dialog id="add-video-dialog" class="user-view-modal">
-                    <div class="user-view-modal-header">
-                        <h3>Add a New Video</h3>
-                    </div>
-
-                    <div class="user-view-modal-body add-video-modal-columns">
-                        <div class="add-video-modal-column column-flex">
-                            <h4 class="add-video-modal-column-title">Add video from DVD/Blu-ray/VHS/etc.</h4>
-                            <a href="{% url 'display_create_from_resource' playlist.id %}" class="blue-button">
-                                Create from existing resource
-                            </a>
-                            <a href="{% url 'request_resource' %}" class="blue-button">
-                                Request creation of a new resource
-                            </a>
-                        </div>
-                        <div class="add-video-modal-divider"></div>
-                        <div class="add-video-modal-column column-flex">
-                            <h4 class="add-video-modal-column-title">Add video from YouTube</h4>
-                            <form id="add-youtube-video-form" class="column-flex">
-                                <input type="hidden" id="add-youtube-video-playlist-id" value="{{ playlist.id }}">
-                                <div class="content-form-group">
-                                    <label for="add-youtube-video-title">Title</label>
-                                    <input type="text" id="add-youtube-video-title" required>
-                                </div>
-                                <div class="content-form-group">
-                                    <label for="add-youtube-video-url">YouTube URL</label>
-                                    <input
-                                        type="url"
-                                        id="add-youtube-video-url"
-                                        placeholder="https://www.youtube.com/watch?v=..."
-                                        aria-describedby="add-youtube-video-url-help"
-                                        required
-                                    >
-                                    <p id="add-youtube-video-url-help" class="content-form-help">
-                                        Regular video links and youtu.be links. Shorts are not
-                                        supported: annotations would be positioned against the
-                                        wrong shape of picture.
-                                    </p>
-                                </div>
-                                <p id="add-youtube-video-error" class="add-youtube-video-error"
-                                   role="status" aria-live="polite" hidden></p>
-                                <button type="submit" id="add-youtube-video-submit" class="blue-button">
-                                    Add YouTube video
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </dialog>
+                {% include "core/partials/modals/add_video.html" with dialog_id="add-video-dialog" %}
+                {% include "core/partials/modals/select_resource.html" with dialog_id="select-resource-dialog" previous_dialog_id="add-video-dialog" %}
+                {% include "core/partials/modals/create_from_resource.html" with dialog_id="create-from-resource-modal" previous_dialog_id="select-resource-dialog" %}
                 <button
                     class="blue-button"
                     commandfor="add-video-dialog"
@@ -105,4 +60,5 @@
 </div>
 <script type="module" src="{% static 'js/playlistInfo.js' %}"></script>
 <script type="module" src="{% static 'js/addYoutubeContent.js' %}"></script>
+<script type="module" src="{% static 'js/create_from_resource.js' %}"></script>
 {% endblock %}

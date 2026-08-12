@@ -1,4 +1,5 @@
 import { getCSRFToken } from "./utils.js";
+import { getPlaylistIdValue } from "./utils.js";
 
 function setupVideoSearch() {
   const searchInput = document.getElementById("video-search");
@@ -11,16 +12,6 @@ function setupVideoSearch() {
       video.style.display = title.includes(searchText) ? "" : "none";
     }
   });
-}
-
-function getPlaylistIdValue() {
-  const settingsEl = document.getElementById("playlist-settings");
-  const idValue = settingsEl?.dataset.playlistId;
-  if (!idValue) {
-    console.error("Failed to get playlist id from the settings panel");
-    return;
-  }
-  return idValue;
 }
 
 function setupDeletePlaylist() {

@@ -265,6 +265,36 @@ a.blue-button {
     padding: 0.2rem 1rem;
 }
 
+.flat-close-dialog-button {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.flat-close-dialog-button:hover {
+    background: #00000010;
+    border-radius: 50%;
+}
+
+.user-view-modal-back-button {
+    height: 2rem;
+    padding: 0 0.5rem;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: 1rem;
+}
+
+.user-view-modal-back-button:hover {
+    background: #00000010;
+    border-radius: 4px;
+}
+
 .multi-select-menu {
     position: absolute;
     display: none;
@@ -1473,10 +1503,19 @@ p.tile-subtitle {
     align-items: flex-end;
 }
 
-#playlist-video-list, #resource-detail-list {
+#playlist-video-list, #modal-resource-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
+}
+
+#select-resource-dialog {
+    width: min(90vw, 1100px);
+}
+
+#select-resource-dialog .user-view-modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
 }
 
 .playlist-video-tile, .resource-details {
@@ -1484,12 +1523,26 @@ p.tile-subtitle {
     box-shadow: rgb(185, 184, 184) 0px 1px 3px;
 }
 
-.resource-details h3, .resource-details p {
-    margin: 0;
+.resource-detail-heading,
+.resource-detail-title,
+.resource-detail-body,
+.resource-detail-body > span {
+    display: block;
+}
+
+.resource-detail-title {
+    font-size: 1.17em;
+    font-weight: bold;
 }
 
 .resource-details {
+    width: 100%;
     padding: 1rem;
+    border: 0;
+    background: white;
+    color: inherit;
+    font: inherit;
+    text-align: left;
     transition: 0.15s linear box-shadow;
     /* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
     reports that it is supported by all browsers:
@@ -1524,20 +1577,44 @@ h4.video-title {
 .user-view-modal {
     background: white;
     color: black;
+    border: 2px solid var(--primary-blue);
     border-radius: 12px;
     padding: 0;
     box-shadow: 3px 6px 10px #00000050;
 }
 
+.user-view-modal::backdrop {
+    background: #00000060;
+}
+
 .user-view-modal input, .user-view-modal textarea, .user-view-modal select {
+    background: white;
+    color: black;
     border: 2px solid var(--primary-blue);
 }
 
 .user-view-modal-header {
-    background: #9CD6ED;
-    padding: 1rem;
+    display: grid;
+    grid-template-columns: minmax(5rem, 1fr) minmax(0, auto) minmax(5rem, 1fr);
+    align-items: center;
+    background: var(--light-blue);
+    padding: 0.5rem;
     text-align: center;
     border-radius: 12px 12px 0 0;
+}
+
+.user-view-modal-header-start,
+.user-view-modal-header-end {
+    display: flex;
+    align-items: center;
+}
+
+.user-view-modal-header-end {
+    justify-content: flex-end;
+}
+
+.user-view-modal-header h3 {
+    margin: 0;
 }
 
 .user-view-modal-body {

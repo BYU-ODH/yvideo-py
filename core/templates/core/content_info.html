@@ -18,19 +18,7 @@
     <div id="content-settings">
         <div class="row-flex flex-apart-aligned">
             <h3>Settings</h3>
-            <dialog id="content-delete-modal" class="user-view-modal">
-                <h3 class="user-view-modal-header">
-                    Delete this video from the playlist?
-                </h3>
-                <div class="user-view-modal-body row-flex flex-apart-aligned">
-                    <button id="content-confirm-delete" class="blue-button">
-                        Yes
-                    </button>
-                    <button class="cancel-button" command="close" commandfor="content-delete-modal">
-                        No
-                    </button>
-                </div>
-            </dialog>
+            {% include "core/partials/modals/content_delete.html" with dialog_id="content-delete-modal" %}
             <button  type="button" id="content-details-delete-button" class="red-button" command="show-modal" commandfor="content-delete-modal">
                 Delete from playlist
             </button>

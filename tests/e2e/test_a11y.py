@@ -29,7 +29,6 @@ FULL_PAGE_VIEWS = [
     "playlist_info",
     "content_info",
     "player",
-    "create_from_resource",
 ]
 
 # `index` is not listed: it is a redirect to `playlists`, which is audited on its own.
@@ -53,7 +52,6 @@ def _resolve_path(view_name: str) -> str:
         "playlist_info": f"/playlists/{playlist.id}/",
         "content_info": f"/content/{content.id}/display-settings/",
         "player": f"/player/{content.id}/",
-        "create_from_resource": f"/playlists/{playlist.id}/create-from-resource/",
     }[view_name]
 
 
@@ -149,19 +147,30 @@ def test_the_youtube_editor_banner_has_no_a11y_violations(
     assert not results["violations"], _format_violations(results["violations"])
 
 
-def test_the_add_video_dialog_has_no_a11y_violations(logged_in_page: Page, live_server):
-    """The add-a-video dialog, which the playlist_info sweep above cannot reach.
+def test_the_add_video_modal_chain_has_no_a11y_violations(
+    logged_in_page: Page, live_server
+):
+    """The add-a-video dialogs, which the playlist_info sweep above cannot reach.
 
     axe skips hidden content, and a <dialog> is hidden until it is opened - so the YouTube form
-    inside it, labels and error region included, is invisible to the page-level audit.
+    and resource forms inside them are invisible to the page-level audit.
     """
     playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
     page = logged_in_page
     page.goto(f"{live_server.url}/playlists/{playlist.id}/")
-    page.locator("[commandfor='add-video-dialog']").first.click()
+    page.locator("[commandfor='add-video-dialog'][command='show-modal']").click()
     page.wait_for_selector("#add-youtube-video-form", state="visible")
 
     page.add_script_tag(content=AXE_MIN_JS.read_text(encoding="utf-8"))
     results = page.evaluate("async () => await axe.run({include: [['dialog[open]']]})")
+    assert not results["violations"], _format_violations(results["violations"])
 
+    page.locator("#add-from-resource-button").click()
+    page.wait_for_selector("#select-resource-dialog", state="visible")
+    results = page.evaluate("async () => await axe.run({include: [['dialog[open]']]})")
+    assert not results["violations"], _format_violations(results["violations"])
+
+    page.locator("#modal-resource-list .resource-details").first.click()
+    page.wait_for_selector("#create-from-resource-form-submit", state="visible")
+    results = page.evaluate("async () => await axe.run({include: [['dialog[open]']]})")
     assert not results["violations"], _format_violations(results["violations"])

@@ -1,14 +1,5 @@
 import { getCSRFToken } from "./utils.js";
-
-function getPlaylistIdValue() {
-  const settingsEl = document.getElementById("playlist-settings");
-  const idValue = settingsEl?.dataset.playlistId;
-  if (!idValue) {
-    console.error("Failed to get playlist id from the settings panel");
-    return;
-  }
-  return idValue;
-}
+import { getPlaylistIdValue } from "./utils.js";
 
 function getYear() {
   const yearSelect = document.getElementById("year-select");
