@@ -1449,7 +1449,6 @@ class BlurAnnotation(BaseAnnotation):
                     y=position.y,
                     width=position.width,
                     height=position.height,
-                    blur_amount=position.blur_amount,
                 )
                 for position in self.positions.all()
             ]
@@ -1615,7 +1614,6 @@ class BlurAnnotation(BaseAnnotation):
                 y=position.y,
                 width=position.width,
                 height=position.height,
-                blur_amount=position.blur_amount,
             )
         new_annotation.save()
         return new_annotation
@@ -1631,7 +1629,6 @@ class BlurAnnotation(BaseAnnotation):
                 y=position.get("y"),
                 width=position.get("width"),
                 height=position.get("height"),
-                blur_amount=position.get("blur_amount", 60),
             )
         return obj
 
@@ -1711,7 +1708,6 @@ class BlurAnnotationPosition(models.Model):
             "y": self.y,
             "width": self.width,
             "height": self.height,
-            "blur_amount": self.blur_amount,
         }
 
 

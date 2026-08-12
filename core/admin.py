@@ -17,6 +17,9 @@ from django.urls import reverse
 from django.utils.html import format_html
 from reversion.admin import VersionAdmin
 
+# Django's admin autodiscovery only imports `core.admin`, so the legacy
+# migration admin has to be imported here for its @admin.register calls to run.
+from . import admin_legacy_migration  # noqa: F401
 from .forms import AddUserLookupForm
 from .models import AnnotationSet
 from .models import BlankAnnotation

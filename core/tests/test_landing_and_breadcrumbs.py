@@ -48,7 +48,7 @@ class LandingPageTests(TestCase):
         response = self.client.get(reverse("whats_new"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "terminology-table")
+        self.assertContains(response, "prose-page")
 
 
 @modify_settings(

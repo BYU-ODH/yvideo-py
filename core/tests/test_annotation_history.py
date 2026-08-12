@@ -94,7 +94,6 @@ class AnnotationHistoryModelTests(TestCase):
             y=20,
             width=30,
             height=40,
-            blur_amount=55,
         )
 
         edited = blur.edit(name="Edited logo")
@@ -106,7 +105,6 @@ class AnnotationHistoryModelTests(TestCase):
         self.assertEqual(copied_position.y, position.y)
         self.assertEqual(copied_position.width, position.width)
         self.assertEqual(copied_position.height, position.height)
-        self.assertEqual(copied_position.blur_amount, position.blur_amount)
 
     def test_undo_redo_and_edit_after_undo_manage_the_chain(self):
         root = CommentAnnotationFactory(track=self.track, name="Root")

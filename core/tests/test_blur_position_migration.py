@@ -4,8 +4,8 @@ The migration's `_normalize` is driven directly rather than through the migratio
 is plain data manipulation over `apps.get_model`, and calling it lets each case be set up and
 asserted precisely.
 
-The registry it is handed is a real historical one, rebuilt from the migration graph at 0004's
-dependency. Passing `django.apps` instead is *not* equivalent, and the difference is not about
+The registry it is handed is a real historical one, rebuilt from the migration graph. Passing
+`django.apps` instead is *not* equivalent, and the difference is not about
 which fields exist: historical models carry no custom methods, so the live registry supplies a
 BlurAnnotationPosition whose `save()` clamps and rounds geometry, while the one the migration
 actually receives at runtime does not. Driving these tests through the live registry meant every
@@ -30,8 +30,11 @@ from core.factories import BlurAnnotationFactory
 MIGRATION = importlib.import_module("core.migrations.0004_blur_position_invariants")
 SENTINEL = {"x": 50.0, "y": 50.0, "width": 4.0, "height": 3.0}
 
-# The state *before* 0004 runs, which is exactly what RunPython is handed. Built once: it reads
-# the migration graph off disk and touches no database rows, so it is safe to share.
+# A historical registry, taken at the *latest* migration rather than at 0004's dependency: what
+# these tests need from it is the absence of custom methods, and the state at 0003 also carries
+# columns that later migrations dropped (blur_amount, in 0009), which no longer exist in the test
+# database this runs against. Built once: it reads the migration graph off disk and touches no
+# database rows, so it is safe to share.
 _HISTORICAL_APPS = None
 
 
@@ -39,7 +42,7 @@ def _historical_apps():
     global _HISTORICAL_APPS
     if _HISTORICAL_APPS is None:
         loader = MigrationExecutor(connection).loader
-        _HISTORICAL_APPS = loader.project_state(("core", "0003_language_bcp47")).apps
+        _HISTORICAL_APPS = loader.project_state(loader.graph.leaf_nodes("core")[0]).apps
     return _HISTORICAL_APPS
 
 
