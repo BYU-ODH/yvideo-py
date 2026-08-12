@@ -624,6 +624,10 @@ class UserAdmin(VersionAdmin):
     list_filter = ("groups", "privilege_level", "date_joined")
     search_fields = ("username", "netid", "first_name", "last_name")
     add_form_template = "admin/core/user/add_form.html"
+    # Authentication is OIDC-only, so there is no password for an admin to
+    # manage. Leaving the field on the form made it required to save a user,
+    # and anything typed there was stored verbatim as the password hash.
+    exclude = ("password",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related("groups")
