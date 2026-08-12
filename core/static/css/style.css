@@ -828,9 +828,9 @@ a.blue-button {
 .main-content {
     width: 100%;
     min-width: 0;
-    max-width: 100%;
-    margin: 0 auto;
-    padding: 1rem;
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 clamp(16px, 5vw, 80px);
 }
 
 #resource-search-input {
@@ -1779,7 +1779,7 @@ h4.video-title {
     display: block;
 }
 
-.row-flex-content-settings-form {
+.row-flex-content-settings {
     display: block;
 }
 
