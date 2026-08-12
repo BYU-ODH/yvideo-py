@@ -46,10 +46,9 @@ class BlurReconcileThroughEndpointTests(TestCase):
 
     def _update(self, start_time, end_time):
         response = self.client.post(
-            reverse("update_annotation", args=["blur", self.blur.pk]),
+            reverse("update_annotation", args=[self.content.pk, "blur", self.blur.pk]),
             data=json.dumps(
                 {
-                    "content_id": self.content.pk,
                     "start_time": start_time,
                     "end_time": end_time,
                 }
@@ -80,7 +79,7 @@ class BlurReconcileThroughEndpointTests(TestCase):
 
     def test_creating_a_blur_seeds_one_position_at_its_start_time(self):
         response = self.client.post(
-            reverse("create_annotation", args=["blur", self.track.pk]),
+            reverse("create_annotation", args=[self.track.pk, "blur"]),
             data=json.dumps(
                 {
                     "content_id": self.content.pk,

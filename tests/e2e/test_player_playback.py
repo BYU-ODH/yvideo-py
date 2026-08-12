@@ -82,16 +82,28 @@ def test_player_time_indicator_includes_hundredths(page, open_player):
 def test_video_can_be_played_by_a_spoofed_non_admin_user(
     logged_in_page, live_server, demo_content
 ):
-    # Regression coverage: player-wrapper.js used to fetch the CSRF token
-    # from a `[name=csrfmiddlewaretoken]` form input that only exists on the
-    # page for admins who aren't spoofing (see header.html's "Act for" form).
-    # Any other viewer - a spoofed user, or a regular student/instructor in
-    # production - had no such input anywhere on the page, so
-    # `document.querySelector(...).value` threw and the player never
-    # initialized. Reproduce that exact viewer state via real spoofing.
+    # Regression coverage: player-wrapper.js used to fetch the CSRF token from a
+    # `[name=csrfmiddlewaretoken]` form input that only exists on the page for admins who
+    # aren't spoofing (see header.html's "Act for" form). A regular student or instructor
+    # in production has no such input anywhere on the page, so
+    # `document.querySelector(...).value` threw and the player never initialized.
+    #
+    # That viewer state used to be reachable by spoofing, but the spoof warning's "Stop"
+    # control is now a CSRF-protected form, so every page a test can reach carries a token
+    # input. Rather than depend on a page that happens to lack one, strip them all before
+    # any page script runs: the observer fires during parsing, while the deferred module
+    # that boots the player runs only after parsing finishes.
     page = logged_in_page
     console_errors = []
     page.on("pageerror", lambda exc: console_errors.append(str(exc)))
+    page.add_init_script(
+        """
+        new MutationObserver(() => {
+          document.querySelectorAll('[name=csrfmiddlewaretoken]')
+                  .forEach((input) => input.remove());
+        }).observe(document, {childList: true, subtree: true});
+        """
+    )
 
     # Not open_player: that fixture waits for window.videoPlayer, which is exactly what the
     # regression prevented from ever being set. Waiting on it here would turn the bug this test
@@ -101,7 +113,7 @@ def test_video_can_be_played_by_a_spoofed_non_admin_user(
 
     assert not page.locator("[name=csrfmiddlewaretoken]").count(), (
         "test no longer reproduces the regression: a csrfmiddlewaretoken "
-        "input is present on the page for the spoofed user"
+        "input survived on the page the player booted against"
     )
 
     _assert_video_plays(page, console_errors)

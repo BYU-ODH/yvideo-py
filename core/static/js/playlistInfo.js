@@ -1,4 +1,5 @@
 import { getCSRFToken } from "./utils.js";
+import { getPlaylistIdValue } from "./utils.js";
 
 function setupVideoSearch() {
   const searchInput = document.getElementById("video-search");
@@ -13,20 +14,6 @@ function setupVideoSearch() {
   });
 }
 
-function getPlaylistIdValue() {
-  const playlistForm = document.getElementById("playlist-settings-form");
-  if (!playlistForm) {
-    return;
-  }
-  const idInput = playlistForm.querySelector("input[name='id']");
-  const idValue = idInput?.value;
-  if (idValue === undefined) {
-    console.error("Failed to get playlist id from form");
-    return;
-  }
-  return idValue;
-}
-
 function setupDeletePlaylist() {
   const deleteButton = document.getElementById("playlist-confirm-delete");
   if (!deleteButton) {
@@ -39,7 +26,7 @@ function setupDeletePlaylist() {
       deleteButton.classList.add("disabled");
       return;
     }
-    const deleteResponse = await fetch(`/playlists/delete/${idValue}/`, {
+    const deleteResponse = await fetch(`/playlists/${idValue}/delete/`, {
       method: "DELETE",
       headers: {
         "X-CSRFToken": getCSRFToken()
@@ -61,7 +48,7 @@ function setupResetPlaylistSettings() {
   resetButton.addEventListener("click", async (event) => {
     event.preventDefault();
     const playlistId = getPlaylistIdValue();
-    const resetResponse = await fetch(`/display-playlist-settings/${playlistId}/`);
+    const resetResponse = await fetch(`/playlists/${playlistId}/settings/`);
     if (!resetResponse.ok) {
       console.error("Failed to reset playlist settings");
       return;

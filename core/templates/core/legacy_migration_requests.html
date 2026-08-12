@@ -41,18 +41,54 @@
                 {% csrf_token %}
                 {{ form.non_field_errors }}
                 {% for field in form %}
-                    <div class="legacy-migrations-field">
-                        {{ field.label_tag }}
-                        {{ field }}
-                        {% if field.help_text %}
-                            <small class="legacy-migrations-help-text" id="{{ field.auto_id }}_helptext">
-                                {{ field.help_text }}
-                            </small>
-                        {% endif %}
-                        {{ field.errors }}
-                    </div>
+                    {% if field.name != "acknowledged_compliance" and field.name != "acknowledged_fair_use_limitation" %}
+                        <div class="legacy-migrations-field">
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {% if field.help_text %}
+                                <small class="legacy-migrations-help-text" id="{{ field.auto_id }}_helptext">
+                                    {{ field.help_text }}
+                                </small>
+                            {% endif %}
+                            {{ field.errors }}
+                        </div>
+                    {% endif %}
                 {% endfor %}
-                <button type="submit" class="large-button">Submit request</button>
+                <div class="legacy-migrations-submission">
+                    <h4>Legal compliance</h4>
+                    <div class="legacy-migrations-legal-choices">
+                        <div class="legacy-migrations-legal-choice{% if form.acknowledged_compliance.errors %} legacy-migrations-field-error{% endif %}">
+                            {{ form.acknowledged_compliance }}
+                            <div>
+                                <label for="{{ form.acknowledged_compliance.id_for_label }}">
+                                    <span class="legacy-migrations-required-marker">*</span> I have
+                                    read the <a target="_blank" href="https://policy.byu.edu/view/guidelines-for-selecting-and-teaching-literary-and-visual-materials-at-byu-policy">BYU Visual Teaching Materials Policy</a>
+                                    and <a target="_blank" href="https://policy.byu.edu/view/copyright-policy">BYU Copyright Policy</a>
+                                    and will use this resource in compliance with them.
+                                </label>
+                                {{ form.acknowledged_compliance.errors }}
+                            </div>
+                        </div>
+
+                        <div class="legacy-migrations-legal-choice{% if form.acknowledged_fair_use_limitation.errors %} legacy-migrations-field-error{% endif %}">
+                            {{ form.acknowledged_fair_use_limitation }}
+                            <div>
+                                <label for="{{ form.acknowledged_fair_use_limitation.id_for_label }}">
+                                    <span class="legacy-migrations-required-marker">*</span> I will
+                                    only share this resource with students enrolled in relevant
+                                    courses, or other uses permitted by
+                                    <a target="_blank" href="https://www.copyright.gov/help/faq/faq-fairuse.html">Fair Use</a>.
+                                    (See <a href="https://files.lib.byu.edu/copyright/Checklist_for_Fair_Use.pdf">BYU's Fair Use checklist</a>.)
+                                    Note that Fair Use arguments are weaker for films that can
+                                    be streamed on commercial services, e.g. Amazon Prime,
+                                    Disney+, Hulu, Netflix, Paramount+, etc.
+                                </label>
+                                {{ form.acknowledged_fair_use_limitation.errors }}
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="large-button legacy-migrations-submit" disabled>Submit request</button>
+                </div>
             </form>
 
             <aside class="legacy-migrations-contact" aria-labelledby="legacy-migrations-contact-heading">
@@ -106,4 +142,5 @@
             {% endif %}
         </section>
     </section>
+    <script src="{% static 'js/legacy_migration_requests.js' %}"></script>
 {% endblock %}

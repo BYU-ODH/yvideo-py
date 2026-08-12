@@ -1,6 +1,6 @@
 /* General Styles */
 :root {
-    --selectable-grey: #eeeeee;
+    --selectable-grey: #eee;
     --light-grey: #969b9c;
     --grey: #7c8383;
     --dark-grey: #5f6567;
@@ -12,7 +12,7 @@
     --light-yellow: #ffc;
     --light-red: #f34a3f;
     --red: #ce0000;
-    --dark-red: #990000;
+    --dark-red: #900;
     --pale-red: #fdecea;
     --pale-green: #e6f4ea;
     --green: #1e7e34;
@@ -38,25 +38,30 @@ input, textarea, select, option {
 }
 
 body {
-    height: 100vh;
     display: flex;
     flex-direction: column;
+    height: 100vh;
 }
 
 dialog {
     position: relative;
-    border-radius: 20px;
-    background-color: var(--dark-mode-background-medium);
-    color: var(--dark-mode-text-color);
+
     border: 3px solid var(--dark-mode-border-color);
+    border-radius: 20px;
+
+    color: var(--dark-mode-text-color);
+
+    background-color: var(--dark-mode-background-medium);
 }
 
 dialog input, dialog select, dialog textarea {
-    background-color: var(--dark-mode-background-light);
-    color: var(--dark-mode-text-color);
-    border-radius: 4px;
-    border: none;
     padding: 8px;
+    border: none;
+    border-radius: 4px;
+
+    color: var(--dark-mode-text-color);
+
+    background-color: var(--dark-mode-background-light);
 }
 
 button:hover {
@@ -64,15 +69,15 @@ button:hover {
 }
 
 .blue-button, .white-button-with-border, .red-button, .cancel-button {
-    border-radius: 20px;
     padding: 10px 20px;
+    border-radius: 20px;
     text-decoration: none;
 }
 
 .blue-button {
-    background-color: var(--dark-primary-blue);
-    color: white;
     border: none;
+    color: white;
+    background-color: var(--dark-primary-blue);
 }
 
 .blue-button:hover {
@@ -84,24 +89,26 @@ a.blue-button {
 }
 
 .white-button-with-border {
-    background-color: white;
-    color: var(--dark-primary-blue);
     border: 2px solid var(--dark-primary-blue);
+    color: var(--dark-primary-blue);
+    background-color: white;
 }
 
 .white-button-with-border:hover {
-    background-color: var(--primary-blue);
-    color: white;
     border: 2px solid white;
+    color: white;
+    background-color: var(--primary-blue);
 }
 
 .large-button {
-    color: white;
-    background-color: var(--medium-blue);
     padding: 0.8rem 1.5rem;
-    border-radius: 2rem;
     border: none;
+    border-radius: 2rem;
+
     font-size: 1rem;
+    color: white;
+
+    background-color: var(--medium-blue);
 }
 
 .large-button:hover {
@@ -109,9 +116,9 @@ a.blue-button {
 }
 
 .cancel-button {
+    border: none;
     color: white;
     background-color: var(--dark-grey);
-    border: none;
 }
 
 .cancel-button:hover {
@@ -119,10 +126,10 @@ a.blue-button {
 }
 
 .red-button {
+    border: none;
+    border-radius: 1rem;
     color: white;
     background-color: var(--red);
-    border-radius: 1rem;
-    border: none;
 }
 
 .red-button:hover {
@@ -130,10 +137,9 @@ a.blue-button {
 }
 
 .invalid-input {
-    border: 2px solid var(--red) !important;
+    border: 2px solid var(--red) !important; /* eslint-disable-line css/no-important */
 }
 
-.content-form-group.clips-only-invalid label,
 .resource-intake-field-error label {
     color: var(--red);
 }
@@ -147,16 +153,16 @@ a.blue-button {
 
 .clips-only-warning,
 .resource-intake-message-error {
+    border: 1px solid var(--red);
     color: var(--dark-red);
     background-color: var(--pale-red);
-    border: 1px solid var(--red);
 }
 
 .clickable:hover {
-    color: var(--deep-blue);
     cursor: pointer;
-    background-color: var(--selectable-grey);
     border-radius: 10px;
+    color: var(--deep-blue);
+    background-color: var(--selectable-grey);
 }
 
 .position-flex-start {
@@ -173,6 +179,7 @@ a.blue-button {
 
 .row-flex {
     column-gap: 1rem;
+    align-content: center;
 }
 
 .flex-apart-aligned {
@@ -197,11 +204,12 @@ a.blue-button {
 }
 
 .accordian-folded {
-    height: 0px;
     overflow: hidden;
-    border: none !important; /* eslint css/no-important: off */
-    padding: 0 !important;
-    margin: 0 !important;
+
+    height: 0;
+    margin: 0 !important; /* eslint-disable-line css/no-important */
+    padding: 0 !important; /* eslint-disable-line css/no-important */
+    border: none !important; /* eslint-disable-line css/no-important */
 }
 
 .turned {
@@ -209,7 +217,7 @@ a.blue-button {
 }
 
 .hidden {
-    display: none !important;
+    display: none !important; /* eslint-disable-line css/no-important */
 }
 
 .invisible {
@@ -240,9 +248,11 @@ a.blue-button {
     0% {
         transform: scale(1, 1);
     }
+
     50% {
         transform: scale(1.5, 1.5);
     }
+
     100% {
         transform: scale(1, 1);
     }
@@ -259,15 +269,51 @@ a.blue-button {
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;
-    font-size: 1rem;
+
     padding: 0.2rem 1rem;
+
+    font-size: 1rem;
+}
+
+.flat-close-dialog-button {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+
+    font-size: 1.5rem;
+    line-height: 1;
+    color: inherit;
+
+    background: transparent;
+}
+
+.flat-close-dialog-button:hover {
+    border-radius: 50%;
+    background: #00000010;
+}
+
+.user-view-modal-back-button {
+    height: 2rem;
+    padding: 0 0.5rem;
+    border: 0;
+
+    font-size: 1rem;
+    color: inherit;
+
+    background: transparent;
+}
+
+.user-view-modal-back-button:hover {
+    border-radius: 4px;
+    background: #00000010;
 }
 
 .multi-select-menu {
     position: absolute;
+    z-index: 4;
     display: none;
     flex-direction: column;
-    z-index: 4;
 }
 
 .visible-multi-select-menu {
@@ -275,45 +321,49 @@ a.blue-button {
 }
 
 .multi-select-menu-button {
+    padding: 5px;
     font-size: 1rem;
     white-space: nowrap;
-    padding: 5px;
     transition: 0.5s ease all;
 }
 
 .multi-select-menu-button:hover {
-    transform: translateX(5px);
     cursor: pointer;
+    transform: translateX(5px);
 }
 
 .multi-select-menu-bumped-up {
-    bottom: 0px;
+    bottom: 0;
 }
 
 .open-multi-select-button {
     display: flex;
     flex-direction: column;
     justify-content: center;
+
+    padding: 10px;
+    border: 1px solid #0000;
     border-radius: 25%;
-    padding: 10px 10px;
+
     background-color: inherit;
-    border: 1px solid #00000000;
 }
 
 .open-multi-select-button:hover {
-    box-shadow: 0px 3px 6px #00000075;
     cursor: pointer;
     border: 1px solid white;
+    box-shadow: 0 3px 6px #00000075;
 }
 
 /* Video Overlay and Blank Screen */
 .video-overlay {
     position: absolute;
-    background-color: transparent;
     z-index: 10;
+    top: 0;
+
     width: 100%;
     height: 100%;
-    top: 0px;
+
+    background-color: transparent;
 }
 
 .video-overlay.blank {
@@ -323,42 +373,47 @@ a.blue-button {
 /* Subtitles */
 .subtitles-overlay {
     position: absolute;
-    bottom: 80px;
-    color: #ffffff;
     z-index: 20;
-    height: 80px;
+    bottom: 80px;
+
     width: 100%;
+    height: 80px;
+
+    color: #fff;
 }
 
 .subtitles-overlay h3 {
-    background-color: rgba(0, 0, 0, 0.5);
-    padding: 3px;
-    font-size: 1.8rem;
-    text-align: center;
-    margin: auto;
     width: auto;
-    height: auto;
     max-width: 60%;
-    line-height: 1.5;
-    letter-spacing: 0.7px;
-}
+    height: auto;
+    margin: auto;
+    padding: 3px;
 
-.subtitles-overlay.empty h3 {
-    background-color: transparent;
+    font-size: 1.8rem;
+    line-height: 1.5;
+    text-align: center;
+    letter-spacing: 0.7px;
+
+    background-color: rgb(0 0 0 / 50%);
 }
 
 /* Play Button (before video starts) */
 .play-button {
+    cursor: pointer;
+
+    position: relative;
+    z-index: 100;
+    top: 40%;
+
     display: block;
+
     width: 15rem;
     height: 15rem;
-    position: relative;
     margin: auto;
-    top: 40%;
-    cursor: pointer;
     border-radius: 50%;
-    z-index: 100;
+
     opacity: 1;
+
     transition: opacity 0.5s ease-in-out;
 }
 
@@ -373,15 +428,19 @@ a.blue-button {
 /* Player Controls */
 .player-controls {
     position: absolute;
-    bottom: 0;
-    height: 5rem;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: grid;
-    grid-template-rows: 0.5rem auto;
-    grid-template-areas: "scrubber scrubber" "left right";
     z-index: 20;
+    bottom: 0;
+
+    display: grid;
+    grid-template-areas: "scrubber scrubber" "left right";
+    grid-template-rows: 0.5rem auto;
+
+    width: 100%;
+    height: 5rem;
+
     opacity: 1;
+    background: rgb(0 0 0 / 50%);
+
     transition: opacity 0.5s ease-in-out;
 }
 
@@ -390,29 +449,31 @@ a.blue-button {
 }
 
 .controls-left {
-    grid-area: left;
     display: flex;
+    grid-area: left;
     align-items: center;
 }
 
 .controls-right {
-    grid-area: right;
     display: flex;
+    grid-area: right;
     flex-direction: row-reverse;
     align-items: center;
 }
 
 .controls-left button,
 .controls-right button {
-    height: 2rem;
-    width: 2rem;
-    background-size: contain;
-    border: none;
-    margin: 1rem;
     cursor: pointer;
+
+    width: 2rem;
+    height: 2rem;
+    margin: 1rem;
+    border: none;
+
+    background-color: transparent;
     background-repeat: no-repeat;
     background-position: center;
-    background-color: transparent;
+    background-size: contain;
 }
 
 .controls-left .control-btn,
@@ -420,6 +481,11 @@ a.blue-button {
     background-color: transparent;
 }
 
+.play-pause-button svg,
+.fullscreen-button svg,
+.speed-button svg,
+.captions-button svg,
+.transcript-button svg,
 .controls-left .control-btn svg,
 .controls-right .control-btn svg {
     width: 20px;
@@ -444,12 +510,6 @@ a.blue-button {
     display: block;
 }
 
-.play-pause-button svg {
-    width: 20px;
-    height: 20px;
-    fill: white;
-}
-
 /* Other Control Buttons */
 .fullscreen-button {
     background-color: transparent;
@@ -467,135 +527,153 @@ a.blue-button {
     display: block;
 }
 
-.fullscreen-button svg {
-    width: 20px;
-    height: 20px;
-    fill: white;
-}
-
-.speed-button svg,
-.captions-button svg,
-.transcript-button svg {
-    width: 20px;
-    height: 20px;
-    fill: white;
-}
-
 .subtitles-off-button {
+    cursor: pointer;
+
     position: relative;
+
     width: 100%;
     height: 30px;
+    margin: 2px 0;
+    border: none;
+
     font-size: 1.4rem;
     font-weight: 500;
-    margin: 2px 0px 2px 0px;
-    text-align: left;
-    border: none;
-    background: transparent;
     color: white;
-    cursor: pointer;
+    text-align: left;
+
+    background: transparent;
 }
 
 /* Skip Events on Timeline */
 .skip-event {
+    pointer-events: none;
+
     position: absolute;
     top: 0;
+
     height: 100%;
+
     background: var(--red);
-    pointer-events: none;
 }
 
 /* Pause and Alert Messages */
 .pause-message {
-    padding: 1%;
-    width: 90%;
-    height: 50%;
-    font-size: 1.5rem;
+    cursor: pointer;
+
     position: absolute;
-    display: block;
+    z-index: 10000;
     top: 15%;
     left: 5%;
+
+    display: block;
+
+    width: 90%;
+    height: 50%;
+    padding: 1%;
     border: 1px solid var(--deep-blue);
     border-radius: 1px;
-    cursor: pointer;
-    background-color: rgba(241, 241, 244, 0.79);
-    z-index: 10000;
+
+    font-size: 1.5rem;
+
     visibility: hidden;
+    background-color: rgb(241 241 244 / 79%);
 }
 
 .pause-message button {
-    font-size: 1.5rem;
-    background: transparent;
-    border: none;
-    position: absolute;
-    display: inline-block;
     cursor: pointer;
+
+    position: absolute;
     top: 90%;
     left: 90%;
+
+    display: inline-block;
+
+    border: none;
+
+    font-size: 1.5rem;
+
+    background: transparent;
 }
 
 .alert-message {
-    padding: 2vh;
-    width: 30%;
-    height: 15%;
-    font-size: 1.5rem;
+    cursor: pointer;
+
     position: absolute;
+    z-index: 10000;
     top: 40%;
     left: 30%;
+
+    width: 30%;
+    height: 15%;
+    padding: 2vh;
     border: 1px solid white;
     border-radius: 1px;
-    cursor: pointer;
-    background-color: rgba(241, 241, 244, 0.8);
-    z-index: 10000;
+
+    font-size: 1.5rem;
+
     visibility: hidden;
+    background-color: rgb(241 241 244 / 80%);
 }
 
 .alert-message button {
-    font-size: 1rem;
-    background: transparent;
-    border: none;
-    position: absolute;
-    display: inline-block;
     cursor: pointer;
+
+    position: absolute;
     top: 80%;
     left: 80%;
+
+    display: inline-block;
+
+    border: none;
+
+    font-size: 1rem;
+
+    background: transparent;
 }
 
 /* Transcript Sidebar */
 .transcript-sidebar {
-    width: 300px;
-    background: #f5f5f5;
-    border-left: 1px solid #ddd;
     overflow-y: auto;
+
+    width: 300px;
     max-height: 100%;
+    border-left: 1px solid #ddd;
+
+    background: #f5f5f5;
 }
 
 /* Time holder (hidden but used for calculations) */
 .time-holder {
-    visibility: hidden;
     position: absolute;
-    top: 0px;
-    right: 0px;
+    top: 0;
+    right: 0;
+    visibility: hidden;
 }
 
 /* Navigation bar */
 .navbar {
-    width: 100%;
     position: relative;
     z-index: 1;
-    color: black;
-    padding: 1rem 1.25rem 1rem 1rem;
+
     display: grid;
     grid-template-columns: auto 1fr auto;
-    align-items: center;
     column-gap: 1rem;
-    box-shadow: 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+    align-items: center;
+
+    width: 100%;
+    padding: 1rem 1.25rem 1rem 1rem;
+
+    color: black;
+
+    box-shadow: 0 4px 6px -4px rgb(0 0 0 / 20%);
 }
 
 .navbar a {
     display: flex;
     align-items: center;
-    text-decoration: none;
     color: black;
+    text-decoration: none;
 }
 
 .navbar a:hover {
@@ -603,21 +681,26 @@ a.blue-button {
 }
 
 .navbar h1 {
-    font-family: "Roboto", sans-serif;
-    font-weight: normal;
-    font-size: 1.1rem;
-    line-height: 2.1rem;
-    margin: 0 0 0 0.5rem;
-    align-items: center;
     z-index: 2;
+
+    align-items: center;
+
+    margin: 0 0 0 0.5rem;
+
+    font-family: Roboto, sans-serif;
+    font-size: 1.1rem;
+    font-weight: normal;
+    line-height: 2.1rem;
+    color: transparent;
+
     background: linear-gradient(
         to right,
-        rgb(5, 130, 202) 0%,
-        rgb(0, 46, 93) 100%
+        rgb(5 130 202) 0%,
+        rgb(0 46 93) 100%
     );
     -webkit-background-clip: text;
     background-clip: text; /* eslint-disable-line css/use-baseline */
-    color: transparent;
+
     -webkit-text-fill-color: transparent;
 }
 
@@ -628,52 +711,104 @@ a.blue-button {
 }
 
 .breadcrumbs {
-    font-size: 1rem;
-    color: black;
-    margin-top: 0;
     min-width: 0;
+}
+
+.breadcrumb-list {
+    display: flex;
+    column-gap: 0.35rem;
+    align-items: center;
+
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+
+    font-size: 1rem;
+    list-style: none;
+}
+
+.breadcrumb-item {
     overflow: hidden;
+    display: flex;
+    column-gap: 0.35rem;
+    align-items: center;
+
+    min-width: 0;
+
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "/";
+    flex: 0 0 auto;
+    color: var(--grey);
+}
+
+/* Prefixed with .navbar to beat `.navbar a` on specificity rather than source order. */
+.navbar .breadcrumb-item a {
+    color: var(--dark-grey);
+}
+
+.breadcrumb-item [aria-current="page"] {
+    overflow: hidden;
+    font-weight: 600;
+    color: black;
+    text-overflow: ellipsis;
+}
+
+/* The current page's crumb is the long, title-derived one, so it absorbs the truncation. */
+.breadcrumb-item:last-child {
+    flex: 0 1 auto;
+    min-width: 3rem;
+}
+
 .sidebar-toggle {
-    background: none;
-    border: none;
     cursor: pointer;
+
+    z-index: 1001;
+    right: 0;
+
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 4px;
-    padding: 0.5rem 0.15rem 0.5rem 0.65rem;
-    right: 0;
     flex-shrink: 0;
-    z-index: 1001;
+    gap: 4px;
+    justify-content: center;
+
+    padding: 0.5rem 0.15rem 0.5rem 0.65rem;
+    border: none;
+
+    background: none;
 }
 
 .sidebar-toggle span {
-    display: block;
-    height: 3px;
-    width: 25px;
     right: 25px;
-    background-color: black;
+
+    display: block;
+
+    width: 25px;
+    height: 3px;
     border-radius: 2px;
+
+    background-color: black;
 }
 
 .sidebar {
     position: fixed;
-    left: calc(100% - var(--side-bar-width));
-    top: 0rem;
-    width: var(--side-bar-width);
-    background-color: white;
-    padding: 1rem;
-    transform: translateX(1000%);
     z-index: 1000;
+    top: 0;
+    left: calc(100% - var(--side-bar-width));
+    transform: translateX(1000%);
+
+    width: var(--side-bar-width);
+    padding: 1rem;
+
+    background-color: white;
 }
 
 .sidebar.show {
     transform: translateX(0);
-    box-shadow: 0px 3px 6px var(--dark-grey);
+    box-shadow: 0 3px 6px var(--dark-grey);
 }
 
 .sidebar h2 {
@@ -684,14 +819,15 @@ a.blue-button {
 
 #sidebar-close {
     position: absolute;
-    right: 1rem;
     top: 1rem;
+    right: 1rem;
 }
 
 .main-content {
     width: 100%;
-    max-width: 100%;
     min-width: 0;
+    max-width: 100%;
+    margin: 0 auto;
     padding: 1rem;
     margin: 0px auto;
     max-width: 1200px;
@@ -702,20 +838,23 @@ a.blue-button {
 
 #resource-search-input {
     width: 100%;
-    padding: 5px 5px;
+    padding: 5px;
     border: none;
 }
 
 .resource-search-submit {
     z-index: 1;
-    background: white;
-    height: 2rem;
+
     width: 50%;
-    font-size: 1rem;
+    height: 2rem;
+    padding: 0 1.25rem 0 3.25rem;
     border: none;
     border-radius: 0.5rem;
-    padding: 0px 1.25rem 0px 3.25rem;
-    box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 5px -1px;
+
+    font-size: 1rem;
+
+    background: white;
+    box-shadow: rgb(0 0 0 / 15%) 0 2px 5px -1px;
 }
 
 .playlists-page {
@@ -727,19 +866,22 @@ a.blue-button {
 .annotation-box-showing-message {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    background-color: black;
-    color: white;
-    font-size: 2em;
+    justify-content: center;
+
     padding: 7%;
+
+    font-size: 2em;
+    color: white;
+
+    background-color: black;
 }
 
 /* PLAYLIST PAGE */
 .playlist-header {
+    cursor: pointer;
     grid-template-columns: 1fr 75px 25px;
     align-items: center;
-    cursor: pointer;
 }
 
 #add-new-playlist-button {
@@ -759,32 +901,32 @@ a.blue-button {
 } */
 .landing-page-playlist {
     border-radius: 12px;
-    box-shadow: rgb(185, 184, 184) 0px 1px 3px;
+    box-shadow: rgb(185 184 184) 0 1px 3px;
 }
 
 .landing-page-playlist-contents {
     margin-top: 1rem;
-    border-top: 1px solid lightgrey;
     padding-top: 0.5rem;
+    border-top: 1px solid lightgrey;
 }
 
 .landing-page-content {
-    text-decoration: none;
-    color: inherit;
     padding: 0 1rem;
+    color: inherit;
+    text-decoration: none;
 }
 
 .playlist-header-name {
-    padding-left: 1.25rem;
+    margin: 1rem 0 0.5rem;
     padding-right: 1.25rem;
-    margin: 1rem 0 0.5rem 0;
+    padding-left: 1.25rem;
     font-size: 1rem;
 }
 
 p.tile-subtitle {
-    padding-left: 1.25rem;
+    margin: 0.5rem 0;
     padding-right: 1.25rem;
-    margin: 0.5rem 0 0.5rem 0;
+    padding-left: 1.25rem;
 }
 
 .tile-image {
@@ -798,19 +940,24 @@ p.tile-subtitle {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
+
     width: 300px;
     max-width: 300px;
-    background-color: #e0e0e0;
-    border-radius: 30px;
     padding: 0.3rem 0.75rem;
+    border-radius: 30px;
+
+    background-color: #e0e0e0;
 }
 
 .search-icon {
+    cursor: pointer;
+
     position: relative;
+
     width: 1.25rem;
     height: 1.25rem;
+
     opacity: 0.6;
-    cursor: pointer;
 }
 
 .course-header {
@@ -839,10 +986,10 @@ p.tile-subtitle {
 }
 
 #playlists-detail {
-    flex: 1;
     display: flex;
+    flex: 1;
     flex-direction: column;
-    padding: 0rem 2rem;
+    padding: 0 2rem;
 }
 
 .playlist-section {
@@ -851,33 +998,40 @@ p.tile-subtitle {
 
 .playlist-status {
     display: flex;
-    align-items: center;
     gap: 0.7rem;
+    align-items: center;
+
     margin-bottom: -1rem;
-    font-size: 1em;
     padding: 0;
+
+    font-size: 1em;
 }
 
 .edit-button {
-    color: rgb(164, 164, 164);
-    font-weight: bold;
     cursor: pointer;
-    margin-top: 0px;
-    margin-left: 1rem;
+
     display: flex;
-    -webkit-box-align: center;
     align-items: center;
-    -webkit-box-pack: center;
     justify-content: center;
+
+    margin-top: 0;
+    margin-left: 1rem;
+
+    font-weight: bold;
+    color: rgb(164 164 164);
     text-align: center;
+
+    -webkit-box-align: center;
+    -webkit-box-pack: center;
 }
 
 .playlist-line {
-    height: 5rem;
-    padding: 0px 3rem;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+
+    height: 5rem;
+    padding: 0 3rem;
 }
 
 .playlist-line:hover {
@@ -890,14 +1044,20 @@ p.tile-subtitle {
     background: var(--selectable-grey);
 }
 
+.arrow-icon {
+    width: 1rem;
+    height: 1rem;
+    transition: transform 0.3s ease;
+}
+
 .playlist-line.active .arrow-icon {
     transform: rotate(180deg);
 }
 
 #playlist-settings, #content-settings {
     padding: 1rem;
-    border-radius: 1rem;
     border: 1px solid #00000025;
+    border-radius: 1rem;
 }
 
 #playlist-settings {
@@ -906,17 +1066,9 @@ p.tile-subtitle {
     justify-content: space-between;
 }
 
-#content-details-header h3 {
-    margin: 0;
-}
-
 #content-settings {
     display: flex;
     flex-direction: column;
-}
-
-#playlist-settings h3, #content-settings h3 {
-    margin: 0;
 }
 
 #playlist-settings form, #content-settings form {
@@ -940,16 +1092,18 @@ p.tile-subtitle {
 }
 
 .remove-course-assignment-button {
-    margin-left: auto;
-    margin-right: 1rem;
-    border: none;
-    background-color: inherit;
-    border-radius: 50%;
-    padding: 0.45rem 0.5rem;
-    align-self: center;
     display: flex;
     flex-direction: column;
+    align-self: center;
     justify-content: center;
+
+    margin-right: 1rem;
+    margin-left: auto;
+    padding: 0.45rem 0.5rem;
+    border: none;
+    border-radius: 50%;
+
+    background-color: inherit;
 }
 
 .remove-course-assignment-button:hover {
@@ -971,51 +1125,44 @@ p.tile-subtitle {
     margin-top: 0.5rem;
 }
 
-#assign-course-wrapper p {
-    margin: 0;
-}
-
 .assigned-course input[type='text'] {
     height: 2rem;
 }
 
 #assigned-course-items {
-    max-height: 12rem;
     overflow-y: auto;
+    max-height: 12rem;
 }
 
 .assigned-course-edit-sections, .assigned-course-delete {
-    border: none;
-    background-color: inherit;
-    height: 1rem;
-    width: 1rem;
     display: flex;
+
+    width: 1rem;
+    height: 1rem;
+    border: none;
+
+    background-color: inherit;
 }
 
 .section-save-button {
     height: 2rem;
 }
 
-.arrow-icon {
-    height: 1rem;
-    width: 1rem;
-    transition: transform 0.3s ease;
-}
-
 .content-item {
-    max-height: 0;
     overflow: hidden;
-    transition: max-height 0.3s ease-out;
+    max-height: 0;
     background-color: #f1f1f1;
+    transition: max-height 0.3s ease-out;
 }
 
 .content-line {
     display: flex;
     align-items: center;
     justify-content: space-between;
+
     margin: 0;
-    padding: 0px 5rem;
-    border-bottom: 1px solid rgb(187, 187, 187);
+    padding: 0 5rem;
+    border-bottom: 1px solid rgb(187 187 187);
 }
 
 .content-line:hover {
@@ -1023,8 +1170,8 @@ p.tile-subtitle {
 }
 
 .content-clips {
-    max-height: 0;
     overflow: hidden;
+    max-height: 0;
     transition: max-height 0.3s ease-out;
 }
 
@@ -1034,49 +1181,57 @@ p.tile-subtitle {
 
 .playlist-navigation {
     position: absolute;
-    padding-left: 2rem;
-    height: 2.5rem;
     align-items: center;
+    height: 2.5rem;
+    padding-left: 2rem;
 }
 
 #content-button {
-    padding: 0px;
-    width: 8rem;
-    background: transparent;
-    height: 2.5rem;
-    border: none;
     cursor: pointer;
+
+    width: 8rem;
+    height: 2.5rem;
+    padding: 0;
+    border: none;
+
+    background: transparent;
 }
 
 #permissions-button {
-    padding: 0px;
-    width: 8rem;
-    background: transparent;
-    height: 2.5rem;
-    border: none;
     cursor: pointer;
+
+    width: 8rem;
+    height: 2.5rem;
+    padding: 0;
+    border: none;
+
+    background: transparent;
 }
 
 #playlist-content {
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     row-gap: 2rem;
-    overflow-y: auto;
-    padding: 0rem 2rem;
+
+    padding: 0 2rem;
 }
 
 #no-playlists-body {
-    height: 100%;
-    width: 100%;
-    font-size: 1.8rem;
-    color: rgb(204, 204, 204);
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    background-color: white;
-    overflow-y: auto;
-    padding: 2rem;
     align-items: center;
     justify-content: center;
+
+    width: 100%;
+    height: 100%;
+    padding: 2rem;
+
+    font-size: 1.8rem;
+    color: rgb(204 204 204);
+
+    background-color: white;
 }
 
 .content-actions {
@@ -1088,9 +1243,10 @@ p.tile-subtitle {
 .content-action-wrapper {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
     row-gap: 1rem;
+    align-items: center;
+    justify-content: center;
+
     padding: 0.5rem;
 }
 
@@ -1104,34 +1260,42 @@ p.tile-subtitle {
 
 /* Create New Playlist Modal */
 #create-dialog {
-    border: none;
+    position: relative;
+
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
+    border: none;
+
     background: white;
-    position: relative;
 }
 
 .dialog-buttons {
     display: flex;
-    -webkit-box-pack: justify;
     justify-content: space-between;
+
+    -webkit-box-pack: justify;
 }
 
 .create-button {
+    cursor: pointer;
+
+    border: none;
+
     font-size: 0.8rem;
     color: var(--medium-blue);
+
     background: transparent;
-    border: none;
-    cursor: pointer;
 }
 
 .playlist-list {
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: height 0.25s ease-in-out;
-    overflow: hidden;
     row-gap: 1rem;
+
     padding: 1rem;
+
+    transition: height 0.25s ease-in-out;
 }
 
 .playlist-item {
@@ -1139,20 +1303,16 @@ p.tile-subtitle {
 }
 
 #icon {
-    height: 1rem;
     width: 1rem;
-    background: url(../img/plus.svg) center center / contain no-repeat;
+    height: 1rem;
+    background: url("../img/plus.svg") center center / contain no-repeat;
 }
 
 #create-content-form {
     margin-top: 1rem;
     padding: 2rem;
-    border-radius: 1rem;
     border: 1px solid #00000025;
-}
-
-#create-content-form h2 {
-    margin-top: 0;
+    border-radius: 1rem;
 }
 
 .content-display {
@@ -1172,62 +1332,69 @@ p.tile-subtitle {
 }
 
 .navbar-start {
+    display: flex;
     grid-column: 1;
     grid-row: 1;
-    display: flex;
-    align-items: center;
     column-gap: 1rem;
+    align-items: center;
+
     min-width: 0;
 }
 
 .navbar-center {
+    display: flex;
     grid-column: 2;
     grid-row: 1;
-    justify-self: center;
-    display: flex;
     justify-content: center;
+    justify-self: center;
+
     min-width: 0;
 }
 
 .navbar-brand {
     display: flex;
-    align-items: center;
     flex-shrink: 0;
+    align-items: center;
 }
 
 .navbar-actions {
+    z-index: 2;
+
+    display: flex;
     grid-column: 3;
     grid-row: 1;
-    display: flex;
-    align-items: center;
     column-gap: 0.6rem;
-    z-index: 2;
+    align-items: center;
 }
 
 /* Player Container Styles */
 .player-container {
-    height: calc(100vh - 6rem);
-    overflow: hidden;
     position: relative;
+    overflow: hidden;
+    height: calc(100vh - 6rem);
     background-color: black;
 }
 
 /* resource content intake styles */
 #resource-intake-form-wrapper {
-    background-color: var(--light-blue);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 10px 0px 70px 0px;
+
     width: 100%;
+    padding: 10px 0 70px;
+
+    background-color: var(--light-blue);
 }
 
 #resource-intake-form-main-content {
-    background-color: white;
-    border-radius: 12px;
     width: min(1000px, 100%);
     padding: 50px 80px;
+    border-radius: 12px;
+
     font-weight: 500;
+
+    background-color: white;
 }
 
 #resource-intake-form {
@@ -1238,9 +1405,8 @@ p.tile-subtitle {
 
 #resource-intake-request-checks {
     display: flex;
-    flex-direction: row;
+    flex-flow: row wrap;
     column-gap: 120px;
-    flex-wrap: wrap;
 }
 
 .resource-intake-form-group {
@@ -1253,8 +1419,9 @@ p.tile-subtitle {
     max-width: 320px;
     height: 36px;
     padding: 0 10px;
-    border-radius: 4px;
     border: 1px solid #00000075;
+    border-radius: 4px;
+
     font-size: 1rem;
 }
 
@@ -1263,9 +1430,8 @@ p.tile-subtitle {
 }
 
 .resource-intake-group-set {
-    column-gap: 60px;
-    row-gap: 1.5rem;
     flex-wrap: wrap;
+    gap: 1.5rem 60px;
 }
 
 .resource-intake-choice-set {
@@ -1292,74 +1458,153 @@ p.tile-subtitle {
 }
 
 .resource-intake-message-success {
-    background-color: var(--pale-green);
-    color: var(--green);
     border: 1px solid var(--green);
+    color: var(--green);
+    background-color: var(--pale-green);
 }
 
 
-/* index page */
-#index-page {
-    display: flex;
-    flex-direction: column;
-}
+/* What's new banner */
+.whats-new-banner {
+    position: relative;
 
-#index-page-title {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
     align-items: center;
-    background-color: lightgrey;
-    height: 300px;
+
+    margin-bottom: 1rem;
+
+    /* Right padding keeps the centred text clear of the absolutely placed close button. */
+    padding: 0.75rem 2.5rem;
+    border: 1px solid var(--green);
+    border-radius: 5px;
+
+    background-color: var(--pale-green);
 }
 
-#index-page-title button {
-    box-shadow: 0px 3px 6px black;
-    font-size: 1.2rem;
-    width: 150px;
+/* `display: flex` above would otherwise beat the browser's own [hidden] rule, which
+   is what the dismiss button toggles. */
+.whats-new-banner[hidden] {
+    display: none;
 }
 
-#index-page-content-wrapper {
-    background-color: var(--dark-primary-blue);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    color: white;
-}
-
-#index-page-content {
-    max-width: 1200px;
+.whats-new-banner p {
     flex: 1;
+    margin: 0;
+    text-align: center;
+}
+
+.whats-new-link {
+    color: var(--deep-blue);
+}
+
+/* Taken out of the flow so the message centres on the banner, not on the space left
+   over beside the button. */
+.whats-new-dismiss {
+    cursor: pointer;
+
+    position: absolute;
+    top: 50%;
+    right: 0.5rem;
+    transform: translateY(-50%);
+
+    padding: 0 0.25rem;
+    border: none;
+
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--darker-grey);
+
+    background: none;
+}
+
+/* Prose pages: What's new, and anything else that is mostly reading */
+.prose-page {
+    max-width: 55rem;
+}
+
+.prose-page section {
+    margin-bottom: 2.5rem;
+}
+
+.prose-page li {
+    margin-bottom: 0.35rem;
+}
+
+.prose-lead {
+    font-size: 1.1rem;
+    color: var(--darker-grey);
+}
+
+.terminology-table {
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+.terminology-table caption {
+    padding-bottom: 0.5rem;
+    font-weight: 600;
+    text-align: left;
+}
+
+.terminology-table th,
+.terminology-table td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--light-grey);
+    text-align: left;
+}
+
+.terminology-table th {
+    background-color: var(--selectable-grey);
+}
+
+
+/* about page */
+#about-page {
+    display: flex;
+    flex-direction: column;
+}
+
+#about-page-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    height: 300px;
+
+    background-color: lightgrey;
+}
+
+#about-page-content-wrapper {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+
+    color: white;
+
+    background-color: var(--dark-primary-blue);
+}
+
+#about-page-content {
     display: flex;
     flex-direction: column;
     row-gap: 3rem;
-    padding: 3rem 0rem;
+
+    max-width: 1200px;
+    padding: 3rem 1.5rem;
 }
 
-.index-page-row {
-    display: flex;
-    flex-direction: row;
-    column-gap: 3rem;
-    height: 200px;
+.about-page-row h2 {
+    margin-top: 0;
 }
 
-.index-page-text-group, .index-page-image {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    flex: 0.5;
+.about-page-row p {
+    margin-bottom: 0;
 }
 
-.index-page-image {
-    border-radius: 20px;
-    box-shadow: 0px 3px 6px black;
-    overflow: hidden;
-}
-
-.index-page-image img {
-    height: 100%;
-    width: 100%;
-    object-fit: cover;
+#assign-course-wrapper p {
+    margin: 0;
 }
 
 
@@ -1374,75 +1619,149 @@ p.tile-subtitle {
     align-items: flex-end;
 }
 
-#playlist-video-list, #resource-detail-list {
+#playlist-video-list, #modal-resource-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
 }
 
-.playlist-video-tile, .resource-details {
-    border-radius: 12px;
-    box-shadow: rgb(185, 184, 184) 0px 1px 3px;
+#select-resource-dialog {
+    width: min(90vw, 1100px);
 }
 
-.resource-details h3, .resource-details p {
-    margin: 0;
+.playlist-video-tile, .resource-details {
+    border-radius: 12px;
+    box-shadow: rgb(185 184 184) 0 1px 3px;
+}
+
+.resource-detail-heading,
+.resource-detail-title,
+.resource-detail-body,
+.resource-detail-body > span {
+    display: block;
+}
+
+.resource-detail-title {
+    font-size: 1.17em;
+    font-weight: bold;
 }
 
 .resource-details {
+    width: 100%;
     padding: 1rem;
+    border: 0;
+
+    font: inherit;
+    color: inherit;
+    text-align: left;
+
+    background: white;
+
     transition: 0.15s linear box-shadow;
+
     /* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
     reports that it is supported by all browsers:
     https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
+
     /* eslint-disable-next-line css/use-baseline */
     &:hover {
-        box-shadow: rgb(185, 184, 184) 2px 4px 6px;
         cursor: pointer;
+        box-shadow: rgb(185 184 184) 2px 4px 6px;
     }
 }
 
 h4.video-title {
-    padding-left: 1.25rem;
+    margin: 1rem 0;
     padding-right: 1.25rem;
-    margin: 1rem 0 1rem 0;
+    padding-left: 1.25rem;
 }
 
 .player-page .video-title h2 {
-    font-size: 1rem;
     margin: 1rem 0;
+    font-size: 1rem;
+}
+
+#create-content-form h2 {
+    margin-top: 0;
 }
 
 .list-search-input {
     flex: 1;
+
     width: 100%;
-    padding: 10px 10px;
+    padding: 10px;
     border: none;
+
     font-size: 0.9rem;
+
     background-color: transparent;
 }
 
 .user-view-modal {
-    background: white;
-    color: black;
-    border-radius: 12px;
     padding: 0;
+    border: 2px solid var(--primary-blue);
+    border-radius: 12px;
+
+    color: black;
+
+    background: white;
     box-shadow: 3px 6px 10px #00000050;
+}
+
+.user-view-modal::backdrop {
+    background: #00000060;
 }
 
 .user-view-modal input, .user-view-modal textarea, .user-view-modal select {
     border: 2px solid var(--primary-blue);
+    color: black;
+    background: white;
 }
 
 .user-view-modal-header {
-    background: #9CD6ED;
-    padding: 1rem;
-    text-align: center;
+    display: grid;
+    grid-template-columns: minmax(5rem, 1fr) minmax(0, auto) minmax(5rem, 1fr);
+    align-items: center;
+
+    padding: 0.5rem;
     border-radius: 12px 12px 0 0;
+
+    text-align: center;
+
+    background: var(--light-blue);
+}
+
+.user-view-modal-header-start,
+.user-view-modal-header-end {
+    display: flex;
+    align-items: center;
+}
+
+.user-view-modal-header-end {
+    justify-content: flex-end;
+}
+
+.user-view-modal-header h3 {
+    margin: 0;
+}
+
+.subtitles-overlay.empty h3 {
+    background-color: transparent;
+}
+
+#content-details-header h3,
+#playlist-settings h3,
+#content-settings h3 {
+    margin: 0;
 }
 
 .user-view-modal-body {
     padding: 2rem;
+}
+
+#select-resource-dialog .user-view-modal-body {
+    overflow-y: auto;
+    max-height: 70vh;
 }
 
 .content-form-group {
@@ -1455,14 +1774,18 @@ h4.video-title {
     padding-right: 0.5rem;
 }
 
+.content-form-group.clips-only-invalid label {
+    color: var(--red);
+}
+
 .content-form-group input {
     font-size: 0.875rem;
 }
 
 .add-youtube-video-error {
-    color: #e74c3c;
-    font-size: 0.85rem;
     margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: #e74c3c;
 }
 
 .content-form-help {
@@ -1474,8 +1797,8 @@ h4.video-title {
 .add-video-modal-columns {
     display: flex;
     flex-direction: row;
-    align-items: stretch;
     column-gap: 2rem;
+    align-items: stretch;
 }
 
 .add-video-modal-column {
@@ -1494,7 +1817,7 @@ h4.video-title {
     background-color: var(--selectable-grey);
 }
 
-@media (max-width: 640px) {
+@media (width <= 640px) {
     .add-video-modal-columns {
         flex-direction: column;
         row-gap: 1.5rem;
@@ -1510,9 +1833,11 @@ button.disabled {
     cursor: not-allowed;
     color: #434343;
     background-color: #e0e0e040;
+
 /* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
 reports that it is supported by all browsers:
 https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
+
 /* eslint-disable-next-line css/use-baseline */
     &:hover {
         background-color: #e0e0e040;

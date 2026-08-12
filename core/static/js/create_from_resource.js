@@ -1,38 +1,98 @@
 import { getCSRFToken } from "./utils.js";
+import { getPlaylistIdValue } from "./utils.js";
 
-function setupOpenModalFunctions() {
-  const modal = document.getElementById("create-from-resource-modal");
-  const resourceDetails = document.getElementsByClassName("resource-details");
-  for (let resourceDetail of resourceDetails) {
-    const resourceId = resourceDetail.dataset["resourceId"];
-    const playlistId = window.location.pathname.match(/\d.*/g)[0];
-    if (resourceId === undefined || playlistId === undefined) {
-      console.error("Failed to get create from resource form because of invalid resourceId or playlistId");
-      return;
-    }
-    resourceDetail.addEventListener("click", async () => {
-      const newFormResponse = await fetch("/create-from-resource-form/", {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          resource_id: resourceId,
-          playlist_id: playlistId
-        })
-      });
-      if (!newFormResponse.ok) {
-        console.error("Failed to get create from resource form because of a system error");
-        return;
-      }
-      const newFormHTML = await newFormResponse.text();
-      const formEl = document.getElementById("create-from-resource-form");
-      formEl.outerHTML = newFormHTML;
-      setupCreateResourceForm();
-      modal.showModal();
+async function displayCreateFromResourceForm(
+  resourceDetail,
+  playlistId,
+  formModal,
+  resourcePickerModal,
+) {
+  const resourceId = resourceDetail.dataset.resourceId;
+  if (!resourceId || !playlistId) {
+    console.error("Failed to get create from resource form because of invalid resourceId or playlistId");
+    return;
+  }
+
+  const response = await fetch(
+    `/playlists/${playlistId}/create-from-resource/${resourceId}/form/`,
+    {
+      method: "POST",
+      headers: { "X-CSRFToken": getCSRFToken() },
+    },
+  );
+  if (!response.ok) {
+    console.error("Failed to get create from resource form because of a system error");
+    return;
+  }
+
+  const formHTML = await response.text();
+  if (!resourcePickerModal.open) {
+    return;
+  }
+
+  const formContainer = formModal.querySelector("#create-from-resource-form");
+  formContainer.outerHTML = formHTML;
+  setupCreateResourceForm(formModal);
+
+  resourcePickerModal.close();
+  formModal.showModal();
+}
+
+function setupResourceDetailHandlers(
+  resourceList,
+  playlistId,
+  formModal,
+  resourcePickerModal,
+) {
+  const resourceDetails = resourceList.querySelectorAll(".resource-details");
+  for (const resourceDetail of resourceDetails) {
+    resourceDetail.addEventListener("click", () => {
+      displayCreateFromResourceForm(
+        resourceDetail,
+        playlistId,
+        formModal,
+        resourcePickerModal,
+      );
     });
   }
+}
+
+function setupPlaylistResourcePicker() {
+  const openButton = document.getElementById("add-from-resource-button");
+  if (!openButton) {
+    return;
+  }
+
+  const playlistId = getPlaylistIdValue();
+  const addVideoModal = document.getElementById("add-video-dialog");
+  const resourcePickerModal = document.getElementById("select-resource-dialog");
+  const resourceList = document.getElementById("modal-resource-list");
+  const formModal = document.getElementById("create-from-resource-modal");
+
+  openButton.addEventListener("click", async () => {
+    const response = await fetch(
+      `/playlists/${playlistId}/create-from-resource/resources/`,
+    );
+    if (!response.ok) {
+      console.error("Failed to load resources");
+      return;
+    }
+
+    const resourceListHTML = await response.text();
+    if (!addVideoModal.open) {
+      return;
+    }
+
+    resourceList.innerHTML = resourceListHTML;
+    setupResourceDetailHandlers(
+      resourceList,
+      playlistId,
+      formModal,
+      resourcePickerModal,
+    );
+    addVideoModal.close();
+    resourcePickerModal.showModal();
+  });
 }
 
 function validateForm(playlistIdInput, titleInput, resourceFileInput) {
@@ -42,53 +102,51 @@ function validateForm(playlistIdInput, titleInput, resourceFileInput) {
     el.classList.add("invalid-input");
   }
 
-  if (playlistIdInput?.value === undefined) {
-    console.log("Invalid playlist_id value!");
+  if (!playlistIdInput?.value) {
     formIsValid = false;
   }
-  if (titleInput.value === undefined) {
+  if (!titleInput?.value) {
     markElAsInvalid(titleInput);
   }
-  if (resourceFileInput === undefined || resourceFileInput === '') {
+  if (!resourceFileInput?.value) {
     markElAsInvalid(resourceFileInput);
   }
 
   return formIsValid;
 }
 
-function setupCreateResourceForm() {
-  const createButton = document.getElementById("create-from-resource-form-submit");
+function setupCreateResourceForm(formRoot) {
+  const createButton = formRoot.querySelector("#create-from-resource-form-submit");
   createButton.addEventListener("click", async (event) => {
     event.preventDefault();
-    const playlistIdInput = document.getElementById("playlist-id");
-    const titleInput = document.getElementById("content-title-input");
-    const resourceFileInput = document.getElementById("resource-file-input");
-    if (validateForm(playlistIdInput, titleInput, resourceFileInput)) {
-      const createResponse = await fetch("/content/create/", {
-        method: "post",
+    const playlistIdInput = formRoot.querySelector("#playlist-id");
+    const titleInput = formRoot.querySelector("#content-title-input");
+    const resourceFileInput = formRoot.querySelector("#resource-file-input");
+    if (!validateForm(playlistIdInput, titleInput, resourceFileInput)) {
+      return;
+    }
+
+    const response = await fetch(
+      `/playlists/${playlistIdInput.value}/content/create/`,
+      {
+        method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          "playlist_id": playlistIdInput.value,
-          "title": titleInput.value,
-          "resource_file_id": resourceFileInput.value
-        })
-      });
-
-      if (!createResponse.ok) {
-        console.error("Failed to create new content from resource");
-        return;
-      }
-
-      window.location.replace(`/playlists/${playlistIdInput.value}`);
+          title: titleInput.value,
+          resource_file_id: resourceFileInput.value,
+        }),
+      },
+    );
+    if (!response.ok) {
+      console.error("Failed to create content from resource");
+      return;
     }
+
+    window.location.replace(`/playlists/${playlistIdInput.value}/`);
   });
 }
 
-function initialize() {
-  setupOpenModalFunctions();
-}
-
-initialize();
+setupPlaylistResourcePicker();

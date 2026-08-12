@@ -867,8 +867,8 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
 
 @admin.register(Playlist)
 class PlaylistAdmin(VersionAdmin):
-    list_display = ("name", "owner", "published", "archived", "public", "created_at")
-    list_filter = ("published", "archived", "public", "created_at")
+    list_display = ("name", "owner", "published", "archived", "created_at")
+    list_filter = ("published", "archived", "created_at")
     search_fields = ("name", "owner__name", "owner__netid", "owner__username")
 
 
@@ -1062,7 +1062,7 @@ class ImportantWordAdmin(VersionAdmin):
 
 @admin.register(AnnotationSet)
 class AnnotationSetAdmin(VersionAdmin):
-    list_display = ("name", "owner", "resource", "created_at")
+    list_display = ("name", "owner_label", "resource", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__netid", "owner__username", "resource__name")
 

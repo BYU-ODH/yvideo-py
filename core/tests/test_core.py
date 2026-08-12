@@ -1001,7 +1001,7 @@ class ContentClipsOnlyViewTests(TestCase):
         }
         payload.update(field_overrides)
         return self.client.post(
-            reverse("update_content"),
+            reverse("update_content", args=[content.pk]),
             data=json.dumps(payload),
             content_type="application/json",
         )
@@ -1234,8 +1234,8 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
         self.client.force_login(self.owner)
 
     def _post_update_content(self, **field_overrides):
+        content = self.content
         payload = {
-            "id": self.content.pk,
             "title": self.content.title,
             "description": self.content.description,
             "words": self.content.words,
@@ -1248,7 +1248,7 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
         }
         payload.update(field_overrides)
         return self.client.post(
-            reverse("update_content"),
+            reverse("update_content", args=[content.pk]),
             data=json.dumps(payload),
             content_type="application/json",
         )

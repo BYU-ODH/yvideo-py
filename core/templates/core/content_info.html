@@ -11,28 +11,16 @@
         <h2>Content Details</h2>
         <h3>{{content.playlist.name}}: {{ content.title }}</h3>
     </div>
-    {% if user.is_admin or user == content.playlist.owner %}
-    <a class="white-button-with-border position-flex-start" href="/video-editor/{{ content.id }}/">
+    {% if can_edit %}
+    <a class="white-button-with-border position-flex-start" href="{% url 'video_editor' content.id %}">
         Edit Video
     </a>
     <div id="content-settings">
         <div class="row-flex flex-apart-aligned">
             <h3>Settings</h3>
-            <dialog id="content-remove-modal" class="user-view-modal">
-                <h3 class="user-view-modal-header">
-                    Remove this video from the playlist?
-                </h3>
-                <div class="user-view-modal-body row-flex flex-apart-aligned">
-                    <button id="content-confirm-remove" class="blue-button">
-                        Yes
-                    </button>
-                    <button class="cancel-button" command="close" commandfor="content-remove-modal">
-                        No
-                    </button>
-                </div>
-            </dialog>
-            <button  type="button" id="content-details-delete-button" class="red-button" command="show-modal" commandfor="content-remove-modal">
-                Remove from playlist
+            {% include "core/partials/modals/content_delete.html" with dialog_id="content-delete-modal" %}
+            <button  type="button" id="content-details-delete-button" class="red-button" command="show-modal" commandfor="content-delete-modal">
+                Delete from playlist
             </button>
         </div>
         {% include 'core/partials/content_settings_form.html' %}
