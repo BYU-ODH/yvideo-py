@@ -3,6 +3,7 @@ import logging
 from django.utils import timezone
 
 from .api import Api
+from .api import ApiUnavailable
 from .models import Course
 from .models import PrivilegeLevel
 from .models import UserCourses
@@ -131,7 +132,16 @@ def update_user_details(user):
     api = Api()
 
     def update_student_details(byu_id):
-        student_summary = api.get_student_summary(byu_id)
+        try:
+            student_summary = api.get_student_summary(byu_id)
+        except ApiUnavailable:
+            # Same reasoning as the worker_id check below: we can't tell what
+            # this user should look like, so leave their record alone.
+            logger.error(
+                f"Skipped updating details for {byu_id}: the student summary "
+                "API did not answer."
+            )
+            return
         if student_summary is None:
             # this is a non-student user, do nothing
             return

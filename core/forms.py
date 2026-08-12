@@ -13,7 +13,6 @@ from .models import Playlist
 from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
-from .models import UserCourses
 from .utils import hms2seconds
 
 logger = logging.getLogger(__name__)
@@ -205,11 +204,6 @@ class AddUserLookupForm(forms.Form):
             )
 
         if student_summary is None:
-            if self._student_summary_api_is_reachable(api) is False:
-                raise ValidationError(
-                    "BYU's directory API appears to be unavailable right now. "
-                    "Try again in a moment."
-                )
             raise ValidationError(
                 "No BYU student record was found for that NetID. This person "
                 "may need to log in to Y-Video themselves to create their "
@@ -221,32 +215,3 @@ class AddUserLookupForm(forms.Form):
         # faculty/staff — let create_user's own worker-vs-student check (inside
         # _resolve_byu_id) decide their current role rather than assuming.
         return self._resolve_byu_id(student_summary["byu_id"])
-
-    def _student_summary_api_is_reachable(self, api):
-        # Probes a known currently-enrolled local student to tell an outage
-        # apart from a genuine "no record for this NetID" result.
-        probe_netid = self._pick_probe_netid()
-        if not probe_netid:
-            return None
-
-        try:
-            return api.get_student_summary(net_id=probe_netid) is not None
-        except Exception:
-            return False
-
-    @staticmethod
-    def _pick_probe_netid():
-        latest_yearterm = (
-            UserCourses.objects.order_by("-yearterm")
-            .values_list("yearterm", flat=True)
-            .first()
-        )
-        if not latest_yearterm:
-            return None
-        return (
-            UserCourses.objects.filter(yearterm=latest_yearterm)
-            .exclude(user__netid__isnull=True)
-            .exclude(user__netid="")
-            .values_list("user__netid", flat=True)
-            .first()
-        )

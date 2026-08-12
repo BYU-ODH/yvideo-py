@@ -22,6 +22,14 @@ except ImportError:
 from .models import AuthToken
 
 
+class ApiUnavailable(Exception):
+    """A request to one of BYU's APIs failed, so its answer is unknown.
+
+    Distinct from a successful lookup that found no record: callers must not
+    read this as "BYU has no record of this person".
+    """
+
+
 class Api:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -248,8 +256,15 @@ class Api:
             return None
 
     def get_student_summary(self, byu_id=None, net_id=None):
-        # Accepts either identifier; the endpoint returns both byu_id and net_id
-        # in the response regardless of which one was used to query it.
+        """This person's active student record, or None if they have none.
+
+        Accepts either identifier; the endpoint returns both byu_id and net_id
+        in the response regardless of which one was used to query it.
+
+        A failed request raises ApiUnavailable rather than returning None, so
+        callers can tell "BYU has no active student record for this person"
+        apart from "we could not find out".
+        """
         if byu_id is not None:
             url = secret_settings.API_STUDENT_SUMMARY_URL + "?byu_id=" + byu_id
         elif net_id is not None:
@@ -257,9 +272,27 @@ class Api:
         else:
             return None
         headers = {"Authorization": self.build_auth_header()}
-        summary_request = requests.get(url, headers=headers)
-        summary_json_res = summary_request.json()
-        data = summary_json_res["data"]
+        try:
+            summary_request = requests.get(url, headers=headers)
+        except requests.RequestException as e:
+            self.logger.error(f"Could not reach the student summary API: {e}")
+            raise ApiUnavailable("Could not reach the student summary API.") from e
+
+        if summary_request.status_code != 200:
+            self.logger.error(
+                "Failed to get the student summary because the API responded "
+                f"with {summary_request.status_code}"
+            )
+            raise ApiUnavailable(
+                f"The student summary API responded with {summary_request.status_code}."
+            )
+
+        try:
+            data = summary_request.json()["data"]
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.error(f"Could not read the student summary response: {e}")
+            raise ApiUnavailable("Could not read the student summary response.") from e
+
         if data:
             data = data[0]
             preferred_first_name = data["preferred_name"].split(" ")[0]
