@@ -31,7 +31,7 @@
     --subtitle-type-color-very-transparent: #98376950;
 
     /* new y-video editor styles that are ADA compliant */
-    --dark-mode-background-heavy: #000000;
+    --dark-mode-background-heavy: #000;
     --dark-mode-background-medium: #1c1c21;
     --dark-mode-background-light: #37363c;
     --dark-mode-border-color: #5a5a5a;
@@ -44,12 +44,15 @@
 /* YouTube Editor Warning Banner */
 .youtube-editor-warning-banner {
     flex-shrink: 0;
-    background-color: #fff3cd;
-    color: #664d03;
-    border-bottom: 3px solid #d89b00;
+
     padding: 0.75rem 1.5rem;
+    border-bottom: 3px solid #d89b00;
+
     font-size: 0.95rem;
+    color: #664d03;
     text-align: center;
+
+    background-color: #fff3cd;
 }
 
 .youtube-editor-warning-banner strong {
@@ -58,12 +61,15 @@
 
 .editor-video-error-banner {
     flex-shrink: 0;
-    background-color: #f8d7da;
-    color: #58151c;
-    border-bottom: 3px solid #b02a37;
+
     padding: 0.75rem 1.5rem;
+    border-bottom: 3px solid #b02a37;
+
     font-size: 0.95rem;
+    color: #58151c;
     text-align: center;
+
+    background-color: #f8d7da;
 }
 
 .editor-video-error-banner strong {
@@ -72,12 +78,15 @@
 
 /* Editor Container */
 #editor-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
     overflow: hidden;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+
+    width: 100%;
+
     font-weight: 500;
+
     background-color: black;
 }
 
@@ -91,10 +100,10 @@
 
 /* Top Panel: Video and Form */
 .top-panel {
+    overflow: hidden;
     display: flex;
     flex: 1;
     min-height: 200px;
-    overflow: hidden;
 }
 
 .editor-panel-wrapper {
@@ -102,8 +111,8 @@
 }
 
 .editor-panel-switch {
-    margin-top: auto;
     align-self: center;
+    margin-top: auto;
     margin-bottom: 1rem;
 }
 
@@ -124,12 +133,13 @@
 }
 
 #annotation-groups-wrapper {
+    overflow-y: auto;
     display: flex;
+    flex: 1;
     flex-direction: column;
     row-gap: 2px;
-    flex: 1;
+
     min-height: 0;
-    overflow-y: auto;
 }
 
 .annotation-type-header {
@@ -151,9 +161,9 @@
 }
 
 .annotation-type-header-arrow {
-    width: 12px;
-    flex-shrink: 0;
     rotate: -90deg;
+    flex-shrink: 0;
+    width: 12px;
 }
 
 .annotation-header-arrow-rotated {
@@ -161,30 +171,33 @@
 }
 
 .annotation-type-header-right {
+    display: flex;
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+
     width: 40px;
     height: 28px;
     padding: 8px;
     border-radius: 20px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
 }
 
 .plain-text-button {
-    border-radius: 8px;
     padding: 8px;
-    background-color: inherit;
     border: none;
+    border-radius: 8px;
+
+    font-size: 14px;
     font-weight: 500;
     text-align: left;
-    font-size: 14px;
+
+    background-color: inherit;
 }
 
 .plain-text-button:hover {
     cursor: pointer;
-    box-shadow: 0px 3px 6px #00000075;
+    box-shadow: 0 3px 6px #00000075;
 }
 
 .annotation-type-add-button {
@@ -197,14 +210,17 @@
 }
 
 .annotation-type-header-add-button {
-    background: none;
-    border: none;
+    flex-shrink: 0;
+
     padding: 2px 6px;
+    border: none;
     border-radius: 4px;
+
     font-size: 1.4rem;
     font-weight: 400;
     line-height: 1;
-    flex-shrink: 0;
+
+    background: none;
 }
 
 #skip-type-header-right {
@@ -236,43 +252,83 @@
 }
 
 .panel-item {
-    border-radius: 8px;
     height: 32px;
     padding: 4px 8px;
+    border-radius: 8px;
     color: white;
 }
 
 .panel-item-name {
     overflow: hidden;
+    min-width: 0;
     text-overflow: ellipsis;
     white-space: nowrap;
-    min-width: 0;
 }
 
 .panel-item-delete {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    border-radius: 25%;
-    padding: 3px;
     flex-shrink: 0;
-    background-color: #00000000; /* full transparent */
+    justify-content: center;
+
+    padding: 3px;
     border: none;
+    border-radius: 25%;
+
+    background-color: #0000; /* full transparent */
 }
 
 .panel-item-delete:hover {
-    background-color: var(--dark-mode-very-light-gray);
-    box-shadow: 0px 3px 6px #00000075;
     cursor: pointer;
+    background-color: var(--dark-mode-very-light-gray);
+    box-shadow: 0 3px 6px #00000075;
 }
 
 .panel-item-delete img {
-    height: 17px;
     width: 17px;
+    height: 17px;
 }
 
 #annotation-set-delete {
     align-self: flex-start;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+}
+
+.form-group input, .form-group textarea, .form-group select {
+    padding: 0.25rem;
+    border: 1px solid var(--dark-mode-very-light-gray);
+    background-color: var(--dark-mode-very-light-gray);
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"] {
+    width: 100%;
+}
+
+.annotation-input-dark {
+    border-radius: 0;
+    background: var(--dark-mode-very-light-gray);
+}
+
+.time-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.time-input-group input {
+    flex: 1;
 }
 
 #annotation-set-settings-compact label {
@@ -319,11 +375,12 @@
 }
 
 #annotation-set-options-modal[open] {
+    display: flex;
+    flex-direction: column;
+
     width: 42rem;
     min-height: 25rem;
     max-height: 30.3rem;
-    display: flex;
-    flex-direction: column;
 }
 
 #annotation-set-selection-options {
@@ -334,11 +391,13 @@
 }
 
 .annotation-set-selection-option {
-    background-color: var(--dark-mode-background-light);
-    border-radius: 8px;
-    padding: 8px;
     display: flex;
     flex-direction: column;
+
+    padding: 8px;
+    border-radius: 8px;
+
+    background-color: var(--dark-mode-background-light);
 }
 
 #annotation-set-modal-create-new {
@@ -348,13 +407,13 @@
 
 #annotation-set-modal-option-display, .annotation-set-modal-option-form, .annotation-set-modal-option-content {
     display: flex;
-    flex-direction: column;
     flex: 1;
+    flex-direction: column;
 }
 
 #annotation-set-create-new-content {
-    justify-content: space-between;
     flex: 1;
+    justify-content: space-between;
 }
 
 .annotation-set-option-submit-button {
@@ -366,65 +425,74 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    background: inherit;
-    border-radius: 50%;
-    border: none;
+
     padding: 0.4rem 0.5rem;
+    border: none;
+    border-radius: 50%;
+
+    background: inherit;
 }
 
 .remove-editor-button:hover {
-    background-color: var(--dark-mode-background-heavy);
-    box-shadow: 0px 3px 6px #00000075;
     cursor: pointer;
+    background-color: var(--dark-mode-background-heavy);
+    box-shadow: 0 3px 6px #00000075;
 }
 
 #editor-search-results {
-    min-width: 15rem;
-    max-height: 10rem;
+    overflow: auto;
     display: flex;
     flex-direction: column;
     row-gap: 0.1rem;
-    overflow: auto;
+
+    min-width: 15rem;
+    max-height: 10rem;
 }
 
 .editor-search-result {
     align-self: flex-start;
-    border-radius: 10px;
     padding: 0.4rem;
+    border-radius: 10px;
 }
 
 .editor-search-result:hover {
-    background-color: var(--selectable-grey);
     cursor: pointer;
+    background-color: var(--selectable-grey);
 }
 
 .skip-list-item-wrapper:hover {
+    cursor: pointer;
     background-color: var(--skip-type-color-very-transparent);
-    cursor: pointer;
 }
+
 .blank-list-item-wrapper:hover {
+    cursor: pointer;
     background-color: var(--blank-type-color-very-transparent);
-    cursor: pointer;
 }
+
 .pause-list-item-wrapper:hover {
+    cursor: pointer;
     background-color: var(--pause-type-color-very-transparent);
-    cursor: pointer;
 }
+
 .clip-list-item-wrapper:hover {
+    cursor: pointer;
     background-color: var(--clip-type-color-very-transparent);
-    cursor: pointer;
 }
+
 .mute-list-item-wrapper:hover {
+    cursor: pointer;
     background-color: var(--mute-type-color-very-transparent);
-    cursor: pointer;
 }
+
 .blur-list-item-wrapper:hover {
+    cursor: pointer;
     background-color: var(--blur-type-color-very-transparent);
-    cursor: pointer;
 }
+
 .comment-list-item-wrapper:hover {
-    background-color: var(--comment-type-color-very-transparent);
     cursor: pointer;
+    background-color: var(--comment-type-color-very-transparent);
 }
 
 .skip-list-item-wrapper-selected {
@@ -456,20 +524,20 @@
 }
 
 .annotation-type-wrapper {
-    background-color: var(--dark-mode-background-light);
     border-radius: 8px;
+    background-color: var(--dark-mode-background-light);
 }
 
 .annotation-type-list {
-    padding: 0;
-    max-height: 0px;
     overflow: hidden;
+    max-height: 0;
+    padding: 0;
 }
 
 .annotation-type-list-expanded {
-    padding: 10px 12px;
-    max-height: 10vh;
     overflow: auto;
+    max-height: 10vh;
+    padding: 10px 12px;
 }
 
 /* Subtitle Editor Panel */
@@ -482,13 +550,12 @@
 }
 
 #subtitle-panel-content-wrapper {
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-}
+    row-gap: 0.5rem;
 
-#subtitle-panel-content-wrapper {
     height: 100%;
-    overflow: hidden;
 }
 
 .subtitle-editor-panel-hidden {
@@ -504,10 +571,10 @@
 }
 
 #subtitle-panel-list {
+    overflow: auto;
     display: flex;
     flex-direction: column;
     row-gap: 1rem;
-    overflow: auto;
 }
 
 .subtitle-input-groups {
@@ -519,8 +586,9 @@
 .editor-subtitle-cue {
     display: flex;
     flex-direction: row;
-    align-items: center;
     column-gap: 1rem;
+    align-items: center;
+
     padding: 4px 8px;
 }
 
@@ -537,9 +605,9 @@
 }
 
 .editor-subtitle-cue-content {
-    height: 100%;
     resize: none; /* eslint-disable-line css/use-baseline */
     flex: 1;
+    height: 100%;
 }
 
 .editor-subtitle-cue-input-group {
@@ -554,13 +622,15 @@
     width: 5rem;
 }
 
-#subtitle-panel-content-wrapper {
-    row-gap: 0.5rem;
+.form-group input:focus {
+    border-color: #4a90e2;
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(74 144 226 / 10%);
 }
 
 #delete-subtitles-track-button {
-    margin-top: 5rem;
     align-self: flex-end;
+    margin-top: 5rem;
 }
 
 #editor-annotation-panel, #subtitle-editor-panel, #video-section, .detail-form-section, #timeline-wrapper {
@@ -569,48 +639,49 @@
 
 #editor-annotation-panel, #subtitle-editor-panel, .detail-form-section, #timeline-wrapper {
     border-radius: 8px;
-    background-color: var(--dark-mode-background-medium);
     color: var(--dark-mode-text-color);
+    background-color: var(--dark-mode-background-medium);
 }
 
 /* Video Section */
 .video-section {
+    position: relative;
+    display: flex;
     flex: 1;
     min-width: 300px;
-    display: flex;
-    position: relative;
 }
 
 .video-section .annotation-player-container {
+    justify-content: center;
     width: 100%;
     height: 100%;
-    justify-content: center;
 }
 
 /* Detail Form/Annotation edit form Section  */
 .detail-form-section {
-    width: 400px;
     overflow-y: auto;
+    width: 400px;
 }
 
 .detail-form {
-    padding: 1rem;
-    height: 100%;
     display: flex;
     flex-direction: column;
+    height: 100%;
+    padding: 1rem;
 }
 
 .item-form {
-    flex: 1;
     display: flex;
+    flex: 1;
     flex-direction: column;
 }
 
 .item-form-header {
     display: flex;
+    gap: 1rem;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+
     margin-bottom: 1rem;
 }
 
@@ -625,32 +696,48 @@
 }
 
 .item-form-icon-button {
+    cursor: pointer;
+
     display: inline-flex;
     align-items: center;
     justify-content: center;
+
     width: 2.25rem;
     height: 2.25rem;
     padding: 0;
     border: none;
     border-radius: 4px;
-    color: var(--dark-mode-text-color);
-    background: transparent;
-    cursor: pointer;
-}
 
-.item-form-icon-button:hover:not(:disabled),
-.item-form-icon-button:focus-visible {
-    background: var(--dark-mode-background-light);
+    color: var(--dark-mode-text-color);
+
+    background: transparent;
 }
 
 .item-form-icon-button:disabled {
-    opacity: 0.35;
     cursor: not-allowed;
+    opacity: 0.35;
+}
+
+.item-form-icon-button:focus-visible,
+.item-form-icon-button:hover:not(:disabled) {
+    background: var(--dark-mode-background-light);
 }
 
 .item-form-icon-button img {
     width: 1.25rem;
     height: 1.25rem;
+}
+
+.blur-position-delete-button img {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: 3px;
+}
+
+.blur-position-delete-button img:hover {
+    border-radius: 4px;
+    background-color: #ffffff40;
 }
 
 /* The trash is drawn taller than it is wide, so matching the arrows' width would shrink it. */
@@ -659,93 +746,56 @@
 }
 
 #annotation-update-form {
-    flex: 1;
     display: flex;
+    flex: 1;
     flex-direction: column;
 }
 
 #annotation-update-form input, #annotation-update-form select, #annotation-update-form textarea {
-    color: var(--dark-mode-text-color);
-    background-color: var(--dark-mode-background-light);
-    border-radius: 4px;
-    border: none;
     padding: 8px;
+    border: none;
+    border-radius: 4px;
+
+    color: var(--dark-mode-text-color);
+
+    background-color: var(--dark-mode-background-light);
 }
 
 .editor-detail-form-placeholder {
     display: flex;
     align-items: center;
     justify-content: center;
+
     height: 100%;
-    color: #999;
+
     font-size: 1.4rem;
+    color: #999;
 }
 
 #description {
     width: 100%;
-    max-width: 100%;
     min-width: 100%;
+    max-width: 100%;
     min-height: 5rem;
     max-height: 10rem;
 }
 
-.form-group {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 1rem;
-    row-gap: 0.5rem;
-}
-
-.form-group label {
-    display: block;
-    font-weight: 500;
-}
-
-.form-group input, .form-group textarea, .form-group select {
-    background-color: var(--dark-mode-very-light-gray);
-    border: 1px solid var(--dark-mode-very-light-gray);
-    padding: 0.25rem;
-}
-
-.form-group input[type="text"],
-.form-group input[type="number"] {
-    width: 100%;
-}
-
-.form-group input:focus {
-    outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
-}
-
-.annotation-input-dark {
-    background: var(--dark-mode-very-light-gray);
-    border-radius: 0px;
-}
-
-.time-input-group {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
-
-.time-input-group input {
-    flex: 1;
-}
-
 .annotation-time-input {
-    text-align: center;
     font-variant-numeric: tabular-nums;
+    text-align: center;
 }
 
 .btn-set-time {
+    cursor: pointer;
+
     padding: 0.5rem 0.75rem;
-    background: #4a90e2;
-    color: white;
     border: none;
     border-radius: 4px;
-    cursor: pointer;
+
     font-size: 0.85rem;
+    color: white;
+
+    background: #4a90e2;
 }
 
 .btn-set-time:hover {
@@ -757,12 +807,14 @@
 }
 
 .clip-change-button {
-    background-color: var(--dark-mode-dark-gray);
-    color: var(--dark-mode-very-light-gray);
     padding: 0.4rem 1rem;
     border: none;
-    font-size: 1.1rem;
     border-radius: 5px;
+
+    font-size: 1.1rem;
+    color: var(--dark-mode-very-light-gray);
+
+    background-color: var(--dark-mode-dark-gray);
 }
 
 .clip-change-button:hover {
@@ -774,22 +826,28 @@
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;
-    font-size: 1rem;
+
     padding: 0.2rem 1rem;
+
+    font-size: 1rem;
 }
 
 .overlay-resize-handle {
     --handle-inset: 7px;
+
+    touch-action: none;
+
     position: absolute;
+    z-index: 2;
+
     box-sizing: content-box;
     width: 5px;
     height: 5px;
+    border: 5px solid #0000;
     border-radius: 50%;
+
     background-color: white;
-    border: 5px solid #00000000;
     background-clip: padding-box;
-    z-index: 2;
-    touch-action: none;
 }
 
 .overlay-resize-handle[data-handle="nw"], .overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="ne"] {
@@ -797,6 +855,7 @@
 }
 
 .overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="e"] {
+    cursor: ew-resize;
     top: calc(50% - var(--handle-inset));
 }
 
@@ -809,6 +868,7 @@
 }
 
 .overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="s"] {
+    cursor: ns-resize;
     left: calc(50% - var(--handle-inset));
 }
 
@@ -824,14 +884,6 @@
     cursor: nesw-resize;
 }
 
-.overlay-resize-handle[data-handle="n"], .overlay-resize-handle[data-handle="s"] {
-    cursor: ns-resize;
-}
-
-.overlay-resize-handle[data-handle="w"], .overlay-resize-handle[data-handle="e"] {
-    cursor: ew-resize;
-}
-
 /* blur-positions */
 .blur-positions-help {
     margin: 0.25rem 0 0.5rem;
@@ -841,8 +893,8 @@
 }
 
 .blur-position-status {
-    margin: 0.25rem 0 0;
     min-height: 1.1rem;
+    margin: 0.25rem 0 0;
     font-size: 0.8rem;
     opacity: 0.85;
 }
@@ -857,8 +909,22 @@
 }
 
 #blur-positions-table {
-    border-collapse: separate;
     border-spacing: 0;
+    border-collapse: separate;
+}
+
+.active-position-entry th, .active-position-entry td {
+    background-color: var(--blur-type-color-transparent);
+}
+
+.active-position-entry th:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+.active-position-entry td:last-child {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
 }
 
 .position-column-number {
@@ -896,44 +962,20 @@
 }
 
 #annotation-update-form .position-input-group input[readonly] {
-    color: var(--dark-mode-text-color-dimmed);
     cursor: default;
+    color: var(--dark-mode-text-color-dimmed);
 }
 
 .blur-position-delete-button {
-    padding: 0;
-    margin: 0;
+    display: none;
+
     width: 1.2rem;
     height: 1.2rem;
-    background-color: #ffffff00;
+    margin: 0;
+    padding: 0;
     border: none;
-    display: none;
-}
 
-.blur-position-delete-button img {
-    height: 100%;
-    width: 100%;
-    padding: 3px;
-    box-sizing: border-box;
-}
-
-.blur-position-delete-button img:hover {
-    background-color: #ffffff40;
-    border-radius: 4px;
-}
-
-.active-position-entry th, .active-position-entry td {
-    background-color: var(--blur-type-color-transparent);
-}
-
-.active-position-entry th:first-child {
-    border-top-left-radius: 8px;
-    border-bottom-left-radius: 8px;
-}
-
-.active-position-entry td:last-child {
-    border-top-right-radius: 8px;
-    border-bottom-right-radius: 8px;
+    background-color: #fff0;
 }
 
 .active-position-entry .blur-position-delete-button {
@@ -941,13 +983,15 @@
 }
 
 #blur-edit-rig {
-    position: absolute;
     pointer-events: auto;
-    cursor: move;
     touch-action: none;
+    cursor: move;
+
+    position: absolute;
+    z-index: 3;
+
     outline: 1px dashed white;
     outline-offset: -1px;
-    z-index: 3;
 }
 
 #blur-edit-rig[hidden] {
@@ -960,19 +1004,22 @@
 }
 
 .blur-position-locator {
+    touch-action: none;
+
     position: absolute;
+    z-index: 2;
     bottom: 2px;
+
     width: 12px;
     height: 12px;
     border-radius: 50%;
+
     background-color: var(--dark-mode-light-gray);
-    z-index: 2;
-    touch-action: none;
 }
 
 .blur-position-locator:hover {
     cursor: pointer;
-    box-shadow: 0px 3px 6px #00000075;
+    box-shadow: 0 3px 6px #00000075;
 }
 
 .blur-position-locator:focus-visible {
@@ -987,7 +1034,7 @@
 .dragging-blur-position-locator,
 .active-track-item .dragging-blur-position-locator:hover {
     cursor: grabbing;
-    box-shadow: 0px 3px 6px #00000075;
+    box-shadow: 0 3px 6px #00000075;
 }
 
 .active-blur-position-locator {
@@ -1000,13 +1047,15 @@
 }
 
 #comment-edit-rig {
-    position: absolute;
     pointer-events: auto;
-    cursor: move;
     touch-action: none;
+    cursor: move;
+
+    position: absolute;
+    z-index: 3;
+
     outline: 1px dashed white;
     outline-offset: -1px;
-    z-index: 3;
 }
 
 #comment-edit-rig[hidden] {
@@ -1014,17 +1063,19 @@
 }
 
 .btn {
+    cursor: pointer;
+
     padding: 0.5rem 1rem;
     border: none;
     border-radius: 4px;
-    cursor: pointer;
+
     font-size: 0.9rem;
     font-weight: 500;
 }
 
 .btn-primary {
-    background: #4a90e2;
     color: white;
+    background: #4a90e2;
 }
 
 .btn-primary:hover {
@@ -1032,8 +1083,8 @@
 }
 
 .btn-danger {
-    background: #e74c3c;
     color: white;
+    background: #e74c3c;
 }
 
 .btn-danger:hover {
@@ -1041,15 +1092,15 @@
 }
 
 .error-message {
-    color: #e74c3c;
-    font-size: 0.85rem;
     margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: #e74c3c;
 }
 
 #timeline-wrapper {
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     row-gap: 2px;
 }
 
@@ -1060,13 +1111,20 @@
 }
 
 .timeline-row-left, .timeline-row-right {
-    background-color: var(--dark-mode-background-light);
     color: var(--dark-mode-text-color);
+    background-color: var(--dark-mode-background-light);
 }
 
 .timeline-row-left {
-    border-radius: 8px 0px 0px 8px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+
+    width: 200px;
+    padding: 8px 12px;
     border-left: 3px solid transparent;
+    border-radius: 8px 0 0 8px;
 }
 
 .track-row.active-track .timeline-row-left {
@@ -1074,30 +1132,18 @@
 }
 
 .timeline-row-right {
-    border-radius: 0px 8px 8px 0px;
-}
-
-.timeline-row-left {
-    width: 200px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
+    flex: 1;
+    border-radius: 0 8px 8px 0;
 }
 
 .timeline-track-edit-wrapper {
     position: relative;
 }
 
-.timeline-row-right {
-    flex: 1;
-}
-
 .timeline-track-row-right {
     position: relative;
-    min-height: 40px;
     overflow: auto;
+    min-height: 40px;
 }
 
 /* timeline-track-row-right acts as the scrollable container for the
@@ -1105,8 +1151,9 @@ annotations container. all timeline-track-row-right elements will
 be controlled simultaneously by the 'scroll-bar' element at the bottom
 of the page */
 .timeline-track-row-right, #timeline-ticks-content {
-    -ms-overflow-style: none;
     scrollbar-width: none; /* eslint-disable-line css/use-baseline */
+
+    -ms-overflow-style: none;
 }
 
 .timeline-track-row-right::-webkit-scrollbar {
@@ -1119,9 +1166,34 @@ of the page */
 
 .track-row-annotations-container, #tick-marks-container {
     position: absolute;
-    background-color: inherit;
-    height: 100%;
     width: 100%;
+    height: 100%;
+    background-color: inherit;
+}
+
+/* Track Items */
+.track-item, .track-item-projection {
+    position: absolute;
+    height: 30px;
+    border-radius: 4px;
+}
+
+.track-item-projection {
+    pointer-events: none;
+    top: 5px;
+    background-color: lightgrey;
+}
+
+.track-item {
+    cursor: grab;
+    user-select: none; /* eslint-disable-line css/use-baseline */
+
+    display: flex;
+    flex-direction: row;
+    column-gap: 4px;
+    align-items: center;
+
+    box-shadow: 0 2px 4px rgb(0 0 0 / 30%);
 }
 
 .annotations-container-no-child-pointer-events .track-item {
@@ -1139,10 +1211,9 @@ of the page */
 
 /* Scrollable content area */
 .timeline-content-wrapper {
-    flex: 1;
-    overflow-x: auto;
-    overflow-y: hidden;
     scrollbar-width: thin;  /* eslint-disable-line css/use-baseline */
+    overflow: auto hidden;
+    flex: 1;
 }
 
 .timeline-content-wrapper::-webkit-scrollbar {
@@ -1151,33 +1222,35 @@ of the page */
 
 /* Timeline Ticks Row */
 #timeline-row-ticks-and-scrubbers {
+    position: relative;
     display: flex;
     flex-direction: column;
-    position: relative;
 }
 
 .timeline-ticks-row {
+    flex-shrink: 0;
     height: 30px;
     border-bottom: 1px solid #ccc;
     background-color: #fafafa;
-    flex-shrink: 0;
 }
 
 /* Timeline Ticks */
 .timeline-ticks {
+    cursor: pointer;
     position: relative;
     overflow: visible;
-    cursor: pointer;
     height: 100%;
 }
 
 #timeline-ticks-content {
     position: relative;
-    height: 32px;
+
+    overflow: auto;
+
     width: 100%;
     min-width: 100%;
+    height: 32px;
     margin-top: auto;
-    overflow: auto;
 }
 
 .tick-mark {
@@ -1196,12 +1269,14 @@ of the page */
 }
 
 .tick-label {
+    user-select: none;  /* eslint-disable-line css/use-baseline */
+
     position: absolute;
     bottom: 16px;
+    transform: translateX(-50%);
+
     font-size: 11px;
     white-space: nowrap;
-    transform: translateX(-50%);
-    user-select: none;  /* eslint-disable-line css/use-baseline */
 }
 
 .tick-label.first-tick {
@@ -1210,30 +1285,37 @@ of the page */
 
 /* Hover Scrubber */
 #timeline-hover-scrubber {
+    pointer-events: none;
+
     position: absolute;
-    left: 0;
+    z-index: 2;
     top: 0;
+    left: 0;
+
     width: 2px;
     height: 100%;
-    background: rgba(5, 130, 202, 0.3);
-    pointer-events: none;
-    z-index: 2;
+
     opacity: 0;
+    background: rgb(5 130 202 / 30%);
+
     transition: opacity 0.1s ease;
 }
 
 #timeline-hover-scrubber::before {
     content: '';
+
     position: absolute;
     top: -6px;
     left: 50%;
     transform: translateX(-50%);
+
     width: 12px;
     height: 12px;
-    background: rgba(5, 130, 202, 0.5);
+    border: 2px solid rgb(255 255 255 / 80%);
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.8);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    background: rgb(5 130 202 / 50%);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
 }
 
 .timeline-ticks:hover #timeline-hover-scrubber {
@@ -1245,36 +1327,46 @@ of the page */
 }
 
 /* Editor Scrubber */
+
 /* Positioned with a compositor-only translateX (set from JS) rather than `left`
    so it can be animated every frame during playback without triggering layout. */
 #editor-scrubber {
+    pointer-events: none;
+
     position: absolute;
-    left: 0;
+    z-index: 3;
     top: 0;
+    left: 0;
+
     width: 2px;
     height: 100%;
+
     background-color: var(--dark-mode-text-color);
-    pointer-events: none;
-    z-index: 3;
 }
 
 #editor-scrubber::before {
     content: '';
+
     position: absolute;
     left: 50%;
     transform: translateX(-3px) translateY(2px) rotate(45deg);
+
     width: 6px;
     height: 6px;
+
     background-color: var(--dark-mode-text-color);
 }
 
 #editor-scrubber::after {
     content: '';
+
     position: absolute;
     left: 50%;
+    transform: translateX(-4px) translateY(-3px);
+
     width: 8px;
     height: 8px;
-    transform: translateX(-4px) translateY(-3px);
+
     background-color: var(--dark-mode-text-color);
 }
 
@@ -1283,7 +1375,6 @@ of the page */
     height: 40px;
 }
 
-/* Track Items */
 .track-item[data-annotation-type="skip"] {
     background-color: var(--skip-type-color);
 }
@@ -1312,34 +1403,12 @@ of the page */
     background-color: var(--clip-type-color);
 }
 
-.track-item, .track-item-projection {
-    position: absolute;
-    height: 30px;
-    border-radius: 4px;
-}
-
-.track-item-projection {
-    background-color: lightgrey;
-    pointer-events: none;
-    top: 5px;
-}
-
-.track-item {
-    cursor: grab;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    column-gap: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    user-select: none; /* eslint-disable-line css/use-baseline */
-}
-
 .pause-type-track-item {
-    padding: 0px 10px;
+    padding: 0 10px;
 }
 
 .track-item:hover {
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 3px 6px rgb(0 0 0 / 40%);
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
@@ -1350,8 +1419,8 @@ of the page */
 }
 
 .track-item.dragging {
-    opacity: 0.8;
     z-index: 2;
+    opacity: 0.8;
 }
 
 .active-track-item {
@@ -1360,38 +1429,42 @@ of the page */
 
 /* Resize Handles */
 .resize-handle {
+    cursor: ew-resize;
+
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    height: 100%;
-    width: 14px;
     flex-shrink: 0;
-    cursor: ew-resize;
+    justify-content: center;
+
+    width: 14px;
+    height: 100%;
+
     transition: background 0.2s;
 }
 
 .resize-handle:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgb(255 255 255 / 30%);
 }
 
 .resize-handle-left {
     left: 0;
-    border-radius: 4px 0 0 4px;
     border-right: 1px solid var(--handle-border-white);
+    border-radius: 4px 0 0 4px;
 }
 
 .resize-handle-right {
     right: 0;
-    border-radius: 0 4px 4px 0;
     border-left: 1px solid var(--handle-border-white);
+    border-radius: 0 4px 4px 0;
 }
 
 .resize-handle-indicator {
-    background-color: white;
-    height: 60%;
     width: 2px;
+    height: 60%;
     margin: 0 auto;
     border-radius: 8px;
+
+    background-color: white;
 }
 
 .resize-handle-narrow {
@@ -1403,10 +1476,11 @@ of the page */
 }
 
 .track-item-content {
-    flex: 1;
-    display: flex;
-    align-items: center;
     overflow: hidden;
+    display: flex;
+    flex: 1;
+    align-items: center;
+
     min-width: 0;
 }
 
@@ -1415,80 +1489,88 @@ of the page */
 }
 
 .track-item-type-icon {
+    flex-shrink: 0;
     width: 10px;
     height: 10px;
-    flex-shrink: 0;
     margin-right: 4px;
 }
 
 .track-item-label {
-    color: white;
+    overflow: hidden;
+
+    min-width: 0;
+
     font-size: 0.85rem;
     font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
+    color: white;
     text-overflow: ellipsis;
-    min-width: 0;
+    white-space: nowrap;
 }
 
 .track-item.is-dragging {
-    opacity: 0.33;
     pointer-events: auto;
     cursor: grabbing;
+    opacity: 0.33;
 }
 
 /* Styles for zoom slider. */
+
 /* The default styling for each browser needs to be removed first */
+
 /* see https://css-tricks.com/styling-cross-browser-compatible-range-inputs-css/
    for reference. the ms style rules are removed since those are for IE which
    no one should use anymore. */
 #timeline-scroll-input {
-  -webkit-appearance: none; /* Hides the slider so that custom slider can be made */
   width: 100%; /* Specific width is required for Firefox. */
+  -webkit-appearance: none; /* Hides the slider so that custom slider can be made */
   background: transparent; /* Otherwise white in Chrome */
 }
 
-#timeline-scroll-input::-webkit-slider-thumb {
-  -webkit-appearance: none;
-}
-
 /* Now we can apply our custom styles for the slider */
+
 /* "thumb" styles. This is the part the user interacts with */
 #timeline-scroll-input::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  height: 12px;
-  width: var(--zoom-thumb-width);
-  border-radius: 12px;
-  background: var(--dark-mode-text-color);
   cursor: pointer;
+
+  width: var(--zoom-thumb-width);
+  height: 12px;
   margin-top: 4px; /* Chrome requires margin to be defined. This is automatic in Firefox */
+  border-radius: 12px;
+
+  -webkit-appearance: none;
+  background: var(--dark-mode-text-color);
 }
 
 #timeline-scroll-input::-moz-range-thumb {
-    -webkit-appearance: none;
-    height: 12px;
-    width: var(--zoom-thumb-width);
-    border-radius: 12px;
-    background: var(--dark-mode-text-color);
     cursor: pointer;
+
+    width: var(--zoom-thumb-width);
+    height: 12px;
+    border-radius: 12px;
+
+    -webkit-appearance: none;
+    background: var(--dark-mode-text-color);
 }
 
 /* "track" styles. This is the container the thumb resides within */
 #timeline-scroll-input::-webkit-slider-runnable-track {
+  cursor: pointer;
+
   width: 100%;
   height: 20px;
-  cursor: pointer;
   border: 1px solid var(--dark-mode-text-color-muted);
   border-radius: 4px;
 }
 
 #timeline-scroll-input::-moz-range-track {
+  cursor: pointer;
+
   width: 100%;
   height: 20px;
-  cursor: pointer;
   border: 1px solid var(--dark-mode-text-color-muted);
   border-radius: 4px;
 }
+
 /* end of zoom slider styles */
 
 #timeline-new-track-and-zoom-row {
@@ -1496,25 +1578,28 @@ of the page */
 }
 
 #timeline-new-track-wrapper {
+    padding: 0;
     background-color: inherit;
-    padding: 0px;
 }
 
 #timeline-zoom-controls {
-    width: 100%;
     display: flex;
     flex-direction: row;
-    align-items: center;
     column-gap: 8px;
-    padding: 0px 4px;
+    align-items: center;
+
+    width: 100%;
+    padding: 0 4px;
+
     background-color: var(--dark-mode-background-medium);
 }
 
 .timeline-zoom-icon {
     width: 20px;
     height: 20px;
-    border-radius: 50%;
     padding: 2px;
+    border-radius: 50%;
+
     filter: invert(1);
 }
 
@@ -1527,26 +1612,22 @@ of the page */
     flex: 1;
 }
 
-#timeline-scroll-input {
-    width: 100%;
-}
-
 #timeline-new-track-button {
     flex: 1;
-    background-color: var(--dark-mode-background-light);
     color: var(--dark-mode-text-color);
+    background-color: var(--dark-mode-background-light);
 }
 
 #timeline-new-track-button:hover {
-    background-color: white;
     color: black;
+    background-color: white;
 }
 
 /* Resizers */
 .resizer {
-    background-color: #e0e0e0;
     position: relative;
     z-index: 1;
+    background-color: #e0e0e0;
 }
 
 .resizer:hover {
@@ -1559,22 +1640,22 @@ of the page */
 
 /* Vertical resizer (between video and form) */
 #resizer-vertical {
-    width: 4px;
     cursor: ew-resize;
     flex-shrink: 0;
+    width: 4px;
 }
 
 /* Horizontal resizer (between top panel and timeline) */
 #resizer-horizontal {
-    height: 4px;
     cursor: ns-resize;
     flex-shrink: 0;
+    height: 4px;
 }
 
 /* Prevent text selection during resize */
 body.resizing {
-    user-select: none;  /* eslint-disable-line css/use-baseline */
     cursor: inherit;
+    user-select: none;  /* eslint-disable-line css/use-baseline */
 }
 
 body.resizing-horizontal {
@@ -1588,8 +1669,8 @@ body.resizing-vertical {
 /* Prevent text selection during drag */
 body.dragging,
 body.resizing {
-    user-select: none;  /* eslint-disable-line css/use-baseline */
     cursor: inherit;
+    user-select: none;  /* eslint-disable-line css/use-baseline */
 }
 
 body.dragging-item {
@@ -1602,17 +1683,18 @@ body.resizing-item {
 
 /* Ownership Info Message */
 .info-message {
-    background: #e3f2fd;
-    border-left: 4px solid #2196f3;
-    padding: 1rem;
     margin-bottom: 1rem;
+    padding: 1rem;
+    border-left: 4px solid #2196f3;
     border-radius: 4px;
+
+    background: #e3f2fd;
 }
 
 .info-message p {
     margin: 0;
-    color: #1565c0;
     font-size: 0.9rem;
+    color: #1565c0;
 }
 
 .info-message strong {

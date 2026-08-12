@@ -39,9 +39,10 @@ export default defineConfig([
     files: ["**/*.css"],
     plugins: { css },
     language: "css/css",
-    extends: ["css/recommended"],
     rules: {
-      "css/no-invalid-properties": "off"
-    }
+      "css/no-important": "error",
+      "css/no-unmatchable-selectors": "error",
+      "css/use-baseline": "error",
+    },
   },
 ]);

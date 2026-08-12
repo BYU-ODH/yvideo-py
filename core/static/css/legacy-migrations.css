@@ -23,8 +23,8 @@
 
 .legacy-migrations-header h2 {
     margin: 0 0 0.75rem;
-    color: var(--deep-blue);
     font-size: clamp(1.75rem, 4vw, 2.35rem);
+    color: var(--deep-blue);
 }
 
 .legacy-migrations-header p,
@@ -73,19 +73,30 @@
     padding: 1rem 1.25rem;
     border-left: 0.3rem solid var(--medium-blue);
     border-radius: 0.35rem;
-    background: var(--legacy-migrations-instructions-bg);
+
     color: var(--darker-grey);
+
+    background: var(--legacy-migrations-instructions-bg);
 }
 
 .legacy-migrations-instructions h4 {
     margin: 0 0 0.5rem;
-    color: var(--deep-blue);
     font-size: 1rem;
+    color: var(--deep-blue);
 }
 
 .legacy-migrations-instructions p {
     margin: 0;
     line-height: 1.55;
+}
+
+.legacy-migrations-contact p {
+    margin: 0.5rem 0 1rem;
+}
+
+.legacy-migrations-history-header p {
+    margin: 0.35rem 0 0;
+    color: var(--dark-grey);
 }
 
 .legacy-migrations-instructions p + p {
@@ -110,8 +121,10 @@
     padding: 0.7rem 0.8rem;
     border: 1px solid var(--grey);
     border-radius: 0.35rem;
-    background-color: white;
+
     font-size: 1rem;
+
+    background-color: white;
 }
 
 .legacy-migrations-field textarea {
@@ -119,22 +132,30 @@
     resize: vertical;
 }
 
+.legacy-migrations-legal-choice input {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: 0.2rem;
+}
+
 .legacy-migrations-field input:focus,
 .legacy-migrations-field select:focus,
 .legacy-migrations-field textarea:focus {
+    border-color: var(--medium-blue);
     outline: 3px solid var(--light-blue);
     outline-offset: 1px;
-    border-color: var(--medium-blue);
 }
 
 .legacy-migrations-help-text {
     display: block;
+
     padding-left: 0.7rem;
     border-left: 0.2rem solid var(--light-blue);
-    color: var(--dark-grey);
+
     font-size: 0.9rem;
     font-style: italic;
     line-height: 1.45;
+    color: var(--dark-grey);
 }
 
 .legacy-migrations-field .errorlist,
@@ -149,13 +170,14 @@
     padding: 1.25rem;
     border: 1px solid var(--legacy-migrations-border);
     border-radius: 0.65rem;
+
     background: white;
 }
 
 .legacy-migrations-submission h4 {
     margin: 0 0 1rem;
-    color: var(--deep-blue);
     font-size: 1.15rem;
+    color: var(--deep-blue);
 }
 
 .legacy-migrations-legal-choices {
@@ -169,13 +191,8 @@
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.65rem;
     align-items: start;
-    line-height: 1.5;
-}
 
-.legacy-migrations-legal-choice input {
-    width: 1.1rem;
-    height: 1.1rem;
-    margin-top: 0.2rem;
+    line-height: 1.5;
 }
 
 .legacy-migrations-legal-choice label {
@@ -199,8 +216,8 @@
 .legacy-migrations-submit:disabled,
 .legacy-migrations-submit:disabled:hover {
     cursor: not-allowed;
-    background: var(--grey);
     color: var(--darker-grey);
+    background: var(--grey);
 }
 
 .legacy-migrations-contact {
@@ -208,14 +225,11 @@
     border-left: 0.35rem solid var(--medium-blue);
 }
 
-.legacy-migrations-contact p {
-    margin: 0.5rem 0 1rem;
-}
-
 .legacy-migrations-contact address {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+
     font-style: normal;
     overflow-wrap: anywhere;
 }
@@ -237,14 +251,9 @@
     font-size: 1.6rem;
 }
 
-.legacy-migrations-history-header p {
-    margin: 0.35rem 0 0;
-    color: var(--dark-grey);
-}
-
 .legacy-migrations-table-wrapper {
-    width: 100%;
     overflow-x: auto;
+    width: 100%;
     border-radius: 0.65rem;
 }
 
@@ -254,9 +263,9 @@
 }
 
 .legacy-migrations-table {
+    border-collapse: collapse;
     width: 100%;
     min-width: 46rem;
-    border-collapse: collapse;
     text-align: left;
 }
 
@@ -269,11 +278,13 @@
 
 .legacy-migrations-table th {
     border-color: var(--legacy-migrations-table-header-border);
-    background: var(--deep-blue);
-    color: white;
+
     font-size: 0.8rem;
-    letter-spacing: 0.04em;
+    color: white;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
+
+    background: var(--deep-blue);
 }
 
 .legacy-migrations-table tbody tr:nth-child(odd) {
@@ -290,21 +301,26 @@
 
 .legacy-migrations-reference {
     display: inline-block;
+
     max-width: 22rem;
-    overflow-wrap: anywhere;
+
     font-family: "Roboto Mono", monospace;
     font-size: 0.9rem;
+    overflow-wrap: anywhere;
 }
 
 .legacy-migrations-status {
     display: inline-block;
+
     padding: 0.3rem 0.65rem;
     border-radius: 1rem;
-    background: var(--legacy-migrations-status-bg);
-    color: var(--deep-blue);
+
     font-size: 0.9rem;
     font-weight: 650;
+    color: var(--deep-blue);
     white-space: nowrap;
+
+    background: var(--legacy-migrations-status-bg);
 }
 
 .legacy-migrations-table time {
@@ -315,8 +331,8 @@
 }
 
 .legacy-migrations-table time span {
-    color: var(--dark-grey);
     font-size: 0.9rem;
+    color: var(--dark-grey);
 }
 
 .legacy-migrations-action {
@@ -325,18 +341,20 @@
 
 .legacy-migrations-view-link {
     display: inline-block;
+
     padding: 0.45rem 0.8rem;
     border: 1px solid var(--dark-primary-blue);
     border-radius: 1rem;
-    color: var(--dark-primary-blue);
+
     font-weight: 650;
+    color: var(--dark-primary-blue);
     text-decoration: none;
     white-space: nowrap;
 }
 
 .legacy-migrations-view-link:hover {
-    background: var(--dark-primary-blue);
     color: white;
+    background: var(--dark-primary-blue);
 }
 
 .legacy-migrations-empty {
@@ -344,10 +362,11 @@
     padding: 1.5rem;
     border: 1px dashed var(--light-grey);
     border-radius: 0.65rem;
+
     color: var(--dark-grey);
 }
 
-@media (max-width: 48rem) {
+@media (width <= 48rem) {
     .legacy-migrations-history {
         margin-top: 2.25rem;
     }
@@ -356,8 +375,10 @@
 .legacy-yvideo-logo {
     font-family: "Roboto Mono", monospace;
     font-weight: bold;
+
     background: linear-gradient(to right, var(--medium-blue) 0%, var(--deep-blue) 100%);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text; /* eslint-disable-line css/use-baseline */
+
+    -webkit-text-fill-color: transparent;
 }

@@ -11,8 +11,8 @@
   <div id='splashScreen'>
     <div class='container'>
       <img id='logo' src='../resources/ic_round.png'><br>
-      <div id='selectFilesButtonContainer'>
-        <a href='#' id='playButton' onclick='player.initializeOrSelectFiles()'>
+      <div id='select-files-button-container'>
+        <a href='#' id='play-button' onclick='player.initializeOrSelectFiles()'>
           <svg version="1.1"
              xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
              x="0px" y="0px" width="100px" height="100px" viewBox="0 0 100 100" enable-background="new 0 0 100 100"
@@ -25,7 +25,7 @@
       </div>
     </div>
     <br>
-    <div id='filePickerDiv' style="display:none;">
+    <div id='file-picker-div' style="display:none;">
       Select Video Files: <input type="file" id="filePicker" accept=".icf" multiple>
     </div>
     <div id="convert2IC" style="position: absolute; bottom: 0; padding: 15px">
@@ -44,13 +44,13 @@
                 onClick="player.generateICDirectory()">Create</button>
       </div>
     </div>
-    <button id="toggleAnnotationModeBtn" onclick="player.toggleAnnotationMode()">Annotation Mode</button>
+    <button id="toggle-annotation-mode-btn" onclick="player.toggleAnnotationMode()">Annotation Mode</button>
   </div>
 
   <div class="main-content">
     <div class='annotation-player-container'>
-      <button id='returnBtn' onclick='player.hidePlayer()'>&#10094;</button>
-      <button id='reloadAnnotationsBtn' onclick='player.reloadAnnotations()'>Reload Annotations</button>
+      <button id='return-btn' onclick='player.hidePlayer()'>&#10094;</button>
+      <button id='reload-annotations-btn' onclick='player.reloadAnnotations()'>Reload Annotations</button>
       <video></video>
     </div>
   </div>
