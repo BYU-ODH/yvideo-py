@@ -384,7 +384,6 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                     "target_collection_name",
                     "target_collection_published",
                     "target_collection_archived",
-                    "target_collection_public",
                     "active_job_summary",
                     "latest_job_error",
                 )

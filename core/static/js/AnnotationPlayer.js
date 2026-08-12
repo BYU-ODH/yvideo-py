@@ -1743,7 +1743,7 @@ export class AnnotationPlayer {
         this.refreshControlsVisibility();
       });
 
-      const controlButtons = this.controls.container.querySelectorAll('#returnBtn, #reloadAnnotationsBtn, .video-controls');
+      const controlButtons = this.controls.container.querySelectorAll('#return-btn, #reload-annotations-btn, .video-controls');
       controlButtons.forEach(button => {
         button.addEventListener('mouseenter', () => {
           this.state.controlsHovering = true;

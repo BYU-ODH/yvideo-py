@@ -1,17 +1,6 @@
 /* eslint no-unused-vars: off */
 "use strict";
 
-function emptyParentInnerHTML(element, cssSelectorForParent) {
-  const parent = element.closest(cssSelectorForParent);
-  if (parent) {
-    parent.innerHTML = "";
-  } else {
-    console.log(
-      "element with selector: " + cssSelectorForParent + " not found!",
-    );
-  }
-}
-
 function deleteParent(element, cssSelectorForParent) {
   const parent = element.closest(cssSelectorForParent);
   if (parent) {
@@ -75,3 +64,40 @@ function handleAccordian(
     associatedArrow.classList.toggle("turned");
   }
 }
+
+function closeUserViewModalFromBackdrop(event) {
+  const dialog = event.target;
+  if (!(dialog instanceof HTMLDialogElement) || !dialog.matches(".user-view-modal")) {
+    return;
+  }
+
+  const bounds = dialog.getBoundingClientRect();
+  const clickedOutside = event.clientX < bounds.left
+    || event.clientX > bounds.right
+    || event.clientY < bounds.top
+    || event.clientY > bounds.bottom;
+  if (clickedOutside) {
+    dialog.close();
+  }
+}
+
+document.addEventListener("click", closeUserViewModalFromBackdrop);
+
+function openPreviousUserViewModal(event) {
+  const backButton = event.target.closest("[data-previous-dialog-id]");
+  if (!backButton) {
+    return;
+  }
+
+  const currentDialog = backButton.closest("dialog");
+  const previousDialog = document.getElementById(backButton.dataset.previousDialogId);
+  if (!(currentDialog instanceof HTMLDialogElement)
+    || !(previousDialog instanceof HTMLDialogElement)) {
+    return;
+  }
+
+  currentDialog.close();
+  previousDialog.showModal();
+}
+
+document.addEventListener("click", openPreviousUserViewModal);

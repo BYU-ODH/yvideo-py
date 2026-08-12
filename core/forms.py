@@ -43,26 +43,7 @@ class PlaylistForm(forms.ModelForm):
 class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
-        fields = ["id", "name", "published", "archived"]
-
-    id = forms.CharField(widget=forms.HiddenInput)
-
-
-class ContentForm(forms.ModelForm):
-    confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
-
-    class Meta:
-        model = Content
-        fields = [
-            "title",
-            "description",
-            "allow_definitions",
-            "allow_notes",
-            "allow_captions",
-            "allow_fast_playback",
-            "clips_only",
-            "resource_file",
-        ]
+        fields = ["name", "published", "archived"]
 
 
 class UpdateContentForm(forms.ModelForm):

@@ -14,20 +14,15 @@
                 <button type="button" class="cancel-button" command="close" commandfor="annotation-set-settings">Cancel</button>
             </div>
         </div>
-        <div>
-            <h4>Editors</h4>
-            {% include 'core/partials/annotation_set_selected_editors.html' %}
-        </div>
-
-        <div id="editor-search-wrapper" class="column-flex">
-            <label for="editor-search-input">
-                Search for editor:
-            </label>
-            <input id="editor-search-input" aria-label="Search for editor" type="text" placeholder="Search for an editor to add">
-            {% include 'core/partials/editor_search_results.html' %}
-        </div>
-        {% if can_edit %}
-        <button id="annotation-set-delete" class="red-button">Delete this set</button>
+        <p class="annotation-set-editors-note">
+            You, and the TAs and co-instructors on your playlists, can edit this set.
+        </p>
+        {% if can_administer_annotation_set %}
+        <button id="annotation-set-delete" class="red-button">Retire this set</button>
+        <p class="annotation-set-editors-note">
+            Retiring keeps the set readable and copyable for anyone already using it, but
+            nobody will be able to change it again.
+        </p>
         {% endif %}
     </div>
 </dialog>

@@ -116,9 +116,9 @@ a.blue-button {
 }
 
 .cancel-button {
-    color: var(--dark-primary-blue);
-    background-color: white;
-    border: 2px solid var(--dark-primary-blue);
+    border: none;
+    color: white;
+    background-color: var(--dark-grey);
 }
 
 .cancel-button:hover {
@@ -180,14 +180,13 @@ a.blue-button {
 .row-flex {
     display: flex;
     flex-direction: row;
-    align-content: center;
     column-gap: 1rem;
+    align-content: center;
 }
 
 .flex-apart-aligned {
-    justify-content: space-between;
-    display: flex;
     align-items: center;
+    justify-content: space-between;
 }
 
 .flex-apart {
@@ -198,8 +197,7 @@ a.blue-button {
 .column-flex {
     display: flex;
     flex-direction: column;
-    row-gap: 1rem;
-    column-gap: 3rem;
+    gap: 1rem 3rem;
 }
 
 .column-flex-no-gap {
@@ -831,9 +829,8 @@ a.blue-button {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    max-width: 1200px;
-    margin: 40px auto 0;
-    padding: 0 clamp(16px, 5vw, 80px);
+    margin: 0 auto;
+    padding: 1rem;
 }
 
 #resource-search-input {
@@ -892,6 +889,12 @@ a.blue-button {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
+}
+
+.landing-page-playlist-list {
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 clamp(16px, 5vw, 80px);
 }
 
 .landing-page-playlist {
@@ -1761,7 +1764,11 @@ h4.video-title {
 
 .content-form-group label {
     display: block;
-    padding-right: 0.5rem;
+    font-weight: 500;
+}
+
+.content-form-group.clips-only-invalid label {
+    color: var(--red);
 }
 
 .content-form-group input {

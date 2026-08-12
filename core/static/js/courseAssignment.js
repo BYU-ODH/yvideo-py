@@ -1,18 +1,5 @@
 import { getCSRFToken } from "./utils.js";
-
-function getPlaylistIdValue() {
-  const playlistForm = document.getElementById("playlist-settings-form");
-  if (!playlistForm) {
-    return;
-  }
-  const idInput = playlistForm.querySelector("input[name='id']");
-  const idValue = idInput?.value;
-  if (idValue === undefined) {
-    console.error("Failed to get playlist id from form");
-    return;
-  }
-  return idValue;
-}
+import { getPlaylistIdValue } from "./utils.js";
 
 function getYear() {
   const yearSelect = document.getElementById("year-select");
@@ -35,7 +22,7 @@ function setupSemesterSelectionHandlers() {
   // update the assigned courses displayed whenever the user changes
   // the selected year or semester
   const handler = async () => {
-    const renderResponse = await fetch("/playlists/render-course-assignment/", {
+    const renderResponse = await fetch(`/playlists/${getPlaylistIdValue()}/render-course-assignment/`, {
       method: "POST",
       headers: {
         "X-CSRFToken": getCSRFToken(),
@@ -43,8 +30,7 @@ function setupSemesterSelectionHandlers() {
       },
       body: JSON.stringify({
         "semester": getSemester(),
-        "year": getYear(),
-        "playlist_id": getPlaylistIdValue()
+        "year": getYear()
       })
     });
     if (!renderResponse.ok) {
@@ -97,7 +83,7 @@ function setupAssignCourseButton() {
     if (invalid) {
       return;
     }
-    const assignmentResponse = await fetch("/playlists/assign-course/", {
+    const assignmentResponse = await fetch(`/playlists/${getPlaylistIdValue()}/assign-course/`, {
       method: "POST",
       headers: {
         "X-CSRFToken": getCSRFToken(),
@@ -108,8 +94,7 @@ function setupAssignCourseButton() {
         "catalog_number": catalogNumber,
         "sections": sections,
         "semester": semester,
-        "year": year,
-        "playlist_id": getPlaylistIdValue()
+        "year": year
       })
     });
 
@@ -150,14 +135,13 @@ function setupSubmitSectionButtons() {
         console.error("Failed to update sections because year and/or semseter are undefined");
         return;
       }
-      const saveResponse = await fetch("/playlists/course/update-sections/", {
+      const saveResponse = await fetch(`/playlists/${getPlaylistIdValue()}/course/update-sections/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          "playlist_id": getPlaylistIdValue(),
           "sections": cleanSectionsInput(sectionInput.value),
           "dept": dept,
           "catalog_number": catalogNumber,
@@ -194,7 +178,7 @@ function setupRemoveCourseButtons() {
       if (!event.target.closest(".remove-course-assignment-button")) {
         return;
       }
-      const removeRequest = await fetch("/playlists/course/unassign/", {
+      const removeRequest = await fetch(`/playlists/${playlistId}/course/unassign/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -204,8 +188,7 @@ function setupRemoveCourseButtons() {
           dept: dept,
           catalog_number: catalogNumber,
           semester: semester,
-          year: year,
-          playlist_id: playlistId
+          year: year
         })
       });
 

@@ -11,9 +11,12 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db import transaction
+from django.db.models.signals import pre_delete
+from django.dispatch import receiver
 from django.utils import timezone
 import xxhash
 
+from .utils import estimate_current_yearterm
 from .utils import seconds2hms
 
 HMS_VALIDATOR = RegexValidator(
@@ -114,6 +117,11 @@ class Resource(models.Model):
     def __str__(self):
         return f"{self.name}"
 
+    @property
+    def belongs_to_byu_library(self):
+        """Every instructor may reach a resource BYU itself holds a copy of."""
+        return self.checked_out_from_hbll or self.checked_out_from_other_byu_library
+
     @transaction.atomic
     def save(self, *args, **kwargs):
         if not self.imdb_id:
@@ -208,6 +216,19 @@ class User(AbstractUser):
         return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1
 
     @property
+    def is_instructor(self):
+        """Capability to own playlists and author content.
+
+        Deliberately excludes lab assistants: they act on an instructor's behalf by
+        spoofing them, which is audited, rather than owning playlists themselves.
+        """
+        return (
+            self.privilege_level == PrivilegeLevel.INSTRUCTOR
+            or self.privilege_level_override == PrivilegeLevel.INSTRUCTOR
+            or self.is_admin
+        )
+
+    @property
     def can_spoof(self):
         return self.is_admin or self.is_lab_assistant
 
@@ -222,47 +243,80 @@ class User(AbstractUser):
             return True
         return not target_user.is_admin
 
-    def can_view_content(self, content):
-        # owners and admins should have view permission even if the playlist is not published
-        if content.playlist and content.playlist.owner == self:
+    def can_access_resource(self, resource):
+        """Whether this user may reach a Resource on an authoring path.
+
+        Governs browsing the library, attaching files to content, and reading or
+        writing annotation sets and subtitles. Playback is not gated on this --
+        that is Content.can_be_viewed_by -- so a student watching content in a
+        playlist they can see needs no resource grant.
+        """
+        if self.is_superuser or self.is_lab_assistant:
             return True
-        if self.is_admin or self.is_superuser or self.is_staff:
+        if ResourceAccess.objects.filter(user=self, resource=resource).exists():
             return True
-        if content.playlist is None:
-            resource = content.get_resource()
-            return bool(
-                resource
-                and ResourceAccess.objects.filter(user=self, resource=resource).exists()
-            )
-        if content.playlist.published:
-            if PlaylistUserAccess.objects.filter(
-                user=self, playlist=content.playlist
-            ).exists():
-                return True
-            # TODO Check course enrollment
-        return False
+        if self.is_instructor and resource.belongs_to_byu_library:
+            return True
+        # Write access on a playlist inherits that playlist owner's resource access,
+        # scoped to the owner rather than the playlist, so a TA can reach everything
+        # the instructor can.
+        return ResourceAccess.objects.filter(
+            resource=resource,
+            user__playlists_owned__playlistuseraccess__user=self,
+            user__playlists_owned__playlistuseraccess__playlist_role__in=(
+                PlaylistRole.INSTRUCTOR,
+                PlaylistRole.TA,
+            ),
+        ).exists()
 
     def get_content_source_url(self, content):
         """URL for URL-only content, gated by the same permission check that
         protects file-backed content."""
-        if content.is_url_only() and self.can_view_content(content):
+        if content.is_url_only() and content.can_be_viewed_by(self):
             return content.url
         return None
 
     def get_resource_filekey(self, content):
-        """Get or create a FileKey for the given content."""
-        if self.can_view_content(content) and content.resource_file:
-            resource_file_key = ResourceFileKey.objects.filter(
-                resource_file=content.resource_file, user=self
-            ).first()
-            if not resource_file_key:
-                resource_file_key = ResourceFileKey.objects.create(
-                    resource_file=content.resource_file, user=self
-                )
-                resource_file_key.save()
-            return resource_file_key
-        else:
+        """Get or create an unexpired FileKey for the given content."""
+        if not (content.can_be_viewed_by(self) and content.resource_file):
             return None
+        resource_file_key = (
+            ResourceFileKey.objects.filter(
+                resource_file=content.resource_file,
+                user=self,
+                created_at__gt=ResourceFileKey.oldest_valid_time(),
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if not resource_file_key:
+            # Pruned here rather than on every lookup: reusing a live key is the common
+            # case and stays read-only, which matters on a single-writer backend.
+            ResourceFileKey.prune_expired()
+            resource_file_key = ResourceFileKey.objects.create(
+                resource_file=content.resource_file, user=self
+            )
+        return resource_file_key
+
+
+def describe_user_for_attribution(user):
+    """Name and netid, for records that must outlive the User row."""
+    full_name = user.get_full_name().strip()
+    if user.netid:
+        return f"{full_name} ({user.netid})".strip()
+    return full_name or user.username
+
+
+@receiver(pre_delete, sender=settings.AUTH_USER_MODEL)
+def stamp_previous_owner_on_annotation_sets(sender, instance, **kwargs):
+    """Preserve attribution before the database nulls AnnotationSet.owner.
+
+    on_delete=SET_NULL runs in the database, which cannot populate a sibling column,
+    so deleting an account would otherwise leave its sets labelled only "no owner".
+    """
+    instance.owned_annotation_sets.update(
+        previous_owner=describe_user_for_attribution(instance)
+    )
 
 
 class ResourceAccess(models.Model):  # "through" model
@@ -288,7 +342,6 @@ class Playlist(models.Model):
     )
     published = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
-    public = models.BooleanField(default=False)
     courses = models.ManyToManyField("Course", related_name="playlists", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -299,13 +352,38 @@ class Playlist(models.Model):
     class Meta:
         unique_together = ("name", "owner")
 
-    def get_instructors_and_tas(self):
-        """Get all users with instructor or TA access to this playlist."""
-        instructor_tas = PlaylistUserAccess.objects.filter(
-            playlist=self,
-            playlist_role__in=[PlaylistRole.INSTRUCTOR, PlaylistRole.TA],
-        ).select_related("user")
-        return [access.user for access in instructor_tas]
+    def can_be_administered_by(self, user):
+        """Delete the playlist; grant the TA or INSTRUCTOR role."""
+        return user.is_superuser or self.owner_id == user.pk
+
+    def can_be_edited_by(self, user):
+        """Settings, contents, course assignment, granting read-only roles."""
+        return (
+            self.can_be_administered_by(user)
+            or PlaylistUserAccess.objects.filter(
+                user=user,
+                playlist=self,
+                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+            ).exists()
+        )
+
+    def can_be_viewed_by(self, user):
+        return self.can_be_edited_by(user) or (
+            self.published
+            and not self.archived
+            and (
+                PlaylistUserAccess.objects.filter(user=user, playlist=self).exists()
+                or self.courses.filter(
+                    usercourses__user=user,
+                    usercourses__yearterm__in=active_yearterms(),
+                ).exists()
+            )
+        )
+
+    def can_grant_role(self, user, role):
+        if role in (PlaylistRole.INSTRUCTOR, PlaylistRole.TA):
+            return self.can_be_administered_by(user)
+        return self.can_be_edited_by(user)
 
 
 class PlaylistUserAccess(models.Model):  # "through" model
@@ -497,30 +575,76 @@ class AnnotationSet(models.Model):
         "Resource", on_delete=models.CASCADE, related_name="annotation_sets"
     )
     owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="owned_annotation_sets"
+        User,
+        on_delete=models.SET_NULL,
+        related_name="owned_annotation_sets",
+        null=True,
+        blank=True,
     )
-    editors = models.ManyToManyField(
-        User, related_name="editable_annotation_sets", blank=True
+    previous_owner = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=(
+            "Display name and netid of the owner at the time the set was orphaned. "
+            "Preserves attribution after the owner deletes the set or their account."
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [["name", "resource"]]
+        unique_together = [["name", "resource", "owner"]]
         ordering = ["name"]
 
     def __str__(self):
-        return f"{self.name} ({self.owner.first_name} {self.owner.last_name}) | {self.resource.name}"
+        return f"{self.name} ({self.owner_label()}) | {self.resource.name}"
 
-    def can_edit(self, user):
-        """Check if user can edit this annotation set."""
-        return user == self.owner or user in self.editors.all() or user.is_admin
+    def owner_label(self):
+        """Chooser and admin label for the owner, which may be NULL."""
+        if self.owner_id:
+            return self.owner.get_full_name()
+        if self.previous_owner:
+            return f"no owner — was {self.previous_owner}"
+        return "no owner"
 
-    def can_be_viewed_by(self, user):
-        """Check if user can view this annotation set (through any content using the resource)."""
-        return Content.objects.filter(
-            resource=self.resource, playlist__owner=user
-        ).exists() or self.can_edit(user)
+    def is_orphaned(self):
+        return self.owner_id is None
+
+    def can_be_edited_by(self, user):
+        if user.is_superuser:
+            return True
+        # An orphaned set is frozen: readable and copyable by anyone with resource
+        # access, editable by nobody, so a borrower cannot have it changed underneath
+        # them. Checked explicitly because the owner comparison below would only
+        # happen to be False for a NULL owner.
+        if self.owner_id is None:
+            return False
+        return (
+            self.owner_id == user.pk
+            or PlaylistUserAccess.objects.filter(
+                user=user,
+                playlist__owner_id=self.owner_id,
+                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+            ).exists()
+        )
+
+    def can_be_read_by(self, user):
+        return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
+
+    def can_be_orphaned_by(self, user):
+        """Only the owner may retire a set, mirroring a TA's inability to delete a playlist."""
+        return user.is_superuser or self.owner_id == user.pk
+
+    def orphan(self):
+        """Retire this set without deleting it.
+
+        Contents that already reference it keep working, and it stays readable and
+        copyable, so retiring a set never forces borrowers into near-identical copies.
+        """
+        if self.owner_id:
+            self.previous_owner = describe_user_for_attribution(self.owner)
+        self.owner = None
+        self.save(update_fields=["owner", "previous_owner", "updated_at"])
 
     @classmethod
     def create_for_content(
@@ -531,14 +655,10 @@ class AnnotationSet(models.Model):
         annotation_set_json=None,
         annotation_set_id_to_copy=None,
     ):
-        """
-        Create a new AnnotationSet for a content's resource.
-        Automatically adds playlist owner and instructor/TAs as editors.
-        """
+        """Create a new AnnotationSet for a content's resource, owned by `user`."""
 
         try:
             with transaction.atomic():
-                playlist = content.playlist
                 resource = content.get_resource()
 
                 if not resource:
@@ -552,9 +672,10 @@ class AnnotationSet(models.Model):
                 else:
                     name = f"{user.get_full_name()}'s Annotations"
 
-                # check for set with the same name and resource combination
+                # names only have to be unique per (name, resource, owner), so
+                # another instructor's identically named set is not a conflict
                 existing_count = cls.objects.filter(
-                    name__startswith=name, resource=resource
+                    name__startswith=name, resource=resource, owner=user
                 ).count()
                 if existing_count > 0:
                     name = f"{name} ({existing_count + 1})"
@@ -562,10 +683,6 @@ class AnnotationSet(models.Model):
                 annotation_set = cls.objects.create(
                     name=name, resource=resource, owner=user
                 )
-
-                # Add all playlist instructors/TAs as editors
-                instructors_and_tas = playlist.get_instructors_and_tas()
-                annotation_set.editors.add(*instructors_and_tas)
 
                 # create new annotations if provided (if importing from json, for example)
                 if annotation_set_json is not None and isinstance(
@@ -780,6 +897,23 @@ class Content(models.Model):
             self.resource = self.resource_file.resource
         super().save(*args, **kwargs)
 
+    def can_be_edited_by(self, user):
+        return bool(self.playlist_id) and self.playlist.can_be_edited_by(user)
+
+    def can_be_viewed_by(self, user):
+        """Unpublished content is a draft, so only the people who can edit it see it.
+
+        The playlist listing already hides unpublished rows from read-only users, but
+        content ids are sequential, so that is presentation rather than a boundary.
+        """
+        if self.can_be_edited_by(user):
+            return True
+        return (
+            self.published
+            and bool(self.playlist_id)
+            and self.playlist.can_be_viewed_by(user)
+        )
+
     def get_resource(self):
         if self.resource_id:
             return self.resource
@@ -790,12 +924,23 @@ class Content(models.Model):
     def is_url_only(self):
         return self.resource_file_id is None and bool(self.url)
 
-    def get_available_annotation_sets(self):
-        """Get all AnnotationSets available for this content's resource."""
+    def get_available_annotation_sets(self, user=None):
+        """AnnotationSets on this content's resource that `user` may read.
+
+        Includes sets the user cannot edit -- sharing is the point -- so callers
+        rendering a chooser must mark those rather than assume they are editable.
+        """
         resource = self.get_resource()
         if not resource:
             return AnnotationSet.objects.none()
-        return AnnotationSet.objects.filter(resource=resource)
+        sets = AnnotationSet.objects.filter(resource=resource)
+        if user is None:
+            return sets
+        return [
+            annotation_set
+            for annotation_set in sets
+            if annotation_set.can_be_read_by(user)
+        ]
 
     def get_subtitles(self):
         """
@@ -1510,7 +1655,6 @@ class BlurAnnotationPosition(models.Model):
     y = models.FloatField(null=False, blank=False)
     width = models.FloatField(null=False, blank=False)
     height = models.FloatField(null=False, blank=False)
-    blur_amount = models.IntegerField(null=False, blank=False, default=60)
 
     class Meta:
         # Interpolating between positions is only correct on a sorted sequence, so no caller should
@@ -1582,6 +1726,69 @@ class Clip(BaseAnnotation):
 
     def __str__(self):
         return f"Clip {self.name} | {self.start_time}-{self.end_time} | {self.id}"
+
+
+# Course-derived playlist access extends this far past a term's official start and
+# end, so a student is not locked out of last term's materials the day it ends.
+TERM_GRACE_PERIOD = timedelta(days=14)
+
+
+class YearTerm(models.Model):
+    """Local cache of the term calendar the BYU API publishes.
+
+    Course-derived permission checks need term start and end dates on every request,
+    which rules out calling the API from a predicate. Refreshed by the
+    refresh_year_terms management command.
+    """
+
+    yearterm = models.CharField(max_length=5, unique=True)
+    start_date_time = models.DateTimeField()
+    end_date_time = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["start_date_time"]
+
+    def __str__(self):
+        return f"{self.yearterm} | {self.start_date_time:%Y-%m-%d} - {self.end_date_time:%Y-%m-%d}"
+
+    def is_active(self, now=None):
+        if now is None:
+            now = timezone.now()
+        return (
+            self.start_date_time - TERM_GRACE_PERIOD
+            <= now
+            <= self.end_date_time + TERM_GRACE_PERIOD
+        )
+
+
+def active_yearterms(now=None):
+    """Yearterms whose [start - grace, end + grace] window contains `now`.
+
+    Returns a list because the grace periods of two consecutive terms overlap.
+    Falls back to the date-based estimate when the cache has nothing to say, since
+    failing closed would lock every student out of every course-assigned playlist.
+    """
+    if now is None:
+        now = timezone.now()
+    active = [
+        year_term.yearterm
+        for year_term in YearTerm.objects.filter(
+            start_date_time__lte=now + TERM_GRACE_PERIOD,
+            end_date_time__gte=now - TERM_GRACE_PERIOD,
+        )
+    ]
+    if not active:
+        estimated = estimate_current_yearterm(timezone.localtime(now).date())
+        logger.error(
+            "No cached yearterm covers %s; falling back to the estimated current "
+            "term %s. Run `manage.py refresh_year_terms` to repopulate the cache.",
+            now,
+            estimated,
+        )
+        return [estimated]
+    return active
 
 
 class Course(models.Model):
@@ -1747,6 +1954,20 @@ class Subtitle(models.Model):
     class Meta:
         unique_together = ("resource", "owner", "language", "name")
 
+    def can_be_edited_by(self, user):
+        return (
+            user.is_superuser
+            or self.owner_id == user.pk
+            or PlaylistUserAccess.objects.filter(
+                user=user,
+                playlist__owner_id=self.owner_id,
+                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+            ).exists()
+        )
+
+    def can_be_read_by(self, user):
+        return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
+
 
 class ResourceFileKey(models.Model):  # "through" model
     user = models.ForeignKey(
@@ -1760,8 +1981,25 @@ class ResourceFileKey(models.Model):  # "through" model
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    LIFETIME = timedelta(hours=24)
+
     def __str__(self):
         return f"{self.user.first_name} {self.user.last_name} | {self.resource_file.resource.name} | {self.resource_file.version} | {self.id}"
+
+    @classmethod
+    def oldest_valid_time(cls):
+        return timezone.now() - cls.LIFETIME
+
+    @classmethod
+    def prune_expired(cls):
+        """Keys are minted per playback, so without this the table grows forever."""
+        cls.objects.filter(created_at__lte=cls.oldest_valid_time()).delete()
+
+    def is_expired(self):
+        return self.created_at <= self.oldest_valid_time()
+
+    def can_be_used_by(self, user):
+        return self.user_id == user.pk and not self.is_expired()
 
 
 class Email(models.Model):

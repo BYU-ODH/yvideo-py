@@ -2032,6 +2032,8 @@ class LegacyMigrationTests(TestCase):
                 "migration_kind": "resource",
                 "legacy_reference": str(uuid.uuid4()),
                 "request_notes": "Please migrate this resource.",
+                "acknowledged_compliance": "on",
+                "acknowledged_fair_use_limitation": "on",
             },
         )
 
@@ -2063,6 +2065,8 @@ class LegacyMigrationTests(TestCase):
                 "migration_kind": "resource",
                 "legacy_reference": str(uuid.uuid4()),
                 "request_notes": "Please migrate this resource.",
+                "acknowledged_compliance": "on",
+                "acknowledged_fair_use_limitation": "on",
             },
         )
 
@@ -2111,6 +2115,17 @@ class LegacyMigrationTests(TestCase):
         self.assertContains(response, "What would you like to move?")
         self.assertContains(response, "legacy-migrations-instructions")
         self.assertContains(response, "legacy-migrations-help-text", count=2)
+        self.assertContains(response, "Legal compliance")
+        self.assertContains(response, "BYU Visual Teaching Materials Policy")
+        self.assertContains(response, "BYU Copyright Policy")
+        self.assertContains(response, "BYU's Fair Use checklist")
+        self.assertContains(response, "legacy-migrations-submission")
+        self.assertContains(
+            response,
+            '<button type="submit" class="large-button legacy-migrations-submit" disabled>Submit request</button>',
+            html=True,
+        )
+        self.assertContains(response, "js/legacy_migration_requests.js")
         self.assertContains(response, "Your requests")
         self.assertContains(response, "legacy-migrations-table-wrapper")
         self.assertContains(
@@ -2124,6 +2139,35 @@ class LegacyMigrationTests(TestCase):
         )
         self.assertNotContains(response, "preflight")
         self.assertNotContains(response, "Django admin")
+
+    def test_request_requires_both_legal_compliance_acknowledgements(self):
+        instructor = UserFactory(instructor=True)
+        client = Client()
+        client.force_login(
+            instructor, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        for omitted_field in (
+            "acknowledged_compliance",
+            "acknowledged_fair_use_limitation",
+        ):
+            data = {
+                "migration_kind": "resource",
+                "legacy_reference": str(uuid.uuid4()),
+                "request_notes": "Please migrate this resource.",
+                "acknowledged_compliance": "on",
+                "acknowledged_fair_use_limitation": "on",
+            }
+            del data[omitted_field]
+
+            with self.subTest(omitted_field=omitted_field):
+                response = client.post(
+                    reverse("create_legacy_migration_request"), data=data
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertFalse(LegacyMigrationRequest.objects.exists())
+                self.assertIn(omitted_field, response.context["form"].errors)
 
     @override_settings(LEGACY_MIGRATION_ENABLED=False)
     def test_legacy_migration_views_return_404_when_feature_disabled(self):

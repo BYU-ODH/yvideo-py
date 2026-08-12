@@ -1,0 +1,87 @@
+{% extends "core/base.html" %}
+
+{% block title %}What's new in Y-Video{% endblock %}
+
+{% block content %}
+    <div class="main-content prose-page">
+        <h1>What's new in Y-Video</h1>
+        <p class="prose-lead">
+            If you taught with the previous version of Y-Video, most of what you know still
+            applies. A few things were renamed, and a few things you used to work around are
+            now built in. Here is what changed.
+        </p>
+
+        <section>
+            <h2>Collections are now &lsquo;Playlists&rsquo;</h2>
+            <p>
+                What you built as a <strong>collection</strong> is called a
+                <strong>playlist</strong> now. Nothing about how you use it changed: it is
+                still the shelf you put media on and hand to a class.
+            </p>
+        </section>
+
+        <section>
+            <h2>Annotation sets are shareable</h2>
+            <p>
+                The edits you make to a film are stored in an annotation set, and that set is no longer locked to
+                one piece of content. An annotation set is linked to the underlying media, so the same
+                set can be used by any content built from that media &mdash; yours or a
+                colleague's.
+            </p>
+            <p>When you open the editor you can:</p>
+            <ul>
+                <li><strong>Create</strong> a new, empty set.</li>
+                <li><strong>Use an existing set</strong> that you or someone else already made for this media. All future changes to this annotation set are automatically applied to your content.</li>
+                <li><strong>Copy from an existing set</strong> when you want your own version to diverge from theirs.</li>
+                <li><strong>Import</strong> a set from a file, and export one to hand off.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>One editor to rule them all</h2>
+            <p>
+                The three editors in the old Y-video (video editor, clip editor, and subtitle editor)
+                are now combined into one. Each annotation type is color-coded and can be grouped
+                in custom tracks in the timeline.
+                Annotation edits save as you make them and can be undone and redone, either with
+                the toolbar buttons or with Ctrl+Z and Ctrl+Shift+Z.
+            </p>
+        </section>
+
+        <section>
+            <h2>Safer options for Fair Use</h2>
+            <p>
+                You can now limit playback to clips that you specify, which has much stronger
+                protection for Fair Use's definitions of "reasonable or limited amount" or "short portions" of a work.
+            </p>
+        </section>
+
+        {% if can_request_legacy_migration %}
+            <section>
+                <h2>Bringing your old collections over</h2>
+                <p>
+                    Your work in the previous Y-Video is not gone. You can request that a
+                    collection be migrated into this system, and it will arrive as a playlist
+                    with its content, annotations, and access list intact.
+                </p>
+                <p>
+                    Open <a href="{% url 'legacy_migration_requests' %}">Legacy Migration
+                    Requests</a> and submit the address or ID of the collection in the old
+                    system. An administrator reviews the request and runs the migration. You
+                    will be able to see the status of anything you have requested on that same
+                    page.
+                </p>
+            </section>
+        {% endif %}
+
+        <section>
+            <h2>Still stuck?</h2>
+            <p>
+                If something you relied on seems to be missing, it is worth asking! We are actively
+                developing the new system and we can probably implement your requests relatively
+                quickly. Let us know what you think
+                <a href="mailto:Russell_Hansen@byu.edu,robert_reynolds@byu.edu?subject=Y-Video%20Feedback">here</a>!
+            </p>
+        </section>
+    </div>
+{% endblock %}

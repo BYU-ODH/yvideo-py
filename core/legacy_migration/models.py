@@ -96,7 +96,6 @@ class LegacyMigrationRequest(models.Model):
     target_collection_name = models.CharField(max_length=255, blank=True)
     target_collection_published = models.BooleanField(null=True, blank=True)
     target_collection_archived = models.BooleanField(null=True, blank=True)
-    target_collection_public = models.BooleanField(null=True, blank=True)
     raw_snapshot = models.JSONField(default=dict, blank=True)
     preflight_completed_at = models.DateTimeField(null=True, blank=True)
     imported_at = models.DateTimeField(null=True, blank=True)

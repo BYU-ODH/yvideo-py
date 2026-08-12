@@ -13,43 +13,52 @@
 }
 
 .spoof-form {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: nowrap;
-    gap: 0.5rem;
     position: relative;
-    margin: 0;
+
+    display: flex;
     flex: 0 1 auto;
+    flex-flow: row nowrap;
+    gap: 0.5rem;
+    align-items: center;
+
+    margin: 0;
 }
 
 .spoof-label {
+    flex-shrink: 0;
+
     margin-right: 0.2rem;
+
     font-size: 1rem;
     font-weight: 500;
     white-space: nowrap;
-    flex-shrink: 0;
 }
 
 .spoof-input-group {
     position: relative;
-    width: clamp(9rem, 18vw, 13.75rem);
+
     display: flex;
+    flex: 0 1 auto;
     flex-direction: column;
     justify-content: flex-start;
-    flex: 0 1 auto;
+
+    width: clamp(9rem, 18vw, 13.75rem);
 }
 
 #spoof-user-input {
+    z-index: 2;
+
+    width: 100%;
     padding: 0.5rem;
     border: 1px solid var(--spoof-border-gray);
     border-radius: 6px 6px 0 0;
+
     font-size: 1rem;
-    background: var(--spoof-input-bg);
     color: black;
+
+    background: var(--spoof-input-bg);
+
     transition: border-color 0.2s;
-    width: 100%;
-    z-index: 2;
 }
 
 #spoof-user-input:focus {
@@ -59,21 +68,26 @@
 
 .spoof-select {
     position: absolute;
+    z-index: 10;
     top: 100%;
     left: 0;
+
+    overflow-y: auto;
+    display: none;
+
     width: 100%;
     min-width: 180px;
+    max-height: 66vh;
     border: 1px solid var(--spoof-border-gray);
     border-top: none;
     border-radius: 0 0 6px 6px;
+
     font-size: 1rem;
-    background: white;
     color: black;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    z-index: 10;
-    max-height: 66vh;
-    overflow-y: auto;
-    display: none;
+
+    background: white;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+
     transition: max-height 0.2s;
 }
 
@@ -82,18 +96,23 @@
 }
 
 .spoof-go-btn {
+    cursor: pointer;
+
+    flex-shrink: 0;
+
     padding: 0.6rem 1.2rem;
     border: none;
     border-radius: 6px;
-    background: var(--spoof-accent-blue);
-    color: white;
+
     font-size: 1rem;
-    cursor: pointer;
+    color: white;
+
     opacity: 0.6;
+    background: var(--spoof-accent-blue);
+
     transition:
         opacity 0.2s,
         background 0.2s;
-    flex-shrink: 0;
 }
 
 .spoof-go-btn:enabled {
@@ -102,41 +121,47 @@
 }
 
 .spoof-go-btn:disabled {
-    background: var(--spoof-accent-blue);
-    opacity: 0.6;
     cursor: not-allowed;
+    opacity: 0.6;
+    background: var(--spoof-accent-blue);
 }
 
 #spoof-warning {
-    background: var(--spoof-warning-bg);
     position: static;
-    color: var(--spoof-warning-red);
+    z-index: 1;
+
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+
+    min-width: 0;
+    max-width: 100%;
     padding: 0.55rem 0.9rem;
     border: 1px solid var(--spoof-warning-border);
     border-radius: 0.75rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    max-width: 100%;
-    min-width: 0;
-    z-index: 1;
+
+    color: var(--spoof-warning-red);
+
+    background: var(--spoof-warning-bg);
 }
 
 .spoof-warning-message {
-    min-width: 0;
-    flex: 1 1 auto;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     direction: rtl;
+    overflow: hidden;
+    flex: 1 1 auto;
+
+    min-width: 0;
+
     text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .spoof-warning-message-content {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
     direction: ltr;
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
 }
 
 .spoof-warning-target {
@@ -144,17 +169,34 @@
 }
 
 .spoof-warning-as {
-    color: var(--spoof-warning-muted);
     font-size: 0.95rem;
+    color: var(--spoof-warning-muted);
+}
+
+/* Keeps the button a direct flex child of #spoof-warning, so the form wrapper
+   does not become the flex item and the gap and sizing below still apply. */
+.spoof-warning-stop-form {
+    display: contents;
 }
 
 .spoof-warning-stop {
-    color: var(--spoof-warning-red);
-    font-weight: 600;
-    text-decoration: none;
-    margin-left: 0.15rem;
+    cursor: pointer;
+
     flex: 0 0 auto;
+
+    margin-left: 0.15rem;
+    padding: 0;
+    border: 0;
+
+    font: inherit;
+    font-weight: 600;
+    color: var(--spoof-warning-red);
+    text-decoration: none;
     white-space: nowrap;
+
+    /* Stripping the user-agent button chrome: this is a button so that ending a
+       spoof is a CSRF-protected POST, but it reads as the link it replaced. */
+    background: none;
 }
 
 .spoof-warning-stop:hover {

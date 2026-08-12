@@ -39,6 +39,17 @@ repos:
     hooks:
       - id: uv-lock
 
+  - repo: https://github.com/thibaudcolas/pre-commit-stylelint
+    rev: v17.14.1
+    hooks:
+      - id: stylelint
+        args: [--fix]
+        additional_dependencies:
+          - stylelint@17.14.1
+          - stylelint-config-clean-order@10.0.0
+          - stylelint-config-standard@40.0.0
+          - stylelint-order@8.1.1
+
   - repo: local
     hooks:
       - id: django-makemigrations-check

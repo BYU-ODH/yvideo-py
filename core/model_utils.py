@@ -28,32 +28,25 @@ def log_error(error_message, error_info={}, exception=None):
     )
 
 
-def get_or_create_course(course):
+def get_or_create_course(course, yearterm):
     """
-    Checks if the course already exists, if not, it will create it. The
-    pre-existing course, or new course will be returned unless there is
-    an error. If an error occurs, returns None.
+    Takes an enrollment record as returned by `Api.get_student_enrollments`.
+    Returns the pre-existing or newly created `Course`, or None on error.
     """
     try:
-        course_obj = Course.objects.filter(
+        course_obj, _ = Course.objects.get_or_create(
             dept=course["teaching_area"],
             catalog_number=course["catalog_number"] + course["catalog_suffix"],
             section_number=course["section_number"],
+            yearterm=yearterm,
         )
-    except Course.DoesNotExist:
-        try:
-            course_obj = Course.objects.create(
-                dept=course["teaching_area"],
-                catalog_number=course["catalog_number"] + course["catalog_suffix"],
-                section_number=course["section_number"],
-            )
-        except Exception as e:
-            log_error(
-                "An error occurred while creating a new course",
-                {"course_info": course},
-                e,
-            )
-            return None
+    except Exception as e:
+        log_error(
+            "An error occurred while getting or creating a course",
+            {"course_info": course, "yearterm": yearterm},
+            e,
+        )
+        return None
     return course_obj
 
 
@@ -87,6 +80,44 @@ def create_user_course_association(user, course, yearterm):
             e,
         )
         return False
+    return True
+
+
+def is_withdrawn(enrollment_record):
+    """The API marks a dropped enrollment with a withdraw_flag of "Y"."""
+    return str(enrollment_record.get("withdraw_flag", "")).strip().upper() == "Y"
+
+
+def sync_term_enrollment(user, yearterm, enrollment_records):
+    """Make this user's course associations for one term match `enrollment_records`.
+
+    Courses that are no longer returned are dropped, since course-derived playlist
+    access is supposed to follow current enrollment. `enrollment_records` must be a
+    list the API actually returned; callers check for a failed lookup first, because
+    revoking on one would lock a student out whenever the API is unreachable.
+    Returns False if any record could not be recorded, in which case nothing is
+    revoked either -- a partial list is indistinguishable from a set of drops.
+    """
+    succeeded = True
+    enrolled_course_ids = set()
+    for record in enrollment_records:
+        if is_withdrawn(record):
+            continue
+        course = get_or_create_course(record, yearterm)
+        if course is None:
+            succeeded = False
+            continue
+        if create_user_course_association(user, course, yearterm):
+            enrolled_course_ids.add(course.id)
+        else:
+            succeeded = False
+
+    if not succeeded:
+        return False
+
+    UserCourses.objects.filter(user=user, yearterm=yearterm).exclude(
+        course_id__in=enrolled_course_ids
+    ).delete()
     return True
 
 
@@ -178,8 +209,8 @@ def update_user_enrollment(user):
         "is_next_sem_updated": False,
         "result_message": "Failed to update user enrollment",
     }
-    # don't bother if we don't have a netid for the user
-    if user.username is None:
+    # The enrollments endpoint is keyed on netid; username holds the BYU ID.
+    if not user.netid:
         update_result["result_message"] = "Unknown user"
         return update_result
     # get the current yearterm
@@ -190,40 +221,26 @@ def update_user_enrollment(user):
     current_yearterm = current_yearterm_lookup["yearterm"]
     next_yearterm = api.calculate_next_year_term(current_yearterm)
 
-    current_user_enrollments = api.get_student_enrollments(
-        user.username, current_yearterm
-    )
+    current_user_enrollments = api.get_student_enrollments(user.netid, current_yearterm)
 
     updated_current_sem_correctly = True
     if current_user_enrollments is None:
         updated_current_sem_correctly = False
     else:
-        for course in current_user_enrollments:
-            result = get_or_create_course(course)
-            if result is None:
-                updated_current_sem_correctly = False
-                continue
-
-            if not create_user_course_association(user, course, current_yearterm):
-                updated_current_sem_correctly = False
+        updated_current_sem_correctly = sync_term_enrollment(
+            user, current_yearterm, current_user_enrollments
+        )
 
     updated_next_sem_correctly = True
     if current_yearterm_lookup["is_two_weeks_from_end"]:
-        next_yearterm_courses = api.get_student_enrollments(
-            user.username, next_yearterm
-        )
+        next_yearterm_courses = api.get_student_enrollments(user.netid, next_yearterm)
 
         if next_yearterm_courses is None:
             updated_next_sem_correctly = False
         else:
-            for course in next_yearterm_courses:
-                result = get_or_create_course(course)
-                if result is None:
-                    updated_next_sem_correctly = False
-                    continue
-
-                if not create_user_course_association(user, course, current_yearterm):
-                    updated_next_sem_correctly = False
+            updated_next_sem_correctly = sync_term_enrollment(
+                user, next_yearterm, next_yearterm_courses
+            )
 
     result_message = ""
     if not updated_current_sem_correctly or not updated_next_sem_correctly:

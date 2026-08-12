@@ -19,14 +19,13 @@ function setupSubmit() {
       console.log("at least one content settings form input is undefined.");
       return;
     }
-    await fetch("/content/update/", {
+    await fetch(`/content/${idInput.value}/update/`, {
       method: "POST",
       headers: {
         "X-CSRFToken": getCSRFToken(),
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "id": idInput.value,
         "title": titleInput.value,
         "published": publishedInput.checked,
         "allow_definitions": allowDefsInput.checked,
@@ -52,7 +51,7 @@ function setupReset() {
   }
   resetButton.addEventListener("click", async () => {
     const contentId = contentIdInput.value;
-    const resetResponse = await fetch(`/content/render-settings-form/${contentId}/`);
+    const resetResponse = await fetch(`/content/${contentId}/render-settings-form/`);
     if (!resetResponse.ok) {
       console.error("Failed to reset content settings form");
       return;
