@@ -2,7 +2,7 @@
 
 <div id="content-settings-form" class="column-flex" method="post" action="/content/update/">
     <input id="content-id-input" hidden disabled value="{{ content.id }}">
-    <div class="row-flex">
+    <div class="row-flex-content-settings-form">
         <div class="column-flex">
             <div class="content-form-group">
                 <label for="title">Title</label>
@@ -12,7 +12,7 @@
                 <label for="published">Published:</label>
                 <input id="published" type="checkbox" {% if content.published %}checked{% endif %}>
             </div>
-            <div class="row-flex">
+            <div class="row-flex content-settings-options">
                 <div class="content-form-group">
                     <label for="allow-definitions">Allow definitions:</label>
                     <input id="allow-definitions" type="checkbox" {% if content.allow_definitions %}checked{% endif %}>
