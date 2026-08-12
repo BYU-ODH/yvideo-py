@@ -1532,28 +1532,6 @@ p.tile-subtitle {
     color: var(--darker-grey);
 }
 
-.terminology-table {
-    border-collapse: collapse;
-    margin: 1rem 0;
-}
-
-.terminology-table caption {
-    padding-bottom: 0.5rem;
-    font-weight: 600;
-    text-align: left;
-}
-
-.terminology-table th,
-.terminology-table td {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--light-grey);
-    text-align: left;
-}
-
-.terminology-table th {
-    background-color: var(--selectable-grey);
-}
-
 
 /* about page */
 #about-page {

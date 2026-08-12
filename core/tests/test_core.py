@@ -742,7 +742,6 @@ class AnnotationSetCreateForContentTests(TestCase):
                 y=y,
                 width=100.0,
                 height=80.0,
-                blur_amount=60,
             )
 
         # Tracks 1-4 collectively cover every annotation type at least once so
@@ -807,7 +806,6 @@ class AnnotationSetCreateForContentTests(TestCase):
                 y=y,
                 width=50.0,
                 height=50.0,
-                blur_amount=55,
             )
 
     def _assert_annotation_set_json_is_correct(self, original_set_json, new_set_json):
@@ -904,9 +902,6 @@ class AnnotationSetCreateForContentTests(TestCase):
                     self.assertTrue(orig_position["y"] == new_position["y"])
                     self.assertTrue(orig_position["width"] == new_position["width"])
                     self.assertTrue(orig_position["height"] == new_position["height"])
-                    self.assertTrue(
-                        orig_position["blur_amount"] == new_position["blur_amount"]
-                    )
 
     def test_create_for_content_with_annotations_json(self):
         original_set_json = self.original_set.to_player_json()
