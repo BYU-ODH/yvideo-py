@@ -109,9 +109,9 @@ a.blue-button {
 }
 
 .cancel-button {
-    color: var(--dark-primary-blue);
-    background-color: white;
-    border: 2px solid var(--dark-primary-blue);
+    color: white;
+    background-color: var(--dark-grey);
+    border: none;
 }
 
 .cancel-button:hover {
@@ -172,15 +172,12 @@ a.blue-button {
 }
 
 .row-flex {
-    display: flex;
-    flex-direction: row;
-    align-content: center;
     column-gap: 1rem;
 }
 
 .flex-apart-aligned {
     justify-content: space-between;
-    align-items: center;
+    display: flex;
 }
 
 .flex-apart {
@@ -191,7 +188,6 @@ a.blue-button {
     display: flex;
     flex-direction: column;
     row-gap: 1rem;
-    padding-top: 1rem;
     column-gap: 3rem;
 }
 
@@ -698,6 +694,10 @@ a.blue-button {
     min-width: 0;
     padding: 1rem;
     margin: 0px auto;
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 clamp(16px, 5vw, 80px);
+
 }
 
 #resource-search-input {
@@ -752,11 +752,11 @@ a.blue-button {
     gap: 30px;
 }
 
-.landing-page-playlist-list {
+/* .landing-page-playlist-list {
     max-width: 1200px;
     margin: 40px auto 0;
     padding: 0 clamp(16px, 5vw, 80px);
-}
+} */
 .landing-page-playlist {
     border-radius: 12px;
     box-shadow: rgb(185, 184, 184) 0px 1px 3px;
@@ -1364,11 +1364,11 @@ p.tile-subtitle {
 
 
 /* Video Page */
-.playlist-video-page {
+/* .playlist-video-page {
     max-width: 1200px;
     margin: 40px auto 0;
     padding: 0 clamp(16px, 5vw, 80px);
-}
+} */
 
 #playlist-videos-header {
     align-items: flex-end;
@@ -1447,8 +1447,6 @@ h4.video-title {
 
 .content-form-group {
     display: flex;
-    /* flex-direction: column; */
-    row-gap: 0.35rem;
 }
 
 .content-form-group label {
@@ -1458,8 +1456,7 @@ h4.video-title {
 }
 
 .content-form-group input {
-    padding: 0 10px;
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 .add-youtube-video-error {

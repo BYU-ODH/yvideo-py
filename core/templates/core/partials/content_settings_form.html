@@ -9,24 +9,24 @@
                 <input id="title" type="text" value="{{ content.title }}">
             </div>
             <div class="content-form-group">
-                <label for="published">Published</label>
+                <label for="published">Published:</label>
                 <input id="published" type="checkbox" {% if content.published %}checked{% endif %}>
             </div>
             <div class="row-flex">
                 <div class="content-form-group">
-                    <label for="allow-definitions">Allow definitions</label>
+                    <label for="allow-definitions">Allow definitions:</label>
                     <input id="allow-definitions" type="checkbox" {% if content.allow_definitions %}checked{% endif %}>
                 </div>
                 <div class="content-form-group">
-                    <label for="allow-notes">Allow notes</label>
+                    <label for="allow-notes">Allow notes:</label>
                     <input id="allow-notes" type="checkbox" {% if content.allow_notes %}checked{% endif %}>
                 </div>
                 <div class="content-form-group">
-                    <label for="allow-captions">Allow captions</label>
+                    <label for="allow-captions">Allow captions:</label>
                     <input id="allow-captions" type="checkbox" {% if content.allow_captions %}checked{% endif %}>
                 </div>
                 <div class="content-form-group">
-                    <label for="allow-fast-playback">Allow fast playback</label>
+                    <label for="allow-fast-playback">Allow fast playback:</label>
                     <input id="allow-fast-playback" type="checkbox" {% if content.allow_fast_playback %}checked{% endif %}>
                 </div>
                 {% comment %}
@@ -35,7 +35,7 @@
                    initial paint before that script runs; keep both in sync.
                 {% endcomment %}
                 <div id="clips-only-form-group" class="content-form-group{% if content.clips_only and not content_has_clips %} clips-only-invalid{% endif %}">
-                    <label for="clips-only">Show only clips defined in the editor (better Fair Use protection)</label>
+                    <label for="clips-only">Show only clips defined in the editor (better Fair Use protection):</label>
                     <input id="clips-only" type="checkbox" {% if content.clips_only %}checked{% endif %} data-content-has-clips="{{ content_has_clips|yesno:'true,false' }}">
                 </div>
             </div>
