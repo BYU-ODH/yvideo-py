@@ -46,23 +46,6 @@ class PlaylistSettingsForm(forms.ModelForm):
         fields = ["name", "published", "archived"]
 
 
-class ContentForm(forms.ModelForm):
-    confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
-
-    class Meta:
-        model = Content
-        fields = [
-            "title",
-            "description",
-            "allow_definitions",
-            "allow_notes",
-            "allow_captions",
-            "allow_fast_playback",
-            "clips_only",
-            "resource_file",
-        ]
-
-
 class UpdateContentForm(forms.ModelForm):
     confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
 

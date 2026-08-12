@@ -182,11 +182,6 @@ class StrangerIsRefusedTests(TestCase):
 
     # --- content ----------------------------------------------------------------
 
-    def test_display_create_content_refuses_a_stranger(self):
-        self.assert_refused(
-            self.client.get(reverse("display_create_content", args=[self.playlist.pk]))
-        )
-
     def test_create_content_refuses_a_stranger(self):
         response = self.post_json(
             reverse("create_content", args=[self.playlist.pk]),
@@ -196,19 +191,22 @@ class StrangerIsRefusedTests(TestCase):
         self.assert_refused(response)
         self.assertFalse(Content.objects.filter(title="Injected").exists())
 
-    def test_display_create_from_resource_refuses_a_stranger(self):
-        self.assert_refused(
-            self.client.get(
-                reverse("display_create_from_resource", args=[self.playlist.pk])
-            )
-        )
-
     def test_render_create_from_resource_form_refuses_a_stranger(self):
         self.assert_refused(
             self.client.post(
                 reverse(
                     "render_create_from_resource_form",
                     args=[self.playlist.pk, self.resource.pk],
+                )
+            )
+        )
+
+    def test_render_create_from_resource_resources_refuses_a_stranger(self):
+        self.assert_refused(
+            self.client.get(
+                reverse(
+                    "render_create_from_resource_resources",
+                    args=[self.playlist.pk],
                 )
             )
         )

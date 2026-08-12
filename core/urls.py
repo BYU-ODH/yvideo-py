@@ -71,11 +71,6 @@ urlpatterns = [
         name="update_playlist_settings",
     ),
     path(
-        "playlists/<int:playlist_id>/content/display-create/",
-        views.display_create_content,
-        name="display_create_content",
-    ),
-    path(
         "playlists/<int:playlist_id>/content/create/",
         views.create_content,
         name="create_content",
@@ -86,9 +81,9 @@ urlpatterns = [
         name="create_content_from_youtube_url",
     ),
     path(
-        "playlists/<int:playlist_id>/create-from-resource/",
-        views.display_create_from_resource,
-        name="display_create_from_resource",
+        "playlists/<int:playlist_id>/create-from-resource/resources/",
+        views.render_create_from_resource_resources,
+        name="render_create_from_resource_resources",
     ),
     path(
         "playlists/<int:playlist_id>/create-from-resource/<int:resource_id>/form/",

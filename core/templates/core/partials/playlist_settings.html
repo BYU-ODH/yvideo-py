@@ -25,48 +25,8 @@
             </div>
         </form>
     </div>
-    <dialog id="playlist-delete-modal" class="user-view-modal">
-        <h3 class="user-view-modal-header">
-            Delete this playlist?
-        </h3>
-        <div class="user-view-modal-body row-flex flex-apart-aligned">
-            <button id="playlist-confirm-delete" class="blue-button">
-                Yes
-            </button>
-            <button class="cancel-button" command="close" commandfor="playlist-delete-modal">
-                No
-            </button>
-        </div>
-    </dialog>
-    <dialog id="playlist-course-assignments-modal" class="user-view-modal">
-        <h3 class="user-view-modal-header">
-            Edit Course Assignments
-        </h3>
-        <div class="user-view-modal-body column-flex">
-            <div class="row-flex">
-                <div class="column-flex">
-                    <label for="semester-select">Semester</label>
-                    <select id="semester-select">
-                        <option {% if semester == 5 %}selected{% endif %} value="5">Fall</option>
-                        <option {% if semester == 1 %}selected{% endif %} value="1">Winter</option>
-                        <option {% if semester == 3 %}selected{% endif %} value="3">Spring</option>
-                        <option {% if semester == 4 %}selected{% endif %} value="4">Summer</option>
-                    </select>
-                </div>
-                <div class="column-flex">
-                    <label for="year-select">Year</label>
-                    <select id="year-select">
-                        {% for year_option in year_options %}
-                            <option {% if year_option.current %}selected{% endif %} value="{{ year_option.value }}">{{ year_option.value }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-            <div id="course-assignment-container">
-                {% include 'core/partials/course_assignment.html' %}
-            </div>
-        </div>
-    </dialog>
+    {% include "core/partials/modals/playlist_delete.html" with dialog_id="playlist-delete-modal" %}
+    {% include "core/partials/modals/playlist_course_assignments.html" with dialog_id="playlist-course-assignments-modal" %}
     <div class="column-flex flex-apart">
         <button id="playlist-settings-delete" class="red-button" command="show-modal" commandfor="playlist-delete-modal">
             Delete Playlist
