@@ -1326,7 +1326,6 @@ class LegacyMigrationService:
             "allow_notes": bool(content_row["allow_notes"]),
             "allow_captions": bool(content_row["allow_captions"]),
             "published": bool(content_row["published"]),
-            "words": content_row["words"] or "",
         }
         if mapped_content:
             for field_name, value in defaults.items():
@@ -1516,7 +1515,6 @@ class LegacyMigrationService:
                 "language": language,
                 "name": subtitle_row["title"] or language.language,
                 "is_original": True,
-                "words": subtitle_row["words"] or "",
             }
             vtt_content = build_subtitle_vtt(subtitle_row["content"])
             with transaction.atomic():

@@ -22,14 +22,15 @@ from reversion.admin import VersionAdmin
 from . import admin_legacy_migration  # noqa: F401
 from .forms import AddUserLookupForm
 from .models import AnnotationSet
+from .models import AuthToken
 from .models import BlankAnnotation
 from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
 from .models import Course
 from .models import Email
-from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
@@ -45,6 +46,7 @@ from .models import Subtitle
 from .models import Track
 from .models import User
 from .models import UserCourses
+from .models import YearTerm
 from .utils import convert_srt_content_to_vtt
 
 logger = logging.getLogger(__name__)
@@ -1000,6 +1002,23 @@ class BlurAnnotationAdmin(AnnotationAdmin):
     pass
 
 
+@admin.register(BlurAnnotationPosition)
+class BlurAnnotationPositionAdmin(VersionAdmin):
+    list_display = (
+        "blur_annotation",
+        "time",
+        "x",
+        "y",
+        "width",
+        "height",
+    )
+    search_fields = (
+        "blur_annotation__name",
+        "blur_annotation__track__annotation_set__name",
+        "blur_annotation__track__annotation_set__resource__name",
+    )
+
+
 @admin.register(Clip)
 class ClipAdmin(VersionAdmin):
     pass
@@ -1061,12 +1080,6 @@ class ResourceFileKeyAdmin(VersionAdmin):
     search_fields = ("user__netid", "user__username", "resource_file__resource__name")
 
 
-@admin.register(ImportantWord)
-class ImportantWordAdmin(VersionAdmin):
-    list_display = ("word", "translation")
-    search_fields = ("word", "translation", "content__title")
-
-
 @admin.register(AnnotationSet)
 class AnnotationSetAdmin(VersionAdmin):
     list_display = ("name", "owner_label", "resource", "created_at")
@@ -1095,3 +1108,49 @@ class TrackAdmin(VersionAdmin):
 class UserCourses(VersionAdmin):
     list_display = ("user", "course", "yearterm")
     search_fields = ("user", "course", "yearterm")
+
+
+@admin.register(YearTerm)
+class YearTermAdmin(VersionAdmin):
+    list_display = (
+        "yearterm",
+        "start_date_time",
+        "end_date_time",
+        "currently_active",
+        "updated_at",
+    )
+    search_fields = ("yearterm",)
+    ordering = ("-start_date_time",)
+
+    @admin.display(boolean=True, description="Active (incl. grace period)")
+    def currently_active(self, obj):
+        return obj.is_active()
+
+
+@admin.register(AuthToken)
+class AuthTokenAdmin(admin.ModelAdmin):
+    """Read-only view of the BYU API bearer tokens.
+
+    The token itself is a live credential, so only its last four characters are
+    shown and it can never be typed in or edited: `core.api.Api` issues and
+    rotates tokens on its own, and a hand-entered value would silently break
+    every API call until it expired. This is deliberately not a VersionAdmin,
+    which would keep a copy of the secret in the revision history. Deletion is
+    still allowed, since discarding a token is how an admin forces a refresh.
+    """
+
+    list_display = ("masked_token", "created_at")
+    fields = ("masked_token", "created_at")
+    readonly_fields = ("masked_token", "created_at")
+
+    @admin.display(description="Token")
+    def masked_token(self, obj):
+        if not obj.token:
+            return "—"
+        return f"…{obj.token[-4:]}"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

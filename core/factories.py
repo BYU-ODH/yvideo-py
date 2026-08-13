@@ -13,7 +13,6 @@ from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
 from .models import Course
-from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
 from .models import Playlist
@@ -306,16 +305,6 @@ class SubtitleFactory(factory.django.DjangoModelFactory):
         )
     )
     is_original = True
-    words = ""
-
-
-class ImportantWordFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = ImportantWord
-
-    content = factory.SubFactory(ContentFactory)
-    word = factory.Sequence(lambda n: f"word{n}")
-    translation = factory.Sequence(lambda n: f"translation{n}")
 
 
 class ResourceFileKeyFactory(factory.django.DjangoModelFactory):

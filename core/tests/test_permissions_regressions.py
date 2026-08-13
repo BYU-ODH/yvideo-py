@@ -19,7 +19,6 @@ from django.urls import reverse
 from core.factories import AnnotationSetFactory
 from core.factories import ContentFactory
 from core.factories import CourseFactory
-from core.factories import ImportantWordFactory
 from core.factories import PlaylistFactory
 from core.factories import PlaylistUserAccessFactory
 from core.factories import ResourceFactory
@@ -31,7 +30,6 @@ from core.factories import UserCourseFactory
 from core.factories import UserFactory
 from core.models import AnnotationSet
 from core.models import Content
-from core.models import ImportantWord
 from core.models import PlaylistRole
 from core.models import Track
 
@@ -229,7 +227,6 @@ class StrangerIsRefusedTests(TestCase):
             {
                 "title": "Retitled",
                 "description": "",
-                "words": "",
                 "allow_definitions": True,
                 "allow_notes": True,
                 "allow_captions": True,
@@ -248,23 +245,6 @@ class StrangerIsRefusedTests(TestCase):
 
         self.assert_refused(response)
         self.assertTrue(Content.objects.filter(pk=self.content.pk).exists())
-
-    def test_create_important_word_refuses_a_stranger(self):
-        response = self.client.post(
-            reverse("create_important_word", args=[self.content.pk]),
-            data={"word": "injected", "translation": "injected"},
-        )
-
-        self.assert_refused(response)
-        self.assertFalse(ImportantWord.objects.filter(word="injected").exists())
-
-    def test_delete_important_word_refuses_a_stranger(self):
-        word = ImportantWordFactory(content=self.content)
-
-        response = self.client.delete(reverse("delete_important_word", args=[word.pk]))
-
-        self.assert_refused(response)
-        self.assertTrue(ImportantWord.objects.filter(pk=word.pk).exists())
 
     # --- annotation sets --------------------------------------------------------
 
