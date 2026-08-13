@@ -73,15 +73,33 @@ def _select(page, name):
 
 
 def _seek(page, seconds):
+    """Seek, and wait until the rig has been redrawn around the blur at the new time.
+
+    `currentTime` reports the requested time the instant it is assigned, while the seek is still in
+    flight, so waiting on it alone proves nothing: `seeked` has not fired, and the rig is still
+    wherever the previous time left it. Hence `seeking`, and then the rig holding still across two
+    consecutive frames - a rig that is about to be moved differs between the two samples, and a busy
+    machine spends more frames here rather than running out of a fixed grace period.
+    """
+    page.evaluate("() => { delete window.__rigSample; }")
     page.evaluate("(t) => window.videoPlayer.setCurrentTime(t)", seconds)
     page.wait_for_function(
-        "(t) => Math.abs(document.querySelector('.annotation-player-container video')"
-        ".currentTime - t) < 0.2",
+        """(t) => {
+            const video = document.querySelector('.annotation-player-container video');
+            if (video.seeking || Math.abs(video.currentTime - t) >= 0.2) return false;
+            const rig = document.getElementById('blur-edit-rig');
+            // A rig being repainted every frame by playback never settles, and no caller seeks
+            // mid-playback expecting a still frame anyway.
+            if (!rig || !video.paused) return true;
+            const box = rig.getBoundingClientRect();
+            const sample = [box.x, box.y, box.width, box.height].join();
+            const settled = window.__rigSample === sample;
+            window.__rigSample = sample;
+            return settled;
+        }""",
         arg=seconds,
         timeout=5000,
     )
-    # One frame for the seeked handler to move the rig onto the new geometry.
-    page.wait_for_timeout(150)
 
 
 def _frame_box(page):
