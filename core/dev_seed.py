@@ -274,28 +274,28 @@ def create_demo_data():
 
     ada_playlist = PlaylistFactory(
         owner=professor_ada,
-        name="Professor Ada / Birds of a Feather",
+        name="Birds of a Feather",
         published=True,
         courses=[biology_course],
     )
     ada_drafts = PlaylistFactory(
         owner=professor_ada,
-        name="Professor Ada / Draft Lesson Shelf",
+        name="Draft Lesson Shelf",
         published=False,
     )
     admin_playlist = PlaylistFactory(
         owner=admin,
-        name="Local Admin / Demo Review Shelf",
+        name="Demo Review Shelf",
         published=True,
     )
     admin_drafts = PlaylistFactory(
         owner=admin,
-        name="Local Admin / Draft Sandbox",
+        name="Draft Sandbox",
         published=False,
     )
     ben_playlist = PlaylistFactory(
         owner=professor_ben,
-        name="Professor Ben / Visual Pattern Lab",
+        name="Visual Pattern Lab",
         published=True,
         courses=[film_course],
     )

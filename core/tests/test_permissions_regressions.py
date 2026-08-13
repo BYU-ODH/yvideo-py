@@ -660,7 +660,6 @@ class TeachingAssistantTests(TestCase):
 
     def test_a_ta_may_grant_read_only_roles(self):
         self.assertTrue(self.playlist.can_grant_role(self.ta, PlaylistRole.STUDENT))
-        self.assertTrue(self.playlist.can_grant_role(self.ta, PlaylistRole.AUDITOR))
 
     def test_a_ta_may_not_retire_the_owners_annotation_set(self):
         response = self.client.delete(

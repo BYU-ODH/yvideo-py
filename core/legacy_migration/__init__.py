@@ -17,6 +17,7 @@ from .models import LegacyMigrationStatus
 from .models import LegacyMigrationUserResolution
 from .models import LegacyMigrationUserResolutionStatus
 from .models import LegacySourceMap
+from .parsers import map_legacy_collection_role
 from .service import LegacyMigrationJobCanceled
 from .service import LegacyMigrationService
 
@@ -41,5 +42,6 @@ __all__ = [
     "LegacyMigrationUserResolution",
     "LegacyMigrationUserResolutionStatus",
     "LegacySourceMap",
+    "map_legacy_collection_role",
     "run_legacy_dump",
 ]

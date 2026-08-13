@@ -40,10 +40,11 @@ class PrivilegeLevel(models.IntegerChoices):
 
 
 class PlaylistRole(models.IntegerChoices):
-    INSTRUCTOR = 0
-    TA = 1
-    STUDENT = 2
-    AUDITOR = 3
+    # Labels are spelled out because they reach users in the Manage People picker, and
+    # the generated ones would read "Instructor" (which the owner also is) and "Ta".
+    INSTRUCTOR = 0, "Co-instructor"
+    TA = 1, "TA"
+    STUDENT = 2, "Student"
 
 
 LAB_ASSISTANT_GROUP_NAME = "lab_assistant"

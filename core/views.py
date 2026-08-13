@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import IntegrityError
 from django.db import transaction
+from django.db.models import Count
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -27,6 +28,7 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
+from .forms import AddUserLookupForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
 from .models import Content
@@ -480,21 +482,18 @@ def render_playlist_info(request, playlist):
         year_and_semester = get_semester_and_year_options()
         assigned_courses = get_assigned_courses(playlist, year_and_semester["yearterm"])
 
-        return render(
-            request,
-            "core/playlist_info.html",
-            {
-                "playlist": playlist,
-                "contents": contents,
-                "can_edit": can_edit,
-                "can_administer": playlist.can_be_administered_by(request.user),
-                "form": PlaylistSettingsForm(instance=playlist),
-                "year_options": year_and_semester["year_options"],
-                "semester": year_and_semester["semester"],
-                "assigned_courses": assigned_courses,
-                "breadcrumbs": breadcrumb_trail((playlist.name, None)),
-            },
-        )
+        context = {
+            "playlist": playlist,
+            "contents": contents,
+            "can_edit": can_edit,
+            "can_administer": playlist.can_be_administered_by(request.user),
+            "form": PlaylistSettingsForm(instance=playlist),
+            "year_options": year_and_semester["year_options"],
+            "semester": year_and_semester["semester"],
+            "assigned_courses": assigned_courses,
+            "breadcrumbs": breadcrumb_trail((playlist.name, None)),
+        }
+        return render(request, "core/playlist_info.html", context)
     except Exception as e:
         logger.error(f"Failed to retrieve playlist info. Exception: {e}")
         return HttpResponseServerError()
@@ -705,6 +704,336 @@ def update_playlist_settings(request, playlist):
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
+
+
+GRANTABLE_PLAYLIST_ROLES = (
+    PlaylistRole.INSTRUCTOR,
+    PlaylistRole.TA,
+    PlaylistRole.STUDENT,
+)
+
+PLAYLIST_ROLE_DESCRIPTIONS = {
+    PlaylistRole.INSTRUCTOR: (
+        "Another instructor for this playlist. Can edit it and its videos, but "
+        "cannot delete it or manage people."
+    ),
+    PlaylistRole.TA: (
+        "Helps run this playlist. The same editing access as a co-instructor; "
+        "cannot delete it or manage people."
+    ),
+    PlaylistRole.STUDENT: "Can watch published videos. Cannot make changes.",
+}
+
+
+def grantable_roles_for(playlist, user):
+    """The roles `user` may hand out on `playlist`, in the order the picker shows them."""
+    return [
+        {
+            "value": role.value,
+            "label": role.label,
+            "description": PLAYLIST_ROLE_DESCRIPTIONS[role],
+        }
+        for role in GRANTABLE_PLAYLIST_ROLES
+        if playlist.can_grant_role(user, role)
+    ]
+
+
+def get_course_access_summary(playlist):
+    """Courses that reach this playlist, and how many students that is.
+
+    The count mirrors Playlist.can_be_viewed_by exactly -- distinct users holding a
+    UserCourses row whose own yearterm is active, on a course assigned here. Counting
+    any other way would advertise access the app does not actually grant.
+    """
+    yearterms = active_yearterms()
+    # One grouped query rather than a COUNT per course: this runs on the playlist page for
+    # every editor, and a playlist assigned to a dozen sections paid a dozen round trips.
+    # distinct=True because a student enrolled in two sections of the same course is one
+    # person who can see it, which is what can_be_viewed_by would say.
+    counts = (
+        playlist.courses.filter(yearterm__in=yearterms)
+        .values("dept", "catalog_number")
+        .annotate(
+            student_count=Count(
+                "usercourses__user",
+                filter=Q(usercourses__yearterm__in=yearterms),
+                distinct=True,
+            )
+        )
+        .order_by("dept", "catalog_number")
+    )
+
+    sections = {}
+    for course in playlist.courses.filter(yearterm__in=yearterms).order_by(
+        "section_number"
+    ):
+        sections.setdefault((course.dept, course.catalog_number), []).append(
+            course.section_number
+        )
+
+    return [
+        {
+            "name": f"{row['dept']} {row['catalog_number']}",
+            "section_list": ", ".join(sections[(row["dept"], row["catalog_number"])]),
+            "section_count": len(sections[(row["dept"], row["catalog_number"])]),
+            "student_count": row["student_count"],
+        }
+        for row in counts
+    ]
+
+
+def playlist_members_context(request, playlist):
+    """Everything the Manage People panel renders.
+
+    Each row carries its own may_manage flag rather than a single page-level one: an
+    owner may touch every row, but a TA may touch only the read-only ones, and deciding
+    that here keeps the template and the endpoints agreeing on one answer.
+    """
+    accesses = (
+        PlaylistUserAccess.objects.filter(playlist=playlist)
+        .exclude(user_id=playlist.owner_id)
+        .select_related("user")
+        .order_by("playlist_role", "user__last_name", "user__username")
+    )
+    # A stray role integer degrades to its number instead of raising: migration 0011 and
+    # map_legacy_collection_role cover the one value we know about (legacy auditor), but
+    # this now renders on the playlist page itself, so an unknown one would take the whole
+    # page down rather than just this panel.
+    labels = {role.value: role.label for role in PlaylistRole}
+    members = [
+        {
+            "user": access.user,
+            "role": access.playlist_role,
+            "role_label": labels.get(access.playlist_role, str(access.playlist_role)),
+            "may_manage": playlist.can_grant_role(request.user, access.playlist_role),
+        }
+        for access in accesses
+    ]
+    return {
+        "playlist": playlist,
+        "members": members,
+        "grantable_roles": grantable_roles_for(playlist, request.user),
+        "default_role": PlaylistRole.STUDENT.value,
+        "course_access": get_course_access_summary(playlist),
+    }
+
+
+def render_playlist_members_list(request, playlist):
+    return render(
+        request,
+        "core/partials/playlist_members_list.html",
+        playlist_members_context(request, playlist),
+    )
+
+
+def render_playlist_members_roster(request, playlist):
+    """Just the rows -- the only part an add or remove changes.
+
+    Returning the whole panel instead would replace the status live region along with
+    it, and a live region swapped out in the same breath as the message it should be
+    announcing does not announce.
+    """
+    return render(
+        request,
+        "core/partials/playlist_members_roster.html",
+        playlist_members_context(request, playlist),
+    )
+
+
+@require_GET
+@playlist_write_required
+def render_playlist_members(request, playlist):
+    """The Manage People panel, fetched when the dialog opens.
+
+    Deliberately not rendered with the playlist page: the roster and the course-access
+    counts are queries every editor would pay on every visit for a dialog most visits
+    never open. Fetching on open also means the panel reflects the database rather than
+    whenever the page was last loaded.
+    """
+    return render_playlist_members_list(request, playlist)
+
+
+# Substring matching over every user means one character returns a page of real names and
+# NetIDs, which is a directory to scrape rather than a search. Two is still short enough
+# for anyone who knows who they are looking for.
+MEMBER_SEARCH_MINIMUM_LENGTH = 2
+
+
+@require_POST
+@playlist_write_required
+def playlist_member_search(request, playlist):
+    """Existing users matching the typed text, minus everyone already on the playlist."""
+    query = request.POST.get("search", "").strip()
+    users = User.objects.none()
+    if len(query) >= MEMBER_SEARCH_MINIMUM_LENGTH:
+        users = (
+            User.objects.filter(
+                Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+                | Q(username__icontains=query)
+                | Q(netid__icontains=query)
+            )
+            .exclude(pk=playlist.owner_id)
+            .exclude(playlistuseraccess__playlist=playlist)
+            .order_by("last_name", "username")[:25]
+        )
+    return render(
+        request,
+        "core/partials/playlist_member_options_for_select.html",
+        {
+            "users": users,
+            "query": query,
+            # So a one-character query says "keep typing" rather than "No matches",
+            # which would read as "this person is not in Y-Video" and send someone to
+            # the directory lookup for someone who is already here.
+            "query_too_short": 0 < len(query) < MEMBER_SEARCH_MINIMUM_LENGTH,
+        },
+    )
+
+
+MEMBER_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
+
+
+def _member_error(message):
+    return HttpResponseBadRequest(message, content_type=MEMBER_TEXT_CONTENT_TYPE)
+
+
+def _member_forbidden(message):
+    """403 the panel can show verbatim.
+
+    text/plain rather than the default text/html, because the client shows a body only
+    when the content type says we wrote it -- an HTML body could be Django's own error
+    page, and announcing one of those reads an entire document into a live region.
+    """
+    return forbidden(message, content_type=MEMBER_TEXT_CONTENT_TYPE)
+
+
+def _member_access_or_404(playlist, user_id):
+    """The membership row these endpoints may act on.
+
+    The owner is excluded rather than special-cased later: their authority comes from
+    Playlist.owner, so any row they happen to also hold is not what grants it, and
+    editing that row would suggest otherwise.
+    """
+    return get_object_or_404(
+        PlaylistUserAccess.objects.exclude(user_id=playlist.owner_id),
+        playlist=playlist,
+        user_id=user_id,
+    )
+
+
+def _resolve_member_to_add(request):
+    """The user being added, either picked from the search results or looked up by id.
+
+    Returns (user, error_message, warning). The lookup form provisions from BYU's
+    directory, so a TA who has never signed in to Y-Video can still be given a role
+    before the term starts -- the reason the picker accepts a raw NetID at all.
+
+    The warning is the form's enrollment_warning: a provisioned account whose enrollment
+    could not be synced still gets the role, but its course-based access will be wrong
+    until the sync catches up. The admin surfaces this and so must we, or the person who
+    added them learns about it from a student who cannot see the playlist.
+    """
+    user_id = request.POST.get("user_id", "").strip()
+    if user_id:
+        user = User.objects.filter(pk=user_id).first()
+        if user is None:
+            return None, "That person no longer has an account.", None
+        return user, None, None
+
+    identifier = request.POST.get("identifier", "").strip()
+    if not identifier:
+        return None, "Search for a person, or type a NetID or 9-digit BYU ID.", None
+
+    form = AddUserLookupForm({"identifier": identifier})
+    if not form.is_valid():
+        return (
+            None,
+            " ".join(form.errors.get("identifier", ["That lookup failed."])),
+            None,
+        )
+    return form.resolved_user, None, getattr(form, "enrollment_warning", None)
+
+
+@require_POST
+@playlist_write_required
+def add_playlist_member(request, playlist):
+    try:
+        role = PlaylistRole(int(request.POST.get("role", "")))
+    except (TypeError, ValueError):
+        return _member_error("Choose a role.")
+    if role not in GRANTABLE_PLAYLIST_ROLES:
+        return _member_error("Choose a role.")
+    if not playlist.can_grant_role(request.user, role):
+        return _member_forbidden("Only the playlist owner can grant that role.")
+
+    user, error, warning = _resolve_member_to_add(request)
+    if error:
+        return _member_error(error)
+
+    if user.pk == playlist.owner_id:
+        return _member_error(
+            f"{user.get_full_name() or user.username} owns this playlist already."
+        )
+
+    _, created = PlaylistUserAccess.objects.get_or_create(
+        user=user,
+        playlist=playlist,
+        defaults={"playlist_role": role},
+    )
+    if not created:
+        return _member_error(
+            f"{user.get_full_name() or user.username} already has a role here. "
+            "Change it in the list above."
+        )
+
+    response = render_playlist_members_roster(request, playlist)
+    if warning:
+        # A header rather than the body, because the body is the roster fragment the
+        # client swaps in. The client appends this to its own "added" announcement.
+        # Flattened first: Django rejects a header containing a newline outright, and a
+        # 500 here would lose the grant's confirmation over an advisory message.
+        response["X-Member-Warning"] = " ".join(warning.split())
+    return response
+
+
+@require_POST
+@playlist_write_required
+def update_playlist_member_role(request, playlist, user_id):
+    access = _member_access_or_404(playlist, user_id)
+    try:
+        new_role = PlaylistRole(int(request.POST.get("role", "")))
+    except (TypeError, ValueError):
+        return _member_error("Choose a role.")
+    if new_role not in GRANTABLE_PLAYLIST_ROLES:
+        return _member_error("Choose a role.")
+
+    # Both ends, because demoting a TA is revoking a TA grant. Checking only the new
+    # role would let a TA quietly strip a co-instructor.
+    if not (
+        playlist.can_grant_role(request.user, access.playlist_role)
+        and playlist.can_grant_role(request.user, new_role)
+    ):
+        return _member_forbidden("Only the playlist owner can change that role.")
+
+    access.playlist_role = new_role
+    access.save(update_fields=["playlist_role", "updated_at"])
+    return HttpResponse(
+        f"{access.user.get_full_name() or access.user.username} is now "
+        f"{new_role.label}.",
+        content_type="text/plain; charset=utf-8",
+    )
+
+
+@require_POST
+@playlist_write_required
+def remove_playlist_member(request, playlist, user_id):
+    access = _member_access_or_404(playlist, user_id)
+    if not playlist.can_grant_role(request.user, access.playlist_role):
+        return _member_forbidden("Only the playlist owner can remove that person.")
+
+    access.delete()
+    return render_playlist_members_roster(request, playlist)
 
 
 def accessible_resources(user):
@@ -1098,28 +1427,3 @@ def request_resource(request):
             "form": form,
         },
     )
-
-
-# TODO (#335, #352, #361): unrouted. Checks the instructor capability but not playlist
-# ownership, so any instructor could TA themselves onto any playlist if it were wired up.
-# Route it behind Playlist.can_grant_role, which enforces B1's rule that only the owner
-# may grant TA or co-instructor. It also redirects to a `view_playlist` URL name that
-# does not exist.
-@require_POST
-@playlist_write_required
-def add_playlist_member(request, playlist):
-    netid = request.POST.get("netid", "").strip()
-    role = request.POST.get("role", "").strip()
-
-    user = get_object_or_404(User, netid=netid)
-    playlist_role = PlaylistRole.TA if role == "TA" else PlaylistRole.AUDITOR
-    if not playlist.can_grant_role(request.user, playlist_role):
-        return forbidden("Only the playlist owner can grant that role.")
-
-    PlaylistUserAccess.objects.create(
-        user=user,
-        playlist=playlist,
-        playlist_role=playlist_role,
-    )
-
-    return redirect("playlist_info", playlist_id=playlist.pk)

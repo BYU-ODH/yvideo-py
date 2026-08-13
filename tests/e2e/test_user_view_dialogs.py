@@ -63,7 +63,7 @@ def assert_header_controls_do_not_overlap(dialog):
 def test_every_user_view_dialog_uses_the_shared_shell_and_behavior(
     logged_in_page: Page, live_server
 ):
-    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+    playlist = Playlist.objects.get(name="Demo Review Shelf")
     content = Content.objects.get(title="Birds Overview")
     pages_and_dialogs = [
         (
@@ -84,6 +84,8 @@ def test_every_user_view_dialog_uses_the_shared_shell_and_behavior(
                 ),
                 ("#select-resource-dialog", None),
                 ("#create-from-resource-modal", None),
+                ("#playlist-members-modal", "#playlist-manage-people-button"),
+                ("#playlist-member-remove-modal", None),
             ],
         ),
         (
@@ -103,7 +105,7 @@ def test_every_user_view_dialog_uses_the_shared_shell_and_behavior(
 def test_existing_resource_modal_chain_stays_on_the_playlist_page(
     logged_in_page: Page, live_server
 ):
-    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+    playlist = Playlist.objects.get(name="Demo Review Shelf")
     playlist_url = f"{live_server.url}/playlists/{playlist.pk}/"
     logged_in_page.goto(playlist_url)
 
@@ -160,7 +162,7 @@ def test_existing_resource_modal_chain_stays_on_the_playlist_page(
 def test_canceling_pending_resource_requests_does_not_advance_the_modal_chain(
     logged_in_page: Page, live_server
 ):
-    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+    playlist = Playlist.objects.get(name="Demo Review Shelf")
     logged_in_page.goto(f"{live_server.url}/playlists/{playlist.pk}/")
 
     add_video_modal = logged_in_page.locator("#add-video-dialog")
