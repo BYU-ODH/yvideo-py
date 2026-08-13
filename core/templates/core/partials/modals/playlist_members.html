@@ -1,0 +1,9 @@
+{% extends "core/partials/user_view_modal.html" %}
+
+{% block modal_title %}Manage People{% endblock %}
+
+{% block modal_body_classes %} playlist-members-body{% endblock %}
+
+{% block modal_body %}
+    {% include "core/partials/playlist_members_list.html" %}
+{% endblock %}

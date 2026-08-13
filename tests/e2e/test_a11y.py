@@ -118,7 +118,7 @@ def content_with_every_annotation_type(seeded_demo_data):
     from core.models import PauseAnnotation
     from core.models import SkipAnnotation
 
-    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+    playlist = Playlist.objects.get(name="Demo Review Shelf")
     birds = Content.objects.get(title="Birds Overview")
 
     annotation_set = AnnotationSetFactory(
@@ -210,14 +210,14 @@ def awkward_data(seeded_demo_data, settings):
 
     settings.LEGACY_MIGRATION_ENABLED = True
 
-    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+    playlist = Playlist.objects.get(name="Demo Review Shelf")
     birds = Content.objects.get(title="Birds Overview")
 
     return SimpleNamespace(
         playlist=playlist,
         birds=birds,
         empty_playlist=PlaylistFactory(
-            owner=playlist.owner, name="Local Admin / Empty Shelf", published=False
+            owner=playlist.owner, name="Empty Shelf", published=False
         ),
         content_without_annotation_set=ContentFactory(
             playlist=playlist,
@@ -259,7 +259,7 @@ def read_only_annotation_set_content(seeded_demo_data):
     from core.factories import ContentFactory
     from core.models import AnnotationSet
 
-    ada_playlist = Playlist.objects.get(name="Professor Ada / Birds of a Feather")
+    ada_playlist = Playlist.objects.get(name="Birds of a Feather")
     bens_set = AnnotationSet.objects.get(name="Professor Ben Grid Annotations")
     grid_content = Content.objects.get(title="Pattern Analysis Warmup")
 
@@ -415,6 +415,40 @@ def test_the_playlist_page_dialogs_have_no_a11y_violations(
     page.wait_for_selector("#assign-course-button", state="visible")
     assert_no_violations(
         page, "the course-assignments dialog", include=["dialog[open]"]
+    )
+    page.keyboard.press("Escape")
+
+
+def test_the_manage_people_dialog_has_no_a11y_violations(
+    logged_in_page: Page, live_server, awkward_data
+):
+    """Manage People, its search results, and the remove confirmation.
+
+    The results list is fetched, so the empty <select> the page ships with is not what a
+    screen reader meets in practice - the audit has to run against a populated one.
+
+    Ada's shelf rather than awkward_data.playlist because it is the seeded playlist with
+    members other than its owner, and the remove confirmation needs a row to open on.
+    The demo admin is a superuser, so every row is theirs to manage.
+    """
+    page = logged_in_page
+    populated_playlist = Playlist.objects.get(name="Birds of a Feather")
+    page.goto(f"{live_server.url}/playlists/{populated_playlist.id}/")
+
+    page.locator("#playlist-manage-people-button").click()
+    page.wait_for_selector("#playlist-member-add-button", state="visible")
+    assert_no_violations(page, "the manage-people dialog", include=["dialog[open]"])
+
+    page.locator("#playlist-member-search").fill("a")
+    page.wait_for_selector("#playlist-member-results option", state="attached")
+    assert_no_violations(
+        page, "the manage-people search results", include=["dialog[open]"]
+    )
+
+    page.locator(".playlist-member-remove-button").first.click()
+    page.wait_for_selector("#playlist-member-confirm-remove", state="visible")
+    assert_no_violations(
+        page, "the remove-member confirmation", include=["dialog[open]"]
     )
 
 
@@ -1023,6 +1057,11 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/create_from_resource.html",
     "core/partials/modals/playlist_course_assignments.html",
     "core/partials/modals/playlist_delete.html",
+    "core/partials/modals/playlist_member_remove.html",
+    "core/partials/modals/playlist_members.html",
+    "core/partials/playlist_member_options_for_select.html",
+    "core/partials/playlist_members_list.html",
+    "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",

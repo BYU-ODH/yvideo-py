@@ -25,7 +25,7 @@ from .legacy_migration import LegacyMigrationService
 from .legacy_migration import LegacyMigrationStatus
 from .legacy_migration import LegacyMigrationUserResolution
 from .legacy_migration import LegacySourceMap
-from .models import PlaylistRole
+from .legacy_migration import map_legacy_collection_role
 
 logger = logging.getLogger(__name__)
 
@@ -535,10 +535,14 @@ class LegacyMigrationRequestAdmin(VersionAdmin):
                     or access_row.get("legacy_user_id")
                     or "Unknown user"
                 )
-                try:
-                    role_label = PlaylistRole(int(access_row["account_role"])).label
-                except (KeyError, TypeError, ValueError):
-                    role_label = access_row.get("account_role", "Unknown")
+                # Same mapping the import uses, so the preview names the role a legacy
+                # auditor will actually land on rather than showing a bare 3.
+                role = map_legacy_collection_role(access_row.get("account_role"))
+                role_label = (
+                    role.label
+                    if role is not None
+                    else access_row.get("account_role", "Unknown")
+                )
                 yield identity, role_label
 
         items = format_html_join("", "<li>{} ({})</li>", _access_rows())

@@ -1122,6 +1122,112 @@ p.tile-subtitle {
     margin-top: 0.5rem;
 }
 
+/* playlist Manage People panel */
+.playlist-members-body {
+    /* A <dialog> is width: fit-content, so without this the panel resizes to whatever
+       the status line currently says -- a long lookup error stretches it, and the next
+       short message snaps it back. */
+    width: min(42rem, 85vw);
+}
+
+.playlist-members-section {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.5rem;
+
+    padding: 1.25rem 0;
+    border-top: 1px solid var(--selectable-grey);
+}
+
+/* The roster opens the panel, so it has the header above it rather than a rule. */
+.playlist-members-section:first-child {
+    padding-top: 0;
+    border-top: none;
+}
+
+.playlist-members-section h4 {
+    margin: 0;
+    color: var(--deep-blue);
+}
+
+/* Matches the resource-intake messages, which are this app's established way of saying
+   an action did or did not work. */
+.playlist-members-status {
+    margin: 0.25rem 0;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.playlist-members-status-success {
+    border: 1px solid var(--green);
+    color: var(--green);
+    background-color: var(--pale-green);
+}
+
+.playlist-members-status-error {
+    border: 1px solid var(--red);
+    color: var(--dark-red);
+    background-color: var(--pale-red);
+}
+
+.playlist-member-rows, .playlist-member-course-rows, .playlist-member-role-legend {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.playlist-member-course-rows, .playlist-member-role-legend {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.25rem;
+}
+
+.playlist-member-row {
+    display: grid;
+
+    /* Packed left rather than 1fr for the name, so a wide dialog does not strand the
+       NetID and the role picker at opposite ends of the row. */
+    grid-template-columns: minmax(8rem, 16rem) 7rem 10rem 2.5rem;
+    column-gap: 0.5rem;
+    align-items: center;
+    justify-content: start;
+
+    padding: 0.25rem 0;
+}
+
+.playlist-member-fixed-role {
+    /* Sits in the role-picker column so a row a TA may not change still lines up with
+       one they may. */
+    grid-column: 3 / span 2;
+}
+
+.playlist-member-remove-button {
+    display: flex;
+    align-self: center;
+    justify-content: center;
+
+    padding: 0.45rem 0.5rem;
+    border: none;
+    border-radius: 50%;
+
+    background-color: inherit;
+}
+
+.playlist-member-remove-button:hover {
+    background-color: var(--selectable-grey);
+    box-shadow: 2px 3px 6px #00000075;
+}
+
+.playlist-member-search, .playlist-member-results {
+    width: 100%;
+}
+
+.playlist-member-add-controls {
+    column-gap: 0.5rem;
+    align-items: flex-end;
+}
+
 .assigned-course input[type='text'] {
     height: 2rem;
 }
@@ -1184,17 +1290,6 @@ p.tile-subtitle {
 }
 
 #content-button {
-    cursor: pointer;
-
-    width: 8rem;
-    height: 2.5rem;
-    padding: 0;
-    border: none;
-
-    background: transparent;
-}
-
-#permissions-button {
     cursor: pointer;
 
     width: 8rem;

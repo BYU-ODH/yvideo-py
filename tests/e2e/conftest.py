@@ -141,7 +141,7 @@ def youtube_content(seeded_demo_data):
     from core.youtube_utils import get_or_create_youtube_resource
 
     def _create(title="YouTube Content", video_id="eHEsJyVQn3w"):
-        playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+        playlist = Playlist.objects.get(name="Demo Review Shelf")
         resource = get_or_create_youtube_resource(video_id, playlist.owner.username)
         return Content.objects.create(
             playlist=playlist,

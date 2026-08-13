@@ -1,0 +1,70 @@
+<section class="playlist-members-section" aria-labelledby="playlist-members-roster-heading">
+    <h4 id="playlist-members-roster-heading">People with a role</h4>
+    <div id="playlist-members-roster">
+        {% include "core/partials/playlist_members_roster.html" %}
+    </div>
+</section>
+
+{% comment %}
+Between the roster and the add form because that is where both of them report: it sits
+under the list an add or remove just changed, and above the controls that caused it.
+{% endcomment %}
+<p id="playlist-members-status" class="playlist-members-status" role="status" aria-live="polite" hidden></p>
+
+{% if grantable_roles %}
+<section class="playlist-members-section" aria-labelledby="playlist-members-add-heading">
+    <h4 id="playlist-members-add-heading">Add a person</h4>
+    <label for="playlist-member-search">Name, NetID, or BYU ID</label>
+    <input
+        id="playlist-member-search"
+        class="playlist-member-search"
+        type="search"
+        autocomplete="off"
+        aria-describedby="playlist-member-search-help"
+    >
+    {# Hidden until a search returns someone, so the panel does not open on an empty box. #}
+    <select id="playlist-member-results" size="4" class="playlist-member-results hidden" aria-label="Matching people">
+    </select>
+    <p id="playlist-member-search-help" class="muted-text">
+        No match? Type a full NetID or 9-digit BYU ID to look them up in BYU's directory.
+    </p>
+    <div class="row-flex playlist-member-add-controls">
+        <div class="column-flex">
+            <label for="playlist-member-role">Role</label>
+            <select id="playlist-member-role" class="playlist-member-role">
+                {% for role in grantable_roles %}
+                    <option value="{{ role.value }}" {% if role.value == default_role %}selected{% endif %}>{{ role.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="button" id="playlist-member-add-button" class="blue-button">+ Add</button>
+    </div>
+    <ul class="playlist-member-role-legend muted-text">
+        {% for role in grantable_roles %}
+            <li><strong>{{ role.label }}</strong> — {{ role.description }}</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section class="playlist-members-section" aria-labelledby="playlist-members-course-heading">
+    <h4 id="playlist-members-course-heading">Also has access through a course</h4>
+    {% if course_access %}
+        <ul class="playlist-member-course-rows">
+            {% for course in course_access %}
+                <li>
+                    {{ course.name }} (section{{ course.section_count|pluralize }} {{ course.section_list }}) —
+                    {{ course.student_count }} student{{ course.student_count|pluralize }}
+                </li>
+            {% endfor %}
+        </ul>
+        {% if not playlist.published or playlist.archived %}
+            <p class="muted-text">
+                Course members can't see this playlist until it is published and not archived.
+            </p>
+        {% endif %}
+        <p class="muted-text">Change these under Edit Course Assignments.</p>
+    {% else %}
+        <p class="muted-text">This playlist isn't assigned to a course this term.</p>
+    {% endif %}
+</section>

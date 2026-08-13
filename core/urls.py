@@ -71,6 +71,31 @@ urlpatterns = [
         name="update_playlist_settings",
     ),
     path(
+        "playlists/<int:playlist_id>/members/",
+        views.render_playlist_members,
+        name="render_playlist_members",
+    ),
+    path(
+        "playlists/<int:playlist_id>/members/search/",
+        views.playlist_member_search,
+        name="playlist_member_search",
+    ),
+    path(
+        "playlists/<int:playlist_id>/members/add/",
+        views.add_playlist_member,
+        name="add_playlist_member",
+    ),
+    path(
+        "playlists/<int:playlist_id>/members/<int:user_id>/role/",
+        views.update_playlist_member_role,
+        name="update_playlist_member_role",
+    ),
+    path(
+        "playlists/<int:playlist_id>/members/<int:user_id>/remove/",
+        views.remove_playlist_member,
+        name="remove_playlist_member",
+    ),
+    path(
         "playlists/<int:playlist_id>/content/create/",
         views.create_content,
         name="create_content",
