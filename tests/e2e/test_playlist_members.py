@@ -25,6 +25,14 @@ pytestmark = [
 # Seeded by core/dev_seed.py with a TA and two students, so the panel has rows to act on.
 POPULATED_PLAYLIST = "Birds of a Feather"
 
+# Longer than NETID_PATTERN allows, so AddUserLookupForm rejects it on the regex and never
+# reaches BYU. That matters: a string that *looks* like a NetID sends the server to
+# api.byu.edu for a token and a student-summary lookup, which would make these tests
+# network-dependent, slow, and differently-behaved on a machine with real credentials than
+# in CI without them. Everything past the regex is covered in core/tests/test_playlist_members.py
+# against a stubbed API.
+MALFORMED_IDENTIFIER = "nobodyhere"
+
 
 @pytest.fixture
 def members_panel(logged_in_page: Page, live_server):
@@ -39,6 +47,56 @@ def role_of(playlist, first_name):
     return PlaylistUserAccess.objects.get(
         playlist=playlist, user__first_name=first_name
     ).playlist_role
+
+
+def test_the_panel_is_not_rendered_until_the_dialog_is_opened(
+    logged_in_page: Page, live_server
+):
+    """The roster and the course-access counts are queries; most visits never open this.
+
+    Asserted from the browser rather than by counting queries because what must not
+    regress is the panel going back into the page template, which this would catch and a
+    query count on the view would not.
+    """
+    page = logged_in_page
+    playlist = Playlist.objects.get(name=POPULATED_PLAYLIST)
+    page.goto(f"{live_server.url}/playlists/{playlist.pk}/")
+
+    expect(page.locator("[data-playlist-members-placeholder]")).to_have_count(1)
+    expect(page.locator("#playlist-member-add-button")).to_have_count(0)
+
+    page.locator("#playlist-manage-people-button").click()
+    expect(page.locator("#playlist-member-add-button")).to_be_visible()
+    expect(page.locator("[data-playlist-members-placeholder]")).to_have_count(0)
+
+
+def test_the_results_list_can_be_reached_and_used_from_the_keyboard(
+    logged_in_page: Page, members_panel
+):
+    """ArrowDown moves focus into the list rather than steering it from the field.
+
+    A <select size="4"> announces each option as focus moves through it; a selection
+    changing while focus stays behind in the input announces nothing, which is what a
+    screen reader user got before.
+    """
+    page = logged_in_page
+    search = page.locator("#playlist-member-search")
+    search.fill("iv")
+    expect(
+        page.locator("#playlist-member-results option:not([disabled])")
+    ).to_have_count(1)
+
+    search.press("ArrowDown")
+    expect(page.locator("#playlist-member-results")).to_be_focused()
+
+    # ArrowUp off the top hands the field back, so correcting a search needs no mouse.
+    page.locator("#playlist-member-results").press("ArrowUp")
+    expect(search).to_be_focused()
+
+    search.press("ArrowDown")
+    page.locator("#playlist-member-results").press("Enter")
+    expect(page.locator("#playlist-members-status")).to_contain_text("added")
+    expect(page.locator(".playlist-member-row", has_text="Ivy")).to_have_count(1)
 
 
 def test_the_owner_is_listed_once_and_cannot_be_removed(
@@ -95,17 +153,19 @@ def test_a_failed_lookup_reports_why_instead_of_silently_doing_nothing(
     logged_in_page: Page, members_panel
 ):
     page = logged_in_page
-    page.locator("#playlist-member-search").fill("nobodyhere")
+    page.locator("#playlist-member-search").fill(MALFORMED_IDENTIFIER)
     page.locator("#playlist-member-add-button").click()
 
     status = page.locator("#playlist-members-status")
     expect(status).to_be_visible()
-    expect(status).not_to_be_empty()
+    # The form's own words, not a generic fallback: a text/plain body from our own
+    # endpoint is the one case the client is allowed to show verbatim.
+    expect(status).to_contain_text("BYU ID")
     expect(status).to_have_class(re.compile(r"playlist-members-status-error"))
     expect(page.locator("#playlist-member-search.invalid-input")).to_have_count(1)
 
     # Editing the field clears the mark, so a later success is not shown beside a red box.
-    page.locator("#playlist-member-search").fill("nobodyhere2")
+    page.locator("#playlist-member-search").fill(f"{MALFORMED_IDENTIFIER}2")
     expect(page.locator("#playlist-member-search.invalid-input")).to_have_count(0)
 
 
@@ -142,9 +202,12 @@ def test_the_panel_does_not_resize_around_its_status_messages(
     dialog = page.locator("#playlist-members-modal")
     opening_width = dialog.bounding_box()["width"]
 
-    page.locator("#playlist-member-search").fill("zzqqxx")
+    # Too long to be a NetID, so the form refuses it before any BYU API call -- see the
+    # note on MALFORMED_IDENTIFIER. The message is still the long one this test needs.
+    page.locator("#playlist-member-search").fill(MALFORMED_IDENTIFIER)
     page.locator("#playlist-member-add-button").click()
-    expect(page.locator("#playlist-members-status")).not_to_be_empty()
+    status = page.locator("#playlist-members-status")
+    expect(status).to_contain_text("BYU ID")
     assert dialog.bounding_box()["width"] == opening_width
 
     page.locator(".playlist-member-row", has_text="Alice").locator(

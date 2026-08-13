@@ -11,6 +11,7 @@ test_permissions_regressions.py.
 """
 
 import time
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -192,6 +193,19 @@ class TeachingAssistantIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             ).exists()
         )
 
+    def test_a_refusal_says_why_in_a_body_the_panel_may_show(self):
+        """text/plain is how the client tells our message from a Django error page.
+
+        Sent as text/html it would be indistinguishable from a 500's error document, and
+        the panel would replace it with a generic failure rather than the reason.
+        """
+        response = self.client.post(
+            self.add_url(), {"user_id": self.outsider.pk, "role": PlaylistRole.TA.value}
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(response["Content-Type"].startswith("text/plain"))
+        self.assertIn(b"Only the playlist owner", response.content)
+
     def test_a_ta_may_not_grant_the_ta_role(self):
         response = self.client.post(
             self.add_url(), {"user_id": self.outsider.pk, "role": PlaylistRole.TA.value}
@@ -319,6 +333,146 @@ class MemberSearchTests(PlaylistMemberTestCase):
 
     def test_an_empty_query_matches_no_one(self):
         self.assertEqual(len(self.search("")), 0)
+
+    def test_a_single_character_matches_no_one(self):
+        """Substring matching over every user makes one character a directory to scrape."""
+        UserFactory(student=True, last_name="Winterbourne")
+        self.assertEqual(len(self.search("w")), 0)
+
+    def test_two_characters_is_enough_to_search(self):
+        target = UserFactory(student=True, last_name="Winterbourne")
+        self.assertIn(target, self.search("wi"))
+
+    def test_a_too_short_query_says_so_rather_than_reporting_no_matches(self):
+        """ "No matches" would read as "this person has no account" and send the person
+        to the directory lookup for someone who is already here."""
+        response = self.client.post(
+            reverse("playlist_member_search", args=[self.playlist.pk]),
+            {"search": "w"},
+        )
+        self.assertTrue(response.context["query_too_short"])
+        self.assertIn(b"Keep typing", response.content)
+
+
+class AddingByIdentifierTests(PlaylistMemberTestCase):
+    """The branch that reaches BYU's directory, and everything guarding it.
+
+    `Api` and `create_user` are stubbed throughout: what is under test is which inputs get
+    that far, not what BYU answers. MANUAL_TESTING.md §8 covers the real lookup.
+    """
+
+    def setUp(self):
+        super().setUp()
+        login(self.client, self.owner)
+
+    def add(self, **payload):
+        return self.client.post(
+            self.add_url(), {"role": PlaylistRole.STUDENT.value, **payload}
+        )
+
+    def test_a_malformed_identifier_is_refused_before_any_api_call(self):
+        with (
+            patch("core.forms.Api") as api,
+            patch(
+                "yvideo.odhOIDCAuthenticationBackend.OIDCUserAuth.create_user"
+            ) as create_user,
+        ):
+            response = self.add(identifier="zzz!!")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"BYU ID", response.content)
+        api.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_neither_a_pick_nor_a_typed_identifier_asks_for_one(self):
+        with patch("core.forms.Api") as api:
+            response = self.add()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"Search for a person", response.content)
+        api.assert_not_called()
+
+    def test_a_netid_that_already_has_an_account_skips_the_directory(self):
+        newcomer = UserFactory(student=True, netid="hasacct")
+
+        with patch("core.forms.Api") as api:
+            response = self.add(identifier="hasacct")
+
+        self.assertEqual(response.status_code, 200, response.content[:200])
+        self.assertEqual(self.role_of(newcomer), PlaylistRole.STUDENT)
+        api.assert_not_called()
+
+    def test_a_netid_lookup_that_finds_nobody_explains_rather_than_erroring(self):
+        with patch("core.forms.Api") as api:
+            api.return_value.get_student_summary.return_value = None
+            response = self.add(identifier="nosuchid")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"No BYU student record", response.content)
+
+    def test_an_unreachable_directory_is_reported_as_worth_retrying(self):
+        with patch("core.forms.Api") as api:
+            api.return_value.get_student_summary.side_effect = OSError(
+                "connection reset"
+            )
+            response = self.add(identifier="nosuchid")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"Try again", response.content)
+
+    def test_a_missing_api_setting_is_not_reported_as_worth_retrying(self):
+        """The API_NET_ID_IAM_URL case: retrying a misconfiguration never succeeds.
+
+        secret_settings.py is gitignored, so an install whose copy predates a key added to
+        secret_settings_template.py fails exactly this way, and "try again in a moment"
+        sends the person into a loop with no exit.
+        """
+        with patch("core.forms.Api") as api:
+            api.side_effect = AttributeError(
+                "module 'yvideo.secret_settings' has no attribute 'API_NET_ID_IAM_URL'"
+            )
+            response = self.add(identifier="nosuchid")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"configuration", response.content)
+        self.assertNotIn(b"Try again", response.content)
+
+    def test_a_user_id_naming_a_deleted_account_is_refused(self):
+        doomed = UserFactory(student=True)
+        doomed_pk = doomed.pk
+        doomed.delete()
+
+        response = self.add(user_id=doomed_pk)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"no longer has an account", response.content)
+
+    def test_a_ta_cannot_use_the_lookup_to_provision_a_co_instructor(self):
+        """The role check runs first, so a refused grant never reaches BYU's directory."""
+        login(self.client, self.ta)
+
+        with patch("core.forms.Api") as api:
+            response = self.client.post(
+                self.add_url(),
+                {"identifier": "nosuchid", "role": PlaylistRole.INSTRUCTOR.value},
+            )
+
+        self.assertEqual(response.status_code, 403)
+        api.assert_not_called()
+
+    def test_an_enrollment_warning_reaches_the_client(self):
+        """It rides a header so the body stays the roster fragment the client swaps in."""
+        newcomer = UserFactory(student=True, netid="warnme")
+
+        def resolve(self_, identifier):
+            self_.enrollment_warning = "Some courses may be missing."
+            return newcomer, True
+
+        with patch("core.forms.AddUserLookupForm._resolve_netid", resolve):
+            response = self.add(identifier="warnme")
+
+        self.assertEqual(response.status_code, 200, response.content[:200])
+        self.assertEqual(response["X-Member-Warning"], "Some courses may be missing.")
 
 
 class CourseAccessSummaryTests(PlaylistMemberTestCase):

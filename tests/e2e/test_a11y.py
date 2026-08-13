@@ -439,8 +439,15 @@ def test_the_manage_people_dialog_has_no_a11y_violations(
     page.wait_for_selector("#playlist-member-add-button", state="visible")
     assert_no_violations(page, "the manage-people dialog", include=["dialog[open]"])
 
-    page.locator("#playlist-member-search").fill("a")
-    page.wait_for_selector("#playlist-member-results option", state="attached")
+    # "iv" matches seeded Ivy, who is on Ben's shelf rather than this one so the search
+    # can find her. Long enough to clear MEMBER_SEARCH_MINIMUM_LENGTH, and waiting for a
+    # *selectable* option rather than any option is what makes this a populated list --
+    # a too-short or unmatched query renders one disabled placeholder and hides the list,
+    # which axe would skip entirely.
+    page.locator("#playlist-member-search").fill("iv")
+    page.wait_for_selector(
+        "#playlist-member-results option:not([disabled])", state="visible"
+    )
     assert_no_violations(
         page, "the manage-people search results", include=["dialog[open]"]
     )

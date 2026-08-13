@@ -12,23 +12,24 @@ function statusElement() {
 }
 
 // Announced rather than focused: the person is mid-task in the dialog, and moving focus
-// to a confirmation would take it off whatever they were about to do next. Revealing the
-// element is what announces it, which is why it ships hidden.
+// to a confirmation would take it off whatever they were about to do next.
 function announce(message, isError = false) {
   const status = statusElement();
   if (!status) {
     return;
   }
-  status.textContent = message;
   status.classList.toggle("playlist-members-status-error", isError);
   status.classList.toggle("playlist-members-status-success", !isError);
-  status.hidden = false;
+  status.textContent = message;
 }
 
 function clearStatus() {
   const status = statusElement();
   if (status) {
-    status.hidden = true;
+    status.classList.remove(
+      "playlist-members-status-error",
+      "playlist-members-status-success",
+    );
     status.textContent = "";
   }
 }
@@ -40,6 +41,45 @@ async function post(path, body) {
     body: body,
   });
   return response;
+}
+
+const GENERIC_FAILURE = "That didn't work. Reload the page and try again.";
+
+// What the person should be told about a failed response.
+//
+// Only bodies the endpoints here produce are shown, and those are all text/plain. A 404
+// or a 500 is rendered by Django as a full HTML page, and announcing that puts an entire
+// error document -- a debug traceback, with DEBUG on -- through a live region. Reachable
+// without a bug on our side: a panel left open in one tab while the row it lists is
+// removed in another.
+async function failureMessage(response) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("text/plain")) {
+    return GENERIC_FAILURE;
+  }
+  const text = (await response.text()).trim();
+  return text || GENERIC_FAILURE;
+}
+
+// The whole panel, fetched when the dialog opens rather than rendered with the page.
+async function loadPanel() {
+  const body = document.querySelector(".playlist-members-body");
+  if (!body) {
+    return;
+  }
+  try {
+    const response = await fetch(`/playlists/${getPlaylistIdValue()}/members/`);
+    if (!response.ok) {
+      throw new Error(`Manage People responded ${response.status}`);
+    }
+    body.innerHTML = await response.text();
+  } catch (error) {
+    console.error(error);
+    // Written as text, not markup: whatever went wrong, the response is not to be trusted
+    // as HTML, and this is the one place in the panel with nothing else to fall back on.
+    body.textContent =
+      "Couldn't load the people on this playlist. Close this and try again.";
+  }
 }
 
 // Only the rows are replaced. The status message below them, and the add controls below
@@ -65,9 +105,16 @@ function resetSearch() {
 }
 
 // The list is replaced wholesale, so focus has to be put back deliberately. The search
-// field is where the next action starts after both adding and removing.
+// field is where the next action starts after both adding and removing. If this person
+// has no roles to grant there is no search field, so fall back to the dialog itself
+// rather than dropping focus to the body and out of the modal.
 function focusSearchInput() {
-  document.getElementById("playlist-member-search")?.focus();
+  const searchInput = document.getElementById("playlist-member-search");
+  if (searchInput) {
+    searchInput.focus();
+    return;
+  }
+  document.getElementById("playlist-members-modal")?.focus();
 }
 
 function selectedResultOption() {
@@ -124,19 +171,30 @@ async function addMember() {
 
   clearStatus();
   const response = await post("add/", body);
-  const text = await response.text();
   if (!response.ok) {
     searchInput.classList.add("invalid-input");
-    announce(text, true);
+    announce(await failureMessage(response), true);
     return;
   }
 
   const name = option ? option.text : searchInput.value.trim();
+  // A provisioned account whose BYU enrollment could not be synced still gets the role,
+  // but its course-based access will be wrong until the sync catches up. Said here
+  // because the person who granted it is the only one in a position to follow up.
+  const warning = response.headers.get("X-Member-Warning");
   resetSearch();
-  replaceRoster(text);
-  announce(`${name} added.`);
+  replaceRoster(await response.text());
+  announce(warning ? `${name} added. ${warning}` : `${name} added.`);
   focusSearchInput();
 }
+
+// Which change is the current one for each row. Two quick changes on the same select can
+// come back out of order, and announcing whichever lands last would tell the person their
+// row is something they already changed it away from.
+//
+// A stale reply is dropped rather than the select being disabled while it is in flight:
+// disabling the element someone just used takes focus off it and out to the body.
+const latestRoleChange = new Map();
 
 async function changeRole(select) {
   const row = select.closest(".playlist-member-row");
@@ -144,16 +202,21 @@ async function changeRole(select) {
   if (!userId) {
     return;
   }
+  const token = (latestRoleChange.get(userId) ?? 0) + 1;
+  latestRoleChange.set(userId, token);
+
   const body = new FormData();
   body.append("role", select.value);
   const response = await post(`${userId}/role/`, body);
-  const text = await response.text();
-  if (!response.ok) {
-    console.error("Failed to change playlist member role");
-    announce(text, true);
+  if (latestRoleChange.get(userId) !== token) {
     return;
   }
-  announce(text);
+  if (!response.ok) {
+    console.error("Failed to change playlist member role");
+    announce(await failureMessage(response), true);
+    return;
+  }
+  announce((await response.text()).trim());
 }
 
 function openRemoveConfirmation(button) {
@@ -178,44 +241,62 @@ async function removeMember(confirmButton) {
     return;
   }
   const response = await post(`${userId}/remove/`, new FormData());
-  const text = await response.text();
   document.getElementById("playlist-member-remove-modal")?.close();
   if (!response.ok) {
-    announce(text, true);
+    announce(await failureMessage(response), true);
     return;
   }
-  replaceRoster(text);
+  replaceRoster(await response.text());
   announce(`${name} removed.`);
   focusSearchInput();
 }
 
-// Arrow keys move through the results without leaving the search field, matching the
-// spoof user picker. Enter adds whoever is highlighted.
+function firstSelectableIndex(options) {
+  for (let index = 0; index < options.length; index += 1) {
+    if (!options[index].disabled) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+// ArrowDown moves focus into the results, rather than steering them from the search
+// field. A `<select size="4">` is a real listbox: once focus is inside it, the browser
+// announces each option as you arrow through. Driving the selection from the input the
+// way the spoof picker does announces nothing at all, because focus never moves and there
+// is no aria-activedescendant saying otherwise.
+//
+// Enter still adds from the field itself, so someone typing a NetID never has to visit
+// the list to submit it.
 function handleSearchKeydown(event) {
   const results = document.getElementById("playlist-member-results");
   if (!results) {
     return;
   }
-  const options = results.options;
-  const selectable = options.length > 0 && !(options.length === 1 && options[0].disabled);
 
-  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-    if (!selectable) {
+  if (event.key === "ArrowDown") {
+    const index = firstSelectableIndex(results.options);
+    if (index < 0) {
       return;
     }
     event.preventDefault();
-    const direction = event.key === "ArrowDown" ? 1 : -1;
-    let index = results.selectedIndex;
-    if (index < 0) {
-      index = direction === 1 ? 0 : options.length - 1;
-    } else {
-      index = Math.min(Math.max(index + direction, 0), options.length - 1);
-    }
     results.selectedIndex = index;
-    options[index].scrollIntoView({ block: "nearest" });
+    results.focus();
   } else if (event.key === "Enter") {
     event.preventDefault();
     addMember();
+  }
+}
+
+// Enter adds whoever is highlighted. ArrowUp off the top goes back to the field, so
+// correcting a search never needs the mouse.
+function handleResultsKeydown(event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addMember();
+  } else if (event.key === "ArrowUp" && event.target.selectedIndex <= 0) {
+    event.preventDefault();
+    document.getElementById("playlist-member-search")?.focus();
   }
 }
 
@@ -228,6 +309,8 @@ document.addEventListener("input", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.target.id === "playlist-member-search") {
     handleSearchKeydown(event);
+  } else if (event.target.id === "playlist-member-results") {
+    handleResultsKeydown(event);
   }
 });
 
@@ -238,6 +321,11 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("#playlist-manage-people-button")) {
+    // The button's own `command`/`commandfor` opens the dialog; this fills it.
+    loadPanel();
+    return;
+  }
   if (event.target.closest("#playlist-member-add-button")) {
     addMember();
     return;

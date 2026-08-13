@@ -304,6 +304,10 @@ Y-Video.
       the field is outlined in red.
 - [ ] Have that person sign in. They land on the playlist with the access you granted — the
       account you provisioned is the one SSO resolves them to, not a duplicate.
+- [ ] Add someone whose enrollment can't be synced. The status line says they were added
+      *and* that some courses may be missing, rather than reporting a clean success — their
+      course-based access will be wrong until the sync catches up, and you are the only
+      person who knows to follow up.
 
 **Why it cannot be automated.** The lookup calls BYU's directory and student-summary APIs
 through `AddUserLookupForm` (`core/forms.py`), which reaches `OIDCUserAuth().create_user`.
@@ -313,12 +317,20 @@ the same account SSO will later hand us, or that eligibility rules (faculty, ODH
 active student) behave as documented. Those are the parts that break, and they break in
 BYU's systems rather than ours.
 
-**What is guarded automatically.** `core/tests/test_playlist_members.py` covers everything
-either side of the lookup: which roles each actor may grant, duplicate and owner rejection,
-and that a malformed identifier is refused before any API call.
-`tests/e2e/test_playlist_members.py` drives the panel in a browser, including a failed
-lookup surfacing its reason. None of that touches the network, so none of it proves a real
-person can be added.
+**What is guarded automatically.** `AddingByIdentifierTests` in
+`core/tests/test_playlist_members.py` covers everything either side of the lookup, with
+`Api` and `create_user` stubbed: a malformed identifier refused before any API call, a
+missing pick asking for one, an already-known NetID skipping the directory entirely, an
+empty directory answer explained rather than raising, an unreachable directory reported as
+worth retrying, a *missing API setting* reported as not worth retrying, a deleted account
+refused, a TA's disallowed grant rejected before the lookup runs, and the enrollment
+warning reaching the client. The rest of the file covers which roles each actor may grant
+plus duplicate and owner rejection. `tests/e2e/test_playlist_members.py` drives the panel
+in a browser, including a failed lookup surfacing its reason.
+
+None of it touches the network — deliberately, and the e2e tests use an identifier too long
+to pass `NETID_PATTERN` so that staying off the network does not depend on remembering to.
+So none of it proves a real person can be added, which is what the checklist above is for.
 
 ## Adding to this file
 

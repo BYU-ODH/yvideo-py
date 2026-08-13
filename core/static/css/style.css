@@ -1159,6 +1159,15 @@ p.tile-subtitle {
     font-weight: 500;
 }
 
+/* Collapsed rather than hidden: `hidden`/`display: none` would drop it out of the
+   accessibility tree, and a live region that is not in the tree cannot announce. An empty
+   block with no box takes up no room while staying available to announce into. */
+.playlist-members-status:empty {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
 .playlist-members-status-success {
     border: 1px solid var(--green);
     color: var(--green);
