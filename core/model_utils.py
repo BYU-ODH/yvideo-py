@@ -166,7 +166,7 @@ def update_user_details(user):
         # an error occurred, so don't update anything since the API may be down.
         # In other words, we can't tell if we should run worker_summary or student_summary
         return
-    elif worker_id == False:
+    elif worker_id is False:
         # this must be a non-employee student or is a non-student user
         return update_student_details(user.username)
     else:
