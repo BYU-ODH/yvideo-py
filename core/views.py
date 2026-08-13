@@ -1066,6 +1066,7 @@ def subtitle_editor(request, content_id):
 
 
 @require_http_methods(["GET", "POST"])
+@instructor_required
 def request_resource(request):
 
     if request.method == "POST":

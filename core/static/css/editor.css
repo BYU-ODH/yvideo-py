@@ -1466,13 +1466,13 @@ of the page */
 
 .resize-handle-left {
     left: 0;
-    border-right: 1px solid var(--handle-border-white);
+    border-right: 1px solid var(--track-item-label-color);
     border-radius: 4px 0 0 4px;
 }
 
 .resize-handle-right {
     right: 0;
-    border-left: 1px solid var(--handle-border-white);
+    border-left: 1px solid var(--track-item-label-color);
     border-radius: 0 4px 4px 0;
 }
 
@@ -1482,7 +1482,7 @@ of the page */
     margin: 0 auto;
     border-radius: 8px;
 
-    background-color: white;
+    background-color: var(--track-item-label-color);
 }
 
 .resize-handle-narrow {
