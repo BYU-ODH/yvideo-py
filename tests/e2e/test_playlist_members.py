@@ -249,7 +249,13 @@ def test_the_panel_still_works_after_the_settings_reset_swaps_it(
     page = logged_in_page
     page.keyboard.press("Escape")
     page.locator("#playlist-settings-reset").click()
-    expect(page.locator("#playlist-manage-people-button")).to_be_visible()
+
+    # Wait for the swap to land, not for the button to be visible -- the *old* button is
+    # visible and clickable for as long as Reset's fetch is in flight, and a dialog opened
+    # from it is destroyed mid-use when the replacement arrives. The placeholder is the
+    # signal: the fixture's open replaced it with the loaded panel, so it coming back is
+    # this container being a new one.
+    expect(page.locator("[data-playlist-members-placeholder]")).to_have_count(1)
 
     page.locator("#playlist-manage-people-button").click()
     row = page.locator(".playlist-member-row", has_text="Casey")
