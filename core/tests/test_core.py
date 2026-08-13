@@ -986,7 +986,6 @@ class ContentClipsOnlyViewTests(TestCase):
             "id": content.pk,
             "title": content.title,
             "description": content.description,
-            "words": content.words,
             "allow_definitions": content.allow_definitions,
             "allow_notes": content.allow_notes,
             "allow_captions": content.allow_captions,
@@ -1233,7 +1232,6 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
         payload = {
             "title": self.content.title,
             "description": self.content.description,
-            "words": self.content.words,
             "allow_definitions": self.content.allow_definitions,
             "allow_notes": self.content.allow_notes,
             "allow_captions": self.content.allow_captions,

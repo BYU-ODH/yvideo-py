@@ -881,7 +881,6 @@ class Content(models.Model):
     )
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
-    words = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1010,14 +1009,6 @@ class Content(models.Model):
             "tracks": annotation_set_json["tracks"],
             "subtitleTracks": self.get_subtitles(),
         }
-
-
-class ImportantWord(models.Model):
-    content = models.ForeignKey(
-        Content, on_delete=models.CASCADE, null=False, blank=False
-    )
-    word = models.CharField(null=False, blank=True, max_length=50)
-    translation = models.CharField(null=False, blank=True, max_length=100)
 
 
 class BaseAnnotation(models.Model):
@@ -1940,7 +1931,6 @@ class Subtitle(models.Model):
         blank=True,
     )
     is_original = models.BooleanField(null=False, blank=False, default=False)
-    words = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

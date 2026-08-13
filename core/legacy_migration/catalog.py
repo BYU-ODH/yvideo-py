@@ -104,7 +104,6 @@ class LegacyCatalogClient:
                 c.views,
                 c.file_version,
                 c.published,
-                c.words,
                 c.clips
             FROM contents c
             WHERE c.deleted IS NULL AND c.collection_id = %s
@@ -201,7 +200,6 @@ class LegacyCatalogClient:
                 s.title,
                 s.language,
                 s.content,
-                s.words,
                 s.content_id
             FROM subtitles s
             WHERE s.deleted IS NULL AND s.content_id IN ({placeholders})
