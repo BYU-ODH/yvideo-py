@@ -946,10 +946,6 @@ UNAUDITED_TEMPLATES = {
         "unreferenced: playlists.html uses partials/modals/add_new_playlist.html instead"
     ),
     "core/partials/content_display.html": "unreferenced by any view or template",
-    "core/partials/important_word.html": (
-        "rendered only by create_important_word, which nothing calls - content_info edits "
-        "important words through a textarea"
-    ),
     "core/partials/landing_page_playlist_content.html": (
         "unreferenced by any view or template"
     ),
