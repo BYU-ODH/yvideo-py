@@ -11,7 +11,8 @@
             </div>
             <div id="editor-scrubber" class="vertical-scrubber"></div>
             <div id="timeline-hover-scrubber" class="vertical-scrubber"></div>
-            <div id="timeline-ticks-content">
+            {# Scrolls horizontally, so it has to be reachable by keyboard to be scrollable at all. #}
+            <div id="timeline-ticks-content" tabindex="0" role="group" aria-label="Timeline ruler">
                 <div id="tick-marks-container"></div>
             </div>
         </div>
@@ -26,8 +27,12 @@
             </button>
         </div>
         <div id="timeline-zoom-controls" class="timeline-row-right">
-            <img id="zoom-out-button" class="timeline-zoom-icon" src="{% static 'img/minus-circle.svg' %}" />
-            <img id="zoom-in-button" class="timeline-zoom-icon" src="{% static 'img/plus-circle.svg' %}" />
+            <button id="zoom-out-button" type="button" class="timeline-zoom-button" aria-label="Zoom the timeline out">
+                <img class="timeline-zoom-icon" src="{% static 'img/minus-circle.svg' %}" alt="">
+            </button>
+            <button id="zoom-in-button" type="button" class="timeline-zoom-button" aria-label="Zoom the timeline in">
+                <img class="timeline-zoom-icon" src="{% static 'img/plus-circle.svg' %}" alt="">
+            </button>
             <div id="timeline-scroll-slider">
                 <input id="timeline-scroll-input"
                     type="range"
@@ -35,6 +40,7 @@
                     max="100"
                     value="0"
                     step="any"
+                    aria-label="Scroll the timeline"
                 />
             </div>
         </div>

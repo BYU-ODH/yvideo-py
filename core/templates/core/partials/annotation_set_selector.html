@@ -1,8 +1,9 @@
 {% comment %} `available_annotation_sets` is a list of dicts from annotation_set_choices(): every set
-   on this resource the user may read, each marked with whether they may edit it. {% endcomment %}
+   on this resource the user may read, each marked with whether they may edit it.
+{% endcomment %}
 <div class="annotation-set-selector-wrapper column-flex-no-gap">
-    <label for="annotation-set-selector">Select an Annotation Set</label>
-    <select class="annotation-set-selector" class="position-flex-start" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
+    <label for="{{ selector_id }}">Select an Annotation Set</label>
+    <select id="{{ selector_id }}" class="annotation-set-selector" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
         <option class="annotation-set-option-placeholder" value="">-- Select Annotation Set --</option>
         {% for choice in available_annotation_sets %}
             <option class="annotation-set-option" value="{{ choice.annotation_set.id }}"

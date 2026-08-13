@@ -6,7 +6,7 @@
     --dark-grey: #5f6567;
     --darker-grey: #4b5052;
     --light-blue: #9cd6ed;
-    --medium-blue: #0582ca;
+    --medium-blue: #057abe;
     --deep-blue: #002e5d;
     --yellow: #ffbf00;
     --light-yellow: #ffc;
@@ -97,7 +97,7 @@ a.blue-button {
 .white-button-with-border:hover {
     border: 2px solid white;
     color: white;
-    background-color: var(--primary-blue);
+    background-color: var(--dark-primary-blue);
 }
 
 .large-button {

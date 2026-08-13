@@ -46,7 +46,7 @@
                         {% for course in yearterm.playlists_by_course %}
                             <div class="course-header row-flex clickable" onclick="handleAccordian(this)">
                                 <p>{{ course.course_name }}</p>
-                                <img src="{% static 'img/arrow.svg' %}" class="arrow">
+                                <img src="{% static 'img/arrow.svg' %}" class="arrow" alt="">
                             </div>
                             <div class="playlists-list-content course-playlists-list accordian-folded">
                                 {% for playlist in course.playlists %}
