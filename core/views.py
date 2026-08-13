@@ -27,12 +27,10 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
-from .forms import ImportantWordForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
 from .models import Content
 from .models import Course
-from .models import ImportantWord
 from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
@@ -46,7 +44,6 @@ from .models import active_yearterms
 from .permissions import content_read_required
 from .permissions import content_write_required
 from .permissions import forbidden
-from .permissions import important_word_write_required
 from .permissions import instructor_required
 from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
@@ -938,7 +935,6 @@ def update_content(request, content):
         data = json.loads(request.body)
         content.title = data["title"]
         content.description = data["description"]
-        content.words = data["words"]
         content.allow_definitions = data["allow_definitions"]
         content.allow_notes = data["allow_notes"]
         content.allow_captions = data["allow_captions"]
@@ -959,53 +955,6 @@ def update_content(request, content):
         return HttpResponse()
     except Exception as e:
         logger.error(f"An error occured while updating content. Exception: {e}")
-        return HttpResponseServerError()
-
-
-@require_POST
-@content_write_required
-def create_important_word(request, content):
-    form = ImportantWordForm(request.POST)
-    if form.is_valid():
-        if not form.cleaned_data["word"]:
-            return HttpResponseBadRequest()
-        clean_word = form.cleaned_data["word"]
-        # check if important word already exists
-        already_exists = list(
-            ImportantWord.objects.filter(content=content).filter(word=clean_word)
-        )
-        if already_exists:
-            return HttpResponseBadRequest()
-        important_word = ImportantWord.objects.create(
-            content=content,
-            word=form.cleaned_data["word"],
-            translation=form.cleaned_data["translation"],
-        )
-        return render(
-            request,
-            "core/partials/important_word.html",
-            {
-                "word": {
-                    "id": important_word.id,
-                    "word": important_word.word,
-                    "translation": important_word.translation,
-                }
-            },
-        )
-    else:
-        return HttpResponseBadRequest()
-
-
-@require_http_methods(["DELETE"])
-@important_word_write_required
-def delete_important_word(request, word):
-    try:
-        word.delete()
-        return HttpResponse("", status=200)
-    except Exception as e:
-        logger.error(
-            f"An error occured while deleting an important word. word_id: {word.pk}. Exception: {e}"
-        )
         return HttpResponseServerError()
 
 

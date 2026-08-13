@@ -112,16 +112,6 @@ urlpatterns = [
         "content/<int:content_id>/delete/", views.delete_content, name="delete_content"
     ),
     path(
-        "content/<int:content_id>/important-word/create/",
-        views.create_important_word,
-        name="create_important_word",
-    ),
-    path(
-        "important-word/<int:word_id>/delete/",
-        views.delete_important_word,
-        name="delete_important_word",
-    ),
-    path(
         "content/<int:content_id>/player-data/",
         views.get_player_data,
         name="get_player_data",

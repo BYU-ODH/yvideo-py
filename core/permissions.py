@@ -18,7 +18,6 @@ from django.shortcuts import get_object_or_404
 
 from .models import AnnotationSet
 from .models import Content
-from .models import ImportantWord
 from .models import Playlist
 from .models import PrivilegeLevel
 from .models import Subtitle
@@ -96,20 +95,6 @@ def track_write_required(view_func):
         return view_func(request, track, *args, **kwargs)
 
     _wrapped.permission_check = "track_write"
-    return _wrapped
-
-
-def important_word_write_required(view_func):
-    """An important word is editable exactly when its content is."""
-
-    @wraps(view_func)
-    def _wrapped(request, word_id, *args, **kwargs):
-        word = get_object_or_404(ImportantWord, pk=word_id)
-        if not word.content.can_be_edited_by(request.user):
-            return forbidden()
-        return view_func(request, word, *args, **kwargs)
-
-    _wrapped.permission_check = "important_word_write"
     return _wrapped
 
 

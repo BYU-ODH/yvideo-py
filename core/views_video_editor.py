@@ -1359,8 +1359,6 @@ def update_subtitle_metadata(request):
                 )
             if "is_original" in data:
                 subtitle_obj.is_original = data["is_original"]
-            if "words" in request.POST:
-                subtitle_obj.words = data["words"]
             with transaction.atomic():
                 subtitle_obj.save()
 

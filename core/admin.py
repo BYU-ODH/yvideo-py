@@ -31,7 +31,6 @@ from .models import CommentAnnotation
 from .models import Content
 from .models import Course
 from .models import Email
-from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
@@ -1079,12 +1078,6 @@ class ResourceFileKeyAdmin(VersionAdmin):
     list_display = ("user", "resource_file", "created_at")
     list_filter = ("created_at",)
     search_fields = ("user__netid", "user__username", "resource_file__resource__name")
-
-
-@admin.register(ImportantWord)
-class ImportantWordAdmin(VersionAdmin):
-    list_display = ("word", "translation")
-    search_fields = ("word", "translation", "content__title")
 
 
 @admin.register(AnnotationSet)
