@@ -6,9 +6,6 @@
     --dark-grey: #5f6567;
     --darker-grey: #4b5052;
     --light-blue: #9cd6ed;
-
-    /* 4.63:1 against white, which the #0582ca this replaced missed at 4.15:1 - it is used
-       both as button fill under white text and as link-ish text on white. */
     --medium-blue: #057abe;
     --deep-blue: #002e5d;
     --yellow: #ffbf00;
@@ -97,8 +94,6 @@ a.blue-button {
     background-color: white;
 }
 
-/* --dark-primary-blue rather than --primary-blue: white on --primary-blue is 4.15:1, which
-   fails WCAG AA, and a hover state has to meet it the same as any other state. */
 .white-button-with-border:hover {
     border: 2px solid white;
     color: white;

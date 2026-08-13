@@ -6,10 +6,7 @@
     --dark-mode-dark-gray: #535353;
     --dark-mode-very-dark-gray: #414141;
 
-    /* Annotation type colors. Each is light enough for --track-item-label-color to clear
-       4.5:1 on it, because that text sits directly on these as the timeline item labels -
-       and the type icons drawn there are near-black too. Darkening any of them means
-       rechecking tests/e2e/test_a11y.py's editor sweep. */
+    /* Annotation type colors. */
     --skip-type-color: #DC643B;
     --skip-type-color-transparent: #DC643B75;
     --skip-type-color-very-transparent: #DC643B50;

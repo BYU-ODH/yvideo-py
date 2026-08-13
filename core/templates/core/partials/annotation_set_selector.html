@@ -1,17 +1,8 @@
 {% comment %} `available_annotation_sets` is a list of dicts from annotation_set_choices(): every set
    on this resource the user may read, each marked with whether they may edit it.
-
-   `selector_id` is required: the editor renders this partial three times on one page (export,
-   copy-from and use-existing), so a hard-coded id would repeat, and the label would point at
-   whichever select happened to be first. JS finds these by .annotation-set-selector, not by id.
 {% endcomment %}
 <div class="annotation-set-selector-wrapper column-flex-no-gap">
     <label for="{{ selector_id }}">Select an Annotation Set</label>
-    {% comment %}
-       This element carried two class attributes until the id above was added, and HTML keeps
-       only the first - so `position-flex-start` never applied and is left off here rather
-       than silently changing the width of three dialogs as a side effect of labelling it.
-    {% endcomment %}
     <select id="{{ selector_id }}" class="annotation-set-selector" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
         <option class="annotation-set-option-placeholder" value="">-- Select Annotation Set --</option>
         {% for choice in available_annotation_sets %}
