@@ -225,7 +225,6 @@ class LegacyMigrationTests(TestCase):
                 views INTEGER,
                 file_version TEXT,
                 published BOOLEAN,
-                words TEXT,
                 clips TEXT
             )
             """,
@@ -237,7 +236,6 @@ class LegacyMigrationTests(TestCase):
                 title TEXT,
                 language TEXT,
                 content TEXT,
-                words TEXT,
                 content_id TEXT
             )
             """,
@@ -439,7 +437,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 5,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -464,7 +461,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 2,
                 "file_version": "",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -477,7 +473,6 @@ class LegacyMigrationTests(TestCase):
                 "title": "English",
                 "language": "English",
                 "content": json.dumps([{"start": 0, "end": 1, "text": "Birds"}]),
-                "words": "Birds",
                 "content_id": legacy_content_id,
             },
         )
@@ -684,7 +679,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 0,
                 "file_version": "original",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -697,7 +691,6 @@ class LegacyMigrationTests(TestCase):
                 "title": "Cakchiquel",
                 "language": "Cakchiquel",
                 "content": json.dumps([{"start": 0, "end": 1, "text": "Hola"}]),
-                "words": "Hola",
                 "content_id": legacy_content_id,
             },
         )
@@ -906,7 +899,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 9,
                 "file_version": "english",
                 "published": 1,
-                "words": "birds, migration",
                 "clips": json.dumps([{"title": "Intro", "start": 1, "end": 3}]),
             },
         )
@@ -931,7 +923,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "",
                 "published": 0,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -946,7 +937,6 @@ class LegacyMigrationTests(TestCase):
                 "content": json.dumps(
                     [{"start": 0.0, "end": 2.0, "text": "Hello world"}]
                 ),
-                "words": "Hello, world",
                 "content_id": legacy_content_id,
             },
         )
@@ -1164,7 +1154,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 5,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1340,7 +1329,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 5,
                 "file_version": "video",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1492,7 +1480,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1680,7 +1667,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1984,7 +1970,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -3395,7 +3380,6 @@ class LegacyMigrationTests(TestCase):
                     "views": 0,
                     "file_version": "english",
                     "published": 1,
-                    "words": "",
                     "clips": "[]",
                 },
             )

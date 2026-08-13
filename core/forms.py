@@ -8,7 +8,6 @@ from .api import Api
 from .model_utils import update_user_enrollment
 from .models import Clip
 from .models import Content
-from .models import ImportantWord
 from .models import Playlist
 from .models import ResourceIntakeRequest
 from .models import Subtitle
@@ -63,15 +62,6 @@ class UpdateContentForm(forms.ModelForm):
         ]
 
     id = forms.CharField(widget=forms.HiddenInput)
-
-
-class ImportantWordForm(forms.ModelForm):
-    class Meta:
-        model = ImportantWord
-        fields = ["word", "translation"]
-
-    word = forms.CharField(required=True)
-    translation = forms.CharField(required=True)
 
 
 class ClipForm(forms.ModelForm):

@@ -10,9 +10,11 @@
         <button id="add-from-resource-button" type="button" class="blue-button">
             Create from existing resource
         </button>
-        <a href="{% url 'request_resource' %}" class="blue-button">
-            Request creation of a new resource
-        </a>
+        {% if user.is_instructor %}
+            <a href="{% url 'request_resource' %}" class="blue-button">
+                Request creation of a new resource
+            </a>
+        {% endif %}
     </div>
     <div class="add-video-modal-divider"></div>
     <div class="add-video-modal-column column-flex">

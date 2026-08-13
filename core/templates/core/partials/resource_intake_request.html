@@ -1,4 +1,8 @@
-{% include 'core/base.html' %}
+{% extends "core/base.html" %}
+
+{% block title %}Request a resource{% endblock %}
+
+{% block content %}
 <div id="resource-intake-form-wrapper">
     <h2>
         Resource Intake Request
@@ -29,25 +33,25 @@
                 <div class="row-flex resource-intake-group-set">
                     <div class="column-flex">
                         <div class="resource-intake-form-group{% if form.resource_title.errors %} resource-intake-field-error{% endif %}">
-                            <label>Resource Title <span class="resource-intake-required-marker">*</span></label>
+                            <label for="{{ form.resource_title.id_for_label }}">Resource Title <span class="resource-intake-required-marker">*</span></label>
                             {{ form.resource_title }}
                         </div>
                         <div class="resource-intake-form-group">
-                            <label>IMDb Link (optional)</label>
+                            <label for="{{ form.imdb_link.id_for_label }}">IMDb Link (optional)</label>
                             {{ form.imdb_link }}
                         </div>
                         <div class="resource-intake-form-group">
-                            <label>Date Needed (min. 5 days required)</label>
+                            <label for="{{ form.date_needed.id_for_label }}">Date Needed (min. 5 days required)</label>
                             {{ form.date_needed }}
                         </div>
                     </div>
                     <div class="column-flex">
                         <div class="resource-intake-form-group{% if form.audio_language.errors %} resource-intake-field-error{% endif %}">
-                            <label>Audio Language <span class="resource-intake-required-marker">*</span></label>
+                            <label for="{{ form.audio_language.id_for_label }}">Audio Language <span class="resource-intake-required-marker">*</span></label>
                             {{ form.audio_language }}
                         </div>
                         <div class="resource-intake-form-group">
-                            <label>Subtitle Language (optional)</label>
+                            <label for="{{ form.subtitle_language.id_for_label }}">Subtitle Language (optional)</label>
                             {{ form.subtitle_language }}
                         </div>
                     </div>
@@ -155,3 +159,4 @@
         </form>
     </div>
 </div>
+{% endblock %}

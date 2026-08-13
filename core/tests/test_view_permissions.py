@@ -20,7 +20,6 @@ PERMISSION_EXEMPT_VIEWS = {
     "whats_new": "static explanation of the differences from legacy Y-video",
     "invalid_login": "login failure page, deliberately unauthenticated",
     "playlists": "lists only what the requester can reach; filters rather than checks",
-    "request_resource": "anyone may request a resource; owner is set from request.user",
     # Guarded by the spoofing decorators instead.
     "start_spoofing": "spoof_permission_required + can_spoof_as",
     "stop_spoofing": "spoof_permission_required",
@@ -168,7 +167,6 @@ def test_object_ids_are_not_taken_from_the_request_body():
         "create_content_from_youtube_url": "playlist_id",
         "update_content": "content_id",
         "delete_content": "content_id",
-        "create_important_word": "content_id",
         "select_annotation_set": "content_id",
         "create_annotation_set": "content_id",
         "update_annotation_set_name": "annotation_set_id",

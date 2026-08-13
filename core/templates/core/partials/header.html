@@ -34,6 +34,11 @@
             <h2>Playlists</h2>
             <a href="{% url 'playlists' %}">Playlists</a>
 
+            {% if user.is_instructor %}
+                <h2>Resources</h2>
+                <a href="{% url 'request_resource' %}">Request New Resource</a>
+            {% endif %}
+
             <h2>Help</h2>
             <a href="{% url 'whats_new' %}">What's new?</a>
             <a href="{% url 'about' %}">About Y-Video</a>
