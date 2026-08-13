@@ -7,7 +7,12 @@
 {% endcomment %}
 <div class="annotation-set-selector-wrapper column-flex-no-gap">
     <label for="{{ selector_id }}">Select an Annotation Set</label>
-    <select id="{{ selector_id }}" class="annotation-set-selector position-flex-start" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
+    {% comment %}
+       This element carried two class attributes until the id above was added, and HTML keeps
+       only the first - so `position-flex-start` never applied and is left off here rather
+       than silently changing the width of three dialogs as a side effect of labelling it.
+    {% endcomment %}
+    <select id="{{ selector_id }}" class="annotation-set-selector" name="annotation_set_id" {% if not can_edit %}disabled{% endif %}>
         <option class="annotation-set-option-placeholder" value="">-- Select Annotation Set --</option>
         {% for choice in available_annotation_sets %}
             <option class="annotation-set-option" value="{{ choice.annotation_set.id }}"

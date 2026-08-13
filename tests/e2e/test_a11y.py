@@ -792,10 +792,12 @@ def test_the_editor_timeline_controls_have_no_a11y_violations(
 def test_the_editor_hover_states_have_no_a11y_violations(
     logged_in_page: Page, live_server, content_with_every_annotation_type
 ):
-    """Hovered panel items and timeline items, which repaint their own backgrounds.
+    """Hovered and selected panel items, and a hovered timeline item.
 
-    A hover state has to meet contrast like any other state, and these change the background
-    behind text that the resting page never draws that text on.
+    Each repaints its own background - the panel item's from the annotation type's colour at
+    31% (hover) or 46% (selected) over the dark panel - so the white label on it sits on a
+    colour that exists in no other state. A hover or selected state has to meet contrast like
+    any other, and both are blends, which is the way to get one wrong without noticing.
     """
     page = logged_in_page
     page.goto(
@@ -803,12 +805,27 @@ def test_the_editor_hover_states_have_no_a11y_violations(
     )
     page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
 
-    page.locator("#mute-annotation-type-header").click()
-    panel_item = page.locator("#mute-annotation-items-list .panel-item").first
-    panel_item.hover()
-    assert_no_violations(
-        page, "a hovered annotation panel item", include=["#editor-annotation-panel"]
-    )
+    # Every type in turn: the blend differs per colour, so one passing says nothing about
+    # the rest.
+    for annotation_type in ANNOTATION_TYPES:
+        page.locator(f"#{annotation_type}-annotation-type-header").click()
+        panel_item = page.locator(
+            f"#{annotation_type}-annotation-items-list .panel-item"
+        ).first
+        panel_item.hover()
+        assert_no_violations(
+            page,
+            f"a hovered {annotation_type} panel item",
+            include=["#editor-annotation-panel"],
+        )
+
+        panel_item.click()
+        page.wait_for_selector(f".{annotation_type}-list-item-wrapper-selected")
+        assert_no_violations(
+            page,
+            f"a selected {annotation_type} panel item",
+            include=["#editor-annotation-panel"],
+        )
 
     page.locator('.track-item[data-annotation-type="comment"]').first.hover()
     assert_no_violations(page, "a hovered timeline item", include=["#timeline-wrapper"])
