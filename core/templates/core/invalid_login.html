@@ -1,1 +1,32 @@
-<h1>Invalid login</h1>
+{% extends "core/noncsrf_base.html" %}
+{% load static %}
+
+{% comment %}
+   Reached by a visitor whose sign-in failed, so it extends noncsrf_base and draws only the
+   brand: the header partial's nav and sidebar link to pages nobody signed out can open.
+   This note sits below the extends tag on purpose - anything above it renders as page text.
+{% endcomment %}
+
+{% block title %}Invalid login - YVideo{% endblock %}
+
+{% block headerContent %}
+    <nav class="navbar">
+        <div class="navbar-start">
+            <a class="navbar-brand" href="{% url 'index' %}">
+                <img class="logo" src="{% static 'img/logo.svg' %}" alt="Logo">
+                <h1>Y-VIDEO<sup>2</sup></h1>
+            </a>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    <div class="main-content">
+        <h2>Invalid login</h2>
+        <p>
+            We could not sign you in. Try again from
+            <a href="{% url 'index' %}">the Y-Video home page</a>, and if it keeps
+            happening, contact the Humanities Learning Commons.
+        </p>
+    </div>
+{% endblock %}

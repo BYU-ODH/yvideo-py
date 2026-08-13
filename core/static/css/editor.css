@@ -5,30 +5,36 @@
     --dark-mode-gray: #747474;
     --dark-mode-dark-gray: #535353;
     --dark-mode-very-dark-gray: #414141;
-    --skip-type-color: #D05E38;
-    --skip-type-color-transparent: #D05E3875;
-    --skip-type-color-very-transparent: #D05E3850;
-    --blank-type-color: #88784D;
-    --blank-type-color-transparent: #88784D75;
-    --blank-type-color-very-transparent: #88784D50;
-    --pause-type-color: #4E5D9B;
-    --pause-type-color-transparent: #4E5D9B75;
-    --pause-type-color-very-transparent: #4E5D9B50;
-    --clip-type-color: #758796;
-    --clip-type-color-transparent: #75879675;
-    --clip-type-color-very-transparent: #75879650;
+
+    /* Annotation type colors. Each is light enough for --track-item-label-color to clear
+       4.5:1 on it, because that text sits directly on these as the timeline item labels -
+       and the type icons drawn there are near-black too. Darkening any of them means
+       rechecking tests/e2e/test_a11y.py's editor sweep. */
+    --skip-type-color: #DC643B;
+    --skip-type-color-transparent: #DC643B75;
+    --skip-type-color-very-transparent: #DC643B50;
+    --blank-type-color: #988656;
+    --blank-type-color-transparent: #98865675;
+    --blank-type-color-very-transparent: #98865650;
+    --pause-type-color: #6E83DB;
+    --pause-type-color-transparent: #6E83DB75;
+    --pause-type-color-very-transparent: #6E83DB50;
+    --clip-type-color: #778A99;
+    --clip-type-color-transparent: #778A9975;
+    --clip-type-color-very-transparent: #778A9950;
     --mute-type-color: #EBBF81;
     --mute-type-color-transparent: #EBBF8175;
     --mute-type-color-very-transparent: #EBBF8150;
-    --blur-type-color: #826AB4;
-    --blur-type-color-transparent: #826AB480;
-    --blur-type-color-very-transparent: #826AB450;
+    --blur-type-color: #9479CD;
+    --blur-type-color-transparent: #9479CD80;
+    --blur-type-color-very-transparent: #9479CD50;
     --comment-type-color: #449964;
     --comment-type-color-transparent: #44996475;
     --comment-type-color-very-transparent: #44996450;
-    --subtitle-type-color: #983769;
-    --subtitle-type-color-transparent: #98376975;
-    --subtitle-type-color-very-transparent: #98376950;
+    --subtitle-type-color: #E2529C;
+    --subtitle-type-color-transparent: #E2529C75;
+    --subtitle-type-color-very-transparent: #E2529C50;
+    --track-item-label-color: #1F1F1F;
 
     /* new y-video editor styles that are ADA compliant */
     --dark-mode-background-heavy: #000;
@@ -77,6 +83,18 @@
 }
 
 /* Editor Container */
+
+/* The editor is the only page whose content has to fill the viewport under the site header.
+   base.html's <main> is a flex child of a column body, so it has to grow - and become a
+   column itself - for #editor-container's `flex: 1` below to have anything to divide up.
+   Scoped safely because editor.css is loaded on the editor page alone. */
+#site-content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
 #editor-container {
     overflow: hidden;
     display: flex;
@@ -1502,7 +1520,7 @@ of the page */
 
     font-size: 0.85rem;
     font-weight: 500;
-    color: white;
+    color: var(--track-item-label-color);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1594,18 +1612,25 @@ of the page */
     background-color: var(--dark-mode-background-medium);
 }
 
+.timeline-zoom-button {
+    display: flex;
+
+    padding: 2px;
+    border: none;
+    border-radius: 50%;
+
+    background: none;
+}
+
+.timeline-zoom-button:hover {
+    cursor: pointer;
+    background-color: #ffffff50;
+}
+
 .timeline-zoom-icon {
     width: 20px;
     height: 20px;
-    padding: 2px;
-    border-radius: 50%;
-
     filter: invert(1);
-}
-
-.timeline-zoom-icon:hover {
-    cursor: pointer;
-    background-color: #ffffff50;
 }
 
 #timeline-scroll-slider {
