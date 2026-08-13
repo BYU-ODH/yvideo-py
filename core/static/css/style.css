@@ -1735,21 +1735,21 @@ h4.video-title {
     max-height: 70vh;
 }
 
-.content-form-group {
+.content-settings-form-group {
     display: flex;
     row-gap: 0.35rem;
 }
 
-.content-form-group label {
+.content-settings-form-group label {
     display: block;
     font-weight: 500;
 }
 
-.content-form-group.clips-only-invalid label {
+.content-settings-form-group.clips-only-invalid label {
     color: var(--red);
 }
 
-.content-form-group input {
+.content-settings-form-group input {
     padding: 0 10px;
 }
 
