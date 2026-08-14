@@ -1,67 +1,68 @@
 {% extends "core/base.html" %}
+
 {% load static %}
 
 {% block content %}
-<div class="main-content">
+  <div class="main-content">
     <div class="playlist-video-page column-flex">
-        <header class="video-title">
-            <h2>Playlist Details</h2>
-            <h3>{{ playlist.name }}</h3>
-        </header>
-        {% if can_edit %}
-            {% include 'core/partials/playlist_settings.html' %}
-        {% endif %}
-        <div id="playlist-videos-content">
-            <div id="playlist-videos-header" class="column-flex">
-                <div class="search-wrapper">
-                    <input
-                        type="text"
-                        id="video-search"
-                        class="list-search-input"
-                        placeholder="Search"
-                        aria-label="Search videos"
-                    >
-                    <img src="{% static 'img/search-icon.svg' %}" class="search-icon" alt="search">
-                </div>
-                {% if can_edit %}
-                {% include "core/partials/modals/add_video.html" with dialog_id="add-video-dialog" %}
-                {% include "core/partials/modals/select_resource.html" with dialog_id="select-resource-dialog" previous_dialog_id="add-video-dialog" %}
-                {% include "core/partials/modals/create_from_resource.html" with dialog_id="create-from-resource-modal" previous_dialog_id="select-resource-dialog" %}
-                <button
-                    class="blue-button"
+      <header class="video-title">
+        <h2>Playlist Details</h2>
+        <h3>{{ playlist.name }}</h3>
+      </header>
+      {% if can_edit %}
+        {% include 'core/partials/playlist_settings.html' %}
+      {% endif %}
+      <div id="playlist-videos-content">
+        <div id="playlist-videos-header" class="column-flex">
+          <div class="search-wrapper">
+            <input type="text"
+                   id="video-search"
+                   class="list-search-input"
+                   placeholder="Search"
+                   aria-label="Search videos">
+            <img src="{% static 'img/search-icon.svg' %}"
+                 class="search-icon"
+                 alt="search">
+          </div>
+          {% if can_edit %}
+            {% include "core/partials/modals/add_video.html" with dialog_id="add-video-dialog" %}
+            {% include "core/partials/modals/select_resource.html" with dialog_id="select-resource-dialog" previous_dialog_id="add-video-dialog" %}
+            {% include "core/partials/modals/create_from_resource.html" with dialog_id="create-from-resource-modal" previous_dialog_id="select-resource-dialog" %}
+            <button class="blue-button"
                     commandfor="add-video-dialog"
-                    command="show-modal">
-                    + Add New Video
-                </button>
-                {% endif %}
-            </div>
-            <div id="playlist-video-list">
-                {% for content in contents %}
-                    <div class="playlist-video tile">
-                        {% if can_edit %}
-                        <a href="{% url 'display_content_info' content.id %}" class="playlist-video-tile">
-                        {% else %}
-                        <a href="{% url 'player' content.id %}" class="playlist-video-tile">
-                        {% endif %}
-                            <div class="tile-image">
-                                <img src="{% static 'img/video.svg' %}" class="tile-image" alt="video-playlist-icon">
-                            </div>
-                            <div class="tile-body">
-                                <h4 class="video-title">{{ content.title  }}</h4>
-                            </div>
-                        </a>
-                    </div>
-                {% empty %}
-                    <p>There are no videos assigned to this playlist</p>
-                {% endfor %}
-            </div>
+                    command="show-modal">+ Add New Video</button>
+          {% endif %}
         </div>
+        <div id="playlist-video-list">
+          {% for content in contents %}
+            <div class="playlist-video tile">
+              {% if can_edit %}
+                <a href="{% url 'display_content_info' content.id %}"
+                   class="playlist-video-tile">
+              {% else %}
+                <a href="{% url 'player' content.id %}" class="playlist-video-tile">
+              {% endif %}
+                <div class="tile-image">
+                  <img src="{% static 'img/video.svg' %}"
+                       class="tile-image"
+                       alt="video-playlist-icon">
+                </div>
+                <div class="tile-body">
+                  <h4 class="video-title">{{ content.title }}</h4>
+                </div>
+              </a>
+            </div>
+          {% empty %}
+            <p>There are no videos assigned to this playlist</p>
+          {% endfor %}
+        </div>
+      </div>
     </div>
-</div>
-<script type="module" src="{% static 'js/playlistInfo.js' %}"></script>
-{% if can_edit %}
-<script type="module" src="{% static 'js/playlistMembers.js' %}"></script>
-{% endif %}
-<script type="module" src="{% static 'js/addYoutubeContent.js' %}"></script>
-<script type="module" src="{% static 'js/create_from_resource.js' %}"></script>
+  </div>
+  <script type="module" src="{% static 'js/playlistInfo.js' %}"></script>
+  {% if can_edit %}
+    <script type="module" src="{% static 'js/playlistMembers.js' %}"></script>
+  {% endif %}
+  <script type="module" src="{% static 'js/addYoutubeContent.js' %}"></script>
+  <script type="module" src="{% static 'js/create_from_resource.js' %}"></script>
 {% endblock %}

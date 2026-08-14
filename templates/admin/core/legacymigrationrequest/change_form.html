@@ -1,29 +1,45 @@
 {% extends "admin/change_form.html" %}
+
 {% load i18n %}
 
 {% block submit_buttons_bottom %}
-{{ block.super }}
-{% if change %}
-<div class="submit-row">
-  {% if original.preflight_completed_at %}
-  <input type="submit" value="{% translate 'Run preflight' %}" name="_run_preflight"
-         onclick="return confirm('{% translate 'This request already has file decisions and user mappings from a previous preflight. Running preflight again will erase them and rebuild from the legacy data. Continue?' %}');">
-  {% else %}
-  <input type="submit" value="{% translate 'Run preflight' %}" name="_run_preflight">
+  {{ block.super }}
+  {% if change %}
+    <div class="submit-row">
+      {% if original.preflight_completed_at %}
+        <input type="submit"
+               value="{% translate 'Run preflight' %}"
+               name="_run_preflight"
+               onclick="return confirm('{% translate 'This request already has file decisions and user mappings from a previous preflight. Running preflight again will erase them and rebuild from the legacy data. Continue?' %}');">
+      {% else %}
+        <input type="submit"
+               value="{% translate 'Run preflight' %}"
+               name="_run_preflight">
+      {% endif %}
+      <input type="submit"
+             value="{% translate 'Refresh issues' %}"
+             name="_refresh_issues">
+      {% if user.is_superuser %}
+        {% if original.preflight_completed_at %}
+          <input type="submit"
+                 value="{% translate 'Approve and queue import' %}"
+                 name="_approve_and_queue"
+                 onclick="return confirm('{% translate 'Approve and queue this request for import?' %}');">
+        {% else %}
+          <input type="submit"
+                 value="{% translate 'Approve and queue import' %}"
+                 name="_approve_and_queue"
+                 disabled
+                 title="{% translate 'Run preflight first. This request has not been previewed yet.' %}">
+        {% endif %}
+        <input type="submit"
+               value="{% translate 'Retry latest failed job' %}"
+               name="_retry_latest_failed_job">
+      {% endif %}
+      <input type="submit"
+             value="{% translate 'Cancel queued/running jobs' %}"
+             name="_cancel_jobs"
+             onclick="return confirm('{% translate 'Cancel all queued/running jobs for this request?' %}');">
+    </div>
   {% endif %}
-  <input type="submit" value="{% translate 'Refresh issues' %}" name="_refresh_issues">
-  {% if user.is_superuser %}
-  {% if original.preflight_completed_at %}
-  <input type="submit" value="{% translate 'Approve and queue import' %}" name="_approve_and_queue"
-         onclick="return confirm('{% translate 'Approve and queue this request for import?' %}');">
-  {% else %}
-  <input type="submit" value="{% translate 'Approve and queue import' %}" name="_approve_and_queue" disabled
-         title="{% translate 'Run preflight first. This request has not been previewed yet.' %}">
-  {% endif %}
-  <input type="submit" value="{% translate 'Retry latest failed job' %}" name="_retry_latest_failed_job">
-  {% endif %}
-  <input type="submit" value="{% translate 'Cancel queued/running jobs' %}" name="_cancel_jobs"
-         onclick="return confirm('{% translate 'Cancel all queued/running jobs for this request?' %}');">
-</div>
-{% endif %}
 {% endblock %}

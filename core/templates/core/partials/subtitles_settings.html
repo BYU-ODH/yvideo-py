@@ -1,27 +1,17 @@
 <div id="subtitles-settings-wrapper" class="column-flex-no-gap">
-    <h2>Subtitles Settings</h2>
-    <div id="subtitles-selector-wrapper" class="column-flex">
-        <label for="subtitles-track-selector">
-            Select Subtitles Track
-        </label>
-        <select id="subtitles-track-selector">
-            <option disabled selected>
-                Select a subtitles track
-            </option>
-            {% for option in subtitle_options %}
-            <option class="subtitles-track-option" value="{{option.id}}">
-                {{option.name}}
-            </option>
-            {% endfor %}
-        </select>
-        <button id="create-subtitle-track-button" class="white-button-with-border">
-            + Add new subtitle track
-        </button>
-    </div>
-    <button class="close-dialog-button red-button" command="close" commandfor="subtitles-settings">
-        X
-    </button>
-    <button id="delete-subtitles-track-button" class="red-button">
-        Delete subtitle track
-    </button>
+  <h2>Subtitles Settings</h2>
+  <div id="subtitles-selector-wrapper" class="column-flex">
+    <label for="subtitles-track-selector">Select Subtitles Track</label>
+    <select id="subtitles-track-selector">
+      <option disabled selected>Select a subtitles track</option>
+      {% for option in subtitle_options %}
+        <option class="subtitles-track-option" value="{{ option.id }}">{{ option.name }}</option>
+      {% endfor %}
+    </select>
+    <button id="create-subtitle-track-button" class="white-button-with-border">+ Add new subtitle track</button>
+  </div>
+  <button class="close-dialog-button red-button"
+          command="close"
+          commandfor="subtitles-settings">X</button>
+  <button id="delete-subtitles-track-button" class="red-button">Delete subtitle track</button>
 </div>

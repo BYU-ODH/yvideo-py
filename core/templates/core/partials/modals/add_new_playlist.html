@@ -1,15 +1,12 @@
 {% extends "core/partials/user_view_modal.html" %}
 
 {% block modal_title %}Create New Playlist{% endblock %}
-
 {% block modal_body %}
-    <form id="new-playlist-form" class="column-flex">
-        <div class="form-input-group">
-            <label for="new-playlist-name-input">Playlist name</label>
-            <input id="new-playlist-name-input" type="text" name="name">
-        </div>
-        <button id="create-new-playlist-submit" class="blue-button" type="submit">
-            Submit
-        </button>
-    </form>
+  <form id="new-playlist-form" class="column-flex">
+    <div class="form-input-group">
+      <label for="new-playlist-name-input">Playlist name</label>
+      <input id="new-playlist-name-input" type="text" name="name">
+    </div>
+    <button id="create-new-playlist-submit" class="blue-button" type="submit">Submit</button>
+  </form>
 {% endblock %}

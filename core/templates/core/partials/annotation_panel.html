@@ -1,55 +1,70 @@
 {% load static %}
-<div id="editor-annotation-panel" class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
-    <div id="annotation-panel-header" class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <p>Annotation Set</p>
-        <div class="multi-select-menu">
-            <button id="annotation-settings-button" class="multi-select-menu-button" command="show-modal" commandfor="annotation-set-settings">
-                Settings
-            </button>
-            <button id="annotation-set-export-open-button" class="multi-select-menu-button" command="show-modal" commandfor="export-annotation-set">
-                Export Annotations
-            </button>
-            <button id="open-annotation-set-options-modal" class="multi-select-menu-button" command="show-modal" commandfor="annotation-set-options-modal">
-                Change Annotation Set
-            </button>
-        </div>
-        <button id="annotation-set-menu-button" class="open-multi-select-button" aria-label="Annotation set settings">
-            <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
-        </button>
-        {% include 'core/partials/annotation_set_settings_compact.html' %}
-        {% include 'core/partials/annotation_set_export_modal.html' %}
-        {% include 'core/partials/annotation_set_options/base_modal.html' %}
+
+<div id="editor-annotation-panel"
+     class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
+  <div id="annotation-panel-header"
+       class="row-flex flex-apart-aligned multi-select-menu-parent">
+    <p>Annotation Set</p>
+    <div class="multi-select-menu">
+      <button id="annotation-settings-button"
+              class="multi-select-menu-button"
+              command="show-modal"
+              commandfor="annotation-set-settings">Settings</button>
+      <button id="annotation-set-export-open-button"
+              class="multi-select-menu-button"
+              command="show-modal"
+              commandfor="export-annotation-set">Export Annotations</button>
+      <button id="open-annotation-set-options-modal"
+              class="multi-select-menu-button"
+              command="show-modal"
+              commandfor="annotation-set-options-modal">Change Annotation Set</button>
     </div>
-    <div id="annotation-groups-wrapper">
-        {% for group in annotation_groups %}
-        <div id="{{group.type}}-annotation-type-wrapper" class="annotation-type-wrapper">
-            <div id="{{group.type}}-annotation-type-header" class="annotation-type-header row-flex flex-apart-aligned">
-                <div class="annotation-type-header-left row-flex">
-                    <img id="{{group.type}}-annotation-type-header-arrow" class="annotation-type-header-arrow" src="{% static 'img/arrow-white.svg' %}" alt="" />
-                    <div id="{{group.type}}-type-header-right" class="annotation-type-header-right">
-                        <img class="annotation-icon" src="{% static group.icon %}" alt="{{group.type}} icon">
-                    </div>
-                    <div class="annotation-type-header-text">
-                        {{ group.type_display }}
-                    </div>
-                </div>
-                <button class="annotation-type-add-button annotation-type-header-add-button" data-annotation-type="{{group.type}}" aria-label="Add new {{ group.type_display }} annotation">
-                    +
-                </button>
+    <button id="annotation-set-menu-button"
+            class="open-multi-select-button"
+            aria-label="Annotation set settings">
+      <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
+    </button>
+    {% include 'core/partials/annotation_set_settings_compact.html' %}
+    {% include 'core/partials/annotation_set_export_modal.html' %}
+    {% include 'core/partials/annotation_set_options/base_modal.html' %}
+  </div>
+  <div id="annotation-groups-wrapper">
+    {% for group in annotation_groups %}
+      <div id="{{ group.type }}-annotation-type-wrapper"
+           class="annotation-type-wrapper">
+        <div id="{{ group.type }}-annotation-type-header"
+             class="annotation-type-header row-flex flex-apart-aligned">
+          <div class="annotation-type-header-left row-flex">
+            <img id="{{ group.type }}-annotation-type-header-arrow"
+                 class="annotation-type-header-arrow"
+                 src="{% static 'img/arrow-white.svg' %}"
+                 alt="" />
+            <div id="{{ group.type }}-type-header-right"
+                 class="annotation-type-header-right">
+              <img class="annotation-icon"
+                   src="{% static group.icon %}"
+                   alt="{{ group.type }} icon">
             </div>
-            <div id="{{group.type}}-annotation-type-list" class="annotation-type-list column-flex">
-                <div id="{{group.type}}-annotation-items-list" class="annotation-items-list column-flex">
-                    {% for instance in group.instances %}
-                        {% include "core/partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}
-                    {% endfor %}
-                </div>
-            </div>
+            <div class="annotation-type-header-text">{{ group.type_display }}</div>
+          </div>
+          <button class="annotation-type-add-button annotation-type-header-add-button"
+                  data-annotation-type="{{ group.type }}"
+                  aria-label="Add new {{ group.type_display }} annotation">+</button>
         </div>
-        {% endfor %}
-    </div>
-    {% if not youtube_video_id %}
-        <button id="annotation-panel-switch" class="white-button-with-border editor-panel-switch">
-            Switch to Subtitle Editor
-        </button>
-    {% endif %}
+        <div id="{{ group.type }}-annotation-type-list"
+             class="annotation-type-list column-flex">
+          <div id="{{ group.type }}-annotation-items-list"
+               class="annotation-items-list column-flex">
+            {% for instance in group.instances %}
+              {% include "core/partials/annotation_list_item.html" with type=group.type id=instance.id name=instance.name %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if not youtube_video_id %}
+    <button id="annotation-panel-switch"
+            class="white-button-with-border editor-panel-switch">Switch to Subtitle Editor</button>
+  {% endif %}
 </div>

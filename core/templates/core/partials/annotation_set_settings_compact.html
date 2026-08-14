@@ -1,28 +1,38 @@
 {% load static %}
+
 <dialog id="annotation-set-settings">
-    <div id="annotation-set-settings-compact" class="column-flex" data-annotation-set-id="{{annotation_set.id}}" data-annotation-set-name="{{annotation_set.name}}">
-        <button class="close-dialog-button" command="close" commandfor="annotation-set-settings">X</button>
-        <h2>Annotation Set Settings</h2>
-        <div class="column-flex">
-            <h3>Update Annotation Set</h3>
-            <div>
-                <label for="annotation-set-name">Name:</label>
-                <input type="text" id="annotation-set-name" value="{{ annotation_set.name }}" required>
-            </div>
-            <div>
-                <button id="annotation-name-submit-button" type="submit" class="blue-button">Save</button>
-                <button type="button" class="cancel-button" command="close" commandfor="annotation-set-settings">Cancel</button>
-            </div>
-        </div>
-        <p class="annotation-set-editors-note">
-            You, and the TAs and co-instructors on your playlists, can edit this set.
-        </p>
-        {% if can_administer_annotation_set %}
-        <button id="annotation-set-delete" class="red-button">Retire this set</button>
-        <p class="annotation-set-editors-note">
-            Retiring keeps the set readable and copyable for anyone already using it, but
-            nobody will be able to change it again.
-        </p>
-        {% endif %}
+  <div id="annotation-set-settings-compact"
+       class="column-flex"
+       data-annotation-set-id="{{ annotation_set.id }}"
+       data-annotation-set-name="{{ annotation_set.name }}">
+    <button class="close-dialog-button"
+            command="close"
+            commandfor="annotation-set-settings">X</button>
+    <h2>Annotation Set Settings</h2>
+    <div class="column-flex">
+      <h3>Update Annotation Set</h3>
+      <div>
+        <label for="annotation-set-name">Name:</label>
+        <input type="text"
+               id="annotation-set-name"
+               value="{{ annotation_set.name }}"
+               required>
+      </div>
+      <div>
+        <button id="annotation-name-submit-button" type="submit" class="blue-button">Save</button>
+        <button type="button"
+                class="cancel-button"
+                command="close"
+                commandfor="annotation-set-settings">Cancel</button>
+      </div>
     </div>
+    <p class="annotation-set-editors-note">You, and the TAs and co-instructors on your playlists, can edit this set.</p>
+    {% if can_administer_annotation_set %}
+      <button id="annotation-set-delete" class="red-button">Retire this set</button>
+      <p class="annotation-set-editors-note">
+        Retiring keeps the set readable and copyable for anyone already using it, but
+        nobody will be able to change it again.
+      </p>
+    {% endif %}
+  </div>
 </dialog>

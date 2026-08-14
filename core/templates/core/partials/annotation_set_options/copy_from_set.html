@@ -1,20 +1,15 @@
-<div id="annotation-set-modal-copy-from-set" class="annotation-set-modal-option-content">
-    <button id="annotation-set-modal-back">
-        Back
-    </button>
-    <h2>
-        Copy from existing annotation set
-    </h2>
-    <div id="annotation-set-copy-from-set-content" class="annotation-set-modal-option-form column-flex">
-        <div class="column-flex">
-            {% include 'core/partials/annotation_set_selector.html' with selector_id="copy-from-annotation-set-selector" %}
-            <label for="copy-from-annotation-set-name">
-                Annotation set name:
-            </label>
-            <input type="text" id="copy-from-annotation-set-name">
-        </div>
-        <button id="annotation-set-copy-from-button" class="blue-button annotation-set-option-submit-button">
-            Create
-        </button>
+<div id="annotation-set-modal-copy-from-set"
+     class="annotation-set-modal-option-content">
+  <button id="annotation-set-modal-back">Back</button>
+  <h2>Copy from existing annotation set</h2>
+  <div id="annotation-set-copy-from-set-content"
+       class="annotation-set-modal-option-form column-flex">
+    <div class="column-flex">
+      {% include 'core/partials/annotation_set_selector.html' with selector_id="copy-from-annotation-set-selector" %}
+      <label for="copy-from-annotation-set-name">Annotation set name:</label>
+      <input type="text" id="copy-from-annotation-set-name">
     </div>
+    <button id="annotation-set-copy-from-button"
+            class="blue-button annotation-set-option-submit-button">Create</button>
+  </div>
 </div>

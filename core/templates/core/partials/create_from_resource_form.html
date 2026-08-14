@@ -1,38 +1,37 @@
 <div id="create-from-resource-form" class="column-flex">
-    <input type="text" hidden id="playlist-id" name="playlist_id" value="{{ playlist_id }}">
-    <div class="form-input-group">
-        <label for="content-title-input">
-            Title
-        </label>
-        <input type="text" name="Title" id="content-title-input">
-    </div>
-    <div class="form-input-group column-flex">
-        <label for="resource-file-input">
-            Resource File
-        </label>
-        <select name="resource_file_id" id="resource-file-input">
-            <option value="" selected disabled>
-                Choose a version
-            </option>
-            {% for option in options %}
-            <option value="{{ option.pk }}">
-                Version: {{ option.version }}
-                {% if option.audio_language is not None %}
-                 | Audio: {{ option.audio_language }}
-                {% endif %}
-                {% if option.burned_in_subtitles_language is not None %}
-                 | Subtitles: {{ option.burned_in_subtitles_language }}
-                {% endif %}
-            </option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="row-flex flex-apart-aligned">
-        <button type="submit" id="create-from-resource-form-submit" class="blue-button">
-            Create
-        </button>
-        <button class="cancel-button" type="button" command="close" commandfor="create-from-resource-modal">
-            Cancel
-        </button>
-    </div>
+  <input type="text"
+         hidden
+         id="playlist-id"
+         name="playlist_id"
+         value="{{ playlist_id }}">
+  <div class="form-input-group">
+    <label for="content-title-input">Title</label>
+    <input type="text" name="Title" id="content-title-input">
+  </div>
+  <div class="form-input-group column-flex">
+    <label for="resource-file-input">Resource File</label>
+    <select name="resource_file_id" id="resource-file-input">
+      <option value="" selected disabled>Choose a version</option>
+      {% for option in options %}
+        <option value="{{ option.pk }}">
+          Version: {{ option.version }}
+          {% if option.audio_language is not None %}
+            | Audio: {{ option.audio_language }}
+          {% endif %}
+          {% if option.burned_in_subtitles_language is not None %}
+            | Subtitles: {{ option.burned_in_subtitles_language }}
+          {% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="row-flex flex-apart-aligned">
+    <button type="submit"
+            id="create-from-resource-form-submit"
+            class="blue-button">Create</button>
+    <button class="cancel-button"
+            type="button"
+            command="close"
+            commandfor="create-from-resource-modal">Cancel</button>
+  </div>
 </div>

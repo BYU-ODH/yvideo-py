@@ -1,10 +1,11 @@
 {% load static %}
 {% load annotation_extras %}
+
 <div class="track-item elevated {{ item.annotation_type }}-type-track-item"
      id="{{ item.annotation_type }}-{{ item.id }}"
      draggable="true"
      data-setup="false"
-     data-original-track-id="{{item.track.id}}"
+     data-original-track-id="{{ item.track.id }}"
      data-annotation-id="{{ item.id }}"
      data-annotation-type="{{ item.annotation_type }}"
      data-start="{{ item.start_time }}"
@@ -12,46 +13,43 @@
      data-label="{{ item.name }}"
      data-delta-left="0"
      data-delta-width="0"
-     {% if item.annotation_type == "blur" %}
-     data-positions-url="{% url 'upsert_blur_position' item.id %}"
-     {% endif %}
+     {% if item.annotation_type == "blur" %} data-positions-url="{% url 'upsert_blur_position' item.id %}" {% endif %}
      tabindex="0">
-
-    {% if item.annotation_type != "pause" %}
+  {% if item.annotation_type != "pause" %}
     <div class="resize-handle resize-handle-left">
-        <div class="resize-handle-indicator indicator-left"></div>
+      <div class="resize-handle-indicator indicator-left"></div>
     </div>
+  {% endif %}
+  <div class="track-item-content">
+    <img class="track-item-type-icon"
+         src="{% static item.annotation_type|annotation_icon %}"
+         alt=""
+         aria-hidden="true">
+    <span class="track-item-label">{{ item.name }}</span>
+    {% if item.annotation_type == "blur" %}
+      {% for position_locator in item.get_position_locators %}
+        <div class="blur-position-locator"
+             data-position-id="{{ position_locator.id }}"
+             data-position-time="{{ position_locator.time }}"
+             data-delete-url="{% url 'delete_blur_position' position_locator.id %}"
+             tabindex="0"
+             role="button"
+             aria-label="blur point at {{ position_locator.time|hms_time }}"
+             title="Blur point at {{ position_locator.time|hms_time }}. Drag to retime, Delete to remove."></div>
+      {% endfor %}
     {% endif %}
-
-    <div class="track-item-content">
-        <img class="track-item-type-icon" src="{% static item.annotation_type|annotation_icon %}" alt="" aria-hidden="true">
-        <span class="track-item-label">{{ item.name }}</span>
-        {% if item.annotation_type == "blur" %}
-        {% for position_locator in item.get_position_locators %}
-            <div class="blur-position-locator"
-                 data-position-id="{{position_locator.id}}"
-                 data-position-time="{{position_locator.time}}"
-                 data-delete-url="{% url 'delete_blur_position' position_locator.id %}"
-                 tabindex="0"
-                 role="button"
-                 aria-label="blur point at {{position_locator.time|hms_time}}"
-                 title="Blur point at {{position_locator.time|hms_time}}. Drag to retime, Delete to remove.">
-            </div>
-        {% endfor %}
-        {% endif %}
-    </div>
-
-    {% if item.annotation_type != "pause" %}
+  </div>
+  {% if item.annotation_type != "pause" %}
     <div class="resize-handle resize-handle-right">
-        <div class="resize-handle-indicator indicator-right"></div>
+      <div class="resize-handle-indicator indicator-right"></div>
     </div>
-     {% endif %}
-
-    <form id="item-form-{{ item.id }}" style="display: none;">
-        {% csrf_token %}
-        <input type="hidden" name="name" value="{{ item.name }}">
-        <input type="hidden" name="start_time" value="{{ item.start_time }}">
-        <input type="hidden" name="end_time" value="{{ item.end_time }}">
-        <input type="hidden" name="description" value="{{ item.description }}">
-    </form>
+  {% endif %}
+  {# Never rendered; it only carries the item's values for the editor's save requests. #}
+  <form id="item-form-{{ item.id }}" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="name" value="{{ item.name }}">
+    <input type="hidden" name="start_time" value="{{ item.start_time }}">
+    <input type="hidden" name="end_time" value="{{ item.end_time }}">
+    <input type="hidden" name="description" value="{{ item.description }}">
+  </form>
 </div>

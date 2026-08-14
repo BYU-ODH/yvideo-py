@@ -2,22 +2,25 @@
    on this resource the user may read, each marked with whether they may edit it.
 {% endcomment %}
 <div class="annotation-set-selector-wrapper column-flex-no-gap">
-    <label for="{{ selector_id }}">Select an Annotation Set</label>
-    <select id="{{ selector_id }}" class="annotation-set-selector" name="annotation_set_id">
-        <option class="annotation-set-option-placeholder" value="">-- Select Annotation Set --</option>
-        {% for choice in available_annotation_sets %}
-            <option class="annotation-set-option" value="{{ choice.annotation_set.id }}"
-                    data-can-edit="{{ choice.can_edit|yesno:"true,false" }}"
-                    {% if annotation_set and choice.annotation_set.id == annotation_set.id %}selected{% endif %}>
-                <span class="set-option-name">{{ choice.annotation_set.name }}</span>
-                <span class="set-option-owner">({{ choice.owner_label }}, created {{ choice.created_at|date:"M j, Y" }})</span>
-                {% if not choice.can_edit %}<span class="set-option-readonly">— read-only</span>{% endif %}
-            </option>
-        {% endfor %}
-    </select>
-    <p class="annotation-set-shared-warning">
-        Selecting a set points your video at it rather than copying it. If someone else
-        owns it, they may change it, and any changes they make will show up here. If you
-        own it, other classes may be using it, so your edits will show up for them too.
-    </p>
+  <label for="{{ selector_id }}">Select an Annotation Set</label>
+  <select id="{{ selector_id }}"
+          class="annotation-set-selector"
+          name="annotation_set_id">
+    <option class="annotation-set-option-placeholder" value="">-- Select Annotation Set --</option>
+    {% for choice in available_annotation_sets %}
+      <option class="annotation-set-option"
+              value="{{ choice.annotation_set.id }}"
+              data-can-edit="{{ choice.can_edit|yesno:"true,false" }}"
+              {% if annotation_set and choice.annotation_set.id == annotation_set.id %}selected{% endif %}>
+        <span class="set-option-name">{{ choice.annotation_set.name }}</span>
+        <span class="set-option-owner">({{ choice.owner_label }}, created {{ choice.created_at|date:"M j, Y" }})</span>
+        {% if not choice.can_edit %}<span class="set-option-readonly">— read-only</span>{% endif %}
+      </option>
+    {% endfor %}
+  </select>
+  <p class="annotation-set-shared-warning">
+    Selecting a set points your video at it rather than copying it. If someone else
+    owns it, they may change it, and any changes they make will show up here. If you
+    own it, other classes may be using it, so your edits will show up for them too.
+  </p>
 </div>
