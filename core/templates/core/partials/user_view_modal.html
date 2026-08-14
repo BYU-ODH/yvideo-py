@@ -1,20 +1,21 @@
-<dialog
-    id="{{ dialog_id }}"
-    class="user-view-modal"
-    aria-labelledby="{{ dialog_id }}-title"
->
+<dialog id="{{ dialog_id }}"
+        class="user-view-modal"
+        aria-labelledby="{{ dialog_id }}-title">
     <header class="user-view-modal-header">
         <div class="user-view-modal-header-start">
             {% if previous_dialog_id %}
                 {% include "core/partials/dialog_back_button.html" with previous_dialog_id=previous_dialog_id only %}
             {% endif %}
         </div>
-        <h3 id="{{ dialog_id }}-title">{% block modal_title %}{% endblock %}</h3>
+        <h3 id="{{ dialog_id }}-title">
+            {% block modal_title %}{% endblock %}
+        </h3>
         <div class="user-view-modal-header-end">
             {% include "core/partials/dialog_close_button.html" with dialog_id=dialog_id only %}
         </div>
     </header>
-    <div class="user-view-modal-body{% block modal_body_classes %}{% endblock %}">
+    {# The separating space lives outside the block so a formatter cannot strip it and glue class names together. #}
+    <div class="user-view-modal-body {% block modal_body_classes %}{% endblock %}">
         {% block modal_body %}{% endblock %}
     </div>
 </dialog>

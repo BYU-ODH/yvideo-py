@@ -34,7 +34,7 @@ pytestmark = [
 def live_youtube_editor(
     live_youtube, require_live_embed, page, live_server, seeded_demo_data
 ):
-    playlist = Playlist.objects.get(name="Local Admin / Demo Review Shelf")
+    playlist = Playlist.objects.get(name="Demo Review Shelf")
     resource = get_or_create_youtube_resource(live_youtube, playlist.owner.username)
     content = Content.objects.create(
         playlist=playlist,

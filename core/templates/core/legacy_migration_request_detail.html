@@ -1,12 +1,11 @@
 {% extends "core/base.html" %}
+
 {% load static %}
 
 {% block title %}Legacy Migration Request{% endblock %}
-
 {% block extra_css %}
     <link rel="stylesheet" href="{% static 'css/legacy-migrations.css' %}">
 {% endblock %}
-
 {% block content %}
     <section class="playlists-page">
         <div id="playlists-container">
@@ -18,7 +17,6 @@
             {% if migration_request.latest_job_error %}
                 <p><strong>Last Error:</strong> {{ migration_request.latest_job_error }}</p>
             {% endif %}
-
             <h3>Resources</h3>
             <ul>
                 {% for migration_resource in migration_request.migration_resources.all %}
@@ -42,7 +40,6 @@
                 {% endfor %}
             </ul>
         </div>
-
         <div id="playlists-detail">
             <h3>Issues</h3>
             <ul>
@@ -52,7 +49,6 @@
                     <li>No current issues.</li>
                 {% endfor %}
             </ul>
-
             <h3>Jobs</h3>
             <ul>
                 {% for job in migration_request.jobs.all %}

@@ -2,6 +2,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -65,6 +66,14 @@ from ..models import ResourceAccess
 from ..models import ResourceFile
 from ..models import SkipAnnotation
 from ..models import Subtitle
+
+
+def _approve_button_is_disabled(content):
+    """Read the attribute off the whole tag, since the formatter is free to wrap it."""
+    button = re.search(
+        rb'<input\s[^>]*name="_approve_and_queue"[^>]*>', content, re.DOTALL
+    )
+    return button is not None and b"disabled" in button.group()
 
 
 @override_settings(
@@ -2616,14 +2625,12 @@ class LegacyMigrationTests(TestCase):
         change_url = reverse(
             "admin:core_legacymigrationrequest_change", args=[migration_request.pk]
         )
-        response = client.get(change_url)
-        self.assertIn(b'name="_approve_and_queue" disabled', response.content)
+        self.assertTrue(_approve_button_is_disabled(client.get(change_url).content))
 
         migration_request.preflight_completed_at = timezone.now()
         migration_request.save(update_fields=["preflight_completed_at"])
 
-        response = client.get(change_url)
-        self.assertNotIn(b'name="_approve_and_queue" disabled', response.content)
+        self.assertFalse(_approve_button_is_disabled(client.get(change_url).content))
 
     def test_status_display_shows_active_job_type(self):
         admin_user = UserFactory(admin=True)
@@ -3197,6 +3204,43 @@ class LegacyMigrationTests(TestCase):
         issue = migration_request.issues.get(code="unknown_collection_role")
         self.assertEqual(issue.severity, LegacyMigrationIssueSeverity.WARNING)
         self.assertEqual(issue.details["username"], "mystery")
+
+    def test_a_legacy_auditor_is_recognized_as_a_student(self):
+        """PlaylistRole dropped AUDITOR (#361), but role 3 is not unknown.
+
+        An unrecognized role is skipped outright at import, so treating the legacy
+        auditor as unknown would silently drop the grant instead of downgrading it.
+        """
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+            raw_snapshot={
+                "collection_access": [
+                    {
+                        "legacy_user_id": "",
+                        "username": "auditor",
+                        "byu_person_id": "",
+                        "email": "",
+                        "account_role": 3,
+                        "collection_id": "c1",
+                    }
+                ],
+            },
+        )
+
+        service.sync_request_issues(migration_request)
+
+        self.assertFalse(
+            migration_request.issues.filter(code="unknown_collection_role").exists()
+        )
+        self.assertEqual(
+            service._resolve_collection_role(3),
+            PlaylistRole.STUDENT,
+        )
 
     def test_claim_job_is_atomic(self):
         service = LegacyMigrationService(require_catalog=False)

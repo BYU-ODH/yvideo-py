@@ -29,8 +29,14 @@ from .models import Track
 FORBIDDEN_MESSAGE = "You do not have permission to do that."
 
 
-def forbidden(message=FORBIDDEN_MESSAGE):
-    return HttpResponseForbidden(message)
+def forbidden(message=FORBIDDEN_MESSAGE, content_type=None):
+    """403 with `message` as the body.
+
+    content_type is worth setting for endpoints whose client shows the body to the user:
+    it lets that client tell a message we wrote from an error page Django rendered, which
+    it otherwise cannot do and must not guess at (see playlistMembers.js failureMessage).
+    """
+    return HttpResponseForbidden(message, content_type=content_type)
 
 
 def _object_permission_required(model, id_kwarg, predicate_name, check_name):

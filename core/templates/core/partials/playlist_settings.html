@@ -1,38 +1,40 @@
 <div id="playlist-settings" data-playlist-id="{{ playlist.pk }}">
     <div class="column-flex">
         <h3>Settings</h3>
-        <form id="playlist-settings-form" class="column-flex" method="post"
+        <form id="playlist-settings-form"
+              class="column-flex"
+              method="post"
               action="{% url 'update_playlist_settings' playlist.pk %}">
             {% csrf_token %}
-
             {{ form.non_field_errors }}
-            <div class="playlist-form-group">
-                {{ form.name.as_field_group }}
-            </div>
-            <div class="playlist-form-group">
-                {{ form.published.as_field_group }}
-            </div>
-            <div class="playlist-form-group">
-                {{ form.archived.as_field_group }}
-            </div>
+            <div class="playlist-form-group">{{ form.name.as_field_group }}</div>
+            <div class="playlist-form-group">{{ form.published.as_field_group }}</div>
+            <div class="playlist-form-group">{{ form.archived.as_field_group }}</div>
             <div class="row-flex">
-                <button id="playlist-settings-submit" class="blue-button" type="submit">
-                    Submit
-                </button>
-                <button id="playlist-settings-reset" class="cancel-button">
-                    Reset
-                </button>
+                <button id="playlist-settings-submit" class="blue-button" type="submit">Submit</button>
+                <button id="playlist-settings-reset" class="cancel-button">Reset</button>
             </div>
         </form>
     </div>
     {% include "core/partials/modals/playlist_delete.html" with dialog_id="playlist-delete-modal" %}
     {% include "core/partials/modals/playlist_course_assignments.html" with dialog_id="playlist-course-assignments-modal" %}
+    {% include "core/partials/modals/playlist_members.html" with dialog_id="playlist-members-modal" %}
+
+    {# Outside the members dialog's swapped container, which would otherwise destroy it. #}
+    {% include "core/partials/modals/playlist_member_remove.html" with dialog_id="playlist-member-remove-modal" previous_dialog_id="playlist-members-modal" %}
+
     <div class="column-flex flex-apart">
-        <button id="playlist-settings-delete" class="red-button" command="show-modal" commandfor="playlist-delete-modal">
-            Delete Playlist
-        </button>
-        <button id="playlist-edit-course-assignment-button" class="blue-button" command="show-modal" commandfor="playlist-course-assignments-modal">
-            Edit Course Assignments
-        </button>
+        <button id="playlist-settings-delete"
+                class="red-button"
+                command="show-modal"
+                commandfor="playlist-delete-modal">Delete Playlist</button>
+        <button id="playlist-edit-course-assignment-button"
+                class="blue-button"
+                command="show-modal"
+                commandfor="playlist-course-assignments-modal">Edit Course Assignments</button>
+        <button id="playlist-manage-people-button"
+                class="blue-button"
+                command="show-modal"
+                commandfor="playlist-members-modal">Manage People</button>
     </div>
 </div>

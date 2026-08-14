@@ -3,6 +3,7 @@ import re
 
 from django import forms
 from django.core.exceptions import ValidationError
+import requests
 
 from .api import Api
 from .model_utils import update_user_enrollment
@@ -18,6 +19,37 @@ logger = logging.getLogger(__name__)
 
 BYU_ID_PATTERN = re.compile(r"^\d{9}$")
 NETID_PATTERN = re.compile(r"^(?=.*[A-Za-z])[A-Za-z0-9]{2,8}$")
+
+# A missing or blank BYU API setting fails as one of these rather than as a network error.
+# secret_settings.py is gitignored, so a deployment whose copy predates a key added to
+# secret_settings_template.py raises AttributeError on first use, and the template's own
+# empty-string URLs make requests raise MissingSchema.
+MISCONFIGURATION_ERRORS = (
+    AttributeError,
+    requests.exceptions.MissingSchema,
+    requests.exceptions.InvalidSchema,
+    requests.exceptions.InvalidURL,
+)
+
+MISCONFIGURED_DIRECTORY_MESSAGE = (
+    "Y-Video isn't set up to reach BYU's directory. That's a server configuration "
+    "problem rather than something retrying will fix -- ask an administrator to check "
+    "the BYU API settings."
+)
+
+
+def directory_lookup_error(exception, transient_message):
+    """The ValidationError to show for a failed BYU API call.
+
+    Misconfiguration is not an outage, and the two need different messages: telling
+    someone to "try again in a moment" when a setting is missing sends them into a loop
+    that cannot end. That is not hypothetical -- API_NET_ID_IAM_URL was added to
+    secret_settings_template.py well after the deployments that use it, and every install
+    that missed it reported the omission as a temporary BYU problem.
+    """
+    if isinstance(exception, MISCONFIGURATION_ERRORS):
+        return ValidationError(MISCONFIGURED_DIRECTORY_MESSAGE)
+    return ValidationError(transient_message)
 
 
 class PlaylistForm(forms.ModelForm):
@@ -147,15 +179,18 @@ class AddUserLookupForm(forms.Form):
             created_user = OIDCUserAuth().create_user({"byu_id": byu_id})
             if created_user is not None:
                 enrollment_result = update_user_enrollment(created_user)
-        except Exception:
+        except Exception as exception:
+            # Not "admin": this form is also the Manage People lookup, so naming one
+            # caller would misdirect whoever reads the log.
             logger.exception(
-                "Failed to create user from BYU API for byu_id=%s during admin "
+                "Failed to create user from BYU API for byu_id=%s during an "
                 "add-user lookup.",
                 byu_id,
             )
-            raise ValidationError(
+            raise directory_lookup_error(
+                exception,
                 "Couldn't reach BYU's directory to create this user. Try again "
-                "in a moment."
+                "in a moment.",
             )
 
         if created_user is None:
@@ -179,18 +214,21 @@ class AddUserLookupForm(forms.Form):
         if existing:
             return existing, False
 
-        api = Api()
         try:
-            student_summary = api.get_student_summary(net_id=netid)
-        except Exception:
+            # Api() itself talks to BYU -- it mints an auth token in its constructor --
+            # so it has to be inside the try. Left outside, a blank API_AUTH_TOKEN_URL
+            # escaped as a 500 instead of reaching the person as a message.
+            student_summary = Api().get_student_summary(net_id=netid)
+        except Exception as exception:
             logger.exception(
-                "Failed to look up NetID %s via the student summary API "
-                "during admin add-user lookup.",
+                "Failed to look up NetID %s via the student summary API during an "
+                "add-user lookup.",
                 netid,
             )
-            raise ValidationError(
+            raise directory_lookup_error(
+                exception,
                 "Couldn't reach BYU's directory to look up that NetID. Try "
-                "again in a moment."
+                "again in a moment.",
             )
 
         if student_summary is None:

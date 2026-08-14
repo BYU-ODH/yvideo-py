@@ -40,7 +40,9 @@
                     <input id="clips-only" type="checkbox" {% if content.clips_only %}checked{% endif %} data-content-has-clips="{{ content_has_clips|yesno:'true,false' }}">
                 </div>
             </div>
-            <div id="clips-only-warning" class="clips-only-warning"{% if not content.clips_only or content_has_clips %} hidden{% endif %}>
+            <div id="clips-only-warning"
+                 class="clips-only-warning"
+                 {% if not content.clips_only or content_has_clips %} hidden{% endif %}>
                 Warning! This video has no clips defined! Turning this setting on blocks the player from showing any part of the video.
             </div>
             {% if subtitle_options %}
@@ -62,15 +64,10 @@
             <textarea id="description">{{ content.description }}</textarea>
         </div>
     </div>
-
     <div class="row-flex flex-apart-aligned">
         <div class="row-flex">
-            <button id="content-settings-submit-button" class="blue-button">
-                Save
-            </button>
-            <button id="content-settings-reset-button" class="cancel-button">
-                Reset
-            </button>
+            <button id="content-settings-submit-button" class="blue-button">Save</button>
+            <button id="content-settings-reset-button" class="cancel-button">Reset</button>
         </div>
     </div>
 </div>

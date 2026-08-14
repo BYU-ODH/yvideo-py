@@ -1,162 +1,133 @@
 {% extends "core/base.html" %}
 
 {% block title %}Request a resource{% endblock %}
-
 {% block content %}
-<div id="resource-intake-form-wrapper">
-    <h2>
-        Resource Intake Request
-    </h2>
-    <div id="resource-intake-form-main-content">
-        {% if messages %}
-            <div id="resource-intake-form-messages">
-                {% for message in messages %}
-                    <p class="resource-intake-message resource-intake-message-{{ message.tags }}">{{ message }}</p>
-                {% endfor %}
-            </div>
-        {% endif %}
-        <form id="resource-intake-form" method="post" novalidate>
-            {% csrf_token %}
-            <div>
-                <p>
-                    You are responsible for ensuring that your use of Y-video is lawful. The Office of Digital Humanities and its Humanities Learning Commons seek to conform to all applicable copyright laws, and we reserve the right to refuse service if we judge your use to be unlawful.
-                </p>
-                <p>
-                    After submitting this request, please bring your VHS, DVD, Blu-ray, or other physical copy of this resource to the Humanities Learning Commons (HLC) so we can begin processing it.
-                </p>
-            </div>
-
-            <div>
-                <h3>
-                    Request information
-                </h3>
-                <div class="row-flex resource-intake-group-set">
-                    <div class="column-flex">
-                        <div class="resource-intake-form-group{% if form.resource_title.errors %} resource-intake-field-error{% endif %}">
-                            <label for="{{ form.resource_title.id_for_label }}">Resource Title <span class="resource-intake-required-marker">*</span></label>
-                            {{ form.resource_title }}
+    <div id="resource-intake-form-wrapper">
+        <h2>Resource Intake Request</h2>
+        <div id="resource-intake-form-main-content">
+            {% if messages %}
+                <div id="resource-intake-form-messages">
+                    {% for message in messages %}
+                        <p class="resource-intake-message resource-intake-message-{{ message.tags }}">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            <form id="resource-intake-form" method="post" novalidate>
+                {% csrf_token %}
+                <div>
+                    <p>
+                        You are responsible for ensuring that your use of Y-video is lawful. The Office of Digital Humanities and its Humanities Learning Commons seek to conform to all applicable copyright laws, and we reserve the right to refuse service if we judge your use to be unlawful.
+                    </p>
+                    <p>
+                        After submitting this request, please bring your VHS, DVD, Blu-ray, or other physical copy of this resource to the Humanities Learning Commons (HLC) so we can begin processing it.
+                    </p>
+                </div>
+                <div>
+                    <h3>Request information</h3>
+                    <div class="row-flex resource-intake-group-set">
+                        <div class="column-flex">
+                            <div class="resource-intake-form-group{% if form.resource_title.errors %} resource-intake-field-error{% endif %}">
+                                <label for="{{ form.resource_title.id_for_label }}">Resource Title <span class="resource-intake-required-marker">*</span></label>
+                                {{ form.resource_title }}
+                            </div>
+                            <div class="resource-intake-form-group">
+                                <label for="{{ form.imdb_link.id_for_label }}">IMDb Link (optional)</label>
+                                {{ form.imdb_link }}
+                            </div>
+                            <div class="resource-intake-form-group">
+                                <label for="{{ form.date_needed.id_for_label }}">Date Needed (min. 5 days required)</label>
+                                {{ form.date_needed }}
+                            </div>
                         </div>
-                        <div class="resource-intake-form-group">
-                            <label for="{{ form.imdb_link.id_for_label }}">IMDb Link (optional)</label>
-                            {{ form.imdb_link }}
-                        </div>
-                        <div class="resource-intake-form-group">
-                            <label for="{{ form.date_needed.id_for_label }}">Date Needed (min. 5 days required)</label>
-                            {{ form.date_needed }}
-                        </div>
-                    </div>
-                    <div class="column-flex">
-                        <div class="resource-intake-form-group{% if form.audio_language.errors %} resource-intake-field-error{% endif %}">
-                            <label for="{{ form.audio_language.id_for_label }}">Audio Language <span class="resource-intake-required-marker">*</span></label>
-                            {{ form.audio_language }}
-                        </div>
-                        <div class="resource-intake-form-group">
-                            <label for="{{ form.subtitle_language.id_for_label }}">Subtitle Language (optional)</label>
-                            {{ form.subtitle_language }}
+                        <div class="column-flex">
+                            <div class="resource-intake-form-group{% if form.audio_language.errors %} resource-intake-field-error{% endif %}">
+                                <label for="{{ form.audio_language.id_for_label }}">Audio Language <span class="resource-intake-required-marker">*</span></label>
+                                {{ form.audio_language }}
+                            </div>
+                            <div class="resource-intake-form-group">
+                                <label for="{{ form.subtitle_language.id_for_label }}">Subtitle Language (optional)</label>
+                                {{ form.subtitle_language }}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div id="resource-intake-request-checks-wrapper">
-                <h3>Check all that apply</h3>
-                <div id="resource-intake-request-checks">
-                    <div>
-                        <h4>Content Advisories:</h4>
-                        <div id="content-advisory-choice-set" class="resource-intake-choice-set">
-                            <div class="resource-intake-choice-group">
-                                {{ form.violence_or_blood_and_gore }}
-                                <label for="{{ form.violence_or_blood_and_gore.id_for_label }}">
-                                    Violence or blood and gore
-                                </label>
-                            </div>
-
-                            <div class="resource-intake-choice-group">
-                                {{ form.nudity_or_sexual_content }}
-                                <label for="{{ form.nudity_or_sexual_content.id_for_label }}">
-                                    Nudity or sexual content
-                                </label>
-                            </div>
-
-                            <div class="resource-intake-choice-group">
-                                {{ form.profanity_or_vulgarity }}
-                                <label for="{{ form.profanity_or_vulgarity.id_for_label }}">
-                                    Profanity or vulgarity
-                                </label>
-                            </div>
-
-                            <div class="resource-intake-choice-group">
-                                {{ form.self_harm_or_suicide }}
-                                <label for="{{ form.self_harm_or_suicide.id_for_label }}">
-                                    Self-harm or suicide
-                                </label>
-                            </div>
-
-                            <div class="resource-intake-choice-group">
-                                {{ form.drug_use }}
-                                <label for="{{ form.drug_use.id_for_label }}">
-                                    Drug use
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
+                <div id="resource-intake-request-checks-wrapper">
+                    <h3>Check all that apply</h3>
+                    <div id="resource-intake-request-checks">
                         <div>
-                            <h4>Library ownership:</h4>
-                            <div class="resource-intake-choice-set">
+                            <h4>Content Advisories:</h4>
+                            <div id="content-advisory-choice-set" class="resource-intake-choice-set">
                                 <div class="resource-intake-choice-group">
-                                    {{ form.checked_out_from_hbll }}
-                                    <label for="{{ form.checked_out_from_hbll.id_for_label }}">
-                                        Checked out from HBLL
-                                    </label>
+                                    {{ form.violence_or_blood_and_gore }}
+                                    <label for="{{ form.violence_or_blood_and_gore.id_for_label }}">Violence or blood and gore</label>
                                 </div>
-
                                 <div class="resource-intake-choice-group">
-                                    {{ form.checked_out_from_other_byu_library }}
-                                    <label for="{{ form.checked_out_from_other_byu_library.id_for_label }}">
-                                        Checked out from another BYU library
-                                    </label>
+                                    {{ form.nudity_or_sexual_content }}
+                                    <label for="{{ form.nudity_or_sexual_content.id_for_label }}">Nudity or sexual content</label>
                                 </div>
-
+                                <div class="resource-intake-choice-group">
+                                    {{ form.profanity_or_vulgarity }}
+                                    <label for="{{ form.profanity_or_vulgarity.id_for_label }}">Profanity or vulgarity</label>
+                                </div>
+                                <div class="resource-intake-choice-group">
+                                    {{ form.self_harm_or_suicide }}
+                                    <label for="{{ form.self_harm_or_suicide.id_for_label }}">Self-harm or suicide</label>
+                                </div>
+                                <div class="resource-intake-choice-group">
+                                    {{ form.drug_use }}
+                                    <label for="{{ form.drug_use.id_for_label }}">Drug use</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div>
+                                <h4>Library ownership:</h4>
+                                <div class="resource-intake-choice-set">
+                                    <div class="resource-intake-choice-group">
+                                        {{ form.checked_out_from_hbll }}
+                                        <label for="{{ form.checked_out_from_hbll.id_for_label }}">Checked out from HBLL</label>
+                                    </div>
+                                    <div class="resource-intake-choice-group">
+                                        {{ form.checked_out_from_other_byu_library }}
+                                        <label for="{{ form.checked_out_from_other_byu_library.id_for_label }}">Checked out from another BYU library</label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div id="resource-intake-legal-compliance-wrapper">
-                <h3>Legal compliance</h3>
-                <div class="resource-intake-choice-set">
-                    <div class="resource-intake-choice-group{% if form.acknowledged_compliance.errors %} resource-intake-field-error{% endif %}">
-                        {{ form.acknowledged_compliance }}
-                        <label id="resource-intake-policy-compliance-label" for="{{ form.acknowledged_compliance.id_for_label }}">
-                            <span class="resource-intake-required-marker">*</span> I have
-                            read the <a target="_blank" href="https://policy.byu.edu/view/guidelines-for-selecting-and-teaching-literary-and-visual-materials-at-byu-policy">BYU Visual Teaching Materials Policy</a>
-                            and <a target="_blank" href="https://policy.byu.edu/view/copyright-policy">BYU Copyright Policy</a>
-                            and will use this resource in compliance with them.
-                        </label>
+                <div id="resource-intake-legal-compliance-wrapper">
+                    <h3>Legal compliance</h3>
+                    <div class="resource-intake-choice-set">
+                        <div class="resource-intake-choice-group{% if form.acknowledged_compliance.errors %} resource-intake-field-error{% endif %}">
+                            {{ form.acknowledged_compliance }}
+                            <label id="resource-intake-policy-compliance-label"
+                                   for="{{ form.acknowledged_compliance.id_for_label }}">
+                                <span class="resource-intake-required-marker">*</span> I have
+                                read the <a target="_blank"
+    href="https://policy.byu.edu/view/guidelines-for-selecting-and-teaching-literary-and-visual-materials-at-byu-policy">BYU Visual Teaching Materials Policy</a>
+                                and <a target="_blank" href="https://policy.byu.edu/view/copyright-policy">BYU Copyright Policy</a>
+                                and will use this resource in compliance with them.
+                            </label>
+                        </div>
+                        <div class="resource-intake-choice-group{% if form.acknowledged_fair_use_limitation.errors %} resource-intake-field-error{% endif %}">
+                            {{ form.acknowledged_fair_use_limitation }}
+                            <label for="{{ form.acknowledged_fair_use_limitation.id_for_label }}">
+                                <span class="resource-intake-required-marker">*</span> I will
+                                only share this resource with students enrolled in relevant
+                                courses, or other uses permitted by
+                                <a target="_blank"
+                                   href="https://www.copyright.gov/help/faq/faq-fairuse.html">Fair Use</a>.
+                                (See <a href="https://files.lib.byu.edu/copyright/Checklist_for_Fair_Use.pdf">BYU's Fair Use checklist</a>.)
+                                Note that Fair Use arguments are weaker for films that can
+                                be streamed on commercial services, e.g. Amazon Prime,
+                                Disney+, Hulu, Netflix, Paramount+, etc.
+                            </label>
+                        </div>
                     </div>
-
-                    <div class="resource-intake-choice-group{% if form.acknowledged_fair_use_limitation.errors %} resource-intake-field-error{% endif %}">
-                        {{ form.acknowledged_fair_use_limitation }}
-                        <label for="{{ form.acknowledged_fair_use_limitation.id_for_label }}">
-                            <span class="resource-intake-required-marker">*</span> I will
-                            only share this resource with students enrolled in relevant
-                            courses, or other uses permitted by
-                            <a target="_blank" href="https://www.copyright.gov/help/faq/faq-fairuse.html">Fair Use</a>.
-                            (See <a href="https://files.lib.byu.edu/copyright/Checklist_for_Fair_Use.pdf">BYU's Fair Use checklist</a>.)
-                            Note that Fair Use arguments are weaker for films that can
-                            be streamed on commercial services, e.g. Amazon Prime,
-                            Disney+, Hulu, Netflix, Paramount+, etc.
-                        </label>
-                    </div>
-
                 </div>
-            </div>
-
-            <button class="white-button-with-border" type="submit">Submit</button>
-        </form>
+                <button class="white-button-with-border" type="submit">Submit</button>
+            </form>
+        </div>
     </div>
-</div>
 {% endblock %}

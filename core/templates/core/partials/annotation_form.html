@@ -1,120 +1,163 @@
 {% load static %}
 {% load annotation_extras %}
-<div class="item-form" id="existing-item-form" data-annotation-type="{{item_type}}" data-annotation-id="{{instance.id}}">
+
+<div class="item-form"
+     id="existing-item-form"
+     data-annotation-type="{{ item_type }}"
+     data-annotation-id="{{ instance.id }}">
     <div class="item-form-header">
         <h3>Edit {{ item_type_label }}</h3>
         <div class="item-form-header-actions">
             {% include "core/partials/item_undo_redo_buttons.html" with can_undo=instance.prev_id can_redo=instance.next_id %}
+
             {% if can_edit %}
-            <button id="annotation-form-delete-button"
-                    class="item-form-icon-button"
-                    type="button"
-                    aria-label="Delete this {{ item_type_label|lower }}"
-                    title="Delete this {{ item_type_label|lower }}">
-                <img src="{% static 'img/white-trash-can.svg' %}" alt="" aria-hidden="true">
-            </button>
+                <button id="annotation-form-delete-button"
+                        class="item-form-icon-button"
+                        type="button"
+                        aria-label="Delete this {{ item_type_label|lower }}"
+                        title="Delete this {{ item_type_label|lower }}">
+                    <img src="{% static 'img/white-trash-can.svg' %}"
+                         alt=""
+                         aria-hidden="true">
+                </button>
             {% endif %}
         </div>
     </div>
-
     {% if item_type == "clip" %}
         <div id="clip-next-last-buttons" class="row-flex flex-apart-aligned">
-            <button id="last-clip-button" class="clip-change-button">
-                View previous clip
-            </button>
-            <button id="next-clip-button" class="clip-change-button">
-                View next clip
-            </button>
+            <button id="last-clip-button" class="clip-change-button">View previous clip</button>
+            <button id="next-clip-button" class="clip-change-button">View next clip</button>
         </div>
     {% endif %}
-
-    <form id="annotation-update-form" {% if not can_edit %}disabled{% endif %} data-annotation-id="{{ instance.id }}"
-    data-annotation-type="{{ item_type }}">
-
+    <form id="annotation-update-form"
+          {% if not can_edit %}disabled{% endif %}
+          data-annotation-id="{{ instance.id }}"
+          data-annotation-type="{{ item_type }}">
         <input type="hidden" name="content_id" value="{{ content.id }}">
-
         <div class="form-group">
             <label for="annotation_name">Name:</label>
-            <input type="text" id="annotation_name" class="annotation-input-dark" name="annotation_name" value="{{ instance.name }}" {% if not can_edit %}readonly{% endif %}>
+            <input type="text"
+                   id="annotation_name"
+                   class="annotation-input-dark"
+                   name="annotation_name"
+                   value="{{ instance.name }}"
+                   {% if not can_edit %}readonly{% endif %}>
         </div>
-
         <div class="row-flex flex-apart-aligned">
             <div class="form-group column-flex">
                 <label for="start_time">Start</label>
-                <input type="text" id="start_time" class="annotation-time-input annotation-input-dark" name="start_time" value="{{ start_seconds|hms_time }}" aria-label="Start time in hours, minutes, seconds, and hundredths" {% if not can_edit %}readonly{% endif %}>
+                <input type="text"
+                       id="start_time"
+                       class="annotation-time-input annotation-input-dark"
+                       name="start_time"
+                       value="{{ start_seconds|hms_time }}"
+                       aria-label="Start time in hours, minutes, seconds, and hundredths"
+                       {% if not can_edit %}readonly{% endif %}>
             </div>
-
             {% if item_type != 'pause' %}
-            <div class="form-group column-flex">
-                <label for="end_time">End</label>
-                <input type="text" id="end_time" class="annotation-time-input annotation-input-dark" name="end_time" value="{{ end_seconds|hms_time }}" aria-label="End time in hours, minutes, seconds, and hundredths" {% if not can_edit %}readonly{% endif %}>
-            </div>
+                <div class="form-group column-flex">
+                    <label for="end_time">End</label>
+                    <input type="text"
+                           id="end_time"
+                           class="annotation-time-input annotation-input-dark"
+                           name="end_time"
+                           value="{{ end_seconds|hms_time }}"
+                           aria-label="End time in hours, minutes, seconds, and hundredths"
+                           {% if not can_edit %}readonly{% endif %}>
+                </div>
             {% endif %}
         </div>
-
         {% if item_type == 'pause' or item_type == 'skip' %}
-        <div class="form-group">
-            <label for="message">Message:</label>
-            <textarea id="message" class="annotation-input-dark" name="message" {% if not can_edit %}readonly{% endif %}>{{ instance.message }}</textarea>
-        </div>
+            <div class="form-group">
+                <label for="message">Message:</label>
+                <textarea id="message"
+                          class="annotation-input-dark"
+                          name="message"
+                          {% if not can_edit %}readonly{% endif %}>{{ instance.message }}</textarea>
+            </div>
         {% elif item_type == 'comment' %}
-        <div class="form-group">
-            <label for="text">Comment text:</label>
-            <textarea id="text" name="text" {% if not can_edit %}readonly{% endif %}>{{ instance.text }}</textarea>
-        </div>
-        <div class="row-flex flex-apart-aligned">
-            <div class='form-group'>
-                <label for="font-size">
-                    Text size:
-                </label>
-                <input type="number" id="font-size" name="font_size_in_rem" value="{{ instance.font_size_in_rem }}">
-            </div>
             <div class="form-group">
-                <label for="font-color">Text color:</label>
-                <input type="text" id="font-color" name="font_color" maxlength="6" value="{{ instance.font_color }}">
+                <label for="text">Comment text:</label>
+                <textarea id="text" name="text" {% if not can_edit %}readonly{% endif %}>{{ instance.text }}</textarea>
             </div>
-        </div>
-        <div class="row-flex flex-apart-aligned">
-            <div class="form-group">
-                <label for="top-x">Top x:</label>
-                <input type="number" id="top-x" name="top_left_x" value="{{ instance.top_left_x }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+            <div class="row-flex flex-apart-aligned">
+                <div class="form-group">
+                    <label for="font-size">Text size:</label>
+                    <input type="number"
+                           id="font-size"
+                           name="font_size_in_rem"
+                           value="{{ instance.font_size_in_rem }}">
+                </div>
+                <div class="form-group">
+                    <label for="font-color">Text color:</label>
+                    <input type="text"
+                           id="font-color"
+                           name="font_color"
+                           maxlength="6"
+                           value="{{ instance.font_color }}">
+                </div>
             </div>
-            <div class="form-group">
-                <label for="top-y">Top y:</label>
-                <input type="number" id="top-y" name="top_left_y" value="{{ instance.top_left_y }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+            <div class="row-flex flex-apart-aligned">
+                <div class="form-group">
+                    <label for="top-x">Top x:</label>
+                    <input type="number"
+                           id="top-x"
+                           name="top_left_x"
+                           value="{{ instance.top_left_x }}"
+                           step="0.1"
+                           {% if not can_edit %}readonly{% endif %}>
+                </div>
+                <div class="form-group">
+                    <label for="top-y">Top y:</label>
+                    <input type="number"
+                           id="top-y"
+                           name="top_left_y"
+                           value="{{ instance.top_left_y }}"
+                           step="0.1"
+                           {% if not can_edit %}readonly{% endif %}>
+                </div>
             </div>
-        </div>
-        <div class="row-flex flex-apart-aligned">
-            <div class="form-group">
-                <label for="bottom-x">Bottom x:</label>
-                <input type="number" id="bottom-x" name="bottom_right_x" value="{{ instance.bottom_right_x }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
+            <div class="row-flex flex-apart-aligned">
+                <div class="form-group">
+                    <label for="bottom-x">Bottom x:</label>
+                    <input type="number"
+                           id="bottom-x"
+                           name="bottom_right_x"
+                           value="{{ instance.bottom_right_x }}"
+                           step="0.1"
+                           {% if not can_edit %}readonly{% endif %}>
+                </div>
+                <div class="form-group">
+                    <label for="bottom-y">Bottom y:</label>
+                    <input type="number"
+                           id="bottom-y"
+                           name="bottom_right_y"
+                           value="{{ instance.bottom_right_y }}"
+                           step="0.1"
+                           {% if not can_edit %}readonly{% endif %}>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="bottom-y">Bottom y:</label>
-                <input type="number" id="bottom-y" name="bottom_right_y" value="{{ instance.bottom_right_y }}" step="0.1" {% if not can_edit %}readonly{% endif %}>
-            </div>
-        </div>
         {% elif item_type == 'blank' %}
-        <div class="form-group">
-            <label for="blank_type">Blank Type:</label>
-            <select id="blank_type" name="blank_type" {% if not can_edit %}disabled{% endif %}>
-                <option value="k" {% if instance.type == 'k' %}selected{% endif %}>Black</option>
-                <option value="#" {% if instance.type == '#' %}selected{% endif %}>Blur</option>
-                <option value="w" {% if instance.type == 'w' %}selected{% endif %}>White</option>
-            </select>
-        </div>
+            <div class="form-group">
+                <label for="blank_type">Blank Type:</label>
+                <select id="blank_type"
+                        name="blank_type"
+                        {% if not can_edit %}disabled{% endif %}>
+                    <option value="k" {% if instance.type == 'k' %}selected{% endif %}>Black</option>
+                    <option value="#" {% if instance.type == '#' %}selected{% endif %}>Blur</option>
+                    <option value="w" {% if instance.type == 'w' %}selected{% endif %}>White</option>
+                </select>
+            </div>
         {% endif %}
-
         {% if item_type == 'blur' %}
             {% include "core/partials/blur_positions.html" with item_positions=item_positions %}
         {% endif %}
-
         <div class="form-group">
             <label for="description">Description:</label>
             <textarea id="description"
-                    class="annotation-input-dark"
-                    name="description"
-                    {% if not can_edit %}readonly{% endif %}>{{ instance.description }}</textarea>
+                      class="annotation-input-dark"
+                      name="description"
+                      {% if not can_edit %}readonly{% endif %}>{{ instance.description }}</textarea>
         </div>
     </form>
 </div>

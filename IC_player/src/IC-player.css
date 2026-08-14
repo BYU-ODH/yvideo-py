@@ -129,6 +129,20 @@ h1{
   left: 0;
 }
 
+#convert-to-ic {
+  position: absolute;
+  bottom: 0;
+  padding: 15px;
+}
+
+#convert-to-ic-toggle {
+  background: #0000;
+}
+
+#convert-to-ic-button {
+  background: gray;
+}
+
 #files {
   position:relative;
   text-align: center;

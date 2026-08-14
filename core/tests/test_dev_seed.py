@@ -61,14 +61,8 @@ class DemoSeedDataTests(TestCase):
         self.assertTrue(lab_assistant_user.is_lab_assistant)
         self.assertFalse(alice.is_lab_assistant)
         self.assertEqual(admin_owned_playlists.count(), 2)
-        self.assertTrue(
-            admin_owned_playlists.filter(
-                name="Local Admin / Demo Review Shelf"
-            ).exists()
-        )
-        self.assertTrue(
-            admin_owned_playlists.filter(name="Local Admin / Draft Sandbox").exists()
-        )
+        self.assertTrue(admin_owned_playlists.filter(name="Demo Review Shelf").exists())
+        self.assertTrue(admin_owned_playlists.filter(name="Draft Sandbox").exists())
         self.assertEqual(
             PlaylistUserAccess.objects.filter(
                 user=admin_user,

@@ -23,6 +23,7 @@ presence, not behaviour, so nobody mistakes one for the other.
 | 5 | [A blur actually obscures what is under it](#5-a-blur-actually-obscures-what-is-under-it) | **Critical** | Never |
 | 6 | [Imported legacy blurs land on their subjects](#6-imported-legacy-blurs-land-on-their-subjects) | **Critical** | Never |
 | 7 | [What YouTube itself draws over an embed](#7-what-youtube-itself-draws-over-an-embed) | **Critical** | Never |
+| 8 | [Adding a person who has never signed in](#8-adding-a-person-who-has-never-signed-in) | Medium | Never |
 
 Severity reflects what a silent failure would expose. Blurs exist to cover copyrighted,
 violent, and explicit content, so a blur that does not render — or renders but does not
@@ -280,6 +281,56 @@ that we ask for `controls=0` and `disablekb=1` on the embed URL, which is a requ
 not a guarantee about what it renders.
 
 ---
+
+## 8. Adding a person who has never signed in
+
+Manage People accepts a NetID or 9-digit BYU ID that matches nobody in our database and
+provisions that person from BYU's directory before granting the role. This is the case the
+feature exists for — an instructor sets up a TA in August, and the TA has never opened
+Y-Video.
+
+**What to verify**, as an instructor on a playlist you own, in Settings → Manage People:
+
+- [ ] Type the NetID of someone with no Y-Video account. Nothing matches in the results
+      list — that is expected; the results list only ever shows existing accounts.
+- [ ] Choose **TA** and press **+ Add**. They appear in the list with their real name, not
+      their NetID, which is how you know the directory answered rather than a row being
+      invented.
+- [ ] Repeat with that person's 9-digit BYU ID on another playlist. Same result.
+- [ ] Type a NetID for someone with no BYU student record. The status line explains that
+      they may need to sign in themselves or be added by BYU ID, rather than failing
+      silently.
+- [ ] Type a malformed identifier (`zzz!!`). The status line asks for a BYU ID or NetID and
+      the field is outlined in red.
+- [ ] Have that person sign in. They land on the playlist with the access you granted — the
+      account you provisioned is the one SSO resolves them to, not a duplicate.
+- [ ] Add someone whose enrollment can't be synced. The status line says they were added
+      *and* that some courses may be missing, rather than reporting a clean success — their
+      course-based access will be wrong until the sync catches up, and you are the only
+      person who knows to follow up.
+
+**Why it cannot be automated.** The lookup calls BYU's directory and student-summary APIs
+through `AddUserLookupForm` (`core/forms.py`), which reaches `OIDCUserAuth().create_user`.
+A test can only stub those, and a stub proves that our code calls a function we wrote — not
+that the real directory returns what we expect for a real person, that a NetID resolves to
+the same account SSO will later hand us, or that eligibility rules (faculty, ODH staff,
+active student) behave as documented. Those are the parts that break, and they break in
+BYU's systems rather than ours.
+
+**What is guarded automatically.** `AddingByIdentifierTests` in
+`core/tests/test_playlist_members.py` covers everything either side of the lookup, with
+`Api` and `create_user` stubbed: a malformed identifier refused before any API call, a
+missing pick asking for one, an already-known NetID skipping the directory entirely, an
+empty directory answer explained rather than raising, an unreachable directory reported as
+worth retrying, a *missing API setting* reported as not worth retrying, a deleted account
+refused, a TA's disallowed grant rejected before the lookup runs, and the enrollment
+warning reaching the client. The rest of the file covers which roles each actor may grant
+plus duplicate and owner rejection. `tests/e2e/test_playlist_members.py` drives the panel
+in a browser, including a failed lookup surfacing its reason.
+
+None of it touches the network — deliberately, and the e2e tests use an identifier too long
+to pass `NETID_PATTERN` so that staying off the network does not depend on remembering to.
+So none of it proves a real person can be added, which is what the checklist above is for.
 
 ## Adding to this file
 
