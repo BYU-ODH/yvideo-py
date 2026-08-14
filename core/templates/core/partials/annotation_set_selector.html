@@ -3,10 +3,13 @@
 {% endcomment %}
 <div class="annotation-set-selector-wrapper column-flex-no-gap">
     <label for="{{ selector_id }}">Select an Annotation Set</label>
-    <select id="{{ selector_id }}" class="annotation-set-selector" name="annotation_set_id">
+    <select id="{{ selector_id }}"
+            class="annotation-set-selector"
+            name="annotation_set_id">
         <option class="annotation-set-option-placeholder" value="">-- Select Annotation Set --</option>
         {% for choice in available_annotation_sets %}
-            <option class="annotation-set-option" value="{{ choice.annotation_set.id }}"
+            <option class="annotation-set-option"
+                    value="{{ choice.annotation_set.id }}"
                     data-can-edit="{{ choice.can_edit|yesno:"true,false" }}"
                     {% if annotation_set and choice.annotation_set.id == annotation_set.id %}selected{% endif %}>
                 <span class="set-option-name">{{ choice.annotation_set.name }}</span>

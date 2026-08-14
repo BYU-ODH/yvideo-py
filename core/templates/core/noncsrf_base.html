@@ -5,19 +5,22 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="{% block meta_description %}Y-Video: copyright-safe course-based media sharing at BYU.{% endblock %}">
         <title>{% block title %}YVideo{% endblock %}</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&display=swap"
+              rel="stylesheet">
         <link rel="stylesheet" href="{% static 'css/style.css' %}">
         <link rel="stylesheet" href="{% static 'css/spoof_widgets.css' %}">
         <link rel="stylesheet" href="{% static 'css/mobile_styles.css' %}">
-
         {% block extra_css %}{% endblock %}
-
         <script src="{% static 'js/vendor/htmx.js' %}"></script>
         <script src="{% static 'js/general.js' %}"></script>
-        <link rel="shortcut icon" type="image/png" href="{% static 'img/favicon.ico' %}" >
+        <link rel="shortcut icon"
+              type="image/png"
+              href="{% static 'img/favicon.ico' %}">
     </head>
     <body>
         <header class="site-header">
@@ -26,8 +29,7 @@
             {% endblock %}
         </header>
         <main id="site-content">
-            {% block content %}
-            {% endblock %}
+            {% block content %}{% endblock %}
         </main>
     </body>
 </html>

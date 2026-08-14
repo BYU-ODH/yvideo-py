@@ -1,43 +1,31 @@
 <dialog id="annotation-set-options-modal">
-    <button class="close-dialog-button" commandfor="annotation-set-options-modal" command="close">X</button>
+    <button class="close-dialog-button"
+            commandfor="annotation-set-options-modal"
+            command="close">X</button>
     <div id="annotation-set-modal-base-content">
-        <h2>
-            Choose how to get annotations for this video
-        </h2>
+        <h2>Choose how to get annotations for this video</h2>
         <div id="annotation-set-selection-options">
             {% if available_annotation_sets %}
-            <div class="annotation-set-selection-option">
-                <button id="annotation-set-view-existing" class="blue-button">
-                    Use existing annotations
-                </button>
-                <p>
-                    Choose from existing sets of annotations. You can only edit them if you are the owner and any edits the owner makes to this set will be reflected on your video.
-                </p>
-            </div>
-            <div class="annotation-set-selection-option">
-                <button id="annotation-set-view-copy" class="blue-button">
-                    Copy from existing annotations
-                </button>
-                <p>
-                    Make your own copy of an existing set of annotations. You will have full editing control, and will not get the changes made to the original set by the original owner.
-                </p>
-            </div>
+                <div class="annotation-set-selection-option">
+                    <button id="annotation-set-view-existing" class="blue-button">Use existing annotations</button>
+                    <p>
+                        Choose from existing sets of annotations. You can only edit them if you are the owner and any edits the owner makes to this set will be reflected on your video.
+                    </p>
+                </div>
+                <div class="annotation-set-selection-option">
+                    <button id="annotation-set-view-copy" class="blue-button">Copy from existing annotations</button>
+                    <p>
+                        Make your own copy of an existing set of annotations. You will have full editing control, and will not get the changes made to the original set by the original owner.
+                    </p>
+                </div>
             {% endif %}
             <div class="annotation-set-selection-option">
-                <button id="annotation-set-view-import" class="blue-button">
-                    Import annotations
-                </button>
-                <p>
-                    Create a new set of annotations from an exported file.
-                </p>
+                <button id="annotation-set-view-import" class="blue-button">Import annotations</button>
+                <p>Create a new set of annotations from an exported file.</p>
             </div>
             <div class="annotation-set-selection-option">
-                <button id="annotation-set-view-create" class="blue-button">
-                    Create new annotations
-                </button>
-                <p>
-                    Start from scratch.
-                </p>
+                <button id="annotation-set-view-create" class="blue-button">Create new annotations</button>
+                <p>Start from scratch.</p>
             </div>
         </div>
     </div>

@@ -1,8 +1,12 @@
 {% load static %}
+
 <div class="landing-page-playlist tile">
-    <a href="{% url 'playlist_info' playlist_id=playlist.pk %}" class="playlist-header">
+    <a href="{% url 'playlist_info' playlist_id=playlist.pk %}"
+       class="playlist-header">
         <div class="tile-image">
-            <img src="{% static 'img/video.svg' %}" class="tile-image" alt="video-playlist-icon">
+            <img src="{% static 'img/video.svg' %}"
+                 class="tile-image"
+                 alt="video-playlist-icon">
         </div>
         <div class="tile-body">
             <h3 class="playlist-header-name">{{ playlist.name }}</h3>

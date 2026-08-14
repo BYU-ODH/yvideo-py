@@ -1,17 +1,14 @@
 {% extends "core/partials/user_view_modal.html" %}
 
 {% block modal_title %}Remove this person?{% endblock %}
-
-{% block modal_body_classes %} column-flex{% endblock %}
-
+{% block modal_body_classes %}column-flex{% endblock %}
 {% block modal_body %}
     <p id="playlist-member-remove-name"></p>
     <div class="row-flex flex-apart-aligned">
-        <button type="button" id="playlist-member-confirm-remove" class="blue-button">
-            Yes
-        </button>
-        <button type="button" class="cancel-button" command="close" commandfor="{{ dialog_id }}">
-            No
-        </button>
+        <button type="button" id="playlist-member-confirm-remove" class="blue-button">Yes</button>
+        <button type="button"
+                class="cancel-button"
+                command="close"
+                commandfor="{{ dialog_id }}">No</button>
     </div>
 {% endblock %}
