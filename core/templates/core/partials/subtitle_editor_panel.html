@@ -2,19 +2,19 @@
 
 <div id="subtitle-editor-panel"
      class="subtitle-editor-panel-hidden editor-container-component-dark editor-panel-wrapper">
-  <div id="subtitle-panel-header" class="row-flex flex-apart-aligned">
-    <p>Subtitles</p>
-    <button class="editor-menu-button"
-            aria-label="Subtitles settings"
-            command="show-modal"
-            commandfor="subtitles-settings">
-      <img src="{% static 'img/dots_menu.svg' %}" alt="">
-    </button>
-    <dialog id="subtitles-settings">
-      {% include 'core/partials/subtitles_settings.html' %}
-    </dialog>
-  </div>
-  {% include 'core/partials/subtitle_panel_content.html' %}
-  <button id="subtitle-panel-switch"
-          class="white-button-with-border editor-panel-switch">Switch to Annotation Editor</button>
+    <div id="subtitle-panel-header" class="row-flex flex-apart-aligned">
+        <p>Subtitles</p>
+        <button class="editor-menu-button"
+                aria-label="Subtitles settings"
+                command="show-modal"
+                commandfor="subtitles-settings">
+            <img src="{% static 'img/dots_menu.svg' %}" alt="">
+        </button>
+        <dialog id="subtitles-settings">
+            {% include 'core/partials/subtitles_settings.html' %}
+        </dialog>
+    </div>
+    {% include 'core/partials/subtitle_panel_content.html' %}
+    <button id="subtitle-panel-switch"
+            class="white-button-with-border editor-panel-switch">Switch to Annotation Editor</button>
 </div>

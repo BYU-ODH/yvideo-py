@@ -1,26 +1,26 @@
 {% load static %}
 
 <div class="undo-redo-toolbar" role="toolbar" aria-label="Edit history">
-  <button type="button"
-          class="item-form-icon-button annotation-history-button undo-btn"
-          data-history-action="undo"
-          data-history-url="{% url 'undo_annotation' content.id %}"
-          data-annotation-id="{{ instance.id }}"
-          data-annotation-type="{{ item_type }}"
-          {% if not can_undo or not can_edit %}disabled{% endif %}
-          aria-label="Undo last change"
-          title="Undo last change (Ctrl+Z)">
-    <img src="{% static 'img/undo.svg' %}" alt="" aria-hidden="true">
-  </button>
-  <button type="button"
-          class="item-form-icon-button annotation-history-button redo-btn"
-          data-history-action="redo"
-          data-history-url="{% url 'redo_annotation' content.id %}"
-          data-annotation-id="{{ instance.id }}"
-          data-annotation-type="{{ item_type }}"
-          {% if not can_redo or not can_edit %}disabled{% endif %}
-          aria-label="Redo last undone change"
-          title="Redo last undone change (Ctrl+Shift+Z)">
-    <img src="{% static 'img/redo.svg' %}" alt="" aria-hidden="true">
-  </button>
+    <button type="button"
+            class="item-form-icon-button annotation-history-button undo-btn"
+            data-history-action="undo"
+            data-history-url="{% url 'undo_annotation' content.id %}"
+            data-annotation-id="{{ instance.id }}"
+            data-annotation-type="{{ item_type }}"
+            {% if not can_undo or not can_edit %}disabled{% endif %}
+            aria-label="Undo last change"
+            title="Undo last change (Ctrl+Z)">
+        <img src="{% static 'img/undo.svg' %}" alt="" aria-hidden="true">
+    </button>
+    <button type="button"
+            class="item-form-icon-button annotation-history-button redo-btn"
+            data-history-action="redo"
+            data-history-url="{% url 'redo_annotation' content.id %}"
+            data-annotation-id="{{ instance.id }}"
+            data-annotation-type="{{ item_type }}"
+            {% if not can_redo or not can_edit %}disabled{% endif %}
+            aria-label="Redo last undone change"
+            title="Redo last undone change (Ctrl+Shift+Z)">
+        <img src="{% static 'img/redo.svg' %}" alt="" aria-hidden="true">
+    </button>
 </div>

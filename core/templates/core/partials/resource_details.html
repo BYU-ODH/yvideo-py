@@ -1,13 +1,13 @@
 <button type="button"
         class="resource-details"
         data-resource-id="{{ resource.pk }}">
-  <span class="resource-detail-heading">
-    <span class="resource-detail-title">{{ resource.name }}</span>
-  </span>
-  <span class="resource-detail-body">
-    <span>Number of versions: {{ resource.resource_files.count }}</span>
-    {% if resource.notes %}
-      <span>Notes: {{ resource.notes }}</span>
-    {% endif %}
-  </span>
+    <span class="resource-detail-heading">
+        <span class="resource-detail-title">{{ resource.name }}</span>
+    </span>
+    <span class="resource-detail-body">
+        <span>Number of versions: {{ resource.resource_files.count }}</span>
+        {% if resource.notes %}
+            <span>Notes: {{ resource.notes }}</span>
+        {% endif %}
+    </span>
 </button>

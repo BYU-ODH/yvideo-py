@@ -2,103 +2,103 @@
 {% load annotation_extras %}
 
 <div id="blur-positions-wrapper">
-  <h4>Blur Points</h4>
-  <p class="blur-positions-help">
-    Drag the blur on the video to move it, or its handles to resize it. For moving targets,
-    adjust the blur at the beginning, then adjust the blur at the end, then repeatedly find
-    where the blur is farthest from the target and adjust its position there.
-  </p>
-  <div id="positions-list"
-       tabindex="0"
-       role="group"
-       aria-label="Blur points">
-    <table id="blur-positions-table">
-      <colgroup>
-        <col class="position-column-number">
-        <col span="5">
-        <col class="position-column-actions">
-      </colgroup>
-      <thead>
-        <tr>
-          <td></td>
-          <th scope="col">Time</th>
-          <th scope="col">X (%)</th>
-          <th scope="col">Y (%)</th>
-          <th scope="col">W (%)</th>
-          <th scope="col">H (%)</th>
-          <td></td>
-        </tr>
-      </thead>
-      <tbody>
-        {% for position in item_positions %}
-          <tr class="position-entry"
-              data-position-id="{{ position.pk }}"
-              data-time="{{ position.time|floatformat:2 }}"
-              data-x="{{ position.x|floatformat:2 }}"
-              data-y="{{ position.y|floatformat:2 }}"
-              data-width="{{ position.width|floatformat:2 }}"
-              data-height="{{ position.height|floatformat:2 }}">
-            <th scope="row" class="position-counter">{{ forloop.counter }}.</th>
-            <td class="position-input-group">
-              {% if forloop.counter == 1 %}
-                {% comment %}
+    <h4>Blur Points</h4>
+    <p class="blur-positions-help">
+        Drag the blur on the video to move it, or its handles to resize it. For moving targets,
+        adjust the blur at the beginning, then adjust the blur at the end, then repeatedly find
+        where the blur is farthest from the target and adjust its position there.
+    </p>
+    <div id="positions-list"
+         tabindex="0"
+         role="group"
+         aria-label="Blur points">
+        <table id="blur-positions-table">
+            <colgroup>
+                <col class="position-column-number">
+                <col span="5">
+                <col class="position-column-actions">
+            </colgroup>
+            <thead>
+                <tr>
+                    <td></td>
+                    <th scope="col">Time</th>
+                    <th scope="col">X (%)</th>
+                    <th scope="col">Y (%)</th>
+                    <th scope="col">W (%)</th>
+                    <th scope="col">H (%)</th>
+                    <td></td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for position in item_positions %}
+                    <tr class="position-entry"
+                        data-position-id="{{ position.pk }}"
+                        data-time="{{ position.time|floatformat:2 }}"
+                        data-x="{{ position.x|floatformat:2 }}"
+                        data-y="{{ position.y|floatformat:2 }}"
+                        data-width="{{ position.width|floatformat:2 }}"
+                        data-height="{{ position.height|floatformat:2 }}">
+                        <th scope="row" class="position-counter">{{ forloop.counter }}.</th>
+                        <td class="position-input-group">
+                            {% if forloop.counter == 1 %}
+                                {% comment %}
                            The first point always sits at the blur's start time, so its time is
                            derived rather than entered - readonly.
-                {% endcomment %}
-                <input class="position-time-input"
-                       type="text"
-                       value="{{ position.time|hms_time }}"
-                       readonly
-                       title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
-                       aria-label="point {{ forloop.counter }} time (follows the blur's start time)">
-              {% else %}
-                <input class="position-time-input"
-                       type="text"
-                       value="{{ position.time|hms_time }}"
-                       aria-label="point {{ forloop.counter }} time">
-              {% endif %}
-            </td>
-            <td class="position-input-group">
-              <input class="position-x-input"
-                     type="text"
-                     value="{{ position.x|floatformat:2 }}"
-                     aria-label="point {{ forloop.counter }} x as a percentage of the video window, from the left edge">
-            </td>
-            <td class="position-input-group">
-              <input class="position-y-input"
-                     type="text"
-                     value="{{ position.y|floatformat:2 }}"
-                     aria-label="point {{ forloop.counter }} y as a percentage of the video window, from the top edge">
-            </td>
-            <td class="position-input-group">
-              <input class="position-width-input"
-                     type="text"
-                     value="{{ position.width|floatformat:2 }}"
-                     aria-label="point {{ forloop.counter }} width as a percentage of the video window">
-            </td>
-            <td class="position-input-group">
-              <input class="position-height-input"
-                     type="text"
-                     value="{{ position.height|floatformat:2 }}"
-                     aria-label="point {{ forloop.counter }} height as a percentage of the video window">
-            </td>
-            <td>
-              {% if forloop.counter != 1 %}
-                <button type="button"
-                        class="blur-position-delete-button"
-                        data-delete-url="{% url 'delete_blur_position' position.pk %}"
-                        aria-label="delete blur point {{ forloop.counter }}">
-                  <img src="{% static 'img/white-trash-can.svg' %}" alt=""></img>
-                </button>
-              {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <p id="blur-position-status"
-     class="blur-position-status"
-     role="status"
-     aria-live="polite"></p>
+                                {% endcomment %}
+                                <input class="position-time-input"
+                                       type="text"
+                                       value="{{ position.time|hms_time }}"
+                                       readonly
+                                       title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
+                                       aria-label="point {{ forloop.counter }} time (follows the blur's start time)">
+                            {% else %}
+                                <input class="position-time-input"
+                                       type="text"
+                                       value="{{ position.time|hms_time }}"
+                                       aria-label="point {{ forloop.counter }} time">
+                            {% endif %}
+                        </td>
+                        <td class="position-input-group">
+                            <input class="position-x-input"
+                                   type="text"
+                                   value="{{ position.x|floatformat:2 }}"
+                                   aria-label="point {{ forloop.counter }} x as a percentage of the video window, from the left edge">
+                        </td>
+                        <td class="position-input-group">
+                            <input class="position-y-input"
+                                   type="text"
+                                   value="{{ position.y|floatformat:2 }}"
+                                   aria-label="point {{ forloop.counter }} y as a percentage of the video window, from the top edge">
+                        </td>
+                        <td class="position-input-group">
+                            <input class="position-width-input"
+                                   type="text"
+                                   value="{{ position.width|floatformat:2 }}"
+                                   aria-label="point {{ forloop.counter }} width as a percentage of the video window">
+                        </td>
+                        <td class="position-input-group">
+                            <input class="position-height-input"
+                                   type="text"
+                                   value="{{ position.height|floatformat:2 }}"
+                                   aria-label="point {{ forloop.counter }} height as a percentage of the video window">
+                        </td>
+                        <td>
+                            {% if forloop.counter != 1 %}
+                                <button type="button"
+                                        class="blur-position-delete-button"
+                                        data-delete-url="{% url 'delete_blur_position' position.pk %}"
+                                        aria-label="delete blur point {{ forloop.counter }}">
+                                    <img src="{% static 'img/white-trash-can.svg' %}" alt=""></img>
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p id="blur-position-status"
+       class="blur-position-status"
+       role="status"
+       aria-live="polite"></p>
 </div>

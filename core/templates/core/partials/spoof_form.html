@@ -1,24 +1,24 @@
 {% if request.can_spoof and not request.is_spoofing %}
-  <form method="post" action="{% url 'start_spoofing' %}" class="spoof-form">
-    {% csrf_token %}
-    <label for="spoof-user-input" class="spoof-label">Act for:</label>
-    <div class="spoof-input-group">
-      <input id="spoof-user-input"
-             type="search"
-             name="search"
-             placeholder="User search"
-             hx-post="{% url 'spoof_user_search' %}"
-             hx-trigger="input changed delay:500ms"
-             hx-target="#spoof-user-select"
-             autocomplete="off">
-      <select name="spoof_user_id"
-              id="spoof-user-select"
-              size="4"
-              class="spoof-select"
-              aria-label="Matching users">
-        <!-- Options populated by HTMX response -->
-      </select>
-    </div>
-    <button id="spoof-user-submit" type="submit" disabled class="spoof-go-btn">Go</button>
-  </form>
+    <form method="post" action="{% url 'start_spoofing' %}" class="spoof-form">
+        {% csrf_token %}
+        <label for="spoof-user-input" class="spoof-label">Act for:</label>
+        <div class="spoof-input-group">
+            <input id="spoof-user-input"
+                   type="search"
+                   name="search"
+                   placeholder="User search"
+                   hx-post="{% url 'spoof_user_search' %}"
+                   hx-trigger="input changed delay:500ms"
+                   hx-target="#spoof-user-select"
+                   autocomplete="off">
+            <select name="spoof_user_id"
+                    id="spoof-user-select"
+                    size="4"
+                    class="spoof-select"
+                    aria-label="Matching users">
+                <!-- Options populated by HTMX response -->
+            </select>
+        </div>
+        <button id="spoof-user-submit" type="submit" disabled class="spoof-go-btn">Go</button>
+    </form>
 {% endif %}

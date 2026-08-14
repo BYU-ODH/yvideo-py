@@ -3,31 +3,31 @@
 {% load static %}
 
 {% block extra_css %}
-  <link rel="stylesheet" href="{% static 'css/AnnotationPlayer.css' %}">
+    <link rel="stylesheet" href="{% static 'css/AnnotationPlayer.css' %}">
 {% endblock %}
 {% block content %}
-  <div class="main-content column-flex">
-    <div id="content-details-header">
-      <h2>Content Details</h2>
-      <h3>{{ content.playlist.name }}: {{ content.title }}</h3>
-    </div>
-    {% if can_edit %}
-      <a class="white-button-with-border position-flex-start"
-         href="{% url 'video_editor' content.id %}">Edit Video</a>
-      <div id="content-settings">
-        <div class="row-flex flex-apart-aligned">
-          <h3>Settings</h3>
-          {% include "core/partials/modals/content_delete.html" with dialog_id="content-delete-modal" %}
-          <button type="button"
-                  id="content-details-delete-button"
-                  class="red-button"
-                  command="show-modal"
-                  commandfor="content-delete-modal">Delete from playlist</button>
+    <div class="main-content column-flex">
+        <div id="content-details-header">
+            <h2>Content Details</h2>
+            <h3>{{ content.playlist.name }}: {{ content.title }}</h3>
         </div>
-        {% include 'core/partials/content_settings_form.html' %}
-      </div>
-    {% endif %}
-    <div id="content-details-video-player">{% include 'core/partials/player-wrapper.html' %}</div>
-  </div>
-  <script type="module" src="{% static 'js/contentInfo.js' %}"></script>
+        {% if can_edit %}
+            <a class="white-button-with-border position-flex-start"
+               href="{% url 'video_editor' content.id %}">Edit Video</a>
+            <div id="content-settings">
+                <div class="row-flex flex-apart-aligned">
+                    <h3>Settings</h3>
+                    {% include "core/partials/modals/content_delete.html" with dialog_id="content-delete-modal" %}
+                    <button type="button"
+                            id="content-details-delete-button"
+                            class="red-button"
+                            command="show-modal"
+                            commandfor="content-delete-modal">Delete from playlist</button>
+                </div>
+                {% include 'core/partials/content_settings_form.html' %}
+            </div>
+        {% endif %}
+        <div id="content-details-video-player">{% include 'core/partials/player-wrapper.html' %}</div>
+    </div>
+    <script type="module" src="{% static 'js/contentInfo.js' %}"></script>
 {% endblock %}

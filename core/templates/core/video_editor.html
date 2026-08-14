@@ -4,40 +4,40 @@
 
 {% block title %}Video Editor - {{ content.title }}{% endblock %}
 {% block extra_css %}
-  {{ block.super }}
-  <link rel="stylesheet" href="{% static 'css/AnnotationPlayer.css' %}">
-  <link rel="stylesheet" href="{% static 'css/editor.css' %}">
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/AnnotationPlayer.css' %}">
+    <link rel="stylesheet" href="{% static 'css/editor.css' %}">
 {% endblock %}
 {% block content %}
-  {% if youtube_video_id %}
-    <div id="youtube-editor-warning-banner"
-         class="youtube-editor-warning-banner"
-         role="note">
-      <strong>Editing a YouTube video:</strong>
-      YouTube videos can be changed by their authors without notice, so there is
-      no guarantee that your edits will remain aligned with the video.
-      YouTube also draws its own title, share and "More videos" links over a
-      paused video, and those cannot be blurred, skipped or hidden by this editor.
-      Use this feature at your own risk!
+    {% if youtube_video_id %}
+        <div id="youtube-editor-warning-banner"
+             class="youtube-editor-warning-banner"
+             role="note">
+            <strong>Editing a YouTube video:</strong>
+            YouTube videos can be changed by their authors without notice, so there is
+            no guarantee that your edits will remain aligned with the video.
+            YouTube also draws its own title, share and "More videos" links over a
+            paused video, and those cannot be blurred, skipped or hidden by this editor.
+            Use this feature at your own risk!
+        </div>
+    {% endif %}
+    <div id="editor-container">
+        <!-- Top Panel: Video Player (left) and Detail Form (right) -->
+        <div class="top-panel">
+            {% include 'core/partials/annotation_panel.html' %}
+            {% if not youtube_video_id %}
+                {% include 'core/partials/subtitle_editor_panel.html' %}
+            {% endif %}
+            <div id="video-section" class="video-section">
+                {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url youtube_video_id=youtube_video_id editor_mode=True %}
+            </div>
+            <div class="detail-form-section editor-container-component-dark">
+                <!-- Annotation Detail Form -->
+                <div id="detail-form" class="detail-form">{% include 'core/partials/item_form_placeholder.html' %}</div>
+            </div>
+        </div>
+        <!-- Bottom Panel: Timeline -->
+        {% include 'core/partials/timeline_base.html' %}
     </div>
-  {% endif %}
-  <div id="editor-container">
-    <!-- Top Panel: Video Player (left) and Detail Form (right) -->
-    <div class="top-panel">
-      {% include 'core/partials/annotation_panel.html' %}
-      {% if not youtube_video_id %}
-        {% include 'core/partials/subtitle_editor_panel.html' %}
-      {% endif %}
-      <div id="video-section" class="video-section">
-        {% include 'core/partials/player-wrapper.html' with content_id=content.pk resource_file_key_id=file_key content_source_url=content_source_url youtube_video_id=youtube_video_id editor_mode=True %}
-      </div>
-      <div class="detail-form-section editor-container-component-dark">
-        <!-- Annotation Detail Form -->
-        <div id="detail-form" class="detail-form">{% include 'core/partials/item_form_placeholder.html' %}</div>
-      </div>
-    </div>
-    <!-- Bottom Panel: Timeline -->
-    {% include 'core/partials/timeline_base.html' %}
-  </div>
-  <script type="module" src="{% static 'js/editor.js' %}"></script>
+    <script type="module" src="{% static 'js/editor.js' %}"></script>
 {% endblock %}

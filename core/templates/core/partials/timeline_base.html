@@ -5,72 +5,72 @@
      data-annotation-set-id="{{ annotation_set.id }}"
      data-can-edit="{{ can_edit|yesno:"true,false" }}"
      data-annotation-set-name="{{ annotation_set.name }}">
-  <div id="timeline-scrubber-row" class="timeline-row">
-    <div class="timeline-row-left"></div>
-    <div id="timeline-row-ticks-and-scrubbers" class="timeline-row-right">
-      <div id="timeline-scrubber"></div>
-      <div id="editor-scrubber" class="vertical-scrubber"></div>
-      <div id="timeline-hover-scrubber" class="vertical-scrubber"></div>
-      {# Scrolls horizontally, so it has to be reachable by keyboard to be scrollable at all. #}
-      <div id="timeline-ticks-content"
-           tabindex="0"
-           role="group"
-           aria-label="Timeline ruler">
-        <div id="tick-marks-container"></div>
-      </div>
+    <div id="timeline-scrubber-row" class="timeline-row">
+        <div class="timeline-row-left"></div>
+        <div id="timeline-row-ticks-and-scrubbers" class="timeline-row-right">
+            <div id="timeline-scrubber"></div>
+            <div id="editor-scrubber" class="vertical-scrubber"></div>
+            <div id="timeline-hover-scrubber" class="vertical-scrubber"></div>
+            {# Scrolls horizontally, so it has to be reachable by keyboard to be scrollable at all. #}
+            <div id="timeline-ticks-content"
+                 tabindex="0"
+                 role="group"
+                 aria-label="Timeline ruler">
+                <div id="tick-marks-container"></div>
+            </div>
+        </div>
     </div>
-  </div>
-  {% for track in tracks %}
-    {% include "core/partials/timeline-track-row.html" %}
-  {% endfor %}
-  <div id="timeline-new-track-and-zoom-row" class="timeline-row">
-    <div id="timeline-new-track-wrapper"
-         class="timeline-row-left timeline-row-left-dark">
-      <button id="timeline-new-track-button"
-              class="plain-text-button"
-              commandfor="new-track-dialog"
-              command="show-modal">+ New Track</button>
+    {% for track in tracks %}
+        {% include "core/partials/timeline-track-row.html" %}
+    {% endfor %}
+    <div id="timeline-new-track-and-zoom-row" class="timeline-row">
+        <div id="timeline-new-track-wrapper"
+             class="timeline-row-left timeline-row-left-dark">
+            <button id="timeline-new-track-button"
+                    class="plain-text-button"
+                    commandfor="new-track-dialog"
+                    command="show-modal">+ New Track</button>
+        </div>
+        <div id="timeline-zoom-controls" class="timeline-row-right">
+            <button id="zoom-out-button"
+                    type="button"
+                    class="timeline-zoom-button"
+                    aria-label="Zoom the timeline out">
+                <img class="timeline-zoom-icon"
+                     src="{% static 'img/minus-circle.svg' %}"
+                     alt="">
+            </button>
+            <button id="zoom-in-button"
+                    type="button"
+                    class="timeline-zoom-button"
+                    aria-label="Zoom the timeline in">
+                <img class="timeline-zoom-icon"
+                     src="{% static 'img/plus-circle.svg' %}"
+                     alt="">
+            </button>
+            <div id="timeline-scroll-slider">
+                <input id="timeline-scroll-input"
+                       type="range"
+                       min="0"
+                       max="100"
+                       value="0"
+                       step="any"
+                       aria-label="Scroll the timeline" />
+            </div>
+        </div>
     </div>
-    <div id="timeline-zoom-controls" class="timeline-row-right">
-      <button id="zoom-out-button"
-              type="button"
-              class="timeline-zoom-button"
-              aria-label="Zoom the timeline out">
-        <img class="timeline-zoom-icon"
-             src="{% static 'img/minus-circle.svg' %}"
-             alt="">
-      </button>
-      <button id="zoom-in-button"
-              type="button"
-              class="timeline-zoom-button"
-              aria-label="Zoom the timeline in">
-        <img class="timeline-zoom-icon"
-             src="{% static 'img/plus-circle.svg' %}"
-             alt="">
-      </button>
-      <div id="timeline-scroll-slider">
-        <input id="timeline-scroll-input"
-               type="range"
-               min="0"
-               max="100"
-               value="0"
-               step="any"
-               aria-label="Scroll the timeline" />
-      </div>
-    </div>
-  </div>
-  <dialog id="new-track-dialog">
-    <h2>New Track</h2>
-    <form id="new-track-form" class="dialog-content">
-      <div>
-        <label for="new-track-name">New Track Name</label>
-        <input id="new-track-name" name="track_name" type="text" />
-      </div>
-      <button id="new-track-save-button" class="blue-button" type="submit">Save</button>
-    </form>
-    <button id="new-track-dialog-close-button"
-            class="close-dialog-button red-button"
-            command="close"
-            commandfor="new-track-dialog">x</button>
-  </dialog>
+    <dialog id="new-track-dialog">
+        <h2>New Track</h2>
+        <form id="new-track-form" class="dialog-content">
+            <div>
+                <label for="new-track-name">New Track Name</label>
+                <input id="new-track-name" name="track_name" type="text" />
+            </div>
+            <button id="new-track-save-button" class="blue-button" type="submit">Save</button>
+        </form>
+        <button id="new-track-dialog-close-button"
+                class="close-dialog-button red-button"
+                command="close"
+                commandfor="new-track-dialog">x</button>
+    </dialog>
 </div>

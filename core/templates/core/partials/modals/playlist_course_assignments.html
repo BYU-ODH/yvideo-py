@@ -3,25 +3,25 @@
 {% block modal_title %}Edit Course Assignments{% endblock %}
 {% block modal_body_classes %}column-flex{% endblock %}
 {% block modal_body %}
-  <div class="row-flex">
-    <div class="column-flex">
-      <label for="semester-select">Semester</label>
-      <select id="semester-select">
-        <option {% if semester == 5 %}selected{% endif %} value="5">Fall</option>
-        <option {% if semester == 1 %}selected{% endif %} value="1">Winter</option>
-        <option {% if semester == 3 %}selected{% endif %} value="3">Spring</option>
-        <option {% if semester == 4 %}selected{% endif %} value="4">Summer</option>
-      </select>
+    <div class="row-flex">
+        <div class="column-flex">
+            <label for="semester-select">Semester</label>
+            <select id="semester-select">
+                <option {% if semester == 5 %}selected{% endif %} value="5">Fall</option>
+                <option {% if semester == 1 %}selected{% endif %} value="1">Winter</option>
+                <option {% if semester == 3 %}selected{% endif %} value="3">Spring</option>
+                <option {% if semester == 4 %}selected{% endif %} value="4">Summer</option>
+            </select>
+        </div>
+        <div class="column-flex">
+            <label for="year-select">Year</label>
+            <select id="year-select">
+                {% for year_option in year_options %}
+                    <option {% if year_option.current %}selected{% endif %}
+                            value="{{ year_option.value }}">{{ year_option.value }}</option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
-    <div class="column-flex">
-      <label for="year-select">Year</label>
-      <select id="year-select">
-        {% for year_option in year_options %}
-          <option {% if year_option.current %}selected{% endif %}
-                  value="{{ year_option.value }}">{{ year_option.value }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
-  <div id="course-assignment-container">{% include 'core/partials/course_assignment.html' %}</div>
+    <div id="course-assignment-container">{% include 'core/partials/course_assignment.html' %}</div>
 {% endblock %}

@@ -3,43 +3,43 @@
 {% block modal_title %}Add a New Video{% endblock %}
 {% block modal_body_classes %}add-video-modal-columns{% endblock %}
 {% block modal_body %}
-  <div class="add-video-modal-column column-flex">
-    <h4 class="add-video-modal-column-title">Add video from DVD/Blu-ray/VHS/etc.</h4>
-    <button id="add-from-resource-button" type="button" class="blue-button">Create from existing resource</button>
-    {% if user.is_instructor %}
-      <a href="{% url 'request_resource' %}" class="blue-button">Request creation of a new resource</a>
-    {% endif %}
-  </div>
-  <div class="add-video-modal-divider"></div>
-  <div class="add-video-modal-column column-flex">
-    <h4 class="add-video-modal-column-title">Add video from YouTube</h4>
-    <form id="add-youtube-video-form" class="column-flex">
-      <input type="hidden"
-             id="add-youtube-video-playlist-id"
-             value="{{ playlist.id }}">
-      <div class="content-form-group">
-        <label for="add-youtube-video-title">Title</label>
-        <input type="text" id="add-youtube-video-title" required>
-      </div>
-      <div class="content-form-group">
-        <label for="add-youtube-video-url">YouTube URL</label>
-        <input type="url"
-               id="add-youtube-video-url"
-               placeholder="https://www.youtube.com/watch?v=..."
-               aria-describedby="add-youtube-video-url-help"
-               required>
-        <p id="add-youtube-video-url-help" class="content-form-help">
-          Regular video links and youtu.be links. Shorts are not
-          supported: annotations would be positioned against the
-          wrong shape of picture.
-        </p>
-      </div>
-      <p id="add-youtube-video-error"
-         class="add-youtube-video-error"
-         role="status"
-         aria-live="polite"
-         hidden></p>
-      <button type="submit" id="add-youtube-video-submit" class="blue-button">Add YouTube video</button>
-    </form>
-  </div>
+    <div class="add-video-modal-column column-flex">
+        <h4 class="add-video-modal-column-title">Add video from DVD/Blu-ray/VHS/etc.</h4>
+        <button id="add-from-resource-button" type="button" class="blue-button">Create from existing resource</button>
+        {% if user.is_instructor %}
+            <a href="{% url 'request_resource' %}" class="blue-button">Request creation of a new resource</a>
+        {% endif %}
+    </div>
+    <div class="add-video-modal-divider"></div>
+    <div class="add-video-modal-column column-flex">
+        <h4 class="add-video-modal-column-title">Add video from YouTube</h4>
+        <form id="add-youtube-video-form" class="column-flex">
+            <input type="hidden"
+                   id="add-youtube-video-playlist-id"
+                   value="{{ playlist.id }}">
+            <div class="content-form-group">
+                <label for="add-youtube-video-title">Title</label>
+                <input type="text" id="add-youtube-video-title" required>
+            </div>
+            <div class="content-form-group">
+                <label for="add-youtube-video-url">YouTube URL</label>
+                <input type="url"
+                       id="add-youtube-video-url"
+                       placeholder="https://www.youtube.com/watch?v=..."
+                       aria-describedby="add-youtube-video-url-help"
+                       required>
+                <p id="add-youtube-video-url-help" class="content-form-help">
+                    Regular video links and youtu.be links. Shorts are not
+                    supported: annotations would be positioned against the
+                    wrong shape of picture.
+                </p>
+            </div>
+            <p id="add-youtube-video-error"
+               class="add-youtube-video-error"
+               role="status"
+               aria-live="polite"
+               hidden></p>
+            <button type="submit" id="add-youtube-video-submit" class="blue-button">Add YouTube video</button>
+        </form>
+    </div>
 {% endblock %}

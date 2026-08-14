@@ -1,51 +1,51 @@
 {% load static %}
 
 <div id="assigned-courses-list">
-  {% if assigned_courses|length > 0 %}
-    <div class="assigned-course">
-      <p>Course</p>
-      <p>Sections</p>
-    </div>
-  {% endif %}
-  <div id="assigned-course-items">
-    {% for assigned_course in assigned_courses %}
-      <div class="assigned-course course-item"
-           data-dept="{{ assigned_course.dept }}"
-           data-catalog-number="{{ assigned_course.catalog_number }}">
-        <p>{{ assigned_course.dept }} {{ assigned_course.catalog_number }}</p>
-        <div class="assigned-course-right row-flex">
-          <input class="section-input"
-                 type="text"
-                 value="{{ assigned_course.section_list }}">
-          <button class="section-save-button blue-button hidden">Save</button>
-          <button class="remove-course-assignment-button">
-            <img src="{% static 'img/trash.svg' %}"
-                 alt="Remove {{ assigned_course.dept }} {{ assigned_course.catalog_number }}">
-          </button>
+    {% if assigned_courses|length > 0 %}
+        <div class="assigned-course">
+            <p>Course</p>
+            <p>Sections</p>
         </div>
-      </div>
-    {% empty %}
-      <p>No assigned courses</p>
-    {% endfor %}
-  </div>
+    {% endif %}
+    <div id="assigned-course-items">
+        {% for assigned_course in assigned_courses %}
+            <div class="assigned-course course-item"
+                 data-dept="{{ assigned_course.dept }}"
+                 data-catalog-number="{{ assigned_course.catalog_number }}">
+                <p>{{ assigned_course.dept }} {{ assigned_course.catalog_number }}</p>
+                <div class="assigned-course-right row-flex">
+                    <input class="section-input"
+                           type="text"
+                           value="{{ assigned_course.section_list }}">
+                    <button class="section-save-button blue-button hidden">Save</button>
+                    <button class="remove-course-assignment-button">
+                        <img src="{% static 'img/trash.svg' %}"
+                             alt="Remove {{ assigned_course.dept }} {{ assigned_course.catalog_number }}">
+                    </button>
+                </div>
+            </div>
+        {% empty %}
+            <p>No assigned courses</p>
+        {% endfor %}
+    </div>
 </div>
 <div id="assign-course-wrapper" class="column-flex">
-  <h4>Add Course</h4>
-  <div class="row-flex">
-    <div class="new-course-assignment-detail">
-      <label for="department">Department</label>
-      <input id="department" type="text" maxlength="5">
+    <h4>Add Course</h4>
+    <div class="row-flex">
+        <div class="new-course-assignment-detail">
+            <label for="department">Department</label>
+            <input id="department" type="text" maxlength="5">
+        </div>
+        <div class="new-course-assignment-detail">
+            <label for="catalog-number">Catalog num</label>
+            <input id="catalog-number" type="text" maxlength="4">
+        </div>
+        <div class="new-course-assignment-detail">
+            <label for="sections">Sections*</label>
+            <input id="sections" type="text">
+        </div>
     </div>
-    <div class="new-course-assignment-detail">
-      <label for="catalog-number">Catalog num</label>
-      <input id="catalog-number" type="text" maxlength="4">
-    </div>
-    <div class="new-course-assignment-detail">
-      <label for="sections">Sections*</label>
-      <input id="sections" type="text">
-    </div>
-  </div>
-  <p class="muted-text">* Comma separated list without leading 0's. e.g. 1, 2, 3...</p>
-  <button id="assign-course-button" class="blue-button position-flex-start">+ Assign Course</button>
+    <p class="muted-text">* Comma separated list without leading 0's. e.g. 1, 2, 3...</p>
+    <button id="assign-course-button" class="blue-button position-flex-start">+ Assign Course</button>
 </div>
 <script type="module" src="{% static 'js/courseAssignment.js' %}"></script>

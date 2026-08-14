@@ -3,49 +3,49 @@
 <div class="timeline-row track-row"
      data-track-name="{{ track.name }}"
      data-track-id="{{ track.id }}">
-  <div class="timeline-row-left timeline-row-left-dark">
-    <div class="timeline-track-name-wrapper">
-      <div class="track-name">{{ track.name }}</div>
-      <div class="track-rename-wrapper">
-        <label for="track-{{ track.id }}-rename-input">Rename Track</label>
-        <input id="track-{{ track.id }}-rename-input"
-               class="track-rename-input"
-               type="text"
-               placeholder="{{ track.name }}"
-               value="{{ track.name }}"
-               maxlength="50" />
-      </div>
+    <div class="timeline-row-left timeline-row-left-dark">
+        <div class="timeline-track-name-wrapper">
+            <div class="track-name">{{ track.name }}</div>
+            <div class="track-rename-wrapper">
+                <label for="track-{{ track.id }}-rename-input">Rename Track</label>
+                <input id="track-{{ track.id }}-rename-input"
+                       class="track-rename-input"
+                       type="text"
+                       placeholder="{{ track.name }}"
+                       value="{{ track.name }}"
+                       maxlength="50" />
+            </div>
+        </div>
+        <div class="timeline-track-edit-wrapper multi-select-menu-parent">
+            <div class="multi-select-menu">
+                <button class="multi-select-menu-button track-menu-rename"
+                        aria-label="Rename track {{ track.name }}">Rename</button>
+                {% if track.stack_position != 0 %}
+                    <button class="multi-select-menu-button track-menu-move-up"
+                            aria-label="Move track {{ track.name }} up">Move Up</button>
+                {% endif %}
+                {% if not track.is_final_stack_position %}
+                    <button class="multi-select-menu-button track-menu-move-down"
+                            aria-label="Move track {{ track.name }} down">Move Down</button>
+                {% endif %}
+                {% if track.stack_position != 0 %}
+                    <button class="multi-select-menu-button track-menu-delete"
+                            aria-label="Delete track {{ track.name }}">Delete</button>
+                {% endif %}
+            </div>
+            <button class="editor-menu-button open-multi-select-button"
+                    aria-label="Show options menu for track {{ track.name }}">
+                <img class="timeline-track-icon"
+                     src="{% static 'img/dots_menu_white.svg' %}"
+                     alt="">
+            </button>
+        </div>
     </div>
-    <div class="timeline-track-edit-wrapper multi-select-menu-parent">
-      <div class="multi-select-menu">
-        <button class="multi-select-menu-button track-menu-rename"
-                aria-label="Rename track {{ track.name }}">Rename</button>
-        {% if track.stack_position != 0 %}
-          <button class="multi-select-menu-button track-menu-move-up"
-                  aria-label="Move track {{ track.name }} up">Move Up</button>
-        {% endif %}
-        {% if not track.is_final_stack_position %}
-          <button class="multi-select-menu-button track-menu-move-down"
-                  aria-label="Move track {{ track.name }} down">Move Down</button>
-        {% endif %}
-        {% if track.stack_position != 0 %}
-          <button class="multi-select-menu-button track-menu-delete"
-                  aria-label="Delete track {{ track.name }}">Delete</button>
-        {% endif %}
-      </div>
-      <button class="editor-menu-button open-multi-select-button"
-              aria-label="Show options menu for track {{ track.name }}">
-        <img class="timeline-track-icon"
-             src="{% static 'img/dots_menu_white.svg' %}"
-             alt="">
-      </button>
+    <div class="timeline-row-right timeline-row-right-dark timeline-track-row-right">
+        <div class="track-row-annotations-container">
+            {% for item in track.get_active_annotations %}
+                {% include "core/partials/item.html" %}
+            {% endfor %}
+        </div>
     </div>
-  </div>
-  <div class="timeline-row-right timeline-row-right-dark timeline-track-row-right">
-    <div class="track-row-annotations-container">
-      {% for item in track.get_active_annotations %}
-        {% include "core/partials/item.html" %}
-      {% endfor %}
-    </div>
-  </div>
 </div>

@@ -4,29 +4,29 @@
      data-contentid="{{ content_id }}"
      data-editor-mode="{{ editor_mode|yesno:'true,false' }}"
      class="annotation-player-container">
-  {% if youtube_video_id %}
-    <youtube-video id="video-player" data-video-id="{{ youtube_video_id }}"></youtube-video>
-  {% else %}
-    {% comment %}
+    {% if youtube_video_id %}
+        <youtube-video id="video-player" data-video-id="{{ youtube_video_id }}"></youtube-video>
+    {% else %}
+        {% comment %}
         playsinline (+ the legacy webkit- spelling) keeps iOS from handing playback to the OS
         fullscreen player, where our #annotation-box overlay is not composited and blurs would
         silently not apply. disableRemotePlayback does the same for AirPlay/Cast.
-    {% endcomment %}
-    <video id="video-player"
-           preload="auto"
-           playsinline
-           webkit-playsinline
-           disableRemotePlayback>
-      {% if resource_file_key_id %}
-        <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">
-      {% elif content_source_url %}
-        <source src="{{ content_source_url }}" type="video/mp4">
-      {% endif %}
-      Your browser does not support the video tag.
-    </video>
-  {% endif %}
+        {% endcomment %}
+        <video id="video-player"
+               preload="auto"
+               playsinline
+               webkit-playsinline
+               disableRemotePlayback>
+            {% if resource_file_key_id %}
+                <source src="{% url 'stream_file' resource_file_key_id %}" type="video/mp4">
+            {% elif content_source_url %}
+                <source src="{{ content_source_url }}" type="video/mp4">
+            {% endif %}
+            Your browser does not support the video tag.
+        </video>
+    {% endif %}
 </div>
 {% if youtube_video_id %}
-  <script type="module" src="{% static 'js/YouTubeVideoElement.js' %}"></script>
+    <script type="module" src="{% static 'js/YouTubeVideoElement.js' %}"></script>
 {% endif %}
 <script type="module" src="{% static 'js/player-wrapper.js' %}"></script>

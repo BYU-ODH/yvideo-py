@@ -9,22 +9,22 @@
 {% endcomment %}
 {% block title %}Invalid login - YVideo{% endblock %}
 {% block headerContent %}
-  <nav class="navbar">
-    <div class="navbar-start">
-      <a class="navbar-brand" href="{% url 'index' %}">
-        <img class="logo" src="{% static 'img/logo.svg' %}" alt="Logo">
-        <h1>Y-VIDEO<sup>2</sup></h1>
-      </a>
-    </div>
-  </nav>
+    <nav class="navbar">
+        <div class="navbar-start">
+            <a class="navbar-brand" href="{% url 'index' %}">
+                <img class="logo" src="{% static 'img/logo.svg' %}" alt="Logo">
+                <h1>Y-VIDEO<sup>2</sup></h1>
+            </a>
+        </div>
+    </nav>
 {% endblock %}
 {% block content %}
-  <div class="main-content">
-    <h2>Invalid login</h2>
-    <p>
-      We could not sign you in. Try again from
-      <a href="{% url 'index' %}">the Y-Video home page</a>, and if it keeps
-      happening, contact the Humanities Learning Commons.
-    </p>
-  </div>
+    <div class="main-content">
+        <h2>Invalid login</h2>
+        <p>
+            We could not sign you in. Try again from
+            <a href="{% url 'index' %}">the Y-Video home page</a>, and if it keeps
+            happening, contact the Humanities Learning Commons.
+        </p>
+    </div>
 {% endblock %}
