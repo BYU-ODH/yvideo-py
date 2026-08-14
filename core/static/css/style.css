@@ -191,13 +191,12 @@ a.blue-button {
 
 .flex-apart {
     justify-content: space-between;
-    padding-top: 1rem;
 }
 
 .column-flex {
     display: flex;
     flex-direction: column;
-    gap: 1rem 3rem;
+    row-gap: 1rem;
 }
 
 .column-flex-no-gap {
@@ -840,9 +839,9 @@ a.blue-button {
 .main-content {
     width: 100%;
     min-width: 0;
-    max-width: 1200px;
-    margin: 40px auto 0;
-    padding: 0 clamp(16px, 5vw, 80px);
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 1rem;
 }
 
 #resource-search-input {
@@ -1701,6 +1700,11 @@ p.tile-subtitle {
 
 
 /* Video Page */
+.playlist-video-page {
+    max-width: 1200px;
+    margin: 40px auto 0;
+    padding: 0 clamp(16px, 5vw, 80px);
+}
 
 #playlist-videos-header {
     align-items: flex-end;
@@ -1851,9 +1855,20 @@ h4.video-title {
     max-height: 70vh;
 }
 
+.content-form-group {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.35rem;
+}
+
 .content-settings-form-group {
     display: flex;
-    row-gap: 0.35rem;
+    gap: 0.35rem 0.5rem;
+}
+
+.content-form-group label {
+    display: block;
+    font-weight: 500;
 }
 
 .content-settings-form-group label {
@@ -1861,12 +1876,23 @@ h4.video-title {
     font-weight: 500;
 }
 
+.content-form-group.clips-only-invalid label {
+    color: var(--red);
+}
+
 .content-settings-form-group.clips-only-invalid label {
     color: var(--red);
 }
 
-.content-settings-form-group input {
+.content-form-group input {
+    height: 36px;
     padding: 0 10px;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.content-settings-form-group input {
+    font-family: system-ui;
 }
 
 .content-settings-options {

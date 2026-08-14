@@ -9,7 +9,7 @@
     <div class="row-flex-content-settings">
         <div class="column-flex">
             <div class="content-settings-form-group">
-                <label for="title">Title</label>
+                <label for="title">Title:</label>
                 <input id="title" type="text" value="{{ content.title }}">
             </div>
             <div class="content-settings-form-group">
@@ -64,7 +64,7 @@
             </div>
             {% if subtitle_options %}
                 <div class="content-settings-form-group">
-                    <label for="default-subtitle-track">Default subtitle track</label>
+                    <label for="default-subtitle-track">Default subtitle track:</label>
                     <select id="default-subtitle-track">
                         <option value="">None</option>
                         {% for option in subtitle_options %}
@@ -79,7 +79,7 @@
         </div>
         <div id="content-settings-description-wrapper"
              class="content-settings-form-group column-flex">
-            <label for="description">Description</label>
+            <label for="description">Description:</label>
             <textarea id="description">{{ content.description }}</textarea>
         </div>
     </div>
