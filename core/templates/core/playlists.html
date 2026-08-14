@@ -23,6 +23,7 @@
                     </div>
                 </header>
                 {% include "core/partials/modals/add_new_playlist.html" with dialog_id="add-new-playlist-dialog" %}
+
                 <button id="add-new-playlist-button"
                         class="blue-button"
                         command="show-modal"
@@ -30,6 +31,7 @@
                 <div class="playlists-list-content">
                     {% for playlist in owned_playlists %}
                         {% include "core/partials/landing_page_playlist.html" %}
+
                     {% empty %}
                         <p>No Playlists</p>
                     {% endfor %}
@@ -53,6 +55,7 @@
                             <div class="playlists-list-content course-playlists-list accordian-folded">
                                 {% for playlist in course.playlists %}
                                     {% include "core/partials/landing_page_playlist.html" %}
+
                                 {% empty %}
                                     <p>No playlists for {{ course.course_name }}</p>
                                 {% endfor %}

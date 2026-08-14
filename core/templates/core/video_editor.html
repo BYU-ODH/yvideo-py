@@ -25,6 +25,7 @@
         <!-- Top Panel: Video Player (left) and Detail Form (right) -->
         <div class="top-panel">
             {% include 'core/partials/annotation_panel.html' %}
+
             {% if not youtube_video_id %}
                 {% include 'core/partials/subtitle_editor_panel.html' %}
             {% endif %}
@@ -33,7 +34,9 @@
             </div>
             <div class="detail-form-section editor-container-component-dark">
                 <!-- Annotation Detail Form -->
-                <div id="detail-form" class="detail-form">{% include 'core/partials/item_form_placeholder.html' %}</div>
+                <div id="detail-form" class="detail-form">
+                    {% include 'core/partials/item_form_placeholder.html' %}
+                </div>
             </div>
         </div>
         <!-- Bottom Panel: Timeline -->

@@ -29,7 +29,7 @@ dev = [
 profile = "django"
 extension = "html"
 max_line_length = 120
-blank_line_after_tag = "load,extends"
+blank_line_after_tag = "extends,include,load"
 # var/ holds generated reports and old/ is the retired implementation; neither is ours to format.
 extend_exclude = "var,old"
 

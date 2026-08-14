@@ -9,6 +9,7 @@
         <h3>Edit {{ item_type_label }}</h3>
         <div class="item-form-header-actions">
             {% include "core/partials/item_undo_redo_buttons.html" with can_undo=instance.prev_id can_redo=instance.next_id %}
+
             {% if can_edit %}
                 <button id="annotation-form-delete-button"
                         class="item-form-icon-button"
