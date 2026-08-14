@@ -28,7 +28,6 @@ dev = [
 [tool.djlint]
 profile = "django"
 extension = "html"
-indent = 2
 max_line_length = 120
 blank_line_after_tag = "load,extends"
 # var/ holds generated reports and old/ is the retired implementation; neither is ours to format.
