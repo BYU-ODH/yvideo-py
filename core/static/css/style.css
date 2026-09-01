@@ -1866,20 +1866,13 @@ h4.video-title {
     gap: 0.35rem 0.5rem;
 }
 
-.content-form-group label {
-    display: block;
-    font-weight: 500;
-}
-
+.content-form-group label,
 .content-settings-form-group label {
     display: block;
     font-weight: 500;
 }
 
-.content-form-group.clips-only-invalid label {
-    color: var(--red);
-}
-
+.content-form-group.clips-only-invalid label,
 .content-settings-form-group.clips-only-invalid label {
     color: var(--red);
 }
@@ -1891,16 +1884,10 @@ h4.video-title {
     font-size: 1rem;
 }
 
-.content-settings-form-group input {
-    font-family: system-ui;
-}
-
 .content-settings-options {
-    display: block;
-}
-
-.row-flex-content-settings {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.35rem;
 }
 
 .add-youtube-video-error {
