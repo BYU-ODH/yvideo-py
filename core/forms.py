@@ -86,7 +86,6 @@ class UpdateContentForm(forms.ModelForm):
             "title",
             "description",
             "allow_definitions",
-            "allow_notes",
             "allow_captions",
             "allow_fast_playback",
             "clips_only",
