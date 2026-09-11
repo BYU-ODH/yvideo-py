@@ -2,6 +2,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -65,6 +66,14 @@ from ..models import ResourceAccess
 from ..models import ResourceFile
 from ..models import SkipAnnotation
 from ..models import Subtitle
+
+
+def _approve_button_is_disabled(content):
+    """Read the attribute off the whole tag, since the formatter is free to wrap it."""
+    button = re.search(
+        rb'<input\s[^>]*name="_approve_and_queue"[^>]*>', content, re.DOTALL
+    )
+    return button is not None and b"disabled" in button.group()
 
 
 @override_settings(
@@ -225,7 +234,6 @@ class LegacyMigrationTests(TestCase):
                 views INTEGER,
                 file_version TEXT,
                 published BOOLEAN,
-                words TEXT,
                 clips TEXT
             )
             """,
@@ -237,7 +245,6 @@ class LegacyMigrationTests(TestCase):
                 title TEXT,
                 language TEXT,
                 content TEXT,
-                words TEXT,
                 content_id TEXT
             )
             """,
@@ -439,7 +446,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 5,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -464,7 +470,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 2,
                 "file_version": "",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -477,7 +482,6 @@ class LegacyMigrationTests(TestCase):
                 "title": "English",
                 "language": "English",
                 "content": json.dumps([{"start": 0, "end": 1, "text": "Birds"}]),
-                "words": "Birds",
                 "content_id": legacy_content_id,
             },
         )
@@ -684,7 +688,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 0,
                 "file_version": "original",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -697,7 +700,6 @@ class LegacyMigrationTests(TestCase):
                 "title": "Cakchiquel",
                 "language": "Cakchiquel",
                 "content": json.dumps([{"start": 0, "end": 1, "text": "Hola"}]),
-                "words": "Hola",
                 "content_id": legacy_content_id,
             },
         )
@@ -906,7 +908,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 9,
                 "file_version": "english",
                 "published": 1,
-                "words": "birds, migration",
                 "clips": json.dumps([{"title": "Intro", "start": 1, "end": 3}]),
             },
         )
@@ -931,7 +932,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "",
                 "published": 0,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -946,7 +946,6 @@ class LegacyMigrationTests(TestCase):
                 "content": json.dumps(
                     [{"start": 0.0, "end": 2.0, "text": "Hello world"}]
                 ),
-                "words": "Hello, world",
                 "content_id": legacy_content_id,
             },
         )
@@ -1164,7 +1163,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 5,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1340,7 +1338,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 5,
                 "file_version": "video",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1492,7 +1489,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1680,7 +1676,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -1984,7 +1979,6 @@ class LegacyMigrationTests(TestCase):
                 "views": 1,
                 "file_version": "english",
                 "published": 1,
-                "words": "",
                 "clips": json.dumps([]),
             },
         )
@@ -2032,6 +2026,8 @@ class LegacyMigrationTests(TestCase):
                 "migration_kind": "resource",
                 "legacy_reference": str(uuid.uuid4()),
                 "request_notes": "Please migrate this resource.",
+                "acknowledged_compliance": "on",
+                "acknowledged_fair_use_limitation": "on",
             },
         )
 
@@ -2063,6 +2059,8 @@ class LegacyMigrationTests(TestCase):
                 "migration_kind": "resource",
                 "legacy_reference": str(uuid.uuid4()),
                 "request_notes": "Please migrate this resource.",
+                "acknowledged_compliance": "on",
+                "acknowledged_fair_use_limitation": "on",
             },
         )
 
@@ -2111,6 +2109,17 @@ class LegacyMigrationTests(TestCase):
         self.assertContains(response, "What would you like to move?")
         self.assertContains(response, "legacy-migrations-instructions")
         self.assertContains(response, "legacy-migrations-help-text", count=2)
+        self.assertContains(response, "Legal compliance")
+        self.assertContains(response, "BYU Visual Teaching Materials Policy")
+        self.assertContains(response, "BYU Copyright Policy")
+        self.assertContains(response, "BYU's Fair Use checklist")
+        self.assertContains(response, "legacy-migrations-submission")
+        self.assertContains(
+            response,
+            '<button type="submit" class="large-button legacy-migrations-submit" disabled>Submit request</button>',
+            html=True,
+        )
+        self.assertContains(response, "js/legacy_migration_requests.js")
         self.assertContains(response, "Your requests")
         self.assertContains(response, "legacy-migrations-table-wrapper")
         self.assertContains(
@@ -2124,6 +2133,35 @@ class LegacyMigrationTests(TestCase):
         )
         self.assertNotContains(response, "preflight")
         self.assertNotContains(response, "Django admin")
+
+    def test_request_requires_both_legal_compliance_acknowledgements(self):
+        instructor = UserFactory(instructor=True)
+        client = Client()
+        client.force_login(
+            instructor, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        for omitted_field in (
+            "acknowledged_compliance",
+            "acknowledged_fair_use_limitation",
+        ):
+            data = {
+                "migration_kind": "resource",
+                "legacy_reference": str(uuid.uuid4()),
+                "request_notes": "Please migrate this resource.",
+                "acknowledged_compliance": "on",
+                "acknowledged_fair_use_limitation": "on",
+            }
+            del data[omitted_field]
+
+            with self.subTest(omitted_field=omitted_field):
+                response = client.post(
+                    reverse("create_legacy_migration_request"), data=data
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertFalse(LegacyMigrationRequest.objects.exists())
+                self.assertIn(omitted_field, response.context["form"].errors)
 
     @override_settings(LEGACY_MIGRATION_ENABLED=False)
     def test_legacy_migration_views_return_404_when_feature_disabled(self):
@@ -2587,14 +2625,12 @@ class LegacyMigrationTests(TestCase):
         change_url = reverse(
             "admin:core_legacymigrationrequest_change", args=[migration_request.pk]
         )
-        response = client.get(change_url)
-        self.assertIn(b'name="_approve_and_queue" disabled', response.content)
+        self.assertTrue(_approve_button_is_disabled(client.get(change_url).content))
 
         migration_request.preflight_completed_at = timezone.now()
         migration_request.save(update_fields=["preflight_completed_at"])
 
-        response = client.get(change_url)
-        self.assertNotIn(b'name="_approve_and_queue" disabled', response.content)
+        self.assertFalse(_approve_button_is_disabled(client.get(change_url).content))
 
     def test_status_display_shows_active_job_type(self):
         admin_user = UserFactory(admin=True)
@@ -3169,6 +3205,43 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(issue.severity, LegacyMigrationIssueSeverity.WARNING)
         self.assertEqual(issue.details["username"], "mystery")
 
+    def test_a_legacy_auditor_is_recognized_as_a_student(self):
+        """PlaylistRole dropped AUDITOR (#361), but role 3 is not unknown.
+
+        An unrecognized role is skipped outright at import, so treating the legacy
+        auditor as unknown would silently drop the grant instead of downgrading it.
+        """
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+            raw_snapshot={
+                "collection_access": [
+                    {
+                        "legacy_user_id": "",
+                        "username": "auditor",
+                        "byu_person_id": "",
+                        "email": "",
+                        "account_role": 3,
+                        "collection_id": "c1",
+                    }
+                ],
+            },
+        )
+
+        service.sync_request_issues(migration_request)
+
+        self.assertFalse(
+            migration_request.issues.filter(code="unknown_collection_role").exists()
+        )
+        self.assertEqual(
+            service._resolve_collection_role(3),
+            PlaylistRole.STUDENT,
+        )
+
     def test_claim_job_is_atomic(self):
         service = LegacyMigrationService(require_catalog=False)
         owner = UserFactory(instructor=True)
@@ -3351,7 +3424,6 @@ class LegacyMigrationTests(TestCase):
                     "views": 0,
                     "file_version": "english",
                     "published": 1,
-                    "words": "",
                     "clips": "[]",
                 },
             )

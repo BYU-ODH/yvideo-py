@@ -5,10 +5,9 @@ from django.test import modify_settings
 from django.test import override_settings
 from django.urls import reverse
 
-from core.models import Course
+from core.api import ApiUnavailable
 from core.models import PrivilegeLevel
 from core.models import User
-from core.models import UserCourses
 
 ENROLLMENT_OK = {
     "is_current_sem_updated": True,
@@ -181,48 +180,30 @@ class AddUserAdminViewTests(TestCase):
             response, reverse("admin:core_user_change", args=(created.pk,))
         )
 
-    def test_netid_without_student_record_reports_not_found_when_api_is_healthy(self):
-        course = Course.objects.create(
-            dept="ENG", catalog_number="101", section_number="001", yearterm="20261"
-        )
-        probe_user = User.objects.create(username="121212121", netid="actkid1")
-        UserCourses.objects.create(user=probe_user, course=course, yearterm="20261")
-
-        def fake_get_student_summary(net_id=None, byu_id=None):
-            if net_id == "actkid1":
-                return {
-                    "first_name": "Active",
-                    "last_name": "Kid",
-                    "email": "",
-                    "byu_id": "121212121",
-                    "net_id": "actkid1",
-                }
-            return None
-
-        with patch("core.forms.Api") as FormsMockApi:
-            FormsMockApi.return_value.get_student_summary.side_effect = (
-                fake_get_student_summary
-            )
-            response = self.client.post(self.add_url, {"identifier": "nonexist"})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "No BYU student record was found")
-        self.assertEqual(User.objects.count(), 2)  # admin + probe only
-
-    def test_netid_lookup_reports_outage_when_health_check_also_fails(self):
-        course = Course.objects.create(
-            dept="ENG", catalog_number="101", section_number="001", yearterm="20261"
-        )
-        probe_user = User.objects.create(username="343434343", netid="actkid2")
-        UserCourses.objects.create(user=probe_user, course=course, yearterm="20261")
-
+    def test_netid_without_student_record_reports_not_found(self):
+        """A NetID the API answers for but has no active student record for is
+        a "not found", not an outage: an empty answer is still an answer. The
+        admin needs to be told to fall back to the BYU ID, not to retry."""
         with patch("core.forms.Api") as FormsMockApi:
             FormsMockApi.return_value.get_student_summary.return_value = None
             response = self.client.post(self.add_url, {"identifier": "nonexist"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "appears to be unavailable")
-        self.assertEqual(User.objects.count(), 2)  # admin + probe only
+        self.assertContains(response, "No BYU student record was found")
+        self.assertNotContains(response, "appears to be unavailable")
+        self.assertEqual(User.objects.count(), 1)  # only the logged-in admin
+
+    def test_netid_lookup_reports_outage_when_the_api_request_fails(self):
+        with patch("core.forms.Api") as FormsMockApi:
+            FormsMockApi.return_value.get_student_summary.side_effect = ApiUnavailable(
+                "the API responded with 503"
+            )
+            response = self.client.post(self.add_url, {"identifier": "nonexist"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Try again in a moment.")
+        self.assertNotContains(response, "No BYU student record was found")
+        self.assertEqual(User.objects.count(), 1)  # only the logged-in admin
 
     def test_netid_api_failure_shows_friendly_error_instead_of_500(self):
         with patch("core.forms.Api") as FormsMockApi:

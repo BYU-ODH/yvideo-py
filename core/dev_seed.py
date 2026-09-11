@@ -274,28 +274,28 @@ def create_demo_data():
 
     ada_playlist = PlaylistFactory(
         owner=professor_ada,
-        name="Professor Ada / Birds of a Feather",
+        name="Birds of a Feather",
         published=True,
         courses=[biology_course],
     )
     ada_drafts = PlaylistFactory(
         owner=professor_ada,
-        name="Professor Ada / Draft Lesson Shelf",
+        name="Draft Lesson Shelf",
         published=False,
     )
     admin_playlist = PlaylistFactory(
         owner=admin,
-        name="Local Admin / Demo Review Shelf",
+        name="Demo Review Shelf",
         published=True,
     )
     admin_drafts = PlaylistFactory(
         owner=admin,
-        name="Local Admin / Draft Sandbox",
+        name="Draft Sandbox",
         published=False,
     )
     ben_playlist = PlaylistFactory(
         owner=professor_ben,
-        name="Professor Ben / Visual Pattern Lab",
+        name="Visual Pattern Lab",
         published=True,
         courses=[film_course],
     )
@@ -323,7 +323,6 @@ def create_demo_data():
         name="Professor Ada Birds Annotations",
         resource=birds_resource,
         owner=professor_ada,
-        editors=[teaching_assistant, admin],
     )
     birds_track = TrackFactory(
         annotation_set=birds_annotation_set,
@@ -340,14 +339,14 @@ def create_demo_data():
         name="Track 1",
         stack_position=0,
     )
-    birds_clip = ClipFactory(
+    ClipFactory(
         track=birds_track,
         name="Birds Intro Clip",
         start_time=2.5,
         end_time=18.0,
         description="Opening segment for the birds lesson.",
     )
-    grid_clip = ClipFactory(
+    ClipFactory(
         track=grid_track,
         name="Grid Demonstration Clip",
         start_time=1.0,

@@ -3,23 +3,53 @@ import re
 
 from django import forms
 from django.core.exceptions import ValidationError
+import requests
 
 from .api import Api
 from .model_utils import update_user_enrollment
 from .models import Clip
 from .models import Content
-from .models import ImportantWord
 from .models import Playlist
 from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
-from .models import UserCourses
 from .utils import hms2seconds
 
 logger = logging.getLogger(__name__)
 
 BYU_ID_PATTERN = re.compile(r"^\d{9}$")
 NETID_PATTERN = re.compile(r"^(?=.*[A-Za-z])[A-Za-z0-9]{2,8}$")
+
+# A missing or blank BYU API setting fails as one of these rather than as a network error.
+# secret_settings.py is gitignored, so a deployment whose copy predates a key added to
+# secret_settings_template.py raises AttributeError on first use, and the template's own
+# empty-string URLs make requests raise MissingSchema.
+MISCONFIGURATION_ERRORS = (
+    AttributeError,
+    requests.exceptions.MissingSchema,
+    requests.exceptions.InvalidSchema,
+    requests.exceptions.InvalidURL,
+)
+
+MISCONFIGURED_DIRECTORY_MESSAGE = (
+    "Y-Video isn't set up to reach BYU's directory. That's a server configuration "
+    "problem rather than something retrying will fix -- ask an administrator to check "
+    "the BYU API settings."
+)
+
+
+def directory_lookup_error(exception, transient_message):
+    """The ValidationError to show for a failed BYU API call.
+
+    Misconfiguration is not an outage, and the two need different messages: telling
+    someone to "try again in a moment" when a setting is missing sends them into a loop
+    that cannot end. That is not hypothetical -- API_NET_ID_IAM_URL was added to
+    secret_settings_template.py well after the deployments that use it, and every install
+    that missed it reported the omission as a temporary BYU problem.
+    """
+    if isinstance(exception, MISCONFIGURATION_ERRORS):
+        return ValidationError(MISCONFIGURED_DIRECTORY_MESSAGE)
+    return ValidationError(transient_message)
 
 
 class PlaylistForm(forms.ModelForm):
@@ -43,26 +73,7 @@ class PlaylistForm(forms.ModelForm):
 class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
-        fields = ["id", "name", "published", "archived"]
-
-    id = forms.CharField(widget=forms.HiddenInput)
-
-
-class ContentForm(forms.ModelForm):
-    confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
-
-    class Meta:
-        model = Content
-        fields = [
-            "title",
-            "description",
-            "allow_definitions",
-            "allow_notes",
-            "allow_captions",
-            "allow_fast_playback",
-            "clips_only",
-            "resource_file",
-        ]
+        fields = ["name", "published", "archived"]
 
 
 class UpdateContentForm(forms.ModelForm):
@@ -83,15 +94,6 @@ class UpdateContentForm(forms.ModelForm):
         ]
 
     id = forms.CharField(widget=forms.HiddenInput)
-
-
-class ImportantWordForm(forms.ModelForm):
-    class Meta:
-        model = ImportantWord
-        fields = ["word", "translation"]
-
-    word = forms.CharField(required=True)
-    translation = forms.CharField(required=True)
 
 
 class ClipForm(forms.ModelForm):
@@ -177,15 +179,18 @@ class AddUserLookupForm(forms.Form):
             created_user = OIDCUserAuth().create_user({"byu_id": byu_id})
             if created_user is not None:
                 enrollment_result = update_user_enrollment(created_user)
-        except Exception:
+        except Exception as exception:
+            # Not "admin": this form is also the Manage People lookup, so naming one
+            # caller would misdirect whoever reads the log.
             logger.exception(
-                "Failed to create user from BYU API for byu_id=%s during admin "
+                "Failed to create user from BYU API for byu_id=%s during an "
                 "add-user lookup.",
                 byu_id,
             )
-            raise ValidationError(
+            raise directory_lookup_error(
+                exception,
                 "Couldn't reach BYU's directory to create this user. Try again "
-                "in a moment."
+                "in a moment.",
             )
 
         if created_user is None:
@@ -209,26 +214,24 @@ class AddUserLookupForm(forms.Form):
         if existing:
             return existing, False
 
-        api = Api()
         try:
-            student_summary = api.get_student_summary(net_id=netid)
-        except Exception:
+            # Api() itself talks to BYU -- it mints an auth token in its constructor --
+            # so it has to be inside the try. Left outside, a blank API_AUTH_TOKEN_URL
+            # escaped as a 500 instead of reaching the person as a message.
+            student_summary = Api().get_student_summary(net_id=netid)
+        except Exception as exception:
             logger.exception(
-                "Failed to look up NetID %s via the student summary API "
-                "during admin add-user lookup.",
+                "Failed to look up NetID %s via the student summary API during an "
+                "add-user lookup.",
                 netid,
             )
-            raise ValidationError(
+            raise directory_lookup_error(
+                exception,
                 "Couldn't reach BYU's directory to look up that NetID. Try "
-                "again in a moment."
+                "again in a moment.",
             )
 
         if student_summary is None:
-            if self._student_summary_api_is_reachable(api) is False:
-                raise ValidationError(
-                    "BYU's directory API appears to be unavailable right now. "
-                    "Try again in a moment."
-                )
             raise ValidationError(
                 "No BYU student record was found for that NetID. This person "
                 "may need to log in to Y-Video themselves to create their "
@@ -240,32 +243,3 @@ class AddUserLookupForm(forms.Form):
         # faculty/staff — let create_user's own worker-vs-student check (inside
         # _resolve_byu_id) decide their current role rather than assuming.
         return self._resolve_byu_id(student_summary["byu_id"])
-
-    def _student_summary_api_is_reachable(self, api):
-        # Probes a known currently-enrolled local student to tell an outage
-        # apart from a genuine "no record for this NetID" result.
-        probe_netid = self._pick_probe_netid()
-        if not probe_netid:
-            return None
-
-        try:
-            return api.get_student_summary(net_id=probe_netid) is not None
-        except Exception:
-            return False
-
-    @staticmethod
-    def _pick_probe_netid():
-        latest_yearterm = (
-            UserCourses.objects.order_by("-yearterm")
-            .values_list("yearterm", flat=True)
-            .first()
-        )
-        if not latest_yearterm:
-            return None
-        return (
-            UserCourses.objects.filter(yearterm=latest_yearterm)
-            .exclude(user__netid__isnull=True)
-            .exclude(user__netid="")
-            .values_list("user__netid", flat=True)
-            .first()
-        )

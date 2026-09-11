@@ -17,16 +17,20 @@ from django.urls import reverse
 from django.utils.html import format_html
 from reversion.admin import VersionAdmin
 
+# Django's admin autodiscovery only imports `core.admin`, so the legacy
+# migration admin has to be imported here for its @admin.register calls to run.
+from . import admin_legacy_migration  # noqa: F401
 from .forms import AddUserLookupForm
 from .models import AnnotationSet
+from .models import AuthToken
 from .models import BlankAnnotation
 from .models import BlurAnnotation
+from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
 from .models import Course
 from .models import Email
-from .models import ImportantWord
 from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
@@ -42,6 +46,7 @@ from .models import Subtitle
 from .models import Track
 from .models import User
 from .models import UserCourses
+from .models import YearTerm
 from .utils import convert_srt_content_to_vtt
 
 logger = logging.getLogger(__name__)
@@ -624,6 +629,10 @@ class UserAdmin(VersionAdmin):
     list_filter = ("groups", "privilege_level", "date_joined")
     search_fields = ("username", "netid", "first_name", "last_name")
     add_form_template = "admin/core/user/add_form.html"
+    # Authentication is OIDC-only, so there is no password for an admin to
+    # manage. Leaving the field on the form made it required to save a user,
+    # and anything typed there was stored verbatim as the password hash.
+    exclude = ("password",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related("groups")
@@ -867,8 +876,8 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
 
 @admin.register(Playlist)
 class PlaylistAdmin(VersionAdmin):
-    list_display = ("name", "owner", "published", "archived", "public", "created_at")
-    list_filter = ("published", "archived", "public", "created_at")
+    list_display = ("name", "owner", "published", "archived", "created_at")
+    list_filter = ("published", "archived", "created_at")
     search_fields = ("name", "owner__name", "owner__netid", "owner__username")
 
 
@@ -993,6 +1002,23 @@ class BlurAnnotationAdmin(AnnotationAdmin):
     pass
 
 
+@admin.register(BlurAnnotationPosition)
+class BlurAnnotationPositionAdmin(VersionAdmin):
+    list_display = (
+        "blur_annotation",
+        "time",
+        "x",
+        "y",
+        "width",
+        "height",
+    )
+    search_fields = (
+        "blur_annotation__name",
+        "blur_annotation__track__annotation_set__name",
+        "blur_annotation__track__annotation_set__resource__name",
+    )
+
+
 @admin.register(Clip)
 class ClipAdmin(VersionAdmin):
     pass
@@ -1054,15 +1080,9 @@ class ResourceFileKeyAdmin(VersionAdmin):
     search_fields = ("user__netid", "user__username", "resource_file__resource__name")
 
 
-@admin.register(ImportantWord)
-class ImportantWordAdmin(VersionAdmin):
-    list_display = ("word", "translation")
-    search_fields = ("word", "translation", "content__title")
-
-
 @admin.register(AnnotationSet)
 class AnnotationSetAdmin(VersionAdmin):
-    list_display = ("name", "owner", "resource", "created_at")
+    list_display = ("name", "owner_label", "resource", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__netid", "owner__username", "resource__name")
 
@@ -1088,3 +1108,49 @@ class TrackAdmin(VersionAdmin):
 class UserCourses(VersionAdmin):
     list_display = ("user", "course", "yearterm")
     search_fields = ("user", "course", "yearterm")
+
+
+@admin.register(YearTerm)
+class YearTermAdmin(VersionAdmin):
+    list_display = (
+        "yearterm",
+        "start_date_time",
+        "end_date_time",
+        "currently_active",
+        "updated_at",
+    )
+    search_fields = ("yearterm",)
+    ordering = ("-start_date_time",)
+
+    @admin.display(boolean=True, description="Active (incl. grace period)")
+    def currently_active(self, obj):
+        return obj.is_active()
+
+
+@admin.register(AuthToken)
+class AuthTokenAdmin(admin.ModelAdmin):
+    """Read-only view of the BYU API bearer tokens.
+
+    The token itself is a live credential, so only its last four characters are
+    shown and it can never be typed in or edited: `core.api.Api` issues and
+    rotates tokens on its own, and a hand-entered value would silently break
+    every API call until it expired. This is deliberately not a VersionAdmin,
+    which would keep a copy of the secret in the revision history. Deletion is
+    still allowed, since discarding a token is how an admin forces a refresh.
+    """
+
+    list_display = ("masked_token", "created_at")
+    fields = ("masked_token", "created_at")
+    readonly_fields = ("masked_token", "created_at")
+
+    @admin.display(description="Token")
+    def masked_token(self, obj):
+        if not obj.token:
+            return "—"
+        return f"…{obj.token[-4:]}"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

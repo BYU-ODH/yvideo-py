@@ -32,9 +32,14 @@ def _active_form_id(page):
 
 def _seek(page, seconds):
     page.evaluate("(t) => window.videoPlayer.setCurrentTime(t)", seconds)
+    # `seeking` and not `currentTime` alone: the property reports the requested time as soon as it
+    # is assigned, while the seek - and so the `seeked` handler everything here is waiting on - is
+    # still in flight.
     page.wait_for_function(
-        "(t) => Math.abs(document.querySelector('.annotation-player-container video')"
-        ".currentTime - t) < 0.2",
+        """(t) => {
+            const video = document.querySelector('.annotation-player-container video');
+            return !video.seeking && Math.abs(video.currentTime - t) < 0.2;
+        }""",
         arg=seconds,
         timeout=5000,
     )

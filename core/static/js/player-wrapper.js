@@ -8,7 +8,7 @@ import { AnnotationPlayer } from './AnnotationPlayer.js';
 import { getCSRFToken } from './utils.js';
 
 async function getPlayerData(contentId) {
-  const playerDataResponse = await fetch("/player-data/" + contentId + '/', {
+  const playerDataResponse = await fetch(`/content/${contentId}/player-data/`, {
       method: "POST",
       headers: {"X-CSRFToken": getCSRFToken()},
       mode: "same-origin"

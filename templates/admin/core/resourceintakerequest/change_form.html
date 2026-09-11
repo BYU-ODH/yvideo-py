@@ -1,9 +1,10 @@
 {% extends "admin/change_form.html" %}
+
 {% load i18n %}
 
 {% block extrahead %}
-{{ block.super }}
-<style>
+    {{ block.super }}
+    <style>
 #id_resource_to_use,
 #id_file_to_use {
   flex: 1 1 auto;
@@ -72,8 +73,8 @@
   gap: 0.75rem;
   margin-left: 0.75rem;
 }
-</style>
-<script>
+    </style>
+    <script>
 document.addEventListener("DOMContentLoaded", function () {
   const callNumberInput = document.querySelector("#id_byu_call_number");
   const imdbLinkInput = document.querySelector("#id_imdb_link");
@@ -249,15 +250,14 @@ document.addEventListener("DOMContentLoaded", function () {
   syncFileChoice();
   syncApproveButton();
 });
-</script>
+    </script>
 {% endblock %}
-
 {% block submit_buttons_bottom %}
-{{ block.super }}
-<div class="submit-row">
-  <input type="submit"
-         value="{% translate 'Approve request' %}"
-         name="_approve_request"
-         class="default">
-</div>
+    {{ block.super }}
+    <div class="submit-row">
+        <input type="submit"
+               value="{% translate 'Approve request' %}"
+               name="_approve_request"
+               class="default">
+    </div>
 {% endblock %}

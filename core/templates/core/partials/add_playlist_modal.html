@@ -1,30 +1,20 @@
 <dialog id="playlist_modal">
     <div class="modal-box">
-
         <h3>Add New Playlist</h3>
-
-        <form
-            id="playlist-form"
-            hx-post="{% url 'create_playlist' %}"
-            hx-target="#sorted-playlists"
-            hx-swap="outerHTML">
+        <form id="playlist-form"
+              hx-post="{% url 'create_playlist' %}"
+              hx-target="#sorted-playlists"
+              hx-swap="outerHTML">
             {% csrf_token %}
-
             <div class="form-control">
                 <label>
                     <span class="label-text">Name</span>
                 </label>
-
                 {{ form.name }}
-
                 {% if form.name.errors %}
-                    <label class="text-error">
-                        {{ form.name.errors }}
-                    </label>
+                    <label class="text-error">{{ form.name.errors }}</label>
                 {% endif %}
-
             </div>
-
             <div class="modal-action">
                 <button type="submit" onclick="playlist_modal.close();">Create</button>
                 <button type="button" onclick="playlist_modal.close();">Cancel</button>

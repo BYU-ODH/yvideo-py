@@ -87,6 +87,8 @@ export class Editor {
     init() {
         const playerContainer = document.getElementById("annotation-player-container");
         this.contentId = playerContainer.dataset["contentid"];
+        this.canEditAnnotationSet = this.timelineWrapper.dataset["canEdit"] === "true";
+        this.watchForEditsToSomeoneElsesSet();
         // Event delegation for drag/resize - selection is handled by HTMX attributes
         this.updateTracks();
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -110,8 +112,6 @@ export class Editor {
         this.setupAnnotationSetOptionsModal();
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
-        this.attachRemoveEditorListeners();
-        this.watchForEditorSearchInputAndHandleIt();
         this.watchAndHandleEditorPanelSwitch();
         this.watchAndHandleSubtitleTrackChange();
         this.handleNoAnnotationSet();
@@ -854,7 +854,6 @@ export class Editor {
       let requestBody, contentType;
       if (isFromItem) {
         requestBody = JSON.stringify({
-          "content_id": this.contentId,
           "annotation_name": name,
           "description": description,
           "start_time": startTime,
@@ -875,7 +874,7 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/update/`, {
+      const response = await fetch(`/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -1577,10 +1576,10 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await fetch("/track/update", {
+        const response = await fetch(`/track/${trackId}/update/`, {
           method: "post",
           headers: {"X-CSRFToken": getCSRFToken()},
-          body: JSON.stringify({"new_track_name": newTrackName, "track_id": trackId})
+          body: JSON.stringify({"new_track_name": newTrackName})
         });
         if (!response.ok) {
           resetTrackName();
@@ -1642,7 +1641,7 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
-      const trackDeleteResponse = await fetch(`/track/delete/${trackId}`, {
+      const trackDeleteResponse = await fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -1672,6 +1671,7 @@ export class Editor {
         console.error("isMoveUp must be boolean type");
         return;
       }
+      const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
       const trackRows = document.getElementsByClassName("track-row");
       const trackIdOrder = [];
       for (let trackRow of trackRows) {
@@ -1702,7 +1702,7 @@ export class Editor {
         }
       }
 
-      const orderUpdateResponse = await fetch("/tracks/update_stack_positions",
+      const orderUpdateResponse = await fetch(`/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
         {
           method: "post",
           headers: {
@@ -1758,14 +1758,13 @@ export class Editor {
           return;
         }
 
-        const newTrackResponse = await fetch("/track/create", {
+        const newTrackResponse = await fetch(`/annotation-set/${annotationSetId}/track/create/`, {
           method: "post",
           headers: {
             "X-CSRFToken": getCSRFToken(),
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            "annotation_set_id": annotationSetId,
             "track_name": newTrackName
           })
         });
@@ -1886,7 +1885,7 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const response = await fetch(`/annotations/${annotationType}/create/track/${trackId}`,
+            const response = await fetch(`/track/${trackId}/annotations/${annotationType}/create/`,
               {
                 method: "POST",
                 headers: {
@@ -2315,14 +2314,13 @@ export class Editor {
     }
 
     async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
-      const createResponse = await fetch("/annotation-set/create", {
+      const createResponse = await fetch(`/content/${this.contentId}/annotation-set/create/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          content_id: this.contentId,
           name: setName,
           annotation_set_id_to_copy: annotationSetId,
           annotation_set_json: annotationSetJson
@@ -2371,7 +2369,7 @@ export class Editor {
     }
 
     async setupAnnotationSetUseExistingModal() {
-      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/use-existing/${this.contentId}`);
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/use-existing/${this.contentId}/`);
       if (!result) {
         return;
       }
@@ -2385,17 +2383,15 @@ export class Editor {
         } else {
           setSelector.classList.remove("invalid-input");
         }
-        const contentSetAssignmentResponse = await fetch("/select-annotation-set", {
-          method: "POST",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            "content_id": this.contentId,
-            "annotation_set_id": setSelector.value
-          })
-        });
+        const contentSetAssignmentResponse = await fetch(
+          `/content/${this.contentId}/select-annotation-set/`, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": getCSRFToken(),
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ "annotation_set_id": setSelector.value })
+          });
         if (!contentSetAssignmentResponse.ok) {
           console.error("Failed to set annotation set for this content");
           return;
@@ -2405,7 +2401,7 @@ export class Editor {
     }
 
     async setupAnnotationSetCopyModal() {
-      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/copy-from-set/${this.contentId}`);
+      const result = await this.setupAndDisplayAnnotationSetOption(`/annotation-options-modal/copy-from-set/${this.contentId}/`);
       if (!result) {
         return;
       }
@@ -2519,7 +2515,7 @@ export class Editor {
         if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
           return;
         }
-        const deleteResponse = await fetch(`/annotation-set/delete/${annotationSetId}`, {
+        const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/delete/`, {
           method: "DELETE",
           headers: {
             "X-CSRFToken": getCSRFToken()
@@ -2545,7 +2541,7 @@ export class Editor {
           // prevent any non-number value from being injected into link
           return;
         }
-        exportLink.href = `/annotation-set/export/${Number(annotationSetId)}`;
+        exportLink.href = `/annotation-set/${Number(annotationSetId)}/export/`;
         exportLink.click();
       });
     }
@@ -2563,9 +2559,9 @@ export class Editor {
             console.error("could not retrieve content id while switching annotation sets!");
             return;
         }
-        const htmlContentResponse = await fetch("/select-annotation-set", {
+        const htmlContentResponse = await fetch(`/content/${this.contentId}/select-annotation-set/`, {
             method: "POST",
-            body: JSON.stringify({"annotation_set_id": annotationSetId, "content_id": this.contentId}),
+            body: JSON.stringify({"annotation_set_id": annotationSetId}),
             headers: {
               "X-CSRFToken": getCSRFToken(),
               "Content-Type": "application/json"
@@ -2589,14 +2585,13 @@ export class Editor {
       const handleNameChange = async () => {
         const currentAnnotationSetName = annotationSetSettingsEl.dataset["annotationSetName"];
         const newName = annotationNameInput.value.trim();
-        const nameChangeResponse = await fetch("/annotation-set/update-name/", {
+        const nameChangeResponse = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
             method: "POST",
             headers: {
               "X-CSRFToken": getCSRFToken(),
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              annotation_set_id: annotationSetId,
               name: newName
             })
         });
@@ -2635,125 +2630,54 @@ export class Editor {
       }
     }
 
-    async handleRemoveEditor(e) {
-      e.stopPropagation();
-      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
-      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
-      // because the remove button has an element inside it, e.target could refer to the image element,
-      // or the button element which is the img's parent. The editorId is only on the button element.
-      // To get around this, the closest .remove-editor-button will find the correct in either case.
-      const buttonEl = e.target.closest(".remove-editor-button");
-      const editorId = buttonEl.dataset["editorId"];
-      const removalResponse = await fetch(`/annotation-set/${annotationSetId}/remove-editor/${editorId}/`, {
-        method: "DELETE",
-        headers: {
-          "X-CSRFToken": getCSRFToken()
+    watchForEditsToSomeoneElsesSet() {
+      /* Reference semantics mean a readable set is not necessarily an editable one, and the
+      server answers 403 either way. Offering a copy here is what turns that refusal into
+      something the user can act on. */
+      if (this.canEditAnnotationSet) {
+        return;
+      }
+      const editorContainer = document.getElementById("editor-container");
+      editorContainer.addEventListener("click", (e) => {
+        // The copy prompt itself, and read-only controls like the set chooser and playback,
+        // have to stay usable.
+        if (e.target.closest("#annotation-set-copy-prompt, .annotation-set-selector-wrapper, #video-section")) {
+          return;
         }
+        if (!e.target.closest("button, input, select, textarea, .track-row-annotation-item")) {
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        this.promptToCopyAnnotationSet();
+      }, true);
+    }
+
+    promptToCopyAnnotationSet() {
+      const existing = document.getElementById("annotation-set-copy-prompt");
+      if (existing) {
+        existing.showModal();
+        return;
+      }
+      const setName = this.timelineWrapper.dataset["annotationSetName"] || "this annotation set";
+      const dialog = document.createElement("dialog");
+      dialog.id = "annotation-set-copy-prompt";
+      dialog.innerHTML = `
+        <h3>This annotation set belongs to someone else</h3>
+        <p>You are trying to edit "${setName}", which you do not own. Would you like to
+           make your own copy to edit?</p>
+        <div class="row-flex">
+          <button id="annotation-set-copy-prompt-confirm" class="blue-button">Make my own copy</button>
+          <button id="annotation-set-copy-prompt-cancel" class="cancel-button">Cancel</button>
+        </div>`;
+      document.body.appendChild(dialog);
+      dialog.querySelector("#annotation-set-copy-prompt-cancel").addEventListener("click", () => dialog.close());
+      dialog.querySelector("#annotation-set-copy-prompt-confirm").addEventListener("click", async () => {
+        dialog.close();
+        const sourceId = this.timelineWrapper.dataset["annotationSetId"];
+        await this.handleAnnotationSetCreation(`Copy of ${setName}`, sourceId);
       });
-      if (!removalResponse.ok) {
-        console.error("Failed to remove editor");
-        return;
-      }
-      e.target.closest(".annotation-set-editor-details").remove();
-    }
-
-    attachRemoveEditorListener(editorDetailEl) {
-      const removeEditorButton = editorDetailEl.querySelector(".remove-editor-button");
-      if (removeEditorButton) {
-        removeEditorButton.addEventListener("click", this.handleRemoveEditor.bind(this));
-      }
-    }
-
-    attachRemoveEditorListeners() {
-      const editorDetailEls = document.getElementsByClassName("annotation-set-editor-details");
-      for (let editorDetailEl of editorDetailEls) {
-        this.attachRemoveEditorListener(editorDetailEl);
-      }
-    }
-
-    async handleAddEditor(e) {
-      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
-      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
-      const editorId = e.target.dataset["editorId"];
-      const selectedEditorsResponse = await fetch("/annotation-set/add-editor", {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          annotation_set_id: annotationSetId,
-          editor_id: editorId
-        })
-      });
-      if (!selectedEditorsResponse.ok) {
-        console.error("Failed to add new editor");
-        return;
-      }
-      const newWrapper = await selectedEditorsResponse.text();
-      const selectedEditorsWrapper = document.getElementById("selected-editors");
-      selectedEditorsWrapper.outerHTML = newWrapper;
-      this.attachRemoveEditorListeners();
-    }
-
-    attachAddEditorListeners() {
-      const editorSearchResultsWrapper = document.getElementById("editor-search-results");
-      const resultEntries = editorSearchResultsWrapper.querySelectorAll(".editor-search-result");
-      if (resultEntries.length == 0) {
-        editorSearchResultsWrapper.innerText = "No search results";
-        return;
-      }
-      for (let resultEl of resultEntries) {
-        resultEl.addEventListener("click", this.handleAddEditor.bind(this));
-      }
-    }
-
-    watchForEditorSearchInputAndHandleIt() {
-      /* Watch for keydown on input field, if its been less than timer amount since
-      the last keydown, clear the last request and start the timer again. If
-      the timer ends, execute the search function. */
-      const editorSearchInput = document.getElementById("editor-search-input");
-      let keydownTimerId;
-      const handleSearchInput = () => {
-        clearTimeout(keydownTimerId);
-        keydownTimerId = setTimeout(async () => {
-          const searchResultsWrapper = document.getElementById("editor-search-results");
-          const searchString = editorSearchInput.value.trim();
-          if (searchString == "") {
-            searchResultsWrapper.innerHTML = "";
-          }
-          if (!searchString) {
-            return;
-          }
-
-          // remove old search results
-          const oldSearchResultEls = document.getElementsByClassName("editor-option");
-          for (let i = oldSearchResultEls.length - 1; i >= 0; i--) {
-            const resultEl = oldSearchResultEls[i];
-            resultEl.remove();
-          }
-
-          // execute request
-          const searchResponse = await fetch("/annotation-set/search-for-editor", {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({search_string: searchString})
-          });
-
-          if (!searchResponse.ok) {
-            console.error("Failed to execute editor search");
-            searchResultsWrapper.innerText = "An error has occurred, please try searching again.";
-            return;
-          }
-          const results = await searchResponse.text();
-          searchResultsWrapper.outerHTML = results;
-          this.attachAddEditorListeners();
-        }, 300);
-      }
-      editorSearchInput.addEventListener("keydown", handleSearchInput.bind(this));
+      dialog.showModal();
     }
 
     watchAndHandleEditorPanelSwitch() {
@@ -2787,7 +2711,7 @@ export class Editor {
           return;
         }
         this.selectedSubtitleTrackId = newSubtitleTrackId;
-        const subtitlesResponse = await fetch(`/subtitles/get-editable-subtitles/${this.selectedSubtitleTrackId}`);
+        const subtitlesResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/editable/`);
         if (!subtitlesResponse.ok) {
           console.error("Failed to get subtitle cues");
           return;
@@ -2833,14 +2757,13 @@ export class Editor {
         return;
       }
 
-      const updateResponse = await fetch("/subtitles/update-subtitle-cues", {
+      const updateResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/update-cues/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          subtitle_id: this.selectedSubtitleTrackId,
           cues: cues,
           seconds_nudge: 0,
           nudge_excluded_cues: [],

@@ -1,0 +1,5 @@
+{% for user in users %}
+    <option value="{{ user.id }}">{{ user.get_full_name|default:user.username }} ({{ user.netid }})</option>
+{% empty %}
+    <option value="" disabled>{% if query_too_short %}Keep typing{% elif query %}No matches{% else %}Type to search{% endif %}</option>
+{% endfor %}

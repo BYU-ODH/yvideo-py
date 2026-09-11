@@ -30,14 +30,31 @@ repos:
     rev: v0.15.20
     hooks:
       - id: ruff-check
-        args: [--fix, --exit-non-zero-on-fix, --diff, --config=pyproject.toml]
+        args: [--fix, --exit-non-zero-on-fix, --config=pyproject.toml]
       - id: ruff-format
+
+  - repo: https://github.com/djlint/djLint
+    rev: v1.44.2
+    hooks:
+      - id: djlint-reformat-django
+      - id: djlint-django
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     # uv version.
     rev: 0.10.12
     hooks:
       - id: uv-lock
+
+  - repo: https://github.com/thibaudcolas/pre-commit-stylelint
+    rev: v17.14.1
+    hooks:
+      - id: stylelint
+        args: [--fix]
+        additional_dependencies:
+          - stylelint@17.14.1
+          - stylelint-config-clean-order@10.0.0
+          - stylelint-config-standard@40.0.0
+          - stylelint-order@8.1.1
 
   - repo: local
     hooks:

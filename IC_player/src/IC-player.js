@@ -21,12 +21,12 @@ export const player = {
       function onFileChange() {
         document.getElementById("files").textContent =
           player.getSelectedFiles().icfFile.name;
-        document.getElementById("playButton").classList.add("ready");
+        document.getElementById("play-button").classList.add("ready");
         document
           .getElementById("filePicker")
           .removeEventListener("change", onFileChange);
 
-        document.getElementById("playButton").onclick = () => {
+        document.getElementById("play-button").onclick = () => {
           player.startPlayer();
         };
       }
@@ -41,7 +41,7 @@ export const player = {
   toggleAnnotationMode: () => {
     player.annotationMode = !player.annotationMode;
 
-    const toggleBtn = document.getElementById("toggleAnnotationModeBtn");
+    const toggleBtn = document.getElementById("toggle-annotation-mode-btn");
     if (player.annotationMode) {
       toggleBtn.classList.add("active");
     } else {
@@ -72,9 +72,9 @@ export const player = {
     document.getElementById("splashScreen").style.display = "block";
     document.querySelector(".main-content").classList.remove("active");
     document.querySelector(".annotation-player-container").style.display = "none";
-    document.getElementById("playButton").classList.remove("ready");
-    document.getElementById("reloadAnnotationsBtn").style.visibility = "hidden";
-    document.getElementById("returnBtn").style.visibility = "hidden";
+    document.getElementById("play-button").classList.remove("ready");
+    document.getElementById("reload-annotations-btn").style.visibility = "hidden";
+    document.getElementById("return-btn").style.visibility = "hidden";
     document.onkeyup = null;
     document.onkeydown = null;
     if (player.annotationPlayer) player.annotationPlayer.pause();
@@ -82,12 +82,12 @@ export const player = {
       "linear-gradient(to right, #1e425e, #839aa8, #1e425e)";
     const filePicker = document.getElementById("filePicker");
     filePicker.value = "";
-    document.getElementById("playButton").onclick = () =>
+    document.getElementById("play-button").onclick = () =>
       player.initializeOrSelectFiles();
     document.getElementById("files").textContent = "Select Files";
     player.annotationMode = false;
     document
-      .getElementById("toggleAnnotationModeBtn")
+      .getElementById("toggle-annotation-mode-btn")
       .classList.remove("active");
     if (player.annotationPlayer) player.annotationPlayer.resetAnnotations();
     player.annotations = null;
@@ -264,12 +264,12 @@ export const player = {
 
     document.querySelector(".main-content").classList.add("active");
     document.querySelector(".annotation-player-container").style.display = "flex";
-    document.getElementById("reloadAnnotationsBtn").style.visibility =
+    document.getElementById("reload-annotations-btn").style.visibility =
       player.annotationMode ? "visible" : "hidden";
     if (!window.screenTop && !window.screenY) {
-      document.getElementById("returnBtn").style.visibility = "hidden";
+      document.getElementById("return-btn").style.visibility = "hidden";
     } else {
-      document.getElementById("returnBtn").style.visibility = "visible";
+      document.getElementById("return-btn").style.visibility = "visible";
     }
     document.getElementById("splashScreen").style.display = "none";
     document.body.style.background = "black";

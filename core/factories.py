@@ -141,7 +141,6 @@ class PlaylistFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"Demo Playlist {n}")
     published = False
     archived = False
-    public = False
 
     @factory.post_generation
     def courses(self, create, extracted, **kwargs):
@@ -162,17 +161,10 @@ class PlaylistUserAccessFactory(factory.django.DjangoModelFactory):
 class AnnotationSetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = AnnotationSet
-        skip_postgeneration_save = True
 
     name = factory.Sequence(lambda n: f"Annotation Set {n}")
     resource = factory.SubFactory(ResourceFactory)
     owner = factory.SubFactory(UserFactory, instructor=True)
-
-    @factory.post_generation
-    def editors(self, create, extracted, **kwargs):
-        if not create or not extracted:
-            return
-        self.editors.set(extracted)
 
 
 class TrackFactory(factory.django.DjangoModelFactory):
@@ -313,7 +305,6 @@ class SubtitleFactory(factory.django.DjangoModelFactory):
         )
     )
     is_original = True
-    words = ""
 
 
 class ResourceFileKeyFactory(factory.django.DjangoModelFactory):

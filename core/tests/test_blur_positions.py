@@ -507,8 +507,11 @@ class PanelRenderingTests(TestCase):
             "core/partials/blur_positions.html",
             {"item_positions": self.blur.positions.all()},
         )
+        # Matched across the whole tag because the formatter is free to wrap attributes.
         return re.findall(
-            r'class="position-[a-z]+-input" type="text" value="([^"]*)"', html
+            r'<input\s[^>]*class="position-[a-z]+-input"[^>]*\svalue="([^"]*)"',
+            html,
+            re.DOTALL,
         )
 
     def test_no_field_is_rendered_beyond_two_decimals(self):

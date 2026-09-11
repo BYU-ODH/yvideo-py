@@ -405,6 +405,15 @@ def test_the_blur_glides_between_positions(page, open_player):
 
     def seek_and_measure(time):
         page.evaluate(f"() => window.videoPlayer.setCurrentTime({time})")
+        # `seeking`, because `currentTime` reports the requested time while the seek is still in
+        # flight - and the blur is repainted from the `seeked` handler, not from the assignment.
+        page.wait_for_function(
+            "(t) => { const v = document.querySelector"
+            "('.annotation-player-container video');"
+            " return !v.seeking && Math.abs(v.currentTime - t) < 0.2; }",
+            arg=time,
+            timeout=5000,
+        )
         page.wait_for_timeout(200)
         return _blur_position_relative_to_video(page)
 

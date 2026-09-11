@@ -1,25 +1,31 @@
 {% load static %}
+
 <div id="assigned-courses-list">
     {% if assigned_courses|length > 0 %}
-    <div class="assigned-course">
-        <p>Course</p>
-        <p>Sections</p>
-    </div>
+        <div class="assigned-course">
+            <p>Course</p>
+            <p>Sections</p>
+        </div>
     {% endif %}
     <div id="assigned-course-items">
         {% for assigned_course in assigned_courses %}
-        <div class="assigned-course course-item" data-dept="{{ assigned_course.dept }}" data-catalog-number="{{ assigned_course.catalog_number }}">
-            <p>{{ assigned_course.dept }} {{ assigned_course.catalog_number }}</p>
-            <div class="assigned-course-right row-flex">
-                <input class="section-input" type="text" value="{{assigned_course.section_list}}">
-                <button class="section-save-button blue-button hidden">Save</button>
-                <button class="remove-course-assignment-button">
-                    <img src="{% static 'img/trash.svg' %}">
-                </button>
+            <div class="assigned-course course-item"
+                 data-dept="{{ assigned_course.dept }}"
+                 data-catalog-number="{{ assigned_course.catalog_number }}">
+                <p>{{ assigned_course.dept }} {{ assigned_course.catalog_number }}</p>
+                <div class="assigned-course-right row-flex">
+                    <input class="section-input"
+                           type="text"
+                           value="{{ assigned_course.section_list }}">
+                    <button class="section-save-button blue-button hidden">Save</button>
+                    <button class="remove-course-assignment-button">
+                        <img src="{% static 'img/trash.svg' %}"
+                             alt="Remove {{ assigned_course.dept }} {{ assigned_course.catalog_number }}">
+                    </button>
+                </div>
             </div>
-        </div>
         {% empty %}
-        <p>No assigned courses</p>
+            <p>No assigned courses</p>
         {% endfor %}
     </div>
 </div>
@@ -42,5 +48,4 @@
     <p class="muted-text">* Comma separated list without leading 0's. e.g. 1, 2, 3...</p>
     <button id="assign-course-button" class="blue-button position-flex-start">+ Assign Course</button>
 </div>
-
 <script type="module" src="{% static 'js/courseAssignment.js' %}"></script>

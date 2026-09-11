@@ -68,3 +68,114 @@ class ApiTimezoneTests(TestCase):
 
         self.assertEqual(result["yearterm"], "20263")
         self.assertTrue(result["is_two_weeks_from_end"])
+
+
+class GetYearTermsTests(TestCase):
+    """get_year_terms is what feeds the YearTerm cache the permission checks read."""
+
+    def setUp(self):
+        AuthToken.objects.create(token="existing-token")
+
+    def api_returning(self, entries):
+        api = Api()
+        mock_response = Mock()
+        mock_response.json.return_value = {"data": entries}
+        return api, mock_response
+
+    @patch("core.api.requests.get")
+    def test_returns_every_term_with_parsed_dates(self, mock_get):
+        api, mock_response = self.api_returning(
+            [
+                {
+                    "year_term": "20265",
+                    "start_date_time": "2026-09-01T00:00:00",
+                    "end_date_time": "2026-12-15T00:00:00",
+                },
+                {
+                    "year_term": "20271",
+                    "start_date_time": "2027-01-05T00:00:00",
+                    "end_date_time": "2027-04-20T00:00:00",
+                },
+            ]
+        )
+        mock_get.return_value = mock_response
+
+        year_terms = api.get_year_terms()
+
+        self.assertEqual(
+            [entry["yearterm"] for entry in year_terms], ["20265", "20271"]
+        )
+        for entry in year_terms:
+            self.assertTrue(timezone.is_aware(entry["start_date_time"]))
+            self.assertTrue(timezone.is_aware(entry["end_date_time"]))
+
+    @patch("core.api.requests.get")
+    def test_an_unparseable_entry_is_skipped_rather_than_raising(self, mock_get):
+        api, mock_response = self.api_returning(
+            [
+                {"year_term": "20265", "start_date_time": "not a date"},
+                {
+                    "year_term": "20271",
+                    "start_date_time": "2027-01-05T00:00:00",
+                    "end_date_time": "2027-04-20T00:00:00",
+                },
+            ]
+        )
+        mock_get.return_value = mock_response
+
+        year_terms = api.get_year_terms()
+
+        self.assertEqual([entry["yearterm"] for entry in year_terms], ["20271"])
+
+
+class RefreshYearTermsCommandTests(TestCase):
+    def setUp(self):
+        AuthToken.objects.create(token="existing-token")
+
+    @patch("core.management.commands.refresh_year_terms.Api")
+    def test_caches_and_updates_terms(self, mock_api):
+        from django.core.management import call_command
+
+        from core.models import YearTerm
+
+        start = timezone.now()
+        mock_api.return_value.get_year_terms.return_value = [
+            {
+                "yearterm": "20265",
+                "start_date_time": start,
+                "end_date_time": start + timedelta(days=100),
+            }
+        ]
+
+        call_command("refresh_year_terms")
+        self.assertEqual(YearTerm.objects.count(), 1)
+
+        # A second run updates in place rather than duplicating.
+        mock_api.return_value.get_year_terms.return_value[0]["end_date_time"] = (
+            start + timedelta(days=110)
+        )
+        call_command("refresh_year_terms")
+
+        self.assertEqual(YearTerm.objects.count(), 1)
+        self.assertEqual(
+            YearTerm.objects.get().end_date_time, start + timedelta(days=110)
+        )
+
+    @patch("core.management.commands.refresh_year_terms.Api")
+    def test_an_empty_api_response_leaves_the_cache_alone(self, mock_api):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        from core.models import YearTerm
+
+        existing = YearTerm.objects.create(
+            yearterm="20265",
+            start_date_time=timezone.now(),
+            end_date_time=timezone.now() + timedelta(days=100),
+        )
+        mock_api.return_value.get_year_terms.return_value = []
+
+        with self.assertRaises(CommandError):
+            call_command("refresh_year_terms")
+
+        self.assertTrue(YearTerm.objects.filter(pk=existing.pk).exists())

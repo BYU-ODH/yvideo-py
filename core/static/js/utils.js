@@ -75,6 +75,16 @@ export function animateDuringPlayback(video, onFrame) {
   };
 }
 
+export function getPlaylistIdValue() {
+  const settingsEl = document.getElementById("playlist-settings");
+  const idValue = settingsEl?.dataset.playlistId;
+  if (!idValue) {
+    console.error("Failed to get playlist id from the settings panel");
+    return;
+  }
+  return idValue;
+}
+
 export function getCSRFToken() {
   const cookieValue = document.cookie
       .split("; ")

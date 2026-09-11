@@ -11,22 +11,20 @@ function setupSubmit() {
     const allowCaptsInput = document.getElementById("allow-captions");
     const allowFastPlaybackInput = document.getElementById("allow-fast-playback");
     const clipsOnlyInput = document.getElementById("clips-only");
-    const wordsInput = document.getElementById("words");
     const descriptionInput = document.getElementById("description");
     const defaultSubtitleTrackInput = document.getElementById("default-subtitle-track");
-    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, clipsOnlyInput, wordsInput, descriptionInput].some(el => el === undefined);
+    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, clipsOnlyInput, descriptionInput].some(el => el === undefined);
     if (isUndefined) {
       console.log("at least one content settings form input is undefined.");
       return;
     }
-    await fetch("/content/update/", {
+    await fetch(`/content/${idInput.value}/update/`, {
       method: "POST",
       headers: {
         "X-CSRFToken": getCSRFToken(),
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "id": idInput.value,
         "title": titleInput.value,
         "published": publishedInput.checked,
         "allow_definitions": allowDefsInput.checked,
@@ -34,7 +32,6 @@ function setupSubmit() {
         "allow_captions": allowCaptsInput.checked,
         "allow_fast_playback": allowFastPlaybackInput.checked,
         "clips_only": clipsOnlyInput.checked,
-        "words": wordsInput.value,
         "description": descriptionInput.value,
         "default_subtitle_track_id": defaultSubtitleTrackInput ? defaultSubtitleTrackInput.value : "",
       })
@@ -52,7 +49,7 @@ function setupReset() {
   }
   resetButton.addEventListener("click", async () => {
     const contentId = contentIdInput.value;
-    const resetResponse = await fetch(`/content/render-settings-form/${contentId}/`);
+    const resetResponse = await fetch(`/content/${contentId}/render-settings-form/`);
     if (!resetResponse.ok) {
       console.error("Failed to reset content settings form");
       return;

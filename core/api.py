@@ -22,6 +22,14 @@ except ImportError:
 from .models import AuthToken
 
 
+class ApiUnavailable(Exception):
+    """A request to one of BYU's APIs failed, so its answer is unknown.
+
+    Distinct from a successful lookup that found no record: callers must not
+    read this as "BYU has no record of this person".
+    """
+
+
 class Api:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -93,26 +101,47 @@ class Api:
 
         return new_year_string + new_term_string
 
-    def get_current_year_term(self):
-        now = timezone.now()
+    def get_year_terms(self):
+        """Every yearterm the API knows about, with its start and end datetimes.
 
-        # get yearterm information
+        Returns a list of {"yearterm", "start_date_time", "end_date_time"} dicts.
+        Entries the API returns without parseable dates are skipped.
+        """
         url = secret_settings.API_YEARTERM_URL
         headers = {"Authorization": self.build_auth_header()}
         control_date_request = requests.get(url, headers=headers)
         control_date_json_response = control_date_request.json()
         response_data = control_date_json_response["data"]
 
+        year_terms = []
+        for entry in response_data:
+            try:
+                year_terms.append(
+                    {
+                        "yearterm": entry["year_term"],
+                        "start_date_time": self.parse_api_datetime(
+                            entry["start_date_time"]
+                        ),
+                        "end_date_time": self.parse_api_datetime(
+                            entry["end_date_time"]
+                        ),
+                    }
+                )
+            except (KeyError, TypeError, ValueError) as e:
+                self.logger.error(f"Skipping unparseable yearterm entry {entry}: {e}")
+        return year_terms
+
+    def get_current_year_term(self):
+        now = timezone.now()
+
         # determine which yearterm corresponds to current datetime
         yearterm = None
         is_two_weeks_from_end = False
-        for entry in response_data:
-            yearterm_start_datetime = self.parse_api_datetime(entry["start_date_time"])
-            yearterm_end_datetime = self.parse_api_datetime(entry["end_date_time"])
-            if yearterm_start_datetime <= now < yearterm_end_datetime:
-                yearterm = entry["year_term"]
+        for entry in self.get_year_terms():
+            if entry["start_date_time"] <= now < entry["end_date_time"]:
+                yearterm = entry["yearterm"]
                 # determine if the end of the current year term is 2 weeks or less away
-                two_weeks_from_end = yearterm_end_datetime - timedelta(days=14)
+                two_weeks_from_end = entry["end_date_time"] - timedelta(days=14)
                 is_two_weeks_from_end = now >= two_weeks_from_end
 
                 break
@@ -227,8 +256,15 @@ class Api:
             return None
 
     def get_student_summary(self, byu_id=None, net_id=None):
-        # Accepts either identifier; the endpoint returns both byu_id and net_id
-        # in the response regardless of which one was used to query it.
+        """This person's active student record, or None if they have none.
+
+        Accepts either identifier; the endpoint returns both byu_id and net_id
+        in the response regardless of which one was used to query it.
+
+        A failed request raises ApiUnavailable rather than returning None, so
+        callers can tell "BYU has no active student record for this person"
+        apart from "we could not find out".
+        """
         if byu_id is not None:
             url = secret_settings.API_STUDENT_SUMMARY_URL + "?byu_id=" + byu_id
         elif net_id is not None:
@@ -236,9 +272,27 @@ class Api:
         else:
             return None
         headers = {"Authorization": self.build_auth_header()}
-        summary_request = requests.get(url, headers=headers)
-        summary_json_res = summary_request.json()
-        data = summary_json_res["data"]
+        try:
+            summary_request = requests.get(url, headers=headers)
+        except requests.RequestException as e:
+            self.logger.error(f"Could not reach the student summary API: {e}")
+            raise ApiUnavailable("Could not reach the student summary API.") from e
+
+        if summary_request.status_code != 200:
+            self.logger.error(
+                "Failed to get the student summary because the API responded "
+                f"with {summary_request.status_code}"
+            )
+            raise ApiUnavailable(
+                f"The student summary API responded with {summary_request.status_code}."
+            )
+
+        try:
+            data = summary_request.json()["data"]
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.error(f"Could not read the student summary response: {e}")
+            raise ApiUnavailable("Could not read the student summary response.") from e
+
         if data:
             data = data[0]
             preferred_first_name = data["preferred_name"].split(" ")[0]
@@ -255,6 +309,13 @@ class Api:
             return None
 
     def get_student_enrollments(self, net_id, yearterm):
+        """This student's enrollment records for one term, or None if the lookup failed.
+
+        An empty list is an answer -- the student is enrolled in nothing this term --
+        and callers revoke course access on it. None means we do not know, so callers
+        must leave existing access alone. Anything we cannot parse makes the whole
+        lookup a failure for that reason: a partial list reads as a set of drops.
+        """
         url = (
             secret_settings.API_STUDENT_ENROLLMENTS_URL
             + "?net_id="
@@ -264,11 +325,22 @@ class Api:
         )
         headers = {"Authorization": self.build_auth_header()}
         records_request = requests.get(url, headers=headers)
-        records_json_res = records_request.json()
-        records_data = records_json_res["data"]
-        if records_data:
-            parsed_records = []
-            for record in records_data:
+        if records_request.status_code != 200:
+            self.logger.error(
+                f"Failed to get enrollments for {yearterm} because the API responded "
+                f"with {records_request.status_code}"
+            )
+            return None
+
+        try:
+            records_data = records_request.json()["data"]
+        except (ValueError, KeyError, TypeError) as e:
+            self.logger.error(f"Could not read the enrollments response: {e}")
+            return None
+
+        parsed_records = []
+        for record in records_data or []:
+            try:
                 parsed_records.append(
                     {
                         key: record[key]
@@ -285,6 +357,7 @@ class Api:
                         ]
                     }
                 )
-            return parsed_records
-        else:
-            return None
+            except (KeyError, TypeError) as e:
+                self.logger.error(f"Unreadable enrollment record {record}: {e}")
+                return None
+        return parsed_records

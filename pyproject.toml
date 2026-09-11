@@ -15,6 +15,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "djlint==1.44.2",
     "factory-boy==3.3.3",
     "playwright==1.61.0",
     "pre-commit==4.6.0",
@@ -23,6 +24,14 @@ dev = [
     "pytest-playwright==0.8.0",
     "ruff==0.15.20",
 ]
+
+[tool.djlint]
+profile = "django"
+extension = "html"
+max_line_length = 120
+blank_line_after_tag = "extends,include,load"
+# var/ holds generated reports and old/ is the retired implementation; neither is ours to format.
+extend_exclude = "var,old"
 
 [tool.ruff]
 exclude = ["core/migrations/*.py"]

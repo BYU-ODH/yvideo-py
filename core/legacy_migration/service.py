@@ -57,6 +57,7 @@ from .parsers import LegacyFileInfo
 from .parsers import build_subtitle_vtt
 from .parsers import build_user_fingerprint
 from .parsers import make_json_safe
+from .parsers import map_legacy_collection_role
 from .parsers import map_legacy_media_type
 from .parsers import normalize_name
 from .parsers import parse_legacy_annotations
@@ -558,10 +559,7 @@ class LegacyMigrationService:
             return request_obj
 
     def _resolve_collection_role(self, raw_role):
-        try:
-            return PlaylistRole(int(raw_role))
-        except (TypeError, ValueError):
-            return None
+        return map_legacy_collection_role(raw_role)
 
     def _duplicate_import_groups(self, file_decisions):
         """Group to-be-imported decisions that point at identical file content,
@@ -1204,11 +1202,6 @@ class LegacyMigrationService:
                 if request_obj.target_collection_archived is not None
                 else snapshot_collection["archived"]
             ),
-            public=(
-                request_obj.target_collection_public
-                if request_obj.target_collection_public is not None
-                else snapshot_collection["public"]
-            ),
         )
         self._upsert_source_map(
             request_obj,
@@ -1331,7 +1324,6 @@ class LegacyMigrationService:
             "allow_notes": bool(content_row["allow_notes"]),
             "allow_captions": bool(content_row["allow_captions"]),
             "published": bool(content_row["published"]),
-            "words": content_row["words"] or "",
         }
         if mapped_content:
             for field_name, value in defaults.items():
@@ -1521,7 +1513,6 @@ class LegacyMigrationService:
                 "language": language,
                 "name": subtitle_row["title"] or language.language,
                 "is_original": True,
-                "words": subtitle_row["words"] or "",
             }
             vtt_content = build_subtitle_vtt(subtitle_row["content"])
             with transaction.atomic():

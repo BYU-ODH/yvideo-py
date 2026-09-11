@@ -144,6 +144,13 @@ export class YouTubeVideoElement extends HTMLElement {
 
   _onReady() {
     this._ready = true;
+    // The API replaces our mount with an <iframe> of its own, and a frame with no
+    // accessible name is announced as nothing more than "frame". Only set it if the API
+    // did not, so a real title from YouTube wins over this generic one.
+    const iframe = this.querySelector("iframe");
+    if (iframe && !iframe.title) {
+      iframe.title = "YouTube video player";
+    }
     this._state.duration = this._player.getDuration();
     this._player.setVolume(this._state.volume * 100);
     if (this._state.muted) {

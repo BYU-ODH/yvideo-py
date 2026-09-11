@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 class LegacyMigrationRequestForm(forms.ModelForm):
+    acknowledged_compliance = forms.BooleanField(required=True)
+    acknowledged_fair_use_limitation = forms.BooleanField(required=True)
     migration_kind = forms.ChoiceField(
         choices=LegacyMigrationKind.choices,
         label="What would you like to move?",
@@ -32,6 +34,8 @@ class LegacyMigrationRequestForm(forms.ModelForm):
             "migration_kind",
             "legacy_reference",
             "request_notes",
+            "acknowledged_compliance",
+            "acknowledged_fair_use_limitation",
         ]
         labels = {
             "request_notes": "Anything else we should know?",

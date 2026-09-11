@@ -43,10 +43,18 @@ def _load_annotations(page, annotations):
 
 
 def _seek(page, seconds):
-    """Seek, then report where the playhead actually landed."""
+    """Seek, then report where the playhead actually landed.
+
+    `seeking` and not `currentTime` alone: the property reports the requested time as soon as it is
+    assigned, while the seek is still in flight, so the player has not yet repainted its annotations
+    for the new time - it does that from its `seeked` handler while paused.
+    """
     page.evaluate("(t) => window.videoPlayer.setCurrentTime(t)", seconds)
     page.wait_for_function(
-        "([video, t]) => Math.abs(document.querySelector(video).currentTime - t) < 0.2",
+        """([video, t]) => {
+            const element = document.querySelector(video);
+            return !element.seeking && Math.abs(element.currentTime - t) < 0.2;
+        }""",
         arg=[VIDEO, seconds],
         timeout=5000,
     )

@@ -160,13 +160,13 @@ class CreateContentFromUrlViewTests(TestCase):
 
     def _post(self, **overrides):
         data = {
-            "playlist_id": self.playlist.pk,
             "title": "A YouTube Video",
             "url": "https://www.youtube.com/watch?v=eHEsJyVQn3w",
         }
+        playlist_id = overrides.pop("playlist_id", self.playlist.pk)
         data.update(overrides)
         return self.client.post(
-            reverse("create_content_from_youtube_url"),
+            reverse("create_content_from_youtube_url", args=[playlist_id]),
             data=json.dumps(data),
             content_type="application/json",
         )
@@ -219,7 +219,7 @@ class CreateContentFromUrlViewTests(TestCase):
     def test_a_malformed_body_is_a_bad_request_not_a_server_error(self):
         self.client.force_login(self.owner)
         response = self.client.post(
-            reverse("create_content_from_youtube_url"),
+            reverse("create_content_from_youtube_url", args=[self.playlist.pk]),
             data="not json",
             content_type="application/json",
         )

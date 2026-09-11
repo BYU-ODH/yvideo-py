@@ -97,6 +97,8 @@ snapshot itself before reading it. See
 - **Pre-commit hooks**: Automatically run linting and formatting on commit
 - **Ruff**: Fast Python linter and formatter
 - **ESLint**: Javascript/CSS/JSON linter
+- **Stylelint**: CSS linter and automatic property ordering
+- **djLint**: Django template linter and formatter
 
 To manually run pre-commit on all files (this is the command used in
 Github Actions):
