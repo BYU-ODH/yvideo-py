@@ -1612,20 +1612,15 @@ of the page */
 .timeline-zoom-icon {
     width: 25px;
     height: 25px;
-    border-radius: 50%;
     padding: 2px;
+    border-radius: 50%;
+
     filter: invert(1);
 }
 
 .timeline-zoom-button:hover {
     cursor: pointer;
     background-color: #ffffff50;
-}
-
-.timeline-zoom-icon {
-    width: 20px;
-    height: 20px;
-    filter: invert(1);
 }
 
 #timeline-scroll-slider {
