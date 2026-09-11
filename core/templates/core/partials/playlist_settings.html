@@ -8,7 +8,14 @@
             {% csrf_token %}
             {{ form.non_field_errors }}
             <div class="playlist-form-group">{{ form.name.as_field_group }}</div>
-            <div class="playlist-form-group">{{ form.published.as_field_group }}</div>
+            <div class="playlist-form-group">
+                <label for="{{ form.published.id_for_label }}">Published:</label>
+                <input type="checkbox"
+                       id="{{ form.published.id_for_label }}"
+                       name="{{ form.published.name }}"
+                       {% if form.published.value == True %} checked {% endif %}
+                       {% if form.archived.value == True %} disabled {% endif %}>
+            </div>
             <div class="playlist-form-group">{{ form.archived.as_field_group }}</div>
             <div class="row-flex">
                 <button id="playlist-settings-submit" class="blue-button" type="submit">Submit</button>
