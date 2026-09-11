@@ -99,7 +99,6 @@ class LegacyCatalogClient:
                 c.annotations,
                 c.thumbnail,
                 c.allow_definitions,
-                c.allow_notes,
                 c.allow_captions,
                 c.views,
                 c.file_version,
