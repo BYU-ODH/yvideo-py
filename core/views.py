@@ -692,7 +692,6 @@ def update_playlist_settings(request, playlist):
     form = PlaylistSettingsForm(request.POST)
     if form.is_valid():
         try:
-            print(playlist.published)
             playlist.name = form.cleaned_data["name"]
             playlist.archived = form.cleaned_data["archived"]
             if form.cleaned_data["archived"]:
