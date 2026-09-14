@@ -693,8 +693,11 @@ def update_playlist_settings(request, playlist):
     if form.is_valid():
         try:
             playlist.name = form.cleaned_data["name"]
-            playlist.published = form.cleaned_data["published"]
             playlist.archived = form.cleaned_data["archived"]
+            if form.cleaned_data["archived"]:
+                playlist.published = False
+            else:
+                playlist.published = form.cleaned_data["published"]
             playlist.save()
             return render_playlist_info(request, playlist)
         except Exception as e:
