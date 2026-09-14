@@ -197,6 +197,7 @@ a.blue-button {
     display: flex;
     flex-direction: column;
     row-gap: 1rem;
+    column-gap: 3rem;
 }
 
 .column-flex-no-gap {
@@ -1700,11 +1701,11 @@ p.tile-subtitle {
 
 
 /* Video Page */
-.playlist-video-page {
+/* .playlist-video-page {
     max-width: 1200px;
     margin: 40px auto 0;
     padding: 0 clamp(16px, 5vw, 80px);
-}
+} */
 
 #playlist-videos-header {
     align-items: flex-end;
@@ -1857,8 +1858,6 @@ h4.video-title {
 
 .content-form-group {
     display: flex;
-    flex-direction: column;
-    row-gap: 0.35rem;
 }
 
 .content-settings-form-group {
@@ -1870,6 +1869,7 @@ h4.video-title {
 .content-settings-form-group label {
     display: block;
     font-weight: 500;
+    padding-right: 0.5rem;
 }
 
 .content-form-group.clips-only-invalid label,
@@ -1878,10 +1878,7 @@ h4.video-title {
 }
 
 .content-form-group input {
-    height: 36px;
-    padding: 0 10px;
-    border-radius: 4px;
-    font-size: 1rem;
+    font-size: 0.875rem;
 }
 
 .content-settings-options {
