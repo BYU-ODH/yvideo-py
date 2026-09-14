@@ -188,7 +188,6 @@ class ContentFactory(factory.django.DjangoModelFactory):
     annotation_set = None
     description = ""
     allow_definitions = True
-    allow_notes = True
     allow_captions = True
     allow_fast_playback = True
     clips_only = False

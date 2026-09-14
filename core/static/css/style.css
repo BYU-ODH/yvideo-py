@@ -1887,6 +1887,15 @@ h4.video-title {
     row-gap: 0.35rem;
 }
 
+#content-title {
+    /* field-sizing is a new baseline css rule that is supported by all browsers. eslint doesn't know that yet */
+
+    /* eslint-disable-next-line */
+    field-sizing: content;
+    min-width: 10rem;
+    max-width: 30rem;
+}
+
 .add-youtube-video-error {
     margin-top: 0.25rem;
     font-size: 0.85rem;

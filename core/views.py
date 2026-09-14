@@ -693,8 +693,11 @@ def update_playlist_settings(request, playlist):
     if form.is_valid():
         try:
             playlist.name = form.cleaned_data["name"]
-            playlist.published = form.cleaned_data["published"]
             playlist.archived = form.cleaned_data["archived"]
+            if form.cleaned_data["archived"]:
+                playlist.published = False
+            else:
+                playlist.published = form.cleaned_data["published"]
             playlist.save()
             return render_playlist_info(request, playlist)
         except Exception as e:
@@ -1265,7 +1268,6 @@ def update_content(request, content):
         content.title = data["title"]
         content.description = data["description"]
         content.allow_definitions = data["allow_definitions"]
-        content.allow_notes = data["allow_notes"]
         content.allow_captions = data["allow_captions"]
         content.allow_fast_playback = data["allow_fast_playback"]
         content.clips_only = data["clips_only"]

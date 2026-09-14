@@ -8,8 +8,8 @@
            value="{{ content.playlist_id }}">
     <div class="column-flex">
         <div class="content-settings-form-group">
-            <label for="title">Title:</label>
-            <input id="title" type="text" value="{{ content.title }}">
+            <label for="content-title">Title:</label>
+            <input id="content-title" type="text" value="{{ content.title }}">
         </div>
         <div class="content-settings-form-group">
             <label for="published">Published:</label>
@@ -23,12 +23,6 @@
                 <input id="allow-definitions"
                        type="checkbox"
                        {% if content.allow_definitions %}checked{% endif %}>
-            </div>
-            <div class="content-settings-form-group">
-                <label for="allow-notes">Allow notes:</label>
-                <input id="allow-notes"
-                       type="checkbox"
-                       {% if content.allow_notes %}checked{% endif %}>
             </div>
             <div class="content-settings-form-group">
                 <label for="allow-captions">Allow captions:</label>

@@ -228,7 +228,6 @@ class StrangerIsRefusedTests(TestCase):
                 "title": "Retitled",
                 "description": "",
                 "allow_definitions": True,
-                "allow_notes": True,
                 "allow_captions": True,
                 "allow_fast_playback": True,
                 "clips_only": False,

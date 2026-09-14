@@ -32,7 +32,7 @@ jobs:
       run: uv sync
 
     - name: Run pre-commit
-      run: uv run pre-commit run --all-files
+      run: uv run pre-commit run --all-files --show-diff-on-failure
       env:
         SKIP: no-commit-to-branch
 

@@ -902,7 +902,6 @@ class ContentAdmin(VersionAdmin):
     list_filter = (
         "published",
         "allow_definitions",
-        "allow_notes",
         "allow_captions",
         "allow_fast_playback",
         "created_at",
