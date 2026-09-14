@@ -1321,7 +1321,6 @@ class LegacyMigrationService:
             "url": content_row["url"],
             "description": content_row["description"] or "",
             "allow_definitions": bool(content_row["allow_definitions"]),
-            "allow_notes": bool(content_row["allow_notes"]),
             "allow_captions": bool(content_row["allow_captions"]),
             "published": bool(content_row["published"]),
         }

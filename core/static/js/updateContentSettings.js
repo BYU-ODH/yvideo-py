@@ -7,14 +7,13 @@ function setupSubmit() {
     const titleInput = document.getElementById("title");
     const publishedInput = document.getElementById("published");
     const allowDefsInput = document.getElementById("allow-definitions");
-    const allowNotesInput = document.getElementById("allow-notes");
     const allowCaptsInput = document.getElementById("allow-captions");
     const allowFastPlaybackInput = document.getElementById("allow-fast-playback");
     const clipsOnlyInput = document.getElementById("clips-only");
     const descriptionInput = document.getElementById("description");
     const defaultSubtitleTrackInput = document.getElementById("default-subtitle-track");
-    const isUndefined = [idInput, titleInput, publishedInput, allowDefsInput, allowNotesInput, allowCaptsInput, allowFastPlaybackInput, clipsOnlyInput, descriptionInput].some(el => el === undefined);
-    if (isUndefined) {
+    const isNull = [idInput, titleInput, publishedInput, allowDefsInput, allowCaptsInput, allowFastPlaybackInput, clipsOnlyInput, descriptionInput].some(el => el === null);
+    if (isNull) {
       console.log("at least one content settings form input is undefined.");
       return;
     }
@@ -28,7 +27,6 @@ function setupSubmit() {
         "title": titleInput.value,
         "published": publishedInput.checked,
         "allow_definitions": allowDefsInput.checked,
-        "allow_notes": allowNotesInput.checked,
         "allow_captions": allowCaptsInput.checked,
         "allow_fast_playback": allowFastPlaybackInput.checked,
         "clips_only": clipsOnlyInput.checked,

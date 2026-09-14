@@ -1265,7 +1265,6 @@ def update_content(request, content):
         content.title = data["title"]
         content.description = data["description"]
         content.allow_definitions = data["allow_definitions"]
-        content.allow_notes = data["allow_notes"]
         content.allow_captions = data["allow_captions"]
         content.allow_fast_playback = data["allow_fast_playback"]
         content.clips_only = data["clips_only"]

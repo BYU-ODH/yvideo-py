@@ -873,7 +873,6 @@ class Content(models.Model):
     url = models.URLField(max_length=500, blank=True, null=True)
     description = models.TextField(blank=True)
     allow_definitions = models.BooleanField(default=True)
-    allow_notes = models.BooleanField(default=True)
     allow_captions = models.BooleanField(default=True)
     allow_fast_playback = models.BooleanField(default=True)
     clips_only = models.BooleanField(
