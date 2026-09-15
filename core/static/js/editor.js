@@ -1357,7 +1357,11 @@ export class Editor {
 
       annotationSetNameInput.addEventListener("keydown", async (e) => {
         if (e.key == "Enter") {
-          const payload = annotationSetNameInput.value;
+          const payload = annotationSetNameInput.value.trim();
+          if (!payload) {
+            displayText(originalNameValue);
+            return;
+          }
           const response = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
             method: "POST",
             headers: {
