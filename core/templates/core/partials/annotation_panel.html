@@ -4,7 +4,23 @@
      class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
     <div id="annotation-panel-header"
          class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <p>Annotation Set</p>
+        <div id="annotation-set-title-wrapper"
+             class="row-flex flex-apart-aligned"
+             data-annotation-set-id="{{ annotation_set.id }}">
+            <span id="annotation-set-title">{{ annotation_set.name }}</span>
+            {% if can_edit %}
+                <input id="annotation-set-title-input"
+                       class="hidden"
+                       value="{{ annotation_set.name }}"
+                       aria-label="Input annotation set name">
+                <button id="annotation-set-edit-button"
+                        class="item-form-icon-button"
+                        aria-label="Rename this annotation set"
+                        title="Rename this annotation set">
+                    <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
+                </button>
+            {% endif %}
+        </div>
         <div class="multi-select-menu">
             <button id="annotation-settings-button"
                     class="multi-select-menu-button"
