@@ -4,8 +4,13 @@
      class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
     <div id="annotation-panel-header"
          class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <div id="annotation-set-title-wrapper" class="row-flex flex-apart-aligned">
+        <div id="annotation-set-title-wrapper"
+             class="row-flex flex-apart-aligned"
+             data-annotation-set-id="{{ annotation_set.id }}">
             <span id="annotation-set-title">{{ annotation_set.name }}</span>
+            <input id="annotation-set-title-input"
+                   class="hidden"
+                   value="{{ annotation_set.name }}">
             <div id="annotation-set-edit-img-wrapper">
                 <img src="{% static 'img/edit.svg' %}" alt="">
             </div>

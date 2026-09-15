@@ -1323,8 +1323,58 @@ export class Editor {
 
     setUpAnnotationPanelClickListeners() {
       // in place annotation set name edit click listener
-      // const editButton = document.getElementById("annotation-set-edit-img-wrapper");
-      // const annotationSetNameEl = document.getElementById("annotation-set-title");
+      const annotationSetTitleWrapper = document.getElementById("annotation-set-title-wrapper");
+      if (!annotationSetTitleWrapper) {
+        console.error("Failed to find annotation set title wrapper element. Cannot listen for annotation name edits.");
+        document.getElementById("annotation-set-edit-img-wrapper").classList.add("hidden");
+        return;
+      }
+      const annotationSetId = annotationSetTitleWrapper.dataset["annotationSetId"];
+      const editButton = document.getElementById("annotation-set-edit-img-wrapper");
+      const annotationSetNameEl = document.getElementById("annotation-set-title");
+      const annotationSetNameInput = document.getElementById("annotation-set-title-input");
+      const originalNameValue = annotationSetNameEl.innerText;
+
+      function displayEdit() {
+        editButton.classList.add("hidden");
+        annotationSetNameEl.classList.add("hidden");
+        annotationSetNameInput.classList.remove("hidden");
+        annotationSetNameInput.select();
+      }
+
+      function displayText(newText) {
+        annotationSetNameInput.classList.add("hidden");
+        annotationSetNameInput.value = newText;
+        annotationSetNameEl.innerText = newText;
+        editButton.classList.remove("hidden");
+        annotationSetNameEl.classList.remove("hidden");
+      }
+
+      editButton.addEventListener("click", () => {
+        displayEdit();
+      });
+
+      annotationSetNameInput.addEventListener("keydown", async (e) => {
+        if (e.key == "Enter") {
+          const payload = annotationSetNameInput.value;
+          const response = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": getCSRFToken()
+            },
+            body: JSON.stringify({name: payload})
+          });
+          if (response.ok) {
+            displayText(payload);
+          } else {
+            displayText(originalNameValue);
+            console.error("Failed to update annotation set name");
+          }
+        }
+        else if (e.key == "Escape") {
+          displayText(originalNameValue);
+        }
+      });
 
       // panel item group entry click listeners
       const annotationPanelGroupHeaders = document.getElementsByClassName("annotation-type-header");
