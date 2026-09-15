@@ -1330,9 +1330,13 @@ export class Editor {
         return;
       }
       const annotationSetId = annotationSetTitleWrapper.dataset["annotationSetId"];
-      const editButton = document.getElementById("annotation-set-edit-img-wrapper");
       const annotationSetNameEl = document.getElementById("annotation-set-title");
+      const editButton = document.getElementById("annotation-set-edit-button");
       const annotationSetNameInput = document.getElementById("annotation-set-title-input");
+      // these elements aren't created if the user doesn't have edit permissions
+      if (!editButton || !annotationSetNameInput) {
+        return;
+      }
       let originalNameValue = annotationSetNameEl.innerText;
 
       function displayEdit() {

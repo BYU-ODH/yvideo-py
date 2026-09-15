@@ -363,7 +363,7 @@
 }
 
 
-#annotation-set-edit-img-wrapper {
+#annotation-set-edit-button {
     cursor: pointer;
 
     display: flex;
@@ -371,17 +371,10 @@
     align-items: center;
     justify-content: center;
 
-    width: 1.5rem;
-    height: 1.5rem;
-    padding: 0.2rem;
+    padding: 0.4rem;
 }
 
-#annotation-set-edit-img-wrapper:hover {
-    border-radius: 100%;
-    background-color: #ffffff75;
-}
-
-#annotation-set-edit-img-wrapper img {
+#annotation-set-edit-button img {
     width: 100%;
     height: 100%;
     filter: invert(1);

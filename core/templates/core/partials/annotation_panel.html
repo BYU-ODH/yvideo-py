@@ -8,12 +8,17 @@
              class="row-flex flex-apart-aligned"
              data-annotation-set-id="{{ annotation_set.id }}">
             <span id="annotation-set-title">{{ annotation_set.name }}</span>
-            <input id="annotation-set-title-input"
-                   class="hidden"
-                   value="{{ annotation_set.name }}">
-            <div id="annotation-set-edit-img-wrapper">
-                <img src="{% static 'img/edit.svg' %}" alt="">
-            </div>
+            {% if can_edit %}
+                <input id="annotation-set-title-input"
+                       class="hidden"
+                       value="{{ annotation_set.name }}">
+                <button id="annotation-set-edit-button"
+                        class="item-form-icon-button"
+                        aria-label="Rename this annotation set"
+                        title="Rename this annotation set">
+                    <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
+                </button>
+            {% endif %}
         </div>
         <div class="multi-select-menu">
             <button id="annotation-settings-button"
