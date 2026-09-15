@@ -1322,6 +1322,11 @@ export class Editor {
     }
 
     setUpAnnotationPanelClickListeners() {
+      // in place annotation set name edit click listener
+      // const editButton = document.getElementById("annotation-set-edit-img-wrapper");
+      // const annotationSetNameEl = document.getElementById("annotation-set-title");
+
+      // panel item group entry click listeners
       const annotationPanelGroupHeaders = document.getElementsByClassName("annotation-type-header");
       const panelLists = document.getElementsByClassName("annotation-type-list");
       const panelArrows = document.getElementsByClassName("annotation-type-header-arrow");

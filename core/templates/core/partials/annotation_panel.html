@@ -4,7 +4,12 @@
      class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
     <div id="annotation-panel-header"
          class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <p>Annotation Set</p>
+        <div id="annotation-set-title-wrapper" class="row-flex flex-apart-aligned">
+            <span id="annotation-set-title">{{ annotation_set.name }}</span>
+            <div id="annotation-set-edit-img-wrapper">
+                <img src="{% static 'img/edit.svg' %}" alt="">
+            </div>
+        </div>
         <div class="multi-select-menu">
             <button id="annotation-settings-button"
                     class="multi-select-menu-button"
