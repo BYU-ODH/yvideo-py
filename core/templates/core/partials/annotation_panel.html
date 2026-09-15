@@ -11,7 +11,8 @@
             {% if can_edit %}
                 <input id="annotation-set-title-input"
                        class="hidden"
-                       value="{{ annotation_set.name }}">
+                       value="{{ annotation_set.name }}"
+                       aria-label="Input annotation set name">
                 <button id="annotation-set-edit-button"
                         class="item-form-icon-button"
                         aria-label="Rename this annotation set"
