@@ -1333,7 +1333,7 @@ export class Editor {
       const editButton = document.getElementById("annotation-set-edit-img-wrapper");
       const annotationSetNameEl = document.getElementById("annotation-set-title");
       const annotationSetNameInput = document.getElementById("annotation-set-title-input");
-      const originalNameValue = annotationSetNameEl.innerText;
+      let originalNameValue = annotationSetNameEl.innerText;
 
       function displayEdit() {
         editButton.classList.add("hidden");
@@ -1351,6 +1351,7 @@ export class Editor {
       }
 
       editButton.addEventListener("click", () => {
+        originalNameValue = annotationSetNameEl.innerText;
         displayEdit();
       });
 
