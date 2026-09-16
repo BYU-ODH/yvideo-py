@@ -20,6 +20,7 @@
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
     --side-bar-width: 15rem;
+    --box-shadow-color: #00000075;
 }
 
 * {
@@ -352,7 +353,7 @@ a.blue-button {
 .open-multi-select-button:hover {
     cursor: pointer;
     border: 1px solid white;
-    box-shadow: 0 3px 6px #00000075;
+    box-shadow: 0 3px 6px var(--box-shadow-color);
 }
 
 /* Video Overlay and Blank Screen */
@@ -667,7 +668,7 @@ a.blue-button {
 
     color: black;
 
-    box-shadow: 0 4px 6px -4px rgb(0 0 0 / 20%);
+    box-shadow: 0 4px 6px -4px var(--box-shadow-color);
 }
 
 .navbar a {
@@ -821,7 +822,7 @@ a.blue-button {
 
 .sidebar.show {
     transform: translateX(0);
-    box-shadow: 0 3px 6px var(--dark-grey);
+    box-shadow: 0 3px 6px var(--box-shadow-color);
 }
 
 .sidebar h2 {
@@ -862,7 +863,7 @@ a.blue-button {
     font-size: 1rem;
 
     background: white;
-    box-shadow: rgb(0 0 0 / 15%) 0 2px 5px -1px;
+    box-shadow: var(--box-shadow-color) 0 2px 5px -1px;
 }
 
 .playlists-page {
@@ -886,12 +887,6 @@ a.blue-button {
 }
 
 /* PLAYLIST PAGE */
-.playlist-header {
-    cursor: pointer;
-    grid-template-columns: 1fr 75px 25px;
-    align-items: center;
-}
-
 #add-new-playlist-button {
     align-self: flex-end;
 }
@@ -910,7 +905,7 @@ a.blue-button {
 
 .landing-page-playlist {
     border-radius: 12px;
-    box-shadow: rgb(185 184 184) 0 1px 3px;
+    box-shadow: var(--box-shadow-color) 0 1px 3px;
 }
 
 .landing-page-playlist-contents {
@@ -1117,7 +1112,7 @@ p.tile-subtitle {
 
 .remove-course-assignment-button:hover {
     background-color: var(--selectable-grey);
-    box-shadow: 2px 3px 6px #00000075;
+    box-shadow: 2px 3px 6px var(--box-shadow-color);
 }
 
 .new-course-assignment-detail {
@@ -1237,7 +1232,7 @@ p.tile-subtitle {
 
 .playlist-member-remove-button:hover {
     background-color: var(--selectable-grey);
-    box-shadow: 2px 3px 6px #00000075;
+    box-shadow: 2px 3px 6px var(--box-shadow-color);
 }
 
 .playlist-member-search, .playlist-member-results {
@@ -1432,11 +1427,6 @@ p.tile-subtitle {
     display: flex;
     flex-direction: column;
     row-gap: 1rem;
-}
-
-.content-thumbnail {
-    width: 10rem;
-    height: auto;
 }
 
 /* Header */
@@ -1722,7 +1712,7 @@ p.tile-subtitle {
 
 .playlist-video-tile, .resource-details {
     border-radius: 12px;
-    box-shadow: rgb(185 184 184) 0 1px 3px;
+    box-shadow: var(--box-shadow-color) 0 1px 3px;
 }
 
 .resource-detail-heading,
@@ -1757,7 +1747,7 @@ p.tile-subtitle {
     /* eslint-disable-next-line css/use-baseline */
     &:hover {
         cursor: pointer;
-        box-shadow: rgb(185 184 184) 2px 4px 6px;
+        box-shadow: var(--box-shadow-color) 2px 4px 6px;
     }
 }
 
