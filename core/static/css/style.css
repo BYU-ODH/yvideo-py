@@ -887,12 +887,6 @@ a.blue-button {
 }
 
 /* PLAYLIST PAGE */
-.playlist-header {
-    cursor: pointer;
-    grid-template-columns: 1fr 75px 25px;
-    align-items: center;
-}
-
 #add-new-playlist-button {
     align-self: flex-end;
 }
