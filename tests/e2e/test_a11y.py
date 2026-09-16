@@ -986,10 +986,6 @@ UNAUDITED_TEMPLATES = {
     "core/partials/add_playlist_modal.html": (
         "unreferenced: playlists.html uses partials/modals/add_new_playlist.html instead"
     ),
-    "core/partials/content_display.html": "unreferenced by any view or template",
-    "core/partials/landing_page_playlist_content.html": (
-        "unreferenced by any view or template"
-    ),
     "core/partials/no_playlists_text.html": "unreferenced by any view or template",
     "core/partials/vtt_cues.html": (
         "unreferenced: the subtitle editor renders partials/subtitle_cues.html"
