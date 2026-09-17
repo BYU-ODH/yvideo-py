@@ -79,13 +79,14 @@ def prepare_playlist_for_display(playlist):
     published_contents = Content.objects.filter(playlist=playlist).filter(
         published=True
     )
+    print(published_contents)
     contents_count = published_contents.count()
     parsed_playlist = {
         "pk": playlist.pk,
         "name": playlist.name,
-        "items_display": f"{contents_count} items"
+        "items_display": f"{contents_count} published items"
         if contents_count > 1 or contents_count == 0
-        else f"{contents_count} item",
+        else f"{contents_count} published item",
         "published_contents": published_contents,
     }
     return parsed_playlist
