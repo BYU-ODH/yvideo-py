@@ -78,7 +78,11 @@ class Resource(models.Model):
         WEB = ("www", "Web")
         AUDIO = ("aud", "Audio")
 
-    name = models.CharField(max_length=255, unique=True)
+    class Meta:
+        unique_together = ("name", "name_disambiguator")
+
+    name = models.CharField(max_length=255)
+    name_disambiguator = models.CharField(max_length=200, null=True)
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
     requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
@@ -116,7 +120,11 @@ class Resource(models.Model):
     )
 
     def __str__(self):
-        return f"{self.name}"
+        return (
+            f"{self.name}" + f" ({self.name_disambiguator})"
+            if self.name_disambiguator
+            else ""
+        )
 
     @property
     def belongs_to_byu_library(self):
