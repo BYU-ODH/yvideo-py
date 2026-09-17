@@ -4,12 +4,24 @@
      class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
     <div id="annotation-panel-header"
          class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <p>Annotation Set</p>
+        <div id="annotation-set-title-wrapper"
+             class="row-flex flex-apart-aligned"
+             data-annotation-set-id="{{ annotation_set.id }}">
+            <span id="annotation-set-title">{{ annotation_set.name }}</span>
+            {% if can_edit %}
+                <input id="annotation-set-title-input"
+                       class="hidden"
+                       value="{{ annotation_set.name }}"
+                       aria-label="Input annotation set name">
+                <button id="annotation-set-edit-button"
+                        class="item-form-icon-button"
+                        aria-label="Rename this annotation set"
+                        title="Rename this annotation set">
+                    <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
+                </button>
+            {% endif %}
+        </div>
         <div class="multi-select-menu">
-            <button id="annotation-settings-button"
-                    class="multi-select-menu-button"
-                    command="show-modal"
-                    commandfor="annotation-set-settings">Settings</button>
             <button id="annotation-set-export-open-button"
                     class="multi-select-menu-button"
                     command="show-modal"
@@ -18,15 +30,24 @@
                     class="multi-select-menu-button"
                     command="show-modal"
                     commandfor="annotation-set-options-modal">Change Annotation Set</button>
+            {% if can_administer_annotation_set %}
+                <button id="retire-annotation-set-button"
+                        class="multi-select-menu-button"
+                        command="show-modal"
+                        commandfor="annotation-set-retirement-modal">Retire this annotation set</button>
+            {% endif %}
         </div>
         <button id="annotation-set-menu-button"
                 class="open-multi-select-button"
                 aria-label="Annotation set settings">
             <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
         </button>
-        {% include 'core/partials/annotation_set_settings_compact.html' %}
         {% include 'core/partials/annotation_set_export_modal.html' %}
         {% include 'core/partials/annotation_set_options/base_modal.html' %}
+
+        {% if can_administer_annotation_set %}
+            {% include 'core/partials/annotation_set_retirement_modal.html' %}
+        {% endif %}
     </div>
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}

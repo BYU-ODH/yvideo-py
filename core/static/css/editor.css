@@ -358,6 +358,28 @@
     margin: 0;
 }
 
+#annotation-set-title-wrapper {
+    flex: 1;
+}
+
+
+#annotation-set-edit-button {
+    cursor: pointer;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0.4rem;
+}
+
+#annotation-set-edit-button img {
+    width: 100%;
+    height: 100%;
+    filter: invert(1);
+}
+
 .annotation-set-editor-details {
     display: flex;
     flex-direction: row;
