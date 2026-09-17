@@ -22,10 +22,6 @@
             {% endif %}
         </div>
         <div class="multi-select-menu">
-            <button id="annotation-settings-button"
-                    class="multi-select-menu-button"
-                    command="show-modal"
-                    commandfor="annotation-set-settings">Settings</button>
             <button id="annotation-set-export-open-button"
                     class="multi-select-menu-button"
                     command="show-modal"
@@ -34,15 +30,24 @@
                     class="multi-select-menu-button"
                     command="show-modal"
                     commandfor="annotation-set-options-modal">Change Annotation Set</button>
+            {% if can_administer_annotation_set %}
+                <button id="retire-annotation-set-button"
+                        class="multi-select-menu-button"
+                        command="show-modal"
+                        commandfor="annotation-set-retirement-modal">Retire this annotation set</button>
+            {% endif %}
         </div>
         <button id="annotation-set-menu-button"
                 class="open-multi-select-button"
                 aria-label="Annotation set settings">
             <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
         </button>
-        {% include 'core/partials/annotation_set_settings_compact.html' %}
         {% include 'core/partials/annotation_set_export_modal.html' %}
         {% include 'core/partials/annotation_set_options/base_modal.html' %}
+
+        {% if can_administer_annotation_set %}
+            {% include 'core/partials/annotation_set_retirement_modal.html' %}
+        {% endif %}
     </div>
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}
