@@ -7,7 +7,8 @@
          data-annotation-set-name="{{ annotation_set.name }}">
         <button class="close-dialog-button"
                 command="close"
-                commandfor="annotation-set-retirement-modal">X</button>
+                commandfor="annotation-set-retirement-modal"
+                aria-label="Close annotation set retirement modal">X</button>
         <h2>Retire Annotation set</h2>
         <div class="column-flex">
             <p class="annotation-set-editors-note">
@@ -16,11 +17,14 @@
                 change it again.
             </p>
             <div>
-                <button id="annotation-set-delete" class="red-button">Retire this set</button>
+                <button id="annotation-set-delete"
+                        class="red-button"
+                        aria-label="Retire the {{ annotation_set.name }} annotation set">Retire this set</button>
                 <button type="button"
                         class="cancel-button"
                         command="close"
-                        commandfor="annotation-set-retirement-modal">Cancel</button>
+                        commandfor="annotation-set-retirement-modal"
+                        aria-label="Cancel annotation set retirement">Cancel</button>
             </div>
         </div>
     </div>
