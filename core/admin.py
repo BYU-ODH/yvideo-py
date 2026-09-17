@@ -690,6 +690,7 @@ class UserAdmin(VersionAdmin):
 class ResourceAdmin(VersionAdmin):
     list_display = (
         "name",
+        "name_disambiguator",
         "media_type",
         "requester_username",
         "copyrighted",
@@ -697,7 +698,7 @@ class ResourceAdmin(VersionAdmin):
         "created_at",
     )
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
-    search_fields = ("name",)
+    search_fields = ("name", "name_disambiguator")
 
     class Media:
         js = ("js/admin_call_number.js",)
