@@ -1084,7 +1084,7 @@ AUDITED_TEMPLATES = {
     "core/partials/annotation_set_options/import_from_file.html",
     "core/partials/annotation_set_options/use_existing_set.html",
     "core/partials/annotation_set_selector.html",
-    "core/partials/annotation_set_settings_compact.html",
+    "core/partials/annotation_set_retirement_modal.html",
     "core/partials/blur_positions.html",
     "core/partials/item.html",
     "core/partials/item_form_placeholder.html",
