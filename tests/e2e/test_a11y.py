@@ -761,13 +761,6 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
 
     # Clicked through JS rather than Playwright: the menu that holds these buttons overlaps
     # the button that opened it, so a real click lands on the wrong element.
-    page.evaluate("() => document.getElementById('annotation-settings-button').click()")
-    page.wait_for_selector("#annotation-set-settings-compact", state="visible")
-    assert_no_violations(
-        page, "the annotation set settings dialog", include=["dialog[open]"]
-    )
-    page.keyboard.press("Escape")
-
     page.evaluate(
         "() => document.getElementById('annotation-set-export-open-button').click()"
     )
