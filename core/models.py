@@ -233,6 +233,18 @@ class User(AbstractUser):
     def can_spoof(self):
         return self.is_admin or self.is_lab_assistant
 
+    def get_collaborator_playlists(self):
+        """Returns playlists that this user is a collaborator on. A collaborator
+        is anyone marked as a TA or co-instructor for a playlist"""
+        return list(
+            self.accessible_playlists.filter(
+                playlistuseraccess__playlist_role__in=(
+                    PlaylistRole.INSTRUCTOR,
+                    PlaylistRole.TA,
+                )
+            ).exclude(owner=self.pk)
+        )
+
     def can_spoof_as(self, target_user):
         """Whether this user may act as target_user via the spoofing feature.
 
