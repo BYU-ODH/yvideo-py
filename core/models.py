@@ -614,10 +614,9 @@ class AnnotationSet(models.Model):
     def can_be_edited_by(self, user):
         if user.is_superuser:
             return True
-        # An orphaned set is frozen: readable and copyable by anyone with resource
-        # access, editable by nobody, so a borrower cannot have it changed underneath
-        # them. Checked explicitly because the owner comparison below would only
-        # happen to be False for a NULL owner.
+        # An orphaned (unowned) set is readable and copyable by anyone with resource
+        # access, but is only editable by superusers. This is so the set wont change
+        # for anyone that is borrowing it.
         if self.owner_id is None:
             return False
         return (
