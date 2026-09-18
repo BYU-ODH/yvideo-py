@@ -181,6 +181,18 @@ def player(request, content):
             "User does not have permission to view this content", status=403
         )
 
+    try:
+        content.views = content.views + 1
+        content.save()
+        content.resource.views = content.resource.views + 1
+        content.resource.save()
+
+    except Exception as e:
+        # log the error, but still provide the video in case of failure
+        logger.error(
+            f"Failed to update views for content and associated resource. Exception: {e}"
+        )
+
     context = {
         "content": content,
         "resource_file_key_id": resource_file_key.id if resource_file_key else None,
