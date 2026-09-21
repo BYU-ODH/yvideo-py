@@ -79,7 +79,17 @@ class Resource(models.Model):
         AUDIO = ("aud", "Audio")
 
     class Meta:
-        unique_together = ("name", "name_disambiguator")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "name_disambiguator"],
+                name="unique_resource_name_and_disambiguator",
+            ),
+            models.UniqueConstraint(
+                fields=["name"],
+                condition=models.Q(name_disambiguator__isnull=True),
+                name="unique_undisambiguated_resource_name",
+            ),
+        ]
 
     name = models.CharField(max_length=255)
     name_disambiguator = models.CharField(max_length=200, null=True)
@@ -120,11 +130,9 @@ class Resource(models.Model):
     )
 
     def __str__(self):
-        return (
-            f"{self.name}" + f" ({self.name_disambiguator})"
-            if self.name_disambiguator
-            else ""
-        )
+        if self.name_disambiguator:
+            return f"{self.name} ({self.name_disambiguator})"
+        return self.name
 
     @property
     def belongs_to_byu_library(self):
