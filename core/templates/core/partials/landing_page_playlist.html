@@ -1,9 +1,9 @@
 {% load static %}
 
 <a href="{% url 'playlist_info' playlist_id=playlist.pk %}"
-   class="landing-page-playlist playlist-header">
+   class="playlist-item-tile">
     <div class="tile-body">
-        <h3 class="playlist-header-name">{{ playlist.name }}</h3>
-        <p class="tile-subtitle">{{ playlist.items_display }}</p>
+        <p class="playlist-header-name">{{ playlist.name }}</p>
+        <p>{{ playlist.items_display }}</p>
     </div>
 </a>

@@ -6,7 +6,7 @@ function setupVideoSearch() {
   const videoList = document.getElementById("playlist-video-list");
   searchInput.addEventListener("input", () => {
     const searchText = searchInput.value.toLowerCase();
-    const videos = videoList.querySelectorAll(".playlist-video");
+    const videos = videoList.querySelectorAll(".playlist-item-tile");
     for (const video of videos) {
       const title = video.querySelector(".video-title")?.innerText.toLowerCase() || "";
       video.style.display = title.includes(searchText) ? "" : "none";

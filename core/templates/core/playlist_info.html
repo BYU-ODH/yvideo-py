@@ -39,11 +39,11 @@
                     {% for content in contents %}
                         {% if can_edit %}
                             <a href="{% url 'display_content_info' content.id %}"
-                               class="playlist-video-tile"
+                               class="playlist-item-tile"
                                aria-label="View {{ content.title }} settings">
                         {% else %}
                             <a href="{% url 'player' content.id %}"
-                               class="playlist-video-tile"
+                               class="playlist-item-tile"
                                aria-label="Play {{ content.title }}">
                         {% endif %}
                             <p class="video-title">{{ content.title }}</p>
