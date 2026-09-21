@@ -182,9 +182,9 @@ def player(request, content):
         )
 
     try:
-        content.views = content.views + 1
+        content.views += 1
         content.save()
-        content.resource.views = content.resource.views + 1
+        content.resource.views += 1
         content.resource.save()
 
     except Exception as e:
