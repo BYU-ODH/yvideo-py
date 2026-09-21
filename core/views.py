@@ -79,7 +79,6 @@ def prepare_playlist_for_display(playlist):
     published_contents = Content.objects.filter(playlist=playlist).filter(
         published=True
     )
-    print(published_contents)
     contents_count = published_contents.count()
     parsed_playlist = {
         "pk": playlist.pk,
