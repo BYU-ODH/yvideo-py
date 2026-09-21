@@ -107,7 +107,6 @@ export class Editor {
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.watchAndHandleAnnotationSetMenuOpen();
-        this.watchForAnnotationSetNameChangeAndHandleIt();
         this.watchAndHandleAnnotationSetDelete();
         this.setupAnnotationSetOptionsModal();
         this.listenForHistoryControls();
@@ -1322,6 +1321,70 @@ export class Editor {
     }
 
     setUpAnnotationPanelClickListeners() {
+      // in place annotation set name edit click listener
+      const annotationSetTitleWrapper = document.getElementById("annotation-set-title-wrapper");
+      if (!annotationSetTitleWrapper) {
+        console.error("Failed to find annotation set title wrapper element. Cannot listen for annotation name edits.");
+        document.getElementById("annotation-set-edit-img-wrapper").classList.add("hidden");
+        return;
+      }
+      const annotationSetId = annotationSetTitleWrapper.dataset["annotationSetId"];
+      const annotationSetNameEl = document.getElementById("annotation-set-title");
+      const editButton = document.getElementById("annotation-set-edit-button");
+      const annotationSetNameInput = document.getElementById("annotation-set-title-input");
+      // these elements aren't created if the user doesn't have edit permissions
+      if (!editButton || !annotationSetNameInput) {
+        return;
+      }
+      let originalNameValue = annotationSetNameEl.innerText;
+
+      function displayEdit() {
+        editButton.classList.add("hidden");
+        annotationSetNameEl.classList.add("hidden");
+        annotationSetNameInput.classList.remove("hidden");
+        annotationSetNameInput.select();
+      }
+
+      function displayText(newText) {
+        annotationSetNameInput.classList.add("hidden");
+        annotationSetNameInput.value = newText;
+        annotationSetNameEl.innerText = newText;
+        editButton.classList.remove("hidden");
+        annotationSetNameEl.classList.remove("hidden");
+      }
+
+      editButton.addEventListener("click", () => {
+        originalNameValue = annotationSetNameEl.innerText;
+        displayEdit();
+      });
+
+      annotationSetNameInput.addEventListener("keydown", async (e) => {
+        if (e.key == "Enter") {
+          const payload = annotationSetNameInput.value.trim();
+          if (!payload) {
+            displayText(originalNameValue);
+            return;
+          }
+          const response = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": getCSRFToken()
+            },
+            body: JSON.stringify({name: payload})
+          });
+          if (response.ok) {
+            displayText(payload);
+          } else {
+            displayText(originalNameValue);
+            console.error("Failed to update annotation set name");
+          }
+        }
+        else if (e.key == "Escape") {
+          displayText(originalNameValue);
+        }
+      });
+
+      // panel item group entry click listeners
       const annotationPanelGroupHeaders = document.getElementsByClassName("annotation-type-header");
       const panelLists = document.getElementsByClassName("annotation-type-list");
       const panelArrows = document.getElementsByClassName("annotation-type-header-arrow");
@@ -2574,44 +2637,6 @@ export class Editor {
         }
         // rebuild the page with the new annotation set
         window.location.reload();
-    }
-
-    watchForAnnotationSetNameChangeAndHandleIt() {
-      const annotationSetSettingsEl = document.getElementById("annotation-set-settings-compact");
-      const annotationSetId = annotationSetSettingsEl.dataset["annotationSetId"];
-      const annotationNameInput = document.getElementById("annotation-set-name");
-      const annotationNameSubmitButton = document.getElementById("annotation-name-submit-button");
-
-      const handleNameChange = async () => {
-        const currentAnnotationSetName = annotationSetSettingsEl.dataset["annotationSetName"];
-        const newName = annotationNameInput.value.trim();
-        const nameChangeResponse = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              name: newName
-            })
-        });
-        if (!nameChangeResponse.ok) {
-          console.error("Failed to update annotation set name");
-          annotationNameInput.value = currentAnnotationSetName;
-          return;
-        }
-        annotationNameInput.value = newName;
-        annotationSetSettingsEl.dataset["annotationSetName"] = newName;
-        const annotationSetOptionName = annotationSetSettingsEl.querySelector(`.annotation-set-option[value="${annotationSetId}"] .set-option-name`);
-        annotationSetOptionName.innerText = newName;
-      }
-
-      annotationNameInput.addEventListener("keydown", (e) => {
-        if (e.key == "Enter") {
-          handleNameChange();
-        }
-      })
-      annotationNameSubmitButton.addEventListener("click", handleNameChange);
     }
 
     handleNoAnnotationSet() {
