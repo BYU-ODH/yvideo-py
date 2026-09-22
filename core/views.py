@@ -321,7 +321,10 @@ def playlists(request):
             for playlist in Playlist.objects.filter(owner=request.user)
         ]
 
-    collaborator_playlists = request.user.get_collaborator_playlists()
+    collaborator_playlists = [
+        prepare_playlist_for_display(playlist)
+        for playlist in request.user.get_collaborator_playlists()
+    ]
 
     # Course-derived access expires with the term, so only terms whose grace window
     # is still open can contribute a playlist the user could actually open.

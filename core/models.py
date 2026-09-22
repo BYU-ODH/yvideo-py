@@ -233,6 +233,17 @@ class User(AbstractUser):
     def can_spoof(self):
         return self.is_admin or self.is_lab_assistant
 
+    def can_spoof_as(self, target_user):
+        """Whether this user may act as target_user via the spoofing feature.
+
+        Admins may spoof anyone; lab assistants may spoof anyone except admins.
+        """
+        if not self.can_spoof:
+            return False
+        if self.is_admin:
+            return True
+        return not target_user.is_admin
+
     def get_collaborator_playlists(self):
         """Returns playlists that this user is a collaborator on. A collaborator
         is anyone marked as a TA or co-instructor for a playlist"""
@@ -244,17 +255,6 @@ class User(AbstractUser):
                 )
             ).exclude(owner=self.pk)
         )
-
-    def can_spoof_as(self, target_user):
-        """Whether this user may act as target_user via the spoofing feature.
-
-        Admins may spoof anyone; lab assistants may spoof anyone except admins.
-        """
-        if not self.can_spoof:
-            return False
-        if self.is_admin:
-            return True
-        return not target_user.is_admin
 
     def can_access_resource(self, resource):
         """Whether this user may reach a Resource on an authoring path.
