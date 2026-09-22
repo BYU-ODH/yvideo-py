@@ -590,6 +590,7 @@ class AnnotationSet(models.Model):
             "Preserves attribution after the owner deletes the set or their account."
         ),
     )
+    retired = models.BooleanField(default=False, blank=False, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -644,7 +645,8 @@ class AnnotationSet(models.Model):
         if self.owner_id:
             self.previous_owner = describe_user_for_attribution(self.owner)
         self.owner = None
-        self.save(update_fields=["owner", "previous_owner", "updated_at"])
+        self.retired = True
+        self.save(update_fields=["owner", "previous_owner", "retired", "updated_at"])
 
     @classmethod
     def create_for_content(

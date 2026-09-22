@@ -1052,9 +1052,9 @@ def export_annotation_set(request, annotation_set):
         return HttpResponseServerError()
 
 
-@require_http_methods(["DELETE"])
+@require_http_methods(["POST"])
 @annotation_set_write_required
-def delete_annotation_set(request, annotation_set):
+def retire_annotation_set(request, annotation_set):
     """Retire a set by orphaning it rather than deleting the row.
 
     Other instructors' content may reference this set, and forcing them into

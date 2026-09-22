@@ -190,9 +190,9 @@ urlpatterns = [
         name="update_annotation_set_name",
     ),
     path(
-        "annotation-set/<int:annotation_set_id>/delete/",
-        views_video_editor.delete_annotation_set,
-        name="delete_annotation_set",
+        "annotation-set/<int:annotation_set_id>/retire/",
+        views_video_editor.retire_annotation_set,
+        name="retire_annotation_set",
     ),
     path(
         "annotation-set/<int:annotation_set_id>/export/",

@@ -261,21 +261,21 @@ class StrangerIsRefusedTests(TestCase):
             )
         )
 
-    def test_delete_annotation_set_refuses_a_stranger(self):
+    def test_retire_annotation_set_refuses_a_stranger(self):
         response = self.client.delete(
-            reverse("delete_annotation_set", args=[self.annotation_set.pk])
+            reverse("retire_annotation_set", args=[self.annotation_set.pk])
         )
 
         self.assert_refused(response)
         self.annotation_set.refresh_from_db()
         self.assertEqual(self.annotation_set.owner_id, self.owner.pk)
 
-    def test_delete_annotation_set_is_not_reachable_by_get(self):
+    def test_retire_annotation_set_is_not_reachable_by_get(self):
         """The hole that made this one-click: no method guard, so a link was enough."""
         login(self.client, self.owner)
 
         response = self.client.get(
-            reverse("delete_annotation_set", args=[self.annotation_set.pk])
+            reverse("retire_annotation_set", args=[self.annotation_set.pk])
         )
 
         self.assertEqual(response.status_code, 405)
@@ -662,7 +662,7 @@ class TeachingAssistantTests(TestCase):
 
     def test_a_ta_may_not_retire_the_owners_annotation_set(self):
         response = self.client.delete(
-            reverse("delete_annotation_set", args=[self.annotation_set.pk])
+            reverse("retire_annotation_set", args=[self.annotation_set.pk])
         )
 
         self.assertEqual(response.status_code, 403)
@@ -725,7 +725,7 @@ class OwnerHappyPathTests(TestCase):
 
     def test_the_owner_may_retire_their_own_set(self):
         response = self.client.delete(
-            reverse("delete_annotation_set", args=[self.annotation_set.pk])
+            reverse("retire_annotation_set", args=[self.annotation_set.pk])
         )
 
         self.assertEqual(response.status_code, 200)

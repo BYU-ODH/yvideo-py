@@ -304,10 +304,6 @@
     height: 17px;
 }
 
-#annotation-set-delete {
-    align-self: flex-start;
-}
-
 .form-group {
     display: flex;
     flex-direction: column;

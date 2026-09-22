@@ -2567,25 +2567,25 @@ export class Editor {
 
 
     watchAndHandleAnnotationSetDelete() {
-      const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
-      if (!deleteAnnotationSetButton) {
-        console.error("Failed to get annotation set delete button");
+      const retireAnnotationSetButton = document.getElementById("annotation-set-retire");
+      if (!retireAnnotationSetButton) {
+        console.error("Failed to get annotation set retire button");
         return;
       }
 
-      deleteAnnotationSetButton.addEventListener("click", async () => {
+      retireAnnotationSetButton.addEventListener("click", async () => {
         const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
         if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
           return;
         }
-        const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/delete/`, {
-          method: "DELETE",
+        const retireResponse = await fetch(`/annotation-set/${annotationSetId}/retire/`, {
+          method: "POST",
           headers: {
             "X-CSRFToken": getCSRFToken()
           }
         });
-        if (!deleteResponse.ok) {
-          console.error("Failed to delete annotation set");
+        if (!retireResponse.ok) {
+          console.error("Failed to retire annotation set");
           return;
         }
 
