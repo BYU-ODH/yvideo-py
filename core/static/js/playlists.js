@@ -1,10 +1,7 @@
 import { getCSRFToken } from "./utils.js";
 
 function setupPlaylistSearch() {
-  const playlistSearch = document.getElementById("playlists-search");
-  const collaboratorPlaylistSearch = document.getElementById("collaborator-playlists-search-input");
-
-  for (let searchInput of [playlistSearch, collaboratorPlaylistSearch]) {
+  for (let searchInput of document.querySelectorAll(".list-search-input")) {
     if (!searchInput) {
       continue;
     }
