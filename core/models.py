@@ -1222,8 +1222,6 @@ class BaseAnnotation(models.Model):
 class SkipAnnotation(BaseAnnotation):
     """Skip annotation - standard time range. Allows optional message to be displayed at the beginning of a skip."""
 
-    message = models.TextField(max_length=255, blank=True)
-
     def calculate_position(self):
         return {
             "left": "0%",
@@ -1235,12 +1233,10 @@ class SkipAnnotation(BaseAnnotation):
     def to_player_json(self):
         data = super().to_player_json()  # includes start/end + display strings
         data["type"] = "skip"  # keep/ensure type
-        data["message"] = self.message
         return data
 
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        new_annotation.message = self.message
         new_annotation.save()
         return new_annotation
 

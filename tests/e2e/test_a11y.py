@@ -143,7 +143,6 @@ def content_with_every_annotation_type(seeded_demo_data):
         name="A11y Skip",
         start_time=9.0,
         end_time=10.0,
-        message="Skipping a section.",
     )
     # All three blank types, because each is a different <option selected> in the form.
     for name, blank_type, start in (
