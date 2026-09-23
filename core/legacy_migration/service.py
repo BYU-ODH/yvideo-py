@@ -1432,12 +1432,7 @@ class LegacyMigrationService:
                 "active": True,
             }
 
-            if model_class is SkipAnnotation:
-                annotation = model_class.objects.create(
-                    message=legacy_event.get("message", ""),
-                    **common_kwargs,
-                )
-            elif model_class is PauseAnnotation:
+            if model_class is PauseAnnotation:
                 # Pause is a point marker: its end time equals its start time.
                 annotation = model_class.objects.create(
                     message=legacy_event.get("message", ""),
