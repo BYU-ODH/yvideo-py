@@ -4,7 +4,7 @@ function setupSubmit() {
   const submitButton = document.getElementById("content-settings-submit-button");
   submitButton.addEventListener("click", async () => {
     const idInput = document.getElementById("content-id-input");
-    const titleInput = document.getElementById("title");
+    const titleInput = document.getElementById("content-title");
     const publishedInput = document.getElementById("published");
     const allowDefsInput = document.getElementById("allow-definitions");
     const allowCaptsInput = document.getElementById("allow-captions");

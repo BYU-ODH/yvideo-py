@@ -626,10 +626,9 @@ class AnnotationSet(models.Model):
     def can_be_edited_by(self, user):
         if user.is_superuser:
             return True
-        # An orphaned set is frozen: readable and copyable by anyone with resource
-        # access, editable by nobody, so a borrower cannot have it changed underneath
-        # them. Checked explicitly because the owner comparison below would only
-        # happen to be False for a NULL owner.
+        # An orphaned (unowned) set is readable and copyable by anyone with resource
+        # access, but is only editable by superusers. This is so the set wont change
+        # for anyone that is borrowing it.
         if self.owner_id is None:
             return False
         return (
@@ -1235,8 +1234,6 @@ class BaseAnnotation(models.Model):
 class SkipAnnotation(BaseAnnotation):
     """Skip annotation - standard time range. Allows optional message to be displayed at the beginning of a skip."""
 
-    message = models.TextField(max_length=255, blank=True)
-
     def calculate_position(self):
         return {
             "left": "0%",
@@ -1248,12 +1245,10 @@ class SkipAnnotation(BaseAnnotation):
     def to_player_json(self):
         data = super().to_player_json()  # includes start/end + display strings
         data["type"] = "skip"  # keep/ensure type
-        data["message"] = self.message
         return data
 
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        new_annotation.message = self.message
         new_annotation.save()
         return new_annotation
 

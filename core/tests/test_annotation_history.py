@@ -28,9 +28,7 @@ class AnnotationHistoryModelTests(TestCase):
 
     def test_edit_copies_every_annotation_type_specific_field(self):
         annotations = [
-            SkipAnnotation.objects.create(
-                track=self.track, description="skip", message="Heads up"
-            ),
+            SkipAnnotation.objects.create(track=self.track, description="skip"),
             MuteAnnotation.objects.create(track=self.track, description="mute"),
             BlankAnnotation.objects.create(
                 track=self.track, description="blank", type="w"
