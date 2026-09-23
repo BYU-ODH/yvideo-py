@@ -83,9 +83,9 @@ def prepare_playlist_for_display(playlist):
     parsed_playlist = {
         "pk": playlist.pk,
         "name": playlist.name,
-        "items_display": f"{contents_count} items"
+        "items_display": f"{contents_count} published items"
         if contents_count > 1 or contents_count == 0
-        else f"{contents_count} item",
+        else f"{contents_count} published item",
         "published_contents": published_contents,
     }
     return parsed_playlist
