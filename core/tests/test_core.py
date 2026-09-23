@@ -717,7 +717,6 @@ class AnnotationSetCreateForContentTests(TestCase):
             start_time=9.0,
             end_time=12.0,
             description="skip intro",
-            message="Skipping introduction",
         )
         self.pause_annotation = PauseAnnotation.objects.create(
             track=full_coverage_track,
@@ -767,7 +766,6 @@ class AnnotationSetCreateForContentTests(TestCase):
             start_time=31.0,
             end_time=34.0,
             description="skip interlude",
-            message="Skipping interlude",
         )
         PauseAnnotation.objects.create(
             track=self.tracks[3],
@@ -860,7 +858,7 @@ class AnnotationSetCreateForContentTests(TestCase):
             self.assertTrue(orig_type == new_annotation["type"])
 
             # check for annotation type specific attributes
-            if orig_type == "skip" or orig_type == "pause":
+            if orig_type == "pause":
                 self.assertTrue(orig_annotation["message"] == new_annotation["message"])
             elif orig_type == "blank":
                 self.assertTrue(orig_annotation["type"] == new_annotation["type"])
