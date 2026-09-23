@@ -730,8 +730,6 @@ export class AnnotationPlayer {
           if (isActiveNow) {
             if (a["message"]) {
               this.pause(a["message"]);
-            } else {
-              this.pause();
             }
             this.skipTo(aEnd);
           }
