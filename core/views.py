@@ -83,9 +83,9 @@ def prepare_playlist_for_display(playlist):
     parsed_playlist = {
         "pk": playlist.pk,
         "name": playlist.name,
-        "items_display": f"{contents_count} items"
+        "items_display": f"{contents_count} published items"
         if contents_count > 1 or contents_count == 0
-        else f"{contents_count} item",
+        else f"{contents_count} published item",
         "published_contents": published_contents,
     }
     return parsed_playlist
@@ -179,6 +179,18 @@ def player(request, content):
     if not resource_file_key and not content_source_url:
         return HttpResponse(
             "User does not have permission to view this content", status=403
+        )
+
+    try:
+        content.views += 1
+        content.save()
+        content.resource.views += 1
+        content.resource.save()
+
+    except Exception as e:
+        # log the error, but still provide the video in case of failure
+        logger.error(
+            f"Failed to update views for content and associated resource. Exception: {e}"
         )
 
     context = {
