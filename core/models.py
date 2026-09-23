@@ -92,7 +92,7 @@ class Resource(models.Model):
         ]
 
     name = models.CharField(max_length=255)
-    name_disambiguator = models.CharField(max_length=200, null=True)
+    name_disambiguator = models.CharField(max_length=200, blank=True, default="")
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
     requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
