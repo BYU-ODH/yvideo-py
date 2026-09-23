@@ -67,15 +67,7 @@
                 </div>
             {% endif %}
         </div>
-        {% if item_type == 'pause' or item_type == 'skip' %}
-            <div class="form-group">
-                <label for="message">Message:</label>
-                <textarea id="message"
-                          class="annotation-input-dark"
-                          name="message"
-                          {% if not can_edit %}readonly{% endif %}>{{ instance.message }}</textarea>
-            </div>
-        {% elif item_type == 'comment' %}
+        {% if item_type == 'comment' %}
             <div class="form-group">
                 <label for="text">Comment text:</label>
                 <textarea id="text" name="text" {% if not can_edit %}readonly{% endif %}>{{ instance.text }}</textarea>

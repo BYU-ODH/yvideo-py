@@ -803,9 +803,7 @@ def update_annotation(request, content, annotation_type, annotation_id):
         if annotation_type != "pause":
             fields_to_update["end_time"] = time2seconds(json_data["end_time"])
 
-        if (
-            annotation_type == "pause" or annotation_type == "skip"
-        ) and "message" in json_data:
+        if (annotation_type == "pause") and "message" in json_data:
             fields_to_update["message"] = json_data["message"]
 
         if annotation_type == "blank" and "blank_type" in json_data:

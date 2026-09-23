@@ -728,9 +728,6 @@ export class AnnotationPlayer {
       switch (aType) {
         case "skip":
           if (isActiveNow) {
-            if (a["message"]) {
-              this.pause(a["message"]);
-            }
             this.skipTo(aEnd);
           }
           break;
