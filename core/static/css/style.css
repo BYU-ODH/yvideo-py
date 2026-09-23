@@ -1640,6 +1640,10 @@ a.blue-button {
     gap: 30px;
 }
 
+.video-item-title {
+    margin: 0;
+}
+
 #select-resource-dialog {
     width: min(90vw, 1100px);
 }
