@@ -1631,25 +1631,18 @@ of the page */
     background-color: var(--dark-mode-background-medium);
 }
 
-.timeline-zoom-button {
-    display: flex;
-
+.timeline-zoom-icon {
+    width: 25px;
+    height: 25px;
     padding: 2px;
-    border: none;
     border-radius: 50%;
 
-    background: none;
+    filter: invert(1);
 }
 
 .timeline-zoom-button:hover {
     cursor: pointer;
     background-color: #ffffff50;
-}
-
-.timeline-zoom-icon {
-    width: 20px;
-    height: 20px;
-    filter: invert(1);
 }
 
 #timeline-scroll-slider {
