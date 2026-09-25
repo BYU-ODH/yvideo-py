@@ -2025,6 +2025,14 @@ def get_date_5_days_from_now():
 
 
 class ResourceIntakeRequest(models.Model):
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource_title", "resource_name_disambiguator"],
+                name="unique_resource_title_and_disambiguator",
+            )
+        ]
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -2040,6 +2048,11 @@ class ResourceIntakeRequest(models.Model):
 
     # Resource-specific fields
     resource_title = models.CharField(default="")
+    resource_name_disambiguator = models.CharField(
+        blank=True,
+        default="",
+        help_text="Provide some information that would differentiate this resource from another of the same name (e.g. release year, starting actor/actress, or director)",
+    )
     imdb_link = models.URLField(default="", blank=True)
     audio_language = models.CharField(default="", blank=True)
     subtitle_language = models.CharField(default="", blank=True)

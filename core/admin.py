@@ -723,6 +723,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
     change_form_template = "admin/core/resourceintakerequest/change_form.html"
     list_display = (
         "resource_title",
+        "resource_name_disambiguator",
         "owner",
         "date_needed",
         "existing_matches_summary",
@@ -742,6 +743,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                 "fields": (
                     ("owner", "date_needed"),
                     "resource_title",
+                    "resource_name_disambiguator",
                     "imdb_link",
                     ("audio_language", "subtitle_language"),
                     (
