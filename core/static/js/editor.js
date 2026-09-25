@@ -2843,7 +2843,9 @@ export class Editor {
       const saveUpdatedInformation = () => {
         this.saveCues(this.collectCues(), false);
       }
-      const cueInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
+      const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
+      const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");
+      const cueInputs = [...cueStartAndTextInputs, ...cueEndInputs];
       for (let cueInput of cueInputs) {
         cueInput.addEventListener("keydown", (e) => {
           if (e.key != "Enter") {
@@ -2851,13 +2853,20 @@ export class Editor {
           }
           saveUpdatedInformation();
         });
-        cueInput.addEventListener("click", (e) => {
+      for (let cueStartOrTextInput of cueStartAndTextInputs){
+        cueStartOrTextInput.addEventListener("click", (e) => {
           const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
           const cueStartTime = parentCueWrapper.dataset["startTime"];
           this.seekVideoTo(parseFloat(cueStartTime));
         });
       }
+      for (let cueEndInput of cueEndInputs) {
+        cueEndInput.addEventListener("click", () => {
+          this.seekVideoTo(parseFloat(cueEndInput.dataset["endTime"]));
+        });
+      }
     }
+  }
 }
 
 function editorInit() {
