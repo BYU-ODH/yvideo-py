@@ -716,9 +716,8 @@ class AnnotationSet(models.Model):
                                 f"Failed to import annotation. Annotation type: {annotation_class}. Exception: {e}"
                             )
                             continue
-
                 # copying from pre-existing annotation set
-                if (
+                elif (
                     annotation_set_json is None
                     and annotation_set_id_to_copy is not None
                 ):
@@ -734,6 +733,11 @@ class AnnotationSet(models.Model):
                     )
                     for annotation in annotations:
                         annotation.copy_to_new_annotation_set(annotation_set)
+                # a new set with no annotations. Any new empty set setup should happen here
+                else:
+                    # users can't add annotations without a track, so at the very least,
+                    # we can set up an inital track for this set to help the user.
+                    Track.objects.create(annotation_set=annotation_set)
 
             return annotation_set
         except Exception as e:
