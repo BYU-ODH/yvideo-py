@@ -8,15 +8,16 @@
             {% include "core/partials/whats_new_banner.html" %}
         {% endif %}
         {% if is_instructor or user.is_admin %}
-            <div class="landing-page-playlist-list column-flex">
+            <div id="my-playlists-wrapper"
+                 class="landing-page-playlist-list column-flex">
                 <header class="playlists-header row-flex flex-apart-aligned">
                     <h2>My Playlists</h2>
                     <div class="search-wrapper">
                         <input type="text"
                                id="playlists-search"
                                class="list-search-input"
-                               placeholder="Search"
-                               aria-label="Search playlists">
+                               placeholder="Search my playlists"
+                               aria-label="Search my playlists">
                         <img src="{% static 'img/search-icon.svg' %}"
                              class="search-icon"
                              alt="search">
@@ -38,7 +39,33 @@
                 </div>
             </div>
         {% endif %}
-        <div class="landing-page-playlist-list">
+        {% if collaborator_playlists %}
+            <div id="collaborator-playlists-wrapper"
+                 class="landing-page-playlist-list column-flex">
+                <header class="playlists-header row-flex flex-apart-aligned">
+                    <h2>Playlists I'm a collaborator on</h2>
+                    <div class="search-wrapper">
+                        <input type="text"
+                               id="collaborator-playlists-search-input"
+                               class="list-search-input"
+                               placeholder="Search collaborator playlists"
+                               aria-label="Search collaborator playlists">
+                        <img src="{% static 'img/search-icon.svg' %}"
+                             class="search-icon"
+                             alt="search">
+                    </div>
+                </header>
+                <div class="playlists-list-content">
+                    {% for playlist in collaborator_playlists %}
+                        {% include "core/partials/landing_page_playlist.html" %}
+
+                    {% empty %}
+                        <p>You are not a collaborator on any playlists</p>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+        <div id="playlists-wrapper" class="landing-page-playlist-list">
             <header class="playlists-header row-flex flex-apart-aligned">
                 <h2>Playlists assigned to me</h2>
             </header>

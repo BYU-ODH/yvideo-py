@@ -244,6 +244,18 @@ class User(AbstractUser):
             return True
         return not target_user.is_admin
 
+    def get_collaborator_playlists(self):
+        """Returns playlists that this user is a collaborator on. A collaborator
+        is anyone marked as a TA or co-instructor for a playlist"""
+        return list(
+            self.accessible_playlists.filter(
+                playlistuseraccess__playlist_role__in=(
+                    PlaylistRole.INSTRUCTOR,
+                    PlaylistRole.TA,
+                )
+            ).exclude(owner=self.pk)
+        )
+
     def can_access_resource(self, resource):
         """Whether this user may reach a Resource on an authoring path.
 

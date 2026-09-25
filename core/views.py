@@ -333,6 +333,11 @@ def playlists(request):
             for playlist in Playlist.objects.filter(owner=request.user)
         ]
 
+    collaborator_playlists = [
+        prepare_playlist_for_display(playlist)
+        for playlist in request.user.get_collaborator_playlists()
+    ]
+
     # Course-derived access expires with the term, so only terms whose grace window
     # is still open can contribute a playlist the user could actually open.
     active = active_yearterms()
@@ -379,6 +384,7 @@ def playlists(request):
         "user": request.user,
         "is_instructor": request.user.is_instructor,
         "owned_playlists": owned_playlists,
+        "collaborator_playlists": collaborator_playlists,
         "assigned_courses_by_yearterm": playlists_by_course_by_yearterm,
         "manual_playlists": manual_playlists,
         # Lab assistants act on an instructor's behalf, so the legacy differences are
