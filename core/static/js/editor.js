@@ -2851,6 +2851,11 @@ export class Editor {
           }
           saveUpdatedInformation();
         });
+        cueInput.addEventListener("click", (e) => {
+          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
+          const cueStartTime = parentCueWrapper.dataset["startTime"];
+          this.seekVideoTo(parseFloat(cueStartTime));
+        });
       }
     }
 }

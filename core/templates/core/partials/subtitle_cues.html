@@ -1,7 +1,7 @@
 {% load static %}
 
 {% for cue in cues %}
-    <div class="editor-subtitle-cue">
+    <div class="editor-subtitle-cue" data-start-time="{{ cue.start_time }}">
         <div class="subtitle-input-groups">
             <div class="editor-subtitle-cue-input-group">
                 <input id="cue-{{ forloop.counter0 }}-start"
