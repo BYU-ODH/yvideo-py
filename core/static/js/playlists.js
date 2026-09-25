@@ -8,7 +8,7 @@ function setupPlaylistSearch() {
     searchInput.addEventListener("input", () => {
       const searchText = searchInput.value.toLowerCase();
       const landingPageList = searchInput.closest(".landing-page-playlist-list");
-      const playlists = landingPageList.querySelectorAll(".landing-page-playlist");
+      const playlists = landingPageList.querySelectorAll(".playlist-item-tile");
       for (let playlist of playlists) {
         const name = playlist.querySelector(".playlist-header-name")?.innerText.toLowerCase() || "";
         playlist.style.display = name.includes(searchText) ? "" : "none";
