@@ -78,7 +78,21 @@ class Resource(models.Model):
         WEB = ("www", "Web")
         AUDIO = ("aud", "Audio")
 
-    name = models.CharField(max_length=255, unique=True)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "name_disambiguator"],
+                name="unique_resource_name_and_disambiguator",
+            ),
+            models.UniqueConstraint(
+                fields=["name"],
+                condition=models.Q(name_disambiguator__isnull=True),
+                name="unique_undisambiguated_resource_name",
+            ),
+        ]
+
+    name = models.CharField(max_length=255)
+    name_disambiguator = models.CharField(max_length=200, blank=True, default="")
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
     requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
@@ -116,7 +130,9 @@ class Resource(models.Model):
     )
 
     def __str__(self):
-        return f"{self.name}"
+        if self.name_disambiguator:
+            return f"{self.name} ({self.name_disambiguator})"
+        return self.name
 
     @property
     def belongs_to_byu_library(self):
@@ -2009,6 +2025,14 @@ def get_date_5_days_from_now():
 
 
 class ResourceIntakeRequest(models.Model):
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource_title", "resource_name_disambiguator"],
+                name="unique_resource_title_and_disambiguator",
+            )
+        ]
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -2024,6 +2048,11 @@ class ResourceIntakeRequest(models.Model):
 
     # Resource-specific fields
     resource_title = models.CharField(default="")
+    resource_name_disambiguator = models.CharField(
+        blank=True,
+        default="",
+        help_text="Provide some information that would differentiate this resource from another of the same name (e.g. release year, starting actor/actress, or director)",
+    )
     imdb_link = models.URLField(default="", blank=True)
     audio_language = models.CharField(default="", blank=True)
     subtitle_language = models.CharField(default="", blank=True)

@@ -1411,7 +1411,7 @@ def subtitle_editor(request, content_id):
 @require_http_methods(["GET", "POST"])
 @instructor_required
 def request_resource(request):
-
+    title_collision_error = False
     if request.method == "POST":
         form = ResourceIntakeRequestForm(request.POST)
         if form.is_valid():
@@ -1425,6 +1425,12 @@ def request_resource(request):
                 "Humanities Learning Commons (HLC) so we can begin processing it.",
             )
             return redirect("request_resource")
+        else:
+            errors = form.errors.as_json()
+            name_collision_error = "Resource intake request with this Resource title and Resource name disambiguator already exists."
+            if name_collision_error in errors:
+                title_collision_error = True
+
         for field_name in form.errors:
             if field_name in form.fields:
                 widget = form.fields[field_name].widget
@@ -1437,7 +1443,5 @@ def request_resource(request):
     return render(
         request,
         "core/partials/resource_intake_request.html",
-        {
-            "form": form,
-        },
+        {"form": form, "title_collision_error": title_collision_error},
     )
