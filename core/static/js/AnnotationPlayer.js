@@ -1471,19 +1471,6 @@ export class AnnotationPlayer {
     this.state.subtitlesAreAboveControls = true;
   }
 
-  repositionSubtitles() {
-    if (!this.state.subtitlesAreAboveControls) {
-      return;
-    }
-
-    const currentTrack = this.getCurrentVttTrack();
-    for (let cue of currentTrack.cues) {
-      cue.snapToLines = false;
-      cue.line = "auto";
-    }
-    this.state.subtitlesAreAboveControls = false;
-  }
-
   destroy() {
     this.subtitleTrackBlobUrls.forEach(url => {
       URL.revokeObjectURL(url);
@@ -1744,7 +1731,6 @@ export class AnnotationPlayer {
 
       this.controls.container.addEventListener('mouseleave', () => {
         this.state.hovering = false;
-        this.repositionSubtitles();
         if (this.mouseTimer) clearTimeout(this.mouseTimer); // Clear timer when leaving
         this.refreshControlsVisibility();
       });
