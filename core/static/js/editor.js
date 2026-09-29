@@ -2741,6 +2741,12 @@ export class Editor {
           console.error("Failed to get subtitle cues");
           return;
         }
+        // The annotation player controls what subtitle track is used. Select the correct captions track
+        // using the UI since we don't have a clean way to take that action via the AnnotationPlayer class instance
+        console.log(this.selectedSubtitleTrackId);
+        const annotationPlayerCapTrack = document.getElementById(`cap-track-${this.selectedSubtitleTrackId}-button`);
+        annotationPlayerCapTrack.click();
+
         const subtitlesPanelHTML = await subtitlesResponse.text();
         const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
         currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
