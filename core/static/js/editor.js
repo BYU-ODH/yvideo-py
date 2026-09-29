@@ -2814,7 +2814,7 @@ export class Editor {
     buildWatchersForSubtitlePanelContent() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
       const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
-      addNewCueButton.addEventListener("click", () => {
+      addNewCueButton.addEventListener("click", async () => {
         const cues = this.collectCues();
         // build new cue and append it to cues array
         const time = this.video.currentTime;
@@ -2829,7 +2829,16 @@ export class Editor {
             cue_settings: "",
           }
         )
-        this.saveCues(cues, false)
+        await this.saveCues(cues, false);
+        const newCueWrapper = document.querySelector(`.editor-subtitle-cue[data-start-time='${Number(time.toFixed(2))}'`);
+        if (!newCueWrapper) {
+          return;
+        }
+        const newCueTextarea = newCueWrapper.querySelector(".editor-subtitle-cue-content");
+        console.log(newCueTextarea);
+        if (newCueTextarea) {
+          newCueTextarea.focus();
+        }
       });
     }
 
