@@ -1317,7 +1317,7 @@ export class AnnotationPlayer {
     _loadSubtitleTracks(subtitleObjs) {
     subtitleObjs.forEach((trackData) => {
       const subtitleTrackElem = document.createElement('track');
-      subtitleTrackElem.id = `cap-track-${trackData.id}`;
+      subtitleTrackElem.id = `${trackData.name}-${trackData.id}`;
 
       // default
       subtitleTrackElem.kind = trackData.kind || 'subtitles';
@@ -1377,8 +1377,23 @@ export class AnnotationPlayer {
     let menuHTML = '<div class="caption-option" data-subtitle-track="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">Off</div>';
 
     subtitleTrackElems.forEach((trackElem) => {
-      const internalTrackId = trackElem.id.match(/\d+/)[0];
-      let label = trackElem.label || `Subtitle track ${internalTrackId}`;
+      let trackName = '';
+      const trackNameMatches = trackElem.id.matchAll(/[^\d-]|-(?=\D)/g);
+      for (let match of trackNameMatches) {
+        trackName += match[0];
+      }
+      let internalTrackId;
+      const trackIdMatches = trackElem.id.match(/\d+/);
+      if (trackIdMatches.length > 0) {
+        internalTrackId = trackIdMatches[0];
+      }
+      else {
+        // if this track doesn't have an id, we don't want to include it.
+        // This should never happen.
+        console.error("Failed to get track id, refusing to include it as a track for this video.");
+        return;
+      }
+      let label = trackName || `Subtitle track ${internalTrackId}`;
       if (trackElem.language) {
         label += ` (${trackElem.language})`;
       }
