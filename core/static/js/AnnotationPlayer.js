@@ -325,7 +325,10 @@ export class AnnotationPlayer {
     const subtitleTracks = Array.from(this.videoElem.textTracks);
     for (let subtitleTrack of subtitleTracks) {
       if (subtitleTrack.mode === "showing" || subtitleTrack.mode === "hidden") {
-        return subtitleTrack.id;
+        let trackId;
+        const trackIdMatches = subtitleTrack.id.match(/\d+/);
+        if (trackIdMatches.length > 0) trackId = trackIdMatches[0];
+        return trackId
       }
     }
     return '';
@@ -1416,7 +1419,7 @@ export class AnnotationPlayer {
     });
 
     if (activeTrackId !== '') {
-      const activeOption = this.controls.captionsMenu.querySelector(`#${activeTrackId}-button`);
+      const activeOption = this.controls.captionsMenu.querySelector(`#cap-track-${activeTrackId}-button`);
       if (activeOption) {
         activeOption.classList.add('active-value');
       }
@@ -1433,7 +1436,10 @@ export class AnnotationPlayer {
     let trackElementToTurnOn;
     subtitleTrackElems.forEach(trackElem => {
       trackElem.mode = 'disabled';
-      if (trackElem.id === `cap-track-${trackIndex}`) {
+      const matchString = new RegExp(`-${trackIndex}`, "g");
+      const trackIdMatches = trackElem.id.match(matchString);
+      // trackIdMatches is null if there is not a match.
+      if (trackIdMatches) {
         trackElementToTurnOn = trackElem;
       }
     });
