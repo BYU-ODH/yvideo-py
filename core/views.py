@@ -1244,7 +1244,7 @@ def display_content_info(request, content):
                 content, content_source_url
             ),
             "content_has_clips": content.has_clips(),
-            "subtitle_options": content.get_subtitle_options(),
+            "subtitle_options": content.get_subtitles(),
             "breadcrumbs": breadcrumb_trail(
                 *content_parent_crumbs(content),
                 (content.title, reverse("player", args=[content.pk])),
@@ -1264,7 +1264,7 @@ def render_content_settings_form(request, content):
         context = {
             "content": content,
             "content_has_clips": content.has_clips(),
-            "subtitle_options": content.get_subtitle_options(),
+            "subtitle_options": content.get_subtitles(),
         }
         return render(request, "core/partials/content_settings_form.html", context)
     except Exception as e:

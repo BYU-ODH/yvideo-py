@@ -988,13 +988,6 @@ class Content(models.Model):
             track__annotation_set_id=self.annotation_set_id, active=True
         ).exists()
 
-    def get_subtitle_options(self):
-        """Get (id, name) pairs for every subtitle on this content's resource, for use in selection UI."""
-        resource = self.get_resource()
-        if not resource:
-            return []
-        return list(Subtitle.objects.filter(resource=resource).values("id", "name"))
-
     def get_player_json(self):
         """
         Generate complete JSON data for AnnotationPlayer.loadData().
