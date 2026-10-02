@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect, setupInPlaceFieldEdit } from "./utils.js";
 import { BlurEditor, placeLocators } from "./BlurEditor.js";
 import {
   RESIZE_HANDLES,
@@ -2729,6 +2729,8 @@ export class Editor {
     watchAndHandleSubtitleTrackChange() {
       const subtitleSelectInput = document.getElementById("subtitles-track-selector");
       if (!subtitleSelectInput) return;
+
+      // setting up subtitle track selector
       subtitleSelectInput.addEventListener("change", async () => {
         const newSubtitleTrackId = subtitleSelectInput.value;
         if (subtitleSelectInput == undefined) {
@@ -2749,11 +2751,9 @@ export class Editor {
         const subtitlesPanelHTML = await subtitlesResponse.text();
         const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
         currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
-        const subtitlesSettingsModal = document.getElementById("subtitles-settings");
         this.buildWatchersForSubtitlePanelContent();
         this.buildWatchersForSubtitleEditorCues();
-        subtitlesSettingsModal.close();
-      })
+      });
     }
 
     collectCues() {
@@ -2835,11 +2835,19 @@ export class Editor {
           return;
         }
         const newCueTextarea = newCueWrapper.querySelector(".editor-subtitle-cue-content");
-        console.log(newCueTextarea);
         if (newCueTextarea) {
           newCueTextarea.focus();
         }
       });
+
+      // setup subtitle track name updater
+      const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
+      function updateTrackDisplayInSelector() {
+        const trackSelectOption = document.querySelector(`.subtitles-track-option[value='${this.selectedSubtitleTrackId}']`);
+        const newTitle = subtitleTitleWrapper.querySelector("#subtitle-track-title").innerText;
+        trackSelectOption.innerText = newTitle;
+      }
+      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
     }
 
     buildWatchersForSubtitleEditorCues() {

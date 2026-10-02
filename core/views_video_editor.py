@@ -1323,6 +1323,20 @@ def create_subtitle(request):
     )
 
 
+@require_POST
+def update_subtitle_name(request, subtitle_id):
+    parsed_body = json.loads(request.body)
+    new_name = parsed_body["new_value"]
+    try:
+        subtitle = Subtitle.objects.get(pk=subtitle_id)
+        subtitle.name = new_name
+        subtitle.save()
+        return HttpResponse()
+    except Exception as e:
+        logger.error(f"Error updating subtitle name. Exception: {e}")
+        return HttpResponseServerError()
+
+
 # TODO (#335, #352): unrouted. Route it behind @subtitle_write_required -- with the id
 # in the URL rather than request.POST -- or delete it.
 @require_POST

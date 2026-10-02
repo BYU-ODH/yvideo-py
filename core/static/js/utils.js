@@ -96,3 +96,81 @@ export function getCSRFToken() {
   }
   return cookieValue;
 }
+
+/* makePostRequest
+* handles csrf token and conent type placement. Returns the result of the request.
+*/
+export async function makePostRequest(URL, body, contentType = "application/json") {
+  return fetch(URL, {
+    method: "post",
+    headers: {
+      "X-CSRFToken": getCSRFToken(),
+      "Content-Type": contentType
+    },
+    body: body
+  });
+}
+
+/* setupInPlaceFieldEdit
+* May be used to edit any field that can be represented by an input or textarea element.
+* This must be used with a button that switches the value's display and edit modes.
+* The new input is provided to the endpointURL as JSON with the structure {"new_value": VALUE}.
+* postEditCallback is provided to enable whatever after effects may be useful after a
+* successful edit. postEditCallback is not called on failed edits.
+*/
+export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null) {
+  const titleElement = wrapperElement.querySelector("p, h1, h2, h3, h4, h5, h6, span");
+  const inputElement = wrapperElement.querySelector("input, textarea");
+  const editButton = wrapperElement.querySelector("button");
+
+  const missingTitle = !titleElement;
+  const missingInput = !inputElement;
+  const missingButton = !editButton;
+  if (missingTitle || missingInput || missingButton) {
+    let reason = "Missing the following:";
+    if (missingTitle) reason += " title";
+    if (missingInput) reason += " input";
+    if (missingButton) reason += " button";
+    console.error(`Cannot set up in-place field edit. ${reason}.`);
+    return;
+  }
+
+  function hideInput() {
+    inputElement.classList.add("hidden");
+    titleElement.classList.remove("hidden");
+    editButton.classList.remove("hidden");
+  }
+
+  editButton.addEventListener("click", () => {
+    titleElement.classList.add("hidden");
+    editButton.classList.add("hidden");
+    inputElement.classList.remove("hidden");
+    inputElement.select();
+  });
+
+  inputElement.addEventListener("keydown", async (e) => {
+    const key = e.key;
+    const originalTitle = titleElement.innerText;
+    const newValue = inputElement.value;
+    if (key == "Enter") {
+      const body = JSON.stringify({
+        new_value: newValue
+      });
+      const response = await makePostRequest(editEndpointURL, body);
+      if (response.ok) {
+        titleElement.innerText = newValue;
+        postEditCallback();
+      }
+      else {
+        inputElement.value = originalTitle;
+        titleElement.innerText = originalTitle;
+        console.error(`Failed to update title: ${response.error}`);
+      }
+      hideInput();
+    }
+    else if (key == "Escape") {
+      inputElement.value = originalTitle;
+      hideInput();
+    }
+  });
+}

@@ -1,5 +1,18 @@
+{% load static %}
+
 <div id="subtitle-panel-content-wrapper">
     {% if subtitle_track %}
+        <div id="subtitle-track-title-wrapper" class="row-flex flex-apart-aligned">
+            <h4 id="subtitle-track-title">{{ subtitle_track.name }}</h4>
+            <input id="subtitle-track-title-input"
+                   class="hidden"
+                   type="text"
+                   value="{{ subtitle_track.name }}">
+            <button id="subtitle-track-title-change-button" class="item-form-icon-button">
+                <img src="{% static 'img/edit.svg' %}"
+                     alt="subtitle track name edit button">
+            </button>
+        </div>
         <button id="add-new-subtitle-button" class="white-button-with-border">+ Add new subtitle at current time</button>
         <div id="subtitle-panel-list">
             {% include 'core/partials/subtitle_cues.html' %}

@@ -143,8 +143,24 @@
     display: none;
 }
 
-#annotation-panel-header, #subtitle-panel-header {
+#annotation-panel-header, #subtitle-panel-header, #subtitles-settings-wrapper {
     padding: 8px;
+}
+
+#subtitle-panel-title {
+    margin: 0;
+}
+
+#subtitle-track-title-wrapper {
+    padding: 8px;
+}
+
+#subtitle-track-title-wrapper h4 {
+    margin: 0;
+}
+
+#subtitle-track-title-wrapper img {
+    filter: invert(1);
 }
 
 #annotation-groups-wrapper {
@@ -1157,7 +1173,6 @@
 
     width: 200px;
     padding: 8px 12px;
-    border-left: 3px solid transparent;
     border-radius: 8px 0 0 8px;
 }
 
