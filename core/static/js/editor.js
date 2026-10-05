@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect, setupInPlaceFieldEdit } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit } from "./utils.js";
 import { BlurEditor, placeLocators } from "./BlurEditor.js";
 import {
   RESIZE_HANDLES,
@@ -703,17 +703,14 @@ export class Editor {
       button.disabled = true;
 
       try {
-        const response = await fetch(button.dataset.historyUrl, {
-          method: "POST",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
+        const response = await makePostRequest(
+          button.dataset.historyUrl,
+          new URLSearchParams({
             annotation_id: button.dataset.annotationId,
             annotation_type: button.dataset.annotationType,
           }),
-        });
+          "application/x-www-form-urlencoded"
+        );
 
         if (!response.ok) {
           console.error(`Failed to ${button.dataset.historyAction} annotation history`);
@@ -873,14 +870,11 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await fetch(`/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": contentType,
-        },
-        body: requestBody
-      });
+      const response = await makePostRequest(
+        `/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`,
+        requestBody,
+        contentType
+      );
 
       if (!response.ok) {
         console.error("An error occurred while updating an annotation");
@@ -1365,13 +1359,10 @@ export class Editor {
             displayText(originalNameValue);
             return;
           }
-          const response = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken()
-            },
-            body: JSON.stringify({name: payload})
-          });
+          const response = await makePostRequest(
+            `/annotation-set/${annotationSetId}/update-name/`,
+            JSON.stringify({name: payload})
+          );
           if (response.ok) {
             displayText(payload);
           } else {
@@ -1639,11 +1630,10 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await fetch(`/track/${trackId}/update/`, {
-          method: "post",
-          headers: {"X-CSRFToken": getCSRFToken()},
-          body: JSON.stringify({"new_track_name": newTrackName})
-        });
+        const response = await makePostRequest(
+          `/track/${trackId}/update/`,
+          JSON.stringify({"new_track_name": newTrackName})
+        );
         if (!response.ok) {
           resetTrackName();
           return;
@@ -1765,17 +1755,11 @@ export class Editor {
         }
       }
 
-      const orderUpdateResponse = await fetch(`/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
-        {
-          method: "post",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            track_ids: trackIdOrder
-          })
-        }
+      const orderUpdateResponse = await makePostRequest(
+        `/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
+        JSON.stringify({
+          track_ids: trackIdOrder
+        })
       );
 
       if (!orderUpdateResponse.ok) {
@@ -1821,16 +1805,12 @@ export class Editor {
           return;
         }
 
-        const newTrackResponse = await fetch(`/annotation-set/${annotationSetId}/track/create/`, {
-          method: "post",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
+        const newTrackResponse = await makePostRequest(
+          `/annotation-set/${annotationSetId}/track/create/`,
+          JSON.stringify({
             "track_name": newTrackName
           })
-        });
+        );
 
         dialog.close();
 
@@ -1948,18 +1928,13 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const response = await fetch(`/track/${trackId}/annotations/${annotationType}/create/`,
-              {
-                method: "POST",
-                headers: {
-                  "X-CSRFToken": getCSRFToken(),
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  "start_time": startTime,
-                  "end_time": endTime
-                })
-              });
+            const response = await makePostRequest(
+              `/track/${trackId}/annotations/${annotationType}/create/`,
+              JSON.stringify({
+                "start_time": startTime,
+                "end_time": endTime
+              })
+            );
             if (response.ok) {
               const parsedResponse = await response.json();
               const newPanelItemHtml = parsedResponse["panel_item_html"];
@@ -2377,18 +2352,14 @@ export class Editor {
     }
 
     async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
-      const createResponse = await fetch(`/content/${this.contentId}/annotation-set/create/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const createResponse = await makePostRequest(
+        `/content/${this.contentId}/annotation-set/create/`,
+        JSON.stringify({
           name: setName,
           annotation_set_id_to_copy: annotationSetId,
           annotation_set_json: annotationSetJson
         })
-      });
+      );
 
       if (!createResponse.ok) {
         console.error("Failed to create new annotation set");
@@ -2446,15 +2417,10 @@ export class Editor {
         } else {
           setSelector.classList.remove("invalid-input");
         }
-        const contentSetAssignmentResponse = await fetch(
-          `/content/${this.contentId}/select-annotation-set/`, {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ "annotation_set_id": setSelector.value })
-          });
+        const contentSetAssignmentResponse = await makePostRequest(
+          `/content/${this.contentId}/select-annotation-set/`,
+          JSON.stringify({ "annotation_set_id": setSelector.value })
+        );
         if (!contentSetAssignmentResponse.ok) {
           console.error("Failed to set annotation set for this content");
           return;
@@ -2622,15 +2588,10 @@ export class Editor {
             console.error("could not retrieve content id while switching annotation sets!");
             return;
         }
-        const htmlContentResponse = await fetch(`/content/${this.contentId}/select-annotation-set/`, {
-            method: "POST",
-            body: JSON.stringify({"annotation_set_id": annotationSetId}),
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            mode: "same-origin"
-        });
+        const htmlContentResponse = await makePostRequest(
+            `/content/${this.contentId}/select-annotation-set/`,
+            JSON.stringify({"annotation_set_id": annotationSetId})
+        );
         if (!htmlContentResponse.ok) {
           console.error("Failed to update annotation_set!");
           return;
@@ -2787,19 +2748,15 @@ export class Editor {
         return;
       }
 
-      const updateResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/update-cues/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const updateResponse = await makePostRequest(
+        `/subtitles/${this.selectedSubtitleTrackId}/update-cues/`,
+        JSON.stringify({
           cues: cues,
           seconds_nudge: 0,
           nudge_excluded_cues: [],
           is_autosave: isAutosave
         })
-      });
+      );
 
       if (!updateResponse.ok) {
         console.error("Failed to save cues");
