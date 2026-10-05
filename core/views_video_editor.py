@@ -1198,19 +1198,22 @@ def update_track_positions_in_set(request, annotation_set):
 
     try:
         with transaction.atomic():
-            # Scoped to this set, so a track id from another set cannot be reordered
-            # -- or silently moved -- through this endpoint.
             tracks = {
                 track.pk: track
                 for track in Track.objects.filter(annotation_set=annotation_set)
             }
-            if any(track_id not in tracks for track_id in parsed_data["track_ids"]):
-                logger.error(
-                    "Refused to reorder tracks: an id does not belong to this set"
-                )
-                return HttpResponseBadRequest()
+            set_track_ids = list(tracks.keys())
+
+            # ensure that only tracks belonging to this set are reordered
+            for track_id in parsed_data["track_ids"]:
+                if int(track_id) not in set_track_ids:
+                    logger.error(
+                        f"Refused to reorder tracks: track with id {track_id} does not belong to this annotation set"
+                    )
+                    return HttpResponseBadRequest()
+
             for index, track_id in enumerate(parsed_data["track_ids"]):
-                track = tracks[track_id]
+                track = tracks[int(track_id)]
                 track.stack_position = index
                 track.save()
     except Exception as e:
