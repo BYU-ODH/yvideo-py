@@ -28,6 +28,7 @@ from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
+from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
 from .models import SkipAnnotation
@@ -1261,6 +1262,72 @@ def delete_track(request, track):
     except Exception as e:
         logger.error(f"Failed to delete track. Exception: {e}")
         return HttpResponseServerError()
+
+
+@require_POST
+@content_write_required
+def create_subtitle_track(request, content):
+    try:
+        data = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "Invalid request body."}, status=400)
+
+    if "name" not in data or "language" not in data:
+        return JsonResponse(
+            {"error": "'name' and 'language' must be present in request"}, status=400
+        )
+
+    name = data.get("name")
+    name = name.strip()
+    if len(name) == 0:
+        return JsonResponse({"error": "'name' cannot be empty"}, status=400)
+
+    language_in = data.get("language")
+    language_in = language_in.strip()
+    if len(language_in) == 0:
+        return JsonResponse({"error": "'language' cannot be empty"}, status=400)
+
+    try:
+        lang_filter = Language.objects.filter(language=language_in)
+        bcp47_filter2 = Language.objects.filter(bcp47=language_in[:2])
+        bcp47_filter3 = Language.objects.filter(bcp47=language_in[:3])
+        result_filter = lang_filter | bcp47_filter2 | bcp47_filter3
+        if result_filter.count == 0:
+            # bcp47 should be 2 characters but is sometimes 3. we want to make sure that if
+            # it should be 3 characters, we preserve that otherwise, lets use 2
+            bcp47_in = language_in if len(language_in) == 3 else language_in[:2]
+            language = Language.objects.create(language=language_in, bcp47=bcp47_in)
+        else:
+            language = result_filter.first()
+    except Exception as e:
+        logger.error(
+            f"Failed to create new language while creating new Subtitle track. Exception: {e}"
+        )
+
+    resource = content.get_resource()
+    if resource is None:
+        return JsonResponse(
+            {"error": "This content has no subtitle resource."}, status=400
+        )
+
+    track_fields = {
+        "resource": resource,
+        "owner": request.user,
+        "language": language,
+        "name": name,
+    }
+
+    try:
+        subtitle = Subtitle.objects.create(
+            **track_fields,
+            subtitles_file=ContentFile("WEBVTT\n\n", name=f"{name}.vtt"),
+        )
+    except IntegrityError:
+        return JsonResponse(
+            {"error": "You already have a subtitle track with this name."}, status=400
+        )
+
+    return JsonResponse({"id": subtitle.pk}, status=201)
 
 
 @require_GET

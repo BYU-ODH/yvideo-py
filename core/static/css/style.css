@@ -69,6 +69,13 @@ button:hover {
     cursor: pointer;
 }
 
+.horizontal-line {
+    flex: 1;
+    margin: auto 0;
+    padding: 0;
+    border-top: 1px solid;
+}
+
 .blue-button, .white-button-with-border, .red-button, .cancel-button {
     padding: 10px 20px;
     border-radius: 20px;
@@ -369,6 +376,14 @@ a.blue-button {
 }
 
 /* Subtitles */
+#subtitle-track-create-button {
+    width: fit-content;
+}
+
+#subtitles-track-language-input {
+    width: 3rem;
+}
+
 .subtitles-overlay {
     position: absolute;
     z-index: 20;

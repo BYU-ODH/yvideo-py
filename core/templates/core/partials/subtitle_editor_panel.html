@@ -6,10 +6,28 @@
         <h3 id="subtitle-panel-title">Subtitle Editor</h3>
     </div>
     <div id="subtitles-settings-wrapper" class="column-flex-no-gap">
-        <div id="subtitles-selector-wrapper" class="column-flex">
-            <label for="subtitles-track-selector">Select subtitles track to edit</label>
+        <div class="column-flex">
+            <div class="row-flex">
+                <label for="subtitles-track-create-new">Add new track</label>
+                <input id="subtitles-track-create-new" type="text">
+            </div>
+            <div class="row-flex">
+                <label for="subtitles-track-language-input">Subtitle language</label>
+                <input id="subtitles-track-language-input" type="text" maxlength="60">
+            </div>
+            <button id="subtitle-track-create-button"
+                    type="button"
+                    aria-label="Create subtitle track">Ok</button>
+        </div>
+        <div class="row-flex">
+            <div class="horizontal-line"></div>
+            <p>OR</p>
+            <div class="horizontal-line"></div>
+        </div>
+        <div id="subtitles-selector-wrapper" class="row-flex">
+            <label for="subtitles-track-selector">Select a track</label>
             <select id="subtitles-track-selector">
-                <option disabled selected>Select a subtitles track to edit</option>
+                <option disabled selected>Select a track</option>
                 {% for option in subtitle_options %}
                     <option class="subtitles-track-option" value="{{ option.id }}">{{ option.name }}</option>
                 {% endfor %}
