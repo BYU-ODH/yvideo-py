@@ -757,7 +757,7 @@
 
 .item-form-icon-button:focus-visible,
 .item-form-icon-button:hover:not(:disabled) {
-    box-shadow: 0 0 1px 1px white;
+    box-shadow: 0 0 0 1px white;
 }
 
 .item-form-icon-button img {
