@@ -13,6 +13,26 @@
                      alt="subtitle track name edit button">
             </button>
         </div>
+        <div id="subtitle-track-language-wrapper"
+             class="row-flex flex-apart-aligned">
+            <h4 id="subtitle-track-language-title">{{ subtitle_track.language }}</h4>
+            <select id="subtitle-track-language-input"
+                    class="hidden"
+                    type="text"
+                    value="{{ subtitle_track.language.id }}">
+                {% for language in languages %}
+                    <option value="{{ language.id }}"
+                            {% if language.id == subtitle_track.language.id %} selected {% endif %}>
+                        {{ language.language }} ({{ language.bcp47 }})
+                    </option>
+                {% endfor %}
+            </select>
+            <button id="subtitle-track-language-change-button"
+                    class="item-form-icon-button">
+                <img src="{% static 'img/edit.svg' %}"
+                     alt="subtitle track language edit button">
+            </button>
+        </div>
         <button id="add-new-subtitle-button" class="white-button-with-border">+ Add new subtitle at current time</button>
         <div id="subtitle-panel-list">
             {% include 'core/partials/subtitle_cues.html' %}
