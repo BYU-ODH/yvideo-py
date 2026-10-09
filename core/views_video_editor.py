@@ -1335,12 +1335,14 @@ def create_subtitle_track(request, content):
 def get_editable_subtitles(request, subtitle):
     try:
         cues = generate_vtt_cues_from_file_path(subtitle.subtitles_file.path)
+        languages = list(Language.objects.all())
         return HttpResponse(
             render_to_string(
                 "core/partials/subtitle_panel_content.html",
                 {
                     "subtitle_track": subtitle,
                     "cues": cues,
+                    "languages": languages,
                     "can_edit": subtitle.can_be_edited_by(request.user),
                 },
             )
@@ -1405,65 +1407,6 @@ def update_subtitle_name(request, subtitle_id):
     except Exception as e:
         logger.error(f"Error updating subtitle name. Exception: {e}")
         return HttpResponseServerError()
-
-
-# TODO (#335, #352): unrouted. Route it behind @subtitle_write_required -- with the id
-# in the URL rather than request.POST -- or delete it.
-@require_POST
-def update_subtitle_metadata(request):
-    form = SubtitleForm(request.POST, request.FILES)
-    if form.is_valid():
-        data = form.cleaned_data
-
-        uploaded_file = request.FILES["subtitles_file"]
-
-        if uploaded_file is not None:
-            uploaded_file_content = convert_srt_content_to_vtt(
-                uploaded_file.read().decode("utf-8")
-            )
-            uploaded_file_name = uploaded_file.name
-
-        try:
-            if "subtitle_id" in request.POST:
-                subtitle_obj = get_object_or_404(
-                    Subtitle, id=request.POST.get("subtitle_id")
-                )
-            else:
-                return HttpResponseBadRequest()
-
-            if "language" in data:
-                subtitle_obj.language = data["language"]
-            if "name" in data:
-                subtitle_obj.name = data["name"]
-            if uploaded_file is not None:
-                subtitle_obj.subtitles_file = ContentFile(
-                    content=uploaded_file_content, name=uploaded_file_name
-                )
-            if "is_original" in data:
-                subtitle_obj.is_original = data["is_original"]
-            with transaction.atomic():
-                subtitle_obj.save()
-
-                # remove temp file when main file is updated
-                # this is not included where subtitles_file is set because we want
-                # to ensure we don't over write the temp file unless the main file
-                # is successfully updated.
-                if uploaded_file is not None:
-                    subtitle_obj.subtitles_temp_file = None
-                    subtitle_obj.save()
-
-            return render(
-                request,
-                "core/partials/subtitle_track.html",
-                {"subtitle_track": subtitle_obj},
-            )
-        except Exception as e:
-            logger.error(
-                f"Error while updating subtitle object with id: {request.POST.get('subtitle_id')}. Exception: {e}"
-            )
-            return HttpResponseServerError()
-    else:
-        return HttpResponseBadRequest()
 
 
 @require_POST
