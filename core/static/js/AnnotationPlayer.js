@@ -484,10 +484,13 @@ export class AnnotationPlayer {
     this._updateClipsControls();
     this.applyAnnotations();
 
-    this.videoElem.addEventListener('loadedmetadata', () => {
-      this.renderSkipsOnScrubber();
-      this.renderClipsOnScrubber();
-    }, { once: true });
+    // Before metadata loads the duration is unknown, so the scrubber marks above were skipped.
+    if (this.videoElem.readyState < HTMLMediaElement.HAVE_METADATA) {
+      this.videoElem.addEventListener('loadedmetadata', () => {
+        this.renderSkipsOnScrubber();
+        this.renderClipsOnScrubber();
+      }, { once: true });
+    }
   }
 
   // The annotation that muted, blanked, or blurred the screen may no longer exist, so its effect is
@@ -1336,17 +1339,24 @@ export class AnnotationPlayer {
     // reloading cues and the sidebar each time.
     if (JSON.stringify(subtitleObjs) === this._subtitleTracksSignature) return;
 
-    const previousModes = Array.from(this.videoElem.textTracks, (track) => track.mode);
+    // Kept from the first of several quick replacements, since later ones would capture tracks the
+    // browser auto-selected rather than the viewer's choice.
+    this._pendingTrackModes ??= Array.from(this.videoElem.textTracks, (track) => track.mode);
     this.videoElem.querySelectorAll('track').forEach((trackElem) => trackElem.remove());
     this.subtitleTrackBlobUrls.forEach((url) => URL.revokeObjectURL(url));
     this.subtitleTrackBlobUrls = [];
     this._enableSubtitleSidebar = subtitleObjs.length > 0;
     this._loadSubtitleTracks(subtitleObjs);
+  }
 
-    // New tracks start in their default mode, which would undo the viewer's caption choice.
+  // Applied from onTracksReady rather than right after the tracks are added: the browser runs its
+  // automatic track selection on added tracks in a later task, which would turn on extra tracks.
+  _restorePendingTrackModes() {
+    if (!this._pendingTrackModes) return;
     Array.from(this.videoElem.textTracks).forEach((track, index) => {
-      if (previousModes[index]) track.mode = previousModes[index];
+      if (this._pendingTrackModes[index]) track.mode = this._pendingTrackModes[index];
     });
+    this._pendingTrackModes = null;
     this.subtitleSidebar?.onTrackChanged();
   }
 
@@ -1385,6 +1395,8 @@ export class AnnotationPlayer {
     });
 
     const onTracksReady = () => {
+      this._restorePendingTrackModes();
+
       if (this.controls.captionsMenu) {
         this._renderCaptionsMenu();
       }
