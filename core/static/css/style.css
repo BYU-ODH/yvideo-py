@@ -196,8 +196,7 @@ a.blue-button {
 .column-flex {
     display: flex;
     flex-direction: column;
-    row-gap: 1rem;
-    column-gap: 3rem;
+    gap: 1rem 3rem;
 }
 
 .column-flex-no-gap {
@@ -1701,6 +1700,7 @@ p.tile-subtitle {
 
 
 /* Video Page */
+
 /* .playlist-video-page {
     max-width: 1200px;
     margin: 40px auto 0;
@@ -1868,8 +1868,8 @@ h4.video-title {
 .content-form-group label,
 .content-settings-form-group label {
     display: block;
-    font-weight: 500;
     padding-right: 0.5rem;
+    font-weight: 500;
 }
 
 .content-form-group.clips-only-invalid label,
