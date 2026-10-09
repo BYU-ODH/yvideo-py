@@ -34,18 +34,10 @@
         <div id="timeline-zoom-controls" class="timeline-row-right">
             <button id="zoom-out-button"
                     type="button"
-                    class="timeline-zoom-button"
+                    class="item-form-icon-button"
                     aria-label="Zoom the timeline out">
                 <img class="timeline-zoom-icon"
                      src="{% static 'img/minus-sign.svg' %}"
-                     alt="">
-            </button>
-            <button id="zoom-in-button"
-                    type="button"
-                    class="timeline-zoom-button"
-                    aria-label="Zoom the timeline in">
-                <img class="timeline-zoom-icon"
-                     src="{% static 'img/plus-sign.svg' %}"
                      alt="">
             </button>
             <div id="timeline-scroll-slider">
@@ -57,6 +49,14 @@
                        step="any"
                        aria-label="Scroll the timeline" />
             </div>
+            <button id="zoom-in-button"
+                    type="button"
+                    class="item-form-icon-button"
+                    aria-label="Zoom the timeline in">
+                <img class="timeline-zoom-icon"
+                     src="{% static 'img/plus-sign.svg' %}"
+                     alt="">
+            </button>
         </div>
     </div>
     <dialog id="new-track-dialog">
