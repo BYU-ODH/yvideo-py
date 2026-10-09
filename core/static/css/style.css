@@ -893,7 +893,7 @@ a.blue-button {
     gap: 30px;
 }
 
-.landing-page-playlist-list {
+.landing-page-playlist-list, .playlist-video-page {
     max-width: 1200px;
     margin: 40px auto 0;
     padding: 0 clamp(16px, 5vw, 80px);
@@ -1624,12 +1624,6 @@ a.blue-button {
 
 
 /* Video Page */
-.playlist-video-page {
-    max-width: 1200px;
-    margin: 40px auto 0;
-    padding: 0 clamp(16px, 5vw, 80px);
-}
-
 #playlist-videos-header {
     align-items: flex-end;
 }
