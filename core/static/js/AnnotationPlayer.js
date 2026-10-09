@@ -291,6 +291,10 @@ export class AnnotationPlayer {
       this._updateSubtitleSidebarButtonDisplay();
     }
 
+    this._updateClipsControls();
+  }
+
+  _updateClipsControls() {
     if (this.controls.clipsBtnWrapper && !this.disabledControls.includes('clipsBtn')) {
       const hasClips = this.clips && this.clips.length > 0;
       this.controls.clipsBtnWrapper.style.display = hasClips ? 'inline-block' : 'none';
@@ -444,10 +448,18 @@ export class AnnotationPlayer {
       this.annotations = data;
     } else {
       this.annotations = data.annotations || [];
-      this.clips = data.clips || this.clips;
 
-      if (data.tracks && Array.isArray(data.subtitles)) {
-        this._loadSubtitleTracks(data.subtitles);
+      if (data.clips) {
+        // Clip ids change on every edit, so an edited active clip is deselected rather than
+        // left pointing at whichever clip now occupies its index.
+        const activeClipId = this.clips?.[this.activeClipIndex]?.id;
+        this.clips = data.clips;
+        const activeIndex = activeClipId === undefined ? -1 : this.clips.findIndex((clip) => clip.id === activeClipId);
+        this.activeClipIndex = activeIndex === -1 ? null : activeIndex;
+      }
+
+      if (Array.isArray(data.subtitles)) {
+        this._replaceSubtitleTracks(data.subtitles);
       }
     }
 
@@ -465,15 +477,26 @@ export class AnnotationPlayer {
       }
     }
     this._removeOverlaysForDeletedAnnotations();
+    this._clearAnnotationEffects();
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
-    this.renderClipsOnScrubber();
+    this._updateClipHighlighting();
+    this._updateClipsControls();
     this.applyAnnotations();
 
     this.videoElem.addEventListener('loadedmetadata', () => {
       this.renderSkipsOnScrubber();
       this.renderClipsOnScrubber();
-    });
+    }, { once: true });
+  }
+
+  // The annotation that muted, blanked, or blurred the screen may no longer exist, so its effect is
+  // undone here and applyAnnotations re-applies whatever the new data still calls for.
+  _clearAnnotationEffects() {
+    this.videoElem.removeEventListener("playing", this._onPlaying);
+    if (this.currently.muting !== -1) this.unmute(true);
+    if (this.currently.blanking !== -1) this.unblank();
+    if (this.currently.screenBlurring !== -1) this.unscreenBlur();
   }
 
   renderSkipsOnScrubber() {
@@ -858,7 +881,10 @@ export class AnnotationPlayer {
     this._updateVolumeControlsDisplay();
 
     if (this.videoElem.paused) return;
-    requestAnimationFrame(() => this.applyAnnotations());
+    // Cancelled first so callers outside the per-frame loop (loadData, skipTo, "playing") cannot
+    // start a second loop alongside it.
+    cancelAnimationFrame(this._applyAnnotationsFrame);
+    this._applyAnnotationsFrame = requestAnimationFrame(() => this.applyAnnotations());
   }
 
   static _overlayKey(annotationType, annotationId) {
@@ -891,11 +917,7 @@ export class AnnotationPlayer {
     );
     if (!annotation) return false;
     annotation["positions"] = positions;
-    // Only when paused: while playing, applyAnnotations reschedules itself every frame and will pick
-    // this up on its own, so calling it here would start a second rAF chain that never stops.
-    if (this.videoElem.paused) {
-      this.applyAnnotations();
-    }
+    this.applyAnnotations();
     return true;
   }
 
@@ -1309,7 +1331,27 @@ export class AnnotationPlayer {
     this._renderSpeedMenu();
   }
 
+    _replaceSubtitleTracks(subtitleObjs) {
+    // Every annotation edit refreshes the player, so unchanged subtitles are skipped to avoid
+    // reloading cues and the sidebar each time.
+    if (JSON.stringify(subtitleObjs) === this._subtitleTracksSignature) return;
+
+    const previousModes = Array.from(this.videoElem.textTracks, (track) => track.mode);
+    this.videoElem.querySelectorAll('track').forEach((trackElem) => trackElem.remove());
+    this.subtitleTrackBlobUrls.forEach((url) => URL.revokeObjectURL(url));
+    this.subtitleTrackBlobUrls = [];
+    this._enableSubtitleSidebar = subtitleObjs.length > 0;
+    this._loadSubtitleTracks(subtitleObjs);
+
+    // New tracks start in their default mode, which would undo the viewer's caption choice.
+    Array.from(this.videoElem.textTracks).forEach((track, index) => {
+      if (previousModes[index]) track.mode = previousModes[index];
+    });
+    this.subtitleSidebar?.onTrackChanged();
+  }
+
     _loadSubtitleTracks(subtitleObjs) {
+    this._subtitleTracksSignature = JSON.stringify(subtitleObjs);
     subtitleObjs.forEach((trackData, index) => {
       const subtitleTrackElem = document.createElement('track');
 
