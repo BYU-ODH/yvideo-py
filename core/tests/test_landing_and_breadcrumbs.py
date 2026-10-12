@@ -22,14 +22,15 @@ class LandingPageTests(TestCase):
             instructor=True, netid="collabinstr"
         )
         self.playlist = PlaylistFactory(owner=self.instructor)
-        # TODO: use PlaylistRole.COLLABORATOR for both grants once #452 merges.
         PlaylistUserAccessFactory(
-            user=self.ta, playlist=self.playlist, playlist_role=PlaylistRole.TA
+            user=self.ta,
+            playlist=self.playlist,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
         PlaylistUserAccessFactory(
             user=self.collaborating_instructor,
             playlist=self.playlist,
-            playlist_role=PlaylistRole.INSTRUCTOR,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
 
     def test_root_redirects_to_playlists(self):
@@ -104,7 +105,7 @@ class LandingPageTests(TestCase):
             owner=self.instructor, name="Published", published=True
         )
         PlaylistUserAccessFactory(
-            user=self.ta, playlist=published, playlist_role=PlaylistRole.TA
+            user=self.ta, playlist=published, playlist_role=PlaylistRole.COLLABORATOR
         )
         PlaylistUserAccessFactory(
             user=self.student, playlist=published, playlist_role=PlaylistRole.STUDENT

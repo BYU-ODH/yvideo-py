@@ -242,15 +242,10 @@ class User(AbstractUser):
         return not target_user.is_admin
 
     def get_collaborator_playlists(self):
-        """Returns playlists that this user is a collaborator on. A collaborator
-        is anyone marked as a TA or co-instructor for a playlist"""
+        """Returns playlists that this user is a collaborator on."""
         return list(
             self.accessible_playlists.filter(
-                # TODO: use PlaylistRole.COLLABORATOR once #452 merges.
-                playlistuseraccess__playlist_role__in=(
-                    PlaylistRole.INSTRUCTOR,
-                    PlaylistRole.TA,
-                )
+                playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR
             ).exclude(owner=self.pk)
         )
 
