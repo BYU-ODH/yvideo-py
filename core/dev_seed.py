@@ -301,15 +301,15 @@ def create_demo_data():
     )
 
     for playlist, user, role in [
-        (ada_playlist, professor_ada, PlaylistRole.INSTRUCTOR),
-        (ada_playlist, teaching_assistant, PlaylistRole.TA),
+        (ada_playlist, professor_ada, PlaylistRole.COLLABORATOR),
+        (ada_playlist, teaching_assistant, PlaylistRole.COLLABORATOR),
         (ada_playlist, student_alice, PlaylistRole.STUDENT),
         (ada_playlist, student_bob, PlaylistRole.STUDENT),
-        (ada_drafts, professor_ada, PlaylistRole.INSTRUCTOR),
-        (admin_playlist, admin, PlaylistRole.INSTRUCTOR),
-        (admin_drafts, admin, PlaylistRole.INSTRUCTOR),
-        (ben_playlist, professor_ben, PlaylistRole.INSTRUCTOR),
-        (ben_playlist, teaching_assistant, PlaylistRole.TA),
+        (ada_drafts, professor_ada, PlaylistRole.COLLABORATOR),
+        (admin_playlist, admin, PlaylistRole.COLLABORATOR),
+        (admin_drafts, admin, PlaylistRole.COLLABORATOR),
+        (ben_playlist, professor_ben, PlaylistRole.COLLABORATOR),
+        (ben_playlist, teaching_assistant, PlaylistRole.COLLABORATOR),
         (ben_playlist, student_bob, PlaylistRole.STUDENT),
         (ben_playlist, student_ivy, PlaylistRole.STUDENT),
     ]:

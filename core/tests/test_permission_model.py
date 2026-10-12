@@ -232,7 +232,7 @@ class ResourceAccessTests(TestCase):
         PlaylistUserAccessFactory(
             playlist=PlaylistFactory(owner=self.instructor),
             user=ta,
-            playlist_role=PlaylistRole.TA,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
 
         self.assertTrue(ta.can_access_resource(self.granted_resource))
@@ -419,7 +419,7 @@ class SubtitlePermissionTests(TestCase):
         PlaylistUserAccessFactory(
             playlist=PlaylistFactory(owner=self.owner),
             user=ta,
-            playlist_role=PlaylistRole.TA,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
 
         self.assertTrue(self.subtitle.can_be_edited_by(ta))

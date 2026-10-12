@@ -1550,7 +1550,7 @@ class LegacyMigrationService:
             PlaylistUserAccess.objects.get_or_create(
                 user=owner,
                 playlist=playlist,
-                defaults={"playlist_role": PlaylistRole.INSTRUCTOR},
+                defaults={"playlist_role": PlaylistRole.COLLABORATOR},
             )
 
             snapshot_collection = request_obj.raw_snapshot.get("collection") or {}
@@ -1565,7 +1565,7 @@ class LegacyMigrationService:
                 PlaylistUserAccess.objects.get_or_create(
                     user=legacy_owner.matched_user,
                     playlist=playlist,
-                    defaults={"playlist_role": PlaylistRole.INSTRUCTOR},
+                    defaults={"playlist_role": PlaylistRole.COLLABORATOR},
                 )
 
             for access_row in request_obj.raw_snapshot.get("collection_access", []):

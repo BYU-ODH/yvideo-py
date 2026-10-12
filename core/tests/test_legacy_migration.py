@@ -318,7 +318,7 @@ class LegacyMigrationTests(TestCase):
         PlaylistUserAccess.objects.create(
             user=ta_user,
             playlist=current_playlist,
-            playlist_role=PlaylistRole.TA,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
         Content.objects.create(
             playlist=current_playlist,
@@ -1029,14 +1029,14 @@ class LegacyMigrationTests(TestCase):
             PlaylistUserAccess.objects.filter(
                 user=target_owner,
                 playlist=imported_playlist,
-                playlist_role=PlaylistRole.INSTRUCTOR,
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
         self.assertTrue(
             PlaylistUserAccess.objects.filter(
                 user=playlist_ta,
                 playlist=imported_playlist,
-                playlist_role=PlaylistRole.TA,
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
         self.assertFalse(
@@ -1781,7 +1781,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": "missingguest",
                 "collection_id": legacy_collection_id,
-                "account_role": PlaylistRole.TA,
+                "account_role": 1,
             },
         )
 
@@ -1800,7 +1800,7 @@ class LegacyMigrationTests(TestCase):
             [
                 {
                     "collection_id": legacy_collection_id,
-                    "account_role": PlaylistRole.TA,
+                    "account_role": 1,
                     "username": "missingguest",
                     "legacy_user_id": None,
                     "byu_person_id": None,
@@ -1887,7 +1887,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": ta_user.netid,
                 "collection_id": legacy_collection_id,
-                "account_role": PlaylistRole.TA,
+                "account_role": 1,
             },
         )
         self.insert_legacy_row(
@@ -1998,7 +1998,7 @@ class LegacyMigrationTests(TestCase):
         )
 
         self.assertIn(ta_user.netid, access_preview)
-        self.assertIn(PlaylistRole(PlaylistRole.TA).label, access_preview)
+        self.assertIn(PlaylistRole(PlaylistRole.COLLABORATOR).label, access_preview)
         self.assertIn("FILM 101-001", course_preview)
         self.assertIn(resource_guest.netid, resource_access_preview)
 
@@ -3230,6 +3230,15 @@ class LegacyMigrationTests(TestCase):
             service._resolve_collection_role(3),
             PlaylistRole.STUDENT,
         )
+
+    def test_legacy_instructors_and_tas_both_import_as_collaborators(self):
+        service = LegacyMigrationService(require_catalog=False)
+        for legacy_role in (0, 1):
+            with self.subTest(legacy_role=legacy_role):
+                self.assertEqual(
+                    service._resolve_collection_role(legacy_role),
+                    PlaylistRole.COLLABORATOR,
+                )
 
     def test_claim_job_is_atomic(self):
         service = LegacyMigrationService(require_catalog=False)

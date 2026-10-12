@@ -722,19 +722,14 @@ def update_playlist_settings(request, playlist):
 
 
 GRANTABLE_PLAYLIST_ROLES = (
-    PlaylistRole.INSTRUCTOR,
-    PlaylistRole.TA,
+    PlaylistRole.COLLABORATOR,
     PlaylistRole.STUDENT,
 )
 
 PLAYLIST_ROLE_DESCRIPTIONS = {
-    PlaylistRole.INSTRUCTOR: (
-        "Another instructor for this playlist. Can edit it and its videos, but "
-        "cannot delete it or manage people."
-    ),
-    PlaylistRole.TA: (
-        "Helps run this playlist. The same editing access as a co-instructor; "
-        "cannot delete it or manage people."
+    PlaylistRole.COLLABORATOR: (
+        "Co-instructor or TA. Can edit this playlist and its videos, but cannot "
+        "delete it or manage people."
     ),
     PlaylistRole.STUDENT: "Can watch published videos. Cannot make changes.",
 }
@@ -801,7 +796,7 @@ def playlist_members_context(request, playlist):
     """Everything the Manage People panel renders.
 
     Each row carries its own may_manage flag rather than a single page-level one: an
-    owner may touch every row, but a TA may touch only the read-only ones, and deciding
+    owner may touch every row, but a collaborator may touch only the read-only ones, and deciding
     that here keeps the template and the endpoints agreeing on one answer.
     """
     accesses = (
@@ -810,10 +805,10 @@ def playlist_members_context(request, playlist):
         .select_related("user")
         .order_by("playlist_role", "user__last_name", "user__username")
     )
-    # A stray role integer degrades to its number instead of raising: migration 0011 and
-    # map_legacy_collection_role cover the one value we know about (legacy auditor), but
-    # this now renders on the playlist page itself, so an unknown one would take the whole
-    # page down rather than just this panel.
+    # A stray role integer degrades to its number instead of raising: migrations 0011 and
+    # 0014 and map_legacy_collection_role cover the values we know about (legacy auditor
+    # and TA), but this now renders on the playlist page itself, so an unknown one would
+    # take the whole page down rather than just this panel.
     labels = {role.value: role.label for role in PlaylistRole}
     members = [
         {
@@ -941,7 +936,7 @@ def _resolve_member_to_add(request):
     """The user being added, either picked from the search results or looked up by id.
 
     Returns (user, error_message, warning). The lookup form provisions from BYU's
-    directory, so a TA who has never signed in to Y-Video can still be given a role
+    directory, so a collaborator who has never signed in to Y-Video can still be given a role
     before the term starts -- the reason the picker accepts a raw NetID at all.
 
     The warning is the form's enrollment_warning: a provisioned account whose enrollment
@@ -1023,8 +1018,8 @@ def update_playlist_member_role(request, playlist, user_id):
     if new_role not in GRANTABLE_PLAYLIST_ROLES:
         return _member_error("Choose a role.")
 
-    # Both ends, because demoting a TA is revoking a TA grant. Checking only the new
-    # role would let a TA quietly strip a co-instructor.
+    # Both ends, because demoting a collaborator is revoking a collaborator grant.
+    # Checking only the new role would let a collaborator quietly strip another.
     if not (
         playlist.can_grant_role(request.user, access.playlist_role)
         and playlist.can_grant_role(request.user, new_role)
@@ -1056,14 +1051,11 @@ def accessible_resources(user):
     if user.is_superuser or user.is_lab_assistant:
         return Resource.objects.all()
     granted = Q(resourceaccess__user=user)
-    # A TA or co-instructor inherits every grant held by the owner of a playlist
+    # A collaborator inherits every grant held by the owner of a playlist
     # they can write to.
     inherited = Q(
         resourceaccess__user__playlists_owned__playlistuseraccess__user=user,
-        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role__in=(
-            PlaylistRole.INSTRUCTOR,
-            PlaylistRole.TA,
-        ),
+        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
     )
     visible = granted | inherited
     if user.is_instructor:
