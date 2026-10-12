@@ -735,12 +735,12 @@ export class Editor {
         }
 
         const responseData = await response.json();
+        window.dispatchEvent(this.annotationUpdatedEvent);
         const applied = this.applyAnnotationVersionResponse(
           responseData,
           button.dataset.annotationId,
           true,
         );
-        window.dispatchEvent(this.annotationUpdatedEvent);
         if (!applied && button.isConnected) {
           // The version did change on the server, but the timeline could not be updated to show
           // it. Leaving the button disabled would strand the user in a state they cannot undo
@@ -899,8 +899,8 @@ export class Editor {
       }
 
       const responseData = await response.json();
-      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
       window.dispatchEvent(this.annotationUpdatedEvent);
+      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
       return responseData;
     }
 
@@ -1727,6 +1727,7 @@ export class Editor {
         console.error("Failed to delete track");
         return;
       }
+      window.dispatchEvent(this.annotationUpdatedEvent);
 
       trackRow.remove();
       this.updateTracks();
@@ -2811,6 +2812,7 @@ export class Editor {
         console.error("Failed to save cues");
         return;
       }
+      window.dispatchEvent(this.annotationUpdatedEvent);
 
       const subtitleCueListWrapper = document.getElementById("subtitle-panel-list");
       subtitleCueListWrapper.innerHTML = await updateResponse.text();
