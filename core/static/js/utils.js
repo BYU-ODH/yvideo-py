@@ -182,6 +182,10 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditC
 * where ever it has space to be displayed and is placed relative to the menu open button.
 * The menu will be left aligned to the menu open button if possible; if not, then right aligned.
 * document.documentElement is used to determine where the menu fits.
+* The HTML structure to use is as follows:
+* <div class="multi-option-menu-wrapper">
+*   <button class="open-multi-option-menu">
+*   <div class="multi-option-menu">
 */
 export function setupMultiOptionMenu(menuOptionComponentWrapper) {
   if (!menuOptionComponentWrapper || !(menuOptionComponentWrapper instanceof HTMLElement)) {
@@ -206,15 +210,18 @@ export function setupMultiOptionMenu(menuOptionComponentWrapper) {
     return;
   }
 
+  // Helps with accessibility
   menuOpenButtonEl.setAttribute("aria-expanded", String(menuOptionsWrapperEl.style.visibility === "visible"));
 
   const closeMenu = () => {
     menuOptionsWrapperEl.style.visibility = "hidden";
+    // helps with accessibility
     menuOpenButtonEl.setAttribute("aria-expanded", "false");
   };
 
+  // close the menu when anywhere else is clicked to prevent UI clutter.
+  // We exclude the menuOpenButton because it has its own way to close the menu
   document.addEventListener("click", (e) => {
-    // Let the open button's own handler toggle the menu.
     if (!menuOptionsWrapperEl.contains(e.target) && !menuOpenButtonEl.contains(e.target)) {
       closeMenu();
     }
@@ -225,6 +232,7 @@ export function setupMultiOptionMenu(menuOptionComponentWrapper) {
       e.preventDefault();
       e.stopPropagation();
       closeMenu();
+      // prevent keyboard navigation from focusing on a now invisible element
       menuOpenButtonEl.focus();
     }
   });
@@ -232,16 +240,8 @@ export function setupMultiOptionMenu(menuOptionComponentWrapper) {
   menuOpenButtonEl.addEventListener("click", (e) => {
     e.stopPropagation();
     if (menuOptionsWrapperEl.style.visibility === "visible") {
-      menuOptionsWrapperEl.style.visibility = "hidden";
-      menuOpenButtonEl.setAttribute("aria-expanded", "false");
+      closeMenu();
       return;
-    }
-
-    // Don't clutter the UI with open menus
-    const visibleMenuCSSClass = "visible-multi-option-menu";
-    const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
-    for (let menu of allVisibleTrackMenus) {
-      menu.classList.remove(visibleMenuCSSClass);
     }
 
     // we want to avoid placing the menu outside of visible user space.
