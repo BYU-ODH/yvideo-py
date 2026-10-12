@@ -1163,10 +1163,6 @@
     border-radius: 8px 0 0 8px;
 }
 
-.track-row.active-track .timeline-row-left {
-    border-left: 3px solid #fff;
-}
-
 .timeline-row-right {
     flex: 1;
     border-radius: 0 8px 8px 0;

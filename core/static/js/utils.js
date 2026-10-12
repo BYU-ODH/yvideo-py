@@ -120,7 +120,7 @@ export async function makePostRequest(URL, body, contentType = "application/json
 */
 export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null) {
   const titleElement = wrapperElement.querySelector("p, h1, h2, h3, h4, h5, h6, span");
-  const inputElement = wrapperElement.querySelector("input, textarea");
+  const inputElement = wrapperElement.querySelector("input, textarea, select");
   const editButton = wrapperElement.querySelector("button");
 
   const missingTitle = !titleElement;
@@ -145,7 +145,9 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditC
     titleElement.classList.add("hidden");
     editButton.classList.add("hidden");
     inputElement.classList.remove("hidden");
-    inputElement.select();
+    if (inputElement.select) {
+      inputElement.select();
+    }
   });
 
   inputElement.addEventListener("keydown", async (e) => {
@@ -172,5 +174,99 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditC
       inputElement.value = originalTitle;
       hideInput();
     }
+  });
+}
+
+/* setupMultiOptionMenu
+* Handles positioning, 'opening' and 'closing' of multi option menus. The menu is positioned
+* where ever it has space to be displayed and is placed relative to the menu open button.
+* The menu will be left aligned to the menu open button if possible; if not, then right aligned.
+* document.documentElement is used to determine where the menu fits.
+*/
+export function setupMultiOptionMenu(menuOptionComponentWrapper) {
+  if (!menuOptionComponentWrapper || !(menuOptionComponentWrapper instanceof HTMLElement)) {
+    console.error("The menuOptionComponentWrapper must be an HTMLElement to set up a multi option menu.");
+    return;
+  }
+
+  // attempt to find menu wrapper element if the element provided isn't the wrapper
+  if (!menuOptionComponentWrapper.className.includes("multi-option-menu-wrapper")) {
+    const findResult = menuOptionComponentWrapper.querySelector(".multi-option-menu-wrapper");
+    if (!findResult) {
+      return;
+    }
+    menuOptionComponentWrapper = findResult;
+  }
+
+  const menuOpenButtonEl = menuOptionComponentWrapper.querySelector(".multi-option-menu-wrapper .open-multi-option-menu");
+  const menuOptionsWrapperEl = menuOptionComponentWrapper.querySelector(".multi-option-menu");
+
+  if (!(menuOpenButtonEl instanceof HTMLElement) || !(menuOptionsWrapperEl instanceof HTMLElement)) {
+    console.error("The menuOptionsButtonEl and menuOptionsWrapperEl must be HTMLElements to set up a multi option menu.");
+    return;
+  }
+
+  menuOpenButtonEl.setAttribute("aria-expanded", String(menuOptionsWrapperEl.style.visibility === "visible"));
+
+  const closeMenu = () => {
+    menuOptionsWrapperEl.style.visibility = "hidden";
+    menuOpenButtonEl.setAttribute("aria-expanded", "false");
+  };
+
+  document.addEventListener("click", (e) => {
+    // Let the open button's own handler toggle the menu.
+    if (!menuOptionsWrapperEl.contains(e.target) && !menuOpenButtonEl.contains(e.target)) {
+      closeMenu();
+    }
+  }, true);
+
+  menuOptionComponentWrapper.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && menuOptionsWrapperEl.style.visibility === "visible") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMenu();
+      menuOpenButtonEl.focus();
+    }
+  });
+
+  menuOpenButtonEl.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (menuOptionsWrapperEl.style.visibility === "visible") {
+      menuOptionsWrapperEl.style.visibility = "hidden";
+      menuOpenButtonEl.setAttribute("aria-expanded", "false");
+      return;
+    }
+
+    // Don't clutter the UI with open menus
+    const visibleMenuCSSClass = "visible-multi-option-menu";
+    const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
+    for (let menu of allVisibleTrackMenus) {
+      menu.classList.remove(visibleMenuCSSClass);
+    }
+
+    // we want to avoid placing the menu outside of visible user space.
+    // Ideally, the menu will be left aligned with the open button,
+    // but the function is designed to open right aligned if there isn't
+    // enough room. All repositioning happens while the element is invisible
+    // so the user doesn't see the menu jumping around on screen.
+    menuOptionsWrapperEl.style.visibility = "hidden";
+    const referenceDimensions = document.documentElement.getBoundingClientRect();
+    const openButtonPosition = menuOpenButtonEl.getBoundingClientRect();
+    const menuPosition = menuOptionsWrapperEl.getBoundingClientRect();
+    const isLeftAligned = (openButtonPosition.left + menuPosition.width) < referenceDimensions.right;
+
+    // opening down is favored because that is what is typically seen on other websites
+    const isSpaceToOpenDown = (openButtonPosition.bottom + menuPosition.height) < referenceDimensions.bottom;
+
+    // positioning is relative to parent div
+    if (!isLeftAligned) {
+      menuOptionsWrapperEl.style.right = "0px";
+    }
+    if (!isSpaceToOpenDown) {
+      menuOptionsWrapperEl.style.bottom = openButtonPosition.height + "px";
+    }
+
+    menuOptionsWrapperEl.style.visibility = "visible";
+    menuOpenButtonEl.setAttribute("aria-expanded", "true");
   });
 }

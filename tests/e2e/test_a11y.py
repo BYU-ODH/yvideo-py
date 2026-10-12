@@ -753,7 +753,7 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
 
     page.locator("#annotation-set-menu-button").click()
-    page.wait_for_selector(".visible-multi-select-menu")
+    page.wait_for_selector(".visible-multi-option-menu")
     assert_no_violations(
         page, "the annotation set menu", include=["#annotation-panel-header"]
     )
@@ -813,8 +813,8 @@ def test_the_editor_timeline_controls_have_no_a11y_violations(
     # The middle row of three, so the menu renders every branch at once: the first stack
     # position hides Move up and Delete, and the last hides Move down.
     track_row = page.locator(".track-row").nth(1)
-    track_row.locator(".open-multi-select-button").click()
-    page.wait_for_selector(".visible-multi-select-menu")
+    track_row.locator(".open-multi-option-menu").click()
+    page.wait_for_selector(".visible-multi-option-menu")
     assert_no_violations(page, "a track's options menu", include=[".track-row"])
 
     track_row.locator(".track-menu-rename").click()

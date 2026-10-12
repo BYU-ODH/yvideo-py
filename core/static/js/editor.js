@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeLocators } from "./BlurEditor.js";
 import {
   RESIZE_HANDLES,
@@ -104,7 +104,6 @@ export class Editor {
         this.attachVideoListeners();
         this.setupTracks();
         this.watchForTrackCreation();
-        this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchAndHandleAnnotationSetDelete();
@@ -1529,7 +1528,7 @@ export class Editor {
     // use this method to apply all relevant watchers (event listeners) to
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
-      this.watchForMultiSelectMenuOpen(trackRootElement);
+      setupMultiOptionMenu(trackRootElement);
       this.watchForDisplayTrackRename(trackRootElement);
       this.watchForTrackRename(trackRootElement);
       this.watchForTrackMovement(trackRootElement);
@@ -1540,54 +1539,6 @@ export class Editor {
     watchForTrackActivation(trackRootElement) {
       const trackId = trackRootElement.dataset["trackId"];
       trackRootElement.addEventListener("click", () => this.setActiveTrack(trackId));
-    }
-
-    /* track options menu */
-    handleMultiSelectMenuOpen(e) {
-      e.stopPropagation();
-      // we don't want more than one track menu visible at one time
-      const visibleMenuCSSClass = "visible-multi-select-menu";
-      const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
-      for (let menu of allVisibleTrackMenus) {
-        menu.classList.remove(visibleMenuCSSClass);
-      }
-
-      // get track menu and position it properly
-      const wrapperDim = this.timelineWrapper.getBoundingClientRect();
-      const trackMenuWrapper = e.target.closest(".multi-select-menu-parent");
-      const trackOptionsMenu = trackMenuWrapper.querySelector(".multi-select-menu");
-      trackOptionsMenu.style.visibility = "hidden";
-      trackOptionsMenu.classList.add(visibleMenuCSSClass);
-      const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
-      if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
-        trackOptionsMenu.classList.add("multi-select-menu-bumped-up");
-      }
-
-      // now we are safe to make the track menu visible
-      trackOptionsMenu.style.visibility = "";
-    }
-
-    watchForMultiSelectMenuOpen(multiSelectMenuWrapper) {
-      const menuButton = multiSelectMenuWrapper.querySelector(".open-multi-select-button");
-      if (menuButton) {
-        menuButton.addEventListener("click", this.handleMultiSelectMenuOpen.bind(this));
-      }
-      else {
-        console.error("No menu button element found");
-      }
-    }
-
-    watchForClickOutsideOfTrackMenu() {
-      const editorContainer = document.getElementById("editor-container");
-      editorContainer.addEventListener("click", (e) => {
-        const visibleTrackMenus = document.getElementsByClassName("visible-multi-select-menu");
-        for (let menu of visibleTrackMenus) {
-          const menuDim = menu.getBoundingClientRect();
-          if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
-            menu.classList.remove("visible-multi-select-menu");
-          }
-        }
-      });
     }
 
     replaceTracksWithNewHTML(newTracksHTML) {
@@ -2347,8 +2298,8 @@ export class Editor {
     }
 
     watchAndHandleAnnotationSetMenuOpen() {
-      const annotationSetMenuWrapper = document.getElementById("annotation-panel-header");
-      this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
+      const annotationSetMenuWrapper = document.getElementById("annotation-set-settings-menu-wrapper");
+      setupMultiOptionMenu(annotationSetMenuWrapper);
     }
 
     async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
