@@ -371,12 +371,15 @@ def playlists(request):
             }
         )
 
-    # Direct grants are listed whatever the role, but the same published/archived
-    # filter applies, so a card is never shown for a playlist that would 403.
-    manual_playlists = [
+    # Collaborator grants are listed above regardless of state; read-only grants get
+    # the same published/archived filter, so a card is never shown that would 403.
+    read_only_grant_playlists = [
         prepare_playlist_for_display(playlist)
         for playlist in Playlist.objects.filter(
-            playlistuseraccess__user=request.user, published=True, archived=False
+            playlistuseraccess__user=request.user,
+            playlistuseraccess__playlist_role=PlaylistRole.STUDENT,
+            published=True,
+            archived=False,
         ).exclude(owner=request.user)
     ]
 
@@ -386,7 +389,7 @@ def playlists(request):
         "owned_playlists": owned_playlists,
         "collaborator_playlists": collaborator_playlists,
         "assigned_courses_by_yearterm": playlists_by_course_by_yearterm,
-        "manual_playlists": manual_playlists,
+        "read_only_grant_playlists": read_only_grant_playlists,
         # Lab assistants act on an instructor's behalf, so the legacy differences are
         # theirs to know too.
         "show_whats_new": request.user.is_instructor or request.user.is_lab_assistant,

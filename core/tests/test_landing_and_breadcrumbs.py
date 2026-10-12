@@ -22,6 +22,7 @@ class LandingPageTests(TestCase):
             instructor=True, netid="collabinstr"
         )
         self.playlist = PlaylistFactory(owner=self.instructor)
+        # TODO: use PlaylistRole.COLLABORATOR for both grants once #452 merges.
         PlaylistUserAccessFactory(
             user=self.ta, playlist=self.playlist, playlist_role=PlaylistRole.TA
         )
@@ -97,6 +98,31 @@ class LandingPageTests(TestCase):
         self.assertContains(response, "my-playlists-wrapper")
         self.assertContains(response, "collaborator-playlists-wrapper")
         self.assertContains(response, "playlists-wrapper")
+
+    def test_collaborator_and_read_only_grants_do_not_overlap(self):
+        published = PlaylistFactory(
+            owner=self.instructor, name="Published", published=True
+        )
+        PlaylistUserAccessFactory(
+            user=self.ta, playlist=published, playlist_role=PlaylistRole.TA
+        )
+        PlaylistUserAccessFactory(
+            user=self.student, playlist=published, playlist_role=PlaylistRole.STUDENT
+        )
+
+        self.client.force_login(self.ta)
+        context = self.client.get("/playlists/").context
+        self.assertIn(
+            published.pk, [p["pk"] for p in context["collaborator_playlists"]]
+        )
+        self.assertEqual(context["read_only_grant_playlists"], [])
+
+        self.client.force_login(self.student)
+        context = self.client.get("/playlists/").context
+        self.assertEqual(context["collaborator_playlists"], [])
+        self.assertEqual(
+            [p["pk"] for p in context["read_only_grant_playlists"]], [published.pk]
+        )
 
 
 @modify_settings(

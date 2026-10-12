@@ -249,6 +249,7 @@ class User(AbstractUser):
         is anyone marked as a TA or co-instructor for a playlist"""
         return list(
             self.accessible_playlists.filter(
+                # TODO: use PlaylistRole.COLLABORATOR once #452 merges.
                 playlistuseraccess__playlist_role__in=(
                     PlaylistRole.INSTRUCTOR,
                     PlaylistRole.TA,
