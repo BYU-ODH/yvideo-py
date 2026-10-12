@@ -40,6 +40,7 @@ from .dump import run_legacy_dump
 from .file_index import ChecksumCache
 from .file_index import CurrentFileIndex
 from .file_index import compute_checksum
+from .legacy_roles import map_legacy_collection_role
 from .models import LegacyMigrationFileAction
 from .models import LegacyMigrationFileDecision
 from .models import LegacyMigrationIssue
@@ -57,7 +58,6 @@ from .parsers import LegacyFileInfo
 from .parsers import build_subtitle_vtt
 from .parsers import build_user_fingerprint
 from .parsers import make_json_safe
-from .parsers import map_legacy_collection_role
 from .parsers import map_legacy_media_type
 from .parsers import normalize_name
 from .parsers import parse_legacy_annotations

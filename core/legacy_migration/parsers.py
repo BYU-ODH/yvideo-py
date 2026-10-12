@@ -6,7 +6,6 @@ import re
 
 from django.utils import timezone
 
-from ..models import PlaylistRole
 from ..models import Resource
 from ..utils import VTTCue
 from ..utils import build_vtt_file_string_from_cues
@@ -140,29 +139,6 @@ def map_legacy_media_type(legacy_value):
     if value in {"www", "web"}:
         return Resource.MediaType.WEB
     return Resource.MediaType.VIDEO
-
-
-def map_legacy_collection_role(legacy_value):
-    """Map a legacy `collection_access.account_role` to a PlaylistRole, or None.
-
-    Legacy roles 0 and 1 were "instructor" and "TA", which had identical access, so both
-    import as collaborators. Legacy role 3 was "auditor", which this app never
-    distinguished from a student, so PlaylistRole dropped it (#361) and auditors import
-    as students. The mapping is
-    explicit rather than `PlaylistRole(int(value))` because None is load-bearing:
-    preflight files an unknown_collection_role warning for it and the import skips the
-    grant entirely, which is the wrong answer for a role we do recognize.
-    """
-    try:
-        value = int(legacy_value)
-    except (TypeError, ValueError):
-        return None
-    return {
-        0: PlaylistRole.COLLABORATOR,
-        1: PlaylistRole.COLLABORATOR,
-        2: PlaylistRole.STUDENT,
-        3: PlaylistRole.STUDENT,
-    }.get(value)
 
 
 def make_json_safe(value):
