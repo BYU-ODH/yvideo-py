@@ -1,19 +1,20 @@
 import { getCSRFToken } from "./utils.js";
 
 function setupPlaylistSearch() {
-  const playlistSearch = document.getElementById("playlists-search");
-  if (!playlistSearch) {
-    return;
-  }
-  playlistSearch.addEventListener("input", () => {
-    const searchText = playlistSearch.value.toLowerCase();
-    const landingPageList = playlistSearch.closest(".landing-page-playlist-list");
-    const playlists = landingPageList.querySelectorAll(".playlist-item-tile");
-    for (let playlist of playlists) {
-      const name = playlist.querySelector(".playlist-header-name")?.innerText.toLowerCase() || "";
-      playlist.style.display = name.includes(searchText) ? "" : "none";
+  for (let searchInput of document.querySelectorAll(".list-search-input")) {
+    if (!searchInput) {
+      continue;
     }
-  });
+    searchInput.addEventListener("input", () => {
+      const searchText = searchInput.value.toLowerCase();
+      const landingPageList = searchInput.closest(".landing-page-playlist-list");
+      const playlists = landingPageList.querySelectorAll(".playlist-item-tile");
+      for (let playlist of playlists) {
+        const name = playlist.querySelector(".playlist-header-name")?.innerText.toLowerCase() || "";
+        playlist.style.display = name.includes(searchText) ? "" : "none";
+      }
+    });
+  }
 }
 
 function setupNewPlaylistSubmit() {
