@@ -371,6 +371,16 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
+
+      const panelItemDeleteButton = element.querySelector(".panel-item-delete");
+      if (panelItemDeleteButton) {
+        panelItemDeleteButton.addEventListener("click", async (e) => {
+          e.preventDefault();
+          // Keeps the parent panel item's click handler from reloading the deleted item's form
+          e.stopPropagation();
+          await this.deleteItem(annotationType, annotationId);
+        });
+      }
       element.dataset.clickSetup = "true";
     }
 
@@ -519,6 +529,10 @@ export class Editor {
     }
 
     async deleteItem(annotationType, annotationId) {
+      if (!window.confirm(`Delete this ${annotationType} annotation? This cannot be undone.`)) {
+        return;
+      }
+
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": getCSRFToken()}
@@ -578,9 +592,6 @@ export class Editor {
         const annotationType = itemForm.dataset["annotationType"];
         const annotationId = itemForm.dataset["annotationId"];
 
-        if (!window.confirm(`Delete this ${annotationType} annotation? This cannot be undone.`)) {
-          return;
-        }
         await this.deleteItem(annotationType, annotationId);
       });
     }
@@ -1964,7 +1975,7 @@ export class Editor {
               const parsedResponse = await response.json();
               const newPanelItemHtml = parsedResponse["panel_item_html"];
               const panel = document.getElementById(`${annotationType}-annotation-items-list`);
-              panel.innerHTML = panel.innerHTML + newPanelItemHtml;
+              panel.insertAdjacentHTML("beforeend", newPanelItemHtml);
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
