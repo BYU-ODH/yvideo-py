@@ -222,7 +222,7 @@ export function setupMultiOptionMenu(menuOptionComponentWrapper) {
   // close the menu when anywhere else is clicked to prevent UI clutter.
   // We exclude the menuOpenButton because it has its own way to close the menu
   document.addEventListener("click", (e) => {
-    if (!menuOptionsWrapperEl.contains(e.target) && !menuOpenButtonEl.contains(e.target)) {
+    if (!menuOpenButtonEl.contains(e.target)) {
       closeMenu();
     }
   }, true);
