@@ -198,7 +198,7 @@ export function setupMultiOptionMenu(menuOptionComponentWrapper) {
     menuOptionComponentWrapper = findResult;
   }
 
-  const menuOpenButtonEl = menuOptionComponentWrapper.querySelector(".multi-option-menu-wrapper .open-multi-option-menu");
+  const menuOpenButtonEl = menuOptionComponentWrapper.querySelector(".open-multi-option-menu");
   const menuOptionsWrapperEl = menuOptionComponentWrapper.querySelector(".multi-option-menu");
 
   if (!(menuOpenButtonEl instanceof HTMLElement) || !(menuOptionsWrapperEl instanceof HTMLElement)) {
