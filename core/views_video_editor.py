@@ -1075,7 +1075,9 @@ def display_annotation_set_create_option(request):
     try:
         return HttpResponse(
             render_to_string(
-                "core/partials/annotation_set_options/create_new.html", {}, request
+                "core/partials/modals/annotation_set_options/create_new.html",
+                {},
+                request,
             )
         )
     except Exception as e:
@@ -1090,7 +1092,7 @@ def display_annotation_set_import_option(request):
     try:
         return HttpResponse(
             render_to_string(
-                "core/partials/annotation_set_options/import_from_file.html",
+                "core/partials/modals/annotation_set_options/import_from_file.html",
                 {},
                 request,
             )
@@ -1108,7 +1110,7 @@ def display_copy_from_annotation_set_option(request, content):
     try:
         return HttpResponse(
             render_to_string(
-                "core/partials/annotation_set_options/copy_from_set.html",
+                "core/partials/modals/annotation_set_options/copy_from_set.html",
                 {
                     "available_annotation_sets": annotation_set_choices(
                         content, request.user
@@ -1131,7 +1133,7 @@ def display_use_existing_annotation_set_option(request, content):
     try:
         return HttpResponse(
             render_to_string(
-                "core/partials/annotation_set_options/use_existing_set.html",
+                "core/partials/modals/annotation_set_options/use_existing_set.html",
                 {
                     "available_annotation_sets": annotation_set_choices(
                         content, request.user
