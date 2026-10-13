@@ -1060,7 +1060,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/select_resource.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
-    "core/partials/user_view_modal.html",
+    "core/partials/modal/user_view_modal.html",
     # editor
     "core/partials/annotation_form.html",
     "core/partials/annotation_list_item.html",
