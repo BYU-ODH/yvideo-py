@@ -2637,9 +2637,6 @@ export class Editor {
       }
       annotationPanelSwitchButton.addEventListener("click", () => {
         togglePanelVisiblity();
-        if (subtitlesPanel.classList.contains("subtitle-editor-panel-visible") && !this.selectedSubtitleTrackId) {
-          document.getElementById("open-subtitle-track-options-modal")?.click();
-        }
       });
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
     }
