@@ -173,6 +173,10 @@ def video_editor(request, content):
         file_key = request.user.get_resource_filekey(content)
 
         subtitle_options = content.get_subtitles()
+        subtitle_panel = {
+            "subtitle_track_selection_modal_id": "subtitle-track-selection-modal",
+            "subtitle_track_creation_modal_id": "subtitle-track-creation-modal",
+        }
 
         available_sets = annotation_set_choices(content, request.user)
 
@@ -223,6 +227,7 @@ def video_editor(request, content):
             "annotation_groups": annotation_groups,
             "tracks": tracks,
             "subtitle_options": subtitle_options,
+            "subtitle_panel": subtitle_panel,
         }
 
         return render(request, "core/video_editor.html", context)

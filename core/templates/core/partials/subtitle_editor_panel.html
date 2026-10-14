@@ -17,13 +17,35 @@
                         type="button"
                         class="multi-option-menu-button"
                         command="show-modal"
-                        commandfor="change-subtitle-track-modal">Change track to edit</button>
+                        commandfor="{{ subtitle_panel.subtitle_track_selection_modal_id }}">
+                    Select existing subtitle track
+                </button>
+                <button id="open-subtitle-track-creation-modal"
+                        type="button"
+                        class="multi-option-menu-button"
+                        command="show-modal"
+                        commandfor="{{ subtitle_panel.subtitle_track_creation_modal_id }}">
+                    Create new subtitle track
+                </button>
             </div>
         </div>
-        {% include 'core/partials/modals/subtitle_track_options.html' %}
+        {% include 'core/partials/modals/select_subtitle_track.html' with dialog_id=subtitle_panel.subtitle_track_selection_modal_id %}
+        {% include 'core/partials/modals/create_subtitle_track.html' with dialog_id=subtitle_panel.subtitle_track_creation_modal_id %}
     </div>
-    {% include 'core/partials/subtitle_panel_content.html' %}
-
+    <div id="subtitle-editor-panel-content">
+        <div id="subtitle-editor-content-empty">
+            <button id="subtitle-panel-select-existing-track"
+                    command="show-modal"
+                    commandfor="{{ subtitle_panel.subtitle_track_selection_modal_id }}">
+                Select existing subtitle track
+            </button>
+            <button id="subtitle-panel-create-new-track"
+                    command="show-modal"
+                    commandfor="{{ subtitle_panel.subtitle_track_creation_modal_id }}">
+                Create new subtitle track
+            </button>
+        </div>
+    </div>
     <button id="subtitle-panel-switch"
             class="white-button-with-border editor-panel-switch">Switch to Annotation Editor</button>
 </div>

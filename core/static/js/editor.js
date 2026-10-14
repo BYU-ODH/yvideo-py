@@ -111,6 +111,7 @@ export class Editor {
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.watchAndHandleEditorPanelSwitch();
+        this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
         this.handleNoAnnotationSet();
     }
@@ -2634,8 +2635,18 @@ export class Editor {
         subtitlesPanel.classList.toggle("subtitle-editor-panel-visible");
         subtitlesPanel.classList.toggle("subtitle-editor-panel-hidden");
       }
-      annotationPanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+      annotationPanelSwitchButton.addEventListener("click", () => {
+        togglePanelVisiblity();
+        if (subtitlesPanel.classList.contains("subtitle-editor-panel-visible") && !this.selectedSubtitleTrackId) {
+          document.getElementById("open-subtitle-track-options-modal")?.click();
+        }
+      });
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+    }
+
+    setupSubtitleEditorMenu() {
+      const subtitleMenu= document.getElementById("subtitle-track-settings-menu-wrapper");
+      setupMultiOptionMenu(subtitleMenu);
     }
 
     watchAndHandleSubtitleTrackChange() {
@@ -2686,6 +2697,8 @@ export class Editor {
       const createTrack = async () => {
         const name = newTrackNameInput.value.trim();
         const language = newTrackLanguageInput.value.trim();
+        newTrackNameInput.classList.toggle("invalid-input", !name);
+        newTrackLanguageInput.classList.toggle("invalid-input", !language);
         if (!name || !language || createTrackButton.disabled) return;
 
         createTrackButton.disabled = true;
