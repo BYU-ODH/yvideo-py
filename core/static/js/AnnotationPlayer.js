@@ -753,7 +753,7 @@ export class AnnotationPlayer {
       const isActiveNow = time >= aStart && time < aEnd
       switch (aType) {
         case "skip":
-          if (isActiveNow) {
+          if (isActiveNow && this._skipsAreHonored()) {
             this.skipTo(aEnd);
           }
           break;
@@ -1133,8 +1133,16 @@ export class AnnotationPlayer {
     this.timeCache = newTime;
   }
 
+  // Editors need to inspect and scrub through skipped footage while paused, but still see
+  // skips take effect during playback.
+  _skipsAreHonored() {
+    if (!this.editorMode) return true;
+    // Dragging pauses the video, so the pre-drag state decides.
+    return this.isDragging ? this.wasPlayingBeforeDrag : !this.videoElem.paused;
+  }
+
   _getSkipBoundary(time, direction = 'nearest') {
-    if (!this.annotations) return null;
+    if (!this.annotations || !this._skipsAreHonored()) return null;
 
     const skipEvents = this.annotations.filter(event =>
       (event.type === 'Skip' || event.type === 'skip')
