@@ -185,7 +185,7 @@ def video_editor(request, content):
         )
 
         # Renaming and retiring a set are the owner's alone, unlike editing its
-        # contents, which any of that owner's TAs may do.
+        # contents, which any of that owner's collaborators may do.
         can_administer_annotation_set = (
             annotation_set is not None
             and annotation_set.can_be_orphaned_by(request.user)

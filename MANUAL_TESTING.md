@@ -293,7 +293,7 @@ Y-Video.
 
 - [ ] Type the NetID of someone with no Y-Video account. Nothing matches in the results
       list — that is expected; the results list only ever shows existing accounts.
-- [ ] Choose **TA** and press **+ Add**. They appear in the list with their real name, not
+- [ ] Choose **Collaborator** and press **+ Add**. They appear in the list with their real name, not
       their NetID, which is how you know the directory answered rather than a row being
       invented.
 - [ ] Repeat with that person's 9-digit BYU ID on another playlist. Same result.

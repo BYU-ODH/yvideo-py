@@ -67,7 +67,7 @@ class DemoSeedDataTests(TestCase):
             PlaylistUserAccess.objects.filter(
                 user=admin_user,
                 playlist__owner=admin_user,
-                playlist_role=PlaylistRole.INSTRUCTOR,
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).count(),
             2,
         )
@@ -125,8 +125,8 @@ class DemoSeedDataTests(TestCase):
             ),
             {"#", "k"},
         )
-        # Edit rights are derived, not stored: the seeded TA holds PlaylistRole.TA on
-        # a playlist Professor Ada owns, which is what makes this set editable for them.
+        # Edit rights are derived, not stored: the seeded TA holds PlaylistRole.COLLABORATOR
+        # on a playlist Professor Ada owns, which is what makes this set editable for them.
         teaching_assistant = User.objects.get(username="111225555")
         self.assertTrue(birds_annotation_set.can_be_edited_by(teaching_assistant))
         self.assertTrue(birds_annotation_set.can_be_edited_by(admin_user))

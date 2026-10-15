@@ -40,10 +40,7 @@ class PrivilegeLevel(models.IntegerChoices):
 
 
 class PlaylistRole(models.IntegerChoices):
-    # Labels are spelled out because they reach users in the Manage People picker, and
-    # the generated ones would read "Instructor" (which the owner also is) and "Ta".
-    INSTRUCTOR = 0, "Co-instructor"
-    TA = 1, "TA"
+    COLLABORATOR = 0, "Collaborator"
     STUDENT = 2, "Student"
 
 
@@ -245,15 +242,10 @@ class User(AbstractUser):
         return not target_user.is_admin
 
     def get_collaborator_playlists(self):
-        """Returns playlists that this user is a collaborator on. A collaborator
-        is anyone marked as a TA or co-instructor for a playlist"""
+        """Returns playlists that this user is a collaborator on."""
         return list(
             self.accessible_playlists.filter(
-                # TODO: use PlaylistRole.COLLABORATOR once #452 merges.
-                playlistuseraccess__playlist_role__in=(
-                    PlaylistRole.INSTRUCTOR,
-                    PlaylistRole.TA,
-                )
+                playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR
             ).exclude(owner=self.pk)
         )
 
@@ -272,15 +264,12 @@ class User(AbstractUser):
         if self.is_instructor and resource.belongs_to_byu_library:
             return True
         # Write access on a playlist inherits that playlist owner's resource access,
-        # scoped to the owner rather than the playlist, so a TA can reach everything
-        # the instructor can.
+        # scoped to the owner rather than the playlist, so a collaborator can reach
+        # everything the instructor can.
         return ResourceAccess.objects.filter(
             resource=resource,
             user__playlists_owned__playlistuseraccess__user=self,
-            user__playlists_owned__playlistuseraccess__playlist_role__in=(
-                PlaylistRole.INSTRUCTOR,
-                PlaylistRole.TA,
-            ),
+            user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
         ).exists()
 
     def get_content_source_url(self, content):
@@ -367,7 +356,7 @@ class Playlist(models.Model):
         unique_together = ("name", "owner")
 
     def can_be_administered_by(self, user):
-        """Delete the playlist; grant the TA or INSTRUCTOR role."""
+        """Delete the playlist; grant the COLLABORATOR role."""
         return user.is_superuser or self.owner_id == user.pk
 
     def can_be_edited_by(self, user):
@@ -377,7 +366,7 @@ class Playlist(models.Model):
             or PlaylistUserAccess.objects.filter(
                 user=user,
                 playlist=self,
-                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
 
@@ -395,7 +384,7 @@ class Playlist(models.Model):
         )
 
     def can_grant_role(self, user, role):
-        if role in (PlaylistRole.INSTRUCTOR, PlaylistRole.TA):
+        if role == PlaylistRole.COLLABORATOR:
             return self.can_be_administered_by(user)
         return self.can_be_edited_by(user)
 
@@ -637,7 +626,7 @@ class AnnotationSet(models.Model):
             or PlaylistUserAccess.objects.filter(
                 user=user,
                 playlist__owner_id=self.owner_id,
-                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
 
@@ -645,7 +634,7 @@ class AnnotationSet(models.Model):
         return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
 
     def can_be_orphaned_by(self, user):
-        """Only the owner may retire a set, mirroring a TA's inability to delete a playlist."""
+        """Only the owner may retire a set, mirroring a collaborator's inability to delete a playlist."""
         return user.is_superuser or self.owner_id == user.pk
 
     def orphan(self):
@@ -1962,7 +1951,7 @@ class Subtitle(models.Model):
             or PlaylistUserAccess.objects.filter(
                 user=user,
                 playlist__owner_id=self.owner_id,
-                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
 

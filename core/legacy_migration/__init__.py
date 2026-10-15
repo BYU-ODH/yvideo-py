@@ -2,6 +2,7 @@ from .catalog import LegacyCatalogClient
 from .dump import run_legacy_dump
 from .file_index import ChecksumCache
 from .file_index import CurrentFileIndex
+from .legacy_roles import map_legacy_collection_role
 from .models import LegacyMigrationFileAction
 from .models import LegacyMigrationFileDecision
 from .models import LegacyMigrationIssue
@@ -17,7 +18,6 @@ from .models import LegacyMigrationStatus
 from .models import LegacyMigrationUserResolution
 from .models import LegacyMigrationUserResolutionStatus
 from .models import LegacySourceMap
-from .parsers import map_legacy_collection_role
 from .service import LegacyMigrationJobCanceled
 from .service import LegacyMigrationService
 

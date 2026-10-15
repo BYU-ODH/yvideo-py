@@ -91,7 +91,7 @@ class BlurPositionEndpointTests(TestCase):
         PlaylistUserAccessFactory(
             playlist=PlaylistFactory(owner=self.owner),
             user=self.stranger,
-            playlist_role=PlaylistRole.TA,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
         self.client.force_login(self.stranger)
         self.assertEqual(self._upsert().status_code, 200)
