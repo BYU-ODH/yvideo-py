@@ -10,7 +10,9 @@ pytestmark = [
 ]
 
 VIDEO = ".annotation-player-container video"
-SKIP = {"id": 1, "type": "skip", "start": 4.0, "end": 8.0}
+# Long enough that plain playback from inside it cannot reach its end within PLAYBACK_TIMEOUT_MS.
+SKIP = {"id": 1, "type": "skip", "start": 4.0, "end": 15.0}
+PLAYBACK_TIMEOUT_MS = 2000
 
 
 def _load_skip(page):
@@ -52,8 +54,13 @@ def test_paused_editor_can_drag_scrubber_inside_a_skip(page, open_editor):
     page.mouse.move(box["x"] + 1, y)
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] * target / duration, y, steps=5)
+    # Read before release: the click that follows mouseup seeks on its own.
+    during_drag = page.evaluate(
+        "(video) => document.querySelector(video).currentTime", VIDEO
+    )
     page.mouse.up()
 
+    assert during_drag == pytest.approx(target, abs=duration * 0.02)
     assert _settled_time(page) == pytest.approx(target, abs=duration * 0.02)
 
 
@@ -69,7 +76,7 @@ def test_playing_editor_still_honors_skips(page, open_editor):
     page.wait_for_function(
         "([video, end]) => document.querySelector(video).currentTime >= end",
         arg=[VIDEO, SKIP["end"]],
-        timeout=5000,
+        timeout=PLAYBACK_TIMEOUT_MS,
     )
 
 
