@@ -91,17 +91,17 @@ test("contentRect never emits NaN for a degenerate element box", () => {
 
 // Deliberately asymmetric on every axis so that swapping x/y or width/height, or
 // interpolating one field with another's endpoints, cannot cancel out and pass.
-const POSITIONS = [
+const BLUR_ANCHOR_POINTS = [
   { time: 2, x: 10, y: 20, width: 30, height: 40 },
   { time: 6, x: 50, y: 24, width: 22, height: 48 },
 ];
 
-test("rectAtTime returns null when there are no positions", () => {
+test("rectAtTime returns null when there are no blurAnchorPoints", () => {
   assert.equal(rectAtTime([], 1), null);
   assert.equal(rectAtTime(undefined, 1), null);
 });
 
-test("rectAtTime holds a lone position constant at any time", () => {
+test("rectAtTime holds a lone blurAnchorPoint constant at any time", () => {
   const only = [{ time: 5, x: 1, y: 2, width: 3, height: 4 }];
   const expected = { x: 1, y: 2, width: 3, height: 4 };
   for (const time of [-100, 0, 5, 1000]) {
@@ -110,7 +110,7 @@ test("rectAtTime holds a lone position constant at any time", () => {
 });
 
 test("rectAtTime interpolates every field independently at the midpoint", () => {
-  assert.deepEqual(rectAtTime(POSITIONS, 4), {
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, 4), {
     x: 30,
     y: 22,
     width: 26,
@@ -120,7 +120,7 @@ test("rectAtTime interpolates every field independently at the midpoint", () => 
 
 test("rectAtTime interpolates off-center", () => {
   // A quarter of the way from t=2 to t=6.
-  assert.deepEqual(rectAtTime(POSITIONS, 3), {
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, 3), {
     x: 20,
     y: 21,
     width: 28,
@@ -129,19 +129,19 @@ test("rectAtTime interpolates off-center", () => {
 });
 
 test("rectAtTime returns the exact endpoints at the endpoints", () => {
-  assert.deepEqual(rectAtTime(POSITIONS, 2), { x: 10, y: 20, width: 30, height: 40 });
-  assert.deepEqual(rectAtTime(POSITIONS, 6), { x: 50, y: 24, width: 22, height: 48 });
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, 2), { x: 10, y: 20, width: 30, height: 40 });
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, 6), { x: 50, y: 24, width: 22, height: 48 });
 });
 
-test("rectAtTime holds constant outside the first and last position", () => {
+test("rectAtTime holds constant outside the first and last blurAnchorPoint", () => {
   // Never extrapolate: a blur must not drift somewhere its author never put it.
-  assert.deepEqual(rectAtTime(POSITIONS, -5), { x: 10, y: 20, width: 30, height: 40 });
-  assert.deepEqual(rectAtTime(POSITIONS, 1.99), { x: 10, y: 20, width: 30, height: 40 });
-  assert.deepEqual(rectAtTime(POSITIONS, 6.01), { x: 50, y: 24, width: 22, height: 48 });
-  assert.deepEqual(rectAtTime(POSITIONS, 9999), { x: 50, y: 24, width: 22, height: 48 });
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, -5), { x: 10, y: 20, width: 30, height: 40 });
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, 1.99), { x: 10, y: 20, width: 30, height: 40 });
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, 6.01), { x: 50, y: 24, width: 22, height: 48 });
+  assert.deepEqual(rectAtTime(BLUR_ANCHOR_POINTS, 9999), { x: 50, y: 24, width: 22, height: 48 });
 });
 
-test("rectAtTime walks past intermediate positions to the right bracket", () => {
+test("rectAtTime walks past intermediate blurAnchorPoints to the right bracket", () => {
   const three = [
     { time: 0, x: 0, y: 0, width: 10, height: 10 },
     { time: 10, x: 100, y: 50, width: 10, height: 10 },
@@ -155,7 +155,7 @@ test("rectAtTime survives duplicate timestamps without emitting NaN", () => {
     { time: 3, x: 0, y: 0, width: 10, height: 10 },
     { time: 3, x: 80, y: 60, width: 20, height: 30 },
   ];
-  // Snaps to the later position rather than dividing by a zero-width span.
+  // Snaps to the later anchor point rather than dividing by a zero-width span.
   assert.deepEqual(rectAtTime(duplicated, 3), { x: 0, y: 0, width: 10, height: 10 });
   const between = rectAtTime(duplicated, 3.000001);
   for (const [key, value] of Object.entries(between)) {
@@ -164,14 +164,14 @@ test("rectAtTime survives duplicate timestamps without emitting NaN", () => {
 });
 
 test("rectAtTime does not mutate its input", () => {
-  const snapshot = structuredClone(POSITIONS);
-  rectAtTime(POSITIONS, 4);
-  assert.deepEqual(POSITIONS, snapshot);
+  const snapshot = structuredClone(BLUR_ANCHOR_POINTS);
+  rectAtTime(BLUR_ANCHOR_POINTS, 4);
+  assert.deepEqual(BLUR_ANCHOR_POINTS, snapshot);
 });
 
 // --- clampRect -------------------------------------------------------------
 //
-// These mirror BlurAnnotationPosition.save(); core/tests/test_blur_positions.py asserts the
+// These mirror BlurAnchorPoint.save(); core/tests/test_blur_anchor_points.py asserts the
 // same cases against the server. Any divergence shows up as a box that jumps on release.
 
 test("clampRect leaves a rect that is already inside the frame alone", () => {

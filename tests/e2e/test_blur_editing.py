@@ -58,7 +58,7 @@ def _stored_points(name):
             round(p.width, 2),
             round(p.height, 2),
         )
-        for p in _blur(name).positions.all()
+        for p in _blur(name).blur_anchor_points.all()
     ]
 
 
@@ -67,7 +67,7 @@ def _select(page, name):
     annotation = _blur(name)
     item = page.locator(_item_selector(annotation))
     item.locator(".track-item-content").click()
-    expect(page.locator("#blur-positions-wrapper")).to_be_visible()
+    expect(page.locator("#blur-anchor-points-wrapper")).to_be_visible()
     page.wait_for_selector("#blur-edit-rig", state="attached")
     return annotation
 
@@ -126,7 +126,7 @@ def _rig_percent(page):
 def _mark_panel(page):
     """Tag the rows of the points panel so their replacement can be detected.
 
-    A save replaces #positions-list, so waiting for the tag to disappear is a signal that the
+    A save replaces #blur-anchor-points-list, so waiting for the tag to disappear is a signal that the
     response landed - unlike the number of rows, which usually does not change. Reading the database
     before that point is also a real race, not just a slow assertion: the live server holds a write
     transaction on the same SQLite file the test would be reading.
@@ -136,14 +136,14 @@ def _mark_panel(page):
     on every edit.
     """
     page.evaluate(
-        "() => document.getElementById('positions-list').dataset.staleMarker = '1'"
+        "() => document.getElementById('blur-anchor-points-list').dataset.staleMarker = '1'"
     )
 
 
 def _wait_for_save(page):
     page.wait_for_function(
         """() => {
-            const list = document.getElementById('positions-list');
+            const list = document.getElementById('blur-anchor-points-list');
             return list && !list.dataset.staleMarker;
         }""",
         timeout=5000,
@@ -249,7 +249,7 @@ def _saved_points(page, name, expected_count):
 # --- moving and resizing the box --------------------------------------------
 #
 # There is nothing here that creates a blur region: a blur arrives with its box already on the frame
-# (ensure_first_position), and every gesture moves or resizes that box.
+# (ensure_first_blur_anchor_point), and every gesture moves or resizes that box.
 
 
 def test_dragging_on_empty_frame_does_nothing(page, open_editor):
@@ -425,7 +425,7 @@ def test_dragging_at_a_new_time_adds_a_point_and_leaves_the_others_alone(
 ):
     """The bug this phase exists to kill.
 
-    The old handler sent the selected position's id together with the current playhead, so moving
+    The old handler sent the selected anchor point's id together with the current playhead, so moving
     the box at a time between two points silently retimed one of them - losing coverage at the
     time it used to apply to, which for a blur means exposing what it was covering.
 
@@ -588,10 +588,10 @@ def test_deleting_a_point_updates_the_frame_without_a_reload(page, open_editor):
     _seek(page, 5.0)
 
     # Row 2 is the point at t=7.0; the first row has no delete button by design.
-    row = page.locator("#blur-positions-wrapper .position-entry").nth(1)
+    row = page.locator("#blur-anchor-points-wrapper .blur-anchor-point-entry").nth(1)
     row.click()
     _mark_panel(page)
-    row.locator(".blur-position-delete-button").click()
+    row.locator(".blur-anchor-point-delete-button").click()
 
     assert [point[0] for point in _saved_points(page, MOVING_BLUR, 2)] == [3.0, 11.0]
 
@@ -608,9 +608,13 @@ def test_the_first_point_cannot_be_deleted(page, open_editor):
     open_editor()
     _select(page, MOVING_BLUR)
 
-    first_row = page.locator("#blur-positions-wrapper .position-entry").first
-    expect(first_row.locator(".blur-position-delete-button")).to_have_count(0)
-    expect(first_row.locator(".position-time-input")).to_have_attribute("readonly", "")
+    first_row = page.locator(
+        "#blur-anchor-points-wrapper .blur-anchor-point-entry"
+    ).first
+    expect(first_row.locator(".blur-anchor-point-delete-button")).to_have_count(0)
+    expect(first_row.locator(".blur-anchor-point-time-input")).to_have_attribute(
+        "readonly", ""
+    )
 
 
 def test_the_first_points_time_looks_as_uneditable_as_it_is(page, open_editor):
@@ -637,7 +641,7 @@ def test_the_first_points_time_looks_as_uneditable_as_it_is(page, open_editor):
                 return 0.2126 * r + 0.7152 * g + 0.0722 * b;
             };
             const of = (row) => {
-                const input = row.querySelector('.position-time-input');
+                const input = row.querySelector('.blur-anchor-point-time-input');
                 const style = getComputedStyle(input);
                 const [light, dark] = [luminance(style.color),
                                        luminance(style.backgroundColor)].sort((a, b) => b - a);
@@ -649,7 +653,7 @@ def test_the_first_points_time_looks_as_uneditable_as_it_is(page, open_editor):
                     contrast: (light + 0.05) / (dark + 0.05),
                 };
             };
-            const rows = [...document.querySelectorAll('#positions-list .position-entry')];
+            const rows = [...document.querySelectorAll('#blur-anchor-points-list .blur-anchor-point-entry')];
             return { first: of(rows[0]), second: of(rows[1]) };
         }"""
     )
@@ -677,8 +681,8 @@ def test_the_first_points_time_looks_as_uneditable_as_it_is(page, open_editor):
     )
     # And it still shows the real value rather than being blanked out.
     expect(
-        page.locator("#positions-list .position-entry").first.locator(
-            ".position-time-input"
+        page.locator("#blur-anchor-points-list .blur-anchor-point-entry").first.locator(
+            ".blur-anchor-point-time-input"
         )
     ).to_have_value("0:00:03.00")
 
@@ -687,7 +691,7 @@ def test_clicking_a_panel_row_seeks_to_that_point(page, open_editor):
     open_editor()
     _select(page, MOVING_BLUR)
 
-    page.locator("#blur-positions-wrapper .position-entry").nth(1).click()
+    page.locator("#blur-anchor-points-wrapper .blur-anchor-point-entry").nth(1).click()
     page.wait_for_timeout(200)
     assert page.evaluate(
         "() => document.querySelector('.annotation-player-container video').currentTime"
@@ -698,7 +702,7 @@ def test_clicking_a_timeline_dot_seeks_to_that_point(page, open_editor):
     """The dots are delegated from the timeline now, because the item HTML is replaced on save."""
     annotation = open_editor() and _select(page, MOVING_BLUR)
 
-    dots = page.locator(f"{_item_selector(annotation)} .blur-position-locator")
+    dots = page.locator(f"{_item_selector(annotation)} .blur-anchor-point-dot")
     # The first point's dot is deliberately omitted: it would sit on the item's resize handle.
     expect(dots).to_have_count(2)
     dots.last.click()
@@ -717,7 +721,7 @@ def test_timeline_dots_land_at_their_points_relative_offsets(page, open_editor):
     item_box = item.bounding_box()
     offsets = []
     for index in range(2):
-        dot_box = item.locator(".blur-position-locator").nth(index).bounding_box()
+        dot_box = item.locator(".blur-anchor-point-dot").nth(index).bounding_box()
         center = dot_box["x"] + dot_box["width"] / 2
         offsets.append((center - item_box["x"]) / item_box["width"])
 
@@ -729,7 +733,7 @@ def test_timeline_dots_land_at_their_points_relative_offsets(page, open_editor):
 
 # --- the item bar ------------------------------------------------------------
 #
-# core/tests/test_blur_position_reconcile_endpoint.py covers the same two behaviours against the
+# core/tests/test_blur_anchor_point_reconcile_endpoint.py covers the same two behaviours against the
 # update endpoint. What these add is the path the user actually takes to reach it - the resize
 # handles and the timeline drag - plus the dots landing where the retimed points now are.
 
@@ -842,7 +846,7 @@ def test_dragging_the_item_shifts_every_point_and_its_dot(page, open_editor):
     moved_box = moved_item.bounding_box()
     offsets = []
     for index in range(2):
-        dot_box = moved_item.locator(".blur-position-locator").nth(index).bounding_box()
+        dot_box = moved_item.locator(".blur-anchor-point-dot").nth(index).bounding_box()
         offsets.append(
             (dot_box["x"] + dot_box["width"] / 2 - moved_box["x"]) / moved_box["width"]
         )
@@ -1133,11 +1137,11 @@ def _highlighted(page):
     """The point ids highlighted in the panel and on the timeline, as a pair of lists."""
     return page.evaluate(
         """() => ({
-            rows: [...document.querySelectorAll('.position-entry.active-position-entry')]
-                .map((r) => r.dataset.positionId),
+            rows: [...document.querySelectorAll('.blur-anchor-point-entry.active-blur-anchor-point-entry')]
+                .map((r) => r.dataset.blurAnchorPointId),
             dots: [...document.querySelectorAll(
-                '.blur-position-locator.active-blur-position-locator')]
-                .map((d) => d.dataset.positionId),
+                '.blur-anchor-point-dot.active-blur-anchor-point-dot')]
+                .map((d) => d.dataset.blurAnchorPointId),
         })"""
     )
 
@@ -1150,8 +1154,8 @@ def test_selecting_a_dot_highlights_its_panel_row(page, open_editor):
     already begun reloading the detail form - and the new rows came back with no highlight on them.
     """
     annotation = open_editor() and _select(page, MOVING_BLUR)
-    dot = page.locator(f"{_item_selector(annotation)} .blur-position-locator").first
-    expected = dot.get_attribute("data-position-id")
+    dot = page.locator(f"{_item_selector(annotation)} .blur-anchor-point-dot").first
+    expected = dot.get_attribute("data-blur-anchor-point-id")
 
     dot.click()
     page.wait_for_timeout(500)
@@ -1166,8 +1170,8 @@ def test_selecting_a_panel_row_highlights_its_dot(page, open_editor):
     open_editor()
     _select(page, MOVING_BLUR)
 
-    row = page.locator("#blur-positions-wrapper .position-entry").nth(1)
-    expected = row.get_attribute("data-position-id")
+    row = page.locator("#blur-anchor-points-wrapper .blur-anchor-point-entry").nth(1)
+    expected = row.get_attribute("data-blur-anchor-point-id")
     row.click()
     page.wait_for_timeout(500)
 
@@ -1190,10 +1194,10 @@ def test_a_row_pressed_while_its_neighbour_saves_is_still_the_row_that_gets_sele
     _select(page, MOVING_BLUR)
 
     target = _row_for(page, 2)
-    expected = target.get_attribute("data-position-id")
+    expected = target.get_attribute("data-blur-anchor-point-id")
 
     # Keystrokes rather than fill(), so `change` waits for the focus to leave, as it does for a user.
-    edited = _row_for(page, 1).locator(".position-x-input")
+    edited = _row_for(page, 1).locator(".blur-anchor-point-x-input")
     edited.click()
     edited.evaluate("input => input.select()")
     edited.press_sequentially("31.00")
@@ -1222,9 +1226,9 @@ def test_clicking_a_dot_on_an_unselected_blur_selects_both_the_blur_and_the_poin
 
     open_editor()
     annotation = BlurAnnotation.objects.get(name=MOVING_BLUR)
-    dot = page.locator(f"{_item_selector(annotation)} .blur-position-locator").first
-    expected = dot.get_attribute("data-position-id")
-    expected_time = float(dot.get_attribute("data-position-time"))
+    dot = page.locator(f"{_item_selector(annotation)} .blur-anchor-point-dot").first
+    expected = dot.get_attribute("data-blur-anchor-point-id")
+    expected_time = float(dot.get_attribute("data-blur-anchor-point-time"))
 
     dot.click()
     page.wait_for_selector("#blur-edit-rig", timeout=5000)
@@ -1243,7 +1247,7 @@ def test_the_selected_point_stays_selected_as_the_playhead_moves(page, open_edit
     _select(page, MOVING_BLUR)
 
     row = _row_for(page, 1)
-    expected = row.get_attribute("data-position-id")
+    expected = row.get_attribute("data-blur-anchor-point-id")
     row.click()
     assert _highlighted(page) == {"rows": [expected], "dots": [expected]}
 
@@ -1265,7 +1269,7 @@ def test_the_highlight_clears_when_the_blur_loses_focus(page, open_editor):
     and hid this: the dots live in the track item, which outlives the selection.
     """
     annotation = open_editor() and _select(page, MOVING_BLUR)
-    page.locator(f"{_item_selector(annotation)} .blur-position-locator").first.click()
+    page.locator(f"{_item_selector(annotation)} .blur-anchor-point-dot").first.click()
     page.wait_for_timeout(400)
     assert _highlighted(page)["dots"] != [], "nothing was lit, so nothing was proven"
 
@@ -1298,7 +1302,7 @@ def test_dots_hold_their_times_while_a_resize_handle_is_dragged(page, open_edito
                 const item = document.querySelector(sel);
                 return {
                     barWidth: item.getBoundingClientRect().width,
-                    centres: [...item.querySelectorAll('.blur-position-locator')].map((dot) => {
+                    centres: [...item.querySelectorAll('.blur-anchor-point-dot')].map((dot) => {
                         const box = dot.getBoundingClientRect();
                         return box.x + box.width / 2;
                     }),
@@ -1339,14 +1343,14 @@ def test_dots_hold_their_times_while_a_resize_handle_is_dragged(page, open_edito
 
 # --- the panel, the dots, the copy and the keyboard --------------------------
 #
-# Everything below is an affordance for reaching a blur point *without* a drag on the frame: by
+# Everything below is an affordance for reaching a blur anchor point *without* a drag on the frame: by
 # number, by keyboard, or by grabbing its dot. They matter because the frame gesture alone cannot
 # express "the same box, a little later" or "exactly 30% wide", and because a blur is the one
 # feature where being approximately right is not good enough.
 
 
 def _status(page):
-    return page.locator("#blur-position-status").inner_text().strip()
+    return page.locator("#blur-anchor-point-status").inner_text().strip()
 
 
 def _point_at(name, time):
@@ -1359,7 +1363,9 @@ def _point_at(name, time):
 
 
 def _row_for(page, index):
-    return page.locator("#blur-positions-wrapper .position-entry").nth(index)
+    return page.locator("#blur-anchor-points-wrapper .blur-anchor-point-entry").nth(
+        index
+    )
 
 
 def _focus_rig(page):
@@ -1391,10 +1397,10 @@ def test_the_panel_offers_no_way_to_add_a_point_and_announces_nothing_yet(
     open_editor()
     _select(page, MOVING_BLUR)
 
-    expect(page.locator(".blur-positions-help")).to_be_visible()
+    expect(page.locator(".blur-anchor-points-help")).to_be_visible()
     expect(page.locator("#blur-add-point-button")).to_have_count(0)
 
-    expect(page.locator("#blur-position-status")).to_have_attribute(
+    expect(page.locator("#blur-anchor-point-status")).to_have_attribute(
         "aria-live", "polite"
     )
     assert _status(page) == ""
@@ -1407,15 +1413,16 @@ def test_a_save_leaves_the_help_text_and_status_line_in_place(page, open_editor)
     _seek(page, 3.0)
 
     page.evaluate(
-        "() => document.getElementById('blur-position-status').dataset.survived = 'yes'"
+        "() => document.getElementById('blur-anchor-point-status').dataset.survived = 'yes'"
     )
     _move_rig_to(page, 30, 30)
     _saved_points(page, MOVING_BLUR, 3)
 
     assert (
-        page.locator("#blur-position-status").get_attribute("data-survived") == "yes"
+        page.locator("#blur-anchor-point-status").get_attribute("data-survived")
+        == "yes"
     ), "the status line was destroyed and rebuilt, so its message cannot be announced"
-    expect(page.locator(".blur-positions-help")).to_be_visible()
+    expect(page.locator(".blur-anchor-points-help")).to_be_visible()
 
 
 # --- the numeric fields ------------------------------------------------------
@@ -1423,10 +1430,10 @@ def test_a_save_leaves_the_help_text_and_status_line_in_place(page, open_editor)
 
 # The point at t=7.0, seeded as x=40 y=22 w=26 h=17, and its index in a _stored_points tuple.
 GEOMETRY_FIELDS = [
-    (".position-x-input", "12", 1, 40.0),
-    (".position-y-input", "60", 2, 22.0),
-    (".position-width-input", "35", 3, 26.0),
-    (".position-height-input", "9", 4, 17.0),
+    (".blur-anchor-point-x-input", "12", 1, 40.0),
+    (".blur-anchor-point-y-input", "60", 2, 22.0),
+    (".blur-anchor-point-width-input", "35", 3, 26.0),
+    (".blur-anchor-point-height-input", "9", 4, 17.0),
 ]
 
 
@@ -1459,7 +1466,7 @@ def test_a_geometry_field_changes_only_the_value_it_names(
                 f"field {other} changed from {unchanged} to {point[other]}"
             )
     assert point[0] == pytest.approx(7.0, abs=0.01), "the point was retimed"
-    assert _status(page) == "Point updated at 0:00:07.00"
+    assert _status(page) == "Anchor point updated at 0:00:07.00"
 
 
 def test_the_points_panel_is_a_real_table(page, open_editor):
@@ -1476,16 +1483,16 @@ def test_the_points_panel_is_a_real_table(page, open_editor):
 
     structure = page.evaluate(
         """() => {
-            const table = document.querySelector('#positions-list table');
+            const table = document.querySelector('#blur-anchor-points-list table');
             if (!table) return null;
-            const row = table.querySelector('tbody tr.position-entry');
+            const row = table.querySelector('tbody tr.blur-anchor-point-entry');
             const display = (el) => el && getComputedStyle(el).display;
             return {
                 headers: [...table.querySelectorAll('thead th')].map((th) => ({
                     text: th.textContent.trim(), scope: th.getAttribute('scope'),
                 })),
                 emptyHeaderCells: table.querySelectorAll('thead th:empty').length,
-                bodyRows: table.querySelectorAll('tbody tr.position-entry').length,
+                bodyRows: table.querySelectorAll('tbody tr.blur-anchor-point-entry').length,
                 rowHeaderScope: row?.querySelector('th')?.getAttribute('scope'),
                 cellsPerRow: row?.children.length,
                 fieldsInCells: row ? [...row.querySelectorAll('td > input')].length : 0,
@@ -1498,7 +1505,7 @@ def test_the_points_panel_is_a_real_table(page, open_editor):
         }"""
     )
 
-    assert structure, "the blur points panel is not a table"
+    assert structure, "the blur anchor points panel is not a table"
     assert [header["text"] for header in structure["headers"]] == [
         "Time",
         "X (%)",
@@ -1524,7 +1531,7 @@ def test_the_points_panel_is_a_real_table(page, open_editor):
 
 
 # Two-decimal rendering is covered without a browser, and more strictly, by
-# core/tests/test_blur_positions.py: PanelRenderingTests and GeometryPrecisionTests.
+# core/tests/test_blur_anchor_points.py: PanelRenderingTests and GeometryPrecisionTests.
 
 
 def test_no_point_value_is_hidden_by_the_width_of_the_panel(page, open_editor):
@@ -1540,13 +1547,13 @@ def test_no_point_value_is_hidden_by_the_width_of_the_panel(page, open_editor):
     measurements = page.evaluate(
         """() => {
             const widest = {
-                'position-time-input': '9:59:59.99',
-                'position-x-input': '97.00',
-                'position-y-input': '97.00',
-                'position-width-input': '100.00',
-                'position-height-input': '100.00',
+                'blur-anchor-point-time-input': '9:59:59.99',
+                'blur-anchor-point-x-input': '97.00',
+                'blur-anchor-point-y-input': '97.00',
+                'blur-anchor-point-width-input': '100.00',
+                'blur-anchor-point-height-input': '100.00',
             };
-            const row = document.querySelector('#positions-list .position-entry');
+            const row = document.querySelector('#blur-anchor-points-list .blur-anchor-point-entry');
             const fields = Object.keys(widest).map((className) => {
                 const input = row.querySelector(`.${className}`);
                 const restore = input.value;
@@ -1554,7 +1561,7 @@ def test_no_point_value_is_hidden_by_the_width_of_the_panel(page, open_editor):
                 input.value = widest[className];
                 return {className, input, restore};
             });
-            const list = document.getElementById('positions-list');
+            const list = document.getElementById('blur-anchor-points-list');
             const result = {
                 clipped: fields
                     .filter(({input}) => input.scrollWidth > input.clientWidth)
@@ -1580,8 +1587,8 @@ def test_the_time_field_retimes_its_point(page, open_editor):
 
     _mark_panel(page)
     row = _row_for(page, 1)
-    row.locator(".position-time-input").fill("0:00:08.50")
-    row.locator(".position-time-input").press("Enter")
+    row.locator(".blur-anchor-point-time-input").fill("0:00:08.50")
+    row.locator(".blur-anchor-point-time-input").press("Enter")
     points = _saved_points(page, MOVING_BLUR, 3)
 
     assert [point[0] for point in points] == [3.0, 8.5, 11.0]
@@ -1589,7 +1596,7 @@ def test_the_time_field_retimes_its_point(page, open_editor):
     assert _point_at(MOVING_BLUR, 8.5)[1:] == pytest.approx(
         (40.0, 22.0, 26.0, 17.0), abs=0.01
     )
-    assert _status(page) == "Point moved to 0:00:08.50"
+    assert _status(page) == "Anchor point moved to 0:00:08.50"
 
 
 def test_retiming_a_point_onto_another_one_reports_the_conflict(page, open_editor):
@@ -1600,15 +1607,17 @@ def test_retiming_a_point_onto_another_one_reports_the_conflict(page, open_edito
     BlurEditor shows the response body rather than keeping a copy of the sentence. This is the test
     that fails if the client goes back to guessing the message from the status code.
     """
-    from core.views_video_editor import BLUR_POSITION_TIME_TAKEN
+    from core.views_video_editor import BLUR_ANCHOR_POINT_TIME_TAKEN
 
     open_editor()
     _select(page, MOVING_BLUR)
 
     row = _row_for(page, 1)
-    row.locator(".position-time-input").fill("0:00:11.00")
-    row.locator(".position-time-input").press("Enter")
-    expect(page.locator("#blur-position-status")).to_have_text(BLUR_POSITION_TIME_TAKEN)
+    row.locator(".blur-anchor-point-time-input").fill("0:00:11.00")
+    row.locator(".blur-anchor-point-time-input").press("Enter")
+    expect(page.locator("#blur-anchor-point-status")).to_have_text(
+        BLUR_ANCHOR_POINT_TIME_TAKEN
+    )
 
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0, 11.0]
 
@@ -1619,11 +1628,11 @@ def test_a_non_numeric_entry_is_refused_and_the_field_goes_back(page, open_edito
     _select(page, MOVING_BLUR)
 
     row = _row_for(page, 1)
-    row.locator(".position-width-input").fill("not a number")
-    row.locator(".position-width-input").press("Enter")
+    row.locator(".blur-anchor-point-width-input").fill("not a number")
+    row.locator(".blur-anchor-point-width-input").press("Enter")
     page.wait_for_timeout(300)
 
-    expect(row.locator(".position-width-input")).to_have_value("26.00")
+    expect(row.locator(".blur-anchor-point-width-input")).to_have_value("26.00")
     assert "not a number" in _status(page)
     assert _point_at(MOVING_BLUR, 7.0)[3] == pytest.approx(26.0, abs=0.01)
 
@@ -1645,8 +1654,8 @@ def test_enter_in_a_size_field_does_not_submit_the_whole_annotation(page, open_e
 
     _mark_panel(page)
     row = _row_for(page, 1)
-    row.locator(".position-width-input").fill("31")
-    row.locator(".position-width-input").press("Enter")
+    row.locator(".blur-anchor-point-width-input").fill("31")
+    row.locator(".blur-anchor-point-width-input").press("Enter")
     _saved_points(page, MOVING_BLUR, 3)
 
     assert submits == [], f"Enter submitted the annotation form: {submits}"
@@ -1662,7 +1671,7 @@ def _drag_dot(page, annotation, index, seconds):
     span = float(item.get_attribute("data-end")) - float(
         item.get_attribute("data-start")
     )
-    dot = item.locator(".blur-position-locator").nth(index)
+    dot = item.locator(".blur-anchor-point-dot").nth(index)
     dot_box = dot.bounding_box()
     start_x = dot_box["x"] + dot_box["width"] / 2
     centre_y = dot_box["y"] + dot_box["height"] / 2
@@ -1677,7 +1686,7 @@ def test_dragging_a_dot_retimes_its_point_and_leaves_its_geometry_alone(
     page, open_editor
 ):
     """A dot is a point's position *in time*. Grabbing it names that row, unlike a drag on the frame
-    which names a moment - so this is the one gesture that may send a position id."""
+    which names a moment - so this is the one gesture that may send an anchor point id."""
     annotation = open_editor() and _select(page, MOVING_BLUR)
 
     _mark_panel(page)
@@ -1689,7 +1698,7 @@ def test_dragging_a_dot_retimes_its_point_and_leaves_its_geometry_alone(
     )
     assert points[1][1:] == pytest.approx((40.0, 22.0, 26.0, 17.0), abs=0.01)
     assert [points[0][0], points[2][0]] == [3.0, 11.0], "the other points moved"
-    assert "Point moved to" in _status(page)
+    assert "Anchor point moved to" in _status(page)
 
 
 def test_dragging_a_dot_does_not_drag_the_whole_annotation(page, open_editor):
@@ -1713,13 +1722,13 @@ def test_clicking_a_dot_without_moving_it_saves_nothing(page, open_editor):
         "request",
         lambda request: (
             writes.append(request.url)
-            if request.method == "POST" and "/positions/" in request.url
+            if request.method == "POST" and "/anchor-points/" in request.url
             else None
         ),
     )
     annotation = open_editor() and _select(page, MOVING_BLUR)
 
-    page.locator(f"{_item_selector(annotation)} .blur-position-locator").first.click()
+    page.locator(f"{_item_selector(annotation)} .blur-anchor-point-dot").first.click()
     page.wait_for_timeout(500)
 
     assert writes == [], f"a plain click on a dot wrote to the server: {writes}"
@@ -1731,18 +1740,18 @@ def test_delete_on_a_focused_dot_removes_its_point(page, open_editor):
     annotation = open_editor() and _select(page, MOVING_BLUR)
 
     _mark_panel(page)
-    page.locator(f"{_item_selector(annotation)} .blur-position-locator").first.focus()
+    page.locator(f"{_item_selector(annotation)} .blur-anchor-point-dot").first.focus()
     page.keyboard.press("Delete")
 
     assert [point[0] for point in _saved_points(page, MOVING_BLUR, 2)] == [3.0, 11.0]
-    assert _status(page) == "Point deleted"
+    assert _status(page) == "Anchor point deleted"
 
 
 def test_enter_on_a_focused_dot_seeks_to_its_point(page, open_editor):
     annotation = open_editor() and _select(page, MOVING_BLUR)
     _seek(page, 3.0)
 
-    page.locator(f"{_item_selector(annotation)} .blur-position-locator").last.focus()
+    page.locator(f"{_item_selector(annotation)} .blur-anchor-point-dot").last.focus()
     page.keyboard.press("Enter")
     page.wait_for_timeout(300)
 
@@ -1785,13 +1794,13 @@ def test_shift_arrow_takes_a_coarser_step(page, open_editor):
 
 def test_a_burst_of_nudges_is_written_once(page, open_editor):
     """One request and one stored point per keystroke would flood the endpoint and record every
-    intermediate position as though the user had meant to stop there."""
+    intermediate anchor point as though the user had meant to stop there."""
     writes = []
     page.on(
         "request",
         lambda request: (
             writes.append(request.url)
-            if request.method == "POST" and "/positions/" in request.url
+            if request.method == "POST" and "/anchor-points/" in request.url
             else None
         ),
     )
@@ -1910,7 +1919,7 @@ def test_a_seek_writes_a_pending_nudge_at_the_time_it_was_made(page, open_editor
 
 
 def test_shrinking_a_blurs_range_warns_before_dropping_points(page, open_editor):
-    """reconcile_positions drops points outside the new window, which is right - the window that
+    """reconcile_blur_anchor_points drops points outside the new window, which is right - the window that
     exposes the motion path shrank. But for a feature whose job is covering content that must not
     be seen, losing part of the path silently is worse than the interruption of asking."""
     asked = []
@@ -1939,7 +1948,7 @@ def test_shrinking_a_blurs_range_warns_before_dropping_points(page, open_editor)
     page.wait_for_timeout(900)
 
     assert len(asked) == 1, f"no warning before dropping a point: {asked}"
-    assert "1 blur point falls" in asked[0]
+    assert "1 blur anchor point falls" in asked[0]
     assert [point[0] for point in _stored_points(MOVING_BLUR)] == [3.0, 7.0]
 
 
@@ -2116,7 +2125,7 @@ def test_retiming_a_blur_from_the_form_reconciles_its_points_in_place(
     page.locator("#end_time").fill("0:00:09.00")
     page.locator("#annotation_name").click()
     page.wait_for_function(
-        "() => document.querySelectorAll('#positions-list .position-entry').length === 2",
+        "() => document.querySelectorAll('#blur-anchor-points-list .blur-anchor-point-entry').length === 2",
         timeout=5000,
     )
 
@@ -2126,7 +2135,7 @@ def test_retiming_a_blur_from_the_form_reconciles_its_points_in_place(
 
 
 def _player_points(page, annotation):
-    """The player's own copy of a blur's positions.
+    """The player's own copy of a blur's anchor points.
 
     Not the database and not the panel: this is the array applyAnnotations reads on every frame, so
     it is what decides whether playback actually covers the subject. A save that reaches the
@@ -2161,7 +2170,7 @@ def test_a_nudge_saved_as_the_selection_moves_on_still_reaches_the_player(
     # The nudge's own save, not the selection change, is what has to have landed.
     page.wait_for_function(
         """() => {
-            const rows = document.querySelectorAll('#positions-list .position-entry');
+            const rows = document.querySelectorAll('#blur-anchor-points-list .blur-anchor-point-entry');
             return rows.length === 1;
         }""",
         timeout=5000,

@@ -1,8 +1,8 @@
 """The invariants that keep a blur's motion path consistent with its time window.
 
-Enforced in BlurAnnotationPosition.save() and BlurAnnotation.reconcile_positions(). Between
-them they cover GitHub issue #322's second and third items - updating the first position's
-time when the item's left handle is dragged, and updating all positions when the item is
+Enforced in BlurAnchorPoint.save() and BlurAnnotation.reconcile_blur_anchor_points(). Between
+them they cover GitHub issue #322's second and third items - updating the first anchor point's
+time when the item's left handle is dragged, and updating all anchor points when the item is
 dragged along the timeline.
 """
 
@@ -12,81 +12,85 @@ from django.db.utils import IntegrityError
 from django.template.loader import render_to_string
 from django.test import TestCase
 
+from core.factories import BlurAnchorPointFactory
 from core.factories import BlurAnnotationFactory
-from core.factories import BlurAnnotationPositionFactory
 from core.models import BLUR_MIN_HEIGHT
 from core.models import BLUR_MIN_WIDTH
-from core.models import BlurAnnotationPosition
+from core.models import BlurAnchorPoint
 
 
 def _times(blur):
-    return [position.time for position in blur.positions.all()]
+    return [
+        blur_anchor_point.time for blur_anchor_point in blur.blur_anchor_points.all()
+    ]
 
 
-def assert_positions_within_window(test, blur):
-    """Every stored position obeys start_time <= time <= end_time.
+def assert_blur_anchor_points_within_window(test, blur):
+    """Every stored anchor point obeys start_time <= time <= end_time.
 
     Asserted after every reconcile rather than in the tests that happen to be about pruning,
-    because a position outside the window is not a pruning bug - it is geometry that
+    because an anchor point outside the window is not a pruning bug - it is geometry that
     geometry_at() will interpolate toward and playback can never reach.
     """
     for time in _times(blur):
         test.assertGreaterEqual(
             time,
             blur.start_time,
-            f"position at {time} precedes start_time {blur.start_time}",
+            f"blur_anchor_point at {time} precedes start_time {blur.start_time}",
         )
         test.assertLessEqual(
-            time, blur.end_time, f"position at {time} follows end_time {blur.end_time}"
+            time,
+            blur.end_time,
+            f"blur_anchor_point at {time} follows end_time {blur.end_time}",
         )
 
 
-class ReconcilePositionsTests(TestCase):
+class ReconcileBlurAnchorPointsTests(TestCase):
     """Moving or resizing a blur item on the timeline."""
 
     def setUp(self):
         self.blur = BlurAnnotationFactory(start_time=10.0, end_time=15.0)
-        self.blur.positions.all().delete()
-        # Deliberately distinct geometry per position so it is visible which row survived a
+        self.blur.blur_anchor_points.all().delete()
+        # Deliberately distinct geometry per anchor point so it is visible which row survived a
         # reconcile, not just how many did.
         for time, x in ((10.0, 10.0), (12.0, 20.0), (15.0, 30.0)):
-            BlurAnnotationPositionFactory(
-                blur_annotation=self.blur, time=time, x=x, y=5.0
-            )
+            BlurAnchorPointFactory(blur_annotation=self.blur, time=time, x=x, y=5.0)
 
     def _move_to(self, start, end):
         old_start, old_end = self.blur.start_time, self.blur.end_time
         self.blur.start_time, self.blur.end_time = start, end
         self.blur.save()
-        self.blur.reconcile_positions(old_start, old_end)
+        self.blur.reconcile_blur_anchor_points(old_start, old_end)
         # Checked here rather than per test, so every reconcile in this class asserts it.
-        assert_positions_within_window(self, self.blur)
+        assert_blur_anchor_points_within_window(self, self.blur)
 
-    def test_moving_the_item_shifts_every_position_by_the_same_delta(self):
-        original_ids = [p.pk for p in self.blur.positions.all()]
+    def test_moving_the_item_shifts_every_blur_anchor_point_by_the_same_delta(self):
+        original_ids = [p.pk for p in self.blur.blur_anchor_points.all()]
 
         self._move_to(20.0, 25.0)
 
         self.assertEqual(_times(self.blur), [20.0, 22.0, 25.0])
         self.assertEqual(
-            [p.pk for p in self.blur.positions.all()],
+            [p.pk for p in self.blur.blur_anchor_points.all()],
             original_ids,
             "a move should carry the same rows along, not delete and recreate them",
         )
 
-    def test_moving_the_item_backwards_shifts_every_position(self):
+    def test_moving_the_item_backwards_shifts_every_blur_anchor_point(self):
         self._move_to(4.0, 9.0)
         self.assertEqual(_times(self.blur), [4.0, 6.0, 9.0])
 
-    def test_moving_over_an_adjacent_position_does_not_violate_the_unique_index(self):
-        """Shifting must not transiently collide with a position it is moving onto.
+    def test_moving_over_an_adjacent_blur_anchor_point_does_not_violate_the_unique_index(
+        self,
+    ):
+        """Shifting must not transiently collide with an anchor point it is moving onto.
 
         The unique (blur_annotation, time) index is checked per row, so shifting +1s over
-        positions at 10 and 11 fails with IntegrityError unless the later one moves first.
+        anchor points at 10 and 11 fails with IntegrityError unless the later one moves first.
         """
-        self.blur.positions.all().delete()
+        self.blur.blur_anchor_points.all().delete()
         for time in (10.0, 11.0):
-            BlurAnnotationPositionFactory(blur_annotation=self.blur, time=time)
+            BlurAnchorPointFactory(blur_annotation=self.blur, time=time)
         self.blur.end_time = 11.0
         self.blur.save()
 
@@ -94,48 +98,52 @@ class ReconcilePositionsTests(TestCase):
 
         self.assertEqual(_times(self.blur), [11.0, 12.0])
 
-    def test_dragging_the_left_handle_rightwards_repins_the_first_position(self):
-        """#322 item 2. The first position's *time* moves, carrying the geometry that was
+    def test_dragging_the_left_handle_rightwards_repins_the_first_blur_anchor_point(
+        self,
+    ):
+        """#322 item 2. The first anchor point's *time* moves, carrying the geometry that was
         showing at the new start rather than resetting to a default box.
 
-        "Showing" means the interpolated rect, not the nearest stored position: at t=13 the box
+        "Showing" means the interpolated rect, not the nearest stored anchor point: at t=13 the box
         was a third of the way from the one at 12 (x=20) to the one at 15 (x=30). Retiming the
-        position at 12 without re-deriving its geometry would leave the blur's first frames
+        anchor point at 12 without re-deriving its geometry would leave the blur's first frames
         covering where the subject was a second earlier, which is exposure.
         """
         self._move_to(13.0, 15.0)
 
         self.assertEqual(_times(self.blur), [13.0, 15.0])
-        first = self.blur.positions.first()
+        first = self.blur.blur_anchor_points.first()
         self.assertAlmostEqual(
             first.x, 23.333, 2, "should carry the interpolated geometry at time 13"
         )
 
-    def test_dragging_the_left_handle_leftwards_extends_the_first_position(self):
+    def test_dragging_the_left_handle_leftwards_extends_the_first_blur_anchor_point(
+        self,
+    ):
         self._move_to(5.0, 15.0)
 
         self.assertEqual(_times(self.blur), [5.0, 12.0, 15.0])
-        self.assertEqual(self.blur.positions.first().x, 10.0)
+        self.assertEqual(self.blur.blur_anchor_points.first().x, 10.0)
 
-    def test_dragging_the_right_handle_prunes_trailing_positions(self):
+    def test_dragging_the_right_handle_prunes_trailing_blur_anchor_points(self):
         self._move_to(10.0, 11.0)
 
         self.assertEqual(_times(self.blur), [10.0])
 
-    def test_reconcile_never_leaves_a_blur_without_a_position(self):
-        """Even when the new window excludes every existing position, geometry survives."""
-        self.blur.positions.exclude(time=10.0).delete()
+    def test_reconcile_never_leaves_a_blur_without_a_blur_anchor_point(self):
+        """Even when the new window excludes every existing anchor point, geometry survives."""
+        self.blur.blur_anchor_points.exclude(time=10.0).delete()
 
         self._move_to(30.0, 31.0)
 
         self.assertEqual(_times(self.blur), [30.0])
         self.assertEqual(
-            self.blur.positions.first().x,
+            self.blur.blur_anchor_points.first().x,
             10.0,
             "should keep the author's geometry rather than substituting a default box",
         )
 
-    def test_the_first_position_always_sits_at_start_time(self):
+    def test_the_first_blur_anchor_point_always_sits_at_start_time(self):
         for start, end in [
             (20.0, 25.0),  # move
             (18.0, 30.0),  # grow both edges
@@ -144,29 +152,31 @@ class ReconcilePositionsTests(TestCase):
         ]:
             with self.subTest(start=start, end=end):
                 self._move_to(start, end)
-                self.assertEqual(self.blur.positions.first().time, start)
+                self.assertEqual(self.blur.blur_anchor_points.first().time, start)
 
-    def test_changing_only_the_track_leaves_positions_untouched(self):
+    def test_changing_only_the_track_leaves_blur_anchor_points_untouched(self):
         before = _times(self.blur)
-        self.blur.reconcile_positions(self.blur.start_time, self.blur.end_time)
+        self.blur.reconcile_blur_anchor_points(self.blur.start_time, self.blur.end_time)
         self.assertEqual(_times(self.blur), before)
 
-    def test_a_start_only_edit_of_one_hundredth_does_not_push_a_position_past_the_end(
+    def test_a_start_only_edit_of_one_hundredth_does_not_push_a_blur_anchor_point_past_the_end(
         self,
     ):
         """The move/resize test tolerates 0.02s, which is looser than the 0.01s stored precision.
 
-        So this start-only resize is classified as a move and every position shifts by 0.01 -
-        which without the unconditional window check at the end of reconcile_positions leaves
-        the position authored at 15.0 sitting at 15.01, past an end_time of 15.0.
+        So this start-only resize is classified as a move and every anchor point shifts by 0.01 -
+        which without the unconditional window check at the end of reconcile_blur_anchor_points leaves
+        the anchor point authored at 15.0 sitting at 15.01, past an end_time of 15.0.
         """
         self._move_to(10.01, 15.0)
 
         self.assertEqual(_times(self.blur), [10.01, 12.01])
 
-    def test_a_right_handle_edit_of_one_hundredth_prunes_the_position_it_excludes(self):
+    def test_a_right_handle_edit_of_one_hundredth_prunes_the_blur_anchor_point_it_excludes(
+        self,
+    ):
         """The mirror of the case above, which takes the resize branch instead because the start
-        did not move. blurPointsLostByRetiming() has to agree that this loses a point, since the
+        did not move. blurAnchorPointsLostByRetiming() has to agree that this loses a point, since the
         user is warned from the client but the deletion happens here.
         """
         self._move_to(10.0, 14.99)
@@ -174,12 +184,12 @@ class ReconcilePositionsTests(TestCase):
         self.assertEqual(_times(self.blur), [10.0, 12.0])
 
 
-class EnsureFirstPositionTests(TestCase):
-    def test_a_blur_with_no_positions_gets_a_default_at_start_time(self):
+class EnsureFirstBlurAnchorPointTests(TestCase):
+    def test_a_blur_with_no_blur_anchor_points_gets_a_default_at_start_time(self):
         blur = BlurAnnotationFactory(start_time=7.0, end_time=12.0)
-        blur.positions.all().delete()
+        blur.blur_anchor_points.all().delete()
 
-        created = blur.ensure_first_position()
+        created = blur.ensure_first_blur_anchor_point()
 
         self.assertEqual(created.time, 7.0)
         self.assertEqual(_times(blur), [7.0])
@@ -188,19 +198,19 @@ class EnsureFirstPositionTests(TestCase):
 
     def test_it_is_idempotent(self):
         blur = BlurAnnotationFactory(start_time=7.0, end_time=12.0)
-        first = blur.ensure_first_position()
-        again = blur.ensure_first_position()
+        first = blur.ensure_first_blur_anchor_point()
+        again = blur.ensure_first_blur_anchor_point()
         self.assertEqual(first.pk, again.pk)
-        self.assertEqual(blur.positions.count(), 1)
+        self.assertEqual(blur.blur_anchor_points.count(), 1)
 
 
-class PositionInvariantTests(TestCase):
+class BlurAnchorPointInvariantTests(TestCase):
     def setUp(self):
         self.blur = BlurAnnotationFactory(start_time=0.0, end_time=20.0)
-        self.blur.positions.all().delete()
+        self.blur.blur_anchor_points.all().delete()
 
     def _make(self, **kwargs):
-        return BlurAnnotationPositionFactory(blur_annotation=self.blur, **kwargs)
+        return BlurAnchorPointFactory(blur_annotation=self.blur, **kwargs)
 
     def test_duplicate_times_are_rejected(self):
         self._make(time=5.0)
@@ -213,37 +223,46 @@ class PositionInvariantTests(TestCase):
         with self.assertRaises(IntegrityError):
             self._make(time=5.004)
 
-    def test_positions_come_back_ordered_by_time(self):
+    def test_blur_anchor_points_come_back_ordered_by_time(self):
         for time in (9.0, 3.0, 6.0):
             self._make(time=time)
         self.assertEqual(_times(self.blur), [3.0, 6.0, 9.0])
 
     def test_geometry_is_clamped_rather_than_rejected(self):
-        position = self._make(time=1.0, x=-20.0, y=-5.0, width=200.0, height=400.0)
+        blur_anchor_point = self._make(
+            time=1.0, x=-20.0, y=-5.0, width=200.0, height=400.0
+        )
         self.assertEqual(
-            (position.x, position.y, position.width, position.height),
+            (
+                blur_anchor_point.x,
+                blur_anchor_point.y,
+                blur_anchor_point.width,
+                blur_anchor_point.height,
+            ),
             (0.0, 0.0, 100.0, 100.0),
         )
 
     def test_a_box_is_never_smaller_than_the_minimum(self):
-        position = self._make(time=1.0, width=0.5, height=0.1)
-        self.assertEqual(position.width, BLUR_MIN_WIDTH)
-        self.assertEqual(position.height, BLUR_MIN_HEIGHT)
+        blur_anchor_point = self._make(time=1.0, width=0.5, height=0.1)
+        self.assertEqual(blur_anchor_point.width, BLUR_MIN_WIDTH)
+        self.assertEqual(blur_anchor_point.height, BLUR_MIN_HEIGHT)
 
     def test_a_box_is_kept_inside_the_frame(self):
-        position = self._make(time=1.0, x=95.0, y=95.0, width=20.0, height=20.0)
-        self.assertLessEqual(position.x + position.width, 100.0)
-        self.assertLessEqual(position.y + position.height, 100.0)
+        blur_anchor_point = self._make(
+            time=1.0, x=95.0, y=95.0, width=20.0, height=20.0
+        )
+        self.assertLessEqual(blur_anchor_point.x + blur_anchor_point.width, 100.0)
+        self.assertLessEqual(blur_anchor_point.y + blur_anchor_point.height, 100.0)
 
     def test_zero_x_and_y_are_preserved(self):
         """Flush against the left or top edge is a legitimate place for a blur."""
-        position = self._make(time=1.0, x=0.0, y=0.0)
-        self.assertEqual((position.x, position.y), (0.0, 0.0))
+        blur_anchor_point = self._make(time=1.0, x=0.0, y=0.0)
+        self.assertEqual((blur_anchor_point.x, blur_anchor_point.y), (0.0, 0.0))
 
     def test_to_json_matches_the_player_payload(self):
-        position = self._make(time=2.5)
+        blur_anchor_point = self._make(time=2.5)
         self.assertEqual(
-            position.to_json(),
+            blur_anchor_point.to_json(),
             self.blur.to_player_json()["positions"][0],
             "the editor's responses and the player payload must not drift apart",
         )
@@ -259,12 +278,12 @@ class GeometryAtTests(TestCase):
 
     def setUp(self):
         self.blur = BlurAnnotationFactory(start_time=2.0, end_time=6.0)
-        self.blur.positions.all().delete()
+        self.blur.blur_anchor_points.all().delete()
         for time, x, y, width, height in (
             (2.0, 10.0, 20.0, 30.0, 40.0),
             (6.0, 50.0, 24.0, 22.0, 48.0),
         ):
-            BlurAnnotationPositionFactory(
+            BlurAnchorPointFactory(
                 blur_annotation=self.blur,
                 time=time,
                 x=x,
@@ -273,12 +292,12 @@ class GeometryAtTests(TestCase):
                 height=height,
             )
 
-    def test_no_positions_has_no_geometry(self):
-        self.blur.positions.all().delete()
+    def test_no_blur_anchor_points_has_no_geometry(self):
+        self.blur.blur_anchor_points.all().delete()
         self.assertIsNone(self.blur.geometry_at(3.0))
 
-    def test_a_lone_position_holds_at_every_time(self):
-        self.blur.positions.filter(time=6.0).delete()
+    def test_a_lone_blur_anchor_point_holds_at_every_time(self):
+        self.blur.blur_anchor_points.filter(time=6.0).delete()
         expected = {"x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0}
         for time in (-100.0, 0.0, 2.0, 1000.0):
             self.assertEqual(self.blur.geometry_at(time), expected)
@@ -295,7 +314,7 @@ class GeometryAtTests(TestCase):
             {"x": 20.0, "y": 21.0, "width": 28.0, "height": 42.0},
         )
 
-    def test_it_holds_constant_outside_the_first_and_last_position(self):
+    def test_it_holds_constant_outside_the_first_and_last_blur_anchor_point(self):
         """Never extrapolate: a blur must not drift somewhere its author never put it."""
         first = {"x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0}
         last = {"x": 50.0, "y": 24.0, "width": 22.0, "height": 48.0}
@@ -304,23 +323,23 @@ class GeometryAtTests(TestCase):
         self.assertEqual(self.blur.geometry_at(6.0), last)
         self.assertEqual(self.blur.geometry_at(9999.0), last)
 
-    def test_it_walks_past_intermediate_positions_to_the_right_bracket(self):
-        BlurAnnotationPositionFactory(
+    def test_it_walks_past_intermediate_blur_anchor_points_to_the_right_bracket(self):
+        BlurAnchorPointFactory(
             blur_annotation=self.blur, time=4.0, x=0.0, y=0.0, width=10.0, height=10.0
         )
-        # Between the new position at 4.0 and the one at 6.0, not the original 2.0-to-6.0 span.
+        # Between the new anchor point at 4.0 and the one at 6.0, not the original 2.0-to-6.0 span.
         self.assertEqual(
             self.blur.geometry_at(5.0),
             {"x": 25.0, "y": 12.0, "width": 16.0, "height": 29.0},
         )
 
 
-class RetimingPointLossTests(TestCase):
+class RetimingBlurAnchorPointLossTests(TestCase):
     """What a retiming actually deletes, against what the browser promised it would.
 
-    The editor warns before a retiming that will discard blur points, and it has to decide that
-    without asking the server - so pointsLostByRetiming in core/static/js/video-geometry.js
-    predicts what reconcile_positions is about to do. Two implementations of one destructive
+    The editor warns before a retiming that will discard blur anchor points, and it has to decide that
+    without asking the server - so blurAnchorPointsLostByRetiming in core/static/js/video-geometry.js
+    predicts what reconcile_blur_anchor_points is about to do. Two implementations of one destructive
     decision in two languages is the duplication that drifts silently, and here it drifts into
     either a warning about nothing or a point deleted without being announced.
 
@@ -392,26 +411,26 @@ class RetimingPointLossTests(TestCase):
         """Run one case, returning how many of the original points reconcile deleted.
 
         Counted as pks that disappeared rather than as a drop in the row count, because
-        ensure_first_position *creates* a position when a retiming clears them all - which would
+        ensure_first_blur_anchor_point *creates* an anchor point when a retiming clears them all - which would
         otherwise net out and read as one fewer loss than the user suffered.
         """
         blur = BlurAnnotationFactory(start_time=10.0, end_time=15.0)
-        blur.positions.all().delete()
+        blur.blur_anchor_points.all().delete()
         # Distinct geometry per point, so a case that keeps the wrong survivor is a visible
         # difference rather than an off-by-one in a count.
         for index, time in enumerate(times):
-            BlurAnnotationPositionFactory(
+            BlurAnchorPointFactory(
                 blur_annotation=blur, time=time, x=10.0 + index * 10, y=5.0
             )
-        original = set(blur.positions.values_list("pk", flat=True))
+        original = set(blur.blur_anchor_points.values_list("pk", flat=True))
 
         old_start, old_end = blur.start_time, blur.end_time
         blur.start_time, blur.end_time = new_window
         blur.save()
-        blur.reconcile_positions(old_start, old_end)
+        blur.reconcile_blur_anchor_points(old_start, old_end)
 
-        assert_positions_within_window(self, blur)
-        surviving = set(blur.positions.values_list("pk", flat=True))
+        assert_blur_anchor_points_within_window(self, blur)
+        surviving = set(blur.blur_anchor_points.values_list("pk", flat=True))
         return len(original - surviving)
 
     def test_the_browsers_prediction_matches_what_the_server_deletes(self):
@@ -420,8 +439,8 @@ class RetimingPointLossTests(TestCase):
                 self.assertEqual(
                     self._reconcile(times, new_window),
                     predicted,
-                    f"pointsLostByRetiming promises {predicted} for this case; "
-                    "reconcile_positions disagrees, so the warning is wrong",
+                    f"blurAnchorPointsLostByRetiming promises {predicted} for this case; "
+                    "reconcile_blur_anchor_points disagrees, so the warning is wrong",
                 )
 
 
@@ -437,22 +456,22 @@ class GeometryPrecisionTests(TestCase):
     def setUp(self):
         self.blur = BlurAnnotationFactory(start_time=5.0, end_time=12.0)
 
-    def _position(self, time=6.0, **geometry):
-        position = BlurAnnotationPositionFactory(
+    def _blur_anchor_point(self, time=6.0, **geometry):
+        blur_anchor_point = BlurAnchorPointFactory(
             blur_annotation=self.blur, time=time, **geometry
         )
-        position.refresh_from_db()
-        return position
+        blur_anchor_point.refresh_from_db()
+        return blur_anchor_point
 
     def test_geometry_is_stored_to_two_decimals(self):
-        position = self._position(
+        blur_anchor_point = self._blur_anchor_point(
             x=26.249999999999996, y=1 / 3 * 100, width=40.005, height=19.994
         )
-        self.assertEqual(position.x, 26.25)
-        self.assertEqual(position.y, 33.33)
-        self.assertEqual(position.height, 19.99)
+        self.assertEqual(blur_anchor_point.x, 26.25)
+        self.assertEqual(blur_anchor_point.y, 33.33)
+        self.assertEqual(blur_anchor_point.height, 19.99)
         # Half-way values are whatever Python's banker's rounding does; what matters is 2dp.
-        self.assertEqual(round(position.width, 2), position.width)
+        self.assertEqual(round(blur_anchor_point.width, 2), blur_anchor_point.width)
 
     def test_a_box_against_the_right_edge_still_lands_exactly_on_100(self):
         """Rounding must not leave a box a hundredth of a percent short of, or past, the edge.
@@ -460,24 +479,32 @@ class GeometryPrecisionTests(TestCase):
         The invariant holds because x is clamped against the *already rounded* width, so both
         halves of the sum come from the same grid.
         """
-        position = self._position(x=99.0, y=0.0, width=30.33, height=10.0)
-        self.assertEqual(position.x, 69.67)
-        self.assertEqual(position.x + position.width, 100.0)
+        blur_anchor_point = self._blur_anchor_point(
+            x=99.0, y=0.0, width=30.33, height=10.0
+        )
+        self.assertEqual(blur_anchor_point.x, 69.67)
+        self.assertEqual(blur_anchor_point.x + blur_anchor_point.width, 100.0)
 
     def test_rounding_never_pushes_a_box_off_the_frame(self):
         # A distinct time each, because one blur cannot hold two points at the same instant.
         for offset, width in enumerate((30.33, 33.333333, 66.666666, 7.77, 0.005)):
             with self.subTest(width=width):
-                position = self._position(
+                blur_anchor_point = self._blur_anchor_point(
                     time=6.0 + offset, x=100.0, y=100.0, width=width, height=width
                 )
-                self.assertLessEqual(position.x + position.width, 100.0)
-                self.assertLessEqual(position.y + position.height, 100.0)
+                self.assertLessEqual(
+                    blur_anchor_point.x + blur_anchor_point.width, 100.0
+                )
+                self.assertLessEqual(
+                    blur_anchor_point.y + blur_anchor_point.height, 100.0
+                )
 
     def test_the_minimums_are_not_rounded_away(self):
-        position = self._position(x=0.0, y=0.0, width=0.001, height=0.001)
-        self.assertEqual(position.width, BLUR_MIN_WIDTH)
-        self.assertEqual(position.height, BLUR_MIN_HEIGHT)
+        blur_anchor_point = self._blur_anchor_point(
+            x=0.0, y=0.0, width=0.001, height=0.001
+        )
+        self.assertEqual(blur_anchor_point.width, BLUR_MIN_WIDTH)
+        self.assertEqual(blur_anchor_point.height, BLUR_MIN_HEIGHT)
 
 
 class PanelRenderingTests(TestCase):
@@ -492,10 +519,10 @@ class PanelRenderingTests(TestCase):
 
     def setUp(self):
         self.blur = BlurAnnotationFactory(start_time=5.0, end_time=12.0)
-        self.position = BlurAnnotationPositionFactory(
+        self.blur_anchor_point = BlurAnchorPointFactory(
             blur_annotation=self.blur, time=6.0
         )
-        BlurAnnotationPosition.objects.filter(pk=self.position.pk).update(
+        BlurAnchorPoint.objects.filter(pk=self.blur_anchor_point.pk).update(
             x=26.249999999999996,
             y=33.33333333333333,
             width=40.005000000000003,
@@ -504,12 +531,12 @@ class PanelRenderingTests(TestCase):
 
     def _rendered_values(self):
         html = render_to_string(
-            "core/partials/blur_positions.html",
-            {"item_positions": self.blur.positions.all()},
+            "core/partials/blur_anchor_points.html",
+            {"item_blur_anchor_points": self.blur.blur_anchor_points.all()},
         )
         # Matched across the whole tag because the formatter is free to wrap attributes.
         return re.findall(
-            r'<input\s[^>]*class="position-[a-z]+-input"[^>]*\svalue="([^"]*)"',
+            r'<input\s[^>]*class="blur-anchor-point-[a-z]+-input"[^>]*\svalue="([^"]*)"',
             html,
             re.DOTALL,
         )

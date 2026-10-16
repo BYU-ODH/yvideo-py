@@ -142,7 +142,7 @@
             </div>
         {% endif %}
         {% if item_type == 'blur' %}
-            {% include "core/partials/blur_positions.html" with item_positions=item_positions %}
+            {% include "core/partials/blur_anchor_points.html" with item_blur_anchor_points=item_blur_anchor_points %}
         {% endif %}
         <div class="form-group">
             <label for="description">Description:</label>

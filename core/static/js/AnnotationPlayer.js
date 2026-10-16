@@ -388,7 +388,7 @@ export class AnnotationPlayer {
         details: icAnno.options["details"],
       };
       if (annotation.type === "blur") {
-        annotation.positions = this.icPositionsToCanonical(
+        annotation.positions = this.icPositionsToBlurAnchorPoints(
           annotation.details.position,
         );
       }
@@ -397,15 +397,15 @@ export class AnnotationPlayer {
     return annotations;
   }
 
-  icPositionsToCanonical(positionMap) {
+  icPositionsToBlurAnchorPoints(positionMap) {
     const times = Object.keys(positionMap || {}).sort(
       (a, b) => parseFloat(a) - parseFloat(b),
     );
-    const positions = [];
+    const blurAnchorPoints = [];
     for (const timeKey of times) {
       const [x, y, width, height] = positionMap[timeKey];
-      const previous = positions[positions.length - 1];
-      positions.push({
+      const previous = blurAnchorPoints[blurAnchorPoints.length - 1];
+      blurAnchorPoints.push({
         time: parseFloat(timeKey),
         x,
         y,
@@ -413,7 +413,7 @@ export class AnnotationPlayer {
         height: height ?? previous?.height ?? 15,
       });
     }
-    return positions;
+    return blurAnchorPoints;
   }
 
   parseYvideoV1Annotations(annotationObj) {
@@ -749,7 +749,7 @@ export class AnnotationPlayer {
       let aStart = a["start"];
       let aEnd = a["end"];
       let aType = a["type"];
-      let aPositions = a["positions"];
+      let blurAnchorPoints = a["positions"];
       const isActiveNow = time >= aStart && time < aEnd
       switch (aType) {
         case "skip":
@@ -826,7 +826,7 @@ export class AnnotationPlayer {
           const blurId = "blur-overlay-" + a.id;
           const existingBlur = this.annotationBox.querySelector("#" + blurId);
           const isBlurVisible = time >= aStart && time <= aEnd;
-          const rect = isBlurVisible ? rectAtTime(aPositions, time) : null;
+          const rect = isBlurVisible ? rectAtTime(blurAnchorPoints, time) : null;
 
           if (!rect) {
             if (existingBlur) {
@@ -912,14 +912,14 @@ export class AnnotationPlayer {
     }
   }
 
-  replaceAnnotationPositions(annotationId, positions) {
+  replaceBlurAnchorPoints(annotationId, blurAnchorPoints) {
     const annotation = this.annotations?.find(
       (candidate) =>
         candidate["type"] === "blur" &&
         String(candidate["id"]) === String(annotationId),
     );
     if (!annotation) return false;
-    annotation["positions"] = positions;
+    annotation["positions"] = blurAnchorPoints;
     this.applyAnnotations();
     return true;
   }

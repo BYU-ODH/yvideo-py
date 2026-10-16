@@ -10,8 +10,8 @@ from .dev_features import DEMO_ADMIN_PASSWORD
 from .dev_features import DEMO_ADMIN_USERNAME
 from .factories import AnnotationSetFactory
 from .factories import BlankAnnotationFactory
+from .factories import BlurAnchorPointFactory
 from .factories import BlurAnnotationFactory
-from .factories import BlurAnnotationPositionFactory
 from .factories import ClipFactory
 from .factories import CommentAnnotationFactory
 from .factories import ContentFactory
@@ -368,7 +368,7 @@ def create_demo_data():
         description="Blank the display",
         type="#",
     )
-    # Two blurs covering both authoring shapes. Every position is deliberately asymmetric
+    # Two blurs covering both authoring shapes. Every anchor point is deliberately asymmetric
     # (x != y, width != height) so an axis or dimension mix-up cannot cancel itself out, and
     # both stay clear of the 12.0-14.5 full-screen blank above, which would otherwise mask
     # them and make manual verification impossible.
@@ -379,7 +379,7 @@ def create_demo_data():
         end_time=5.0,
         description="Stationary blur covering a burned-in watermark.",
     )
-    BlurAnnotationPositionFactory(
+    BlurAnchorPointFactory(
         blur_annotation=birds_watermark_blur,
         time=1.0,
         x=68.0,
@@ -396,14 +396,14 @@ def create_demo_data():
         end_time=11.0,
         description="Moving blur that follows a bird across the frame.",
     )
-    for position_time, x, y, width, height in (
+    for blur_anchor_point_time, x, y, width, height in (
         (3.0, 12.5, 30.0, 22.0, 14.0),
         (7.0, 40.0, 22.0, 26.0, 17.0),
         (11.0, 66.5, 44.0, 18.0, 11.0),
     ):
-        BlurAnnotationPositionFactory(
+        BlurAnchorPointFactory(
             blur_annotation=birds_flight_blur,
-            time=position_time,
+            time=blur_anchor_point_time,
             x=x,
             y=y,
             width=width,

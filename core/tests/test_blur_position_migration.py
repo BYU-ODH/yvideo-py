@@ -7,9 +7,9 @@ asserted precisely.
 The registry it is handed is a real historical one, rebuilt from the migration graph. Passing
 `django.apps` instead is *not* equivalent, and the difference is not about
 which fields exist: historical models carry no custom methods, so the live registry supplies a
-BlurAnnotationPosition whose `save()` clamps and rounds geometry, while the one the migration
+BlurAnchorPoint whose `save()` clamps and rounds geometry, while the one the migration
 actually receives at runtime does not. Driving these tests through the live registry meant every
-geometry assertion below was really testing `BlurAnnotationPosition.save()` - they would have
+geometry assertion below was really testing `BlurAnchorPoint.save()` - they would have
 passed just as well if `_normalize` did no geometry work at all - and it introduced a failure
 mode with no counterpart in production, where an intermediate `save(update_fields=["time"])`
 silently clamped an instance in memory while persisting only its time.
@@ -26,14 +26,16 @@ from django.db.migrations.executor import MigrationExecutor
 from django.test import TestCase
 
 from core.factories import BlurAnnotationFactory
+from core.models import BlurAnchorPoint
 
 MIGRATION = importlib.import_module("core.migrations.0004_blur_position_invariants")
 SENTINEL = {"x": 50.0, "y": 50.0, "width": 4.0, "height": 3.0}
 
-# A historical registry, taken at the *latest* migration rather than at 0004's dependency: what
-# these tests need from it is the absence of custom methods, and the state at 0003 also carries
-# columns that later migrations dropped (blur_amount, in 0009), which no longer exist in the test
-# database this runs against. Built once: it reads the migration graph off disk and touches no
+# A historical registry, taken at the last migration before 0015 renamed the model rather than at
+# 0004's dependency: what these tests need from it is the absence of custom methods and the
+# BlurAnnotationPosition / `positions` names 0004 is written against, and the state at 0003 also
+# carries columns that later migrations dropped (blur_amount, in 0009), which no longer exist in the
+# test database this runs against. Built once: it reads the migration graph off disk and touches no
 # database rows, so it is safe to share.
 _HISTORICAL_APPS = None
 
@@ -42,7 +44,13 @@ def _historical_apps():
     global _HISTORICAL_APPS
     if _HISTORICAL_APPS is None:
         loader = MigrationExecutor(connection).loader
-        _HISTORICAL_APPS = loader.project_state(loader.graph.leaf_nodes("core")[0]).apps
+        _HISTORICAL_APPS = loader.project_state(
+            ("core", "0014_merge_ta_into_collaborator")
+        ).apps
+        # The test database is at the latest migration, where 0015 has renamed the table.
+        _HISTORICAL_APPS.get_model(
+            "core", "BlurAnnotationPosition"
+        )._meta.db_table = BlurAnchorPoint._meta.db_table
     return _HISTORICAL_APPS
 
 
@@ -67,14 +75,14 @@ def _add(blur, time, **geometry):
 def _rows(blur):
     return [
         (p.time, p.x, p.y, p.width, p.height)
-        for p in blur.positions.all().order_by("time")
+        for p in blur.blur_anchor_points.all().order_by("time")
     ]
 
 
 class NormalizeBlurPositionsTests(TestCase):
     def setUp(self):
         self.blur = BlurAnnotationFactory(start_time=15.0, end_time=20.0)
-        self.blur.positions.all().delete()
+        self.blur.blur_anchor_points.all().delete()
 
     def test_the_sentinel_is_dropped_when_real_positions_exist(self):
         _add(self.blur, 0.0, **SENTINEL)
@@ -108,7 +116,7 @@ class NormalizeBlurPositionsTests(TestCase):
     def test_a_lone_sentinel_at_start_time_is_also_given_a_usable_box(self):
         """The sentinel's time coincides with start_time, so no repin happens to hang this off."""
         blur = BlurAnnotationFactory(start_time=0.0, end_time=6.0)
-        blur.positions.all().delete()
+        blur.blur_anchor_points.all().delete()
         _add(blur, 0.0, **SENTINEL)
 
         _normalize()
@@ -118,7 +126,7 @@ class NormalizeBlurPositionsTests(TestCase):
     def test_a_sentinel_is_left_alone_when_the_user_positioned_other_points(self):
         """Only a *lone* sentinel is replaced; one kept as real geometry is not second-guessed."""
         blur = BlurAnnotationFactory(start_time=0.0, end_time=6.0)
-        blur.positions.all().delete()
+        blur.blur_anchor_points.all().delete()
         _add(blur, 0.0, **SENTINEL)
         _add(blur, 4.0, x=9.0, y=9.0)
 
@@ -185,7 +193,9 @@ class NormalizeBlurPositionsTests(TestCase):
 
         self.assertEqual([time for time, *_ in _rows(self.blur)], [15.0])
         self.assertEqual(
-            self.blur.positions.first().x, 2.0, "the row already at start_time wins"
+            self.blur.blur_anchor_points.first().x,
+            2.0,
+            "the row already at start_time wins",
         )
 
     def test_a_blur_with_no_positions_gets_a_default_at_start_time(self):
@@ -197,7 +207,7 @@ class NormalizeBlurPositionsTests(TestCase):
 
     # --- geometry ------------------------------------------------------------
     #
-    # BlurAnnotationPosition.save() is the only thing enforcing these rules and there is no database
+    # BlurAnchorPoint.save() is the only thing enforcing these rules and there is no database
     # constraint behind it, so rows written before this migration can violate all of them.
 
     def test_a_box_hanging_off_the_frame_is_pulled_back_on(self):
@@ -278,7 +288,7 @@ class NormalizeBlurPositionsTests(TestCase):
     def test_every_blur_satisfies_the_invariants_afterwards(self):
         """Whatever the starting mess, the postconditions hold for all of them at once."""
         messy = BlurAnnotationFactory(start_time=3.0, end_time=8.0)
-        messy.positions.all().delete()
+        messy.blur_anchor_points.all().delete()
         _add(messy, 0.0, **SENTINEL)
         _add(messy, 1.0)
         _add(messy, 4.0, x=-40.0, y=140.0, width=0.2, height=500.0)
@@ -290,7 +300,7 @@ class NormalizeBlurPositionsTests(TestCase):
 
         for blur in (self.blur, messy):
             with self.subTest(blur=blur.pk):
-                positions = list(blur.positions.all().order_by("time"))
+                positions = list(blur.blur_anchor_points.all().order_by("time"))
                 self.assertGreaterEqual(len(positions), 1)
                 self.assertEqual(positions[0].time, blur.start_time)
                 times = [p.time for p in positions]
