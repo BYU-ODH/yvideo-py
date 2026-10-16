@@ -1479,7 +1479,6 @@ def update_subtitle_content(request, subtitle):
         return HttpResponseServerError()
 
 
-# TODO (#335, #352): unrouted. Route it behind @subtitle_write_required or delete it.
 @require_http_methods(["DELETE"])
 @subtitle_write_required
 def delete_subtitle(request, subtitle):

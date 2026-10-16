@@ -48,6 +48,7 @@ export class Editor {
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
+        this.selectedSubtitleTrackText = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
@@ -114,6 +115,7 @@ export class Editor {
         this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
         this.watchForSubtitleTrackCreation();
+        this.watchForSubtitleTrackDeletion();
         this.checkForAndLoadSubtitleTrack();
         this.handleNoAnnotationSet();
     }
@@ -2658,6 +2660,9 @@ export class Editor {
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
         document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
         this.selectedSubtitleTrackId = trackId;
+        this.selectedSubtitleTrackText = document.querySelector(
+          `.subtitles-track-option[value="${trackId}"]`
+        )?.textContent.trim() || "";
         document.getElementById(`cap-track-${trackId}-button`)?.click();
         this.buildWatchersForSubtitlePanelContent();
         this.buildWatchersForSubtitleEditorCues();
@@ -2754,6 +2759,43 @@ export class Editor {
       });
     }
 
+    watchForSubtitleTrackDeletion() {
+      const openButton = document.getElementById("open-delete-subtitle-track-modal");
+      const deleteButton = document.getElementById("delete-subtitle-track-confirm");
+      if (!openButton || !deleteButton) {
+        console.error("Cannot setup subtitle track delete button because the required elements do not exist.");
+        return;
+      }
+
+      openButton.addEventListener("click", () => {
+        if (!this.selectedSubtitleTrackId) return;
+        document.getElementById("delete-subtitle-track-text").textContent = this.selectedSubtitleTrackText;
+      });
+
+      deleteButton.addEventListener("click", async () => {
+        const trackId = this.selectedSubtitleTrackId;
+        if (!trackId || deleteButton.disabled) return;
+        deleteButton.disabled = true;
+        try {
+          const response = await fetch(`/subtitles/${trackId}/delete/`, {
+            method: "DELETE",
+            headers: { "X-CSRFToken": getCSRFToken() }
+          });
+          if (!response.ok) {
+            response.status === 403
+              ? console.error("You do not have permission to delete this subtitle track.")
+              : console.error("Failed to delete the subtitle track.");
+            return;
+          }
+          window.location.reload();
+        } catch (error) {
+          console.error("Failed to delete subtitle track", error);
+        } finally {
+          deleteButton.disabled = false;
+        }
+      });
+    }
+
     collectCues() {
       const rawCues = document.getElementsByClassName("editor-subtitle-cue");
       const cues = [];
@@ -2840,6 +2882,7 @@ export class Editor {
         const trackSelectOption = document.querySelector(`.subtitles-track-option[value='${this.selectedSubtitleTrackId}']`);
         const newTitle = subtitleTitleWrapper.querySelector("#subtitle-track-title").innerText;
         trackSelectOption.innerText = newTitle;
+        this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
       }
       setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
     }

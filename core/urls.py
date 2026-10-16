@@ -167,6 +167,11 @@ urlpatterns = [
         views_video_editor.update_subtitle_content,
         name="update_subtitle_content",
     ),
+    path(
+        "subtitles/<int:subtitle_id>/delete/",
+        views_video_editor.delete_subtitle,
+        name="delete_subtitle",
+    ),
     # Video editor page
     path(
         "video-editor/<int:content_id>/",
