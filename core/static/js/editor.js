@@ -114,6 +114,7 @@ export class Editor {
         this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
         this.watchForSubtitleTrackCreation();
+        this.checkForAndLoadSubtitleTrack();
         this.handleNoAnnotationSet();
     }
 
@@ -2647,27 +2648,43 @@ export class Editor {
       setupMultiOptionMenu(subtitleMenu);
     }
 
-    checkForAndLoadSubtitleTrack() {
-      // load a subtitle track if the subtitle_track url value is populated.
+    async loadSubtitleTrack(trackId) {
+      try {
+        const subtitlesResponse = await fetch(`/subtitles/${trackId}/editable/`);
+        if (!subtitlesResponse.ok) {
+          console.error("Failed to get subtitle cues");
+          return false;
+        }
+        const subtitlesPanelContentHTML = await subtitlesResponse.text();
+        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
+        this.selectedSubtitleTrackId = trackId;
+        document.getElementById(`cap-track-${trackId}-button`)?.click();
+        this.buildWatchersForSubtitlePanelContent();
+        this.buildWatchersForSubtitleEditorCues();
+        return true;
+      } finally {
+        // Keep the selector on the loaded track, including when a new load fails.
+        const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+        if (subtitleSelectInput) subtitleSelectInput.value = this.selectedSubtitleTrackId || "";
+      }
     }
 
-    async loadSubtitleTrack(trackId) {
-      const subtitlesResponse = await fetch(`/subtitles/${trackId}/editable/`);
-      if (!subtitlesResponse.ok) {
-        console.error("Failed to get subtitle cues");
-        return;
+    async checkForAndLoadSubtitleTrack() {
+      const pageUrl = new URL(window.location.href);
+      const trackId = pageUrl.searchParams.get("subtitle_track");
+      const subtitlePanel = document.getElementById("subtitle-editor-panel");
+      if (!trackId || !subtitlePanel) return;
+
+      try {
+        if (!await this.loadSubtitleTrack(trackId)) return;
+        if (subtitlePanel.classList.contains("subtitle-editor-panel-hidden")) {
+          document.getElementById("annotation-panel-switch")?.click();
+        }
+        pageUrl.searchParams.delete("subtitle_track");
+        window.history.replaceState(window.history.state, "", pageUrl);
+      } catch (error) {
+        console.error("Failed to load subtitle track from URL", error);
       }
-      const subtitlesPanelContentHTML = await subtitlesResponse.text();
-      const currentSubtitlesPanelContent = document.getElementById("subtitle-panel-content-wrapper");
-      if (currentSubtitlesPanelContent) {
-        currentSubtitlesPanelContent.outerHTML = subtitlesPanelContentHTML;
-      } else {
-        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
-      }
-      this.selectedSubtitleTrackId = trackId;
-      document.getElementById(`cap-track-${trackId}-button`)?.click();
-      this.buildWatchersForSubtitlePanelContent();
-      this.buildWatchersForSubtitleEditorCues();
     }
 
     watchAndHandleSubtitleTrackChange() {
@@ -2680,11 +2697,10 @@ export class Editor {
         if (!trackId || subtitleSelectInput.disabled) return;
         subtitleSelectInput.disabled = true;
         try {
-          await this.loadSubtitleTrack(trackId);
+          if (!await this.loadSubtitleTrack(trackId)) return;
           dialog.close();
         } catch (error) {
           console.error("Failed to select subtitle track", error);
-          subtitleSelectInput.value = this.selectedSubtitleTrackId || "";
         } finally {
           subtitleSelectInput.disabled = false;
         }
