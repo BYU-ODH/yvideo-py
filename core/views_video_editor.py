@@ -18,7 +18,6 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
-from .forms import SubtitleForm
 from .models import BLUR_SNAP_SECONDS
 from .models import BLUR_TIME_PRECISION
 from .models import AnnotationSet
@@ -46,7 +45,6 @@ from .permissions import track_write_required
 from .utils import ANNOTATION_ICONS
 from .utils import VTTCue
 from .utils import build_vtt_file_string_from_cues
-from .utils import convert_srt_content_to_vtt
 from .utils import generate_vtt_cues_from_file_path
 from .utils import nudge_cue_times
 from .utils import time2seconds
@@ -1369,48 +1367,6 @@ def get_editable_subtitles(request, subtitle):
     except Exception as e:
         logger.error(f"Error generating html cues from file path. Exception: {e}")
         return HttpResponseServerError()
-
-
-# TODO (#335, #352): unrouted. It takes `owner` from POST data, i.e. owner spoofing.
-# Delete it, or route it and set owner from request.user.
-@require_POST
-def create_subtitle(request):
-    form = SubtitleForm(request.POST, request.FILES)
-    if form.is_valid():
-        data = form.cleaned_data
-        uploaded_file = request.FILES["subtitles_file"]
-        if uploaded_file is None:
-            logger.error("No subtitle file provided.")
-            return HttpResponseBadRequest()
-
-        # automatically convert .srt files to .vtt
-        uploaded_file_content = convert_srt_content_to_vtt(
-            uploaded_file.read().decode("utf-8")
-        )
-
-        # create new subtitle object
-        try:
-            new_subtitle = Subtitle.objects.create(
-                resource=data["resource"],
-                owner=data["owner"],
-                language=data["language"],
-                name=data["name"],
-                subtitles_file=ContentFile(
-                    content=uploaded_file_content, name=uploaded_file.name
-                ),
-                is_original=data["is_original"],
-            )
-        except Exception as e:
-            logger.error(
-                f"Error creating Subtitles object. data: {data}. Exception: {e}"
-            )
-            return HttpResponseServerError()
-    else:
-        return HttpResponseBadRequest()
-
-    return render(
-        request, "core/partials/subtitle_track.html", {"subtitle_track": new_subtitle}
-    )
 
 
 @require_POST
