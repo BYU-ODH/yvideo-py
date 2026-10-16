@@ -359,6 +359,17 @@ a.blue-button {
     border-bottom-left-radius: var(--basic-border-radius);
 }
 
+.multi-option-menu-button:disabled {
+    color: lightgrey;
+    background-color: grey;
+
+    /* eslint-disable-next-line css/use-baseline */
+    &:hover {
+        cursor: not-allowed;
+        box-shadow: 0 0 0 0;
+    }
+}
+
 .open-multi-option-menu {
     display: flex;
     flex-direction: column;
