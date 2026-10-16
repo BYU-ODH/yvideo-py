@@ -1,4 +1,16 @@
 {% extends "core/partials/modals/user_view_modal.html" %}
 
-{% block modal_title %}Create a subtitle track{% endblock %}
-{% block modal_body %}{% endblock %}
+{% block modal_title %}Select a subtitle track{% endblock %}
+{% block modal_body %}
+    {% if subtitle_options %}
+        <label for="subtitles-track-selector">Subtitle track</label>
+        <select id="subtitles-track-selector">
+            <option value="" disabled selected>Select a subtitle track</option>
+            {% for option in subtitle_options %}
+                <option class="subtitles-track-option" value="{{ option.id }}">{{ option.name }} ({{ option.srclang }})</option>
+            {% endfor %}
+        </select>
+    {% else %}
+        <p>No subtitle tracks are available for this video.</p>
+    {% endif %}
+{% endblock %}

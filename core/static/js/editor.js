@@ -2657,27 +2657,38 @@ export class Editor {
         console.error("Failed to get subtitle cues");
         return;
       }
-      this.selectedSubtitleTrackId = trackId;
-      document.getElementById(`cap-track-${trackId}-button`)?.click();
-
       const subtitlesPanelContentHTML = await subtitlesResponse.text();
       const currentSubtitlesPanelContent = document.getElementById("subtitle-panel-content-wrapper");
       if (currentSubtitlesPanelContent) {
         currentSubtitlesPanelContent.outerHTML = subtitlesPanelContentHTML;
+      } else {
+        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
       }
+      this.selectedSubtitleTrackId = trackId;
+      document.getElementById(`cap-track-${trackId}-button`)?.click();
       this.buildWatchersForSubtitlePanelContent();
       this.buildWatchersForSubtitleEditorCues();
     }
 
     watchAndHandleSubtitleTrackChange() {
-      // change this when we add the content for subtitle track selector modal
-      // if (!document.getElementById("subtitle-editor-panel")) return;
-      // const subtitleSelectInput = document.getElementById("subtitles-track-selector");
-      // subtitleSelectInput?.addEventListener("change", () => {
-      //   if (subtitleSelectInput.value) {
-      //     this.loadSubtitleTrack(subtitleSelectInput.value).catch(console.error);
-      //   }
-      // });
+      const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+      if (!subtitleSelectInput) return;
+      const dialog = subtitleSelectInput.closest("dialog");
+
+      subtitleSelectInput.addEventListener("change", async () => {
+        const trackId = subtitleSelectInput.value;
+        if (!trackId || subtitleSelectInput.disabled) return;
+        subtitleSelectInput.disabled = true;
+        try {
+          await this.loadSubtitleTrack(trackId);
+          dialog.close();
+        } catch (error) {
+          console.error("Failed to select subtitle track", error);
+          subtitleSelectInput.value = this.selectedSubtitleTrackId || "";
+        } finally {
+          subtitleSelectInput.disabled = false;
+        }
+      });
     }
 
     watchForSubtitleTrackCreation() {
