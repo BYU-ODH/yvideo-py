@@ -6,7 +6,7 @@ silence: the browser files a drag under a point the server files somewhere else,
 server then clamps differently, and every test still passes.
 
 The *behavioural* mirrors are already held together by shared case tables - geometry_at/rectAtTime
-and reconcile_positions/pointsLostByRetiming, in core/tests/test_blur_positions.py and
+and reconcile_blur_anchor_points/blurAnchorPointsLostByRetiming, in core/tests/test_blur_anchor_points.py and
 tests/js/blur-retiming.test.js. This module holds the raw numbers underneath them, which no case
 table pins: a table written against 0.05 keeps passing when one side becomes 0.06.
 

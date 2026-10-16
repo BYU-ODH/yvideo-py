@@ -1,11 +1,11 @@
 import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
-import { BlurEditor, placeLocators } from "./BlurEditor.js";
+import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import {
   RESIZE_HANDLES,
   clampRect,
   edgesForHandle,
   percentWithin,
-  pointsLostByRetiming,
+  blurAnchorPointsLostByRetiming,
   resizeRect,
 } from "./video-geometry.js";
 
@@ -75,7 +75,7 @@ export class Editor {
           video: this.video,
           player: window.videoPlayer,
           timelineWrapper: this.timelineWrapper,
-          onPositionsSaved: () => {
+          onBlurAnchorPointsSaved: () => {
             this.placeTrackItems();
             this.setupItems();
           },
@@ -288,10 +288,10 @@ export class Editor {
             this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
         }
 
-        this.updateBlurLocatorsDuringResize();
+        this.updateBlurAnchorPointDotsDuringResize();
     }
 
-    updateBlurLocatorsDuringResize() {
+    updateBlurAnchorPointDotsDuringResize() {
         const item = this.dragState?.item;
         if (!item || item.dataset.annotationType !== "blur") return;
 
@@ -299,7 +299,7 @@ export class Editor {
         const widthPercent = parseFloat(item.style.width);
         if (!Number.isFinite(leftPercent) || !Number.isFinite(widthPercent)) return;
 
-        placeLocators(item, {
+        placeBlurAnchorPointDots(item, {
             start: (leftPercent / 100) * this.duration,
             end: ((leftPercent + widthPercent) / 100) * this.duration,
         });
@@ -471,7 +471,7 @@ export class Editor {
             const newStart = parseTimeStringToSeconds(itemForm.querySelector("#start_time")?.value);
             const newEnd = parseTimeStringToSeconds(itemForm.querySelector("#end_time")?.value);
             if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
-                !this.confirmBlurPointLoss(item, newStart, newEnd)) {
+                !this.confirmBlurAnchorPointLoss(item, newStart, newEnd)) {
               itemForm.querySelector("#start_time").value = formatSecondsToString(item.dataset["start"]);
               itemForm.querySelector("#end_time").value = formatSecondsToString(item.dataset["end"]);
               return;
@@ -501,7 +501,7 @@ export class Editor {
 
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        if (e.submitter?.classList.contains("blur-position-delete-button")) {
+        if (e.submitter?.classList.contains("blur-anchor-point-delete-button")) {
           return;
         }
         save();
@@ -522,8 +522,8 @@ export class Editor {
 
       if (annotationType != "blur") return;
       const incoming = createElementFromHTMLString(responseData["form_html"]);
-      const rows = incoming?.querySelector("#positions-list");
-      const list = document.getElementById("positions-list");
+      const rows = incoming?.querySelector("#blur-anchor-points-list");
+      const list = document.getElementById("blur-anchor-points-list");
       if (rows && list) list.replaceWith(rows);
       this.blurEditor.syncFromPanel();
     }
@@ -942,7 +942,7 @@ export class Editor {
         }
         const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
 
-        if (!this.confirmBlurPointLoss(item, newStartTime, newEndTime)) {
+        if (!this.confirmBlurAnchorPointLoss(item, newStartTime, newEndTime)) {
           item.dataset.deltaLeft = '0';
           item.dataset.deltaWidth = '0';
           this.placeTrackItems();
@@ -952,19 +952,19 @@ export class Editor {
         this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
     }
 
-    blurPointsLostByRetiming(item, newStart, newEnd) {
+    countBlurAnchorPointsLost(item, newStart, newEnd) {
       if (item.dataset["annotationType"] !== "blur") return 0;
       const oldStart = parseFloat(item.dataset["start"]);
       const oldEnd = parseFloat(item.dataset["end"]);
-      const dots = item.querySelectorAll(".blur-position-locator");
-      const times = [oldStart, ...Array.from(dots, (dot) => parseFloat(dot.dataset["positionTime"]))];
-      return pointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd);
+      const blurAnchorPointDots = item.querySelectorAll(".blur-anchor-point-dot");
+      const times = [oldStart, ...Array.from(blurAnchorPointDots, (blurAnchorPointDot) => parseFloat(blurAnchorPointDot.dataset["blurAnchorPointTime"]))];
+      return blurAnchorPointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd);
     }
 
-    confirmBlurPointLoss(item, newStart, newEnd) {
-      const lost = this.blurPointsLostByRetiming(item, newStart, newEnd);
+    confirmBlurAnchorPointLoss(item, newStart, newEnd) {
+      const lost = this.countBlurAnchorPointsLost(item, newStart, newEnd);
       if (lost === 0) return true;
-      const subject = lost === 1 ? "1 blur point falls" : `${lost} blur points fall`;
+      const subject = lost === 1 ? "1 blur anchor point falls" : `${lost} blur anchor points fall`;
       return window.confirm(`${subject} outside the new time range and will be removed. Continue?`);
     }
 
@@ -1891,7 +1891,7 @@ export class Editor {
               item.style.setProperty("left", `${itemLeftValue}%`);
 
               if (item.dataset.annotationType == "blur") {
-                placeLocators(item);
+                placeBlurAnchorPointDots(item);
               }
             }
             // Assign each item (already sorted by start time above) to the first row

@@ -44,7 +44,7 @@ export function contentRect(elemWidth, elemHeight, intrinsicWidth, intrinsicHeig
   };
 }
 
-// Mirrors BlurAnnotationPosition.save() in core/models.py, so a drag shows the geometry that will
+// Mirrors BlurAnchorPoint.save() in core/models.py, so a drag shows the geometry that will
 // actually be stored and the box does not jump on release. Order matters and matches the server's:
 // size is settled first, then the origin is pulled in far enough to keep the whole box on screen.
 export function clampRect(rect, { minWidth = 0, minHeight = 0 } = {}) {
@@ -127,44 +127,44 @@ function lerp(from, to, fraction) {
   return from + (to - from) * fraction;
 }
 
-// The rectangle a blur occupies at `time`, linearly interpolated between the two positions that
-// bracket it. `positions` must be sorted ascending by `time` -- the server guarantees this
+// The rectangle a blur occupies at `time`, linearly interpolated between the two anchor points that
+// bracket it. `blurAnchorPoints` must be sorted ascending by `time` -- the server guarantees this
 // (BlurAnnotation.to_player_json orders by time).
 //
-// Interpolation is what makes a handful of positions enough to keep a moving subject covered: with a
-// step function the box lags behind between positions and briefly exposes the thing it exists to
-// hide. Outside the first and last positions the value is held constant rather than extrapolated, so
+// Interpolation is what makes a handful of anchor points enough to keep a moving subject covered: with a
+// step function the box lags behind between anchor points and briefly exposes the thing it exists to
+// hide. Outside the first and last anchor points the value is held constant rather than extrapolated, so
 // a blur can never drift somewhere its author never put it.
-export function rectAtTime(positions, time) {
-  if (!positions || positions.length === 0) {
+export function rectAtTime(blurAnchorPoints, time) {
+  if (!blurAnchorPoints || blurAnchorPoints.length === 0) {
     return null;
   }
 
-  const asRect = (position) => ({
-    x: position.x,
-    y: position.y,
-    width: position.width,
-    height: position.height,
+  const asRect = (blurAnchorPoint) => ({
+    x: blurAnchorPoint.x,
+    y: blurAnchorPoint.y,
+    width: blurAnchorPoint.width,
+    height: blurAnchorPoint.height,
   });
 
-  const first = positions[0];
-  if (positions.length === 1 || time <= first.time) {
+  const first = blurAnchorPoints[0];
+  if (blurAnchorPoints.length === 1 || time <= first.time) {
     return asRect(first);
   }
-  const last = positions[positions.length - 1];
+  const last = blurAnchorPoints[blurAnchorPoints.length - 1];
   if (time >= last.time) {
     return asRect(last);
   }
 
-  // Linear scan: a blur has a handful of positions, so this is cheaper than any index, and stateless
-  // (no cursor to invalidate when the editor adds or moves a position mid-session).
-  for (let i = 1; i < positions.length; i++) {
-    const to = positions[i];
+  // Linear scan: a blur has a handful of anchor points, so this is cheaper than any index, and stateless
+  // (no cursor to invalidate when the editor adds or moves an anchor point mid-session).
+  for (let i = 1; i < blurAnchorPoints.length; i++) {
+    const to = blurAnchorPoints[i];
     if (to.time < time) continue;
 
-    const from = positions[i - 1];
+    const from = blurAnchorPoints[i - 1];
     const span = to.time - from.time;
-    // Two positions sharing a timestamp shouldn't exist, but a divide-by-zero here would put NaN
+    // Two anchor points sharing a timestamp shouldn't exist, but a divide-by-zero here would put NaN
     // into a style and drop the blur entirely, so snap to the later one.
     const fraction = span > 0 ? (time - from.time) / span : 1;
     return {
@@ -195,18 +195,18 @@ function roundToStoredTime(seconds) {
 // The editor calls this to decide whether to warn before a retiming save: a blur covers content that
 // must not be seen, so silently losing a point leaves a blur gliding somewhere it was never aimed.
 //
-// This predicts what BlurAnnotation.reconcile_positions will do - the same decision written twice, in
+// This predicts what BlurAnnotation.reconcile_blur_anchor_points will do - the same decision written twice, in
 // two languages, where drift means either a warning about nothing or an unannounced deletion. Kept
-// pure and DOM-free so tests/js/blur-retiming.test.js and the RetimingPointLossTests case table in
-// core/tests/test_blur_positions.py can hold both implementations to the same answers.
-export function pointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd) {
+// pure and DOM-free so tests/js/blur-retiming.test.js and the RetimingBlurAnchorPointLossTests case table in
+// core/tests/test_blur_anchor_points.py can hold both implementations to the same answers.
+export function blurAnchorPointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd) {
   if (!Number.isFinite(oldStart) || !Number.isFinite(oldEnd)) return 0;
   // Rounded to stored precision first: dragging the left handle computes the right edge as
   // left+width, which lands a hair under a whole number, so a raw 10.99999 against a point at 11.0
   // would warn about a loss the server, holding 11.00, is never going to inflict.
   const start = roundToStoredTime(newStart);
   const end = roundToStoredTime(newEnd);
-  // Both halves of reconcile_positions' move test: the same tolerance *and* a start that actually
+  // Both halves of reconcile_blur_anchor_points' move test: the same tolerance *and* a start that actually
   // moved. Left float-exact, matching the server rather than defended against, because a duration
   // change near the tolerance has to fall the same side of it in both places.
   const durationChange = Math.abs(end - start - (oldEnd - oldStart));
@@ -222,7 +222,7 @@ export function pointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd) 
 
   const leading = points.filter((time) => time < start).length;
   const trailing = points.filter((time) => time > end).length;
-  // Of the points before the window, the latest normally survives: ensure_first_position re-pins it
+  // Of the points before the window, the latest normally survives: ensure_first_blur_anchor_point re-pins it
   // to start_time rather than deleting it. The exception is a point already sitting exactly on the
   // new start, which supplies the geometry there and makes the survivor redundant.
   //

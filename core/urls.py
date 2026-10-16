@@ -273,14 +273,14 @@ urlpatterns = [
         name="delete_annotation",
     ),
     path(
-        "annotations/blur/<int:annotation_id>/positions/",
-        views_video_editor.upsert_blur_position,
-        name="upsert_blur_position",
+        "annotations/blur/<int:annotation_id>/anchor-points/",
+        views_video_editor.upsert_blur_anchor_point,
+        name="upsert_blur_anchor_point",
     ),
     path(
-        "annotations/blur/positions/<int:position_id>/",
-        views_video_editor.delete_blur_position,
-        name="delete_blur_position",
+        "annotations/blur/anchor-points/<int:blur_anchor_point_id>/",
+        views_video_editor.delete_blur_anchor_point,
+        name="delete_blur_anchor_point",
     ),
     path(
         "annotations/<str:annotation_type>/<int:annotation_id>/form/",

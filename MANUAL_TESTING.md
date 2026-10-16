@@ -120,7 +120,7 @@ cleanly, so nothing is corrupted, but the drag silently does nothing. `preventDe
 scroll arbitration happens before the handler runs.
 
 `touch-action: none` is therefore set on all three drag surfaces: `#blur-edit-rig`,
-`.blur-rig-handle`, and `.blur-position-locator`. What remains to verify on real hardware is
+`.blur-rig-handle`, and `.blur-anchor-point-dot`. What remains to verify on real hardware is
 whether that is sufficient in practice, and whether the hit targets are usable with a fingertip.
 
 **Why it cannot be automated:** Playwright can synthesise touch events, but the
@@ -135,9 +135,9 @@ fails — which is also why the `touch-action` rules above are not covered by th
       fingertip. (They are deliberately small — 5px painted with a transparent border extending
       the hit target — because they sit on top of the content the blur exists to conceal, so
       this is a genuine trade-off to evaluate rather than a bug to fix reflexively.)
-- [ ] Drag a blur point dot along the timeline bar to retime it.
+- [ ] Drag a blur anchor point dot along the timeline bar to retime it.
 - [ ] Drag the item's left and right edges on the timeline.
-- [ ] Edit a number in the blur points table. The on-screen keyboard does not obscure the field
+- [ ] Edit a number in the blur anchor points table. The on-screen keyboard does not obscure the field
       being edited, and the value saves on commit.
 
 ---
@@ -153,7 +153,7 @@ nicety.
 are present in the DOM. It cannot check what a screen reader actually says, which depends on the
 pairing of reader and browser. In particular nothing automated verifies that the
 `aria-live="polite"` status region
-([blur_positions.html:125](core/templates/core/partials/blur_positions.html#L125)) is announced
+([blur_anchor_points.html:125](core/templates/core/partials/blur_anchor_points.html#L125)) is announced
 when it changes, and a live region that never announces is indistinguishable from a correct one
 in the markup.
 
@@ -166,9 +166,9 @@ contrast — the static half.
 
 - [ ] Selecting a blur announces the editing rig, its role and its label.
 - [ ] Nudging the box with the arrow keys, then pressing Enter, announces the resulting status
-      — *"Point added at 17.40s"*, *"Point updated at 17.40s"*, *"Point moved to 17.40s"* or
-      *"Point deleted"*, depending on what the write did.
-- [ ] The blur points table is navigable as a table: column headers (Time, X, Y, W, H) are
+      — *"Anchor point added at 17.40s"*, *"Anchor point updated at 17.40s"*, *"Anchor point moved to 17.40s"* or
+      *"Anchor point deleted"*, depending on what the write did.
+- [ ] The blur anchor points table is navigable as a table: column headers (Time, X, Y, W, H) are
       announced with their cells, and each row's number is announced as its row header.
 - [ ] The first point's Time field is announced as read-only, and its explanatory title is
       reachable.
@@ -227,7 +227,7 @@ numbers; they cannot assert intent.
 - [ ] Compare against the same censor in the legacy app if it is still reachable. The box is in
       the same place, not offset down-and-right.
 - [ ] Check a censor whose box sat near an edge of the frame. Converting can push the corner
-      negative, and `BlurAnnotationPosition.save()` clamps it back onto the frame — so the box
+      negative, and `BlurAnchorPoint.save()` clamps it back onto the frame — so the box
       may be a little larger or shifted relative to the original. Confirm it still covers the
       subject rather than having slid off it.
 - [ ] Check a censor that had several keyframes. It glides between them rather than jumping, and

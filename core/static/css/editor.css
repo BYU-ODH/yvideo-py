@@ -765,14 +765,14 @@
     height: 1.25rem;
 }
 
-.blur-position-delete-button img {
+.blur-anchor-point-delete-button img {
     box-sizing: border-box;
     width: 100%;
     height: 100%;
     padding: 3px;
 }
 
-.blur-position-delete-button img:hover {
+.blur-anchor-point-delete-button img:hover {
     border-radius: 4px;
     background-color: #ffffff40;
 }
@@ -921,89 +921,89 @@
     cursor: nesw-resize;
 }
 
-/* blur-positions */
-.blur-positions-help {
+/* blur-anchor-points */
+.blur-anchor-points-help {
     margin: 0.25rem 0 0.5rem;
     font-size: 0.8rem;
     line-height: 1.35;
     opacity: 0.8;
 }
 
-.blur-position-status {
+.blur-anchor-point-status {
     min-height: 1.1rem;
     margin: 0.25rem 0 0;
     font-size: 0.8rem;
     opacity: 0.85;
 }
 
-#positions-list {
+#blur-anchor-points-list {
     overflow-x: auto;
 }
 
-#positions-list:focus-visible {
+#blur-anchor-points-list:focus-visible {
     outline: 2px solid var(--blur-type-color, white);
     outline-offset: 2px;
 }
 
-#blur-positions-table {
+#blur-anchor-points-table {
     border-spacing: 0;
     border-collapse: separate;
 }
 
-.active-position-entry th, .active-position-entry td {
+.active-blur-anchor-point-entry th, .active-blur-anchor-point-entry td {
     background-color: var(--blur-type-color-transparent);
 }
 
-.active-position-entry th:first-child {
+.active-blur-anchor-point-entry th:first-child {
     border-top-left-radius: 8px;
     border-bottom-left-radius: 8px;
 }
 
-.active-position-entry td:last-child {
+.active-blur-anchor-point-entry td:last-child {
     border-top-right-radius: 8px;
     border-bottom-right-radius: 8px;
 }
 
-.position-column-number {
+.blur-anchor-point-column-number {
     width: 1.5rem;
 }
 
-.position-column-actions {
+.blur-anchor-point-column-actions {
     width: 1.4rem;
 }
 
-#blur-positions-table th, #blur-positions-table td {
+#blur-anchor-points-table th, #blur-anchor-points-table td {
     padding: 6px 2px;
     font-size: 0.8rem;
     font-weight: normal;
     text-align: left;
 }
 
-#annotation-update-form .position-input-group input {
+#annotation-update-form .blur-anchor-point-input-group input {
     box-sizing: content-box;
     padding: 4px 3px;
     font: inherit;
     font-variant-numeric: tabular-nums;
 }
 
-.position-time-input {
+.blur-anchor-point-time-input {
     width: 10ch; /* 0:00:00.00, and still room for a video hours long */
 }
 
-.position-x-input, .position-y-input {
+.blur-anchor-point-x-input, .blur-anchor-point-y-input {
     width: 5ch; /* 97.00 - x and y are clamped to leave room for the box itself */
 }
 
-.position-width-input, .position-height-input {
+.blur-anchor-point-width-input, .blur-anchor-point-height-input {
     width: 6ch; /* 100.00 */
 }
 
-#annotation-update-form .position-input-group input[readonly] {
+#annotation-update-form .blur-anchor-point-input-group input[readonly] {
     cursor: default;
     color: var(--dark-mode-text-color-dimmed);
 }
 
-.blur-position-delete-button {
+.blur-anchor-point-delete-button {
     display: none;
 
     width: 1.2rem;
@@ -1015,7 +1015,7 @@
     background-color: #fff0;
 }
 
-.active-position-entry .blur-position-delete-button {
+.active-blur-anchor-point-entry .blur-anchor-point-delete-button {
     display: block;
 }
 
@@ -1040,7 +1040,7 @@
     outline-offset: -2px;
 }
 
-.blur-position-locator {
+.blur-anchor-point-dot {
     touch-action: none;
 
     position: absolute;
@@ -1054,27 +1054,27 @@
     background-color: var(--dark-mode-light-gray);
 }
 
-.blur-position-locator:hover {
+.blur-anchor-point-dot:hover {
     cursor: pointer;
     box-shadow: 0 3px 6px #00000075;
 }
 
-.blur-position-locator:focus-visible {
+.blur-anchor-point-dot:focus-visible {
     outline: 2px solid white;
     outline-offset: 1px;
 }
 
-.active-track-item .blur-position-locator:hover {
+.active-track-item .blur-anchor-point-dot:hover {
     cursor: grab;
 }
 
-.dragging-blur-position-locator,
-.active-track-item .dragging-blur-position-locator:hover {
+.dragging-blur-anchor-point-dot,
+.active-track-item .dragging-blur-anchor-point-dot:hover {
     cursor: grabbing;
     box-shadow: 0 3px 6px #00000075;
 }
 
-.active-blur-position-locator {
+.active-blur-anchor-point-dot {
     border: 2px solid white;
 }
 

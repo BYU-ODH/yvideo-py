@@ -53,8 +53,8 @@ from ..legacy_migration.legacy_roles import LegacyCollectionRole
 from ..legacy_migration.parsers import LegacyFileInfo
 from ..models import LAB_ASSISTANT_GROUP_NAME
 from ..models import BlankAnnotation
+from ..models import BlurAnchorPoint
 from ..models import BlurAnnotation
-from ..models import BlurAnnotationPosition
 from ..models import Clip
 from ..models import Content
 from ..models import MuteAnnotation
@@ -999,8 +999,14 @@ class LegacyMigrationTests(TestCase):
         # box is top-left (30, 35). See core/tests/test_legacy_blur_import.py for the cases.
         self.assertEqual(
             [
-                (position.time, position.x, position.y, position.width, position.height)
-                for position in BlurAnnotationPosition.objects.filter(
+                (
+                    blur_anchor_point.time,
+                    blur_anchor_point.x,
+                    blur_anchor_point.y,
+                    blur_anchor_point.width,
+                    blur_anchor_point.height,
+                )
+                for blur_anchor_point in BlurAnchorPoint.objects.filter(
                     blur_annotation__track__annotation_set=imported_video.annotation_set
                 )
             ],

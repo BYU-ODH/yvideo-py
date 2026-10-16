@@ -140,7 +140,7 @@ class DemoSeedDataTests(TestCase):
         )
         self.assertEqual(
             list(
-                watermark_blur.positions.order_by("time").values_list(
+                watermark_blur.blur_anchor_points.order_by("time").values_list(
                     "time", "x", "y", "width", "height"
                 )
             ),
@@ -148,7 +148,7 @@ class DemoSeedDataTests(TestCase):
         )
         self.assertEqual(
             list(
-                flight_blur.positions.order_by("time").values_list(
+                flight_blur.blur_anchor_points.order_by("time").values_list(
                     "time", "x", "y", "width", "height"
                 )
             ),
@@ -160,21 +160,27 @@ class DemoSeedDataTests(TestCase):
         )
         for blur in (watermark_blur, flight_blur):
             with self.subTest(blur=blur.name):
-                positions = list(blur.positions.order_by("time"))
-                # The first position is the geometry in effect when the blur begins.
-                self.assertEqual(positions[0].time, blur.start_time)
-                for position in positions:
-                    self.assertGreaterEqual(position.time, blur.start_time)
-                    self.assertLessEqual(position.time, blur.end_time)
+                blur_anchor_points = list(blur.blur_anchor_points.order_by("time"))
+                # The first anchor point is the geometry in effect when the blur begins.
+                self.assertEqual(blur_anchor_points[0].time, blur.start_time)
+                for blur_anchor_point in blur_anchor_points:
+                    self.assertGreaterEqual(blur_anchor_point.time, blur.start_time)
+                    self.assertLessEqual(blur_anchor_point.time, blur.end_time)
                     # Asymmetric on both axes, so an x/y or width/height mix-up anywhere
                     # downstream cannot cancel itself out and pass unnoticed.
-                    self.assertNotEqual(position.x, position.y)
-                    self.assertNotEqual(position.width, position.height)
+                    self.assertNotEqual(blur_anchor_point.x, blur_anchor_point.y)
+                    self.assertNotEqual(
+                        blur_anchor_point.width, blur_anchor_point.height
+                    )
                     # Fully inside the frame.
-                    self.assertGreaterEqual(position.x, 0)
-                    self.assertGreaterEqual(position.y, 0)
-                    self.assertLessEqual(position.x + position.width, 100)
-                    self.assertLessEqual(position.y + position.height, 100)
+                    self.assertGreaterEqual(blur_anchor_point.x, 0)
+                    self.assertGreaterEqual(blur_anchor_point.y, 0)
+                    self.assertLessEqual(
+                        blur_anchor_point.x + blur_anchor_point.width, 100
+                    )
+                    self.assertLessEqual(
+                        blur_anchor_point.y + blur_anchor_point.height, 100
+                    )
         self.assertFalse(
             grid_annotation_set.can_be_edited_by(User.objects.get(username="111227777"))
         )
