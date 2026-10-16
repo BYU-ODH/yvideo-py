@@ -2661,6 +2661,8 @@ export class Editor {
         document.getElementById(`cap-track-${trackId}-button`)?.click();
         this.buildWatchersForSubtitlePanelContent();
         this.buildWatchersForSubtitleEditorCues();
+        document.getElementById("open-subtitle-track-edit-modal").disabled = false;
+        document.getElementById("open-delete-subtitle-track-modal").disabled = false;
         return true;
       } finally {
         // Keep the selector on the loaded track, including when a new load fails.
