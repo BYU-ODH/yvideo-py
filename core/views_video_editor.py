@@ -1306,9 +1306,16 @@ def create_subtitle_track(request, content):
             language = Language.objects.create(language=language_in, bcp47=bcp47_in)
         else:
             language = result_filter.first()
+
     except Exception as e:
         logger.error(
             f"Failed to create new language while creating new Subtitle track. Exception: {e}"
+        )
+        return JsonResponse(
+            {
+                "error": "Failed to query or create new language while creating a subtitle track"
+            },
+            status=500,
         )
 
     resource = content.get_resource()
@@ -1332,6 +1339,10 @@ def create_subtitle_track(request, content):
     except IntegrityError:
         return JsonResponse(
             {"error": "You already have a subtitle track with this name."}, status=400
+        )
+    except Exception:
+        return JsonResponse(
+            {"error": "Failed to create a new subtitle track."}, status=500
         )
 
     return JsonResponse({"id": subtitle.pk}, status=201)

@@ -113,6 +113,7 @@ export class Editor {
         this.watchAndHandleEditorPanelSwitch();
         this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
+        this.watchForSubtitleTrackCreation();
         this.handleNoAnnotationSet();
     }
 
@@ -2646,76 +2647,82 @@ export class Editor {
       setupMultiOptionMenu(subtitleMenu);
     }
 
-    watchAndHandleSubtitleTrackChange() {
-      const subtitleSelectInput = document.getElementById("subtitles-track-selector");
-      if (!subtitleSelectInput) return;
+    checkForAndLoadSubtitleTrack() {
+      // load a subtitle track if the subtitle_track url value is populated.
+    }
 
-      // setting up subtitle track selector
-      subtitleSelectInput.addEventListener("change", async () => {
-        const newSubtitleTrackId = subtitleSelectInput.value;
-        if (!newSubtitleTrackId) {
-          console.error("Invalid subtitle track id");
-          return;
-        }
-        this.selectedSubtitleTrackId = newSubtitleTrackId;
-        const subtitlesResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/editable/`);
-        if (!subtitlesResponse.ok) {
-          console.error("Failed to get subtitle cues");
-          return;
-        }
-        // The annotation player controls what subtitle track is used. Select the correct captions track
-        // using the UI since we don't have a clean way to take that action via the AnnotationPlayer class instance
-        const annotationPlayerCapTrack = document.getElementById(`cap-track-${this.selectedSubtitleTrackId}-button`);
-        annotationPlayerCapTrack?.click();
-
-        const subtitlesPanelHTML = await subtitlesResponse.text();
-        const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-        currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
-        this.buildWatchersForSubtitlePanelContent();
-        this.buildWatchersForSubtitleEditorCues();
-      });
-
-      // if the subtitle track is pre-selected, navigate to the editor and select that track
-      const pageUrl = new URL(window.location.href);
-      const createdTrackId = pageUrl.searchParams.get("subtitle_track");
-      if (createdTrackId && Array.from(subtitleSelectInput.options).some(option => option.value === createdTrackId)) {
-        subtitleSelectInput.value = createdTrackId;
-        document.getElementById("annotation-panel-switch")?.click();
-        subtitleSelectInput.dispatchEvent(new Event("change"));
-        pageUrl.searchParams.delete("subtitle_track");
-        window.history.replaceState(window.history.state, "", pageUrl);
+    async loadSubtitleTrack(trackId) {
+      const subtitlesResponse = await fetch(`/subtitles/${trackId}/editable/`);
+      if (!subtitlesResponse.ok) {
+        console.error("Failed to get subtitle cues");
+        return;
       }
+      this.selectedSubtitleTrackId = trackId;
+      document.getElementById(`cap-track-${trackId}-button`)?.click();
 
+      const subtitlesPanelContentHTML = await subtitlesResponse.text();
+      const currentSubtitlesPanelContent = document.getElementById("subtitle-panel-content-wrapper");
+      if (currentSubtitlesPanelContent) {
+        currentSubtitlesPanelContent.outerHTML = subtitlesPanelContentHTML;
+      }
+      this.buildWatchersForSubtitlePanelContent();
+      this.buildWatchersForSubtitleEditorCues();
+    }
+
+    watchAndHandleSubtitleTrackChange() {
+      // change this when we add the content for subtitle track selector modal
+      // if (!document.getElementById("subtitle-editor-panel")) return;
+      // const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+      // subtitleSelectInput?.addEventListener("change", () => {
+      //   if (subtitleSelectInput.value) {
+      //     this.loadSubtitleTrack(subtitleSelectInput.value).catch(console.error);
+      //   }
+      // });
+    }
+
+    watchForSubtitleTrackCreation() {
       const newTrackNameInput = document.getElementById("subtitles-track-create-new");
       const newTrackLanguageInput = document.getElementById("subtitles-track-language-input");
       const createTrackButton = document.getElementById("subtitle-track-create-button");
-      if (!newTrackNameInput || !newTrackLanguageInput || !createTrackButton) return;
+      if (!newTrackNameInput || !newTrackLanguageInput || !createTrackButton) {
+        console.error("Failed to setup subtitle track creation because of missing compoenents.");
+        return;
+      }
 
-      const createTrack = async () => {
+      createTrackButton.addEventListener("click", async () => {
+        if (createTrackButton.disabled) return;
         const name = newTrackNameInput.value.trim();
         const language = newTrackLanguageInput.value.trim();
+        newTrackNameInput.value = name;
+        newTrackLanguageInput.value = language;
         newTrackNameInput.classList.toggle("invalid-input", !name);
         newTrackLanguageInput.classList.toggle("invalid-input", !language);
-        if (!name || !language || createTrackButton.disabled) return;
-
-        createTrackButton.disabled = true;
-        const response = await makePostRequest(
-          `/content/${this.contentId}/subtitles/create/`,
-          JSON.stringify({ name, language })
-        );
-        if (!response.ok) {
-          const error = await response.json();
-          console.error("Failed to create subtitle track", error);
-          createTrackButton.disabled = false;
+        if (!newTrackNameInput.reportValidity() || !newTrackLanguageInput.reportValidity()) {
+          console.error("Track name or language are invalid");
           return;
         }
-        const track = await response.json();
-        const reloadUrl = new URL(window.location.href);
-        reloadUrl.searchParams.set("subtitle_track", track.id);
-        window.location.assign(reloadUrl.href);
-      };
 
-      createTrackButton.addEventListener("click", createTrack);
+        createTrackButton.disabled = true;
+        try {
+          const response = await makePostRequest(
+            `/content/${this.contentId}/subtitles/create/`,
+            JSON.stringify({ name, language })
+          );
+          if (!response.ok) {
+            const error = await response.json();
+            console.error(error.error);
+            return;
+          }
+          const track = await response.json();
+          const reloadUrl = new URL(window.location.href);
+          reloadUrl.searchParams.set("subtitle_track", track.id);
+          window.location.assign(reloadUrl.href);
+        } catch (error) {
+          console.error("Failed to create subtitle track", error);
+        } finally {
+          createTrackButton.disabled = false;
+        }
+      });
     }
 
     collectCues() {

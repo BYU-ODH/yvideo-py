@@ -1,4 +1,21 @@
 {% extends "core/partials/modals/user_view_modal.html" %}
 
 {% block modal_title %}Create a subtitle track{% endblock %}
-{% block modal_body %}{% endblock %}
+{% block modal_body %}
+    <div>
+        <label for="subtitles-track-create-new">Subtitle track name</label>
+        <input id="subtitles-track-create-new" type="text" maxlength="255" required>
+    </div>
+    <div>
+        <label for="subtitles-track-language-input">Language</label>
+        <input id="subtitles-track-language-input"
+               type="text"
+               aria-describedby="subtitle-track-language-help"
+               maxlength="60"
+               required>
+        <p id="subtitle-track-language-help">Enter a language name or code, such as English or en.</p>
+    </div>
+    <button id="subtitle-track-create-button"
+            type="button"
+            class="white-button-with-border">Create subtitle track</button>
+{% endblock %}
