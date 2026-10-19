@@ -6,6 +6,7 @@ from django.db.models import Value
 from django.db.models import When
 from django.db.models.functions import Greatest
 from django.db.models.functions import Least
+from django.db.models.functions import Round
 
 
 def corners_to_width(apps, schema_editor):
@@ -21,13 +22,15 @@ def corners_to_width(apps, schema_editor):
             default=F("bottom_right_x") - F("top_left_x"),
         )
     )
-    # The same clamps CommentAnnotation.save() applies.
+    # The same clamps and rounding CommentAnnotation.save() applies.
     CommentAnnotation.objects.update(
-        width=Least(Value(100.0), Greatest(Value(3.0), F("width")))
+        width=Round(Least(Value(100.0), Greatest(Value(3.0), F("width"))), 2)
     )
     CommentAnnotation.objects.update(
-        top_left_x=Least(Value(100.0) - F("width"), Greatest(Value(0.0), F("top_left_x"))),
-        top_left_y=Least(Value(97.0), Greatest(Value(0.0), F("top_left_y"))),
+        top_left_x=Round(
+            Least(Value(100.0) - F("width"), Greatest(Value(0.0), F("top_left_x"))), 2
+        ),
+        top_left_y=Round(Least(Value(97.0), Greatest(Value(0.0), F("top_left_y"))), 2),
     )
 
 

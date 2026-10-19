@@ -13,6 +13,17 @@ const COMMENT_MIN_WIDTH = 3;
 const COMMENT_MIN_HEIGHT = 3;
 const COMMENT_CLAMP_LIMITS = {minWidth: COMMENT_MIN_WIDTH, minHeight: COMMENT_MIN_HEIGHT};
 const MIN_ITEM_SECONDS = 0.1;
+// Stricter than parseFloat, which reads "12%" as 12: the form sends the text itself, and the server
+// rejects anything float() cannot read.
+const COMMENT_GEOMETRY_PATTERN = /^\s*[-+]?(\d+\.?\d*|\.\d+)\s*$/;
+const COMMENT_GEOMETRY_FIELDS = ["x", "y", "width"];
+
+function readCommentGeometry(form) {
+  return COMMENT_GEOMETRY_FIELDS.map((field) => {
+    const value = form.querySelector(`#comment-${field}`)?.value ?? "";
+    return COMMENT_GEOMETRY_PATTERN.test(value) ? parseFloat(value) : NaN;
+  });
+}
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -473,6 +484,11 @@ export class Editor {
           const annotationId = itemForm.dataset["annotationId"];
           const annotationType = itemForm.dataset["annotationType"];
 
+          // Held until the field is fixed; the field is marked invalid and the rig is hidden.
+          if (annotationType == "comment" && !readCommentGeometry(itemForm).every(Number.isFinite)) {
+            return;
+          }
+
           if (annotationType == "blur") {
             const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
             const newStart = parseTimeStringToSeconds(itemForm.querySelector("#start_time")?.value);
@@ -649,6 +665,17 @@ export class Editor {
         const target = event.target;
         const isTextEntry = target.matches?.("input, textarea, select, [contenteditable='true']");
         if (isTextEntry || !(event.ctrlKey || event.metaKey) || event.key?.toLowerCase() !== "z") {
+          return;
+        }
+
+        // An unsaved nudge is the newest edit, so undo drops it and there is nothing to redo. Sending
+        // either request instead would let the nudge save on top of the version it lands on.
+        if (this.commentNudge.value || this.blurEditor.nudge.value) {
+          event.preventDefault();
+          if (!event.shiftKey) {
+            this._discardCommentNudge();
+            this.blurEditor.discardNudge();
+          }
           return;
         }
 
@@ -981,11 +1008,16 @@ export class Editor {
       });
 
       const repaintFromForm = () => {
+        const values = readCommentGeometry(itemForm);
+        COMMENT_GEOMETRY_FIELDS.forEach((field, i) => {
+          itemForm.querySelector(`#comment-${field}`)
+            ?.setAttribute("aria-invalid", String(!Number.isFinite(values[i])));
+        });
         this._restoreCommentRig();
         update();
       };
-      for (const selector of ["#comment-x", "#comment-y", "#comment-width"]) {
-        itemForm.querySelector(selector)?.addEventListener("input", repaintFromForm);
+      for (const field of COMMENT_GEOMETRY_FIELDS) {
+        itemForm.querySelector(`#comment-${field}`)?.addEventListener("input", repaintFromForm);
       }
     }
 
@@ -1006,7 +1038,7 @@ export class Editor {
       const annotationId = updateForm.dataset["annotationId"];
       if (this.commentRigAnnotationId !== String(annotationId)) return;
 
-      const inputs = ["x", "y", "width"].map((field) => [field, updateForm.querySelector(`#comment-${field}`)]);
+      const inputs = COMMENT_GEOMETRY_FIELDS.map((field) => [field, updateForm.querySelector(`#comment-${field}`)]);
       if (inputs.some(([, input]) => !input)) {
         console.error("Failed to get all comment form elements to update");
         return;
@@ -1083,8 +1115,7 @@ export class Editor {
       } else if (event.key === "Enter") {
         this.commentNudge.flush();
       } else if (event.key === "Escape") {
-        this.commentNudge.discard();
-        this._restoreCommentRig();
+        this._discardCommentNudge();
         this.commentRig.blur();
       } else {
         return;
@@ -1092,6 +1123,13 @@ export class Editor {
       // The player binds these keys from a listener on `document`.
       event.preventDefault();
       event.stopPropagation();
+    }
+
+    /** Drop an unsaved nudge and repaint from the form. */
+    _discardCommentNudge() {
+      if (!this.commentNudge.value) return;
+      this.commentNudge.discard();
+      this._restoreCommentRig();
     }
 
     _commentBox() {
@@ -1131,8 +1169,7 @@ export class Editor {
     _commentRigRect() {
       const updateForm = document.getElementById("annotation-update-form");
       if (!updateForm) return null;
-      const read = (field) => parseFloat(updateForm.querySelector(`#comment-${field}`)?.value);
-      const [x, y, width] = ["x", "y", "width"].map(read);
+      const [x, y, width] = readCommentGeometry(updateForm);
       if (![x, y, width].every(Number.isFinite)) return null;
       const box = this._commentBox();
       this._observeCommentBox(box);

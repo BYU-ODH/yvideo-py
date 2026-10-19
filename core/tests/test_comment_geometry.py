@@ -89,6 +89,7 @@ class CommentGeometryMigrationTests(TransactionTestCase):
             "inverted": (42.0, 28.0, 20.0, 10.0),
             "off_frame": (95.0, -5.0, 130.0, 10.0),
             "too_low": (10.0, 99.0, 20.0, 110.0),
+            "fractional": (10.123, 20.456, 43.4567, 30.0),
         }
         pks = {
             name: old_comment.objects.create(
@@ -114,6 +115,7 @@ class CommentGeometryMigrationTests(TransactionTestCase):
                 "inverted": (42.0, 28.0, 58.0),
                 "off_frame": (65.0, 0.0, 35.0),
                 "too_low": (10.0, 97.0, 10.0),
+                "fractional": (10.12, 20.46, 33.33),
             },
         )
 

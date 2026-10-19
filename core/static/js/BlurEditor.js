@@ -455,6 +455,13 @@ export class BlurEditor {
     });
   }
 
+  /** Drop an unsaved nudge and repaint from the stored points. */
+  discardNudge() {
+    if (!this.nudge.value) return;
+    this.nudge.discard();
+    this._render();
+  }
+
   _onRigKeyDown(event) {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const delta = nudgeDelta(event);
@@ -475,8 +482,7 @@ export class BlurEditor {
           this.nudge.flush();
           break;
         case "Escape":
-          this.nudge.discard();
-          this._render();
+          this.discardNudge();
           this.rig?.blur();
           break;
         default:

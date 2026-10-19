@@ -557,6 +557,47 @@ def test_arrow_keys_nudge_a_comment_and_save_once(page, open_editor):
     assert saved.prev_id == int(previous_id)
 
 
+def test_undo_during_a_pending_comment_nudge_drops_only_the_nudge(page, open_editor):
+    """An undo request would let the nudge save on top of the undone version and clear redo."""
+    rig = _open_seeded_comment(page, open_editor)
+    _drag_grip(page, "e", by=(-40, 0))
+    dragged_id = _active_form_id(page)
+    before = _box_rect(page)
+
+    rig.focus()
+    for _ in range(3):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.press("Control+z")
+    # Long enough for the nudge to have saved, had it still been pending.
+    page.wait_for_timeout(600)
+
+    assert _active_form_id(page) == dragged_id
+    assert _box_rect(page)["left"] == pytest.approx(before["left"], abs=0.01)
+    dragged = CommentAnnotation.objects.get(pk=dragged_id)
+    assert dragged.active and dragged.next_id is None
+
+
+def test_a_comment_position_that_is_not_a_number_is_not_saved(page, open_editor):
+    _open_seeded_comment(page, open_editor)
+    previous_id = _active_form_id(page)
+    x_input = page.locator("#comment-x")
+
+    x_input.fill("12%")
+    # Long enough for the autosave, had it gone out.
+    page.wait_for_timeout(600)
+    assert _active_form_id(page) == previous_id
+    expect(x_input).to_have_attribute("aria-invalid", "true")
+
+    x_input.fill("12")
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
+    expect(x_input).to_have_attribute("aria-invalid", "false")
+    assert CommentAnnotation.objects.get(pk=_active_form_id(page)).x == 12.0
+
+
 def test_superseded_comment_versions_leave_no_box_behind(page, open_editor):
     """Each save is a new annotation id, and the player draws one box per id.
 

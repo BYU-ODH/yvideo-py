@@ -1000,6 +1000,10 @@
     width: 6ch; /* 100.00 */
 }
 
+#annotation-update-form .comment-geometry-input-group input[aria-invalid="true"] {
+    outline: 2px solid #e74c3c;
+}
+
 #annotation-update-form .blur-anchor-point-input-group input[readonly],
 #annotation-update-form .comment-geometry-input-group input[readonly] {
     cursor: default;

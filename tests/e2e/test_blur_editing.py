@@ -17,6 +17,8 @@ the box must never be interpreted as "retime whichever point was last selected".
 now that the rendered box is usually a tween between two points, so no single stored row owns it.
 """
 
+import re
+
 from playwright.sync_api import expect
 import pytest
 
@@ -1818,6 +1820,34 @@ def test_a_burst_of_nudges_is_written_once(page, open_editor):
     assert len(writes) == 1, f"{len(writes)} writes for four keystrokes: {writes}"
     # All four steps landed, so the coalescing did not drop any of them.
     assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(42.0, abs=0.01)
+
+
+def test_undo_during_a_pending_nudge_drops_only_the_nudge(page, open_editor):
+    """An undo request would let the nudge save on top of the undone version, so undo drops it."""
+    writes = []
+    page.on(
+        "request",
+        lambda request: (
+            writes.append(request.url)
+            if request.method == "POST"
+            and re.search(r"/anchor-points/|/undo/|/redo/", request.url)
+            else None
+        ),
+    )
+    open_editor()
+    _select(page, MOVING_BLUR)
+    _seek(page, 7.0)
+    before = _rig_percent(page)
+    _focus_rig(page)
+
+    for _ in range(4):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(600)
+
+    assert writes == []
+    assert _rig_percent(page)["x"] == pytest.approx(before["x"], abs=0.1)
+    assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(40.0, abs=0.01)
 
 
 def test_the_rig_keeps_the_arrow_keys_away_from_the_player(page, open_editor):
