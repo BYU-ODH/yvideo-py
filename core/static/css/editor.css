@@ -149,12 +149,14 @@
 
 #tools-header {
     padding: 8px;
-    align-items: center;
 }
 
 #tools-header-title {
     font-size: 1.2rem;
-    font-weight: bold;
+}
+
+#tools-info-open-button img {
+    filter: invert(1);
 }
 
 #annotation-groups-wrapper {
