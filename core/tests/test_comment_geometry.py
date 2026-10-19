@@ -27,7 +27,7 @@ class CommentGeometryClampTests(TestCase):
 
     def test_the_box_is_pulled_back_onto_the_frame(self):
         comment = CommentAnnotationFactory(x=90.0, y=120.0, width=30.0)
-        self.assertEqual((comment.x, comment.y, comment.width), (70.0, 100.0, 30.0))
+        self.assertEqual((comment.x, comment.y, comment.width), (70.0, 97.0, 30.0))
 
     def test_edits_keep_the_geometry(self):
         comment = CommentAnnotationFactory(x=5.0, y=6.0, width=50.0)
@@ -54,6 +54,12 @@ class CommentImportTests(TestCase):
             top_left_x=11.0, top_left_y=12.0, bottom_right_x=51.0, bottom_right_y=52.0
         )
         self.assertEqual((imported.x, imported.y, imported.width), (11.0, 12.0, 40.0))
+
+    def test_inverted_corners_import_running_to_the_right_edge(self):
+        imported = self._import(
+            top_left_x=42.0, top_left_y=28.0, bottom_right_x=20.0, bottom_right_y=10.0
+        )
+        self.assertEqual((imported.x, imported.y, imported.width), (42.0, 28.0, 58.0))
 
 
 class CommentGeometryMigrationTests(TransactionTestCase):
@@ -82,6 +88,7 @@ class CommentGeometryMigrationTests(TransactionTestCase):
             # The dev seed and many real rows store the right edge left of the left one.
             "inverted": (42.0, 28.0, 20.0, 10.0),
             "off_frame": (95.0, -5.0, 130.0, 10.0),
+            "too_low": (10.0, 99.0, 20.0, 110.0),
         }
         pks = {
             name: old_comment.objects.create(
@@ -104,8 +111,9 @@ class CommentGeometryMigrationTests(TransactionTestCase):
             geometry,
             {
                 "ordinary": (11.0, 12.0, 40.0),
-                "inverted": (42.0, 28.0, 3.0),
+                "inverted": (42.0, 28.0, 58.0),
                 "off_frame": (65.0, 0.0, 35.0),
+                "too_low": (10.0, 97.0, 10.0),
             },
         )
 

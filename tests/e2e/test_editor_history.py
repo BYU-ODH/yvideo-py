@@ -338,9 +338,10 @@ def _drag_grip(page, handle_name, by=None, to=None, measure=False):
     addressing a box that is about to be replaced.
     """
     previous_id = _active_form_id(page)
-    grip = page.locator(
-        f'#comment-edit-rig [data-handle="{handle_name}"]'
-    ).bounding_box()
+    grip = page.locator(f'#comment-edit-rig [data-handle="{handle_name}"]')
+    # The rig is hidden until the player has drawn the box it takes its height from.
+    expect(grip).to_be_visible()
+    grip = grip.bounding_box()
     start_x = grip["x"] + grip["width"] / 2
     start_y = grip["y"] + grip["height"] / 2
     if to is not None:
@@ -361,7 +362,10 @@ def _drag_grip(page, handle_name, by=None, to=None, measure=False):
         " !== previous",
         arg=str(previous_id),
     )
-    expect(page.locator("#comment-edit-rig .comment-rig-handle")).to_have_count(2)
+    handles = page.locator("#comment-edit-rig .comment-rig-handle")
+    expect(handles).to_have_count(2)
+    for handle in handles.all():
+        expect(handle).to_be_visible()
     return dragged
 
 
@@ -422,6 +426,45 @@ def test_comment_box_height_follows_its_text(page, open_editor):
     assert narrow["top"] == pytest.approx(wide["top"], abs=0.5)
     assert narrow["height"] > wide["height"] + 1, (wide, narrow)
     assert _box_rect(page)["height"] == pytest.approx(_player_box_height(page), abs=0.5)
+
+
+def test_a_comment_with_no_text_can_still_be_dragged(page, open_editor):
+    content = open_editor()
+    comment = _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+    page.locator("#text").fill("")
+    page.locator("#description").click()
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(comment.id),
+    )
+    rig = page.locator("#comment-edit-rig")
+    expect(rig).to_be_visible()
+    body = rig.bounding_box()
+    assert body["height"] >= 10
+
+    before = _box_rect(page)
+    previous_id = _active_form_id(page)
+    page.mouse.move(body["x"] + body["width"] / 2, body["y"] + body["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        body["x"] + body["width"] / 2 - 40, body["y"] + body["height"] / 2, steps=5
+    )
+    page.mouse.up()
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
+
+    assert _box_rect(page)["left"] < before["left"] - 1
 
 
 def test_superseded_comment_versions_leave_no_box_behind(page, open_editor):

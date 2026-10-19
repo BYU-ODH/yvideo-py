@@ -1094,6 +1094,9 @@
     position: absolute;
     z-index: 3;
 
+    /* A comment with no text has no height, and the rig still needs a body to drag. */
+    min-height: 1rem;
+
     outline: 1px dashed white;
     outline-offset: -1px;
 }

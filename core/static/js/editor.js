@@ -10,6 +10,7 @@ import {
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 const COMMENT_MIN_WIDTH = 3;
+const COMMENT_MAX_Y = 97;  // as CommentAnnotation.save() clamps it
 const MIN_ITEM_SECONDS = 0.1;
 
 function convertPercentStringToDecimal(percentString) {
@@ -619,17 +620,17 @@ export class Editor {
             height: parseFloat(elementToMove.style.height) || 0,
           });
           elementToMove.style.left = `${moved.x}%`;
-          elementToMove.style.top = `${moved.y}%`;
+          elementToMove.style.top = `${Math.min(COMMENT_MAX_Y, moved.y)}%`;
         }
         lastEvent = {x: event.clientX, y: event.clientY};
       }
     }
 
-    buildResizePointMoveHandler(minHeight = 0, minWidth = COMMENT_MIN_WIDTH) {
+    buildResizePointMoveHandler(minWidth = COMMENT_MIN_WIDTH) {
       return (event) => {
         event.stopPropagation();
         const elementToResize = event.target.parentElement;
-        const limits = {minWidth, minHeight};
+        const limits = {minWidth};
         const pointer = percentWithin(
           {x: event.clientX, y: event.clientY, width: 0, height: 0},
           event.target.closest(".annotation-box").getBoundingClientRect(),
@@ -1194,8 +1195,10 @@ export class Editor {
       rig.hidden = !inRange || rect === null || height === null;
       if (!rig.hidden) {
         const {x, width} = clampRect({...rect, height}, {minWidth: COMMENT_MIN_WIDTH});
-        // y is left as stored so the rig stays on the box the player draws.
-        applyRect(rig, {x, y: rect.y, width, height});
+        // y is not clamped against the height, which the server does not know, so the rig stays
+        // on the box the player draws from the saved y.
+        const y = Math.min(COMMENT_MAX_Y, Math.max(0, rect.y));
+        applyRect(rig, {x, y, width, height});
       }
     }
 

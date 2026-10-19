@@ -1345,6 +1345,8 @@ def validate_font_color(hexcode):
 
 
 COMMENT_MIN_WIDTH = 3.0
+# Height is unknown here, so this keeps a strip of the box on the frame to grab it by.
+COMMENT_MAX_Y = 97.0
 COMMENT_GEOMETRY_PRECISION = 2
 
 
@@ -1374,7 +1376,9 @@ class CommentAnnotation(BaseAnnotation):
             min(100.0 - self.width, max(0.0, float(self.x))),
             COMMENT_GEOMETRY_PRECISION,
         )
-        self.y = round(min(100.0, max(0.0, float(self.y))), COMMENT_GEOMETRY_PRECISION)
+        self.y = round(
+            min(COMMENT_MAX_Y, max(0.0, float(self.y))), COMMENT_GEOMETRY_PRECISION
+        )
         super().save(*args, **kwargs)
 
     def to_player_json(self):
@@ -1411,9 +1415,12 @@ class CommentAnnotation(BaseAnnotation):
         x = imported_data.get("x", imported_data.get("top_left_x", 50.0))
         new_annotation.x = x
         new_annotation.y = imported_data.get("y", imported_data.get("top_left_y", 50.0))
-        new_annotation.width = imported_data.get(
-            "width", imported_data.get("bottom_right_x", x + 10.0) - x
-        )
+        if "width" in imported_data:
+            new_annotation.width = imported_data["width"]
+        else:
+            right = imported_data.get("bottom_right_x", x + 10.0)
+            # Inverted corners rendered with the text running to the frame's right edge.
+            new_annotation.width = right - x if right > x else 100.0 - x
         new_annotation.font_size_in_rem = imported_data.get("font_size_in_rem", 1.0)
         new_annotation.font_color = imported_data.get("font_color", "abcdef")
         new_annotation.save()

@@ -1,23 +1,33 @@
 from django.db import migrations
 from django.db import models
+from django.db.models import Case
 from django.db.models import F
 from django.db.models import Value
+from django.db.models import When
 from django.db.models.functions import Greatest
 from django.db.models.functions import Least
 
 
 def corners_to_width(apps, schema_editor):
     CommentAnnotation = apps.get_model("core", "CommentAnnotation")
-    # The same clamps CommentAnnotation.save() applies, since many stored corners are inverted.
+    # Many stored corners are inverted. The player rejected their negative CSS width and let the
+    # text run to the frame's right edge, so that is the width they keep.
     CommentAnnotation.objects.update(
-        width=Least(
-            Value(100.0),
-            Greatest(Value(3.0), F("bottom_right_x") - F("top_left_x")),
+        width=Case(
+            When(
+                bottom_right_x__lte=F("top_left_x"),
+                then=Value(100.0) - F("top_left_x"),
+            ),
+            default=F("bottom_right_x") - F("top_left_x"),
         )
+    )
+    # The same clamps CommentAnnotation.save() applies.
+    CommentAnnotation.objects.update(
+        width=Least(Value(100.0), Greatest(Value(3.0), F("width")))
     )
     CommentAnnotation.objects.update(
         top_left_x=Least(Value(100.0) - F("width"), Greatest(Value(0.0), F("top_left_x"))),
-        top_left_y=Least(Value(100.0), Greatest(Value(0.0), F("top_left_y"))),
+        top_left_y=Least(Value(97.0), Greatest(Value(0.0), F("top_left_y"))),
     )
 
 
