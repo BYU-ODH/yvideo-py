@@ -467,6 +467,96 @@ def test_a_comment_with_no_text_can_still_be_dragged(page, open_editor):
     assert _box_rect(page)["left"] < before["left"] - 1
 
 
+def _open_seeded_comment(page, open_editor):
+    content = open_editor()
+    _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+    rig = page.locator("#comment-edit-rig")
+    expect(rig).to_be_visible()
+    return rig
+
+
+def _press_on_rig_body(page, rig):
+    """Put the pointer down on the middle of the rig, clear of its side grips."""
+    body = rig.bounding_box()
+    start = (body["x"] + body["width"] / 2, body["y"] + body["height"] / 2)
+    page.mouse.move(*start)
+    page.mouse.down()
+    return start
+
+
+def test_a_comment_dragged_past_the_edge_keeps_its_grip(page, open_editor):
+    rig = _open_seeded_comment(page, open_editor)
+    before = _box_rect(page)
+    previous_id = _active_form_id(page)
+    frame = page.locator("#annotation-box").bounding_box()
+
+    start = _press_on_rig_body(page, rig)
+    page.mouse.move(frame["x"] + frame["width"] + 200, start[1], steps=5)
+    against_the_edge = _box_rect(page)
+    page.mouse.move(*start, steps=5)
+    returned = _box_rect(page)
+    page.mouse.up()
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
+
+    assert against_the_edge["left"] + against_the_edge["width"] == pytest.approx(
+        100, abs=0.5
+    )
+    assert returned["left"] == pytest.approx(before["left"], abs=0.5)
+
+
+def test_escape_cancels_a_comment_drag(page, open_editor):
+    rig = _open_seeded_comment(page, open_editor)
+    before = _box_rect(page)
+    previous_id = _active_form_id(page)
+
+    start = _press_on_rig_body(page, rig)
+    page.mouse.move(start[0] - 60, start[1] + 30, steps=5)
+    assert _box_rect(page)["left"] < before["left"] - 1
+    page.keyboard.press("Escape")
+    page.mouse.up()
+    # Long enough for a save, had the release started one.
+    page.wait_for_timeout(500)
+
+    assert _active_form_id(page) == previous_id
+    after = _box_rect(page)
+    assert after["left"] == pytest.approx(before["left"], abs=0.01)
+    assert after["top"] == pytest.approx(before["top"], abs=0.01)
+
+
+def test_arrow_keys_nudge_a_comment_and_save_once(page, open_editor):
+    rig = _open_seeded_comment(page, open_editor)
+    previous_id = _active_form_id(page)
+    x = float(page.locator("#comment-x").input_value())
+
+    rig.focus()
+    for _ in range(3):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.press("Shift+ArrowDown")
+    y_before_save = _box_rect(page)["top"]
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
+
+    saved = CommentAnnotation.objects.get(pk=_active_form_id(page))
+    assert saved.x == pytest.approx(x + 1.5)
+    assert saved.y == pytest.approx(y_before_save)
+    # One version for the whole burst of keys.
+    assert saved.prev_id == int(previous_id)
+
+
 def test_superseded_comment_versions_leave_no_box_behind(page, open_editor):
     """Each save is a new annotation id, and the player draws one box per id.
 

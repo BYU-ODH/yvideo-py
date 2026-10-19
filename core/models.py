@@ -1344,9 +1344,25 @@ def validate_font_color(hexcode):
             )
 
 
+def clamp_rect(x, y, width, height, *, min_width, min_height, precision):
+    """Keep a box of frame percentages on the frame, as the editor's clampRect() does.
+
+    Size is settled first, then the origin is pulled in far enough to keep the whole box on screen.
+    Rounding is applied to the *result* of each clamp, and x and y are clamped against the already
+    rounded width and height, which is what keeps `x + width` landing on exactly 100 for a box
+    against the right edge.
+    """
+    width = round(min(100.0, max(min_width, float(width))), precision)
+    height = round(min(100.0, max(min_height, float(height))), precision)
+    x = round(min(100.0 - width, max(0.0, float(x))), precision)
+    y = round(min(100.0 - height, max(0.0, float(y))), precision)
+    return x, y, width, height
+
+
 COMMENT_MIN_WIDTH = 3.0
-# Height is unknown here, so this keeps a strip of the box on the frame to grab it by.
-COMMENT_MAX_Y = 97.0
+# There is no stored height, so this is only the strip of the box that clamping keeps on the frame
+# to grab it by.
+COMMENT_MIN_HEIGHT = 3.0
 COMMENT_GEOMETRY_PRECISION = 2
 
 
@@ -1368,16 +1384,14 @@ class CommentAnnotation(BaseAnnotation):
 
     def save(self, *args, **kwargs):
         """Clamp so the box always starts on the frame, as BlurAnchorPoint.save() does."""
-        self.width = round(
-            min(100.0, max(COMMENT_MIN_WIDTH, float(self.width))),
-            COMMENT_GEOMETRY_PRECISION,
-        )
-        self.x = round(
-            min(100.0 - self.width, max(0.0, float(self.x))),
-            COMMENT_GEOMETRY_PRECISION,
-        )
-        self.y = round(
-            min(COMMENT_MAX_Y, max(0.0, float(self.y))), COMMENT_GEOMETRY_PRECISION
+        self.x, self.y, self.width, _ = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            0.0,
+            min_width=COMMENT_MIN_WIDTH,
+            min_height=COMMENT_MIN_HEIGHT,
+            precision=COMMENT_GEOMETRY_PRECISION,
         )
         super().save(*args, **kwargs)
 
@@ -1697,24 +1711,17 @@ class BlurAnchorPoint(models.Model):
         the user's work; a rejection here would also have to be surfaced mid-drag, which there
         is nowhere good to do.
 
-        Rounding is applied to the *result* of each clamp rather than to the incoming value, so
-        the guarantee is about what gets stored: whatever the clamp arithmetic produces, the
-        column ends up at 2dp. x and y are clamped against the already rounded width and height,
-        which is what keeps `x + width` landing on exactly 100 for a box against the right edge.
+        See clamp_rect for how the geometry is rounded.
         """
         self.time = round(float(self.time), BLUR_TIME_PRECISION)
-        self.width = round(
-            min(100.0, max(BLUR_MIN_WIDTH, float(self.width))), BLUR_GEOMETRY_PRECISION
-        )
-        self.height = round(
-            min(100.0, max(BLUR_MIN_HEIGHT, float(self.height))),
-            BLUR_GEOMETRY_PRECISION,
-        )
-        self.x = round(
-            min(100.0 - self.width, max(0.0, float(self.x))), BLUR_GEOMETRY_PRECISION
-        )
-        self.y = round(
-            min(100.0 - self.height, max(0.0, float(self.y))), BLUR_GEOMETRY_PRECISION
+        self.x, self.y, self.width, self.height = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+            min_width=BLUR_MIN_WIDTH,
+            min_height=BLUR_MIN_HEIGHT,
+            precision=BLUR_GEOMETRY_PRECISION,
         )
         super().save(*args, **kwargs)
 

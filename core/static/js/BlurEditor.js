@@ -17,13 +17,12 @@
 // them to the values in core/models.py.
 
 import {
-  RESIZE_HANDLES,
-  clampRect,
-  edgesForHandle,
-  percentWithin,
-  rectAtTime,
-  resizeRect,
-} from "./video-geometry.js";
+  PendingNudge,
+  beginRectGesture,
+  createRig,
+  nudgeDelta,
+} from "./overlay-rig.js";
+import { RESIZE_HANDLES, clampRect, rectAtTime } from "./video-geometry.js";
 import {
   animateDuringPlayback,
   applyRect,
@@ -45,11 +44,6 @@ const SNAP_SECONDS = 0.05;
 
 const CLAMP_LIMITS = { minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT };
 
-const NUDGE_PERCENT = 0.5;
-const NUDGE_PERCENT_LARGE = 5;
-// Arrow keys arrive in bursts, so a request per keystroke would flood the endpoint and store every
-// intermediate anchor point as though the user had meant to stop there.
-const NUDGE_COMMIT_MS = 400;
 // The arrow keys the player uses for frame-stepping belong to the box once the rig has focus, so
 // `,` and `.` replace them.
 const SCRUB_SECONDS = 0.1;
@@ -104,30 +98,6 @@ async function serverMessage(response, fallback) {
   return body;
 }
 
-// Clamping here rather than in each gesture means a pointer dragged past the edge of the window
-// behaves like one held against the edge.
-function pointerPercent(event, frame) {
-  const point = percentWithin(
-    { x: event.clientX, y: event.clientY, width: 0, height: 0 },
-    frame,
-  );
-  return {
-    x: Math.min(100, Math.max(0, point.x)),
-    y: Math.min(100, Math.max(0, point.y)),
-  };
-}
-
-// Translating by the pointer's travel, rather than centering the box on the pointer, is what lets
-// a user grab a corner of the box and keep the same grip on it.
-function movedRect(origin, startPoint, currentPoint) {
-  return {
-    x: origin.x + (currentPoint.x - startPoint.x),
-    y: origin.y + (currentPoint.y - startPoint.y),
-    width: origin.width,
-    height: origin.height,
-  };
-}
-
 // `timeWindow` overrides the item's stored start/end while a resize handle is being dragged: a
 // dot's `left` is a percentage *of the item*, so against the stored window the dots would stretch
 // with the item's changing width and then snap back on release. Recomputed against the provisional
@@ -180,10 +150,8 @@ export class BlurEditor {
     // Non-null only while a pointer is down; its presence stops _render from overwriting the
     // geometry the user is actively dragging.
     this.gesture = null;
-    // A painted-but-unwritten keyboard nudge. Held separately from `gesture` because the two end
-    // differently: a cancelled drag is discarded, but a nudge the user can see is an edit they
-    // made, so it is flushed.
-    this.nudge = null;
+    // The time is the frame that was on screen when the first key was pressed; see _nudge.
+    this.nudge = new PendingNudge(({ rect, time }) => this._commit(rect, { time }));
     this.draggingBlurAnchorPointDot = false;
 
     this._onRigPointerDown = this._onRigPointerDown.bind(this);
@@ -198,7 +166,7 @@ export class BlurEditor {
     this._stopPlaybackTracking = animateDuringPlayback(this.video, this._render);
     // A pending nudge carries the time it was made at, so it can be written out on a seek rather
     // than holding the rig on a rect from a frame that is no longer on screen.
-    this.video.addEventListener("seeking", () => this._flushNudge());
+    this.video.addEventListener("seeking", () => this.nudge.flush());
 
     // Delegated, because every save replaces the panel rows and the track item, so per-element
     // listeners would need re-attaching each time.
@@ -265,7 +233,7 @@ export class BlurEditor {
     // Flushed, not cancelled: a nudge is already visible on screen, so discarding it would throw
     // away an edit the user made. _commit captures the annotation id synchronously, so it is still
     // addressed to the blur being deselected.
-    this._flushNudge();
+    this.nudge.flush();
     this.gesture?.cancel();
     // Toggling the one class, rather than assigning className, so the player's
     // annotation-box-showing-message state survives a selection change.
@@ -357,7 +325,7 @@ export class BlurEditor {
   _gestureOrigin() {
     // An unwritten nudge is still what the user can see, so it is what the next gesture builds on -
     // otherwise grabbing the box after arrowing it would snap it back.
-    if (this.nudge) return { ...this.nudge.rect };
+    if (this.nudge.value) return { ...this.nudge.value.rect };
     const blurAnchorPoint = this._blurAnchorPointAt(this.video.currentTime);
     if (!blurAnchorPoint) return this._currentRect();
     return {
@@ -373,21 +341,16 @@ export class BlurEditor {
   _ensureRig() {
     if (this.rig?.isConnected) return this.rig;
 
-    const rig = document.createElement("div");
-    rig.id = "blur-edit-rig";
-    rig.tabIndex = 0;
-    rig.setAttribute("role", "group");
-    rig.setAttribute("aria-label", "Blur region");
-    rig.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown ArrowLeft ArrowRight Comma Period");
-    rig.title =
-      "Drag to move, handles to resize. Arrow keys nudge (Shift for bigger steps); " +
-      ", and . step the video.";
-    for (const [name] of RESIZE_HANDLES) {
-      const handle = document.createElement("div");
-      handle.className = "overlay-resize-handle blur-rig-handle";
-      handle.dataset["handle"] = name;
-      rig.appendChild(handle);
-    }
+    const rig = createRig({
+      id: "blur-edit-rig",
+      label: "Blur region",
+      title:
+        "Drag to move, handles to resize. Arrow keys nudge (Shift for bigger steps); " +
+        ", and . step the video.",
+      keyShortcuts: "ArrowUp ArrowDown ArrowLeft ArrowRight Comma Period",
+      handles: RESIZE_HANDLES.map(([name]) => name),
+      handleClass: "blur-rig-handle",
+    });
     rig.addEventListener("pointerdown", this._onRigPointerDown);
     rig.addEventListener("keydown", this._onRigKeyDown);
     this.annotationBox.appendChild(rig);
@@ -413,7 +376,7 @@ export class BlurEditor {
   // `timeupdate` trails visibly behind the region it is drawn around - so this has to stay cheap.
   // The selection is not touched here; it is painted where the rows change, not where time passes.
   _render() {
-    if (!this.annotationId || this.gesture || this.nudge) return;
+    if (!this.annotationId || this.gesture || this.nudge.value) return;
     const rig = this._ensureRig();
     const time = this.video.currentTime;
     const rect =
@@ -434,25 +397,23 @@ export class BlurEditor {
     const origin = this._gestureOrigin();
     if (!origin) return;
 
-    const handle = event.target.closest(".blur-rig-handle");
-    if (handle) {
-      const edges = edgesForHandle(handle.dataset["handle"]);
-      if (!edges) return;
-      const options = { ...edges, ...CLAMP_LIMITS };
-      this._beginGesture(event, (_startPoint, currentPoint) =>
-        resizeRect(origin, currentPoint, options),
-      );
-    } else {
-      this._beginGesture(event, (startPoint, currentPoint) =>
-        movedRect(origin, startPoint, currentPoint),
-      );
-    }
-  }
-
-  _beginGesture(event, computeRect) {
-    const frame = this.annotationBox.getBoundingClientRect();
-    if (!(frame.width > 0) || !(frame.height > 0)) return;
-    event.preventDefault();
+    const gesture = beginRectGesture(event, {
+      frame: this.annotationBox.getBoundingClientRect(),
+      origin,
+      handleName: event.target.closest(".blur-rig-handle")?.dataset["handle"],
+      limits: CLAMP_LIMITS,
+      onPaint: (rect) => this._paint(rect),
+      onCommit: (rect) => {
+        this.gesture = null;
+        this._commit(rect);
+      },
+      onCancel: () => {
+        this.gesture = null;
+        // Nothing to restore by hand: re-rendering from the stored points is the undo.
+        this._render();
+      },
+    });
+    if (!gesture) return;
 
     // A commit lands on whatever time the playhead reads on release, so freeze it. Pausing also
     // settles the one race in this file: applyAnnotations only reschedules itself while playing, so
@@ -462,52 +423,8 @@ export class BlurEditor {
 
     // Dropped rather than flushed: the gesture starts from the nudged rect (see _gestureOrigin) and
     // will write it anyway, so flushing would spend a request storing an intermediate anchor point.
-    this._discardNudge();
-
-    const target = event.currentTarget;
-    target.setPointerCapture(event.pointerId);
-    const startPoint = pointerPercent(event, frame);
-    const rectAt = (pointerEvent) =>
-      clampRect(computeRect(startPoint, pointerPercent(pointerEvent, frame)), CLAMP_LIMITS);
-
-    const cleanup = () => {
-      if (target.hasPointerCapture(event.pointerId)) {
-        target.releasePointerCapture(event.pointerId);
-      }
-      target.removeEventListener("pointermove", onMove);
-      target.removeEventListener("pointerup", onUp);
-      target.removeEventListener("pointercancel", cancel);
-      document.removeEventListener("keydown", onKeyDown);
-      this.gesture = null;
-    };
-
-    const onMove = (moveEvent) => this._paint(rectAt(moveEvent));
-
-    const onUp = (upEvent) => {
-      const rect = rectAt(upEvent);
-      cleanup();
-      this._commit(rect);
-    };
-
-    const cancel = () => {
-      cleanup();
-      // Nothing to restore by hand: re-rendering from the stored points is the undo.
-      this._render();
-    };
-
-    const onKeyDown = (keyEvent) => {
-      if (keyEvent.key !== "Escape") return;
-      // The player seeks on bare keystrokes from a document-level listener.
-      keyEvent.stopPropagation();
-      keyEvent.preventDefault();
-      cancel();
-    };
-
-    this.gesture = { cancel };
-    target.addEventListener("pointermove", onMove);
-    target.addEventListener("pointerup", onUp);
-    target.addEventListener("pointercancel", cancel);
-    document.addEventListener("keydown", onKeyDown);
+    this.nudge.discard();
+    this.gesture = gesture;
   }
 
   // --- keyboard --------------------------------------------------------------
@@ -530,63 +447,41 @@ export class BlurEditor {
     //
     // The time is captured now, not read at flush time: a nudge describes the frame that was on
     // screen when the key was pressed, and the playhead can move during the commit delay.
-    if (this.nudge) clearTimeout(this.nudge.timer);
-    this.nudge = {
+    this.nudge.hold({
       rect,
-      time: this.nudge ? this.nudge.time : Math.round(this.video.currentTime * 100) / 100,
-      timer: setTimeout(() => this._flushNudge(), NUDGE_COMMIT_MS),
-    };
-  }
-
-  _flushNudge() {
-    const pending = this.nudge;
-    if (!pending) return;
-    this._discardNudge();
-    this._commit(pending.rect, { time: pending.time });
-  }
-
-  /** Forget a pending nudge without writing it. Does not repaint - callers decide that. */
-  _discardNudge() {
-    if (!this.nudge) return;
-    clearTimeout(this.nudge.timer);
-    this.nudge = null;
+      time: this.nudge.value
+        ? this.nudge.value.time
+        : Math.round(this.video.currentTime * 100) / 100,
+    });
   }
 
   _onRigKeyDown(event) {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
-    const step = event.shiftKey ? NUDGE_PERCENT_LARGE : NUDGE_PERCENT;
+    const delta = nudgeDelta(event);
 
-    switch (event.key) {
-      case "ArrowLeft":
-        this._nudge(-step, 0);
-        break;
-      case "ArrowRight":
-        this._nudge(step, 0);
-        break;
-      case "ArrowUp":
-        this._nudge(0, -step);
-        break;
-      case "ArrowDown":
-        this._nudge(0, step);
-        break;
-      case ",":
-        this._scrub(-SCRUB_SECONDS);
-        break;
-      case ".":
-        this._scrub(SCRUB_SECONDS);
-        break;
-      case "Enter":
-        // Writes a pending nudge without waiting out the commit delay. On a box sitting still there
-        // is nothing to do: a point already exists wherever the box has been adjusted.
-        this._flushNudge();
-        break;
-      case "Escape":
-        this._discardNudge();
-        this._render();
-        this.rig?.blur();
-        break;
-      default:
-        return;
+    if (delta) {
+      this._nudge(delta.dx, delta.dy);
+    } else {
+      switch (event.key) {
+        case ",":
+          this._scrub(-SCRUB_SECONDS);
+          break;
+        case ".":
+          this._scrub(SCRUB_SECONDS);
+          break;
+        case "Enter":
+          // Writes a pending nudge without waiting out the commit delay. On a box sitting still
+          // there is nothing to do: a point already exists wherever the box has been adjusted.
+          this.nudge.flush();
+          break;
+        case "Escape":
+          this.nudge.discard();
+          this._render();
+          this.rig?.blur();
+          break;
+        default:
+          return;
+      }
     }
 
     // Every key handled above is one the player also binds, from a listener on `document` that only
@@ -598,7 +493,7 @@ export class BlurEditor {
   _scrub(delta) {
     // Flushed first, because the nudge belongs to the frame the user was looking at, not the one
     // they are moving to.
-    this._flushNudge();
+    this.nudge.flush();
     // Clamped to the blur's own window, since leaving it would hide the thing being edited.
     this.video.currentTime = Math.min(
       this.endTime,

@@ -1022,7 +1022,7 @@
     display: block;
 }
 
-#blur-edit-rig {
+.overlay-rig {
     pointer-events: auto;
     touch-action: none;
     cursor: move;
@@ -1034,13 +1034,17 @@
     outline-offset: -1px;
 }
 
-#blur-edit-rig[hidden] {
+.overlay-rig[hidden] {
     display: none;
 }
 
-#blur-edit-rig:focus-visible {
-    outline: 2px solid var(--blur-type-color, white);
+.overlay-rig:focus-visible {
+    outline: 2px solid white;
     outline-offset: -2px;
+}
+
+#blur-edit-rig:focus-visible {
+    outline-color: var(--blur-type-color, white);
 }
 
 .blur-anchor-point-dot {
@@ -1086,23 +1090,9 @@
     margin: 0;
 }
 
+/* A comment with no text has no height, and the rig still needs a body to drag. */
 #comment-edit-rig {
-    pointer-events: auto;
-    touch-action: none;
-    cursor: move;
-
-    position: absolute;
-    z-index: 3;
-
-    /* A comment with no text has no height, and the rig still needs a body to drag. */
     min-height: 1rem;
-
-    outline: 1px dashed white;
-    outline-offset: -1px;
-}
-
-#comment-edit-rig[hidden] {
-    display: none;
 }
 
 .btn {
