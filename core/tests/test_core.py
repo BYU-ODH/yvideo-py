@@ -275,16 +275,25 @@ class SubtitlesTests(TestCase):
             self.assertEqual(cue.display_start_time(), entry["start_time"])
             self.assertEqual(cue.display_end_time(), entry["end_time"])
 
-        legacy_cue = VTTCue(
-            type="CUE",
-            payload="",
-            start_time="0:00:00.90",
-            end_time=1.234,
-        )
-        self.assertEqual(
-            build_vtt_file_string_from_cues([legacy_cue]),
-            "WEBVTT\n\n00:00:00.900 --> 00:00:01.234\n",
-        )
+        for start_time, end_time, expected_start, expected_end in (
+            ("0:00:00.90", 1.234, "00.900", "01.234"),
+            ("0", "1", "00.000", "01.000"),
+            ("00", "01", "00.000", "01.000"),
+            ("0.00", "1.2", "00.000", "01.200"),
+            ("0:0:0", "0:0:1.2", "00.000", "01.200"),
+            ("0:00:0.01", "0:00:1.", "00.010", "01.000"),
+        ):
+            with self.subTest(start_time=start_time, end_time=end_time):
+                cue = VTTCue(
+                    type="CUE",
+                    payload="",
+                    start_time=start_time,
+                    end_time=end_time,
+                )
+                self.assertEqual(
+                    build_vtt_file_string_from_cues([cue]),
+                    f"WEBVTT\n\n00:00:{expected_start} --> 00:00:{expected_end}\n",
+                )
         for cue_type, payload in self.UNSUPPORTED_VTT_METADATA.items():
             with self.subTest(cue_type=cue_type):
                 with self.assertRaises(ValidationError):

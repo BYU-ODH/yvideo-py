@@ -30,6 +30,15 @@ _METADATA_PREFIXES = ("NOTE", "STYLE", "REGION")
 
 
 def _timestamp_milliseconds(timestamp, *, allow_legacy=False):
+    # Editor entries may omit padding or fractional seconds; uploads remain strict.
+    if allow_legacy and isinstance(timestamp, str):
+        parts = timestamp.strip().replace(",", ".").split(":")
+        if 1 <= len(parts) <= 3 and all(parts):
+            seconds, _, fraction = parts[-1].partition(".")
+            if seconds and len(fraction) <= 3:
+                parts[-1] = f"{seconds.zfill(2)}.{fraction.ljust(3, '0')}"
+                parts = ["00"] * (3 - len(parts)) + parts
+                timestamp = ":".join(part.zfill(2) for part in parts)
     if not isinstance(timestamp, str) or not re.fullmatch(_TIMESTAMP, timestamp):
         raise ValidationError("The file contains an invalid subtitle timestamp.")
     parts = timestamp.replace(",", ".").split(":")
