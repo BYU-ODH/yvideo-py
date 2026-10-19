@@ -431,10 +431,9 @@ export class AnnotationPlayer {
         details: anno.details || {},
         positions: anno.positions || [],
         id: anno.id,
-        top_left_x: anno.top_left_x,
-        top_left_y: anno.top_left_y,
-        bottom_right_x: anno.bottom_right_x,
-        bottom_right_y: anno.bottom_right_y,
+        x: anno.x,
+        y: anno.y,
+        width: anno.width,
         font_color: anno.font_color,
         font_size_in_rem: anno.font_size_in_rem,
         text: anno.text,
@@ -863,10 +862,9 @@ export class AnnotationPlayer {
               commentTextBox.dataset["annotationId"] = a.id;
               commentTextBox.dataset["annotationType"] = a.type;
               commentTextBox.classList.add("comment-text-box");
-              commentTextBox.style.top = a.top_left_y + '%';
-              commentTextBox.style.left = a.top_left_x + '%';
-              commentTextBox.style.width = (a.bottom_right_x - a.top_left_x) + '%';
-              commentTextBox.style.height = (a.bottom_right_y - a.top_left_y) + '%';
+              commentTextBox.style.top = a.y + '%';
+              commentTextBox.style.left = a.x + '%';
+              commentTextBox.style.width = a.width + '%';
               commentTextBox.style.fontSize = a.font_size_in_rem + 'rem';
               commentTextBox.style.color = "#" + a.font_color;
               this.annotationBox.appendChild(commentTextBox);

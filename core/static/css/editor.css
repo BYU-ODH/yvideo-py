@@ -921,8 +921,8 @@
     cursor: nesw-resize;
 }
 
-/* blur-anchor-points */
-.blur-anchor-points-help {
+/* blur-anchor-points, and the comment position row laid out like them */
+.blur-anchor-points-help, .comment-geometry-help {
     margin: 0.25rem 0 0.5rem;
     font-size: 0.8rem;
     line-height: 1.35;
@@ -945,7 +945,7 @@
     outline-offset: 2px;
 }
 
-#blur-anchor-points-table {
+#blur-anchor-points-table, #comment-geometry-table {
     border-spacing: 0;
     border-collapse: separate;
 }
@@ -972,14 +972,16 @@
     width: 1.4rem;
 }
 
-#blur-anchor-points-table th, #blur-anchor-points-table td {
+#blur-anchor-points-table th, #blur-anchor-points-table td,
+#comment-geometry-table th, #comment-geometry-table td {
     padding: 6px 2px;
     font-size: 0.8rem;
     font-weight: normal;
     text-align: left;
 }
 
-#annotation-update-form .blur-anchor-point-input-group input {
+#annotation-update-form .blur-anchor-point-input-group input,
+#annotation-update-form .comment-geometry-input-group input {
     box-sizing: content-box;
     padding: 4px 3px;
     font: inherit;
@@ -990,15 +992,16 @@
     width: 10ch; /* 0:00:00.00, and still room for a video hours long */
 }
 
-.blur-anchor-point-x-input, .blur-anchor-point-y-input {
+.blur-anchor-point-x-input, .blur-anchor-point-y-input, #comment-x, #comment-y {
     width: 5ch; /* 97.00 - x and y are clamped to leave room for the box itself */
 }
 
-.blur-anchor-point-width-input, .blur-anchor-point-height-input {
+.blur-anchor-point-width-input, .blur-anchor-point-height-input, #comment-width {
     width: 6ch; /* 100.00 */
 }
 
-#annotation-update-form .blur-anchor-point-input-group input[readonly] {
+#annotation-update-form .blur-anchor-point-input-group input[readonly],
+#annotation-update-form .comment-geometry-input-group input[readonly] {
     cursor: default;
     color: var(--dark-mode-text-color-dimmed);
 }

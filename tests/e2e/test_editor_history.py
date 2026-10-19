@@ -252,7 +252,7 @@ def test_comment_box_is_still_editable_after_a_save_makes_a_new_version(
     expect(page.locator(f"#comment-text-box-{original_id}")).to_be_visible()
     rig = page.locator("#comment-edit-rig")
     expect(rig).to_be_visible()
-    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+    expect(rig.locator(".comment-rig-handle")).to_have_count(2)
 
     new_id = _commit_name(page, "Renamed comment", original_id)
 
@@ -262,7 +262,7 @@ def test_comment_box_is_still_editable_after_a_save_makes_a_new_version(
     # the player's box and the box the user was looking at silently stopped responding.
     expect(page.locator(f"#comment-text-box-{new_id}")).to_be_visible()
     expect(rig).to_be_visible()
-    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+    expect(rig.locator(".comment-rig-handle")).to_have_count(2)
 
 
 def test_comment_rig_is_hidden_while_the_playhead_is_outside_the_comment(
@@ -296,7 +296,7 @@ def test_comment_rig_is_hidden_while_the_playhead_is_outside_the_comment(
     # And it comes back, rather than needing the annotation reselected.
     _seek(page, 10.0)
     expect(rig).to_be_visible()
-    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+    expect(rig.locator(".comment-rig-handle")).to_have_count(2)
 
 
 def test_selecting_another_annotation_type_takes_the_comment_rig_away(
@@ -328,7 +328,7 @@ def test_selecting_another_annotation_type_takes_the_comment_rig_away(
 
 
 def _drag_grip(page, handle_name, by=None, to=None, measure=False):
-    """Drag one of the open comment box's eight grips and wait out the save it commits.
+    """Drag one of the open comment box's two grips and wait out the save it commits.
 
     `by` is a pixel offset, `to` a fraction of the video frame. `measure` reports the box while the
     pointer is still down - the editor's own arithmetic, before the server has had its say.
@@ -361,13 +361,13 @@ def _drag_grip(page, handle_name, by=None, to=None, measure=False):
         " !== previous",
         arg=str(previous_id),
     )
-    expect(page.locator("#comment-edit-rig .comment-rig-handle")).to_have_count(8)
+    expect(page.locator("#comment-edit-rig .comment-rig-handle")).to_have_count(2)
     return dragged
 
 
 def _resize_box(page, previous_id):
-    """Drag a corner, which saves a new version on pointer-up."""
-    _drag_grip(page, "se", by=(40, 30))
+    """Drag the right edge, which saves a new version on pointer-up."""
+    _drag_grip(page, "e", by=(40, 0))
     return _active_form_id(page)
 
 
@@ -386,8 +386,19 @@ def _box_rect(page):
     )
 
 
-def test_comment_box_edge_handles_resize_one_axis(page, open_editor):
-    """The eight grips are shared with the blur rig, so an edge grip moves one edge and no more."""
+def _player_box_height(page):
+    """The player's box height as a percentage of the frame, to compare with the rig's."""
+    return page.evaluate(
+        """() => {
+            const frame = document.querySelector('#annotation-box').getBoundingClientRect();
+            const box = document.querySelector('.comment-text-box').getBoundingClientRect();
+            return box.height / frame.height * 100;
+        }"""
+    )
+
+
+def test_comment_box_height_follows_its_text(page, open_editor):
+    """The user sets only the width; the height is whatever the wrapped text needs."""
     content = open_editor()
     _select(
         page,
@@ -397,27 +408,20 @@ def test_comment_box_edge_handles_resize_one_axis(page, open_editor):
             active=True,
         ),
     )
-    # A corner drag first, to give the box a rectangle to work from: the seeded comment stores its
-    # bottom-right corner above and left of its top-left one, so it starts with no size at all.
-    # Dragged to a point rather than by an offset, so the box ends up small enough that the edge
-    # drags below cannot run into the frame and be clamped, which would move an edge they must not.
-    _drag_grip(page, "se", to=(0.4, 0.5))
+    # The rig takes its height from the player's box, so it appears once that box has been drawn.
+    expect(page.locator("#comment-edit-rig")).to_be_visible()
+    # Dragged to points rather than by offsets, so the widths do not depend on the seeded one.
+    _drag_grip(page, "e", to=(0.95, 0.5))
+    wide = _box_rect(page)
+    assert wide["height"] == pytest.approx(_player_box_height(page), abs=0.5)
 
-    before = _box_rect(page)
-    widened = _drag_grip(page, "e", by=(30, 0), measure=True)
+    narrow = _drag_grip(page, "e", to=(0.55, 0.5), measure=True)
 
-    assert widened["width"] > before["width"] + 2, (before, widened)
-    assert widened["left"] == pytest.approx(before["left"], abs=0.5)
-    assert widened["top"] == pytest.approx(before["top"], abs=0.5)
-    assert widened["height"] == pytest.approx(before["height"], abs=0.5)
-
-    before = _box_rect(page)
-    raised = _drag_grip(page, "n", by=(0, -30), measure=True)
-
-    assert raised["top"] < before["top"] - 1, (before, raised)
-    assert raised["height"] > before["height"] + 1
-    assert raised["left"] == pytest.approx(before["left"], abs=0.5)
-    assert raised["width"] == pytest.approx(before["width"], abs=0.5)
+    assert narrow["width"] < wide["width"] - 2, (wide, narrow)
+    assert narrow["left"] == pytest.approx(wide["left"], abs=0.5)
+    assert narrow["top"] == pytest.approx(wide["top"], abs=0.5)
+    assert narrow["height"] > wide["height"] + 1, (wide, narrow)
+    assert _box_rect(page)["height"] == pytest.approx(_player_box_height(page), abs=0.5)
 
 
 def test_superseded_comment_versions_leave_no_box_behind(page, open_editor):

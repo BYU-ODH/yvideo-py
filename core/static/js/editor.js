@@ -1,7 +1,6 @@
 import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import {
-  RESIZE_HANDLES,
   clampRect,
   edgesForHandle,
   percentWithin,
@@ -11,7 +10,6 @@ import {
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 const COMMENT_MIN_WIDTH = 3;
-const COMMENT_MIN_HEIGHT = 4;
 const MIN_ITEM_SECONDS = 0.1;
 
 function convertPercentStringToDecimal(percentString) {
@@ -70,6 +68,12 @@ export class Editor {
         animateDuringPlayback(this.video, this.renderCommentRig);
 
         this.annotationBox = window.videoPlayer.annotationBox;
+        // The rig's height is the comment box's rendered height, so it has to be redrawn whenever
+        // the player adds a box or the box reflows (font size, width, frame size). Neither fires a
+        // video event while paused.
+        new MutationObserver(this.renderCommentRig).observe(this.annotationBox, {childList: true});
+        this.commentBoxObserver = new ResizeObserver(this.renderCommentRig);
+        this.observedCommentBox = null;
 
         this.blurEditor = new BlurEditor({
           video: this.video,
@@ -621,7 +625,7 @@ export class Editor {
       }
     }
 
-    buildResizePointMoveHandler(minHeight = COMMENT_MIN_HEIGHT, minWidth = COMMENT_MIN_WIDTH) {
+    buildResizePointMoveHandler(minHeight = 0, minWidth = COMMENT_MIN_WIDTH) {
       return (event) => {
         event.stopPropagation();
         const elementToResize = event.target.parentElement;
@@ -1025,7 +1029,7 @@ export class Editor {
         this._previewCommentBox();
         update();
       };
-      for (const selector of ["#top-x", "#top-y", "#bottom-x", "#bottom-y"]) {
+      for (const selector of ["#comment-x", "#comment-y", "#comment-width"]) {
         itemForm.querySelector(selector)?.addEventListener("input", repaintFromForm);
       }
     }
@@ -1036,6 +1040,8 @@ export class Editor {
       this.commentRigAnnotationId = null;
       this.commentRigWindow = null;
       this.commentRigDragging = false;
+      this.commentBoxObserver.disconnect();
+      this.observedCommentBox = null;
     }
 
     updateCommentBoxPositionAndSize() {
@@ -1046,25 +1052,17 @@ export class Editor {
       const annotationId = updateForm.dataset["annotationId"];
       if (this.commentRigAnnotationId !== String(annotationId)) return;
 
-      // update the form and save
-      const boxTop = parseFloat(rig.style.top);
-      const boxLeft = parseFloat(rig.style.left);
-
-      const formTopX = updateForm.querySelector("#top-x");
-      const formTopY = updateForm.querySelector("#top-y");
-      const formBottomX = updateForm.querySelector("#bottom-x");
-      const formBottomY = updateForm.querySelector("#bottom-y");
-      if (!formTopX || !formTopY || !formBottomX || !formBottomY) {
+      const formX = updateForm.querySelector("#comment-x");
+      const formY = updateForm.querySelector("#comment-y");
+      const formWidth = updateForm.querySelector("#comment-width");
+      if (!formX || !formY || !formWidth) {
         console.error("Failed to get all comment form elements to update");
         return;
       }
 
-      // save original values in case update request goes wrong
-
-      formTopX.value = boxLeft;
-      formTopY.value = boxTop;
-      formBottomX.value = boxLeft + parseFloat(rig.style.width);
-      formBottomY.value = boxTop + parseFloat(rig.style.height);
+      formX.value = parseFloat(rig.style.left).toFixed(2);
+      formY.value = parseFloat(rig.style.top).toFixed(2);
+      formWidth.value = parseFloat(rig.style.width).toFixed(2);
 
       this.updateAnnotation({annotationType:"comment", annotationId});
     }
@@ -1080,8 +1078,8 @@ export class Editor {
       rig.hidden = true;
       this._onCommentRigGesture(rig, () => this.buildMoveHandler(rig));
 
-      // The same eight grips the blur rig offers, positioned by data-handle.
-      for (const [handleName] of RESIZE_HANDLES) {
+      // Only the side grips: the height follows the text.
+      for (const handleName of ["w", "e"]) {
         const handle = document.createElement("div");
         handle.classList.add("overlay-resize-handle");
         handle.classList.add("comment-rig-handle");
@@ -1128,25 +1126,43 @@ export class Editor {
       });
     }
 
+    _commentBox() {
+      return document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
+    }
+
+    _commentBoxHeight(box) {
+      const frameHeight = this.annotationBox.getBoundingClientRect().height;
+      if (!(frameHeight > 0)) return null;
+      return box.getBoundingClientRect().height / frameHeight * 100;
+    }
+
+    _observeCommentBox(box) {
+      if (box === this.observedCommentBox) return;
+      this.commentBoxObserver.disconnect();
+      if (box) this.commentBoxObserver.observe(box);
+      this.observedCommentBox = box;
+    }
+
     _previewCommentBox() {
-      const box = document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
+      const box = this._commentBox();
       if (!box || !this.commentRig) return;
       box.style.left = this.commentRig.style.left;
       box.style.top = this.commentRig.style.top;
       box.style.width = this.commentRig.style.width;
-      box.style.height = this.commentRig.style.height;
+      // A width change reflows the text, and renderCommentRig is paused mid-drag.
+      const height = this._commentBoxHeight(box);
+      if (height !== null) this.commentRig.style.height = `${height}%`;
     }
 
     _commentRectFromForm() {
       const updateForm = document.getElementById("annotation-update-form");
       if (!updateForm) return null;
       const read = (selector) => parseFloat(updateForm.querySelector(selector)?.value);
-      const x = read("#top-x");
-      const y = read("#top-y");
-      const right = read("#bottom-x");
-      const bottom = read("#bottom-y");
-      if (![x, y, right, bottom].every(Number.isFinite)) return null;
-      return {x, y, width: right - x, height: bottom - y};
+      const x = read("#comment-x");
+      const y = read("#comment-y");
+      const width = read("#comment-width");
+      if (![x, y, width].every(Number.isFinite)) return null;
+      return {x, y, width};
     }
 
     _readCommentWindow(annotationId) {
@@ -1169,15 +1185,17 @@ export class Editor {
       if (!this.commentRigAnnotationId || this.commentRigDragging) return;
       const rig = this._ensureCommentRig();
       const rect = this._commentRectFromForm();
+      const box = this._commentBox();
+      this._observeCommentBox(box);
+      const height = box ? this._commentBoxHeight(box) : null;
       const time = this.video.currentTime;
       const range = this.commentRigWindow;
       const inRange = range !== null && time >= range.start && time < range.end;
-      rig.hidden = !inRange || rect === null;
+      rig.hidden = !inRange || rect === null || height === null;
       if (!rig.hidden) {
-        applyRect(rig, clampRect(rect, {
-          minWidth: COMMENT_MIN_WIDTH,
-          minHeight: COMMENT_MIN_HEIGHT,
-        }));
+        const {x, width} = clampRect({...rect, height}, {minWidth: COMMENT_MIN_WIDTH});
+        // y is left as stored so the rig stays on the box the player draws.
+        applyRect(rig, {x, y: rect.y, width, height});
       }
     }
 
