@@ -45,6 +45,7 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.lastSavedItemFormState = null;
+        this.itemFormPlaceholderHTML = document.getElementById("detail-form").innerHTML;
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
@@ -103,6 +104,7 @@ export class Editor {
         this.attachTimelineListeners();
         this.attachVideoListeners();
         this.setupTracks();
+        this.watchForClickOnEmptySpace();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
@@ -1322,6 +1324,40 @@ export class Editor {
       if (startTime && !isNaN(startTime)) {
         this.video.currentTime = startTime;
       }
+    }
+
+    deselectItem() {
+      if (!document.getElementById("existing-item-form")) {
+        return;
+      }
+
+      for (let panelItem of [...document.getElementsByClassName("active-panel-item")]) {
+        const annotationType = panelItem.dataset["annotationType"];
+        panelItem.classList.remove(`${annotationType}-list-item-wrapper-selected`, "active-panel-item");
+      }
+      this.timelineWrapper.querySelector(".active-track-item")?.classList.remove("active-track-item");
+
+      document.getElementById("detail-form").innerHTML = this.itemFormPlaceholderHTML;
+      this.setUpItemForm();
+    }
+
+    watchForClickOnEmptySpace() {
+      // Matched against the click target itself, so clicks on items, buttons, menus, and
+      // dialogs nested inside these containers keep their own behavior.
+      const emptySpaceSelector = [
+        ".track-row-annotations-container",
+        ".timeline-track-row-right",
+        "#editor-annotation-panel",
+        "#annotation-groups-wrapper",
+        ".annotation-type-wrapper",
+        ".annotation-type-list",
+        ".annotation-items-list",
+      ].join(", ");
+      document.addEventListener("click", (e) => {
+        if (e.target.matches(emptySpaceSelector)) {
+          this.deselectItem();
+        }
+      });
     }
 
     setUpPanelItemClickListeners() {
