@@ -1,0 +1,14 @@
+{% extends "core/partials/user_view_modal.html" %}
+
+{% block modal_title %}Clips only{% endblock %}
+{% block modal_body_classes %}clips-only-info-body{% endblock %}
+{% block modal_body %}
+    <p>
+        When this setting is on, viewers can only watch the parts of this video that are defined as clips in the video editor.
+        Playback skips everything outside of those clips, and seeking outside a clip jumps into the nearest clip.
+    </p>
+    <p>
+        Showing only the portions of a video needed for instruction gives better Fair Use protection when using copyrighted material.
+    </p>
+    <p>If no clips are defined, selecting this box will prevent viewers from being able to watch any part of the video.</p>
+{% endblock %}

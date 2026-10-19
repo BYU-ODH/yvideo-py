@@ -1806,6 +1806,29 @@ a.blue-button {
     font-weight: 500;
 }
 
+.label-with-info {
+    font-weight: 500;
+}
+
+.label-with-info label {
+    display: inline;
+}
+
+.info-button {
+    all: unset;
+    cursor: pointer;
+    color: var(--primary-blue);
+}
+
+.info-button:focus-visible {
+    border-radius: 50%;
+    outline: 2px solid var(--primary-blue);
+}
+
+.clips-only-info-body {
+    max-width: 32rem;
+}
+
 .content-form-group.clips-only-invalid label,
 .content-settings-form-group.clips-only-invalid label {
     color: var(--red);

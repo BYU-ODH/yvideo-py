@@ -90,7 +90,10 @@ def test_every_user_view_dialog_uses_the_shared_shell_and_behavior(
         ),
         (
             f"/content/{content.pk}/display-settings/",
-            [("#content-delete-modal", "#content-details-delete-button")],
+            [
+                ("#content-delete-modal", "#content-details-delete-button"),
+                ("#clips-only-info-modal", "#clips-only-info-button"),
+            ],
         ),
     ]
 

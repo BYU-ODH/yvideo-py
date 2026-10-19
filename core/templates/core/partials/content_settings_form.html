@@ -43,7 +43,21 @@
             {% endcomment %}
             <div id="clips-only-form-group"
                  class="content-settings-form-group{% if content.clips_only and not content_has_clips %} clips-only-invalid{% endif %}">
-                <label for="clips-only">Show only clips defined in the editor (better Fair Use protection):</label>
+                {# The info button sits outside the label because a label may not contain another labelable element. #}
+                <span class="label-with-info">
+                    <label for="clips-only">Clips only</label>
+                    <button type="button"
+                            id="clips-only-info-button"
+                            class="info-button"
+                            command="show-modal"
+                            commandfor="clips-only-info-modal"
+                            aria-label="About clips only"
+                            title="About clips only">
+                        <span aria-hidden="true">ⓘ</span>
+                    </button>:
+                </span>
+                {% include "core/partials/modals/clips_only_info.html" with dialog_id="clips-only-info-modal" %}
+
                 <input id="clips-only"
                        type="checkbox"
                        {% if content.clips_only %}checked{% endif %}
