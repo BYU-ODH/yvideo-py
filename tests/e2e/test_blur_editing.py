@@ -161,8 +161,8 @@ def _frame_point(page, percent):
 def _drag_in_frame(page, from_percent, to_percent, steps=8):
     """Drag the mouse across the video frame, in frame percentages.
 
-    Nothing on the frame answers this except the blur box itself, so a drag that starts on empty
-    picture is inert by design - see test_dragging_on_empty_frame_does_nothing.
+    Nothing on the frame edits except the blur box itself, so a drag that starts on empty picture
+    edits nothing - see test_dragging_on_empty_frame_does_nothing.
     """
     _mark_panel(page)
     page.mouse.move(*_frame_point(page, from_percent))
@@ -269,11 +269,34 @@ def test_dragging_on_empty_frame_does_nothing(page, open_editor):
     page.wait_for_timeout(500)
     page.mouse.click(*_frame_point(page, (80, 15)))
     page.wait_for_timeout(500)
+    # Each of those reached the video and toggled playback, so the box has to be compared at the
+    # same frame it was measured at.
+    page.evaluate("() => window.videoPlayer.videoElem.pause()")
+    _seek(page, 5.0)
 
     assert _stored_points(MOVING_BLUR) == before, "the frame accepted an edit"
     after = _rig_percent(page)
     assert after["x"] == pytest.approx(box_before["x"], abs=1)
     assert after["width"] == pytest.approx(box_before["width"], abs=1)
+
+
+def test_clicking_the_frame_off_the_box_toggles_playback(page, open_editor):
+    """Selecting a blur must not take the frame's play/pause click away from the player."""
+    open_editor()
+    _select(page, MOVING_BLUR)
+    _seek(page, 5.0)
+    video = page.locator(".annotation-player-container video")
+    assert video.evaluate("v => v.paused")
+
+    # Well clear of the box at t=5.0 (x 26, y 26, 24 x 16).
+    page.mouse.click(*_frame_point(page, (80, 15)))
+    page.wait_for_function(
+        "() => !document.querySelector('.annotation-player-container video').paused"
+    )
+    page.mouse.click(*_frame_point(page, (80, 15)))
+    page.wait_for_function(
+        "() => document.querySelector('.annotation-player-container video').paused"
+    )
 
 
 def test_the_rig_survives_the_response_it_triggered(page, open_editor):

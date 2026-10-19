@@ -244,7 +244,6 @@ export class BlurEditor {
   select(annotationId) {
     this.annotationId = String(annotationId);
     this._readWindow();
-    this.annotationBox.classList.add("annotation-box-blur-editor");
 
     const requested = this.pendingBlurAnchorPoint;
     this.pendingBlurAnchorPoint = null;
@@ -267,9 +266,6 @@ export class BlurEditor {
     // addressed to the blur being deselected.
     this._flushNudge();
     this.gesture?.cancel();
-    // Toggling the one class, rather than assigning className, so the player's
-    // annotation-box-showing-message state survives a selection change.
-    this.annotationBox.classList.remove("annotation-box-blur-editor");
     this.rig?.remove();
     this.rig = null;
     this.annotationId = null;
