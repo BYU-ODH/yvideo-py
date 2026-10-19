@@ -8,6 +8,7 @@
                        class="editor-subtitle-cue-start"
                        aria-label="Subtitle start time"
                        type="text"
+                       {% if not can_edit %}readonly{% endif %}
                        value="{{ cue.display_start_time }}">
             </div>
             <div class="editor-subtitle-cue-input-group">
@@ -15,6 +16,7 @@
                        class="editor-subtitle-cue-end"
                        aria-label="Subtitle end time"
                        type="text"
+                       {% if not can_edit %}readonly{% endif %}
                        value="{{ cue.display_end_time }}"
                        data-end-time="{{ cue.end_time }}">
             </div>
@@ -27,21 +29,25 @@
                    hidden
                    aria-label="Cue identifier"
                    type="text"
-                   value="{{ cue.identifier }}">
+                   value="{{ cue.identifier|default_if_none:'' }}">
             <input class="editor-subtitle-cue-settings"
                    hidden
                    aria-label="Cue settings"
                    type="text"
-                   value="{{ cue.cue_settings }}">
+                   value="{{ cue.cue_settings|default_if_none:'' }}">
         </div>
         <textarea id="editor-subtitle-{{forloop.counter0}}-payload"
                   class="editor-subtitle-cue-content"
                   rows="2"
+                  {% if not can_edit %}readonly{% endif %}
                   aria-label="Cue text content">{{cue.payload}}</textarea>
-        <button class="item-form-icon-button editor-subtitle-cue-delete"
-                aria-label="Delete Cue">
-            <img src="{% static 'img/trash.svg' %}" alt="T">
-        </button>
+        {% if can_edit %}
+            <button type="button"
+                    class="item-form-icon-button editor-subtitle-cue-delete"
+                    aria-label="Delete Cue">
+                <img src="{% static 'img/trash.svg' %}" alt="T">
+            </button>
+        {% endif %}
     </div>
 {% empty %}
     <p>There are no cues for this subtitle track</p>

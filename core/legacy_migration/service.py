@@ -35,6 +35,7 @@ from ..models import SkipAnnotation
 from ..models import Subtitle
 from ..models import Track
 from ..models import User
+from ..subtitle_uploads import build_subtitle_vtt
 from .catalog import LegacyCatalogClient
 from .dump import run_legacy_dump
 from .file_index import ChecksumCache
@@ -54,7 +55,6 @@ from .models import LegacyMigrationUserResolution
 from .models import LegacyMigrationUserResolutionStatus
 from .models import LegacySourceMap
 from .parsers import LegacyFileInfo
-from .parsers import build_subtitle_vtt
 from .parsers import build_user_fingerprint
 from .parsers import make_json_safe
 from .parsers import map_legacy_collection_role

@@ -9,10 +9,12 @@ from .api import Api
 from .model_utils import update_user_enrollment
 from .models import Clip
 from .models import Content
+from .models import Language
 from .models import Playlist
 from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
+from .subtitle_uploads import build_subtitle_file_from_upload
 from .utils import hms2seconds
 
 logger = logging.getLogger(__name__)
@@ -116,6 +118,14 @@ class ClipForm(forms.ModelForm):
 
 
 class SubtitleForm(forms.ModelForm):
+    subtitles_file = forms.FileField(allow_empty_file=True)
+
+    def clean_subtitles_file(self):
+        upload = self.cleaned_data.get("subtitles_file")
+        if self.add_prefix("subtitles_file") not in self.files:
+            return upload
+        return build_subtitle_file_from_upload(upload)
+
     class Meta:
         model = Subtitle
         fields = [
@@ -129,6 +139,70 @@ class SubtitleForm(forms.ModelForm):
 
     resource = forms.CharField(widget=forms.HiddenInput)
     owner = forms.CharField(widget=forms.HiddenInput)
+
+
+class SubtitleAdminForm(forms.ModelForm):
+    subtitles_file = forms.FileField(allow_empty_file=True)
+    subtitles_temp_file = forms.FileField(required=False, allow_empty_file=True)
+
+    class Meta:
+        model = Subtitle
+        fields = "__all__"
+
+    def _clean_subtitle_upload(self, field_name):
+        upload = self.cleaned_data.get(field_name)
+        if self.add_prefix(field_name) not in self.files:
+            return upload
+        return build_subtitle_file_from_upload(upload)
+
+    def clean_subtitles_file(self):
+        return self._clean_subtitle_upload("subtitles_file")
+
+    def clean_subtitles_temp_file(self):
+        return self._clean_subtitle_upload("subtitles_temp_file")
+
+
+class SubtitleUpdateForm(forms.Form):
+    duplicate_name_error = (
+        "A subtitle track with this name, language, and owner already exists "
+        "for this resource. Choose a different name."
+    )
+
+    name = forms.CharField(label="Subtitle track name", max_length=255, strip=True)
+    language = forms.ModelChoiceField(queryset=Language.objects.all())
+    subtitles_file = forms.FileField(
+        label="Subtitle file (optional)",
+        required=False,
+        allow_empty_file=True,
+        widget=forms.FileInput(attrs={"accept": ".vtt,.srt"}),
+        help_text="Upload a UTF-8 .vtt or .srt file up to 5 MiB containing only timed cues",
+    )
+
+    def __init__(self, *args, subtitle, **kwargs):
+        kwargs.setdefault("auto_id", "subtitle-track-edit-%s")
+        super().__init__(*args, **kwargs)
+        self.subtitle = subtitle
+
+    def clean_subtitles_file(self):
+        upload = self.cleaned_data.get("subtitles_file")
+        if upload is None:
+            return None
+        return build_subtitle_file_from_upload(upload)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        name = cleaned_data.get("name")
+        language = cleaned_data.get("language")
+        if name and language:
+            duplicates = Subtitle.objects.filter(
+                resource_id=self.subtitle.resource_id,
+                owner_id=self.subtitle.owner_id,
+                language=language,
+                name=name,
+            ).exclude(pk=self.subtitle.pk)
+            if duplicates.exists():
+                self.add_error("name", self.duplicate_name_error)
+        return cleaned_data
 
 
 class ResourceIntakeRequestForm(forms.ModelForm):

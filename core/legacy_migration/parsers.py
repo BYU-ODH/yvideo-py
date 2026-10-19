@@ -8,9 +8,6 @@ from django.utils import timezone
 
 from ..models import PlaylistRole
 from ..models import Resource
-from ..utils import VTTCue
-from ..utils import build_vtt_file_string_from_cues
-from ..utils import seconds2hms
 from .models import LegacyMigrationKind
 
 
@@ -113,20 +110,6 @@ def parse_legacy_annotations(raw_annotations):
 def parse_legacy_clips(raw_clips):
     clips = json_loads_loose(raw_clips, default=[])
     return clips if isinstance(clips, list) else []
-
-
-def build_subtitle_vtt(raw_content):
-    cues = []
-    for cue in json_loads_loose(raw_content, default=[]):
-        cues.append(
-            VTTCue(
-                type="CUE",
-                payload=cue.get("text", ""),
-                start_time=seconds2hms(float(cue.get("start", 0) or 0)),
-                end_time=seconds2hms(float(cue.get("end", 0) or 0)),
-            )
-        )
-    return build_vtt_file_string_from_cues(cues)
 
 
 def map_legacy_media_type(legacy_value):

@@ -36,11 +36,11 @@ from ..models import Resource
 from ..models import ResourceFileKey
 from ..models import SkipAnnotation
 from ..models import validate_font_color
-from ..utils import VTTCue
-from ..utils import build_cues_from_vtt_file_string
-from ..utils import build_vtt_file_string_from_cues
+from ..subtitle_uploads import VTTCue
+from ..subtitle_uploads import build_cues_from_vtt_file_string
+from ..subtitle_uploads import build_vtt_file_string_from_cues
+from ..subtitle_uploads import nudge_cue_times
 from ..utils import estimate_current_yearterm
-from ..utils import nudge_cue_times
 from ..utils import seconds2hms
 from ..utils import time2seconds
 
@@ -194,69 +194,50 @@ class Time2SecondsTests(TestCase):
 
 class SubtitlesTests(TestCase):
     def setUp(self):
+        self.UNSUPPORTED_VTT_METADATA = {
+            "REGION": "id:fred\nwidth:40%\nlines:3\nregionanchor:0%,100%\nviewportanchor:10%,90%\nscroll:up",
+            "STYLE": "::cue {\nbackground-image: linear-gradient(to bottom, dimgray, lightgray);\ncolor: papayawhip;\n}",
+            "NOTE": "This is an example of a note",
+        }
         self.TEST_VTT_DATA = [
             {
-                "type": "REGION",
-                "payload": "id:fred\nwidth:40%\nlines:3\nregionanchor:0%,100%\nviewportanchor:10%,90%\nscroll:up",
-                "identifier": None,
-                "start_time": None,
-                "end_time": None,
-                "cue_settings": None,
-            },
-            {
-                "type": "STYLE",
-                "payload": "::cue {\nbackground-image: linear-gradient(to bottom, dimgray, lightgray);\ncolor: papayawhip;\n}",
-                "identifier": None,
-                "start_time": None,
-                "end_time": None,
-                "cue_settings": None,
+                "type": "CUE",
+                "identifier": "opening-cue",
+                "payload": "  Hildy! \n\tHow are you?\t ",
+                "start_time": "00:00:00.123",
+                "end_time": "00:00:00.907",
+                "cue_settings": "line:90% position:50% align:center",
             },
             {
                 "type": "CUE",
                 "identifier": None,
-                "payload": "Hildy!",
-                "start_time": "0:00:00.00",
-                "end_time": "0:00:00.90",
-                "cue_settings": None,
-            },
-            {
-                "type": "CUE",
-                "identifier": None,
-                "payload": "How are you?",
-                "start_time": "0:00:01.00",
-                "end_time": "0:00:01.40",
-                "cue_settings": None,
-            },
-            {
-                "type": "NOTE",
-                "payload": "This is an example of a note",
-                "identifier": None,
-                "start_time": None,
-                "end_time": None,
+                "payload": "",
+                "start_time": "00:00:01.000",
+                "end_time": "00:00:01.400",
                 "cue_settings": None,
             },
             {
                 "type": "CUE",
                 "identifier": None,
                 "payload": "Tell me, is the lord of the universe in?",
-                "start_time": "0:00:01.50",
-                "end_time": "0:00:02.90",
+                "start_time": "00:00:01.501",
+                "end_time": "00:00:02.905",
                 "cue_settings": None,
             },
             {
                 "type": "CUE",
-                "identifier": None,
+                "identifier": "4",
                 "payload": "Yes, he's in - in a bad humor",
-                "start_time": "0:00:03.00",
-                "end_time": "0:00:04.20",
+                "start_time": "00:00:03.000",
+                "end_time": "00:00:04.200",
                 "cue_settings": None,
             },
             {
                 "type": "CUE",
                 "identifier": None,
                 "payload": "Somebody must've stolen the crown jewels",
-                "start_time": "0:00:04.30",
-                "end_time": "0:00:06.00",
+                "start_time": "00:00:04.300",
+                "end_time": "00:00:06.000",
                 "cue_settings": None,
             },
         ]
@@ -265,15 +246,11 @@ class SubtitlesTests(TestCase):
         num_cues = len(self.TEST_VTT_DATA)
         for vtt_data in self.TEST_VTT_DATA:
             cue_index += 1
-            vtt_type = vtt_data["type"]
-            if vtt_type == "NOTE" or vtt_type == "REGION" or vtt_type == "STYLE":
-                self.TEST_VTT += f"{vtt_type}"
-            elif vtt_type == "CUE":
-                if vtt_data["identifier"] is not None:
-                    self.TEST_VTT += f"{vtt_data['identifier']}\n"
-                self.TEST_VTT += f"{vtt_data['start_time']} --> {vtt_data['end_time']}"
-                if vtt_data["cue_settings"] is not None:
-                    self.TEST_VTT += f" {vtt_data['cue_settings']}"
+            if vtt_data["identifier"] is not None:
+                self.TEST_VTT += f"{vtt_data['identifier']}\n"
+            self.TEST_VTT += f"{vtt_data['start_time']} --> {vtt_data['end_time']}"
+            if vtt_data["cue_settings"] is not None:
+                self.TEST_VTT += f" {vtt_data['cue_settings']}"
             self.TEST_VTT += f"\n{vtt_data['payload']}"
             if cue_index < num_cues:
                 self.TEST_VTT += "\n\n"
@@ -293,6 +270,27 @@ class SubtitlesTests(TestCase):
     def test_build_vtt_file_string_from_cues(self):
         translated_string = build_vtt_file_string_from_cues(self.TEST_VTT_CUES)
         self.assertEqual(translated_string, self.TEST_VTT)
+        self.assertEqual(build_vtt_file_string_from_cues([]), "WEBVTT\n\n")
+        for cue, entry in zip(self.TEST_VTT_CUES, self.TEST_VTT_DATA):
+            self.assertEqual(cue.display_start_time(), entry["start_time"])
+            self.assertEqual(cue.display_end_time(), entry["end_time"])
+
+        legacy_cue = VTTCue(
+            type="CUE",
+            payload="",
+            start_time="0:00:00.90",
+            end_time=1.234,
+        )
+        self.assertEqual(
+            build_vtt_file_string_from_cues([legacy_cue]),
+            "WEBVTT\n\n00:00:00.900 --> 00:00:01.234\n",
+        )
+        for cue_type, payload in self.UNSUPPORTED_VTT_METADATA.items():
+            with self.subTest(cue_type=cue_type):
+                with self.assertRaises(ValidationError):
+                    build_vtt_file_string_from_cues(
+                        [VTTCue(type=cue_type, payload=payload)]
+                    )
 
     def test_build_cues_from_vtt_file_string(self):
         cues = build_cues_from_vtt_file_string(self.TEST_VTT)
@@ -308,6 +306,16 @@ class SubtitlesTests(TestCase):
             self.assertEqual(new_cue.start_time, old_cue.start_time)
             self.assertEqual(new_cue.end_time, old_cue.end_time)
             self.assertEqual(new_cue.cue_settings, old_cue.cue_settings)
+
+        for header in ("WEBVTT\n\n", "WEBVTT\n \t\n"):
+            with self.subTest(header=header):
+                self.assertEqual(build_cues_from_vtt_file_string(header), [])
+        for cue_type, payload in self.UNSUPPORTED_VTT_METADATA.items():
+            with self.subTest(cue_type=cue_type):
+                self.assertEqual(
+                    build_cues_from_vtt_file_string(f"WEBVTT\n\n{cue_type}\n{payload}"),
+                    [],
+                )
 
     def test_nudge_cue_times(self):
         cues_copy = copy.deepcopy(self.TEST_VTT_CUES)

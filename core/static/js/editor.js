@@ -49,6 +49,8 @@ export class Editor {
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
         this.selectedSubtitleTrackText = null;
+        this.subtitleTrackEditBusy = false;
+        this.subtitleCueSaves = new Set();
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
@@ -115,6 +117,7 @@ export class Editor {
         this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
         this.watchForSubtitleTrackCreation();
+        this.watchForSubtitleTrackEditing();
         this.watchForSubtitleTrackDeletion();
         this.checkForAndLoadSubtitleTrack();
         this.handleNoAnnotationSet();
@@ -2650,6 +2653,7 @@ export class Editor {
       setupMultiOptionMenu(subtitleMenu);
     }
 
+
     async loadSubtitleTrack(trackId) {
       try {
         const subtitlesResponse = await fetch(`/subtitles/${trackId}/editable/`);
@@ -2667,10 +2671,13 @@ export class Editor {
         this.buildWatchersForSubtitlePanelContent();
         this.buildWatchersForSubtitleEditorCues();
         document.getElementById("open-subtitle-track-edit-modal").disabled = false;
-        document.getElementById("open-delete-subtitle-track-modal").disabled = false;
+        document.getElementById("open-delete-subtitle-track-modal").disabled =
+          document.getElementById("subtitle-panel-content-wrapper").dataset.canEdit !== "true";
         return true;
+      } catch (error) {
+        console.error("Failed to load subtitle track", error);
+        return false;
       } finally {
-        // Keep the selector on the loaded track, including when a new load fails.
         const subtitleSelectInput = document.getElementById("subtitles-track-selector");
         if (subtitleSelectInput) subtitleSelectInput.value = this.selectedSubtitleTrackId || "";
       }
@@ -2683,12 +2690,13 @@ export class Editor {
       if (!trackId || !subtitlePanel) return;
 
       try {
-        if (!await this.loadSubtitleTrack(trackId)) return;
         if (subtitlePanel.classList.contains("subtitle-editor-panel-hidden")) {
           document.getElementById("annotation-panel-switch")?.click();
         }
+        if (!await this.loadSubtitleTrack(trackId)) return;
         pageUrl.searchParams.delete("subtitle_track");
         window.history.replaceState(window.history.state, "", pageUrl);
+        await this.loadSubtitleTrackEditForm();
       } catch (error) {
         console.error("Failed to load subtitle track from URL", error);
       }
@@ -2759,6 +2767,92 @@ export class Editor {
       });
     }
 
+    watchForSubtitleTrackEditing() {
+      const openButton = document.getElementById("open-subtitle-track-edit-modal");
+      const dialog = document.getElementById("edit-subtitle-track-modal");
+      if (!openButton || !dialog) return;
+
+      openButton.addEventListener("click", () => this.loadSubtitleTrackEditForm());
+
+      dialog.addEventListener("cancel", (event) => {
+        if (this.subtitleTrackEditBusy) event.preventDefault();
+      });
+      dialog.addEventListener("submit", (event) => {
+        if (event.target.id !== "subtitle-track-edit-form") return;
+        event.preventDefault();
+        const form = event.target;
+        this.submitSubtitleTrackEdit(form.action, new FormData(form));
+      });
+      dialog.addEventListener("click", (event) => {
+        const copyButton = event.target.closest("#subtitle-track-copy");
+        if (copyButton) this.submitSubtitleTrackEdit(copyButton.dataset.copyUrl, null, true);
+      });
+    }
+
+    async loadSubtitleTrackEditForm() {
+      if (!this.selectedSubtitleTrackId || this.subtitleTrackEditBusy) return;
+      const content = document.getElementById("subtitle-track-edit-content");
+      const status = document.getElementById("subtitle-track-edit-status");
+
+      content.replaceChildren();
+      content.setAttribute("aria-busy", "true");
+      status.textContent = "Loading track details…";
+
+      try {
+        // A queued cue save must finish before a replacement or copy can start.
+        await Promise.allSettled(this.subtitleCueSaves);
+        const response = await fetch(
+          `/subtitles/${this.selectedSubtitleTrackId}/edit/?content_id=${encodeURIComponent(this.contentId)}`
+        );
+        if (!response.ok) {
+          console.error("Failed to load subtitle track details", response.status);
+          return;
+        }
+        const html = await response.text();
+        content.innerHTML = new DOMParser().parseFromString(html, "text/html").getElementById("subtitle-track-edit-content").innerHTML;
+      } catch (error) {
+        console.error("Failed to load subtitle track details", error);
+      } finally {
+        status.textContent = "";
+        content.removeAttribute("aria-busy");
+      }
+    }
+
+    async submitSubtitleTrackEdit(url, body, copying = false) {
+      if (this.subtitleTrackEditBusy) return;
+      this.subtitleTrackEditBusy = true;
+
+      const dialog = document.getElementById("edit-subtitle-track-modal");
+      const status = document.getElementById("subtitle-track-edit-status");
+      const controls = Array.from(dialog.querySelectorAll("button, input, select"));
+      const disabledStates = controls.map((control) => control.disabled);
+      controls.forEach((control) => { control.disabled = true; });
+      status.textContent = copying ? "Copying track…" : "Saving changes…";
+      dialog.setAttribute("aria-busy", "true");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken() },
+          body
+        });
+        if (!response.ok) {
+          console.error("Subtitle track request failed", response.status);
+          return;
+        }
+        const track = await response.json();
+        const reloadUrl = new URL(window.location.href);
+        reloadUrl.searchParams.set("subtitle_track", track.id);
+        window.location.assign(reloadUrl.href);
+      } catch (error) {
+        console.error("Subtitle track request failed", error);
+      } finally {
+        controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
+        this.subtitleTrackEditBusy = false;
+        status.textContent = "";
+        dialog.removeAttribute("aria-busy");
+      }
+    }
+
     watchForSubtitleTrackDeletion() {
       const openButton = document.getElementById("open-delete-subtitle-track-modal");
       const deleteButton = document.getElementById("delete-subtitle-track-confirm");
@@ -2823,51 +2917,75 @@ export class Editor {
 
     async saveCues(cues, isAutosave=true) {
       if (typeof isAutosave !== "boolean") {
-        console.error("isAutosave must be a boolean");
-        return;
+        console.error("Could not save cues: isAutosave must be a boolean.");
+        return false;
       }
 
-      const updateResponse = await makePostRequest(
-        `/subtitles/${this.selectedSubtitleTrackId}/update-cues/`,
-        JSON.stringify({
-          cues: cues,
-          seconds_nudge: 0,
-          nudge_excluded_cues: [],
-          is_autosave: isAutosave
-        })
-      );
+      if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
+      const trackId = this.selectedSubtitleTrackId;
+      const originalCueState = JSON.stringify(this.collectCues());
+      const save = (async () => {
+        try {
+          const updateResponse = await makePostRequest(
+            `/subtitles/${trackId}/update-cues/`,
+            JSON.stringify({
+              cues: cues,
+              seconds_nudge: 0,
+              nudge_excluded_cues: [],
+              is_autosave: isAutosave
+            })
+          );
+          if (this.selectedSubtitleTrackId !== trackId) return false;
+          if (!updateResponse.ok) {
+            console.error("Failed to save subtitle cues", updateResponse.status);
+            return false;
+          }
+          const html = await updateResponse.text();
+          if (this.selectedSubtitleTrackId !== trackId) return false;
+          // A response must not replace edits made while the save was in flight.
+          if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
+          document.getElementById("subtitle-panel-list").innerHTML = html;
 
-      if (!updateResponse.ok) {
-        console.error("Failed to save cues");
-        return;
+          this.buildWatchersForSubtitleEditorCues();
+          return true;
+        } catch (error) {
+          console.error("Failed to save subtitle cues", error);
+          return false;
+        }
+      })();
+      this.subtitleCueSaves.add(save);
+      try {
+        return await save;
+      } finally {
+        this.subtitleCueSaves.delete(save);
       }
-
-      const subtitleCueListWrapper = document.getElementById("subtitle-panel-list");
-      subtitleCueListWrapper.innerHTML = await updateResponse.text();
-      this.buildWatchersForSubtitleEditorCues();
     }
 
     buildWatchersForSubtitlePanelContent() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      if (subtitlesPanel.dataset.canEdit !== "true") return;
       const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
       addNewCueButton.addEventListener("click", async () => {
         const cues = this.collectCues();
         // build new cue and append it to cues array
         const time = this.video.currentTime;
+        const startTime = Math.round(time * 1000) / 1000;
+        const endTime = Math.round((time + 2) * 1000) / 1000;
         // the back end sorts cues, so this will go in its correct place.
         cues.push(
           {
-            start_time: formatSecondsToString(time),
-            end_time: formatSecondsToString(time + 2),
+            start_time: startTime,
+            end_time: endTime,
             type: "CUE",
             payload: "",
             identifier: "",
             cue_settings: "",
           }
         )
-        await this.saveCues(cues, false);
-        const newCueWrapper = document.querySelector(`.editor-subtitle-cue[data-start-time='${Number(time.toFixed(2))}'`);
+        if (!await this.saveCues(cues, false)) return;
+        const newCueWrapper = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${startTime}']`);
         if (!newCueWrapper) {
+          console.error("no new cue found!");
           return;
         }
         const newCueTextarea = newCueWrapper.querySelector(".editor-subtitle-cue-content");
@@ -2876,12 +2994,11 @@ export class Editor {
         }
       });
 
-      // setup subtitle track name updater
       const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
       function updateTrackDisplayInSelector() {
         const trackSelectOption = document.querySelector(`.subtitles-track-option[value='${this.selectedSubtitleTrackId}']`);
         const newTitle = subtitleTitleWrapper.querySelector("#subtitle-track-title").innerText;
-        trackSelectOption.innerText = newTitle;
+        trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
         this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
       }
       setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
@@ -2891,8 +3008,11 @@ export class Editor {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
       const deleteCue = (e) => {
         const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
-        editorSubtitleCueEl.remove();
-        this.saveCues(this.collectCues(), false);
+        const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
+        const cues = this.collectCues();
+        // use splice to allow cue marked for deletion to still appear unless the deletion is successful
+        cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
+        this.saveCues(cues, false);
       }
       const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
       for (let cueDelButton of editorSubtitleCueDeleteButtons) {
@@ -2905,13 +3025,13 @@ export class Editor {
       const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
       const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");
       const cueInputs = [...cueStartAndTextInputs, ...cueEndInputs];
-      for (let cueInput of cueInputs) {
-        cueInput.addEventListener("keydown", (e) => {
-          if (e.key != "Enter") {
-            return;
-          }
-          saveUpdatedInformation();
-        });
+      if (subtitlesPanel.dataset.canEdit === "true") {
+        for (let cueInput of cueInputs) {
+          cueInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") saveUpdatedInformation();
+          });
+        }
+      }
       for (let cueStartOrTextInput of cueStartAndTextInputs){
         cueStartOrTextInput.addEventListener("click", (e) => {
           const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
@@ -2925,7 +3045,6 @@ export class Editor {
         });
       }
     }
-  }
 }
 
 function editorInit() {
