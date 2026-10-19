@@ -155,8 +155,8 @@
     font-size: 1.2rem;
 }
 
-#tools-info-open-button img {
-    filter: invert(1);
+#tools-info-open-button {
+    font-size: 1.4rem;
 }
 
 #annotation-groups-wrapper {
