@@ -45,7 +45,7 @@
                  class="content-settings-form-group{% if content.clips_only and not content_has_clips %} clips-only-invalid{% endif %}">
                 {# The info button sits outside the label because a label may not contain another labelable element. #}
                 <span class="label-with-info">
-                    <label for="clips-only">Clips only</label>
+                    <label for="clips-only">Clips only:</label>
                     <button type="button"
                             id="clips-only-info-button"
                             class="info-button"
@@ -54,16 +54,16 @@
                             aria-label="About clips only"
                             title="About clips only">
                         <span aria-hidden="true">ⓘ</span>
-                    </button>:
+                    </button>
                 </span>
-                {% include "core/partials/modals/clips_only_info.html" with dialog_id="clips-only-info-modal" %}
-
                 <input id="clips-only"
                        type="checkbox"
                        {% if content.clips_only %}checked{% endif %}
                        data-content-has-clips="{{ content_has_clips|yesno:'true,false' }}">
             </div>
         </div>
+        {% include "core/partials/modals/clips_only_info.html" with dialog_id="clips-only-info-modal" %}
+
         <div id="clips-only-warning"
              class="clips-only-warning"
              {% if not content.clips_only or content_has_clips %} hidden{% endif %}>

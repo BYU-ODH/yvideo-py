@@ -1061,6 +1061,7 @@ AUDITED_TEMPLATES = {
     "core/partials/dialog_close_button.html",
     "core/partials/modals/add_new_playlist.html",
     "core/partials/modals/add_video.html",
+    "core/partials/modals/clips_only_info.html",
     "core/partials/modals/content_delete.html",
     "core/partials/modals/create_from_resource.html",
     "core/partials/modals/playlist_course_assignments.html",
