@@ -147,6 +147,16 @@
     padding: 8px;
 }
 
+#tools-header {
+    padding: 8px;
+    align-items: center;
+}
+
+#tools-header-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
 #annotation-groups-wrapper {
     overflow-y: auto;
     display: flex;

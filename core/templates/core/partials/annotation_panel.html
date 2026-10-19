@@ -49,6 +49,24 @@
             {% include 'core/partials/annotation_set_retirement_modal.html' %}
         {% endif %}
     </div>
+    <div id="tools-header" class="row-flex flex-apart-aligned">
+        <span id="tools-header-title">Tools</span>
+        <button id="tools-info-open-button"
+                class="item-form-icon-button"
+                command="show-modal"
+                commandfor="tools-info-modal"
+                aria-label="Tools information">
+            <img src="{% static 'img/info-circle.svg' %}" alt="" aria-hidden="true">
+        </button>
+    </div>
+    <dialog id="tools-info-modal">
+        <button class="close-dialog-button"
+                command="close"
+                commandfor="tools-info-modal"
+                aria-label="Close tools information dialog">X</button>
+        <h2>Tools</h2>
+        <p>Information about the editor tools will be provided here.</p>
+    </dialog>
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}
             <div id="{{ group.type }}-annotation-type-wrapper"
