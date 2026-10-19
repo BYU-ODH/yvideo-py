@@ -1074,6 +1074,7 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_members_list.html",
     "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
+    "core/partials/modals/tools_info.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
     "core/partials/user_view_modal.html",
