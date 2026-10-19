@@ -105,6 +105,7 @@ export class Editor {
         this.attachVideoListeners();
         this.setupTracks();
         this.watchForClickOnEmptySpace();
+        this.watchForEscapeToDeselect();
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
@@ -572,8 +573,7 @@ export class Editor {
         const itemFormType = itemForm.dataset["annotationType"];
         const itemFormId = itemForm.dataset["annotationId"];
         if (annotationType == itemFormType && annotationId == itemFormId) {
-          const detailForm = document.getElementById("detail-form");
-          detailForm.innerHTML = "";
+          this.deselectItem();
         }
       }
       this.placeTrackItems();
@@ -847,17 +847,20 @@ export class Editor {
       const annotationType = responseData.annotation_type;
       const annotationId = String(responseData.annotation_id);
       const detailForm = document.getElementById("detail-form");
+      // A save can land after the user has deselected or moved to another item, and that
+      // newer selection has to keep its highlight.
+      const formShowsThisItem = replaceForm || this.syncOpenFormToVersion(responseData, previousAnnotationId);
       if (replaceForm) {
         detailForm.innerHTML = responseData.form_html;
         this.setUpLoadedItemForm(annotationType, annotationId);
-      } else {
-        this.syncOpenFormToVersion(responseData, previousAnnotationId);
       }
 
       if (!placed) {
         return false;
       }
-      this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      if (formShowsThisItem) {
+        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      }
       return true;
     }
 
@@ -1357,6 +1360,24 @@ export class Editor {
         if (e.target.matches(emptySpaceSelector)) {
           this.deselectItem();
         }
+      });
+    }
+
+    watchForEscapeToDeselect() {
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape" || e.defaultPrevented) {
+          return;
+        }
+        // Escape already means "cancel this edit" in text fields and "close" in dialogs.
+        const isTextEntry = e.target.matches?.("input, textarea, select, [contenteditable='true']");
+        if (isTextEntry || document.querySelector("dialog[open]")) {
+          return;
+        }
+        // Mid-gesture, Escape abandons the gesture; BlurEditor's handler for that runs after this one.
+        if (this.blurEditor.gesture || this.commentRigDragging || this.dragState || this.isDragging) {
+          return;
+        }
+        this.deselectItem();
       });
     }
 
