@@ -256,7 +256,7 @@ def test_dragging_on_empty_frame_does_nothing(page, open_editor):
     """The frame is not a canvas. This is the removed create gesture, asserted absent.
 
     A drag on empty picture used to rubber-band a new rectangle over the existing box. Nothing
-    should answer it now: not a new point, not a changed one, not a resized box.
+    should edit in response now: not a new point, not a changed one, not a resized box.
     """
     open_editor()
     _select(page, MOVING_BLUR)
@@ -285,18 +285,13 @@ def test_clicking_the_frame_off_the_box_toggles_playback(page, open_editor):
     open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
-    video = page.locator(".annotation-player-container video")
-    assert video.evaluate("v => v.paused")
+    assert page.evaluate("() => window.videoPlayer.videoElem.paused")
 
     # Well clear of the box at t=5.0 (x 26, y 26, 24 x 16).
     page.mouse.click(*_frame_point(page, (80, 15)))
-    page.wait_for_function(
-        "() => !document.querySelector('.annotation-player-container video').paused"
-    )
+    page.wait_for_function("() => !window.videoPlayer.videoElem.paused", timeout=2000)
     page.mouse.click(*_frame_point(page, (80, 15)))
-    page.wait_for_function(
-        "() => document.querySelector('.annotation-player-container video').paused"
-    )
+    page.wait_for_function("() => window.videoPlayer.videoElem.paused", timeout=2000)
 
 
 def test_the_rig_survives_the_response_it_triggered(page, open_editor):
