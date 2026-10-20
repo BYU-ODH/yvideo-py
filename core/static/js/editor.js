@@ -117,6 +117,7 @@ export class Editor {
         this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
         this.watchForSubtitleTrackCreation();
+
         this.watchForSubtitleTrackEditing();
         this.watchForSubtitleTrackDeletion();
         this.checkForAndLoadSubtitleTrack();
@@ -2734,37 +2735,41 @@ export class Editor {
       });
     }
 
+
     watchForSubtitleTrackCreation() {
-      const newTrackNameInput = document.getElementById("subtitles-track-create-new");
-      const newTrackLanguageInput = document.getElementById("subtitles-track-language-input");
-      const createTrackButton = document.getElementById("subtitle-track-create-button");
-      if (!newTrackNameInput || !newTrackLanguageInput || !createTrackButton) {
-        console.error("Failed to setup subtitle track creation because of missing compoenents.");
-        return;
-      }
+      const dialog = document.getElementById("subtitle-track-create-form")?.closest("dialog");
+      if (!dialog) return;
 
-      createTrackButton.addEventListener("click", async () => {
-        if (createTrackButton.disabled) return;
-        const name = newTrackNameInput.value.trim();
-        const language = newTrackLanguageInput.value.trim();
-        newTrackNameInput.value = name;
-        newTrackLanguageInput.value = language;
-        newTrackNameInput.classList.toggle("invalid-input", !name);
-        newTrackLanguageInput.classList.toggle("invalid-input", !language);
-        if (!newTrackNameInput.reportValidity() || !newTrackLanguageInput.reportValidity()) {
-          console.error("Track name or language are invalid");
-          return;
-        }
+      dialog.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        if (form.dataset.submitting === "true") return;
 
-        createTrackButton.disabled = true;
+        const body = new FormData(form);
+        const controls = Array.from(form.elements);
+        const disabledStates = controls.map((control) => control.disabled);
+        form.dataset.submitting = "true";
+        controls.forEach((control) => { control.disabled = true; });
         try {
-          const response = await makePostRequest(
-            `/content/${this.contentId}/subtitles/create/`,
-            JSON.stringify({ name, language })
-          );
+          await Promise.allSettled(this.subtitleCueSaves);
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: { "X-CSRFToken": getCSRFToken() },
+            body
+          });
           if (!response.ok) {
-            const error = await response.json();
-            console.error(error.error);
+            if (response.status === 400 && response.headers.get("Content-Type")?.includes("text/html")) {
+              const html = new DOMParser().parseFromString(await response.text(), "text/html");
+              const renderedForm = html.getElementById(form.id);
+              if (renderedForm) {
+                form.replaceWith(renderedForm);
+                renderedForm.querySelector('[aria-invalid="true"]')?.focus();
+              } else {
+                console.error("Submitted form missing from validation response");
+              }
+            } else {
+              console.error("Failed to create subtitle track", response.status);
+            }
             return;
           }
           const track = await response.json();
@@ -2774,7 +2779,8 @@ export class Editor {
         } catch (error) {
           console.error("Failed to create subtitle track", error);
         } finally {
-          createTrackButton.disabled = false;
+          controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
+          delete form.dataset.submitting;
         }
       });
     }

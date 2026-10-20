@@ -24,6 +24,8 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 
+from .forms import SubtitleCopyForm
+from .forms import SubtitleCreateForm
 from .forms import SubtitleUpdateForm
 from .models import BLUR_SNAP_SECONDS
 from .models import BLUR_TIME_PRECISION
@@ -181,6 +183,7 @@ def video_editor(request, content):
         # Get file key for video streaming
         file_key = request.user.get_resource_filekey(content)
 
+        resource = content.get_resource()
         subtitle_options = content.get_subtitles()
         subtitle_panel = {
             "subtitle_track_selection_modal_id": "subtitle-track-selection-modal",
@@ -238,6 +241,8 @@ def video_editor(request, content):
             "subtitle_options": subtitle_options,
             "subtitle_panel": subtitle_panel,
             "languages": Language.objects.all(),
+            "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
+            "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),
         }
 
         return render(request, "core/video_editor.html", context)
@@ -1291,43 +1296,52 @@ def delete_track(request, track):
         return HttpResponseServerError()
 
 
+def _render_subtitle_track_creation_modal(
+    request, content, *, create_form=None, copy_form=None
+):
+    resource = content.get_resource()
+    if create_form is None:
+        create_form = SubtitleCreateForm(resource=resource, owner=request.user)
+    if copy_form is None:
+        copy_form = SubtitleCopyForm(resource=resource, owner=request.user)
+    if request.content_type == "application/json":
+        form = create_form if create_form.is_bound else copy_form
+        return JsonResponse(
+            {
+                "error": "Please correct the subtitle track details.",
+                "errors": {
+                    field: list(errors) for field, errors in form.errors.items()
+                },
+            },
+            status=400,
+        )
+    return render(
+        request,
+        "core/partials/modals/create_subtitle_track.html",
+        {
+            "dialog_id": "subtitle-track-creation-modal",
+            "content_id": content.pk,
+            "create_form": create_form,
+            "copy_form": copy_form,
+        },
+        status=400,
+    )
+
+
 @require_POST
 @content_write_required
 def create_subtitle_track(request, content):
-    try:
-        data = json.loads(request.body)
-    except (ValueError, UnicodeDecodeError):
-        return JsonResponse({"error": "Invalid request body."}, status=400)
-
-    if not isinstance(data, dict):
-        return JsonResponse(
-            {"error": "Request body must be a JSON object."}, status=400
-        )
-    if "name" not in data or "language" not in data:
-        return JsonResponse(
-            {"error": "'name' and 'language' must be present in request"}, status=400
-        )
-
-    if not isinstance(data["name"], str) or not isinstance(data["language"], str):
-        return JsonResponse(
-            {"error": "'name' and 'language' must be strings."}, status=400
-        )
-
-    name = data["name"].strip()
-    if len(name) == 0:
-        return JsonResponse({"error": "'name' cannot be empty"}, status=400)
-
-    language_in = data.get("language")
-    language_in = language_in.strip()
-    if len(language_in) == 0:
-        return JsonResponse({"error": "'language' cannot be empty"}, status=400)
-
-    try:
-        language = Language.objects.filter(pk=language_in).first()
-    except (TypeError, ValueError, OverflowError):
-        language = None
-    if language is None:
-        return JsonResponse({"error": "Select a recorded language."}, status=400)
+    if request.content_type == "application/json":
+        try:
+            data = json.loads(request.body)
+        except (ValueError, UnicodeDecodeError):
+            return JsonResponse({"error": "Invalid request body."}, status=400)
+        if not isinstance(data, dict):
+            return JsonResponse(
+                {"error": "Request body must be a JSON object."}, status=400
+            )
+    else:
+        data = request.POST
 
     resource = content.get_resource()
     if resource is None:
@@ -1335,25 +1349,59 @@ def create_subtitle_track(request, content):
             {"error": "This content has no subtitle resource."}, status=400
         )
 
-    track_fields = {
-        "resource": resource,
-        "owner": request.user,
-        "language": language,
-        "name": name,
-    }
+    create_mode = data.get("create_mode", "empty")
+    if create_mode == "copy":
+        copy_form = SubtitleCopyForm(data, resource=resource, owner=request.user)
+        if not copy_form.is_valid():
+            return _render_subtitle_track_creation_modal(
+                request, content, copy_form=copy_form
+            )
+        return _process_subtitle_track_copy(
+            request, content, copy_form.cleaned_data["source_id"], copy_form=copy_form
+        )
+    if create_mode != "empty":
+        return JsonResponse({"error": "Invalid subtitle creation mode."}, status=400)
 
+    create_form = SubtitleCreateForm(data, resource=resource, owner=request.user)
+    if not create_form.is_valid():
+        return _render_subtitle_track_creation_modal(
+            request, content, create_form=create_form
+        )
+
+    subtitle = Subtitle(
+        resource=resource,
+        owner=request.user,
+        language=create_form.cleaned_data["language"],
+        name=create_form.cleaned_data["name"],
+    )
+    database = subtitle._state.db
+    created_files = []
     try:
-        subtitle = Subtitle.objects.create(
-            **track_fields,
-            subtitles_file=ContentFile(
-                build_vtt_file_string_from_cues([]).encode("utf-8"), name=f"{name}.vtt"
-            ),
-        )
-    except IntegrityError:
-        return JsonResponse(
-            {"error": "You already have a subtitle track with this name."}, status=400
-        )
-    except Exception:
+        with transaction.atomic(using=database):
+            subtitle.subtitles_file = store_independent_subtitle_file(
+                subtitle,
+                ContentFile(
+                    build_vtt_file_string_from_cues([]).encode("utf-8"),
+                    name=f"{subtitle.name}.vtt",
+                ),
+                created_files,
+            )
+            subtitle.save(using=database, force_insert=True)
+    except Exception as exception:
+        cleanup_subtitle_files(created_files, using=database)
+        if isinstance(exception, IntegrityError):
+            conflicts = Subtitle.objects.using(database).filter(
+                resource=resource,
+                owner=request.user,
+                language=create_form.cleaned_data["language"],
+                name=create_form.cleaned_data["name"],
+            )
+            if conflicts.exists():
+                create_form.add_error("name", create_form.duplicate_name_error)
+                return _render_subtitle_track_creation_modal(
+                    request, content, create_form=create_form
+                )
+        logger.exception("Failed to create a new subtitle track.")
         return JsonResponse(
             {"error": "Failed to create a new subtitle track."}, status=500
         )
@@ -1458,6 +1506,10 @@ def update_subtitle(request, subtitle):
 @content_write_required
 def copy_subtitle_track(request, content, subtitle_id):
     source = get_object_or_404(Subtitle, pk=subtitle_id)
+    return _process_subtitle_track_copy(request, content, source)
+
+
+def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
     resource = content.get_resource()
     if resource is None or source.resource_id != resource.pk:
         return forbidden("The subtitle track must belong to this content's resource.")
@@ -1466,6 +1518,7 @@ def copy_subtitle_track(request, content, subtitle_id):
 
     database = source._state.db
     created_files = []
+    name_conflicts = None
     try:
         with transaction.atomic(using=database):
             source = (
@@ -1475,6 +1528,28 @@ def copy_subtitle_track(request, content, subtitle_id):
                 request.user
             ):
                 return forbidden()
+            if copy_form is None and "name" in request.POST:
+                copy_form = SubtitleCopyForm(
+                    request.POST, resource=resource, source=source, owner=request.user
+                )
+                if not copy_form.is_valid():
+                    return _render_subtitle_track_creation_modal(
+                        request, content, copy_form=copy_form
+                    )
+            if copy_form is not None:
+                # The source language may have changed since create-form validation.
+                name_conflicts = Subtitle.objects.using(database).filter(
+                    resource_id=source.resource_id,
+                    owner=request.user,
+                    language_id=source.language_id,
+                    name=copy_form.cleaned_data["name"],
+                )
+                if name_conflicts.exists():
+                    copy_form.add_error("name", copy_form.duplicate_name_error)
+                    return _render_subtitle_track_creation_modal(
+                        request, content, copy_form=copy_form
+                    )
+
             source_extension = splitext(source.subtitles_file.name)[1].lower()
             with source.subtitles_file.open("rb") as source_file:
                 cues = read_subtitle_cues(
@@ -1496,39 +1571,49 @@ def copy_subtitle_track(request, content, subtitle_id):
                 copied, canonical_file, created_files
             )
 
-            copy_number = 1
-            while True:
-                suffix = " (copy)" if copy_number == 1 else f" (copy {copy_number})"
-                copied.name = source.name[: 255 - len(suffix)] + suffix
-                conflicts = Subtitle.objects.using(database).filter(
-                    resource_id=source.resource_id,
-                    owner=request.user,
-                    language_id=source.language_id,
-                    name=copied.name,
-                )
-                if conflicts.exists():
-                    copy_number += 1
-                    continue
-                try:
-                    # A savepoint permits retrying a concurrent name collision without
-                    # abandoning the transaction or writing another copy of the file.
-                    with transaction.atomic(using=database):
-                        copied.save(using=database, force_insert=True)
-                except IntegrityError:
-                    if not conflicts.exists():
-                        raise
-                    copied.pk = None
-                    copy_number += 1
-                else:
-                    break
+            if copy_form is not None:
+                copied.name = copy_form.cleaned_data["name"]
+                copied.save(using=database, force_insert=True)
+            else:
+                copy_number = 1
+                while True:
+                    suffix = " (copy)" if copy_number == 1 else f" (copy {copy_number})"
+                    copied.name = source.name[: 255 - len(suffix)] + suffix
+                    conflicts = Subtitle.objects.using(database).filter(
+                        resource_id=source.resource_id,
+                        owner=request.user,
+                        language_id=source.language_id,
+                        name=copied.name,
+                    )
+                    if conflicts.exists():
+                        copy_number += 1
+                        continue
+                    try:
+                        # A savepoint permits retrying a concurrent name collision without
+                        # abandoning the transaction or writing another copy of the file.
+                        with transaction.atomic(using=database):
+                            copied.save(using=database, force_insert=True)
+                    except IntegrityError:
+                        if not conflicts.exists():
+                            raise
+                        copied.pk = None
+                        copy_number += 1
+                    else:
+                        break
     except ValidationError as exception:
         cleanup_subtitle_files(created_files, using=database)
         return JsonResponse({"error": " ".join(exception.messages)}, status=400)
     except Subtitle.DoesNotExist:
         cleanup_subtitle_files(created_files, using=database)
         return HttpResponseNotFound()
-    except Exception:
+    except Exception as exception:
         cleanup_subtitle_files(created_files, using=database)
+        if isinstance(exception, IntegrityError) and name_conflicts is not None:
+            if name_conflicts.exists():
+                copy_form.add_error("name", copy_form.duplicate_name_error)
+                return _render_subtitle_track_creation_modal(
+                    request, content, copy_form=copy_form
+                )
         logger.exception("Failed to copy subtitle track %s.", source.pk)
         return JsonResponse({"error": "Failed to copy the subtitle track."}, status=500)
     return JsonResponse({"id": copied.pk}, status=201)

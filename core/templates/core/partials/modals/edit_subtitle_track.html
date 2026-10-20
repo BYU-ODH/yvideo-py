@@ -9,7 +9,7 @@
                  data-track-id="{{ subtitle_track.pk }}">
                 <p class="subtitle-track-owner">Owner: {{ owner_display_name }}</p>
                 {% if can_edit %}
-                    <p>Changes to this shared track apply wherever it is used.</p>
+                    <p>Any changes made to this subtitle track will appear in other videos where this track is used.</p>
                     <form id="subtitle-track-edit-form"
                           action="{% url 'update_subtitle' subtitle_track.pk %}"
                           method="post"
