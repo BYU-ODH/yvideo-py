@@ -1201,9 +1201,11 @@ of the page */
     display: none;
 }
 
+/* Set by Editor.handleZoom on #timeline-wrapper, so rows added later
+start at the current zoom instead of needing their own width. */
 .track-row-annotations-container, #tick-marks-container {
     position: absolute;
-    width: 100%;
+    width: var(--timeline-content-width, 100%);
     height: 100%;
     background-color: inherit;
 }

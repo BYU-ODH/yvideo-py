@@ -152,3 +152,95 @@ def test_the_scroll_slider_reflects_where_the_timeline_actually_is(page, open_ed
     assert slider_percent == pytest.approx(
         state["scrollLeft"] / state["contentWidth"] * 100, abs=1
     )
+
+
+def _misalignments(page):
+    """Every track whose content does not sit exactly under the ruler's, in pixels on screen.
+
+    Comparing on-screen rectangles covers width and scroll at once: a track zoomed to a different
+    width or scrolled to a different offset puts its content somewhere the ruler's is not.
+    """
+    return page.evaluate(
+        """() => {
+            const ruler = document.getElementById('tick-marks-container').getBoundingClientRect();
+            return [...document.querySelectorAll('.track-row-annotations-container')]
+                .map((container) => container.getBoundingClientRect())
+                .filter((track) => Math.abs(track.left - ruler.left) > 1
+                    || Math.abs(track.width - ruler.width) > 1)
+                .map((track) => ({left: track.left, width: track.width,
+                                  rulerLeft: ruler.left, rulerWidth: ruler.width}));
+        }"""
+    )
+
+
+def test_scrolling_one_track_by_itself_carries_the_ruler_and_the_other_tracks(
+    page, open_editor
+):
+    # A trackpad swipe or shift+wheel over a single row scrolls only that row.
+    page.set_viewport_size(WIDE_VIEWPORT)
+    open_editor()
+    _zoom_and_scroll(page)
+
+    page.evaluate(
+        """() => {
+            const row = document.getElementsByClassName('timeline-track-row-right')[0];
+            row.scrollLeft = row.scrollLeft + 150;
+        }"""
+    )
+    page.wait_for_timeout(100)
+
+    assert _misalignments(page) == []
+
+
+def test_scrolling_the_ruler_by_itself_carries_the_tracks(page, open_editor):
+    # The ruler is focusable, so arrow keys scroll it without going through the slider.
+    page.set_viewport_size(WIDE_VIEWPORT)
+    open_editor()
+    _zoom_and_scroll(page)
+
+    page.evaluate(
+        "() => { document.getElementById('timeline-ticks-content').scrollLeft -= 150; }"
+    )
+    page.wait_for_timeout(100)
+
+    assert _misalignments(page) == []
+
+
+def test_a_track_cannot_scroll_past_the_end_of_the_ruler(page, open_editor):
+    # An item overhanging the end of its track makes that row scrollable further than the ruler.
+    page.set_viewport_size(WIDE_VIEWPORT)
+    open_editor()
+    _zoom_and_scroll(page)
+
+    page.evaluate(
+        """() => {
+            const container = document.querySelector('.track-row-annotations-container');
+            const overhang = document.createElement('div');
+            overhang.style.cssText = 'position: absolute; left: 100%; width: 400px; height: 1px;';
+            container.appendChild(overhang);
+            container.parentElement.scrollLeft = container.parentElement.scrollWidth;
+        }"""
+    )
+    page.wait_for_timeout(100)
+
+    assert _misalignments(page) == []
+
+
+def test_a_track_added_while_zoomed_lines_up_with_the_ruler(page, open_editor):
+    # Adding a track rebuilds every row from server HTML, which knows nothing of the zoom or the
+    # scroll position.
+    page.set_viewport_size(WIDE_VIEWPORT)
+    open_editor()
+    _zoom_and_scroll(page)
+    track_count = page.locator(".track-row").count()
+
+    page.locator("#timeline-new-track-button").click()
+    page.locator("#new-track-name").fill("Added while zoomed")
+    page.locator("#new-track-save-button").click()
+    page.wait_for_function(
+        "(count) => document.querySelectorAll('.track-row').length > count",
+        arg=track_count,
+    )
+
+    assert _timeline_state(page)["scrollLeft"] > 0
+    assert _misalignments(page) == []

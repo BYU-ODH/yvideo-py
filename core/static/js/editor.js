@@ -39,6 +39,7 @@ export class Editor {
         this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrollRatio = 0;
+        this.timelineScrollLeft = 0;
         this.scrubberBounds = null;
         this.timelineScrubber = null;
         this.isDragging = false;
@@ -106,6 +107,7 @@ export class Editor {
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
+        this.keepTimelineRowsScrolledTogether();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchAndHandleAnnotationSetDelete();
         this.setupAnnotationSetOptionsModal();
@@ -2156,26 +2158,14 @@ export class Editor {
     }
 
     handleZoom() {
-      const annotationContainers = this.timelineWrapper.querySelectorAll(".track-row-annotations-container");
-      if (annotationContainers.length == 0) {
-        return;
-      }
-
-      const newWidth = `${100 * this.zoomLevel}%`;
       const zoomSliderWidth = `${100 / this.zoomLevel}%`;
       document.documentElement.style.setProperty("--zoom-thumb-width", zoomSliderWidth);
-      const tickMarksContainer = document.getElementById("tick-marks-container");
-      if (tickMarksContainer) {
-        tickMarksContainer.style.width = newWidth;
-      }
-      for (let annotationContainer of annotationContainers) {
-        annotationContainer.style.width = newWidth;
-      }
+      // One variable sizes the ruler and every track, so they cannot be zoomed differently.
+      this.timelineWrapper.style.setProperty("--timeline-content-width", `${100 * this.zoomLevel}%`);
 
       const locationRatio = this.video.currentTime / this.video.duration;
-      const trackWidth = tickMarksContainer.getBoundingClientRect().width;
-      const tickMarkContainerParent = tickMarksContainer.closest("#timeline-ticks-content");
-      const parentWidth = tickMarkContainerParent.getBoundingClientRect().width;
+      const trackWidth = this.tickMarksContainer.getBoundingClientRect().width;
+      const parentWidth = this.timelineTicksContent.getBoundingClientRect().width;
       this.scrollTracksToPoint((trackWidth * locationRatio) - parentWidth / 2);
       this.renderTickMarksAndLabels();
       // Zoom changes the visible time window, so recompute the scrubber bounds.
@@ -2213,11 +2203,14 @@ export class Editor {
 
     scrollTracksToPoint(scrollValue) {
       const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
-      const tickMarksWrapper = document.getElementById("timeline-ticks-content");
-      for (let track of tracksToAdjust) {
-        track.scrollLeft = scrollValue;
-      }
+      const tickMarksWrapper = this.timelineTicksContent;
+      // The ruler's clamped offset is the one every track copies: an item that overhangs the end
+      // of its track lets that row scroll further than the ruler can.
       tickMarksWrapper.scrollLeft = scrollValue;
+      this.timelineScrollLeft = tickMarksWrapper.scrollLeft;
+      for (let track of tracksToAdjust) {
+        track.scrollLeft = this.timelineScrollLeft;
+      }
 
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (contentWidth > 0) {
@@ -2232,6 +2225,29 @@ export class Editor {
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (!contentWidth || !this.timelineScrollRatio) return;
       this.scrollTracksToPoint(contentWidth * this.timelineScrollRatio);
+    }
+
+    // Each row is its own scroll container, and the browser scrolls them individually: a trackpad
+    // or shift+wheel over one row, arrow keys on the focused ruler, focusing an item that is off
+    // screen. Whichever one moved, the rest follow.
+    keepTimelineRowsScrolledTogether() {
+      // scroll does not bubble, so it is only seen here while capturing.
+      this.timelineWrapper.addEventListener("scroll", (e) => {
+        const scroller = e.target;
+        if (scroller !== this.timelineTicksContent && !scroller.classList?.contains("timeline-track-row-right")) return;
+        if (scroller.scrollLeft === this.timelineScrollLeft) return;
+        this.scrollTracksToPoint(scroller.scrollLeft);
+        this.adjustScrubberPosition();
+      }, true);
+
+      // Rebuilt tracks arrive scrolled to the start.
+      new MutationObserver((mutations) => {
+        const trackRowAdded = mutations.some((mutation) =>
+          [...mutation.addedNodes].some((node) => node.classList?.contains("track-row")));
+        if (trackRowAdded) {
+          this.scrollTracksToPoint(this.timelineScrollLeft);
+        }
+      }).observe(this.timelineWrapper, { childList: true });
     }
 
     watchForTimelineScrollChangeAndHandleIt() {
