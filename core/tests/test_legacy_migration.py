@@ -3135,6 +3135,35 @@ class LegacyMigrationTests(TestCase):
         # The unrecognized "Mystery" event must not leave an empty track behind.
         self.assertEqual(annotation_set.tracks.count(), 2)
 
+    def test_import_annotations_numbers_tracks_without_gaps(self):
+        service = LegacyMigrationService(require_catalog=False)
+        owner = UserFactory(instructor=True)
+        migration_request = LegacyMigrationRequest.objects.create(
+            requested_by=owner,
+            target_owner=owner,
+            migration_kind="collection",
+            legacy_reference=str(uuid.uuid4()),
+        )
+        legacy_annotations = [
+            {"type": "Skip", "layer": 5, "start": 1, "end": 2},
+            {"type": "Mute", "layer": 2, "start": 3, "end": 4},
+        ]
+
+        annotation_set = service._import_annotations(
+            migration_request,
+            ContentFactory(),
+            legacy_annotations,
+            legacy_clips=[{"title": "Intro", "start": 1, "end": 3}],
+        )
+
+        self.assertEqual(
+            [
+                (track.name, track.stack_position)
+                for track in annotation_set.get_tracks()
+            ],
+            [("Imported Layer 2", 0), ("Imported Layer 5", 1), ("Imported Clips", 2)],
+        )
+
     def test_sync_issues_allows_retry_when_collection_was_created_by_this_request(
         self,
     ):

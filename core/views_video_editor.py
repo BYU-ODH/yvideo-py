@@ -1205,6 +1205,9 @@ def update_track_positions_in_set(request, annotation_set):
     if "track_ids" not in parsed_data:
         logger.error("Failed to update track positions due to invalid input")
         return HttpResponseBadRequest()
+    if not isinstance(parsed_data["track_ids"], list):
+        logger.error("Failed to update track positions due to invalid input")
+        return HttpResponseBadRequest()
     # The editor reads track ids from data attributes, so they arrive as strings.
     try:
         track_ids = [int(track_id) for track_id in parsed_data["track_ids"]]
@@ -1220,9 +1223,10 @@ def update_track_positions_in_set(request, annotation_set):
                 track.pk: track
                 for track in Track.objects.filter(annotation_set=annotation_set)
             }
-            if any(track_id not in tracks for track_id in track_ids):
+            # Every track must appear exactly once, or two tracks could share a position.
+            if sorted(track_ids) != sorted(tracks):
                 logger.error(
-                    "Refused to reorder tracks: an id does not belong to this set"
+                    "Refused to reorder tracks: ids do not match the tracks in this set"
                 )
                 return HttpResponseBadRequest()
             for index, track_id in enumerate(track_ids):

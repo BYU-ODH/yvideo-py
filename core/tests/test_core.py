@@ -554,17 +554,6 @@ class FontColorValidationTests(TestCase):
 #         )
 #         self.assertEqual(response.status_code, 400)
 
-#     def test_update_track_positions_single_track(self):
-#         track = self.tracks[2]
-#         response = self.client.post(
-#             reverse("update_tracks_stack_positions"),
-#             data=json.dumps({"track_ids": [track.pk]}),
-#             content_type="application/json",
-#         )
-#         self.assertEqual(response.status_code, 200)
-#         track.refresh_from_db()
-#         self.assertEqual(track.stack_position, 0)
-
 #     # --- create_track ---
 
 #     def test_create_track_with_name(self):
@@ -613,40 +602,6 @@ class FontColorValidationTests(TestCase):
 #             reverse("create_track"),
 #             data=json.dumps({}),
 #             content_type="application/json",
-#         )
-#         self.assertEqual(response.status_code, 400)
-
-#     # --- delete_track ---
-
-#     def test_delete_track_removes_it(self):
-#         track = self.tracks[4]
-#         response = self.client.delete(
-#             reverse("delete_track", kwargs={"track_id": track.pk})
-#         )
-#         self.assertEqual(response.status_code, 200)
-#         self.assertFalse(Track.objects.filter(pk=track.pk).exists())
-
-#     def test_delete_primary_track_returns_400(self):
-#         """Track at stack_position 0 must not be deletable."""
-#         primary_track = self.tracks[0]
-#         response = self.client.delete(
-#             reverse("delete_track", kwargs={"track_id": primary_track.pk})
-#         )
-#         self.assertEqual(response.status_code, 400)
-#         self.assertTrue(Track.objects.filter(pk=primary_track.pk).exists())
-
-#     def test_delete_non_primary_track_leaves_others_intact(self):
-#         track_to_delete = self.tracks[3]
-#         remaining_ids = {t.pk for t in self.tracks if t != track_to_delete}
-#         self.client.delete(
-#             reverse("delete_track", kwargs={"track_id": track_to_delete.pk})
-#         )
-#         for pk in remaining_ids:
-#             self.assertTrue(Track.objects.filter(pk=pk).exists())
-
-#     def test_delete_nonexistent_track_returns_500(self):
-#         response = self.client.delete(
-#             reverse("delete_track", kwargs={"track_id": 99999})
 #         )
 #         self.assertEqual(response.status_code, 400)
 

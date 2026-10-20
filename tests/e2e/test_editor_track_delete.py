@@ -81,8 +81,9 @@ def test_deleting_the_bottom_track_updates_the_new_bottom_menu(
     bottom = _add_track(demo_content, "Bottom")
     open_editor()
 
-    _click_delete(page, bottom)
+    row = _click_delete(page, bottom)
 
+    expect(row).to_have_count(0)
     expect(
         page.locator(".track-row").last.locator(".track-menu-move-down")
     ).to_have_count(0)
@@ -96,3 +97,22 @@ def test_the_only_track_has_no_delete(page, open_editor, demo_content):
 
     expect(page.locator(".track-row")).to_have_count(1)
     expect(page.locator(".track-menu-delete")).to_have_count(0)
+
+
+def test_deleting_a_track_clears_its_items_from_the_panel_and_form(
+    page, open_editor, demo_content
+):
+    track = _add_track(demo_content, "Doomed")
+    item = MuteAnnotationFactory(track=track, start_time=1.0, end_time=20.0)
+    open_editor()
+    page.locator(
+        f'.track-item[data-annotation-type="mute"][data-annotation-id="{item.id}"]'
+    ).click()
+    expect(page.locator("#existing-item-form")).to_have_count(1)
+
+    page.on("dialog", lambda dialog: dialog.accept())
+    row = _click_delete(page, track)
+
+    expect(row).to_have_count(0)
+    expect(page.locator(f"#mute-panel-item-{item.id}")).to_have_count(0)
+    expect(page.locator("#existing-item-form")).to_have_count(0)

@@ -51,14 +51,25 @@ class TrackEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.positions(), {"Middle": 0, "Top": 1, "Bottom": 2})
 
-    def test_reorder_rejects_non_numeric_ids(self):
-        response = self.client.post(
-            reverse("update_tracks_stack_positions", args=[self.annotation_set.pk]),
-            data=json.dumps({"track_ids": ["abc"]}),
-            content_type="application/json",
-        )
+    def test_reorder_rejects_ids_that_are_not_every_track_once(self):
+        top, middle, bottom = self.tracks
+        for track_ids in [
+            ["abc"],
+            str(top.pk),
+            [top.pk, middle.pk],
+            [top.pk, top.pk, bottom.pk],
+        ]:
+            with self.subTest(track_ids=track_ids):
+                response = self.client.post(
+                    reverse(
+                        "update_tracks_stack_positions", args=[self.annotation_set.pk]
+                    ),
+                    data=json.dumps({"track_ids": track_ids}),
+                    content_type="application/json",
+                )
 
-        self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.positions(), {"Top": 0, "Middle": 1, "Bottom": 2})
 
     def test_deleting_the_top_track_renumbers_the_rest(self):
         response = self.delete(self.tracks[0])
