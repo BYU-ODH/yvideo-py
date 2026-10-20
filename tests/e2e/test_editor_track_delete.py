@@ -58,3 +58,41 @@ def test_deleting_an_empty_track_does_not_ask(page, open_editor, demo_content):
 
     expect(row).to_have_count(0)
     assert not asked
+
+
+def test_the_top_track_can_be_deleted(page, open_editor, demo_content):
+    _add_track(demo_content, "Bottom")
+    top = demo_content.annotation_set.get_tracks()[0]
+    open_editor()
+
+    page.on("dialog", lambda dialog: dialog.accept())
+    row = _click_delete(page, top)
+
+    expect(row).to_have_count(0)
+    first_row = page.locator(".track-row").first
+    expect(first_row.locator(".track-menu-move-up")).to_have_count(0)
+    assert not Track.objects.filter(id=top.id).exists()
+
+
+def test_deleting_the_bottom_track_updates_the_new_bottom_menu(
+    page, open_editor, demo_content
+):
+    _add_track(demo_content, "Middle")
+    bottom = _add_track(demo_content, "Bottom")
+    open_editor()
+
+    _click_delete(page, bottom)
+
+    expect(
+        page.locator(".track-row").last.locator(".track-menu-move-down")
+    ).to_have_count(0)
+
+
+def test_the_only_track_has_no_delete(page, open_editor, demo_content):
+    annotation_set = demo_content.annotation_set
+    only = annotation_set.get_tracks()[0]
+    annotation_set.tracks.exclude(pk=only.pk).delete()
+    open_editor()
+
+    expect(page.locator(".track-row")).to_have_count(1)
+    expect(page.locator(".track-menu-delete")).to_have_count(0)

@@ -1737,8 +1737,11 @@ export class Editor {
       }
       window.dispatchEvent(this.annotationUpdatedEvent);
 
-      trackRow.remove();
+      const jsonData = await trackDeleteResponse.json();
+      this.replaceTracksWithNewHTML(jsonData["tracks_html"]);
       this.updateTracks();
+      this.placeTrackItems();
+      this.adjustScrubberHeight();
     }
 
     watchForTrackDelete(trackRootElement) {

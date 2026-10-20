@@ -28,7 +28,7 @@
                     <button class="multi-select-menu-button track-menu-move-down"
                             aria-label="Move track {{ track.name }} down">Move Down</button>
                 {% endif %}
-                {% if track.stack_position != 0 %}
+                {% if not track.is_only_track %}
                     <button class="multi-select-menu-button track-menu-delete"
                             aria-label="Delete track {{ track.name }}">Delete</button>
                 {% endif %}
