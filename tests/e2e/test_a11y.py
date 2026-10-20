@@ -1076,7 +1076,6 @@ AUDITED_TEMPLATES = {
     "core/partials/subtitle_cues.html",
     "core/partials/subtitle_editor_panel.html",
     "core/partials/subtitle_panel_content.html",
-    "core/partials/subtitles_settings.html",
     "core/partials/timeline-track-row.html",
     "core/partials/timeline_base.html",
     # django admin
