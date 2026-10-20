@@ -8,12 +8,12 @@
     </div>
     <div>
         <label for="subtitles-track-language-input">Language</label>
-        <input id="subtitles-track-language-input"
-               type="text"
-               aria-describedby="subtitle-track-language-help"
-               maxlength="60"
-               required>
-        <p id="subtitle-track-language-help">Enter a language name or code, such as English or en.</p>
+        <select id="subtitles-track-language-input" required>
+            <option value="" disabled selected>Select a language</option>
+            {% for language in languages %}
+                <option value="{{ language.pk }}">{{ language }}</option>
+            {% endfor %}
+        </select>
     </div>
     <button id="subtitle-track-create-button"
             type="button"

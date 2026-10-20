@@ -403,10 +403,6 @@ a.blue-button {
     width: fit-content;
 }
 
-#subtitles-track-language-input {
-    width: 3rem;
-}
-
 .subtitles-overlay {
     position: absolute;
     z-index: 20;

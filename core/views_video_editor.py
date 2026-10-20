@@ -237,6 +237,7 @@ def video_editor(request, content):
             "tracks": tracks,
             "subtitle_options": subtitle_options,
             "subtitle_panel": subtitle_panel,
+            "languages": Language.objects.all(),
         }
 
         return render(request, "core/video_editor.html", context)
@@ -1322,28 +1323,11 @@ def create_subtitle_track(request, content):
         return JsonResponse({"error": "'language' cannot be empty"}, status=400)
 
     try:
-        lang_filter = Language.objects.filter(language=language_in)
-        bcp47_filter2 = Language.objects.filter(bcp47=language_in[:2])
-        bcp47_filter3 = Language.objects.filter(bcp47=language_in[:3])
-        result_filter = lang_filter | bcp47_filter2 | bcp47_filter3
-        if result_filter.count == 0:
-            # bcp47 should be 2 characters but is sometimes 3. we want to make sure that if
-            # it should be 3 characters, we preserve that otherwise, lets use 2
-            bcp47_in = language_in if len(language_in) == 3 else language_in[:2]
-            language = Language.objects.create(language=language_in, bcp47=bcp47_in)
-        else:
-            language = result_filter.first()
-
-    except Exception as e:
-        logger.error(
-            f"Failed to create new language while creating new Subtitle track. Exception: {e}"
-        )
-        return JsonResponse(
-            {
-                "error": "Failed to query or create new language while creating a subtitle track"
-            },
-            status=500,
-        )
+        language = Language.objects.filter(pk=language_in).first()
+    except (TypeError, ValueError, OverflowError):
+        language = None
+    if language is None:
+        return JsonResponse({"error": "Select a recorded language."}, status=400)
 
     resource = content.get_resource()
     if resource is None:
