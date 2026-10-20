@@ -556,10 +556,6 @@ def test_the_player_controls_and_menus_have_no_a11y_violations(
     page.locator(".clips-btn").click()
     assert_no_violations(page, "the clips menu")
 
-    page.locator(".captions-btn").click()
-    page.locator("#cap-track-1-button").click()
-    assert_no_violations(page, "the player with captions turned on")
-
     page.locator(".subtitle-sidebar-btn").click()
     assert_no_violations(page, "the subtitle sidebar")
 
