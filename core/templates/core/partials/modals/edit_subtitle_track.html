@@ -17,26 +17,24 @@
                           novalidate>
                         {% csrf_token %}
                         {{ form.non_field_errors }}
-                        <div class="subtitle-track-edit-field">
-                            {{ form.name.label_tag }}
-                            {{ form.name }}
-                            {{ form.name.errors }}
-                        </div>
-                        <div class="subtitle-track-edit-field">
-                            {{ form.language.label_tag }}
-                            {{ form.language }}
-                            {{ form.language.errors }}
-                        </div>
-                        <div class="subtitle-track-edit-field">
-                            {{ form.subtitles_file.label_tag }}
-                            {{ form.subtitles_file }}
-                            {{ form.subtitles_file.errors }}
-                            <div id="{{ form.subtitles_file.auto_id }}_helptext">
-                                <p id="subtitle-track-edit-file-help">{{ form.subtitles_file.help_text }}</p>
-                                <p id="subtitle-track-edit-replacement-warning"
-                                   class="subtitle-track-edit-warning">
-                                    Uploading a file will replace all existing cues in this track.
-                                </p>
+                        <div class="column-flex">
+                            <div class="subtitle-track-edit-field">
+                                {{ form.name.label_tag }}
+                                {{ form.name }}
+                                {{ form.name.errors }}
+                            </div>
+                            <div class="subtitle-track-edit-field">
+                                {{ form.language.label_tag }}
+                                {{ form.language }}
+                                {{ form.language.errors }}
+                            </div>
+                            <div class="subtitle-track-edit-field">
+                                {{ form.subtitles_file.label_tag }}
+                                {{ form.subtitles_file }}
+                                {{ form.subtitles_file.errors }}
+                                <div id="{{ form.subtitles_file.auto_id }}_helptext">
+                                    <p>{{ form.subtitles_file.help_text }} Uploading a file will replace all existing cues in this track.</p>
+                                </div>
                             </div>
                         </div>
                         <div class="subtitle-track-edit-actions">
