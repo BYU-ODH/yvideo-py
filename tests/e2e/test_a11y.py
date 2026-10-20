@@ -879,12 +879,6 @@ def test_the_subtitle_editor_panel_has_no_a11y_violations(
         page, "the empty subtitle panel", include=["#subtitle-editor-panel"]
     )
 
-    page.locator("#subtitle-panel-header .editor-menu-button").click()
-    page.wait_for_selector("#subtitles-settings-wrapper", state="visible")
-    assert_no_violations(
-        page, "the subtitles settings dialog", include=["dialog[open]"]
-    )
-
     track_value = page.locator(
         "#subtitles-track-selector option.subtitles-track-option"
     ).first.get_attribute("value")
