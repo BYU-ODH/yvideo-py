@@ -2928,6 +2928,7 @@ export class Editor {
     }
 
     async saveCues(cues, isAutosave=true) {
+      console.log("cues saved", cues);
       if (typeof isAutosave !== "boolean") {
         console.error("Could not save cues: isAutosave must be a boolean.");
         return false;
@@ -3041,7 +3042,12 @@ export class Editor {
       if (subtitlesPanel.dataset.canEdit === "true") {
         for (let cueInput of cueInputs) {
           cueInput.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") saveUpdatedInformation();
+            // An Enter key press in a textarea creates a new line. We want that to submit the cues instead,
+            // but a Shift + Enter in a cue textarea will still create a new line if needed.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              saveUpdatedInformation();
+            }
           });
         }
       }
