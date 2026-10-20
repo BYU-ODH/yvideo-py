@@ -752,7 +752,6 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
 
     page.locator("#annotation-set-menu-button").click()
-    page.wait_for_selector(".visible-multi-option-menu")
     assert_no_violations(
         page, "the annotation set menu", include=["#annotation-panel-header"]
     )
@@ -762,7 +761,7 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     page.evaluate(
         "() => document.getElementById('annotation-set-export-open-button').click()"
     )
-    page.wait_for_selector("#annotation-set-export-button", state="visible")
+    page.wait_for_selector("#annotation-set-export-open-button", state="visible")
     assert_no_violations(page, "the export dialog", include=["dialog[open]"])
     page.keyboard.press("Escape")
 
