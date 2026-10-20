@@ -578,6 +578,10 @@
     width: 350px;
 }
 
+#subtitle-editor-panel-content {
+    overflow-y: auto;
+}
+
 #subtitle-panel-content-wrapper, #subtitle-panel-list {
     flex: 1;
 }
@@ -749,6 +753,8 @@
 .subtitle-track-edit-field input, .subtitle-track-edit-field select {
     width: fit-content;
 }
+
+
 
 /* Video Section */
 .video-section {
