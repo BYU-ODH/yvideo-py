@@ -1328,6 +1328,18 @@ class PauseAnnotation(BaseAnnotation):
         return obj
 
 
+FONT_COLOR_PRESETS = [
+    ("Black", "000000"),
+    ("White", "ffffff"),
+    ("Dark gray", "333333"),
+    ("Blue", "0066cc"),
+    ("Red", "d32f2f"),
+    ("Green", "2e7d32"),
+    ("Orange", "d35400"),
+    ("Yellow", "f9a825"),
+]
+
+
 def validate_font_color(hexcode):
     # font color must be at least 3 characters or 6 characters.
     font_color_length = len(hexcode)

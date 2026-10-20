@@ -1,5 +1,6 @@
 import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
+import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
 import {
   RESIZE_HANDLES,
   clampRect,
@@ -1005,16 +1006,12 @@ export class Editor {
 
       // handle font color change
       const fontColorInput = itemForm.querySelector("#font-color");
+      setUpColorCombobox(fontColorInput);
       fontColorInput.addEventListener("input", () => {
         const commentTextBox = getCommentBoxOrWriteError();
         if (!commentTextBox) return;
 
-        const newFontColor = fontColorInput.value;
-        const newLength = newFontColor.length;
-        if (newLength != 3 && newLength != 6) {
-          return;
-        }
-        else {
+        if (isHexColor(fontColorInput.value)) {
           commentTextBox.style.color = "#" + fontColorInput.value;
           update();
         }

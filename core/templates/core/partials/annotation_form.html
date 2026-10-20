@@ -81,12 +81,46 @@
                            value="{{ instance.font_size_in_rem }}">
                 </div>
                 <div class="form-group">
-                    <label for="font-color">Text color:</label>
-                    <input type="text"
-                           id="font-color"
-                           name="font_color"
-                           maxlength="6"
-                           value="{{ instance.font_color }}">
+                    <label for="font-color">Text color (hex code):</label>
+                    <div class="color-combobox">
+                        <span class="color-swatch"
+                              style="background-color: #{{ instance.font_color }}"
+                              aria-hidden="true"></span>
+                        <input type="text"
+                               id="font-color"
+                               name="font_color"
+                               role="combobox"
+                               aria-autocomplete="none"
+                               aria-expanded="false"
+                               aria-controls="font-color-options"
+                               maxlength="7"
+                               autocomplete="off"
+                               spellcheck="false"
+                               value="{{ instance.font_color }}"
+                               {% if not can_edit %}readonly{% endif %}>
+                        <button type="button"
+                                class="color-combobox-toggle"
+                                tabindex="-1"
+                                aria-label="Show text color options"
+                                {% if not can_edit %}disabled{% endif %}>▾</button>
+                        <ul id="font-color-options"
+                            class="color-combobox-options"
+                            role="listbox"
+                            aria-label="Text colors"
+                            hidden>
+                            {% for name, hexcode in font_color_presets %}
+                                <li id="font-color-option-{{ hexcode }}"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-value="{{ hexcode }}">
+                                    <span class="color-swatch"
+                                          style="background-color: #{{ hexcode }}"
+                                          aria-hidden="true"></span>
+                                    {{ name }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div class="row-flex flex-apart-aligned">

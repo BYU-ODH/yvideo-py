@@ -21,6 +21,7 @@ from django.views.decorators.http import require_POST
 from .forms import SubtitleForm
 from .models import BLUR_SNAP_SECONDS
 from .models import BLUR_TIME_PRECISION
+from .models import FONT_COLOR_PRESETS
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnchorPoint
@@ -741,6 +742,7 @@ def generate_annotation_updated_html(
             "start_seconds": position["start"],
             "end_seconds": position["end"],
             "item_blur_anchor_points": item_blur_anchor_points,
+            "font_color_presets": FONT_COLOR_PRESETS,
         },
         request=request,
     )
