@@ -812,7 +812,7 @@ def test_the_editor_timeline_controls_have_no_a11y_violations(
     # position hides Move up and Delete, and the last hides Move down.
     track_row = page.locator(".track-row").nth(1)
     track_row.locator(".open-multi-option-menu").click()
-    page.wait_for_selector(".visible-multi-option-menu")
+    page.wait_for_selector(".mutli-option-menu")
     assert_no_violations(page, "a track's options menu", include=[".track-row"])
 
     track_row.locator(".track-menu-rename").click()
