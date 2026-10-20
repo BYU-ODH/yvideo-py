@@ -216,6 +216,10 @@
   background: #000;
 }
 
+.youtube-video-error a {
+  color: inherit;
+}
+
 /* Annotation Container */
 .annotation-box {
   pointer-events: none;
@@ -291,10 +295,6 @@
 
 .annotation-box .blur-position.blur {
   backdrop-filter: blur(var(--blur-radius, 80px));  /* eslint-disable-line css/use-baseline */
-}
-
-.annotation-box-blur-editor {
-    pointer-events: auto;
 }
 
 .bottom-controls {

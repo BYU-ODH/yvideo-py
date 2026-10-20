@@ -1,11 +1,11 @@
 import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
-import { BlurEditor, placeLocators } from "./BlurEditor.js";
+import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import {
   RESIZE_HANDLES,
   clampRect,
   edgesForHandle,
   percentWithin,
-  pointsLostByRetiming,
+  blurAnchorPointsLostByRetiming,
   resizeRect,
 } from "./video-geometry.js";
 
@@ -78,7 +78,7 @@ export class Editor {
           video: this.video,
           player: window.videoPlayer,
           timelineWrapper: this.timelineWrapper,
-          onPositionsSaved: () => {
+          onBlurAnchorPointsSaved: () => {
             this.placeTrackItems();
             this.setupItems();
           },
@@ -295,10 +295,10 @@ export class Editor {
             this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
         }
 
-        this.updateBlurLocatorsDuringResize();
+        this.updateBlurAnchorPointDotsDuringResize();
     }
 
-    updateBlurLocatorsDuringResize() {
+    updateBlurAnchorPointDotsDuringResize() {
         const item = this.dragState?.item;
         if (!item || item.dataset.annotationType !== "blur") return;
 
@@ -306,7 +306,7 @@ export class Editor {
         const widthPercent = parseFloat(item.style.width);
         if (!Number.isFinite(leftPercent) || !Number.isFinite(widthPercent)) return;
 
-        placeLocators(item, {
+        placeBlurAnchorPointDots(item, {
             start: (leftPercent / 100) * this.duration,
             end: ((leftPercent + widthPercent) / 100) * this.duration,
         });
@@ -378,6 +378,16 @@ export class Editor {
         this.getItemFormDetails(annotationType, annotationId, this.contentId);
         this.markItemAsActive(annotationType, annotationId);
       });
+
+      const panelItemDeleteButton = element.querySelector(".panel-item-delete");
+      if (panelItemDeleteButton) {
+        panelItemDeleteButton.addEventListener("click", async (e) => {
+          e.preventDefault();
+          // Keeps the parent panel item's click handler from reloading the deleted item's form
+          e.stopPropagation();
+          await this.deleteItem(annotationType, annotationId);
+        });
+      }
       element.dataset.clickSetup = "true";
     }
 
@@ -468,7 +478,7 @@ export class Editor {
             const newStart = parseTimeStringToSeconds(itemForm.querySelector("#start_time")?.value);
             const newEnd = parseTimeStringToSeconds(itemForm.querySelector("#end_time")?.value);
             if (item && Number.isFinite(newStart) && Number.isFinite(newEnd) &&
-                !this.confirmBlurPointLoss(item, newStart, newEnd)) {
+                !this.confirmBlurAnchorPointLoss(item, newStart, newEnd)) {
               itemForm.querySelector("#start_time").value = formatSecondsToString(item.dataset["start"]);
               itemForm.querySelector("#end_time").value = formatSecondsToString(item.dataset["end"]);
               return;
@@ -498,7 +508,7 @@ export class Editor {
 
       itemForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        if (e.submitter?.classList.contains("blur-position-delete-button")) {
+        if (e.submitter?.classList.contains("blur-anchor-point-delete-button")) {
           return;
         }
         save();
@@ -519,13 +529,17 @@ export class Editor {
 
       if (annotationType != "blur") return;
       const incoming = createElementFromHTMLString(responseData["form_html"]);
-      const rows = incoming?.querySelector("#positions-list");
-      const list = document.getElementById("positions-list");
+      const rows = incoming?.querySelector("#blur-anchor-points-list");
+      const list = document.getElementById("blur-anchor-points-list");
       if (rows && list) list.replaceWith(rows);
       this.blurEditor.syncFromPanel();
     }
 
     async deleteItem(annotationType, annotationId) {
+      if (!window.confirm(`Delete this ${annotationType} annotation? This cannot be undone.`)) {
+        return;
+      }
+
       const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": getCSRFToken()}
@@ -585,9 +599,6 @@ export class Editor {
         const annotationType = itemForm.dataset["annotationType"];
         const annotationId = itemForm.dataset["annotationId"];
 
-        if (!window.confirm(`Delete this ${annotationType} annotation? This cannot be undone.`)) {
-          return;
-        }
         await this.deleteItem(annotationType, annotationId);
       });
     }
@@ -728,12 +739,12 @@ export class Editor {
         }
 
         const responseData = await response.json();
+        window.dispatchEvent(this.annotationUpdatedEvent);
         const applied = this.applyAnnotationVersionResponse(
           responseData,
           button.dataset.annotationId,
           true,
         );
-        window.dispatchEvent(this.annotationUpdatedEvent);
         if (!applied && button.isConnected) {
           // The version did change on the server, but the timeline could not be updated to show
           // it. Leaving the button disabled would strand the user in a state they cannot undo
@@ -889,8 +900,8 @@ export class Editor {
       }
 
       const responseData = await response.json();
-      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
       window.dispatchEvent(this.annotationUpdatedEvent);
+      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
       return responseData;
     }
 
@@ -932,7 +943,7 @@ export class Editor {
         }
         const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
 
-        if (!this.confirmBlurPointLoss(item, newStartTime, newEndTime)) {
+        if (!this.confirmBlurAnchorPointLoss(item, newStartTime, newEndTime)) {
           item.dataset.deltaLeft = '0';
           item.dataset.deltaWidth = '0';
           this.placeTrackItems();
@@ -942,19 +953,19 @@ export class Editor {
         this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
     }
 
-    blurPointsLostByRetiming(item, newStart, newEnd) {
+    countBlurAnchorPointsLost(item, newStart, newEnd) {
       if (item.dataset["annotationType"] !== "blur") return 0;
       const oldStart = parseFloat(item.dataset["start"]);
       const oldEnd = parseFloat(item.dataset["end"]);
-      const dots = item.querySelectorAll(".blur-position-locator");
-      const times = [oldStart, ...Array.from(dots, (dot) => parseFloat(dot.dataset["positionTime"]))];
-      return pointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd);
+      const blurAnchorPointDots = item.querySelectorAll(".blur-anchor-point-dot");
+      const times = [oldStart, ...Array.from(blurAnchorPointDots, (blurAnchorPointDot) => parseFloat(blurAnchorPointDot.dataset["blurAnchorPointTime"]))];
+      return blurAnchorPointsLostByRetiming(times, oldStart, oldEnd, newStart, newEnd);
     }
 
-    confirmBlurPointLoss(item, newStart, newEnd) {
-      const lost = this.blurPointsLostByRetiming(item, newStart, newEnd);
+    confirmBlurAnchorPointLoss(item, newStart, newEnd) {
+      const lost = this.countBlurAnchorPointsLost(item, newStart, newEnd);
       if (lost === 0) return true;
-      const subject = lost === 1 ? "1 blur point falls" : `${lost} blur points fall`;
+      const subject = lost === 1 ? "1 blur anchor point falls" : `${lost} blur anchor points fall`;
       return window.confirm(`${subject} outside the new time range and will be removed. Continue?`);
     }
 
@@ -1665,6 +1676,7 @@ export class Editor {
         console.error("Failed to delete track");
         return;
       }
+      window.dispatchEvent(this.annotationUpdatedEvent);
 
       trackRow.remove();
       this.updateTracks();
@@ -1818,7 +1830,7 @@ export class Editor {
               item.style.setProperty("left", `${itemLeftValue}%`);
 
               if (item.dataset.annotationType == "blur") {
-                placeLocators(item);
+                placeBlurAnchorPointDots(item);
               }
             }
             // Assign each item (already sorted by start time above) to the first row
@@ -1898,7 +1910,7 @@ export class Editor {
               const parsedResponse = await response.json();
               const newPanelItemHtml = parsedResponse["panel_item_html"];
               const panel = document.getElementById(`${annotationType}-annotation-items-list`);
-              panel.innerHTML = panel.innerHTML + newPanelItemHtml;
+              panel.insertAdjacentHTML("beforeend", newPanelItemHtml);
 
               const newTrackItemHtml = parsedResponse["track_item_html"];
               const trackContainer = document.querySelector(`.track-row[data-track-id="${trackId}"] .track-row-annotations-container`);
@@ -2945,6 +2957,7 @@ export class Editor {
           // A response must not replace edits made while the save was in flight.
           if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
           document.getElementById("subtitle-panel-list").innerHTML = html;
+          window.dispatchEvent(this.annotationUpdatedEvent);
 
           this.buildWatchersForSubtitleEditorCues();
           return true;

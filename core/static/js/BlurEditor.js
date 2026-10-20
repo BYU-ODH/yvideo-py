@@ -4,13 +4,13 @@
 // `pointer-events: none` so it never intercepts a student's clicks and which the player destroys and
 // rebuilds whenever the playhead leaves the annotation's window.
 //
-// A commit says "the blur belongs here, at the time I am looking at" and never names a position id:
+// A commit says "the blur belongs here, at the time I am looking at" and never names an anchor point id:
 // only the server knows where the stored points are, so only it can decide whether that is a new
 // point or an existing one, and the rendered box is usually a tween with no single owning row.
 //
 // Two things this module deliberately does not hold its own copy of, because the server sends both
 // and a second copy is a second thing to keep in step:
-//   - endpoints, which arrive as `data-positions-url` on the track item and `data-delete-url` on
+//   - endpoints, which arrive as `data-blur-anchor-points-url` on the track item and `data-delete-url` on
 //     each point (rendered by reverse(), so a route rename in core/urls.py travels with them);
 //   - the wording of a refused write, which is the response body - see serverMessage.
 // The numeric constants below are the exception, and core/tests/test_js_constant_parity.py holds
@@ -48,7 +48,7 @@ const CLAMP_LIMITS = { minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT };
 const NUDGE_PERCENT = 0.5;
 const NUDGE_PERCENT_LARGE = 5;
 // Arrow keys arrive in bursts, so a request per keystroke would flood the endpoint and store every
-// intermediate position as though the user had meant to stop there.
+// intermediate anchor point as though the user had meant to stop there.
 const NUDGE_COMMIT_MS = 400;
 // The arrow keys the player uses for frame-stepping belong to the box once the rig has focus, so
 // `,` and `.` replace them.
@@ -56,14 +56,14 @@ const SCRUB_SECONDS = 0.1;
 // Times are stored to 2dp, so anything closer than half of that last digit is the same instant
 // expressed differently, not a change.
 const SAME_TIME_SECONDS = 0.005;
-const POSITION_INPUTS = [
-  ["position-time-input", "time"],
-  ["position-x-input", "x"],
-  ["position-y-input", "y"],
-  ["position-width-input", "width"],
-  ["position-height-input", "height"],
+const BLUR_ANCHOR_POINT_INPUTS = [
+  ["blur-anchor-point-time-input", "time"],
+  ["blur-anchor-point-x-input", "x"],
+  ["blur-anchor-point-y-input", "y"],
+  ["blur-anchor-point-width-input", "width"],
+  ["blur-anchor-point-height-input", "height"],
 ];
-const POSITION_INPUT_SELECTOR = POSITION_INPUTS.map(([name]) => `.${name}`).join(", ");
+const BLUR_ANCHOR_POINT_INPUT_SELECTOR = BLUR_ANCHOR_POINT_INPUTS.map(([name]) => `.${name}`).join(", ");
 
 // How each column reads and writes its field: the time column speaks H:MM:SS.SS, the geometry
 // columns plain percentages. `noun` is what the field is called when what was typed is rejected.
@@ -74,14 +74,14 @@ const TIME_FIELD = {
 };
 const NUMBER_FIELD = { parse: parseFloat, format: String, noun: "number" };
 
-// Long enough for the sentences the blur-position views word, short enough that anything which is
+// Long enough for the sentences the blur-anchor-point views word, short enough that anything which is
 // really a page rather than a message is rejected. See serverMessage.
 const MAX_SERVER_MESSAGE_LENGTH = 200;
 
 /**
  * The message to show for a failed request: the server's own words when it wrote any.
  *
- * The blur-position views word their 4xx bodies for the user (see BLUR_POSITION_* in
+ * The blur-anchor-point views word their 4xx bodies for the user (see BLUR_ANCHOR_POINT_* in
  * core/views_video_editor.py), so repeating that wording here would be a second copy of one string
  * to keep in step - and the copy the user actually reads. A new refusal added server-side then
  * reports itself correctly rather than as whatever the client last guessed.
@@ -132,26 +132,26 @@ function movedRect(origin, startPoint, currentPoint) {
 // dot's `left` is a percentage *of the item*, so against the stored window the dots would stretch
 // with the item's changing width and then snap back on release. Recomputed against the provisional
 // window, each dot holds its own time for the whole drag.
-export function placeLocators(itemElement, timeWindow) {
+export function placeBlurAnchorPointDots(itemElement, timeWindow) {
   const itemStart = timeWindow
     ? timeWindow.start
     : parseFloat(itemElement.dataset["start"]);
   const itemEnd = timeWindow ? timeWindow.end : parseFloat(itemElement.dataset["end"]);
   const duration = itemEnd - itemStart;
-  for (const locator of itemElement.querySelectorAll(".blur-position-locator")) {
+  for (const blurAnchorPointDot of itemElement.querySelectorAll(".blur-anchor-point-dot")) {
     if (!(duration > 0)) {
-      locator.style.removeProperty("left");
+      blurAnchorPointDot.style.removeProperty("left");
       continue;
     }
-    const offset = (parseFloat(locator.dataset["positionTime"]) - itemStart) / duration;
+    const offset = (parseFloat(blurAnchorPointDot.dataset["blurAnchorPointTime"]) - itemStart) / duration;
     // A point dragged outside the provisional window is one this resize is about to discard, so
     // hiding it previews that. Against the stored window this cannot trigger: every point lies
     // inside its own blur by invariant.
-    locator.hidden = offset < -0.001 || offset > 1.001;
+    blurAnchorPointDot.hidden = offset < -0.001 || offset > 1.001;
     // Halved dot width, less the bar's own inset, so the dot is centered on its time rather than
     // starting there.
-    const nudge = locator.getBoundingClientRect().width / 2 - 2;
-    locator.style.setProperty("left", `calc(${offset * 100}% - ${nudge}px)`);
+    const nudge = blurAnchorPointDot.getBoundingClientRect().width / 2 - 2;
+    blurAnchorPointDot.style.setProperty("left", `calc(${offset * 100}% - ${nudge}px)`);
   }
 }
 
@@ -161,22 +161,22 @@ export class BlurEditor {
    * @param {HTMLVideoElement} options.video
    * @param {object} options.player the AnnotationPlayer instance
    * @param {HTMLElement} options.timelineWrapper delegation root for the timeline dots
-   * @param {Function} options.onPositionsSaved called after a save lands, so the editor can
+   * @param {Function} options.onBlurAnchorPointsSaved called after a save lands, so the editor can
    *   re-place the track items whose HTML this module just replaced
    */
-  constructor({ video, player, timelineWrapper, onPositionsSaved }) {
+  constructor({ video, player, timelineWrapper, onBlurAnchorPointsSaved }) {
     this.video = video;
     this.player = player;
     this.annotationBox = player.annotationBox;
     this.timelineWrapper = timelineWrapper;
-    this.onPositionsSaved = onPositionsSaved || (() => {});
+    this.onBlurAnchorPointsSaved = onBlurAnchorPointsSaved || (() => {});
 
     this.annotationId = null;
     this.startTime = 0;
     this.endTime = 0;
     this.rig = null;
-    this.pendingPoint = null;
-    this.selectedPositionId = null;
+    this.pendingBlurAnchorPoint = null;
+    this.selectedBlurAnchorPointId = null;
     // Non-null only while a pointer is down; its presence stops _render from overwriting the
     // geometry the user is actively dragging.
     this.gesture = null;
@@ -184,7 +184,7 @@ export class BlurEditor {
     // differently: a cancelled drag is discarded, but a nudge the user can see is an edit they
     // made, so it is flushed.
     this.nudge = null;
-    this.draggingLocator = false;
+    this.draggingBlurAnchorPointDot = false;
 
     this._onRigPointerDown = this._onRigPointerDown.bind(this);
     this._onRigKeyDown = this._onRigKeyDown.bind(this);
@@ -212,17 +212,17 @@ export class BlurEditor {
       // the detail form - and stopPropagation() at that point stops nothing.
       this.timelineWrapper.addEventListener(
         "click",
-        this._onLocatorClick.bind(this),
+        this._onBlurAnchorPointDotClick.bind(this),
         true,
       );
       this.timelineWrapper.addEventListener(
         "pointerdown",
-        this._onLocatorPointerDown.bind(this),
+        this._onBlurAnchorPointDotPointerDown.bind(this),
         true,
       );
       this.timelineWrapper.addEventListener(
         "keydown",
-        this._onLocatorKeyDown.bind(this),
+        this._onBlurAnchorPointDotKeyDown.bind(this),
         true,
       );
       // A dot sits inside a `draggable="true"` track item, so a native drag that escapes the dot
@@ -232,7 +232,7 @@ export class BlurEditor {
       this.timelineWrapper.addEventListener(
         "dragstart",
         (event) => {
-          if (this.draggingLocator) event.preventDefault();
+          if (this.draggingBlurAnchorPointDot) event.preventDefault();
         },
         true,
       );
@@ -244,13 +244,12 @@ export class BlurEditor {
   select(annotationId) {
     this.annotationId = String(annotationId);
     this._readWindow();
-    this.annotationBox.classList.add("annotation-box-blur-editor");
 
-    const requested = this.pendingPoint;
-    this.pendingPoint = null;
+    const requested = this.pendingBlurAnchorPoint;
+    this.pendingBlurAnchorPoint = null;
     if (requested) {
       this.video.currentTime = requested.time;
-      this._selectPosition(requested.positionId);
+      this._selectBlurAnchorPoint(requested.blurAnchorPointId);
     } else if (
       this.video.currentTime < this.startTime ||
       this.video.currentTime > this.endTime
@@ -267,22 +266,19 @@ export class BlurEditor {
     // addressed to the blur being deselected.
     this._flushNudge();
     this.gesture?.cancel();
-    // Toggling the one class, rather than assigning className, so the player's
-    // annotation-box-showing-message state survives a selection change.
-    this.annotationBox.classList.remove("annotation-box-blur-editor");
     this.rig?.remove();
     this.rig = null;
     this.annotationId = null;
     // The panel rows go away with the form, but the timeline dots live in the track item and
     // outlive it, so the last point would stay lit on a blur that is no longer selected.
-    this._selectPosition(null);
+    this._selectBlurAnchorPoint(null);
   }
 
   syncFromPanel() {
     if (!this.annotationId) return;
     this._readWindow();
     this._render();
-    this._paintSelectedPosition();
+    this._paintSelectedBlurAnchorPoint();
   }
 
   // Saving an annotation writes a new version with a new id, so the selected blur's item bar and
@@ -318,10 +314,10 @@ export class BlurEditor {
   }
 
   // The server renders these rows ordered by time, which is what rectAtTime requires.
-  _positions() {
-    const rows = document.querySelectorAll("#blur-positions-wrapper .position-entry");
+  _blurAnchorPoints() {
+    const rows = document.querySelectorAll("#blur-anchor-points-wrapper .blur-anchor-point-entry");
     return Array.from(rows).map((row) => ({
-      id: row.dataset["positionId"],
+      id: row.dataset["blurAnchorPointId"],
       time: parseFloat(row.dataset["time"]),
       x: parseFloat(row.dataset["x"]),
       y: parseFloat(row.dataset["y"]),
@@ -331,7 +327,7 @@ export class BlurEditor {
   }
 
   _currentRect() {
-    return rectAtTime(this._positions(), this.video.currentTime);
+    return rectAtTime(this._blurAnchorPoints(), this.video.currentTime);
   }
 
   // The stored point `time` is sitting on, within the snap window, or null between points.
@@ -343,28 +339,28 @@ export class BlurEditor {
   //
   // Takes a time rather than reading the playhead, because a keyboard nudge is written after a
   // delay and has to be filed under the moment it was made at.
-  _pointAt(time) {
+  _blurAnchorPointAt(time) {
     let nearest = null;
-    for (const position of this._positions()) {
-      const distance = Math.abs(position.time - time);
+    for (const blurAnchorPoint of this._blurAnchorPoints()) {
+      const distance = Math.abs(blurAnchorPoint.time - time);
       if (distance <= SNAP_SECONDS && (nearest === null || distance < nearest.distance)) {
-        nearest = { distance, position };
+        nearest = { distance, blurAnchorPoint };
       }
     }
-    return nearest && nearest.position;
+    return nearest && nearest.blurAnchorPoint;
   }
 
   _gestureOrigin() {
     // An unwritten nudge is still what the user can see, so it is what the next gesture builds on -
     // otherwise grabbing the box after arrowing it would snap it back.
     if (this.nudge) return { ...this.nudge.rect };
-    const point = this._pointAt(this.video.currentTime);
-    if (!point) return this._currentRect();
+    const blurAnchorPoint = this._blurAnchorPointAt(this.video.currentTime);
+    if (!blurAnchorPoint) return this._currentRect();
     return {
-      x: point.x,
-      y: point.y,
-      width: point.width,
-      height: point.height,
+      x: blurAnchorPoint.x,
+      y: blurAnchorPoint.y,
+      width: blurAnchorPoint.width,
+      height: blurAnchorPoint.height,
     };
   }
 
@@ -422,7 +418,7 @@ export class BlurEditor {
     // does not exist would invite an edit that cannot be stored.
     rig.hidden = rect === null;
     // Only the rig - not _paint, which also writes the player's blur element. Doing that per frame
-    // would put two writers on one element: the player paints it from its own copy of the positions
+    // would put two writers on one element: the player paints it from its own copy of the anchor points
     // while this reads the panel's data-* rows, so any disagreement would show up as a flicker.
     if (rect) applyRect(rig, rect);
   }
@@ -461,7 +457,7 @@ export class BlurEditor {
     if (!this.video.paused) this.video.pause();
 
     // Dropped rather than flushed: the gesture starts from the nudged rect (see _gestureOrigin) and
-    // will write it anyway, so flushing would spend a request storing an intermediate position.
+    // will write it anyway, so flushing would spend a request storing an intermediate anchor point.
     this._discardNudge();
 
     const target = event.currentTarget;
@@ -613,20 +609,20 @@ export class BlurEditor {
    *
    * @param {object} rect in frame percentages
    * @param {object} [options]
-   * @param {string} [options.positionId] only for gestures that name a point rather than a time -
+   * @param {string} [options.blurAnchorPointId] only for gestures that name a point rather than a time -
    *   the numeric inputs and dragging a timeline dot. A drag on the frame must never send one.
-   * @param {number} [options.time] only alongside positionId, to retime that point.
+   * @param {number} [options.time] only alongside blurAnchorPointId, to retime that point.
    */
-  async _commit(rect, { positionId, time } = {}) {
+  async _commit(rect, { blurAnchorPointId, time } = {}) {
     const annotationId = this.annotationId;
     if (!annotationId) return false;
 
-    // From the bar the server rendered, not built here: see the data-positions-url comment in
+    // From the bar the server rendered, not built here: see the data-blur-anchor-points-url comment in
     // core/templates/core/partials/item.html. Its absence means the bar for this blur is gone, in
     // which case there is nothing to save against.
-    const url = this._itemElement(annotationId)?.dataset["positionsUrl"];
+    const url = this._itemElement(annotationId)?.dataset["blurAnchorPointsUrl"];
     if (!url) {
-      console.error(`No blur-position endpoint on the bar for annotation ${annotationId}`);
+      console.error(`No blur-anchor-point endpoint on the bar for annotation ${annotationId}`);
       return false;
     }
 
@@ -634,7 +630,7 @@ export class BlurEditor {
       time !== undefined ? time : Math.round(this.video.currentTime * 100) / 100;
     // Send the point's own time when one is being edited, so client and server cannot disagree
     // about which moment this write belongs to.
-    const editing = positionId === undefined ? this._pointAt(requested) : null;
+    const editing = blurAnchorPointId === undefined ? this._blurAnchorPointAt(requested) : null;
     const body = {
       time: editing ? editing.time : requested,
       x: rect.x,
@@ -642,14 +638,14 @@ export class BlurEditor {
       width: rect.width,
       height: rect.height,
     };
-    if (positionId !== undefined) body.position_id = positionId;
+    if (blurAnchorPointId !== undefined) body.blur_anchor_point_id = blurAnchorPointId;
 
     // Where this point sat before the write, so the status line can tell a retime from a resize by
     // comparing against where it ended up.
     const previousTime =
-      positionId === undefined
+      blurAnchorPointId === undefined
         ? editing?.time
-        : this._positions().find((position) => position.id === String(positionId))?.time;
+        : this._blurAnchorPoints().find((blurAnchorPoint) => blurAnchorPoint.id === String(blurAnchorPointId))?.time;
 
     let response;
     try {
@@ -659,16 +655,16 @@ export class BlurEditor {
         body: JSON.stringify(body),
       });
     } catch (error) {
-      console.error("Failed to reach the server to save a blur point", error);
-      this._reportFailure(annotationId, "The blur point could not be saved - no reply from the server.");
+      console.error("Failed to reach the server to save a blur anchor point", error);
+      this._reportFailure(annotationId, "The blur anchor point could not be saved - no reply from the server.");
       return false;
     }
 
     if (!response.ok) {
-      console.error(`Failed to save blur point (${response.status})`);
+      console.error(`Failed to save blur anchor point (${response.status})`);
       this._reportFailure(
         annotationId,
-        await serverMessage(response, "That blur point could not be saved."),
+        await serverMessage(response, "That blur anchor point could not be saved."),
       );
       return false;
     }
@@ -681,10 +677,10 @@ export class BlurEditor {
         Math.abs(payload["time"] - previousTime) > SAME_TIME_SECONDS;
       this._status(
         payload["created"]
-          ? `Point added at ${at}`
+          ? `Anchor point added at ${at}`
           : retimed
-            ? `Point moved to ${at}`
-            : `Point updated at ${at}`,
+            ? `Anchor point moved to ${at}`
+            : `Anchor point updated at ${at}`,
       );
     }
     return true;
@@ -693,14 +689,14 @@ export class BlurEditor {
   /**
    * @param {HTMLElement} control the panel's delete button or the point's timeline dot, whichever
    *   was used. Each carries its own `data-delete-url`, rendered by reverse() - see
-   *   blur_positions.html. Taking the control rather than an id is what keeps the URL out of this
+   *   blur_anchor_points.html. Taking the control rather than an id is what keeps the URL out of this
    *   file, and means a point the server will refuse to delete offers nothing to delete it with.
    */
   async _delete(control) {
     const annotationId = this.annotationId;
     const url = control?.dataset["deleteUrl"];
     if (!url) {
-      console.error("No delete endpoint on the control for the blur point being deleted");
+      console.error("No delete endpoint on the control for the blur anchor point being deleted");
       return false;
     }
     const response = await fetch(url, {
@@ -708,12 +704,12 @@ export class BlurEditor {
       headers: { "X-CSRFToken": getCSRFToken() },
     });
     if (!response.ok) {
-      console.error(`Failed to delete blur point (${response.status})`);
-      this._status(await serverMessage(response, "That blur point could not be deleted."));
+      console.error(`Failed to delete blur anchor point (${response.status})`);
+      this._status(await serverMessage(response, "That blur anchor point could not be deleted."));
       return false;
     }
     if (this._applySaved(annotationId, await response.json())) {
-      this._status("Point deleted");
+      this._status("Anchor point deleted");
     }
     return true;
   }
@@ -729,8 +725,8 @@ export class BlurEditor {
 
   /** @returns {boolean} whether the response was still describing the selected blur. */
   _applySaved(annotationId, payload) {
-    // Canonical state first, and unconditionally: the save happened, so the player's positions and
-    // the bar's locators have to reflect it even if the selection has already moved on - deselect()
+    // Canonical state first, and unconditionally: the save happened, so the player's anchor points and
+    // the bar's blur anchor point dots have to reflect it even if the selection has already moved on - deselect()
     // flushes a pending nudge, so a saved edit routinely lands after annotationId has been cleared.
     const item = this._itemElement(annotationId);
     if (item && payload["trackItem"]) {
@@ -741,9 +737,9 @@ export class BlurEditor {
       if (wasActive) this._itemElement(annotationId)?.classList.add("active-track-item");
     }
 
-    this.player.replaceAnnotationPositions(annotationId, payload["positions"]);
-    // After the bar is replaced, because it re-places the locators from that DOM.
-    this.onPositionsSaved(annotationId);
+    this.player.replaceBlurAnchorPoints(annotationId, payload["blurAnchorPoints"]);
+    // After the bar is replaced, because it re-places the blur anchor point dots from that DOM.
+    this.onBlurAnchorPointsSaved(annotationId);
 
     // Everything below is specific to the blur on screen: the panel is a singleton belonging to
     // whatever is selected, and the rig paints only the selection.
@@ -752,61 +748,61 @@ export class BlurEditor {
     // Only the table, not the whole wrapper: replacing the status line would re-insert a live region
     // with its message already inside it, which screen readers generally do not announce. The
     // full-wrapper path is the fallback for an unrecognised payload shape.
-    const incomingList = payload["blurPositions"]
-      ? createElementFromHTMLString(payload["blurPositions"])?.querySelector("#positions-list")
+    const incomingList = payload["blurAnchorPointsHtml"]
+      ? createElementFromHTMLString(payload["blurAnchorPointsHtml"])?.querySelector("#blur-anchor-points-list")
       : null;
-    const list = document.getElementById("positions-list");
+    const list = document.getElementById("blur-anchor-points-list");
     if (incomingList && list) {
       list.replaceWith(incomingList);
     } else {
-      const wrapper = document.getElementById("blur-positions-wrapper");
-      if (wrapper && payload["blurPositions"]) wrapper.outerHTML = payload["blurPositions"];
+      const wrapper = document.getElementById("blur-anchor-points-wrapper");
+      if (wrapper && payload["blurAnchorPointsHtml"]) wrapper.outerHTML = payload["blurAnchorPointsHtml"];
     }
 
     this._readWindow();
     this._render();
-    this._paintSelectedPosition();
+    this._paintSelectedBlurAnchorPoint();
     return true;
   }
 
   // --- panel and timeline ----------------------------------------------------
 
   _status(message) {
-    const status = document.getElementById("blur-position-status");
+    const status = document.getElementById("blur-anchor-point-status");
     if (status) status.textContent = message;
   }
 
-  _goToPoint(positionId, time) {
+  _goToBlurAnchorPoint(blurAnchorPointId, time) {
     const seconds = parseFloat(time);
     if (Number.isFinite(seconds)) this.video.currentTime = seconds;
-    this._selectPosition(positionId);
+    this._selectBlurAnchorPoint(blurAnchorPointId);
   }
 
-  _selectPosition(positionId) {
-    this.selectedPositionId =
-      positionId === null || positionId === undefined ? null : String(positionId);
-    this._paintSelectedPosition();
+  _selectBlurAnchorPoint(blurAnchorPointId) {
+    this.selectedBlurAnchorPointId =
+      blurAnchorPointId === null || blurAnchorPointId === undefined ? null : String(blurAnchorPointId);
+    this._paintSelectedBlurAnchorPoint();
   }
 
-  _paintSelectedPosition() {
+  _paintSelectedBlurAnchorPoint() {
     let found = false;
     for (const [selector, activeClass] of [
-      [".position-entry", "active-position-entry"],
-      [".blur-position-locator", "active-blur-position-locator"],
+      [".blur-anchor-point-entry", "active-blur-anchor-point-entry"],
+      [".blur-anchor-point-dot", "active-blur-anchor-point-dot"],
     ]) {
       for (const element of document.querySelectorAll(selector)) {
         const selected =
-          this.selectedPositionId !== null &&
-          element.dataset["positionId"] === this.selectedPositionId;
+          this.selectedBlurAnchorPointId !== null &&
+          element.dataset["blurAnchorPointId"] === this.selectedBlurAnchorPointId;
         element.classList.toggle(activeClass, selected);
         found = found || selected;
       }
     }
-    if (!found) this.selectedPositionId = null;
+    if (!found) this.selectedBlurAnchorPointId = null;
   }
 
   _onPanelClick(event) {
-    const deleteButton = event.target.closest(".blur-position-delete-button");
+    const deleteButton = event.target.closest(".blur-anchor-point-delete-button");
     if (!deleteButton) return;
     // The button lives inside the annotation form; without this the form submits.
     event.preventDefault();
@@ -814,10 +810,10 @@ export class BlurEditor {
   }
 
   _onPanelPointerDown(event) {
-    if (event.button !== 0 || event.target.closest(".blur-position-delete-button")) return;
-    const row = event.target.closest(".position-entry");
+    if (event.button !== 0 || event.target.closest(".blur-anchor-point-delete-button")) return;
+    const row = event.target.closest(".blur-anchor-point-entry");
     if (!row) return;
-    this._goToPoint(row.dataset["positionId"], row.dataset["time"]);
+    this._goToBlurAnchorPoint(row.dataset["blurAnchorPointId"], row.dataset["time"]);
   }
 
   // The panel's fields name a point by id, so a numeric edit lands on that exact row wherever the
@@ -825,11 +821,11 @@ export class BlurEditor {
   // lets the server work out which row that is.
   _onPanelInputChange(event) {
     const input = event.target;
-    if (!this.annotationId || !input.matches?.(POSITION_INPUT_SELECTOR)) return;
-    const row = input.closest(".position-entry");
+    if (!this.annotationId || !input.matches?.(BLUR_ANCHOR_POINT_INPUT_SELECTOR)) return;
+    const row = input.closest(".blur-anchor-point-entry");
     if (!row) return;
 
-    const field = POSITION_INPUTS.find(([name]) => input.classList.contains(name))?.[1];
+    const field = BLUR_ANCHOR_POINT_INPUTS.find(([name]) => input.classList.contains(name))?.[1];
     if (!field) return;
     const entered = input.value;
     const column = field === "time" ? TIME_FIELD : NUMBER_FIELD;
@@ -842,7 +838,7 @@ export class BlurEditor {
       return;
     }
 
-    // The endpoint writes a complete position, so the four untouched values come from the row.
+    // The endpoint writes a complete anchor point, so the four untouched values come from the row.
     const edited = { time: parseFloat(row.dataset["time"]) };
     for (const name of ["x", "y", "width", "height"]) {
       edited[name] = parseFloat(row.dataset[name]);
@@ -850,7 +846,7 @@ export class BlurEditor {
     edited[field] = value;
 
     this._commit(edited, {
-      positionId: row.dataset["positionId"],
+      blurAnchorPointId: row.dataset["blurAnchorPointId"],
       // Sent even when only the geometry changed: leaving it out would mean "wherever the playhead
       // is", which is not what editing a numbered row asks for.
       time: edited.time,
@@ -858,7 +854,7 @@ export class BlurEditor {
   }
 
   _onPanelInputKeyDown(event) {
-    if (event.key !== "Enter" || !event.target.matches?.(POSITION_INPUT_SELECTOR)) return;
+    if (event.key !== "Enter" || !event.target.matches?.(BLUR_ANCHOR_POINT_INPUT_SELECTOR)) return;
     // These fields sit inside the annotation form, where Enter would otherwise submit the whole
     // annotation - reconciling the points and reloading the detail form as a side effect of
     // committing one number.
@@ -868,51 +864,51 @@ export class BlurEditor {
     event.target.blur();
   }
 
-  _onLocatorClick(event) {
-    const locator = event.target.closest(".blur-position-locator");
-    if (!locator) return;
+  _onBlurAnchorPointDotClick(event) {
+    const blurAnchorPointDot = event.target.closest(".blur-anchor-point-dot");
+    if (!blurAnchorPointDot) return;
 
-    if (locator.closest(".track-item")?.classList.contains("active-track-item")) {
+    if (blurAnchorPointDot.closest(".track-item")?.classList.contains("active-track-item")) {
       event.stopPropagation();
       return;
     }
 
     // A different blur: let the click through so the item's handler selects it and loads its form,
     // but ask select() to land on the point that was clicked instead of the blur's start.
-    const time = parseFloat(locator.dataset["positionTime"]);
-    this.pendingPoint = Number.isFinite(time)
-      ? { time, positionId: locator.dataset["positionId"] }
+    const time = parseFloat(blurAnchorPointDot.dataset["blurAnchorPointTime"]);
+    this.pendingBlurAnchorPoint = Number.isFinite(time)
+      ? { time, blurAnchorPointId: blurAnchorPointDot.dataset["blurAnchorPointId"] }
       : null;
   }
 
   // Drag a dot along the bar to retime its point. Only on the selected blur, because the panel rows
   // this reads for geometry belong to the current selection - and a dot on any other blur has to
   // keep behaving like a plain click, which is what selects that blur in the first place.
-  _onLocatorPointerDown(event) {
+  _onBlurAnchorPointDotPointerDown(event) {
     if (event.button !== 0) return;
-    const locator = event.target.closest?.(".blur-position-locator");
-    if (!locator) return;
-    const item = locator.closest(".track-item");
+    const blurAnchorPointDot = event.target.closest?.(".blur-anchor-point-dot");
+    if (!blurAnchorPointDot) return;
+    const item = blurAnchorPointDot.closest(".track-item");
     if (!item || item.dataset["annotationId"] !== this.annotationId) return;
 
-    const positionId = locator.dataset["positionId"];
-    const point = this._positions().find((position) => position.id === positionId);
+    const blurAnchorPointId = blurAnchorPointDot.dataset["blurAnchorPointId"];
+    const blurAnchorPoint = this._blurAnchorPoints().find((candidate) => candidate.id === blurAnchorPointId);
     const bar = item.getBoundingClientRect();
     const itemStart = parseFloat(item.dataset["start"]);
     const itemEnd = parseFloat(item.dataset["end"]);
-    if (!point || !(bar.width > 0) || !(itemEnd > itemStart)) return;
+    if (!blurAnchorPoint || !(bar.width > 0) || !(itemEnd > itemStart)) return;
 
     // Part of keeping the track item's own HTML5 drag out of this gesture; see the dragstart
     // backstop in the constructor for the rest of it.
     event.preventDefault();
 
-    this._goToPoint(positionId, point.time);
+    this._goToBlurAnchorPoint(blurAnchorPointId, blurAnchorPoint.time);
 
     // Only the point's time changes. Captured once, so a repaint partway through the drag cannot
     // substitute an interpolated rect for the point's real one.
-    const rect = { x: point.x, y: point.y, width: point.width, height: point.height };
-    const originalPositionTime = locator.dataset["positionTime"];
-    let time = point.time;
+    const rect = { x: blurAnchorPoint.x, y: blurAnchorPoint.y, width: blurAnchorPoint.width, height: blurAnchorPoint.height };
+    const originalBlurAnchorPointTime = blurAnchorPointDot.dataset["blurAnchorPointTime"];
+    let time = blurAnchorPoint.time;
 
     const timeAt = (pointerEvent) => {
       const fraction = (pointerEvent.clientX - bar.left) / bar.width;
@@ -922,31 +918,31 @@ export class BlurEditor {
       );
     };
 
-    locator.setPointerCapture(event.pointerId);
-    locator.classList.add("dragging-blur-position-locator");
-    this.draggingLocator = true;
+    blurAnchorPointDot.setPointerCapture(event.pointerId);
+    blurAnchorPointDot.classList.add("dragging-blur-anchor-point-dot");
+    this.draggingBlurAnchorPointDot = true;
     if (!this.video.paused) this.video.pause();
 
     const cleanup = () => {
       // Listeners first, capture second: releasing capture fires lostpointercapture, and that is
       // wired to onCancel below, so a release with the listener still attached would cancel a
       // gesture that had already committed.
-      locator.removeEventListener("pointermove", onMove);
-      locator.removeEventListener("pointerup", onUp);
-      locator.removeEventListener("pointercancel", onCancel);
-      locator.removeEventListener("lostpointercapture", onCancel);
-      if (locator.hasPointerCapture(event.pointerId)) {
-        locator.releasePointerCapture(event.pointerId);
+      blurAnchorPointDot.removeEventListener("pointermove", onMove);
+      blurAnchorPointDot.removeEventListener("pointerup", onUp);
+      blurAnchorPointDot.removeEventListener("pointercancel", onCancel);
+      blurAnchorPointDot.removeEventListener("lostpointercapture", onCancel);
+      if (blurAnchorPointDot.hasPointerCapture(event.pointerId)) {
+        blurAnchorPointDot.releasePointerCapture(event.pointerId);
       }
-      locator.classList.remove("dragging-blur-position-locator");
-      this.draggingLocator = false;
+      blurAnchorPointDot.classList.remove("dragging-blur-anchor-point-dot");
+      this.draggingBlurAnchorPointDot = false;
       this.gesture = null;
     };
 
     const onMove = (moveEvent) => {
       time = timeAt(moveEvent);
-      locator.dataset["positionTime"] = String(time);
-      placeLocators(item);
+      blurAnchorPointDot.dataset["blurAnchorPointTime"] = String(time);
+      placeBlurAnchorPointDots(item);
       // Seeking is what makes this a retime the user can aim: they see the frame the point will land
       // on, with the point's own geometry over it rather than the interpolation _render would draw.
       this.video.currentTime = time;
@@ -956,42 +952,42 @@ export class BlurEditor {
     const onUp = () => {
       const settled = Math.round(time * 100) / 100;
       cleanup();
-      if (Math.abs(settled - point.time) <= SAME_TIME_SECONDS) {
-        // A click, not a drag. Nothing to save; the click event that follows seeks to the point.
-        locator.dataset["positionTime"] = originalPositionTime;
-        placeLocators(item);
+      if (Math.abs(settled - blurAnchorPoint.time) <= SAME_TIME_SECONDS) {
+        // A click, not a drag. Nothing to save; the click event that follows seeks to the blurAnchorPoint.
+        blurAnchorPointDot.dataset["blurAnchorPointTime"] = originalBlurAnchorPointTime;
+        placeBlurAnchorPointDots(item);
         this._render();
         return;
       }
-      this._commit(rect, { positionId, time: settled });
+      this._commit(rect, { blurAnchorPointId, time: settled });
     };
 
     const onCancel = () => {
       cleanup();
-      locator.dataset["positionTime"] = originalPositionTime;
-      placeLocators(item);
+      blurAnchorPointDot.dataset["blurAnchorPointTime"] = originalBlurAnchorPointTime;
+      placeBlurAnchorPointDots(item);
       this._render();
     };
 
     // Registered as a gesture so _render leaves the painted rect and the moving dot alone.
     this.gesture = { cancel: onCancel };
-    locator.addEventListener("pointermove", onMove);
-    locator.addEventListener("pointerup", onUp);
-    locator.addEventListener("pointercancel", onCancel);
+    blurAnchorPointDot.addEventListener("pointermove", onMove);
+    blurAnchorPointDot.addEventListener("pointerup", onUp);
+    blurAnchorPointDot.addEventListener("pointercancel", onCancel);
     // The dot is the capture target and it lives in the track item, which any save replaces
     // wholesale. Losing capture that way would strand the drag: pointerup would go elsewhere,
     // cleanup would never run, and `gesture` would stay set - freezing the rig for good.
-    locator.addEventListener("lostpointercapture", onCancel);
+    blurAnchorPointDot.addEventListener("lostpointercapture", onCancel);
   }
 
-  _onLocatorKeyDown(event) {
-    const locator = event.target.closest?.(".blur-position-locator");
-    if (!locator) return;
+  _onBlurAnchorPointDotKeyDown(event) {
+    const blurAnchorPointDot = event.target.closest?.(".blur-anchor-point-dot");
+    if (!blurAnchorPointDot) return;
 
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       event.stopPropagation();
-      this._goToPoint(locator.dataset["positionId"], locator.dataset["positionTime"]);
+      this._goToBlurAnchorPoint(blurAnchorPointDot.dataset["blurAnchorPointId"], blurAnchorPointDot.dataset["blurAnchorPointTime"]);
       return;
     }
 
@@ -1000,7 +996,7 @@ export class BlurEditor {
     event.stopPropagation();
     // Deleting a point on an unselected blur would rebuild a panel belonging to some other
     // annotation, so this stays with the selection - the same rule as dragging a dot.
-    if (locator.closest(".track-item")?.dataset["annotationId"] !== this.annotationId) return;
-    this._delete(locator);
+    if (blurAnchorPointDot.closest(".track-item")?.dataset["annotationId"] !== this.annotationId) return;
+    this._delete(blurAnchorPointDot);
   }
 }

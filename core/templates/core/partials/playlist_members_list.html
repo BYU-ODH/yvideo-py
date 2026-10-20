@@ -42,7 +42,7 @@ under the list an add or remove just changed, and above the controls that caused
         </div>
         <ul class="playlist-member-role-legend muted-text">
             {% for role in grantable_roles %}
-                <li><strong>{{ role.label }}</strong> — {{ role.description }}</li>
+                <li><strong>{{ role.label }}</strong>: {{ role.description }}</li>
             {% endfor %}
         </ul>
     </section>

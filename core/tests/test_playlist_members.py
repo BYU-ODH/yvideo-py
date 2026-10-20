@@ -1,8 +1,8 @@
 """The Manage People endpoints (#361).
 
 The rule under test throughout is Playlist.can_grant_role: an owner hands out any role,
-a TA or co-instructor hands out only read-only ones. The cases that matter are the ones
-where a TA reaches past that -- promoting, demoting, or removing someone at their own
+a collaborator hands out only read-only ones. The cases that matter are the ones
+where a collaborator reaches past that -- promoting, demoting, or removing someone at their own
 level -- because the decorator alone lets them through and only the inner check stops
 them.
 
@@ -36,9 +36,11 @@ class PlaylistMemberTestCase(TestCase):
     def setUp(self):
         self.owner = UserFactory(instructor=True)
         self.playlist = PlaylistFactory(owner=self.owner, published=True)
-        self.ta = UserFactory(instructor=True)
+        self.collaborator = UserFactory(instructor=True)
         PlaylistUserAccessFactory(
-            user=self.ta, playlist=self.playlist, playlist_role=PlaylistRole.TA
+            user=self.collaborator,
+            playlist=self.playlist,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
         self.student = UserFactory(student=True)
         PlaylistUserAccessFactory(
@@ -69,7 +71,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
         login(self.client, self.owner)
 
     def test_the_owner_may_grant_every_offered_role(self):
-        for role in (PlaylistRole.INSTRUCTOR, PlaylistRole.TA, PlaylistRole.STUDENT):
+        for role in (PlaylistRole.COLLABORATOR, PlaylistRole.STUDENT):
             with self.subTest(role=role):
                 newcomer = UserFactory(student=True)
                 response = self.client.post(
@@ -78,26 +80,26 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
                 self.assertEqual(response.status_code, 200, response.content[:200])
                 self.assertEqual(self.role_of(newcomer), role)
 
-    def test_the_owner_may_promote_a_student_to_ta(self):
+    def test_the_owner_may_promote_a_student_to_collaborator(self):
         response = self.client.post(
-            self.role_url(self.student), {"role": PlaylistRole.TA.value}
+            self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.role_of(self.student), PlaylistRole.TA)
+        self.assertEqual(self.role_of(self.student), PlaylistRole.COLLABORATOR)
 
-    def test_the_owner_may_demote_a_ta(self):
+    def test_the_owner_may_demote_a_collaborator(self):
         response = self.client.post(
-            self.role_url(self.ta), {"role": PlaylistRole.STUDENT.value}
+            self.role_url(self.collaborator), {"role": PlaylistRole.STUDENT.value}
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.role_of(self.ta), PlaylistRole.STUDENT)
+        self.assertEqual(self.role_of(self.collaborator), PlaylistRole.STUDENT)
 
-    def test_the_owner_may_remove_a_ta(self):
-        response = self.client.post(self.remove_url(self.ta))
+    def test_the_owner_may_remove_a_collaborator(self):
+        response = self.client.post(self.remove_url(self.collaborator))
         self.assertEqual(response.status_code, 200)
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
-                user=self.ta, playlist=self.playlist
+                user=self.collaborator, playlist=self.playlist
             ).exists()
         )
 
@@ -117,7 +119,8 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
 
     def test_the_owner_cannot_be_added_as_their_own_member(self):
         response = self.client.post(
-            self.add_url(), {"user_id": self.owner.pk, "role": PlaylistRole.TA.value}
+            self.add_url(),
+            {"user_id": self.owner.pk, "role": PlaylistRole.COLLABORATOR.value},
         )
         self.assertEqual(response.status_code, 400)
         self.assertFalse(
@@ -131,7 +134,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
         PlaylistUserAccessFactory(
             user=self.owner,
             playlist=self.playlist,
-            playlist_role=PlaylistRole.INSTRUCTOR,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
         response = self.client.get(
             reverse("render_playlist_members", args=[self.playlist.pk])
@@ -143,13 +146,13 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
         PlaylistUserAccessFactory(
             user=self.owner,
             playlist=self.playlist,
-            playlist_role=PlaylistRole.INSTRUCTOR,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
         response = self.client.post(
             self.role_url(self.owner), {"role": PlaylistRole.STUDENT.value}
         )
         self.assertEqual(response.status_code, 404)
-        self.assertEqual(self.role_of(self.owner), PlaylistRole.INSTRUCTOR)
+        self.assertEqual(self.role_of(self.owner), PlaylistRole.COLLABORATOR)
 
     def test_a_role_outside_the_offered_set_is_refused(self):
         response = self.client.post(
@@ -163,20 +166,20 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
         )
 
 
-class TeachingAssistantIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
-    """A TA may manage students and nothing else -- the promotion ceiling from #372."""
+class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
+    """A collaborator may manage students and nothing else -- the promotion ceiling from #372."""
 
     def setUp(self):
         super().setUp()
-        self.co_instructor = UserFactory(instructor=True)
+        self.other_collaborator = UserFactory(instructor=True)
         PlaylistUserAccessFactory(
-            user=self.co_instructor,
+            user=self.other_collaborator,
             playlist=self.playlist,
-            playlist_role=PlaylistRole.INSTRUCTOR,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
-        login(self.client, self.ta)
+        login(self.client, self.collaborator)
 
-    def test_a_ta_may_add_a_student(self):
+    def test_a_collaborator_may_add_a_student(self):
         response = self.client.post(
             self.add_url(),
             {"user_id": self.outsider.pk, "role": PlaylistRole.STUDENT.value},
@@ -184,7 +187,7 @@ class TeachingAssistantIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
         self.assertEqual(response.status_code, 200, response.content[:200])
         self.assertEqual(self.role_of(self.outsider), PlaylistRole.STUDENT)
 
-    def test_a_ta_may_remove_a_student(self):
+    def test_a_collaborator_may_remove_a_student(self):
         response = self.client.post(self.remove_url(self.student))
         self.assertEqual(response.status_code, 200)
         self.assertFalse(
@@ -200,15 +203,17 @@ class TeachingAssistantIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
         the panel would replace it with a generic failure rather than the reason.
         """
         response = self.client.post(
-            self.add_url(), {"user_id": self.outsider.pk, "role": PlaylistRole.TA.value}
+            self.add_url(),
+            {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
         )
         self.assertEqual(response.status_code, 403)
         self.assertTrue(response["Content-Type"].startswith("text/plain"))
         self.assertIn(b"Only the playlist owner", response.content)
 
-    def test_a_ta_may_not_grant_the_ta_role(self):
+    def test_a_collaborator_may_not_grant_the_collaborator_role(self):
         response = self.client.post(
-            self.add_url(), {"user_id": self.outsider.pk, "role": PlaylistRole.TA.value}
+            self.add_url(),
+            {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
         )
         self.assertEqual(response.status_code, 403)
         self.assertFalse(
@@ -217,46 +222,33 @@ class TeachingAssistantIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             ).exists()
         )
 
-    def test_a_ta_may_not_grant_the_co_instructor_role(self):
+    def test_a_collaborator_may_not_promote_a_student(self):
         response = self.client.post(
-            self.add_url(),
-            {"user_id": self.outsider.pk, "role": PlaylistRole.INSTRUCTOR.value},
-        )
-        self.assertEqual(response.status_code, 403)
-
-    def test_a_ta_may_not_promote_a_student(self):
-        response = self.client.post(
-            self.role_url(self.student), {"role": PlaylistRole.TA.value}
+            self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
         )
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self.role_of(self.student), PlaylistRole.STUDENT)
 
-    def test_a_ta_may_not_demote_a_co_instructor(self):
-        """The check that needs both ends: the target role here is one a TA may grant."""
+    def test_a_collaborator_may_not_demote_another_collaborator(self):
+        """The check that needs both ends: the target role here is one a collaborator may grant."""
         response = self.client.post(
-            self.role_url(self.co_instructor), {"role": PlaylistRole.STUDENT.value}
+            self.role_url(self.other_collaborator), {"role": PlaylistRole.STUDENT.value}
         )
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(self.role_of(self.co_instructor), PlaylistRole.INSTRUCTOR)
-
-    def test_a_ta_may_not_remove_another_ta(self):
-        other_ta = UserFactory(instructor=True)
-        PlaylistUserAccessFactory(
-            user=other_ta, playlist=self.playlist, playlist_role=PlaylistRole.TA
+        self.assertEqual(
+            self.role_of(self.other_collaborator), PlaylistRole.COLLABORATOR
         )
-        response = self.client.post(self.remove_url(other_ta))
+
+    def test_a_collaborator_may_not_remove_another_collaborator(self):
+        response = self.client.post(self.remove_url(self.other_collaborator))
         self.assertEqual(response.status_code, 403)
         self.assertTrue(
             PlaylistUserAccess.objects.filter(
-                user=other_ta, playlist=self.playlist
+                user=self.other_collaborator, playlist=self.playlist
             ).exists()
         )
 
-    def test_a_ta_may_not_remove_a_co_instructor(self):
-        response = self.client.post(self.remove_url(self.co_instructor))
-        self.assertEqual(response.status_code, 403)
-
-    def test_the_panel_offers_a_ta_only_the_student_role(self):
+    def test_the_panel_offers_a_collaborator_only_the_student_role(self):
         response = self.client.get(
             reverse("render_playlist_members", args=[self.playlist.pk])
         )
@@ -264,7 +256,7 @@ class TeachingAssistantIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
         roles = response.context["grantable_roles"]
         self.assertEqual([role["value"] for role in roles], [PlaylistRole.STUDENT])
 
-    def test_the_panel_leaves_rows_a_ta_may_not_touch_uneditable(self):
+    def test_the_panel_leaves_rows_a_collaborator_may_not_touch_uneditable(self):
         response = self.client.get(
             reverse("render_playlist_members", args=[self.playlist.pk])
         )
@@ -273,8 +265,8 @@ class TeachingAssistantIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             for member in response.context["members"]
         }
         self.assertTrue(manageable[self.student.pk])
-        self.assertFalse(manageable[self.ta.pk])
-        self.assertFalse(manageable[self.co_instructor.pk])
+        self.assertFalse(manageable[self.collaborator.pk])
+        self.assertFalse(manageable[self.other_collaborator.pk])
 
 
 class OutsidersAreRefusedTests(PlaylistMemberTestCase):
@@ -288,7 +280,8 @@ class OutsidersAreRefusedTests(PlaylistMemberTestCase):
     def test_a_stranger_cannot_add_anyone(self):
         login(self.client, self.outsider)
         response = self.client.post(
-            self.add_url(), {"user_id": self.outsider.pk, "role": PlaylistRole.TA.value}
+            self.add_url(),
+            {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
         )
         self.assertEqual(response.status_code, 403)
         self.assertFalse(
@@ -447,14 +440,14 @@ class AddingByIdentifierTests(PlaylistMemberTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn(b"no longer has an account", response.content)
 
-    def test_a_ta_cannot_use_the_lookup_to_provision_a_co_instructor(self):
+    def test_a_collaborator_cannot_use_the_lookup_to_provision_a_collaborator(self):
         """The role check runs first, so a refused grant never reaches BYU's directory."""
-        login(self.client, self.ta)
+        login(self.client, self.collaborator)
 
         with patch("core.forms.Api") as api:
             response = self.client.post(
                 self.add_url(),
-                {"identifier": "nosuchid", "role": PlaylistRole.INSTRUCTOR.value},
+                {"identifier": "nosuchid", "role": PlaylistRole.COLLABORATOR.value},
             )
 
         self.assertEqual(response.status_code, 403)

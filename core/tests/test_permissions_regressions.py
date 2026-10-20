@@ -585,8 +585,8 @@ class UnpublishedContentTests(TestCase):
         )
 
 
-class TeachingAssistantTests(TestCase):
-    """B1: a TA may do everything an owner may, except delete or promote."""
+class CollaboratorTests(TestCase):
+    """B1: a collaborator may do everything an owner may, except delete or promote."""
 
     def setUp(self):
         self.owner = UserFactory(instructor=True)
@@ -601,23 +601,29 @@ class TeachingAssistantTests(TestCase):
         self.content.annotation_set = self.annotation_set
         self.content.save()
 
-        self.ta = UserFactory(instructor=True)
+        self.collaborator = UserFactory(instructor=True)
         PlaylistUserAccessFactory(
-            playlist=self.playlist, user=self.ta, playlist_role=PlaylistRole.TA
+            playlist=self.playlist,
+            user=self.collaborator,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
-        login(self.client, self.ta)
+        login(self.client, self.collaborator)
 
-    def test_a_ta_may_rename_the_playlist(self):
+    def test_a_collaborator_has_the_owners_write_access(self):
+        self.assertTrue(self.playlist.can_be_edited_by(self.collaborator))
+        self.assertTrue(self.playlist.can_be_viewed_by(self.collaborator))
+
+    def test_a_collaborator_may_rename_the_playlist(self):
         response = self.client.post(
             reverse("update_playlist_settings", args=[self.playlist.pk]),
-            data={"name": "Renamed by TA", "published": "on", "archived": ""},
+            data={"name": "Renamed by collaborator", "published": "on", "archived": ""},
         )
 
         self.assertEqual(response.status_code, 200)
         self.playlist.refresh_from_db()
-        self.assertEqual(self.playlist.name, "Renamed by TA")
+        self.assertEqual(self.playlist.name, "Renamed by collaborator")
 
-    def test_a_ta_may_assign_a_course(self):
+    def test_a_collaborator_may_assign_a_course(self):
         response = self.client.post(
             reverse("assign_playlist_to_course", args=[self.playlist.pk]),
             data=json.dumps(
@@ -635,15 +641,15 @@ class TeachingAssistantTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(self.playlist.courses.exists())
 
-    def test_a_ta_may_open_the_editor(self):
+    def test_a_collaborator_may_open_the_editor(self):
         response = self.client.get(reverse("video_editor", args=[self.content.pk]))
 
         self.assertEqual(response.status_code, 200)
 
-    def test_a_ta_may_edit_the_owners_annotation_set(self):
-        self.assertTrue(self.annotation_set.can_be_edited_by(self.ta))
+    def test_a_collaborator_may_edit_the_owners_annotation_set(self):
+        self.assertTrue(self.annotation_set.can_be_edited_by(self.collaborator))
 
-    def test_a_ta_may_not_delete_the_playlist(self):
+    def test_a_collaborator_may_not_delete_the_playlist(self):
         response = self.client.delete(
             reverse("delete_playlist", args=[self.playlist.pk])
         )
@@ -653,14 +659,17 @@ class TeachingAssistantTests(TestCase):
             type(self.playlist).objects.filter(pk=self.playlist.pk).exists()
         )
 
-    def test_a_ta_may_not_promote_anyone_to_ta(self):
-        self.assertFalse(self.playlist.can_grant_role(self.ta, PlaylistRole.TA))
-        self.assertFalse(self.playlist.can_grant_role(self.ta, PlaylistRole.INSTRUCTOR))
+    def test_a_collaborator_may_not_promote_anyone_to_collaborator(self):
+        self.assertFalse(
+            self.playlist.can_grant_role(self.collaborator, PlaylistRole.COLLABORATOR)
+        )
 
-    def test_a_ta_may_grant_read_only_roles(self):
-        self.assertTrue(self.playlist.can_grant_role(self.ta, PlaylistRole.STUDENT))
+    def test_a_collaborator_may_grant_read_only_roles(self):
+        self.assertTrue(
+            self.playlist.can_grant_role(self.collaborator, PlaylistRole.STUDENT)
+        )
 
-    def test_a_ta_may_not_retire_the_owners_annotation_set(self):
+    def test_a_collaborator_may_not_retire_the_owners_annotation_set(self):
         response = self.client.delete(
             reverse("delete_annotation_set", args=[self.annotation_set.pk])
         )
@@ -668,30 +677,6 @@ class TeachingAssistantTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.annotation_set.refresh_from_db()
         self.assertEqual(self.annotation_set.owner_id, self.owner.pk)
-
-
-class CoInstructorTests(TestCase):
-    """Fact 3: no view creates INSTRUCTOR rows yet, so this builds one directly."""
-
-    def setUp(self):
-        self.owner = UserFactory(instructor=True)
-        self.playlist = PlaylistFactory(owner=self.owner)
-        self.co_instructor = UserFactory(instructor=True)
-        PlaylistUserAccessFactory(
-            playlist=self.playlist,
-            user=self.co_instructor,
-            playlist_role=PlaylistRole.INSTRUCTOR,
-        )
-
-    def test_a_co_instructor_has_the_owners_write_access(self):
-        self.assertTrue(self.playlist.can_be_edited_by(self.co_instructor))
-        self.assertTrue(self.playlist.can_be_viewed_by(self.co_instructor))
-
-    def test_a_co_instructor_may_not_delete_or_promote(self):
-        self.assertFalse(self.playlist.can_be_administered_by(self.co_instructor))
-        self.assertFalse(
-            self.playlist.can_grant_role(self.co_instructor, PlaylistRole.TA)
-        )
 
 
 class OwnerHappyPathTests(TestCase):

@@ -22,7 +22,7 @@ pytestmark = [
     pytest.mark.django_db(transaction=True),
 ]
 
-# Seeded by core/dev_seed.py with a TA and two students, so the panel has rows to act on.
+# Seeded by core/dev_seed.py with a collaborator and two students, so the panel has rows to act on.
 POPULATED_PLAYLIST = "Birds of a Feather"
 
 # Longer than NETID_PATTERN allows, so AddUserLookupForm rejects it on the regex and never
@@ -134,7 +134,9 @@ def test_adding_someone_found_by_search_puts_them_in_the_list(
     ).to_be_attached()
 
     page.locator("#playlist-member-results").select_option(index=0)
-    page.locator("#playlist-member-role").select_option(str(PlaylistRole.TA.value))
+    page.locator("#playlist-member-role").select_option(
+        str(PlaylistRole.COLLABORATOR.value)
+    )
     page.locator("#playlist-member-add-button").click()
 
     status = page.locator("#playlist-members-status")
@@ -142,7 +144,7 @@ def test_adding_someone_found_by_search_puts_them_in_the_list(
     expect(status).to_contain_text("added")
     expect(status).to_have_class(re.compile(r"playlist-members-status-success"))
     expect(page.locator(".playlist-member-row", has_text="Ivy")).to_have_count(1)
-    assert role_of(members_panel, "Ivy") == PlaylistRole.TA
+    assert role_of(members_panel, "Ivy") == PlaylistRole.COLLABORATOR
 
     # The picker is cleared so the next add does not start on the previous person.
     expect(page.locator("#playlist-member-search")).to_have_value("")
@@ -212,8 +214,10 @@ def test_the_panel_does_not_resize_around_its_status_messages(
 
     page.locator(".playlist-member-row", has_text="Alice").locator(
         ".playlist-member-role-select"
-    ).select_option(str(PlaylistRole.TA.value))
-    expect(page.locator("#playlist-members-status")).to_contain_text("is now TA")
+    ).select_option(str(PlaylistRole.COLLABORATOR.value))
+    expect(page.locator("#playlist-members-status")).to_contain_text(
+        "is now Collaborator"
+    )
     assert dialog.bounding_box()["width"] == opening_width
 
 

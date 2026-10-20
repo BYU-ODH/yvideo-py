@@ -108,8 +108,8 @@ def content_with_every_annotation_type(seeded_demo_data):
     """
     from core.factories import AnnotationSetFactory
     from core.factories import BlankAnnotationFactory
+    from core.factories import BlurAnchorPointFactory
     from core.factories import BlurAnnotationFactory
-    from core.factories import BlurAnnotationPositionFactory
     from core.factories import ClipFactory
     from core.factories import CommentAnnotationFactory
     from core.factories import ContentFactory
@@ -178,7 +178,7 @@ def content_with_every_annotation_type(seeded_demo_data):
         (2.0, 10.0, 20.0, 15.0, 12.0),
         (7.0, 50.0, 40.0, 20.0, 9.0),
     ):
-        BlurAnnotationPositionFactory(
+        BlurAnchorPointFactory(
             blur_annotation=blur, time=time, x=x, y=y, width=width, height=height
         )
 
@@ -707,7 +707,7 @@ def test_the_annotation_form_has_no_a11y_violations(
 
 
 def test_the_blur_editing_ui_has_no_a11y_violations(page: Page, open_editor):
-    """The blur points panel and the editable video frame, with a blur selected.
+    """The blur anchor points panel and the editable video frame, with a blur selected.
 
     Worth its own test even though the blur form is audited above, because a blur is placed
     by dragging, and dragging is the one interaction a keyboard user cannot perform: the
@@ -728,13 +728,15 @@ def test_the_blur_editing_ui_has_no_a11y_violations(page: Page, open_editor):
     # Select a row, because a point's delete button is `display: none` until its row is the
     # active one - and axe skips hidden elements, so without this the buttons are never
     # audited at all.
-    page.locator("#blur-positions-wrapper .position-entry").nth(1).click()
-    page.wait_for_selector(".active-position-entry .blur-position-delete-button")
+    page.locator("#blur-anchor-points-wrapper .blur-anchor-point-entry").nth(1).click()
+    page.wait_for_selector(
+        ".active-blur-anchor-point-entry .blur-anchor-point-delete-button"
+    )
 
     assert_no_violations(
         page,
         "the blur editing UI",
-        include=["#blur-positions-wrapper", "#annotation-box"],
+        include=["#blur-anchor-points-wrapper", "#annotation-box"],
     )
 
 
@@ -1073,7 +1075,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/annotation_set_options/use_existing_set.html",
     "core/partials/annotation_set_selector.html",
     "core/partials/annotation_set_retirement_modal.html",
-    "core/partials/blur_positions.html",
+    "core/partials/blur_anchor_points.html",
     "core/partials/item.html",
     "core/partials/item_form_placeholder.html",
     "core/partials/item_undo_redo_buttons.html",

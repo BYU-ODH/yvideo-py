@@ -13,8 +13,8 @@ from ..factories import ResourceFileFactory
 from ..factories import TrackFactory
 from ..factories import UserFactory
 from ..models import BlankAnnotation
+from ..models import BlurAnchorPoint
 from ..models import BlurAnnotation
-from ..models import BlurAnnotationPosition
 from ..models import Clip
 from ..models import CommentAnnotation
 from ..models import MuteAnnotation
@@ -77,7 +77,7 @@ class AnnotationHistoryModelTests(TestCase):
                 for field_name, value in original_values.items():
                     self.assertEqual(getattr(edited, field_name), value)
 
-    def test_edit_copies_blur_positions_to_each_version(self):
+    def test_edit_copies_blur_blur_anchor_points_to_each_version(self):
         blur = BlurAnnotation.objects.create(
             track=self.track,
             name="Logo",
@@ -85,7 +85,7 @@ class AnnotationHistoryModelTests(TestCase):
             start_time=2,
             end_time=8,
         )
-        position = BlurAnnotationPosition.objects.create(
+        blur_anchor_point = BlurAnchorPoint.objects.create(
             blur_annotation=blur,
             time=4,
             x=10,
@@ -95,14 +95,14 @@ class AnnotationHistoryModelTests(TestCase):
         )
 
         edited = blur.edit(name="Edited logo")
-        copied_position = edited.positions.get()
+        copied_blur_anchor_point = edited.blur_anchor_points.get()
 
-        self.assertNotEqual(copied_position.id, position.id)
-        self.assertEqual(copied_position.time, position.time)
-        self.assertEqual(copied_position.x, position.x)
-        self.assertEqual(copied_position.y, position.y)
-        self.assertEqual(copied_position.width, position.width)
-        self.assertEqual(copied_position.height, position.height)
+        self.assertNotEqual(copied_blur_anchor_point.id, blur_anchor_point.id)
+        self.assertEqual(copied_blur_anchor_point.time, blur_anchor_point.time)
+        self.assertEqual(copied_blur_anchor_point.x, blur_anchor_point.x)
+        self.assertEqual(copied_blur_anchor_point.y, blur_anchor_point.y)
+        self.assertEqual(copied_blur_anchor_point.width, blur_anchor_point.width)
+        self.assertEqual(copied_blur_anchor_point.height, blur_anchor_point.height)
 
     def test_undo_redo_and_edit_after_undo_manage_the_chain(self):
         root = CommentAnnotationFactory(track=self.track, name="Root")
@@ -313,7 +313,7 @@ class AnnotationHistoryViewTests(TestCase):
         # part of the content whose editor is asking for it.
         self.assertEqual(response.status_code, 404)
 
-    def test_undo_restores_the_previous_versions_blur_positions(self):
+    def test_undo_restores_the_previous_versions_blur_blur_anchor_points(self):
         blur = BlurAnnotation.objects.create(
             track=self.track,
             name="Logo",
@@ -322,10 +322,13 @@ class AnnotationHistoryViewTests(TestCase):
             active=True,
         )
         for time in (2, 6):
-            BlurAnnotationPosition.objects.create(
+            BlurAnchorPoint.objects.create(
                 blur_annotation=blur, time=time, x=10, y=20, width=30, height=40
             )
-        original_times = [position.time for position in blur.positions.all()]
+        original_times = [
+            blur_anchor_point.time
+            for blur_anchor_point in blur.blur_anchor_points.all()
+        ]
 
         # A resize, which reconciles the new version's points against the smaller window.
         update_response = self.client.post(
@@ -343,11 +346,18 @@ class AnnotationHistoryViewTests(TestCase):
         self.assertEqual(update_response.status_code, 200)
         updated_id = update_response.json()["annotation_id"]
         updated = BlurAnnotation.objects.get(id=updated_id)
-        updated_times = [position.time for position in updated.positions.all()]
+        updated_times = [
+            blur_anchor_point.time
+            for blur_anchor_point in updated.blur_anchor_points.all()
+        ]
         self.assertNotEqual(updated_times, original_times)
         # The superseded version keeps its own copy - that copy is the whole point of undo.
         self.assertEqual(
-            [position.time for position in blur.positions.all()], original_times
+            [
+                blur_anchor_point.time
+                for blur_anchor_point in blur.blur_anchor_points.all()
+            ],
+            original_times,
         )
 
         undo_response = self.client.post(
@@ -360,14 +370,18 @@ class AnnotationHistoryViewTests(TestCase):
         self.assertEqual(restored.id, blur.id)
         self.assertTrue(restored.active)
         self.assertEqual(
-            [position.time for position in restored.positions.all()], original_times
+            [
+                blur_anchor_point.time
+                for blur_anchor_point in restored.blur_anchor_points.all()
+            ],
+            original_times,
         )
 
     def test_undo_discards_rig_edits_made_since_the_version_was_created(self):
         """Pins a known limitation rather than asserting desired behaviour.
 
-        Blur geometry is written by upsert_blur_position, which edits the active version's
-        positions in place and never calls edit(). Only a field save creates a version. So a rig
+        Blur geometry is written by upsert_blur_anchor_point, which edits the active version's
+        anchor points in place and never calls edit(). Only a field save creates a version. So a rig
         drag made *after* a field save lands on the active version alone, and the next undo -
         which the user means as "take back that field save" - reverts the drag along with it.
         No history step ever corresponded to the drag, so nothing warns them.
@@ -382,9 +396,9 @@ class AnnotationHistoryViewTests(TestCase):
         blur = BlurAnnotation.objects.create(
             track=self.track, name="Logo", start_time=0, end_time=10, active=True
         )
-        # At time 0 so it is the point ensure_first_position pins to start_time; the drag below
+        # At time 0 so it is the point ensure_first_blur_anchor_point pins to start_time; the drag below
         # then updates this row rather than adding a second one.
-        BlurAnnotationPosition.objects.create(
+        BlurAnchorPoint.objects.create(
             blur_annotation=blur, time=0, x=10, y=20, width=30, height=40
         )
 
@@ -403,19 +417,19 @@ class AnnotationHistoryViewTests(TestCase):
         )
         self.assertEqual(rename.status_code, 200)
         renamed = BlurAnnotation.objects.get(id=rename.json()["annotation_id"])
-        self.assertEqual(renamed.positions.get().x, 10)
+        self.assertEqual(renamed.blur_anchor_points.get().x, 10)
 
         # Now a rig drag on the new active version: geometry only, no version created. Kept
         # inside the frame so the model's clamping does not rewrite the value asserted on.
         drag = self.client.post(
-            reverse("upsert_blur_position", args=[renamed.id]),
+            reverse("upsert_blur_anchor_point", args=[renamed.id]),
             data=json.dumps({"time": 0, "x": 55, "y": 50, "width": 30, "height": 40}),
             content_type="application/json",
         )
         self.assertEqual(drag.status_code, 200)
         renamed.refresh_from_db()
         self.assertIsNone(renamed.next_id)
-        self.assertEqual(renamed.positions.get().x, 55)
+        self.assertEqual(renamed.blur_anchor_points.get().x, 55)
 
         # One undo, meaning "take back the rename", silently takes the drag with it.
         undo = self.client.post(
@@ -426,7 +440,7 @@ class AnnotationHistoryViewTests(TestCase):
         restored = BlurAnnotation.objects.get(id=undo.json()["annotation_id"])
         self.assertEqual(restored.id, blur.id)
         self.assertEqual(restored.name, "Logo")
-        self.assertEqual(restored.positions.get().x, 10)
+        self.assertEqual(restored.blur_anchor_points.get().x, 10)
 
     def test_detail_form_has_icon_history_buttons_at_the_top(self):
         updated = self.annotation.edit(name="Updated")

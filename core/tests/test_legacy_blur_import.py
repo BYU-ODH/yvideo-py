@@ -60,7 +60,9 @@ class LegacyCensorImportTests(TestCase):
         return BlurAnnotation.objects.get()
 
     def _stored(self, blur):
-        return [(p.time, p.x, p.y, p.width, p.height) for p in blur.positions.all()]
+        return [
+            (p.time, p.x, p.y, p.width, p.height) for p in blur.blur_anchor_points.all()
+        ]
 
     # --- the coordinate conversion -------------------------------------------
 
@@ -105,7 +107,7 @@ class LegacyCensorImportTests(TestCase):
             *json.loads(json.dumps([_censor({"0": [2.5, 33.33, 44.44, 11.11, 22.22]})]))
         )
 
-        stored = blur.positions.get()
+        stored = blur.blur_anchor_points.get()
         self.assertEqual(stored.x, 27.77)
         self.assertEqual(stored.y, 33.33)
 
@@ -131,7 +133,7 @@ class LegacyCensorImportTests(TestCase):
             )
         )
 
-        self.assertEqual([p.time for p in blur.positions.all()], [2.0, 3.0])
+        self.assertEqual([p.time for p in blur.blur_anchor_points.all()], [2.0, 3.0])
 
     def test_times_colliding_only_after_quantization_do_not_abort_the_import(self):
         """save() rounds to 2dp, so distinct legacy times can land on the same row."""
@@ -145,7 +147,7 @@ class LegacyCensorImportTests(TestCase):
             )
         )
 
-        self.assertEqual([p.time for p in blur.positions.all()], [2.0, 3.0])
+        self.assertEqual([p.time for p in blur.blur_anchor_points.all()], [2.0, 3.0])
 
     def test_a_censor_with_no_keyframes_still_gets_geometry(self):
         """`position: {}` was how the legacy timeline's + button created a censor.
@@ -156,11 +158,11 @@ class LegacyCensorImportTests(TestCase):
         """
         blur = self._import(_censor({}))
 
-        self.assertEqual(blur.positions.count(), 1)
-        position = blur.positions.get()
-        self.assertEqual(position.time, blur.start_time)
-        self.assertGreater(position.width, 0)
-        self.assertGreater(position.height, 0)
+        self.assertEqual(blur.blur_anchor_points.count(), 1)
+        blur_anchor_point = blur.blur_anchor_points.get()
+        self.assertEqual(blur_anchor_point.time, blur.start_time)
+        self.assertGreater(blur_anchor_point.width, 0)
+        self.assertGreater(blur_anchor_point.height, 0)
 
     def test_malformed_keyframes_are_skipped_rather_than_failing_the_import(self):
         blur = self._import(
@@ -180,15 +182,15 @@ class LegacyCensorImportTests(TestCase):
     def test_the_earliest_keyframe_is_pinned_to_the_censors_start(self):
         """Invariant I5. Legacy never guaranteed a keyframe at the event's start.
 
-        Without this the first row is unreachable: get_position_locators skips it (position one
+        Without this the first row is unreachable: get_blur_anchor_point_dots skips it (anchor point one
         is meant to coincide with the item's own left handle, so a dot there would block it) and
         the panel renders its time readonly - so the user can neither retime nor delete it.
         """
         blur = self._import(_censor({"0": [3, 40, 50, 20, 30]}, start=2.0, end=6.0))
 
-        self.assertEqual(blur.positions.first().time, 2.0)
+        self.assertEqual(blur.blur_anchor_points.first().time, 2.0)
         # Retimed, not replaced: the author's geometry is what should show at the start.
-        self.assertEqual(blur.positions.first().x, 30.0)
+        self.assertEqual(blur.blur_anchor_points.first().x, 30.0)
 
     def test_keyframes_past_the_censors_end_are_dropped(self):
         """They could never have been seen, and their dots would sit off the end of the bar."""
@@ -196,7 +198,7 @@ class LegacyCensorImportTests(TestCase):
             _censor({"0": [2, 40, 50, 20, 30], "1": [9, 60, 70, 10, 50]})
         )
 
-        self.assertEqual([p.time for p in blur.positions.all()], [2.0])
+        self.assertEqual([p.time for p in blur.blur_anchor_points.all()], [2.0])
 
     def test_only_the_latest_keyframe_before_the_start_survives(self):
         """That one is the geometry showing when the censor begins; earlier ones are history.
@@ -216,9 +218,9 @@ class LegacyCensorImportTests(TestCase):
             )
         )
 
-        self.assertEqual([p.time for p in blur.positions.all()], [2.0, 4.0])
-        # The survivor is the one from t=1.5, retimed to the start by ensure_first_position.
-        self.assertEqual(blur.positions.first().x, 30.0)
+        self.assertEqual([p.time for p in blur.blur_anchor_points.all()], [2.0, 4.0])
+        # The survivor is the one from t=1.5, retimed to the start by ensure_first_blur_anchor_point.
+        self.assertEqual(blur.blur_anchor_points.first().x, 30.0)
 
     def test_a_keyframe_already_at_the_start_wins_over_an_earlier_one(self):
         """Retiming onto an occupied time would collide with the unique index."""
@@ -226,5 +228,5 @@ class LegacyCensorImportTests(TestCase):
             _censor({"0": [1.0, 10, 10, 20, 30], "1": [2.0, 40, 50, 20, 30]})
         )
 
-        self.assertEqual([p.time for p in blur.positions.all()], [2.0])
-        self.assertEqual(blur.positions.get().x, 30.0)
+        self.assertEqual([p.time for p in blur.blur_anchor_points.all()], [2.0])
+        self.assertEqual(blur.blur_anchor_points.get().x, 30.0)

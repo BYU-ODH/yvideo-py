@@ -24,8 +24,8 @@ from .forms import SubtitleAdminForm
 from .models import AnnotationSet
 from .models import AuthToken
 from .models import BlankAnnotation
+from .models import BlurAnchorPoint
 from .models import BlurAnnotation
-from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
@@ -1000,8 +1000,8 @@ class BlurAnnotationAdmin(AnnotationAdmin):
     pass
 
 
-@admin.register(BlurAnnotationPosition)
-class BlurAnnotationPositionAdmin(VersionAdmin):
+@admin.register(BlurAnchorPoint)
+class BlurAnchorPointAdmin(VersionAdmin):
     list_display = (
         "blur_annotation",
         "time",

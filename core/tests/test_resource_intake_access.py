@@ -28,7 +28,7 @@ class ResourceIntakeAccessTests(TestCase):
     def make_ta(self, netid):
         ta = UserFactory(student=True, netid=netid)
         PlaylistUserAccessFactory(
-            user=ta, playlist=PlaylistFactory(), playlist_role=PlaylistRole.TA
+            user=ta, playlist=PlaylistFactory(), playlist_role=PlaylistRole.COLLABORATOR
         )
         return ta
 
