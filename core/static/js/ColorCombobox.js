@@ -32,9 +32,7 @@ export function setUpColorCombobox(input) {
     for (const option of options) {
       option.setAttribute("aria-selected", String(option.dataset["value"] === value));
     }
-    if (isHexColor(value)) {
-      swatch.style.backgroundColor = "#" + value;
-    }
+    swatch.style.backgroundColor = isHexColor(value) ? "#" + value : "";
   };
 
   const open = () => {
@@ -74,7 +72,8 @@ export function setUpColorCombobox(input) {
         return;
       }
       const step = e.key === "ArrowDown" ? 1 : -1;
-      setActive((activeIndex + step + options.length) % options.length);
+      const from = activeIndex < 0 && step < 0 ? options.length : activeIndex;
+      setActive((from + step + options.length) % options.length);
     } else if (e.key === "Enter" && isOpen() && activeIndex >= 0) {
       e.preventDefault();
       choose(options[activeIndex]);
