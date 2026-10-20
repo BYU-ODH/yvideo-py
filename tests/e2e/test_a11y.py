@@ -556,11 +556,8 @@ def test_the_player_controls_and_menus_have_no_a11y_violations(
     page.locator(".clips-btn").click()
     assert_no_violations(page, "the clips menu")
 
-    # The sidebar button stays disabled until a caption track is on, so turning captions on
-    # is what makes the sidebar reachable - and it audits the captions-on state besides.
     page.locator(".captions-btn").click()
-    page.locator('.caption-option[data-subtitle-track="0"]').click()
-    page.wait_for_selector(".subtitle-sidebar-btn:not([disabled])")
+    page.locator("#cap-track-1-button").click()
     assert_no_violations(page, "the player with captions turned on")
 
     page.locator(".subtitle-sidebar-btn").click()
