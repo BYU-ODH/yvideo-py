@@ -1194,34 +1194,22 @@ export class Editor {
           // use 1 to advance forward, -1 to advance backward
           const advanceValue = isAdvancing ? 1 : -1;
 
-          // we need to know where we are so we can determine which clip to click on.
-          const clipList = document.getElementById("clip-annotation-items-list");
-          const clipLen = clipList.children.length;
-          let currentIndex;
-          for (let index = 0; index < clipLen; index++) {
-            const child = clipList.children[index];
-            if (child.dataset["annotationId"] == annotationId) {
-              currentIndex = index;
-              break;
-            }
-          }
+          // The panel list is in creation order, so order by timeline position instead.
+          const clipIds = [...document.querySelectorAll('.track-item[data-annotation-type="clip"]')]
+            .sort((a, b) => parseFloat(a.dataset["start"]) - parseFloat(b.dataset["start"]))
+            .map((item) => item.dataset["annotationId"]);
+          const clipLen = clipIds.length;
+          const currentIndex = clipIds.findIndex((id) => id == annotationId);
 
-          if (currentIndex === undefined) {
+          if (currentIndex === -1) {
             console.error(`Could not find clip annotation id (${annotationId}) matching the currently active clip.`);
             return;
           }
 
-          const nextIndex = currentIndex + advanceValue;
-          if (nextIndex >= clipLen) {
-            // roll over to start of list
-            clipList.children[0].click();
-          }
-          else if (nextIndex < 0) {
-            clipList.children[clipLen - 1].click();
-          }
-          else {
-            clipList.children[nextIndex].click();
-          }
+          // wrap around at either end of the timeline
+          const nextId = clipIds[(currentIndex + advanceValue + clipLen) % clipLen];
+          const clipList = document.getElementById("clip-annotation-items-list");
+          clipList.querySelector(`[data-annotation-id="${nextId}"]`)?.click();
         }
         const nextClipButton = document.getElementById("next-clip-button");
         if (nextClipButton) {
