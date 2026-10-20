@@ -1,10 +1,14 @@
-"""A zoomed timeline stays where it was put when the window changes size.
+"""A zoomed timeline stays where it was put, with every track lined up under the ruler.
 
 The timeline is `100 * zoomLevel` percent wide, so its pixel width follows the window - but the
-browser stores a scroll position in pixels. Resizing the window therefore left the same pixel
-offset pointing at a different time, sliding the tracks out from under whatever the user was
-working on (and, when the window grew, snapping them back toward the start). The scroll position is
-now remembered as a fraction of the timeline, which is what stays meaningful across a resize.
+browser stores a scroll position in pixels. The scroll position is therefore remembered as a
+fraction of the timeline, which is what stays meaningful across a resize.
+
+The ruler and each track are separate scroll containers, and the browser scrolls whichever one is
+under the pointer. Whichever row scrolls, the others follow it, a track can never scroll past the
+end of the ruler, and tracks rebuilt from server HTML start at the current zoom and scroll
+position. The alignment tests compare on-screen rectangles, so a track at the wrong width and a
+track at the wrong offset both show up as misaligned.
 
 Nothing here is specific to YouTube or to long videos - it needs only a zoom level above 1, which
 is why it runs on the seeded file-backed content like the rest of the editor tests.
@@ -193,7 +197,7 @@ def test_scrolling_one_track_by_itself_carries_the_ruler_and_the_other_tracks(
 
 
 def test_scrolling_the_ruler_by_itself_carries_the_tracks(page, open_editor):
-    # The ruler is focusable, so arrow keys scroll it without going through the slider.
+    # A trackpad swipe or shift+wheel over the ruler scrolls only the ruler.
     page.set_viewport_size(WIDE_VIEWPORT)
     open_editor()
     _zoom_and_scroll(page)

@@ -2228,8 +2228,8 @@ export class Editor {
     }
 
     // Each row is its own scroll container, and the browser scrolls them individually: a trackpad
-    // or shift+wheel over one row, arrow keys on the focused ruler, focusing an item that is off
-    // screen. Whichever one moved, the rest follow.
+    // or shift+wheel over one row (the ruler included), focusing an item that is off screen.
+    // Whichever one moved, the rest follow.
     keepTimelineRowsScrolledTogether() {
       // scroll does not bubble, so it is only seen here while capturing.
       this.timelineWrapper.addEventListener("scroll", (e) => {
