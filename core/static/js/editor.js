@@ -1715,6 +1715,14 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
+      const itemCount = trackRow.querySelectorAll(".track-item").length;
+      if (itemCount > 0) {
+        const items = itemCount === 1 ? "1 annotation" : `${itemCount} annotations`;
+        const message = `Delete track "${trackRow.querySelector(".track-name").innerText}" and its ${items}? This cannot be undone.`;
+        if (!window.confirm(message)) {
+          return;
+        }
+      }
       const trackDeleteResponse = await fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
