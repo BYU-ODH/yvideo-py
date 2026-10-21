@@ -325,19 +325,6 @@ export class AnnotationPlayer {
     return subtitleTracks.find(subtitleTrack => subtitleTrack.mode === 'showing' || subtitleTrack.mode === 'hidden') || null;
   }
 
-  _getActiveTrackId() {
-    const subtitleTracks = Array.from(this.videoElem.textTracks);
-    for (let subtitleTrack of subtitleTracks) {
-      if (subtitleTrack.mode === "showing" || subtitleTrack.mode === "hidden") {
-        let trackId;
-        const trackIdMatches = subtitleTrack.id.match(/\d+/);
-        if (trackIdMatches.length > 0) trackId = trackIdMatches[0];
-        return trackId
-      }
-    }
-    return '';
-  }
-
   _showBezel(icon, text) {
     if (this.bezelTimeout) {
       clearTimeout(this.bezelTimeout);
@@ -1380,12 +1367,14 @@ export class AnnotationPlayer {
     this._subtitleTracksSignature = JSON.stringify(subtitleObjs);
     subtitleObjs.forEach((trackData) => {
       const subtitleTrackElem = document.createElement('track');
-      subtitleTrackElem.id = `${trackData.name}-${trackData.id}`;
-
-      // default
+      subtitleTrackElem.id = trackData.id;
       subtitleTrackElem.kind = trackData.kind || 'subtitles';
 
-      if (trackData.label) subtitleTrackElem.label = trackData.label;
+      if (trackData.name) {
+        subtitleTrackElem.label = trackData.name;
+      } else if (trackData.label) {
+        subtitleTrackElem.label = trackData.label;
+      }
       if (trackData.srclang) subtitleTrackElem.srclang = trackData.srclang;
       subtitleTrackElem.default = trackData.default === true;  // honor instructor-chosen default track
 
@@ -1434,6 +1423,10 @@ export class AnnotationPlayer {
     }
   }
 
+  _renderCaptionTrackOptionIdFromTextTrack(textTrack) {
+    return textTrack?.id ? `cap-track-${textTrack.id}-button` : "";
+  }
+
   _renderCaptionsMenu() {
     if (!this.controls.captionsMenu) return;
 
@@ -1442,27 +1435,11 @@ export class AnnotationPlayer {
     let menuHTML = '<div class="caption-option" data-subtitle-track="off" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">Off</div>';
 
     subtitleTrackElems.forEach((trackElem) => {
-      let trackName = '';
-      const trackNameMatches = trackElem.id.matchAll(/[^\d-]|-(?=\D)/g);
-      for (let match of trackNameMatches) {
-        trackName += match[0];
-      }
-      let internalTrackId;
-      const trackIdMatches = trackElem.id.match(/\d+/);
-      if (trackIdMatches.length > 0) {
-        internalTrackId = trackIdMatches[0];
-      }
-      else {
-        // if this track doesn't have an id, we don't want to include it.
-        // This should never happen.
-        console.error("Failed to get track id, refusing to include it as a track for this video.");
-        return;
-      }
-      let label = trackName || `Subtitle track ${internalTrackId}`;
+      let label = trackElem.label || `Subtitle track ${trackElem.id}`;
       if (trackElem.language) {
         label += ` (${trackElem.language})`;
       }
-      menuHTML += `<div id="cap-track-${internalTrackId}-button" class="caption-option" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
+      menuHTML += `<div id="${this._renderCaptionTrackOptionIdFromTextTrack(trackElem)}" class="caption-option" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
     });
 
     this.controls.captionsMenu.innerHTML = menuHTML;
@@ -1474,14 +1451,14 @@ export class AnnotationPlayer {
   _updateCaptionsMenuHighlight() {
     if (!this.controls.captionsMenu) return;
 
-    const activeTrackId = this._getActiveTrackId();
-
     this.controls.captionsMenu.querySelectorAll('.caption-option').forEach(option => {
       option.classList.remove('active-value');
     });
 
-    if (activeTrackId !== '') {
-      const activeOption = this.controls.captionsMenu.querySelector(`#cap-track-${activeTrackId}-button`);
+    const activeTrack = this._getActiveTrack();
+
+    if (activeTrack && activeTrack.id !== '') {
+      const activeOption = this.controls.captionsMenu.querySelector(`#${this._renderCaptionTrackOptionIdFromTextTrack(activeTrack)}`);
       if (activeOption) {
         activeOption.classList.add('active-value');
       }
@@ -1493,21 +1470,18 @@ export class AnnotationPlayer {
     }
   }
 
-  setCaptionTrack(trackIndex) {
+  setCaptionTrack(trackId) {
     const subtitleTrackElems = Array.from(this.videoElem.textTracks);
-    let trackElementToTurnOn;
-    subtitleTrackElems.forEach(trackElem => {
-      trackElem.mode = 'disabled';
-      const matchString = new RegExp(`-${trackIndex}`, "g");
-      const trackIdMatches = trackElem.id.match(matchString);
-      // trackIdMatches is null if there is not a match.
-      if (trackIdMatches) {
-        trackElementToTurnOn = trackElem;
-      }
-    });
+    for (let subTrackEl of subtitleTrackElems) {
+      subTrackEl.mode = "disabled";
+    }
 
-    if (trackElementToTurnOn !== undefined) {
-      trackElementToTurnOn.mode = 'showing';
+    if (trackId != '') {
+      for (let subTrackEl of subtitleTrackElems) {
+        if (this._renderCaptionTrackOptionIdFromTextTrack(subTrackEl) == trackId) {
+          subTrackEl.mode = "showing";
+        }
+      }
     }
 
     this._updateCaptionsMenuHighlight();
@@ -1913,13 +1887,8 @@ export class AnnotationPlayer {
       });
       this.controls.captionsMenu.addEventListener('click', (e) => {
         const target = e.target.closest('.caption-option');
-        if (target && target.id) {
-          const matches = target.id.match(/\d+/);
-          this.setCaptionTrack(matches.length == 0 ? "off" : parseFloat(matches[0]))
-        } else {
-          // provide a fall back if something goes wrong or the off button is selected
-          this.setCaptionTrack("off");
-        }
+        if (!target) return;
+        this.setCaptionTrack(target.id);
         this.controls.captionsMenu.style.display = "none";
       });
     }
