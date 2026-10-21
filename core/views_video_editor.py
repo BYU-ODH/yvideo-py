@@ -240,7 +240,6 @@ def video_editor(request, content):
             "tracks": tracks,
             "subtitle_options": subtitle_options,
             "subtitle_panel": subtitle_panel,
-            "languages": Language.objects.all(),
             "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
             "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),
         }

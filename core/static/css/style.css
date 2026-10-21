@@ -332,11 +332,6 @@ a.blue-button {
     visibility: hidden;
 }
 
-.visible-multi-option-menu {
-    display: flex;
-    box-shadow: 3px 3px 3px 0 var(--box-shadow-color);
-}
-
 .multi-option-menu-button {
     padding: 5px;
     border: none;

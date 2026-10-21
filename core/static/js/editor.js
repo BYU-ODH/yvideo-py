@@ -2934,7 +2934,6 @@ export class Editor {
     }
 
     async saveCues(cues, isAutosave=true) {
-      console.log("cues saved", cues);
       if (typeof isAutosave !== "boolean") {
         console.error("Could not save cues: isAutosave must be a boolean.");
         return false;

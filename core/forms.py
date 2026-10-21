@@ -117,30 +117,6 @@ class ClipForm(forms.ModelForm):
         return cleaned_data
 
 
-class SubtitleForm(forms.ModelForm):
-    subtitles_file = forms.FileField(allow_empty_file=True)
-
-    def clean_subtitles_file(self):
-        upload = self.cleaned_data.get("subtitles_file")
-        if self.add_prefix("subtitles_file") not in self.files:
-            return upload
-        return build_subtitle_file_from_upload(upload)
-
-    class Meta:
-        model = Subtitle
-        fields = [
-            "resource",
-            "owner",
-            "language",
-            "name",
-            "subtitles_file",
-            "is_original",
-        ]
-
-    resource = forms.CharField(widget=forms.HiddenInput)
-    owner = forms.CharField(widget=forms.HiddenInput)
-
-
 class SubtitleAdminForm(forms.ModelForm):
     subtitles_file = forms.FileField(allow_empty_file=True)
     subtitles_temp_file = forms.FileField(required=False, allow_empty_file=True)

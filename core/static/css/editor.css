@@ -143,7 +143,7 @@
     display: none;
 }
 
-#annotation-panel-header, #subtitle-panel-header, #subtitles-settings-wrapper {
+#annotation-panel-header, #subtitle-panel-header {
     padding: 8px;
 }
 
@@ -151,15 +151,15 @@
     margin: 0;
 }
 
-#subtitle-track-title-wrapper, #subtitle-track-language-wrapper {
+#subtitle-track-title-wrapper {
     padding: 8px;
 }
 
-#subtitle-track-title-wrapper h4, #subtitle-track-language-wrapper h4 {
+#subtitle-track-title-wrapper h4 {
     margin: 0;
 }
 
-#subtitle-track-title-change-button img, #subtitle-track-language-change-button img {
+#subtitle-track-title-change-button img {
     filter: invert(1);
 }
 
