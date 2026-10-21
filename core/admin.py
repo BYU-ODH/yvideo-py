@@ -690,6 +690,7 @@ class UserAdmin(VersionAdmin):
 class ResourceAdmin(VersionAdmin):
     list_display = (
         "name",
+        "name_disambiguator",
         "media_type",
         "requester_username",
         "copyrighted",
@@ -697,7 +698,7 @@ class ResourceAdmin(VersionAdmin):
         "created_at",
     )
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
-    search_fields = ("name",)
+    search_fields = ("name", "name_disambiguator")
 
     class Media:
         js = ("js/admin_call_number.js",)
@@ -722,6 +723,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
     change_form_template = "admin/core/resourceintakerequest/change_form.html"
     list_display = (
         "resource_title",
+        "resource_name_disambiguator",
         "owner",
         "date_needed",
         "existing_matches_summary",
@@ -741,6 +743,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                 "fields": (
                     ("owner", "date_needed"),
                     "resource_title",
+                    "resource_name_disambiguator",
                     "imdb_link",
                     ("audio_language", "subtitle_language"),
                     (
