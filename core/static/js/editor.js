@@ -380,9 +380,9 @@ export class Editor {
         this.markItemAsActive(annotationType, annotationId);
       });
 
-      const panelItemDeleteButton = element.querySelector(".panel-item-delete");
-      if (panelItemDeleteButton) {
-        panelItemDeleteButton.addEventListener("click", async (e) => {
+      const annotationItemDeleteButton = element.querySelector(".annotation-item-delete");
+      if (annotationItemDeleteButton) {
+        annotationItemDeleteButton.addEventListener("click", async (e) => {
           e.preventDefault();
           // Keeps the parent panel item's click handler from reloading the deleted item's form
           e.stopPropagation();
