@@ -1,5 +1,6 @@
 import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
+import { saveStatus } from "./save-status.js";
 import {
   RESIZE_HANDLES,
   clampRect,
@@ -444,6 +445,7 @@ export class Editor {
 
     autoSaveItemForm() {
       const itemForm = document.getElementById("annotation-update-form");
+      saveStatus.settle("item-form");
       if (!itemForm) {
         this.saveItemForm = null;
         return;
@@ -454,6 +456,7 @@ export class Editor {
       let saveQueued = false;
 
       const save = this.saveItemForm = async () => {
+        saveStatus.settle("item-form");
         if (saveInFlight) {
           saveQueued = true;
           return;
@@ -494,6 +497,15 @@ export class Editor {
         }
       };
 
+      itemForm.addEventListener("input", (e) => {
+        if (!e.target.name) return;
+        if (this.serializeItemForm(itemForm) === this.lastSavedItemFormState) {
+          saveStatus.settle("item-form");
+        } else {
+          saveStatus.wait("item-form");
+        }
+      });
+
       itemForm.addEventListener("change", (e) => {
         if (!e.target.name) return;
         save();
@@ -533,7 +545,7 @@ export class Editor {
         return;
       }
 
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
+      const response = await saveStatus.fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": getCSRFToken()}
       });
@@ -572,6 +584,7 @@ export class Editor {
         if (annotationType == itemFormType && annotationId == itemFormId) {
           const detailForm = document.getElementById("detail-form");
           detailForm.innerHTML = "";
+          saveStatus.settle("item-form");
         }
       }
       this.placeTrackItems();
@@ -714,7 +727,7 @@ export class Editor {
       button.disabled = true;
 
       try {
-        const response = await fetch(button.dataset.historyUrl, {
+        const response = await saveStatus.fetch(button.dataset.historyUrl, {
           method: "POST",
           headers: {
             "X-CSRFToken": getCSRFToken(),
@@ -884,7 +897,7 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await fetch(`/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`, {
+      const response = await saveStatus.fetch(`/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`, {
         method: "POST",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -985,6 +998,7 @@ export class Editor {
         clearTimeout(updateTimerId);
         updateTimerId = setTimeout(() => {
           if (!itemForm.isConnected) {
+            saveStatus.settle("item-form");
             return;
           }
           this.saveItemForm?.();
@@ -1376,7 +1390,7 @@ export class Editor {
             displayText(originalNameValue);
             return;
           }
-          const response = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
+          const response = await saveStatus.fetch(`/annotation-set/${annotationSetId}/update-name/`, {
             method: "POST",
             headers: {
               "X-CSRFToken": getCSRFToken()
@@ -1650,7 +1664,7 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await fetch(`/track/${trackId}/update/`, {
+        const response = await saveStatus.fetch(`/track/${trackId}/update/`, {
           method: "post",
           headers: {"X-CSRFToken": getCSRFToken()},
           body: JSON.stringify({"new_track_name": newTrackName})
@@ -1715,7 +1729,7 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
-      const trackDeleteResponse = await fetch(`/track/${trackId}/delete/`, {
+      const trackDeleteResponse = await saveStatus.fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -1777,7 +1791,7 @@ export class Editor {
         }
       }
 
-      const orderUpdateResponse = await fetch(`/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
+      const orderUpdateResponse = await saveStatus.fetch(`/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
         {
           method: "post",
           headers: {
@@ -1833,7 +1847,7 @@ export class Editor {
           return;
         }
 
-        const newTrackResponse = await fetch(`/annotation-set/${annotationSetId}/track/create/`, {
+        const newTrackResponse = await saveStatus.fetch(`/annotation-set/${annotationSetId}/track/create/`, {
           method: "post",
           headers: {
             "X-CSRFToken": getCSRFToken(),
@@ -1960,7 +1974,7 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const response = await fetch(`/track/${trackId}/annotations/${annotationType}/create/`,
+            const response = await saveStatus.fetch(`/track/${trackId}/annotations/${annotationType}/create/`,
               {
                 method: "POST",
                 headers: {

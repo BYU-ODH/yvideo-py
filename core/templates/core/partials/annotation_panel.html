@@ -4,21 +4,48 @@
      class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
     <div id="annotation-panel-header"
          class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <div id="annotation-set-title-wrapper"
-             class="row-flex flex-apart-aligned"
-             data-annotation-set-id="{{ annotation_set.id }}">
-            <span id="annotation-set-title">{{ annotation_set.name }}</span>
+        <div id="annotation-set-heading" class="column-flex-no-gap">
+            <div id="annotation-set-title-wrapper"
+                 class="row-flex flex-apart-aligned"
+                 data-annotation-set-id="{{ annotation_set.id }}">
+                <span id="annotation-set-title">{{ annotation_set.name }}</span>
+                {% if can_edit %}
+                    <input id="annotation-set-title-input"
+                           class="hidden"
+                           value="{{ annotation_set.name }}"
+                           aria-label="Input annotation set name">
+                    <button id="annotation-set-edit-button"
+                            class="item-form-icon-button"
+                            aria-label="Rename this annotation set"
+                            title="Rename this annotation set">
+                        <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
+                    </button>
+                {% endif %}
+            </div>
             {% if can_edit %}
-                <input id="annotation-set-title-input"
-                       class="hidden"
-                       value="{{ annotation_set.name }}"
-                       aria-label="Input annotation set name">
-                <button id="annotation-set-edit-button"
-                        class="item-form-icon-button"
-                        aria-label="Rename this annotation set"
-                        title="Rename this annotation set">
-                    <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
-                </button>
+                <div id="annotation-save-status" class="row-flex">
+                    <span class="save-status-text" role="status"></span>
+                    <svg class="save-status-check"
+                         viewBox="0 0 16 16"
+                         aria-hidden="true"
+                         focusable="false">
+                        <path d="M3 8.5 L6.5 12 L13 4.5" pathLength="1" />
+                    </svg>
+                    <button type="button"
+                            class="save-status-help"
+                            command="show-modal"
+                            commandfor="save-failed-help-modal"
+                            aria-haspopup="dialog"
+                            aria-label="Why did saving fail?"
+                            title="Why did saving fail?">
+                        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <circle cx="8" cy="8" r="7" />
+                            <path d="M6 6.2 A2 2 0 1 1 8.6 8 C8.1 8.2 8 8.6 8 9.3" />
+                            <circle class="save-status-help-dot" cx="8" cy="11.8" r="0.6" />
+                        </svg>
+                    </button>
+                </div>
+                {% include "core/partials/modals/save_failed_help.html" with dialog_id="save-failed-help-modal" %}
             {% endif %}
         </div>
         <div class="multi-select-menu">

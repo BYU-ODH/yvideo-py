@@ -1,0 +1,15 @@
+{% extends "core/partials/user_view_modal.html" %}
+
+{% block modal_title %}Why did saving fail?{% endblock %}
+{% block modal_body_classes %}save-failed-help-body{% endblock %}
+{% block modal_body %}
+    <p>Your latest change was not saved. Common causes:</p>
+    <ul>
+        <li>Your internet connection dropped.</li>
+        <li>You were logged out.</li>
+        <li>Your access to edit this annotation set changed.</li>
+        <li>A value was not accepted, such as an end time before the start time.</li>
+        <li>The server had a problem.</li>
+    </ul>
+    <p>Check your connection, then reload the page to see what was saved.</p>
+{% endblock %}
