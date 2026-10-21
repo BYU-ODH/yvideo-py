@@ -358,8 +358,115 @@
     margin: 0;
 }
 
-#annotation-set-title-wrapper {
+#annotation-set-heading {
     flex: 1;
+    min-width: 0;
+}
+
+#annotation-save-status {
+    column-gap: 0.3rem;
+    align-items: center;
+
+    /* Reserves the line before the first save so the panel below does not shift. */
+    min-height: 1.3em;
+
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--dark-mode-text-color-dimmed);
+}
+
+.save-status-text {
+    white-space: nowrap;
+}
+
+#annotation-save-status.save-status-failed {
+    color: #ff8a80;
+}
+
+.save-status-help {
+    display: none;
+    flex-shrink: 0;
+
+    padding: 0;
+    border: none;
+
+    color: inherit;
+
+    background: none;
+}
+
+#annotation-save-status.save-status-failed .save-status-help {
+    display: flex;
+}
+
+.save-status-help svg {
+    width: 0.9rem;
+    height: 0.9rem;
+
+    fill: none;
+    stroke: currentcolor;
+    stroke-linecap: round;
+    stroke-width: 1.5;
+}
+
+.save-status-help .save-status-help-dot {
+    fill: currentcolor;
+}
+
+.save-failed-help-body {
+    max-width: 28rem;
+}
+
+.save-status-check {
+    display: none;
+    flex-shrink: 0;
+
+    width: 0.9rem;
+    height: 0.9rem;
+
+    opacity: 0;
+}
+
+.save-status-check path {
+    fill: none;
+    stroke: #8cf58c;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+}
+
+.save-status-check-animating {
+    display: block;
+    animation: save-status-check-fade 1.6s ease-in-out;
+}
+
+.save-status-check-animating path {
+    animation: save-status-check-draw 0.4s ease-out forwards;
+}
+
+@keyframes save-status-check-draw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes save-status-check-fade {
+    0%, 70% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .save-status-check-animating,
+    .save-status-check-animating path {
+        animation: none;
+    }
 }
 
 

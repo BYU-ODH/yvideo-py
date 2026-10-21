@@ -32,6 +32,7 @@ import {
   getCSRFToken,
   parseTimeStringToSeconds,
 } from "./utils.js";
+import { saveStatus } from "./save-status.js";
 
 // Mirrors BLUR_MIN_WIDTH / BLUR_MIN_HEIGHT in core/models.py, which the server clamps against.
 // Matching here keeps the box from jumping on release.
@@ -527,6 +528,7 @@ export class BlurEditor {
     // The time is captured now, not read at flush time: a nudge describes the frame that was on
     // screen when the key was pressed, and the playhead can move during the commit delay.
     if (this.nudge) clearTimeout(this.nudge.timer);
+    saveStatus.wait("blur-nudge");
     this.nudge = {
       rect,
       time: this.nudge ? this.nudge.time : Math.round(this.video.currentTime * 100) / 100,
@@ -546,6 +548,7 @@ export class BlurEditor {
     if (!this.nudge) return;
     clearTimeout(this.nudge.timer);
     this.nudge = null;
+    saveStatus.settle("blur-nudge");
   }
 
   _onRigKeyDown(event) {
@@ -649,7 +652,7 @@ export class BlurEditor {
 
     let response;
     try {
-      response = await fetch(url, {
+      response = await saveStatus.fetch(url, {
         method: "POST",
         headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -699,7 +702,7 @@ export class BlurEditor {
       console.error("No delete endpoint on the control for the blur anchor point being deleted");
       return false;
     }
-    const response = await fetch(url, {
+    const response = await saveStatus.fetch(url, {
       method: "DELETE",
       headers: { "X-CSRFToken": getCSRFToken() },
     });
