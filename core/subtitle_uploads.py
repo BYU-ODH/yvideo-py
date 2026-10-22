@@ -29,72 +29,89 @@ _TIMING_LINE = re.compile(
 _METADATA_PREFIXES = ("NOTE", "STYLE", "REGION")
 
 
-def _timestamp_milliseconds(timestamp, *, allow_legacy=False):
-    # Editor entries may omit padding or fractional seconds; uploads remain strict.
-    if allow_legacy and isinstance(timestamp, str):
-        parts = timestamp.strip().replace(",", ".").split(":")
-        if 1 <= len(parts) <= 3 and all(parts):
-            seconds, _, fraction = parts[-1].partition(".")
-            if seconds and len(fraction) <= 3:
-                parts[-1] = f"{seconds.zfill(2)}.{fraction.ljust(3, '0')}"
-                parts = ["00"] * (3 - len(parts)) + parts
-                timestamp = ":".join(part.zfill(2) for part in parts)
-    if not isinstance(timestamp, str) or not re.fullmatch(_TIMESTAMP, timestamp):
-        raise ValidationError("The file contains an invalid subtitle timestamp.")
+def _timestamp_to_milliseconds(timestamp):
+    """_timestamp_to_milliseconds
+    Converts a timestamp string into milliseconds. Returns False if an error occurs while parsing.
+    """
+    if not isinstance(timestamp, str):
+        logger.warn(
+            f"_timestamp_to_milliseconds only accepts a string got {type(timestamp)}"
+        )
+        return False
+
+    # subtitle timestamps need to be like this: 00:00:00.000
+    parts = timestamp.strip().replace(",", ".").split(":")
+    if 1 <= len(parts) <= 3 and all(parts):
+        seconds, _, fraction = parts[-1].partition(".")
+        if seconds and len(fraction) <= 3:
+            parts[-1] = f"{seconds.zfill(2)}.{fraction.ljust(3, '0')}"
+            parts = ["00"] * (3 - len(parts)) + parts
+            timestamp = ":".join(part.zfill(2) for part in parts)
+
     parts = timestamp.replace(",", ".").split(":")
     seconds, fraction = parts[-1].split(".")
-    # Older editor files used one hour digit and hundredths instead of milliseconds.
-    if not allow_legacy and (
-        len(fraction) != 3 or (len(parts) == 3 and len(parts[0]) < 2)
-    ):
-        raise ValidationError("Use subtitle timestamps such as 00:00:01.123.")
+
     try:
         hours = int(parts[0]) if len(parts) == 3 else 0
         minutes = int(parts[-2])
         return ((hours * 60 + minutes) * 60 + int(seconds)) * 1000 + int(
             fraction.ljust(3, "0")
         )
-    except ValueError as exception:
-        raise ValidationError(
-            "The file contains an invalid subtitle timestamp."
-        ) from exception
+    except ValueError:
+        logger.warn(
+            f"_timestamp_to_milliseconds encountered invalid subtitle timestamp: {timestamp}"
+        )
+        return False
 
 
-def _seconds_milliseconds(value):
+def _seconds_to_milliseconds(value):
+    """_seconds_to_milliseconds
+    Converts timestamps and numeric seconds to milliseconds. Returns False if there is an error.
+    """
     if isinstance(value, str):
-        return _timestamp_milliseconds(value, allow_legacy=True)
+        seconds = _timestamp_to_milliseconds(value)
+        return _timestamp_to_milliseconds(value)
     if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
-        raise ValidationError("Subtitle times must be timestamps or numeric seconds.")
+        logger.warn(
+            f"_seconds_to_milliseconds input must be timestamps or numeric seconds. Got: {value} which is type: {type(value)}."
+        )
+        return False
     try:
         seconds = Decimal(str(value))
-        if not seconds.is_finite() or seconds < 0:
-            raise ValidationError("Subtitle times must be finite and nonnegative.")
+        if seconds < 0:
+            seconds = 0
+        if not seconds.is_finite():
+            logger.warn("_seconds_to_milliseconds input must be finite")
+            return False
         return int((seconds * 1000).to_integral_value(rounding=ROUND_HALF_UP))
-    except (InvalidOperation, ValueError, OverflowError) as exception:
-        raise ValidationError(
-            "The file contains an invalid subtitle timestamp."
-        ) from exception
+    except (InvalidOperation, ValueError, OverflowError):
+        logger.warn(
+            "_seconds_to_milliseconds was provided an invalid subtitle timestamp."
+        )
+        return False
 
 
-def _milliseconds_seconds(milliseconds):
+def _milliseconds_to_seconds(milliseconds):
+    """_milliseconds_to_seconds
+    Converts milliseconds to seconds. Returns False if there is an error while parsing.
+    """
     try:
         seconds = milliseconds / 1000
         if not isfinite(seconds):
             raise OverflowError
         return seconds
-    except OverflowError as exception:
-        raise ValidationError(
-            "The file contains an invalid subtitle timestamp."
-        ) from exception
+    except Exception:
+        logger.warn("_milliseconds_to_seconds was provided an invalid input.")
+        return False
 
 
 def _subtitle_seconds(value):
-    return _milliseconds_seconds(_seconds_milliseconds(value))
+    return _milliseconds_to_seconds(_seconds_to_milliseconds(value))
 
 
 def format_subtitle_timestamp(seconds):
     """Format subtitle times independently of the annotation editor's hundredths."""
-    milliseconds = _seconds_milliseconds(seconds)
+    milliseconds = _seconds_to_milliseconds(seconds)
     hours, milliseconds = divmod(milliseconds, 3_600_000)
     minutes, milliseconds = divmod(milliseconds, 60_000)
     seconds, milliseconds = divmod(milliseconds, 1000)
@@ -119,77 +136,64 @@ def _subtitle_lines(text):
 
 
 class VTTCue:
+    """VTTCue
+    VTT cues have a set of standard features; we don't support most of them. We will support
+    start and end times (using VTT timing notation), the CUE type, and the subtitle text
+    payload.
+    """
+
     def __init__(
-        self,
-        type=None,
-        payload="",
-        identifier=None,
-        start_time=None,
-        end_time=None,
-        cue_settings=None,
+        self, type=None, payload="", start_time=None, end_time=None, is_valid=True
     ):
         self.type = type
         self.payload = payload
-        self.identifier = identifier
-        self.start_time = (
-            _subtitle_seconds(start_time) if start_time is not None else None
-        )
-        self.end_time = _subtitle_seconds(end_time) if end_time is not None else None
-        self.cue_settings = cue_settings
+
+        # since 0 is a valid seconds value but is considered falsey by Python, we have to be
+        # explicit with our conditional expressions here
+        parsed_start_time = _subtitle_seconds(start_time)
+        if parsed_start_time is not None and parsed_start_time is not False:
+            self.start_time = parsed_start_time
+
+        parsed_end_time = _subtitle_seconds(end_time)
+        if parsed_end_time is not None and parsed_end_time is not False:
+            self.end_time = parsed_end_time
 
     def validate(self):
+        # We will only support CUE type VTT cues
         if self.type != "CUE":
-            raise ValidationError(
-                "Only timed cues are supported; NOTE, STYLE, and REGION blocks "
-                "are not supported."
-            )
-        start = _seconds_milliseconds(self.start_time)
-        end = _seconds_milliseconds(self.end_time)
+            self.is_valid = False
+
+        start = _seconds_to_milliseconds(self.start_time)
+        end = _seconds_to_milliseconds(self.end_time)
         if end <= start:
-            raise ValidationError(
-                "Every subtitle end time must be after its start time."
-            )
+            self.is_valid = False
 
-        if self.identifier is not None:
-            if not isinstance(self.identifier, str) or any(
-                token in self.identifier for token in ("\n", "\r", "\x00", "-->")
-            ):
-                raise ValidationError(
-                    "The cue identifier must be a single line of text."
-                )
-            if self.identifier.startswith(_METADATA_PREFIXES):
-                raise ValidationError(
-                    "Cue identifiers beginning with NOTE, STYLE, or REGION "
-                    "are not supported."
-                )
-            self.identifier = self.identifier if self.identifier.strip() else None
-
+        # The payload can't contain null character or the arrow required in the cue timing line
+        # because this will mess up the VTT parser
         if (
             not isinstance(self.payload, str)
             or "\x00" in self.payload
             or "-->" in self.payload
         ):
-            raise ValidationError("The cue contains invalid subtitle text.")
+            self.is_valid = False
+
+        self.payload = self.payload.strip()
         self.payload = self.payload.replace("\r\n", "\n").replace("\r", "\n")
-        if not self.payload.strip():
-            self.payload = ""
+        if self.payload == "":
+            self.is_valid = False
         elif any(not line.strip() for line in self.payload.split("\n")):
-            raise ValidationError("Cue text cannot contain blank separator lines.")
+            self.payload = self.payload.replace("\n", " ")
 
-        if self.cue_settings is not None:
-            if not isinstance(self.cue_settings, str) or any(
-                token in self.cue_settings for token in ("\n", "\r", "\x00", "-->")
-            ):
-                raise ValidationError("The file contains malformed cue settings.")
-            if any(
-                ":" not in setting or not all(setting.split(":", 1))
-                for setting in self.cue_settings.split()
-            ):
-                raise ValidationError("The file contains malformed cue settings.")
-            self.cue_settings = self.cue_settings.strip(" \t") or None
+        parsed_start_time = _subtitle_seconds(self.start_time)
+        if parsed_start_time is None or parsed_start_time is False:
+            self.is_valid = False
 
-        self.start_time = _subtitle_seconds(self.start_time)
-        self.end_time = _subtitle_seconds(self.end_time)
+        parsed_end_time = _subtitle_seconds(self.end_time)
+        if parsed_end_time is None or parsed_end_time is False:
+            self.is_valid = False
+
+        self.start_time = parsed_start_time
+        self.end_time = parsed_end_time
 
     def from_json_dict(self, data):
         if not isinstance(data, dict):
@@ -197,17 +201,15 @@ class VTTCue:
         self.__init__(
             type=data.get("type"),
             payload=data.get("payload", ""),
-            identifier=data.get("identifier"),
             start_time=data.get("start_time"),
             end_time=data.get("end_time"),
-            cue_settings=data.get("cue_settings"),
         )
         self.validate()
 
     def from_string(self, text):
         if not isinstance(text, str):
             raise ValidationError("Subtitle contents must be text.")
-        cues = parse_subtitle_text("WEBVTT\n\n" + text, allow_legacy_timestamps=True)
+        cues = parse_subtitle_text("WEBVTT\n\n" + text)
         if len(cues) != 1:
             raise ValidationError("Expected exactly one timed subtitle cue.")
         self.__dict__.update(cues[0].__dict__)
@@ -215,14 +217,10 @@ class VTTCue:
     def to_string(self):
         self.validate()
         lines = []
-        if self.identifier is not None:
-            lines.append(self.identifier)
         timing = (
             f"{format_subtitle_timestamp(self.start_time)} --> "
             f"{format_subtitle_timestamp(self.end_time)}"
         )
-        if self.cue_settings:
-            timing += " " + self.cue_settings
         lines.extend([timing, self.payload])
         return "\n".join(lines)
 
@@ -232,52 +230,72 @@ class VTTCue:
     def display_end_time(self):
         return format_subtitle_timestamp(self.end_time)
 
-    def nudge_times(self, seconds_nudge):
+    def validate_nudge(self, seconds_nudge):
+        # // finish this validation
         try:
             offset = Decimal(str(seconds_nudge))
-            if isinstance(seconds_nudge, bool) or not offset.is_finite():
+            if not offset.is_finite():
                 raise InvalidOperation
             start = Decimal(str(self.start_time)) + offset
             end = Decimal(str(self.end_time)) + offset
+            start_is_valid = start.is_finite()
+            end_is_valid = end.is_finite()
         except (InvalidOperation, ValueError) as exception:
+            logger.error(
+                f"Failed to nudge cue times due to invalid input: {seconds_nudge}"
+            )
             raise ValidationError(
                 "The subtitle time offset must be finite numeric seconds."
             ) from exception
+        return start_is_valid and end_is_valid
+
+    def nudge_times(self, seconds_nudge):
+        # // finish this function
+        offset = Decimal(str(seconds_nudge))
+
+        # we don't need to check for False values from _subtitle_seconds here because
+        # the result should already have been validated using validate_nudge
+        start = Decimal(str(self.start_time)) + offset
+        end = Decimal(str(self.end_time)) + offset
         self.start_time = _subtitle_seconds(start)
         self.end_time = _subtitle_seconds(end)
         self.validate()
 
 
-def _parse_subtitle_block(block, *, allow_legacy_timestamps):
+def _parse_subtitle_block_into_VTTCue(block):
+    """_parse_subtitle_block_into_VTTCue
+    Parses blocks that are believed to be cues. If the block can't be parsed as a CUE,
+    the function returns False signifying that the block should not be included in
+    the VTT file.
+    """
     timing_offset = 0 if "-->" in block[0] else 1
     if len(block) <= timing_offset:
-        raise ValidationError("Every subtitle block must contain cue timing.")
+        return False
     timing = _TIMING_LINE.fullmatch(block[timing_offset])
     if timing is None:
-        raise ValidationError(
-            "The file contains an untimed or malformed subtitle cue block."
-        )
+        return False
+    start_time = _milliseconds_to_seconds(
+        _timestamp_to_milliseconds(timing.group("start"))
+    )
+    end_time = _milliseconds_to_seconds(_timestamp_to_milliseconds(timing.group("end")))
+    if (
+        isinstance(start_time, bool)
+        and start_time is False
+        or isinstance(end_time, bool)
+        and end_time is False
+    ):
+        return False
     cue = VTTCue(
         type="CUE",
-        identifier=block[0] if timing_offset else None,
         payload="\n".join(block[timing_offset + 1 :]),
-        start_time=_milliseconds_seconds(
-            _timestamp_milliseconds(
-                timing.group("start"), allow_legacy=allow_legacy_timestamps
-            )
-        ),
-        end_time=_milliseconds_seconds(
-            _timestamp_milliseconds(
-                timing.group("end"), allow_legacy=allow_legacy_timestamps
-            )
-        ),
-        cue_settings=timing.group("settings").strip(" \t") or None,
+        start_time=start_time,
+        end_time=end_time,
     )
     cue.validate()
     return cue
 
 
-def parse_subtitle_text(text, *, file_format="vtt", allow_legacy_timestamps=False):
+def parse_subtitle_text(text, *, file_format="vtt"):
     """Parse VTT/SRT with shared validation; empty tracks and blank timed cues are valid."""
     if file_format not in ("vtt", "srt"):
         raise ValidationError("Subtitles must use VTT or SRT format.")
@@ -306,18 +324,15 @@ def parse_subtitle_text(text, *, file_format="vtt", allow_legacy_timestamps=Fals
         block = lines[block_start:position]
         if block[0].startswith(_METADATA_PREFIXES):
             continue
-        cues.append(
-            _parse_subtitle_block(
-                block,
-                allow_legacy_timestamps=allow_legacy_timestamps,
-            )
-        )
+        parsed_cue = _parse_subtitle_block_into_VTTCue(block)
+        if parsed_cue and parsed_cue.is_valid:
+            cues.append(parsed_cue)
     return cues
 
 
 def build_cues_from_vtt_file_string(text):
     """Read stored VTT, including the timestamp format used by the older editor."""
-    return parse_subtitle_text(text, allow_legacy_timestamps=True)
+    return parse_subtitle_text(text)
 
 
 def build_vtt_file_string_from_cues(cues):
@@ -377,7 +392,6 @@ def read_subtitle_cues(file, *, file_format="vtt"):
     return parse_subtitle_text(
         _decode_subtitle_bytes(file.read()),
         file_format=file_format,
-        allow_legacy_timestamps=True,
     )
 
 
@@ -387,6 +401,14 @@ def generate_vtt_cues_from_file_path(path):
 
 
 def nudge_cue_times(cues, nudge_excluded_cues, seconds_nudge):
+    # validate that the nudge will not result in an error for any
+    # cue. If it is invalid for one of them, we don't run it for any of them.
+    for index, cue in enumerate(cues):
+        if index not in nudge_excluded_cues:
+            validation_check = cue.validate_nudge(seconds_nudge)
+            if validation_check is False:
+                return False
+
     for index, cue in enumerate(cues):
         if index not in nudge_excluded_cues:
             cue.nudge_times(seconds_nudge)
