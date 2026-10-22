@@ -2913,21 +2913,18 @@ export class Editor {
       const cues = [];
       for (let cue of rawCues) {
         // gather elements to extract data from
-        const typeEl = cue.querySelector(".editor-subtitle-cue-type");
         const payloadEl = cue.querySelector(".editor-subtitle-cue-content");
-        const identifierEl = cue.querySelector(".editor-subtitle-cue-identifier");
         const startTimeEl = cue.querySelector(".editor-subtitle-cue-start");
         const endTimeEl = cue.querySelector(".editor-subtitle-cue-end");
-        const settingsEl = cue.querySelector(".editor-subtitle-cue-settings");
 
         // extract the data and package into array to send to backend
         cues.push({
-          type: typeEl.value,
+          type: "CUE",
           payload: payloadEl.value,
-          identifier: identifierEl.value,
+          identifier: "",
           start_time: startTimeEl.value,
           end_time: endTimeEl.value,
-          cue_settings: settingsEl.value,
+          cue_settings: "",
         });
       }
       return cues;
@@ -2991,26 +2988,28 @@ export class Editor {
         const startTime = Math.round(time * 1000) / 1000;
         const endTime = Math.round((time + 2) * 1000) / 1000;
         // the back end sorts cues, so this will go in its correct place.
+        const newCueTextContent = "*NEW CUE*";
         cues.push(
           {
             start_time: startTime,
             end_time: endTime,
             type: "CUE",
-            payload: "",
+            payload: newCueTextContent,
             identifier: "",
             cue_settings: "",
           }
         )
         if (!await this.saveCues(cues, false)) return;
-        const newCueWrapper = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${startTime}']`);
-        if (!newCueWrapper) {
-          console.error("no new cue found!");
-          return;
+        const cueTextAreas = subtitlesPanel.querySelectorAll(`.editor-subtitle-cue-content`);
+        for (let cueTA of cueTextAreas) {
+          if (cueTA.textContent == newCueTextContent) {
+            cueTA.textContent = "";
+            cueTA.focus();
+            return;
+          }
         }
-        const newCueTextarea = newCueWrapper.querySelector(".editor-subtitle-cue-content");
-        if (newCueTextarea) {
-          newCueTextarea.focus();
-        }
+        console.error("no new cue found!");
+        return;
       });
 
       const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
