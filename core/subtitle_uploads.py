@@ -147,6 +147,8 @@ class VTTCue:
     ):
         self.type = type
         self.payload = payload
+        self.nudge_was_validated = False
+        self.nudge_is_valid = False
 
         # since 0 is a valid seconds value but is considered falsey by Python, we have to be
         # explicit with our conditional expressions here
@@ -231,35 +233,52 @@ class VTTCue:
         return format_subtitle_timestamp(self.end_time)
 
     def validate_nudge(self, seconds_nudge):
-        # // finish this validation
+        """validate_nudge
+        Check that the offset (seconds_nudge) is valid and that the result
+        of end_time + offset and start_time + offset are also valid. If
+        anything goes awry, the nudge is considered invalid.
+        """
+        self.nudge_was_validated = True
+        self.nudge_is_valid = False
+        offset_is_valid = True
+        start_is_valid = True
+        end_is_valid = True
         try:
             offset = Decimal(str(seconds_nudge))
-            if not offset.is_finite():
-                raise InvalidOperation
-            start = Decimal(str(self.start_time)) + offset
-            end = Decimal(str(self.end_time)) + offset
-            start_is_valid = start.is_finite()
-            end_is_valid = end.is_finite()
-        except (InvalidOperation, ValueError) as exception:
+            offset_is_valid = offset.is_finite()
+
+            start_as_seconds = _subtitle_seconds(self.start_time)
+            if isinstance(start_as_seconds, bool) and start_as_seconds is False:
+                start_is_valid = False
+            start = Decimal(start_as_seconds) + offset
+
+            end_as_seconds = _subtitle_seconds(self.end_time)
+            if isinstance(end_as_seconds, bool) and end_as_seconds is False:
+                end_is_valid = False
+            end = Decimal(end_as_seconds) + offset
+            if not start.is_finite():
+                start_is_valid = False
+            if not end.is_finite():
+                end_is_valid = False
+        except Exception:
             logger.error(
                 f"Failed to nudge cue times due to invalid input: {seconds_nudge}"
             )
-            raise ValidationError(
-                "The subtitle time offset must be finite numeric seconds."
-            ) from exception
-        return start_is_valid and end_is_valid
+            self.nudge_is_valid = False
+            return
+
+        self.nudge_is_valid = offset_is_valid and start_is_valid and end_is_valid
 
     def nudge_times(self, seconds_nudge):
-        # // finish this function
-        offset = Decimal(str(seconds_nudge))
+        if self.nudge_was_validated and self.nudge_is_valid:
+            offset = Decimal(str(seconds_nudge))
 
-        # we don't need to check for False values from _subtitle_seconds here because
-        # the result should already have been validated using validate_nudge
-        start = Decimal(str(self.start_time)) + offset
-        end = Decimal(str(self.end_time)) + offset
-        self.start_time = _subtitle_seconds(start)
-        self.end_time = _subtitle_seconds(end)
-        self.validate()
+            # we don't need to check for False values from _subtitle_seconds here because
+            # the result should already have been validated using validate_nudge
+            start = Decimal(str(self.start_time)) + offset
+            end = Decimal(str(self.end_time)) + offset
+            self.start_time = _subtitle_seconds(start)
+            self.end_time = _subtitle_seconds(end)
 
 
 def _parse_subtitle_block_into_VTTCue(block):
@@ -405,8 +424,8 @@ def nudge_cue_times(cues, nudge_excluded_cues, seconds_nudge):
     # cue. If it is invalid for one of them, we don't run it for any of them.
     for index, cue in enumerate(cues):
         if index not in nudge_excluded_cues:
-            validation_check = cue.validate_nudge(seconds_nudge)
-            if validation_check is False:
+            cue.validate_nudge(seconds_nudge)
+            if cue.nudge_is_valid is False:
                 return False
 
     for index, cue in enumerate(cues):
