@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0015_rename_blur_anchor_point'),
+        ('core', '0016_comment_x_y_width'),
     ]
 
     operations = [
