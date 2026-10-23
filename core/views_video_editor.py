@@ -185,6 +185,14 @@ def video_editor(request, content):
 
         resource = content.get_resource()
         subtitle_options = content.get_subtitles()
+        editable_subtitle_options = []
+        for sub in subtitle_options:
+            try:
+                sub_obj = Subtitle.objects.get(pk=sub["id"])
+            except Exception:
+                continue
+            if sub_obj.can_be_edited_by(request.user):
+                editable_subtitle_options.append(sub)
         subtitle_panel = {
             "subtitle_track_selection_modal_id": "subtitle-track-selection-modal",
             "subtitle_track_creation_modal_id": "subtitle-track-creation-modal",
@@ -239,6 +247,7 @@ def video_editor(request, content):
             "annotation_groups": annotation_groups,
             "tracks": tracks,
             "subtitle_options": subtitle_options,
+            "editable_subtitle_options": editable_subtitle_options,
             "subtitle_panel": subtitle_panel,
             "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
             "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),

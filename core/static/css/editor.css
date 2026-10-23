@@ -684,6 +684,10 @@
     background-color: var(--dark-mode-background-medium);
 }
 
+#select-sub-track-none-found-message {
+    max-width: 25rem;
+}
+
 #subtitle-track-create-form, #subtitle-track-copy-form {
     display: flex;
     flex-direction: column;
