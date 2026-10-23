@@ -1,0 +1,56 @@
+{% extends "core/partials/modals/user_view_modal.html" %}
+
+{% block modal_title %}Create a subtitle track{% endblock %}
+{% block modal_body %}
+    <div class="row-flex">
+        <form id="subtitle-track-create-form"
+              action="{% url 'create_subtitle_track' content_id %}"
+              method="post">
+            {% csrf_token %}
+            <input type="hidden" name="create_mode" value="empty">
+            <div class="column-flex">
+                <h4>Create an empty track</h4>
+                {{ create_form.non_field_errors }}
+                <div class="column-flex-no-gap">
+                    {{ create_form.name.label_tag }}
+                    {{ create_form.name }}
+                    {{ create_form.name.errors }}
+                </div>
+                <div class="column-flex-no-gap">
+                    {{ create_form.language.label_tag }}
+                    {{ create_form.language }}
+                    {{ create_form.language.errors }}
+                </div>
+            </div>
+            <button id="subtitle-track-create-button"
+                    type="submit"
+                    class="white-button-with-border">Create subtitle track</button>
+        </form>
+        <div id="subtitle-track-create-divider">
+            <p>OR</p>
+        </div>
+        <form id="subtitle-track-copy-form"
+              action="{% url 'create_subtitle_track' content_id %}"
+              method="post">
+            {% csrf_token %}
+            <input type="hidden" name="create_mode" value="copy">
+            <div class="column-flex">
+                <h4>Copy an existing track</h4>
+                {{ copy_form.non_field_errors }}
+                <div class="column-flex-no-gap">
+                    {{ copy_form.source_id.label_tag }}
+                    {{ copy_form.source_id }}
+                    {{ copy_form.source_id.errors }}
+                </div>
+                <div class="column-flex-no-gap">
+                    {{ copy_form.name.label_tag }}
+                    {{ copy_form.name }}
+                    {{ copy_form.name.errors }}
+                </div>
+            </div>
+            <button id="subtitle-track-copy-create-button"
+                    type="submit"
+                    class="white-button-with-border">Create track from copy</button>
+        </form>
+    </div>
+{% endblock %}

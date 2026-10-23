@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
 import { PendingNudge, beginRectGesture, createRig, nudgeDelta } from "./overlay-rig.js";
@@ -60,6 +60,9 @@ export class Editor {
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
+        this.selectedSubtitleTrackText = null;
+        this.subtitleTrackEditBusy = false;
+        this.subtitleCueSaves = new Set();
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
@@ -123,7 +126,6 @@ export class Editor {
         this.attachVideoListeners();
         this.setupTracks();
         this.watchForTrackCreation();
-        this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchAndHandleAnnotationSetDelete();
@@ -131,7 +133,13 @@ export class Editor {
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.watchAndHandleEditorPanelSwitch();
+        this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
+        this.watchForSubtitleTrackCreation();
+
+        this.watchForSubtitleTrackEditing();
+        this.watchForSubtitleTrackDeletion();
+        this.checkForAndLoadSubtitleTrack();
         this.handleNoAnnotationSet();
     }
 
@@ -391,9 +399,9 @@ export class Editor {
         this.markItemAsActive(annotationType, annotationId);
       });
 
-      const panelItemDeleteButton = element.querySelector(".panel-item-delete");
-      if (panelItemDeleteButton) {
-        panelItemDeleteButton.addEventListener("click", async (e) => {
+      const annotationItemDeleteButton = element.querySelector(".annotation-item-delete");
+      if (annotationItemDeleteButton) {
+        annotationItemDeleteButton.addEventListener("click", async (e) => {
           e.preventDefault();
           // Keeps the parent panel item's click handler from reloading the deleted item's form
           e.stopPropagation();
@@ -702,17 +710,14 @@ export class Editor {
       button.disabled = true;
 
       try {
-        const response = await fetch(button.dataset.historyUrl, {
-          method: "POST",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
+        const response = await makePostRequest(
+          button.dataset.historyUrl,
+          new URLSearchParams({
             annotation_id: button.dataset.annotationId,
             annotation_type: button.dataset.annotationType,
           }),
-        });
+          "application/x-www-form-urlencoded"
+        );
 
         if (!response.ok) {
           console.error(`Failed to ${button.dataset.historyAction} annotation history`);
@@ -872,14 +877,11 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await fetch(`/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": contentType,
-        },
-        body: requestBody
-      });
+      const response = await makePostRequest(
+        `/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`,
+        requestBody,
+        contentType
+      );
 
       if (!response.ok) {
         console.error("An error occurred while updating an annotation");
@@ -1394,13 +1396,10 @@ export class Editor {
             displayText(originalNameValue);
             return;
           }
-          const response = await fetch(`/annotation-set/${annotationSetId}/update-name/`, {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken()
-            },
-            body: JSON.stringify({name: payload})
-          });
+          const response = await makePostRequest(
+            `/annotation-set/${annotationSetId}/update-name/`,
+            JSON.stringify({name: payload})
+          );
           if (response.ok) {
             displayText(payload);
           } else {
@@ -1567,7 +1566,7 @@ export class Editor {
     // use this method to apply all relevant watchers (event listeners) to
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
-      this.watchForMultiSelectMenuOpen(trackRootElement);
+      setupMultiOptionMenu(trackRootElement);
       this.watchForDisplayTrackRename(trackRootElement);
       this.watchForTrackRename(trackRootElement);
       this.watchForTrackMovement(trackRootElement);
@@ -1578,54 +1577,6 @@ export class Editor {
     watchForTrackActivation(trackRootElement) {
       const trackId = trackRootElement.dataset["trackId"];
       trackRootElement.addEventListener("click", () => this.setActiveTrack(trackId));
-    }
-
-    /* track options menu */
-    handleMultiSelectMenuOpen(e) {
-      e.stopPropagation();
-      // we don't want more than one track menu visible at one time
-      const visibleMenuCSSClass = "visible-multi-select-menu";
-      const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
-      for (let menu of allVisibleTrackMenus) {
-        menu.classList.remove(visibleMenuCSSClass);
-      }
-
-      // get track menu and position it properly
-      const wrapperDim = this.timelineWrapper.getBoundingClientRect();
-      const trackMenuWrapper = e.target.closest(".multi-select-menu-parent");
-      const trackOptionsMenu = trackMenuWrapper.querySelector(".multi-select-menu");
-      trackOptionsMenu.style.visibility = "hidden";
-      trackOptionsMenu.classList.add(visibleMenuCSSClass);
-      const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
-      if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
-        trackOptionsMenu.classList.add("multi-select-menu-bumped-up");
-      }
-
-      // now we are safe to make the track menu visible
-      trackOptionsMenu.style.visibility = "";
-    }
-
-    watchForMultiSelectMenuOpen(multiSelectMenuWrapper) {
-      const menuButton = multiSelectMenuWrapper.querySelector(".open-multi-select-button");
-      if (menuButton) {
-        menuButton.addEventListener("click", this.handleMultiSelectMenuOpen.bind(this));
-      }
-      else {
-        console.error("No menu button element found");
-      }
-    }
-
-    watchForClickOutsideOfTrackMenu() {
-      const editorContainer = document.getElementById("editor-container");
-      editorContainer.addEventListener("click", (e) => {
-        const visibleTrackMenus = document.getElementsByClassName("visible-multi-select-menu");
-        for (let menu of visibleTrackMenus) {
-          const menuDim = menu.getBoundingClientRect();
-          if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
-            menu.classList.remove("visible-multi-select-menu");
-          }
-        }
-      });
     }
 
     replaceTracksWithNewHTML(newTracksHTML) {
@@ -1668,11 +1619,10 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await fetch(`/track/${trackId}/update/`, {
-          method: "post",
-          headers: {"X-CSRFToken": getCSRFToken()},
-          body: JSON.stringify({"new_track_name": newTrackName})
-        });
+        const response = await makePostRequest(
+          `/track/${trackId}/update/`,
+          JSON.stringify({"new_track_name": newTrackName})
+        );
         if (!response.ok) {
           resetTrackName();
           return;
@@ -1795,17 +1745,11 @@ export class Editor {
         }
       }
 
-      const orderUpdateResponse = await fetch(`/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
-        {
-          method: "post",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            track_ids: trackIdOrder
-          })
-        }
+      const orderUpdateResponse = await makePostRequest(
+        `/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
+        JSON.stringify({
+          track_ids: trackIdOrder
+        })
       );
 
       if (!orderUpdateResponse.ok) {
@@ -1851,16 +1795,12 @@ export class Editor {
           return;
         }
 
-        const newTrackResponse = await fetch(`/annotation-set/${annotationSetId}/track/create/`, {
-          method: "post",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
+        const newTrackResponse = await makePostRequest(
+          `/annotation-set/${annotationSetId}/track/create/`,
+          JSON.stringify({
             "track_name": newTrackName
           })
-        });
+        );
 
         dialog.close();
 
@@ -1978,18 +1918,13 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const response = await fetch(`/track/${trackId}/annotations/${annotationType}/create/`,
-              {
-                method: "POST",
-                headers: {
-                  "X-CSRFToken": getCSRFToken(),
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  "start_time": startTime,
-                  "end_time": endTime
-                })
-              });
+            const response = await makePostRequest(
+              `/track/${trackId}/annotations/${annotationType}/create/`,
+              JSON.stringify({
+                "start_time": startTime,
+                "end_time": endTime
+              })
+            );
             if (response.ok) {
               const parsedResponse = await response.json();
               const newPanelItemHtml = parsedResponse["panel_item_html"];
@@ -2402,23 +2337,19 @@ export class Editor {
     }
 
     watchAndHandleAnnotationSetMenuOpen() {
-      const annotationSetMenuWrapper = document.getElementById("annotation-panel-header");
-      this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
+      const annotationSetMenuWrapper = document.getElementById("annotation-set-settings-menu-wrapper");
+      setupMultiOptionMenu(annotationSetMenuWrapper);
     }
 
     async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
-      const createResponse = await fetch(`/content/${this.contentId}/annotation-set/create/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const createResponse = await makePostRequest(
+        `/content/${this.contentId}/annotation-set/create/`,
+        JSON.stringify({
           name: setName,
           annotation_set_id_to_copy: annotationSetId,
           annotation_set_json: annotationSetJson
         })
-      });
+      );
 
       if (!createResponse.ok) {
         console.error("Failed to create new annotation set");
@@ -2476,15 +2407,10 @@ export class Editor {
         } else {
           setSelector.classList.remove("invalid-input");
         }
-        const contentSetAssignmentResponse = await fetch(
-          `/content/${this.contentId}/select-annotation-set/`, {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ "annotation_set_id": setSelector.value })
-          });
+        const contentSetAssignmentResponse = await makePostRequest(
+          `/content/${this.contentId}/select-annotation-set/`,
+          JSON.stringify({ "annotation_set_id": setSelector.value })
+        );
         if (!contentSetAssignmentResponse.ok) {
           console.error("Failed to set annotation set for this content");
           return;
@@ -2652,15 +2578,10 @@ export class Editor {
             console.error("could not retrieve content id while switching annotation sets!");
             return;
         }
-        const htmlContentResponse = await fetch(`/content/${this.contentId}/select-annotation-set/`, {
-            method: "POST",
-            body: JSON.stringify({"annotation_set_id": annotationSetId}),
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            mode: "same-origin"
-        });
+        const htmlContentResponse = await makePostRequest(
+            `/content/${this.contentId}/select-annotation-set/`,
+            JSON.stringify({"annotation_set_id": annotationSetId})
+        );
         if (!htmlContentResponse.ok) {
           console.error("Failed to update annotation_set!");
           return;
@@ -2752,33 +2673,257 @@ export class Editor {
         subtitlesPanel.classList.toggle("subtitle-editor-panel-visible");
         subtitlesPanel.classList.toggle("subtitle-editor-panel-hidden");
       }
-      annotationPanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+      annotationPanelSwitchButton.addEventListener("click", () => {
+        togglePanelVisiblity();
+      });
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+    }
+
+    setupSubtitleEditorMenu() {
+      const subtitleMenu= document.getElementById("subtitle-track-settings-menu-wrapper");
+      setupMultiOptionMenu(subtitleMenu);
+    }
+
+
+    async loadSubtitleTrack(trackId) {
+      try {
+        const subtitlesResponse = await fetch(`/subtitles/${trackId}/editable/`);
+        if (!subtitlesResponse.ok) {
+          console.error("Failed to get subtitle cues");
+          return false;
+        }
+        const subtitlesPanelContentHTML = await subtitlesResponse.text();
+        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
+        this.selectedSubtitleTrackId = trackId;
+        this.selectedSubtitleTrackText = document.querySelector(
+          `.subtitles-track-option[value="${trackId}"]`
+        )?.textContent.trim() || "";
+        document.getElementById(`cap-track-${trackId}-button`)?.click();
+        this.buildWatchersForSubtitlePanelContent();
+        this.buildWatchersForSubtitleEditorCues();
+        document.getElementById("open-subtitle-track-edit-modal").disabled = false;
+        document.getElementById("open-delete-subtitle-track-modal").disabled =
+          document.getElementById("subtitle-panel-content-wrapper").dataset.canEdit !== "true";
+        return true;
+      } catch (error) {
+        console.error("Failed to load subtitle track", error);
+        return false;
+      } finally {
+        const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+        if (subtitleSelectInput) subtitleSelectInput.value = this.selectedSubtitleTrackId || "";
+      }
+    }
+
+    async checkForAndLoadSubtitleTrack() {
+      const pageUrl = new URL(window.location.href);
+      const trackId = pageUrl.searchParams.get("subtitle_track");
+      const subtitlePanel = document.getElementById("subtitle-editor-panel");
+      if (!trackId || !subtitlePanel) return;
+
+      try {
+        if (subtitlePanel.classList.contains("subtitle-editor-panel-hidden")) {
+          document.getElementById("annotation-panel-switch")?.click();
+        }
+        if (!await this.loadSubtitleTrack(trackId)) return;
+        pageUrl.searchParams.delete("subtitle_track");
+        window.history.replaceState(window.history.state, "", pageUrl);
+        await this.loadSubtitleTrackEditForm();
+      } catch (error) {
+        console.error("Failed to load subtitle track from URL", error);
+      }
     }
 
     watchAndHandleSubtitleTrackChange() {
       const subtitleSelectInput = document.getElementById("subtitles-track-selector");
       if (!subtitleSelectInput) return;
+      const dialog = subtitleSelectInput.closest("dialog");
+
       subtitleSelectInput.addEventListener("change", async () => {
-        const newSubtitleTrackId = subtitleSelectInput.value;
-        if (subtitleSelectInput == undefined) {
-          console.error("Invalid subtitle track id");
+        const trackId = subtitleSelectInput.value;
+        if (!trackId || subtitleSelectInput.disabled) return;
+        subtitleSelectInput.disabled = true;
+        try {
+          if (!await this.loadSubtitleTrack(trackId)) return;
+          dialog.close();
+        } catch (error) {
+          console.error("Failed to select subtitle track", error);
+        } finally {
+          subtitleSelectInput.disabled = false;
+        }
+      });
+    }
+
+
+    watchForSubtitleTrackCreation() {
+      const dialog = document.getElementById("subtitle-track-create-form")?.closest("dialog");
+      if (!dialog) return;
+
+      dialog.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        if (form.dataset.submitting === "true") return;
+
+        const body = new FormData(form);
+        const controls = Array.from(form.elements);
+        const disabledStates = controls.map((control) => control.disabled);
+        form.dataset.submitting = "true";
+        controls.forEach((control) => { control.disabled = true; });
+        try {
+          await Promise.allSettled(this.subtitleCueSaves);
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: { "X-CSRFToken": getCSRFToken() },
+            body
+          });
+          if (!response.ok) {
+            if (response.status === 400 && response.headers.get("Content-Type")?.includes("text/html")) {
+              const html = new DOMParser().parseFromString(await response.text(), "text/html");
+              const renderedForm = html.getElementById(form.id);
+              if (renderedForm) {
+                form.replaceWith(renderedForm);
+                renderedForm.querySelector('[aria-invalid="true"]')?.focus();
+              } else {
+                console.error("Submitted form missing from validation response");
+              }
+            } else {
+              console.error("Failed to create subtitle track", response.status);
+            }
+            return;
+          }
+          const track = await response.json();
+          const reloadUrl = new URL(window.location.href);
+          reloadUrl.searchParams.set("subtitle_track", track.id);
+          window.location.assign(reloadUrl.href);
+        } catch (error) {
+          console.error("Failed to create subtitle track", error);
+        } finally {
+          controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
+          delete form.dataset.submitting;
+        }
+      });
+    }
+
+    watchForSubtitleTrackEditing() {
+      const openButton = document.getElementById("open-subtitle-track-edit-modal");
+      const dialog = document.getElementById("edit-subtitle-track-modal");
+      if (!openButton || !dialog) return;
+
+      openButton.addEventListener("click", () => this.loadSubtitleTrackEditForm());
+
+      dialog.addEventListener("cancel", (event) => {
+        if (this.subtitleTrackEditBusy) event.preventDefault();
+      });
+      dialog.addEventListener("submit", (event) => {
+        if (event.target.id !== "subtitle-track-edit-form") return;
+        event.preventDefault();
+        const form = event.target;
+        this.submitSubtitleTrackEdit(form.action, new FormData(form));
+      });
+      dialog.addEventListener("click", (event) => {
+        const copyButton = event.target.closest("#subtitle-track-copy");
+        if (copyButton) this.submitSubtitleTrackEdit(copyButton.dataset.copyUrl, null, true);
+      });
+    }
+
+    async loadSubtitleTrackEditForm() {
+      if (!this.selectedSubtitleTrackId || this.subtitleTrackEditBusy) return;
+      const content = document.getElementById("subtitle-track-edit-content");
+      const status = document.getElementById("subtitle-track-edit-status");
+
+      content.replaceChildren();
+      content.setAttribute("aria-busy", "true");
+      status.textContent = "Loading track details…";
+
+      try {
+        // A queued cue save must finish before a replacement or copy can start.
+        await Promise.allSettled(this.subtitleCueSaves);
+        const response = await fetch(
+          `/subtitles/${this.selectedSubtitleTrackId}/edit/?content_id=${encodeURIComponent(this.contentId)}`
+        );
+        if (!response.ok) {
+          console.error("Failed to load subtitle track details", response.status);
           return;
         }
-        this.selectedSubtitleTrackId = newSubtitleTrackId;
-        const subtitlesResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/editable/`);
-        if (!subtitlesResponse.ok) {
-          console.error("Failed to get subtitle cues");
+        const html = await response.text();
+        content.innerHTML = new DOMParser().parseFromString(html, "text/html").getElementById("subtitle-track-edit-content").innerHTML;
+      } catch (error) {
+        console.error("Failed to load subtitle track details", error);
+      } finally {
+        status.textContent = "";
+        content.removeAttribute("aria-busy");
+      }
+    }
+
+    async submitSubtitleTrackEdit(url, body, copying = false) {
+      if (this.subtitleTrackEditBusy) return;
+      this.subtitleTrackEditBusy = true;
+
+      const dialog = document.getElementById("edit-subtitle-track-modal");
+      const status = document.getElementById("subtitle-track-edit-status");
+      const controls = Array.from(dialog.querySelectorAll("button, input, select"));
+      const disabledStates = controls.map((control) => control.disabled);
+      controls.forEach((control) => { control.disabled = true; });
+      status.textContent = copying ? "Copying track…" : "Saving changes…";
+      dialog.setAttribute("aria-busy", "true");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken() },
+          body
+        });
+        if (!response.ok) {
+          console.error("Subtitle track request failed", response.status);
           return;
         }
-        const subtitlesPanelHTML = await subtitlesResponse.text();
-        const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-        currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
-        const subtitlesSettingsModal = document.getElementById("subtitles-settings");
-        this.buildWatchersForSubtitlePanelContent();
-        this.buildWatchersForSubtitleEditorCues();
-        subtitlesSettingsModal.close();
-      })
+        const track = await response.json();
+        const reloadUrl = new URL(window.location.href);
+        reloadUrl.searchParams.set("subtitle_track", track.id);
+        window.location.assign(reloadUrl.href);
+      } catch (error) {
+        console.error("Subtitle track request failed", error);
+      } finally {
+        controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
+        this.subtitleTrackEditBusy = false;
+        status.textContent = "";
+        dialog.removeAttribute("aria-busy");
+      }
+    }
+
+    watchForSubtitleTrackDeletion() {
+      const openButton = document.getElementById("open-delete-subtitle-track-modal");
+      const deleteButton = document.getElementById("delete-subtitle-track-confirm");
+      if (!openButton || !deleteButton) {
+        console.error("Cannot setup subtitle track delete button because the required elements do not exist.");
+        return;
+      }
+
+      openButton.addEventListener("click", () => {
+        if (!this.selectedSubtitleTrackId) return;
+        document.getElementById("delete-subtitle-track-text").textContent = this.selectedSubtitleTrackText;
+      });
+
+      deleteButton.addEventListener("click", async () => {
+        const trackId = this.selectedSubtitleTrackId;
+        if (!trackId || deleteButton.disabled) return;
+        deleteButton.disabled = true;
+        try {
+          const response = await fetch(`/subtitles/${trackId}/delete/`, {
+            method: "DELETE",
+            headers: { "X-CSRFToken": getCSRFToken() }
+          });
+          if (!response.ok) {
+            response.status === 403
+              ? console.error("You do not have permission to delete this subtitle track.")
+              : console.error("Failed to delete the subtitle track.");
+            return;
+          }
+          window.location.reload();
+        } catch (error) {
+          console.error("Failed to delete subtitle track", error);
+        } finally {
+          deleteButton.disabled = false;
+        }
+      });
     }
 
     collectCues() {
@@ -2786,21 +2931,16 @@ export class Editor {
       const cues = [];
       for (let cue of rawCues) {
         // gather elements to extract data from
-        const typeEl = cue.querySelector(".editor-subtitle-cue-type");
         const payloadEl = cue.querySelector(".editor-subtitle-cue-content");
-        const identifierEl = cue.querySelector(".editor-subtitle-cue-identifier");
         const startTimeEl = cue.querySelector(".editor-subtitle-cue-start");
         const endTimeEl = cue.querySelector(".editor-subtitle-cue-end");
-        const settingsEl = cue.querySelector(".editor-subtitle-cue-settings");
 
         // extract the data and package into array to send to backend
         cues.push({
-          type: typeEl.value,
+          type: "CUE",
           payload: payloadEl.value,
-          identifier: identifierEl.value,
           start_time: startTimeEl.value,
           end_time: endTimeEl.value,
-          cue_settings: settingsEl.value,
         });
       }
       return cues;
@@ -2808,63 +2948,122 @@ export class Editor {
 
     async saveCues(cues, isAutosave=true) {
       if (typeof isAutosave !== "boolean") {
-        console.error("isAutosave must be a boolean");
-        return;
+        console.error("Could not save cues: isAutosave must be a boolean.");
+        return false;
       }
 
-      const updateResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/update-cues/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          cues: cues,
-          seconds_nudge: 0,
-          nudge_excluded_cues: [],
-          is_autosave: isAutosave
-        })
-      });
+      if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
+      const trackId = this.selectedSubtitleTrackId;
+      const originalCueState = JSON.stringify(this.collectCues());
+      const save = (async () => {
+        try {
+          const updateResponse = await makePostRequest(
+            `/subtitles/${trackId}/update-cues/`,
+            JSON.stringify({
+              cues: cues,
+              seconds_nudge: 0,
+              nudge_excluded_cues: [],
+              is_autosave: isAutosave
+            })
+          );
+          if (this.selectedSubtitleTrackId !== trackId) return false;
+          if (!updateResponse.ok) {
+            console.error("Failed to save subtitle cues", updateResponse.status);
+            return false;
+          }
+          const html = await updateResponse.text();
+          if (this.selectedSubtitleTrackId !== trackId) return false;
+          // A response must not replace edits made while the save was in flight.
+          if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
+          document.getElementById("subtitle-panel-list").innerHTML = html;
+          window.dispatchEvent(this.annotationUpdatedEvent);
 
-      if (!updateResponse.ok) {
-        console.error("Failed to save cues");
-        return;
+          this.buildWatchersForSubtitleEditorCues();
+          return true;
+        } catch (error) {
+          console.error("Failed to save subtitle cues", error);
+          return false;
+        }
+      })();
+      this.subtitleCueSaves.add(save);
+      try {
+        return await save;
+      } finally {
+        this.subtitleCueSaves.delete(save);
       }
-      window.dispatchEvent(this.annotationUpdatedEvent);
-
-      const subtitleCueListWrapper = document.getElementById("subtitle-panel-list");
-      subtitleCueListWrapper.innerHTML = await updateResponse.text();
-      this.buildWatchersForSubtitleEditorCues();
     }
 
     buildWatchersForSubtitlePanelContent() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      if (subtitlesPanel.dataset.canEdit !== "true") return;
       const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
-      addNewCueButton.addEventListener("click", () => {
+      addNewCueButton.addEventListener("click", async () => {
         const cues = this.collectCues();
         // build new cue and append it to cues array
         const time = this.video.currentTime;
+        const startTime = Math.round(time * 1000) / 1000;
+        const endTime = Math.round((time + 2) * 1000) / 1000;
         // the back end sorts cues, so this will go in its correct place.
         cues.push(
           {
-            start_time: formatSecondsToString(time),
-            end_time: formatSecondsToString(time + 2),
+            start_time: startTime,
+            end_time: endTime,
             type: "CUE",
             payload: "",
-            identifier: "",
-            cue_settings: "",
           }
         )
-        this.saveCues(cues, false)
+        if (!await this.saveCues(cues, false)) return;
+
+        // Normalize the lookup time string so it will always fine the right cue
+        // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
+        // A cue's end and start time values are to 3 decimal places, the video's
+        // current time has no decimal place limiter. Both of these cases should
+        // be handled here.
+        const cueLookupTime = parseFloat(startTime);
+        let lookupTimeString = cueLookupTime.toString();
+        const lookupStringSplit = lookupTimeString.split('.');
+
+        if (lookupStringSplit.length == 1) {
+          lookupTimeString = lookupTimeString + ".0";
+        }
+        else if (lookupStringSplit[1].length > 3) {
+          lookupTimeString = cueLookupTime.toFixed(3);
+        }
+        const newCue = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
+        if (!newCue) {
+          console.log(cueLookupTime, lookupTimeString, time);
+          console.error("no new cue found!");
+          return;
+        }
+        const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
+        if (cueTA) {
+          cueTA.focus();
+        }
+        else {
+          console.error("Unable to locate cue text content.");
+        }
+
       });
+
+      const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
+      function updateTrackDisplayInSelector() {
+        const trackSelectOption = document.querySelector(`.subtitles-track-option[value='${this.selectedSubtitleTrackId}']`);
+        const newTitle = subtitleTitleWrapper.querySelector("#subtitle-track-title").innerText;
+        trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
+        this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
+      }
+      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
     }
 
     buildWatchersForSubtitleEditorCues() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
       const deleteCue = (e) => {
         const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
-        editorSubtitleCueEl.remove();
-        this.saveCues(this.collectCues(), false);
+        const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
+        const cues = this.collectCues();
+        // use splice to allow cue marked for deletion to still appear unless the deletion is successful
+        cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
+        this.saveCues(cues, false);
       }
       const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
       for (let cueDelButton of editorSubtitleCueDeleteButtons) {
@@ -2874,13 +3073,31 @@ export class Editor {
       const saveUpdatedInformation = () => {
         this.saveCues(this.collectCues(), false);
       }
-      const cueInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
-      for (let cueInput of cueInputs) {
-        cueInput.addEventListener("keydown", (e) => {
-          if (e.key != "Enter") {
-            return;
-          }
-          saveUpdatedInformation();
+      const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
+      const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");
+      const cueInputs = [...cueStartAndTextInputs, ...cueEndInputs];
+      if (subtitlesPanel.dataset.canEdit === "true") {
+        for (let cueInput of cueInputs) {
+          cueInput.addEventListener("keydown", (e) => {
+            // An Enter key press in a textarea creates a new line. We want that to submit the cues instead,
+            // but a Shift + Enter in a cue textarea will still create a new line if needed.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              saveUpdatedInformation();
+            }
+          });
+        }
+      }
+      for (let cueStartOrTextInput of cueStartAndTextInputs){
+        cueStartOrTextInput.addEventListener("click", (e) => {
+          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
+          const cueStartTime = parentCueWrapper.dataset["startTime"];
+          this.seekVideoTo(parseFloat(cueStartTime));
+        });
+      }
+      for (let cueEndInput of cueEndInputs) {
+        cueEndInput.addEventListener("click", () => {
+          this.seekVideoTo(parseFloat(cueEndInput.dataset["endTime"]));
         });
       }
     }

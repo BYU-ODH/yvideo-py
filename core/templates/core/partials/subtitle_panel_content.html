@@ -1,6 +1,30 @@
-<div id="subtitle-panel-content-wrapper">
+{% load static %}
+
+<div id="subtitle-panel-content-wrapper"
+     data-can-edit="{{ can_edit|yesno:'true,false' }}"
+     data-language="{{ subtitle_track.language.bcp47 }}">
     {% if subtitle_track %}
-        <button id="add-new-subtitle-button" class="white-button-with-border">+ Add new subtitle at current time</button>
+        <div id="subtitle-track-title-wrapper" class="row-flex flex-apart-aligned">
+            <h4 id="subtitle-track-title">{{ subtitle_track.name }}</h4>
+            {% if can_edit %}
+                <input id="subtitle-track-title-input"
+                       class="hidden"
+                       type="text"
+                       maxlength="255"
+                       value="{{ subtitle_track.name }}">
+                <button id="subtitle-track-title-change-button"
+                        type="button"
+                        class="item-form-icon-button">
+                    <img src="{% static 'img/edit.svg' %}"
+                         alt="subtitle track name edit button">
+                </button>
+            {% endif %}
+        </div>
+        {% if can_edit %}
+            <button id="add-new-subtitle-button" class="white-button-with-border">+ Add new subtitle at current time</button>
+        {% else %}
+            <p>If you need to change this subtitle track, contact the owner or Use Edit subtitle track to make a copy.</p>
+        {% endif %}
         <div id="subtitle-panel-list">
             {% include 'core/partials/subtitle_cues.html' %}
         </div>

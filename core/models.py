@@ -16,6 +16,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 import xxhash
 
+from .subtitle_uploads import validate_subtitle_file
 from .utils import estimate_current_yearterm
 from .utils import seconds2hms
 
@@ -963,16 +964,28 @@ class Content(models.Model):
             return []
         sub_objs = Subtitle.objects.filter(resource=resource)
         default_id = self.default_subtitle_track_id
-        subtitles = [
-            {
-                "id": sub.pk,
-                "srclang": sub.language.bcp47,
-                "vtt": sub.subtitles_file.read().decode("utf-8"),
-                "name": sub.name,
-                "default": sub.pk == default_id,
-            }
-            for sub in sub_objs
-        ]
+        subtitles = []
+        for sub in sub_objs:
+            vtt = ""
+            try:
+                with sub.subtitles_file.open("rb") as subtitle_file:
+                    vtt = subtitle_file.read().decode("utf-8-sig")
+            except (OSError, ValueError) as exception:
+                logger.warning(
+                    "Could not read subtitle track %s for content %s: %s",
+                    sub.pk,
+                    self.pk,
+                    exception,
+                )
+            subtitles.append(
+                {
+                    "id": sub.pk,
+                    "srclang": sub.language.bcp47,
+                    "vtt": vtt,
+                    "name": sub.name,
+                    "default": sub.pk == default_id,
+                }
+            )
         return subtitles
 
     def has_clips(self):
@@ -989,13 +1002,6 @@ class Content(models.Model):
         return Clip.objects.filter(
             track__annotation_set_id=self.annotation_set_id, active=True
         ).exists()
-
-    def get_subtitle_options(self):
-        """Get (id, name) pairs for every subtitle on this content's resource, for use in selection UI."""
-        resource = self.get_resource()
-        if not resource:
-            return []
-        return list(Subtitle.objects.filter(resource=resource).values("id", "name"))
 
     def get_player_json(self):
         """
@@ -1943,20 +1949,10 @@ def subtitle_file_upload_path(instance, filename):
         return f"{instance.resource.name}/subtitles/{filename}"
 
 
-def subtitle_temp_file_upload_path(instance):
+def subtitle_temp_file_upload_path(instance, filename=None):
     """Generate upload path to media/<resource name>/subtitles/<filename>"""
     if isinstance(instance, Subtitle):
         return f"{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
-
-
-def validate_subtitle_file(file):
-    """Ensure filetype is .vtt or .srt"""
-    file_name_split = os.path.splitext(file.name)
-    file_ext = file_name_split[1]
-    if file_ext != ".vtt" and file_ext != ".srt":
-        raise ValidationError(
-            f"Subtitles must be .vtt or .srt format. Format provided: {file_ext}"
-        )
 
 
 class Subtitle(models.Model):

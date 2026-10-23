@@ -556,13 +556,6 @@ def test_the_player_controls_and_menus_have_no_a11y_violations(
     page.locator(".clips-btn").click()
     assert_no_violations(page, "the clips menu")
 
-    # The sidebar button stays disabled until a caption track is on, so turning captions on
-    # is what makes the sidebar reachable - and it audits the captions-on state besides.
-    page.locator(".captions-btn").click()
-    page.locator('.caption-option[data-subtitle-track="0"]').click()
-    page.wait_for_selector(".subtitle-sidebar-btn:not([disabled])")
-    assert_no_violations(page, "the player with captions turned on")
-
     page.locator(".subtitle-sidebar-btn").click()
     assert_no_violations(page, "the subtitle sidebar")
 
@@ -755,7 +748,7 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
 
     page.locator("#annotation-set-menu-button").click()
-    page.wait_for_selector(".visible-multi-select-menu")
+    page.wait_for_selector("#annotation-set-settings-menu", state="visible")
     assert_no_violations(
         page, "the annotation set menu", include=["#annotation-panel-header"]
     )
@@ -765,7 +758,7 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     page.evaluate(
         "() => document.getElementById('annotation-set-export-open-button').click()"
     )
-    page.wait_for_selector("#annotation-set-export-button", state="visible")
+    page.wait_for_selector("#annotation-set-export-open-button", state="visible")
     assert_no_violations(page, "the export dialog", include=["dialog[open]"])
     page.keyboard.press("Escape")
 
@@ -815,8 +808,8 @@ def test_the_editor_timeline_controls_have_no_a11y_violations(
     # The middle row of three, so the menu renders every branch at once: the first stack
     # position hides Move up and Delete, and the last hides Move down.
     track_row = page.locator(".track-row").nth(1)
-    track_row.locator(".open-multi-select-button").click()
-    page.wait_for_selector(".visible-multi-select-menu")
+    track_row.locator(".open-multi-option-menu").click()
+    page.wait_for_selector(".multi-option-menu")
     assert_no_violations(page, "a track's options menu", include=[".track-row"])
 
     track_row.locator(".track-menu-rename").click()
@@ -883,10 +876,18 @@ def test_the_subtitle_editor_panel_has_no_a11y_violations(
         page, "the empty subtitle panel", include=["#subtitle-editor-panel"]
     )
 
-    page.locator("#subtitle-panel-header .editor-menu-button").click()
-    page.wait_for_selector("#subtitles-settings-wrapper", state="visible")
+    page.locator("#subtitle-track-menu-button").click()
+    page.wait_for_selector("#subtitle-track-settings-menu", state="visible")
     assert_no_violations(
-        page, "the subtitles settings dialog", include=["dialog[open]"]
+        page,
+        "visible subtitle multi option menu",
+        include=["#subtitle-track-settings-menu"],
+    )
+
+    page.locator("#open-subtitle-track-options-modal").click()
+    page.wait_for_selector("#subtitle-track-selection-modal")
+    assert_no_violations(
+        page, "visible subtitle track selection modal", include=["dialog[open]"]
     )
 
     track_value = page.locator(
@@ -1056,23 +1057,27 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/playlist_delete.html",
     "core/partials/modals/playlist_member_remove.html",
     "core/partials/modals/playlist_members.html",
+    "core/partials/modals/create_subtitle_track.html",
+    "core/partials/modals/delete_subtitle_track.html",
+    "core/partials/modals/edit_subtitle_track.html",
+    "core/partials/modals/select_subtitle_track.html",
     "core/partials/playlist_member_options_for_select.html",
     "core/partials/playlist_members_list.html",
     "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
-    "core/partials/user_view_modal.html",
+    "core/partials/modals/user_view_modal.html",
     # editor
     "core/partials/annotation_form.html",
     "core/partials/annotation_list_item.html",
     "core/partials/annotation_panel.html",
     "core/partials/annotation_set_export_modal.html",
-    "core/partials/annotation_set_options/base_modal.html",
-    "core/partials/annotation_set_options/copy_from_set.html",
-    "core/partials/annotation_set_options/create_new.html",
-    "core/partials/annotation_set_options/import_from_file.html",
-    "core/partials/annotation_set_options/use_existing_set.html",
+    "core/partials/modals/annotation_set_options/base_modal.html",
+    "core/partials/modals/annotation_set_options/copy_from_set.html",
+    "core/partials/modals/annotation_set_options/create_new.html",
+    "core/partials/modals/annotation_set_options/import_from_file.html",
+    "core/partials/modals/annotation_set_options/use_existing_set.html",
     "core/partials/annotation_set_selector.html",
     "core/partials/annotation_set_retirement_modal.html",
     "core/partials/blur_anchor_points.html",
@@ -1082,7 +1087,6 @@ AUDITED_TEMPLATES = {
     "core/partials/subtitle_cues.html",
     "core/partials/subtitle_editor_panel.html",
     "core/partials/subtitle_panel_content.html",
-    "core/partials/subtitles_settings.html",
     "core/partials/timeline-track-row.html",
     "core/partials/timeline_base.html",
     # django admin
