@@ -181,9 +181,7 @@ class VTTCue:
 
         self.payload = self.payload.strip()
         self.payload = self.payload.replace("\r\n", "\n").replace("\r", "\n")
-        if self.payload == "":
-            self.is_valid = False
-        elif any(not line.strip() for line in self.payload.split("\n")):
+        if any(not line.strip() for line in self.payload.split("\n")):
             self.payload = self.payload.replace("\n", " ")
 
         parsed_start_time = _subtitle_seconds(self.start_time)
