@@ -59,7 +59,10 @@ def test_clips_only_info_popover_opens_beside_its_button_and_dismisses(
     popover_box = popover.bounding_box()
     assert button_box
     assert popover_box
-    assert popover_box["y"] >= button_box["y"] + button_box["height"]
+    # The popover flips above the button when there is no room below it.
+    gap_below = popover_box["y"] - (button_box["y"] + button_box["height"])
+    gap_above = button_box["y"] - (popover_box["y"] + popover_box["height"])
+    assert 0 <= gap_below < 10 or 0 <= gap_above < 10
     assert abs(popover_box["x"] - button_box["x"]) < 50
 
     page.keyboard.press("Escape")
