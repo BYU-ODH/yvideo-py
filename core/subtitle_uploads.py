@@ -149,6 +149,7 @@ class VTTCue:
         self.payload = payload
         self.nudge_was_validated = False
         self.nudge_is_valid = False
+        self.is_valid = False
 
         # since 0 is a valid seconds value but is considered falsey by Python, we have to be
         # explicit with our conditional expressions here
