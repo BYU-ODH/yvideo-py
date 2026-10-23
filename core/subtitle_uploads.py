@@ -149,7 +149,7 @@ class VTTCue:
         self.payload = payload
         self.nudge_was_validated = False
         self.nudge_is_valid = False
-        self.is_valid = False
+        self.is_valid = True
 
         # since 0 is a valid seconds value but is considered falsey by Python, we have to be
         # explicit with our conditional expressions here
@@ -170,6 +170,7 @@ class VTTCue:
         end = _seconds_to_milliseconds(self.end_time)
         if end <= start:
             self.is_valid = False
+            logger.error("cue end is before cue start")
 
         # The payload can't contain null character or the arrow required in the cue timing line
         # because this will mess up the VTT parser
@@ -179,6 +180,9 @@ class VTTCue:
             or "-->" in self.payload
         ):
             self.is_valid = False
+            logger.error(
+                "Cue payload is not a string or contains unallowed text content"
+            )
 
         self.payload = self.payload.strip()
         self.payload = self.payload.replace("\r\n", "\n").replace("\r", "\n")
@@ -188,10 +192,12 @@ class VTTCue:
         parsed_start_time = _subtitle_seconds(self.start_time)
         if parsed_start_time is None or parsed_start_time is False:
             self.is_valid = False
+            logger.error("cue start time is invalid")
 
         parsed_end_time = _subtitle_seconds(self.end_time)
         if parsed_end_time is None or parsed_end_time is False:
             self.is_valid = False
+            logger.error("cue end time is invalid")
 
         self.start_time = parsed_start_time
         self.end_time = parsed_end_time

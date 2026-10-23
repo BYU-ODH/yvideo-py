@@ -2988,28 +2988,47 @@ export class Editor {
         const startTime = Math.round(time * 1000) / 1000;
         const endTime = Math.round((time + 2) * 1000) / 1000;
         // the back end sorts cues, so this will go in its correct place.
-        const newCueTextContent = "*NEW CUE*";
         cues.push(
           {
             start_time: startTime,
             end_time: endTime,
             type: "CUE",
-            payload: newCueTextContent,
+            payload: "",
             identifier: "",
             cue_settings: "",
           }
         )
         if (!await this.saveCues(cues, false)) return;
-        const cueTextAreas = subtitlesPanel.querySelectorAll(`.editor-subtitle-cue-content`);
-        for (let cueTA of cueTextAreas) {
-          if (cueTA.textContent == newCueTextContent) {
-            cueTA.textContent = "";
-            cueTA.focus();
-            return;
-          }
+
+        // Normalize the lookup time string so it will always fine the right cue
+        // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
+        // A cue's end and start time values are to 3 decimal places, the video's
+        // current time has no decimal place limiter. Both of these cases should
+        // be handled here.
+        const cueLookupTime = parseFloat(startTime);
+        let lookupTimeString = cueLookupTime.toString();
+        const lookupStringSplit = lookupTimeString.split('.');
+
+        if (lookupStringSplit.length == 1) {
+          lookupTimeString = lookupTimeString + ".0";
         }
-        console.error("no new cue found!");
-        return;
+        else if (lookupStringSplit[1].length > 3) {
+          lookupTimeString = cueLookupTime.toFixed(3);
+        }
+        const newCue = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
+        if (!newCue) {
+          console.log(cueLookupTime, lookupTimeString, time);
+          console.error("no new cue found!");
+          return;
+        }
+        const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
+        if (cueTA) {
+          cueTA.focus();
+        }
+        else {
+          console.error("Unable to locate cue text content.");
+        }
+
       });
 
       const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
