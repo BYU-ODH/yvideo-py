@@ -1,18 +1,30 @@
 import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
+import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
+import { PendingNudge, beginRectGesture, createRig, nudgeDelta } from "./overlay-rig.js";
 import {
-  RESIZE_HANDLES,
   clampRect,
-  edgesForHandle,
-  percentWithin,
   blurAnchorPointsLostByRetiming,
-  resizeRect,
 } from "./video-geometry.js";
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
+// Mirror COMMENT_MIN_WIDTH / COMMENT_MIN_HEIGHT in core/models.py. A comment has no stored height,
+// so the minimum is only what keeps a strip of the box on the frame.
 const COMMENT_MIN_WIDTH = 3;
-const COMMENT_MIN_HEIGHT = 4;
+const COMMENT_MIN_HEIGHT = 3;
+const COMMENT_CLAMP_LIMITS = {minWidth: COMMENT_MIN_WIDTH, minHeight: COMMENT_MIN_HEIGHT};
 const MIN_ITEM_SECONDS = 0.1;
+// Stricter than parseFloat, which reads "12%" as 12: the form sends the text itself, and the server
+// rejects anything float() cannot read.
+const COMMENT_GEOMETRY_PATTERN = /^\s*[-+]?(\d+\.?\d*|\.\d+)\s*$/;
+const COMMENT_GEOMETRY_FIELDS = ["x", "y", "width"];
+
+function readCommentGeometry(form) {
+  return COMMENT_GEOMETRY_FIELDS.map((field) => {
+    const value = form.querySelector(`#comment-${field}`)?.value ?? "";
+    return COMMENT_GEOMETRY_PATTERN.test(value) ? parseFloat(value) : NaN;
+  });
+}
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -63,7 +75,8 @@ export class Editor {
         this.commentRigWindow = null;
         // Set while a pointer is down, so the render below cannot overwrite the geometry the user is
         // actively dragging.
-        this.commentRigDragging = false;
+        this.commentGesture = null;
+        this.commentNudge = new PendingNudge((rect) => this._saveCommentRect(rect));
         this.renderCommentRig = this.renderCommentRig.bind(this);
         // The same two cadences BlurEditor uses: timeupdate/seeked cover scrubbing and the paused
         // case, while animateDuringPlayback runs every animation frame, the rate at which the player
@@ -73,6 +86,12 @@ export class Editor {
         animateDuringPlayback(this.video, this.renderCommentRig);
 
         this.annotationBox = window.videoPlayer.annotationBox;
+        // The rig's height is the comment box's rendered height, so it has to be redrawn whenever
+        // the player adds a box or the box reflows (font size, width, frame size). Neither fires a
+        // video event while paused.
+        new MutationObserver(this.renderCommentRig).observe(this.annotationBox, {childList: true});
+        this.commentBoxObserver = new ResizeObserver(this.renderCommentRig);
+        this.observedCommentBox = null;
 
         this.blurEditor = new BlurEditor({
           video: this.video,
@@ -474,6 +493,11 @@ export class Editor {
           const annotationId = itemForm.dataset["annotationId"];
           const annotationType = itemForm.dataset["annotationType"];
 
+          // Held until the field is fixed; the field is marked invalid and the rig is hidden.
+          if (annotationType == "comment" && !readCommentGeometry(itemForm).every(Number.isFinite)) {
+            return;
+          }
+
           if (annotationType == "blur") {
             const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
             const newStart = parseTimeStringToSeconds(itemForm.querySelector("#start_time")?.value);
@@ -610,53 +634,6 @@ export class Editor {
       this.changeAnnotationInFocus();
     }
 
-    buildMoveHandler(elementToMove) {
-      let lastEvent;
-      return (event) => {
-        const referenceRect = elementToMove.parentElement.getBoundingClientRect();
-        if (lastEvent && referenceRect.width > 0 && referenceRect.height > 0) {
-          // Clamped, so a box cannot be dragged off the frame and out of reach.
-          const moved = clampRect({
-            x: (parseFloat(elementToMove.style.left) || 0) + (event.clientX - lastEvent.x) / referenceRect.width * 100,
-            y: (parseFloat(elementToMove.style.top) || 0) + (event.clientY - lastEvent.y) / referenceRect.height * 100,
-            width: parseFloat(elementToMove.style.width) || 0,
-            height: parseFloat(elementToMove.style.height) || 0,
-          });
-          elementToMove.style.left = `${moved.x}%`;
-          elementToMove.style.top = `${moved.y}%`;
-        }
-        lastEvent = {x: event.clientX, y: event.clientY};
-      }
-    }
-
-    buildResizePointMoveHandler(minHeight = COMMENT_MIN_HEIGHT, minWidth = COMMENT_MIN_WIDTH) {
-      return (event) => {
-        event.stopPropagation();
-        const elementToResize = event.target.parentElement;
-        const limits = {minWidth, minHeight};
-        const pointer = percentWithin(
-          {x: event.clientX, y: event.clientY, width: 0, height: 0},
-          event.target.closest(".annotation-box").getBoundingClientRect(),
-        );
-        const origin = {
-          x: parseFloat(elementToResize.style.left) || 0,
-          y: parseFloat(elementToResize.style.top) || 0,
-          width: parseFloat(elementToResize.style.width) || 0,
-          height: parseFloat(elementToResize.style.height) || 0,
-        };
-        const edges = edgesForHandle(event.target.dataset["handle"]);
-        if (!edges) return;
-        const resized = clampRect(resizeRect(origin, pointer, {
-          ...edges,
-          ...limits,
-        }), limits);
-        elementToResize.style.left = `${resized.x}%`;
-        elementToResize.style.top = `${resized.y}%`;
-        elementToResize.style.width = `${resized.width}%`;
-        elementToResize.style.height = `${resized.height}%`;
-      }
-    }
-
     changeAnnotationInFocus() {
       const previousTypeInFocus = this.typeOfAnnotationInFocus;
       const itemForm = document.getElementById("existing-item-form");
@@ -697,6 +674,17 @@ export class Editor {
         const target = event.target;
         const isTextEntry = target.matches?.("input, textarea, select, [contenteditable='true']");
         if (isTextEntry || !(event.ctrlKey || event.metaKey) || event.key?.toLowerCase() !== "z") {
+          return;
+        }
+
+        // An unsaved nudge is the newest edit, so undo drops it and there is nothing to redo. Sending
+        // either request instead would let the nudge save on top of the version it lands on.
+        if (this.commentNudge.value || this.blurEditor.nudge.value) {
+          event.preventDefault();
+          if (!event.shiftKey) {
+            this._discardCommentNudge();
+            this.blurEditor.discardNudge();
+          }
           return;
         }
 
@@ -1007,66 +995,54 @@ export class Editor {
 
       // handle font color change
       const fontColorInput = itemForm.querySelector("#font-color");
+      setUpColorCombobox(fontColorInput);
       fontColorInput.addEventListener("input", () => {
         const commentTextBox = getCommentBoxOrWriteError();
         if (!commentTextBox) return;
 
-        const newFontColor = fontColorInput.value;
-        const newLength = newFontColor.length;
-        if (newLength != 3 && newLength != 6) {
-          return;
-        }
-        else {
+        if (isHexColor(fontColorInput.value)) {
           commentTextBox.style.color = "#" + fontColorInput.value;
           update();
         }
       });
 
       const repaintFromForm = () => {
-        this.renderCommentRig();
-        this._previewCommentBox();
+        const values = readCommentGeometry(itemForm);
+        COMMENT_GEOMETRY_FIELDS.forEach((field, i) => {
+          itemForm.querySelector(`#comment-${field}`)
+            ?.setAttribute("aria-invalid", String(!Number.isFinite(values[i])));
+        });
+        this._restoreCommentRig();
         update();
       };
-      for (const selector of ["#top-x", "#top-y", "#bottom-x", "#bottom-y"]) {
-        itemForm.querySelector(selector)?.addEventListener("input", repaintFromForm);
+      for (const field of COMMENT_GEOMETRY_FIELDS) {
+        itemForm.querySelector(`#comment-${field}`)?.addEventListener("input", repaintFromForm);
       }
     }
 
     removeCommentRig() {
+      this.commentNudge.discard();
+      this.commentGesture?.cancel();
       this.commentRig?.remove();
       this.commentRig = null;
       this.commentRigAnnotationId = null;
       this.commentRigWindow = null;
-      this.commentRigDragging = false;
+      this.commentBoxObserver.disconnect();
+      this.observedCommentBox = null;
     }
 
-    updateCommentBoxPositionAndSize() {
+    _saveCommentRect(rect) {
       const updateForm = document.getElementById("annotation-update-form");
-      const rig = this.commentRig;
-      if (!rig || rig.hidden || !updateForm) return;
-
+      if (!updateForm) return;
       const annotationId = updateForm.dataset["annotationId"];
       if (this.commentRigAnnotationId !== String(annotationId)) return;
 
-      // update the form and save
-      const boxTop = parseFloat(rig.style.top);
-      const boxLeft = parseFloat(rig.style.left);
-
-      const formTopX = updateForm.querySelector("#top-x");
-      const formTopY = updateForm.querySelector("#top-y");
-      const formBottomX = updateForm.querySelector("#bottom-x");
-      const formBottomY = updateForm.querySelector("#bottom-y");
-      if (!formTopX || !formTopY || !formBottomX || !formBottomY) {
+      const inputs = COMMENT_GEOMETRY_FIELDS.map((field) => [field, updateForm.querySelector(`#comment-${field}`)]);
+      if (inputs.some(([, input]) => !input)) {
         console.error("Failed to get all comment form elements to update");
         return;
       }
-
-      // save original values in case update request goes wrong
-
-      formTopX.value = boxLeft;
-      formTopY.value = boxTop;
-      formBottomX.value = boxLeft + parseFloat(rig.style.width);
-      formBottomY.value = boxTop + parseFloat(rig.style.height);
+      for (const [field, input] of inputs) input.value = rect[field].toFixed(2);
 
       this.updateAnnotation({annotationType:"comment", annotationId});
     }
@@ -1074,81 +1050,133 @@ export class Editor {
     _ensureCommentRig() {
       if (this.commentRig?.isConnected) return this.commentRig;
 
-      const rig = document.createElement("div");
-      rig.id = "comment-edit-rig";
-      rig.setAttribute("role", "group");
-      rig.setAttribute("aria-label", "Comment box");
-      rig.title = "Drag to move, handles to resize.";
-      rig.hidden = true;
-      this._onCommentRigGesture(rig, () => this.buildMoveHandler(rig));
-
-      // The same eight grips the blur rig offers, positioned by data-handle.
-      for (const [handleName] of RESIZE_HANDLES) {
-        const handle = document.createElement("div");
-        handle.classList.add("overlay-resize-handle");
-        handle.classList.add("comment-rig-handle");
-        handle.dataset["handle"] = handleName;
-        this._onCommentRigGesture(handle, () => this.buildResizePointMoveHandler());
-        rig.appendChild(handle);
-      }
+      const rig = createRig({
+        id: "comment-edit-rig",
+        label: "Comment box",
+        title: "Drag to move, side handles to resize. Arrow keys nudge (Shift for bigger steps).",
+        keyShortcuts: "ArrowUp ArrowDown ArrowLeft ArrowRight",
+        // Only the side grips: the height follows the text.
+        handles: ["w", "e"],
+        handleClass: "comment-rig-handle",
+      });
+      rig.addEventListener("pointerdown", (event) => this._onCommentRigPointerDown(event));
+      rig.addEventListener("keydown", (event) => this._onCommentRigKeyDown(event));
+      // Written as soon as focus leaves rather than after the delay, because leaving usually means
+      // selecting something else, and the form the nudge saves through goes with the selection.
+      rig.addEventListener("focusout", () => this.commentNudge.flush());
 
       this.annotationBox.appendChild(rig);
       this.commentRig = rig;
       return rig;
     }
 
-    _onCommentRigGesture(target, buildHandler) {
-      target.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0) return;
-        event.stopPropagation();
-        target.setPointerCapture(event.pointerId);
-        this.commentRigDragging = true;
+    _onCommentRigPointerDown(event) {
+      if (event.button !== 0) return;
+      // A gesture started on top of a nudge carries it along and writes it on release.
+      const origin = this.commentNudge.value ?? this._commentRigRect();
+      if (!origin) return;
 
-        const moveHandler = buildHandler();
-        const onMove = (moveEvent) => {
-          moveHandler(moveEvent);
-          this._previewCommentBox();
-        };
-        const finish = (save) => {
-          target.removeEventListener("pointermove", onMove);
-          target.removeEventListener("pointerup", onUp);
-          target.removeEventListener("pointercancel", onCancel);
-          this.commentRigDragging = false;
-          if (save) {
-            this.updateCommentBoxPositionAndSize();
-          } else {
-            this.renderCommentRig();
-            this._previewCommentBox();
-          }
-        };
-        const onUp = () => finish(true);
-        const onCancel = () => finish(false);
-
-        target.addEventListener("pointermove", onMove);
-        target.addEventListener("pointerup", onUp);
-        target.addEventListener("pointercancel", onCancel);
+      const done = () => {
+        this.commentGesture = null;
+      };
+      const gesture = beginRectGesture(event, {
+        frame: this.annotationBox.getBoundingClientRect(),
+        origin,
+        handleName: event.target.closest(".comment-rig-handle")?.dataset["handle"],
+        limits: COMMENT_CLAMP_LIMITS,
+        onPaint: (rect) => this._paintComment(rect),
+        onCommit: (rect) => {
+          done();
+          this._saveCommentRect(rect);
+        },
+        onCancel: () => {
+          done();
+          this._restoreCommentRig();
+        },
       });
+      if (!gesture) return;
+      this.commentNudge.discard();
+      this.commentGesture = gesture;
     }
 
-    _previewCommentBox() {
-      const box = document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
-      if (!box || !this.commentRig) return;
-      box.style.left = this.commentRig.style.left;
-      box.style.top = this.commentRig.style.top;
-      box.style.width = this.commentRig.style.width;
-      box.style.height = this.commentRig.style.height;
+    _onCommentRigKeyDown(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const delta = nudgeDelta(event);
+      if (delta) {
+        const origin = this.commentNudge.value ?? this._commentRigRect();
+        if (!origin || this.commentRig.hidden) return;
+        const rect = clampRect(
+          {...origin, x: origin.x + delta.dx, y: origin.y + delta.dy},
+          COMMENT_CLAMP_LIMITS,
+        );
+        this._paintComment(rect);
+        this.commentNudge.hold(rect);
+      } else if (event.key === "Enter") {
+        this.commentNudge.flush();
+      } else if (event.key === "Escape") {
+        this._discardCommentNudge();
+        this.commentRig.blur();
+      } else {
+        return;
+      }
+      // The player binds these keys from a listener on `document`.
+      event.preventDefault();
+      event.stopPropagation();
     }
 
-    _commentRectFromForm() {
+    /** Drop an unsaved nudge and repaint from the form. */
+    _discardCommentNudge() {
+      if (!this.commentNudge.value) return;
+      this.commentNudge.discard();
+      this._restoreCommentRig();
+    }
+
+    _commentBox() {
+      return document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
+    }
+
+    _commentBoxHeight(box) {
+      const frameHeight = this.annotationBox.getBoundingClientRect().height;
+      if (!(frameHeight > 0)) return null;
+      return box.getBoundingClientRect().height / frameHeight * 100;
+    }
+
+    _observeCommentBox(box) {
+      if (box === this.observedCommentBox) return;
+      this.commentBoxObserver.disconnect();
+      if (box) this.commentBoxObserver.observe(box);
+      this.observedCommentBox = box;
+    }
+
+    // The player's box only learns the stored geometry, so a drag, nudge or typed value is
+    // previewed by writing the box directly.
+    _paintComment(rect) {
+      const rig = this._ensureCommentRig();
+      const box = this._commentBox();
+      if (box) {
+        box.style.left = `${rect.x}%`;
+        box.style.top = `${rect.y}%`;
+        box.style.width = `${rect.width}%`;
+      }
+      // Measured after the width is written, since the width is what reflows the text.
+      const height = box ? this._commentBoxHeight(box) : null;
+      applyRect(rig, {...rect, height: height ?? rect.height});
+    }
+
+    // The form's x/y/width, clamped as the server clamps them, with the height the player's box
+    // has at that width. Null until the box is drawn.
+    _commentRigRect() {
       const updateForm = document.getElementById("annotation-update-form");
       if (!updateForm) return null;
-      const read = (selector) => parseFloat(updateForm.querySelector(selector)?.value);
-      const x = read("#top-x");
-      const y = read("#top-y");
-      const right = read("#bottom-x");
-      const bottom = read("#bottom-y");
-      if (![x, y, right, bottom].every(Number.isFinite)) return null;
-      return {x, y, width: right - x, height: bottom - y};
+      const [x, y, width] = readCommentGeometry(updateForm);
+      if (![x, y, width].every(Number.isFinite)) return null;
+      const box = this._commentBox();
+      this._observeCommentBox(box);
+      const height = box ? this._commentBoxHeight(box) : null;
+      if (height === null) return null;
+      // Clamped as a box of no height, as the server does: the player draws it at the stored y.
+      const clamped = clampRect({x, y, width, height: 0}, COMMENT_CLAMP_LIMITS);
+      return {...clamped, height};
     }
 
     _readCommentWindow(annotationId) {
@@ -1168,19 +1196,21 @@ export class Editor {
     }
 
     renderCommentRig() {
-      if (!this.commentRigAnnotationId || this.commentRigDragging) return;
+      if (!this.commentRigAnnotationId || this.commentGesture || this.commentNudge.value) return;
       const rig = this._ensureCommentRig();
-      const rect = this._commentRectFromForm();
+      const rect = this._commentRigRect();
       const time = this.video.currentTime;
       const range = this.commentRigWindow;
       const inRange = range !== null && time >= range.start && time < range.end;
       rig.hidden = !inRange || rect === null;
-      if (!rig.hidden) {
-        applyRect(rig, clampRect(rect, {
-          minWidth: COMMENT_MIN_WIDTH,
-          minHeight: COMMENT_MIN_HEIGHT,
-        }));
-      }
+      if (!rig.hidden) applyRect(rig, rect);
+    }
+
+    // Puts the rig and the player's box back on the form's geometry after a preview.
+    _restoreCommentRig() {
+      this.renderCommentRig();
+      const rect = this._commentRigRect();
+      if (rect && this.commentRig && !this.commentRig.hidden) this._paintComment(rect);
     }
 
     setUpLoadedItemForm(annotationType, annotationId) {
@@ -1196,34 +1226,22 @@ export class Editor {
           // use 1 to advance forward, -1 to advance backward
           const advanceValue = isAdvancing ? 1 : -1;
 
-          // we need to know where we are so we can determine which clip to click on.
-          const clipList = document.getElementById("clip-annotation-items-list");
-          const clipLen = clipList.children.length;
-          let currentIndex;
-          for (let index = 0; index < clipLen; index++) {
-            const child = clipList.children[index];
-            if (child.dataset["annotationId"] == annotationId) {
-              currentIndex = index;
-              break;
-            }
-          }
+          // The panel list is in creation order, so order by timeline position instead.
+          const clipIds = [...document.querySelectorAll('.track-item[data-annotation-type="clip"]')]
+            .sort((a, b) => parseFloat(a.dataset["start"]) - parseFloat(b.dataset["start"]))
+            .map((item) => item.dataset["annotationId"]);
+          const clipLen = clipIds.length;
+          const currentIndex = clipIds.findIndex((id) => id == annotationId);
 
-          if (currentIndex === undefined) {
+          if (currentIndex === -1) {
             console.error(`Could not find clip annotation id (${annotationId}) matching the currently active clip.`);
             return;
           }
 
-          const nextIndex = currentIndex + advanceValue;
-          if (nextIndex >= clipLen) {
-            // roll over to start of list
-            clipList.children[0].click();
-          }
-          else if (nextIndex < 0) {
-            clipList.children[clipLen - 1].click();
-          }
-          else {
-            clipList.children[nextIndex].click();
-          }
+          // wrap around at either end of the timeline
+          const nextId = clipIds[(currentIndex + advanceValue + clipLen) % clipLen];
+          const clipList = document.getElementById("clip-annotation-items-list");
+          clipList.querySelector(`[data-annotation-id="${nextId}"]`)?.click();
         }
         const nextClipButton = document.getElementById("next-clip-button");
         if (nextClipButton) {
