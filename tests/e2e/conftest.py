@@ -21,6 +21,10 @@ VIDEO_SELECTOR = ".annotation-player-container video"
 # make a passing test faster, it only makes a slow machine report a flake instead of a failure.
 READY_TIMEOUT_MS = 10_000
 
+DRAIN_TIMEOUT_MS = 5_000
+DRAIN_POLL_MS = 50
+DRAIN_QUIET_CHECKS = 4
+
 # window.videoPlayer and the video's duration load via two independent async paths with no ordering
 # guarantee between them, so waiting on duration alone races window.videoPlayer.loadData, which
 # several tests call immediately.
@@ -168,8 +172,41 @@ def logged_in_page(page, live_server, seeded_demo_data):
     Requests seeded_demo_data because dev-quick-login only exists when it has set
     DEV_QUICK_LOGIN_ENABLED, and it has to have run before the login is attempted.
     """
+    in_flight = set()
+
+    def _track(request):
+        # Media range requests can stay open for the life of the page and do not touch the DB.
+        if request.url.startswith(live_server.url) and request.resource_type != "media":
+            in_flight.add(request)
+
+    def _untrack(request):
+        in_flight.discard(request)
+
+    page.on("request", _track)
+    page.on("requestfinished", _untrack)
+    page.on("requestfailed", _untrack)
+
     page.goto(f"{live_server.url}/login/dev/quick/")
-    return page
+    yield page
+
+    _drain_requests(page, in_flight)
+    page.goto("about:blank", wait_until="commit")
+
+
+def _drain_requests(page, in_flight):
+    """Wait until the live server has answered everything the page asked of it.
+
+    The DB is flushed right after this fixture tears down, and a request the server is still
+    handling (such as the player refetching its data after a save) holds a table lock that makes
+    the flush fail. Waits for a quiet stretch rather than an empty moment, because one response
+    often triggers the next request only after its body has been parsed.
+    """
+    quiet_checks = 0
+    for _ in range(DRAIN_TIMEOUT_MS // DRAIN_POLL_MS):
+        quiet_checks = 0 if in_flight else quiet_checks + 1
+        if quiet_checks >= DRAIN_QUIET_CHECKS:
+            return
+        page.wait_for_timeout(DRAIN_POLL_MS)
 
 
 @pytest.fixture
