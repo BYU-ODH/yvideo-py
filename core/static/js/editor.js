@@ -1733,6 +1733,15 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
+      const trackItems = Array.from(trackRow.querySelectorAll(".track-item"));
+      const itemCount = trackItems.length;
+      if (itemCount > 0) {
+        const items = itemCount === 1 ? "1 annotation" : `${itemCount} annotations`;
+        const message = `Delete track "${trackRow.querySelector(".track-name").innerText}" and its ${items}? This cannot be undone.`;
+        if (!window.confirm(message)) {
+          return;
+        }
+      }
       const trackDeleteResponse = await fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
@@ -1747,8 +1756,24 @@ export class Editor {
       }
       window.dispatchEvent(this.annotationUpdatedEvent);
 
-      trackRow.remove();
+      for (const item of trackItems) {
+        document.getElementById(`${item.dataset["annotationType"]}-panel-item-${item.dataset["annotationId"]}`)?.remove();
+      }
+      const itemForm = document.getElementById("existing-item-form");
+      const formItemWasDeleted = itemForm && trackItems.some(item =>
+        item.dataset["annotationType"] == itemForm.dataset["annotationType"]
+        && item.dataset["annotationId"] == itemForm.dataset["annotationId"]
+      );
+      if (formItemWasDeleted) {
+        document.getElementById("detail-form").innerHTML = "";
+        this.changeAnnotationInFocus();
+      }
+
+      const jsonData = await trackDeleteResponse.json();
+      this.replaceTracksWithNewHTML(jsonData["tracks_html"]);
       this.updateTracks();
+      this.placeTrackItems();
+      this.adjustScrubberHeight();
     }
 
     watchForTrackDelete(trackRootElement) {

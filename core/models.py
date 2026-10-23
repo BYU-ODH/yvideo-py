@@ -813,6 +813,9 @@ class Track(models.Model):
     def is_final_stack_position(self):
         return self.annotation_set.get_highest_stack_position() == self.stack_position
 
+    def is_only_track(self):
+        return not self.annotation_set.tracks.exclude(pk=self.pk).exists()
+
     def to_player_json(self):
         """Export all active annotations in this set for the AnnotationPlayer."""
         return {"id": self.pk, "name": self.name, "stack_position": self.stack_position}
