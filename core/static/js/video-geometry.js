@@ -44,7 +44,7 @@ export function contentRect(elemWidth, elemHeight, intrinsicWidth, intrinsicHeig
   };
 }
 
-// Mirrors BlurAnchorPoint.save() in core/models.py, so a drag shows the geometry that will
+// Mirrors clamp_rect() in core/models.py, so a drag shows the geometry that will
 // actually be stored and the box does not jump on release. Order matters and matches the server's:
 // size is settled first, then the origin is pulled in far enough to keep the whole box on screen.
 export function clampRect(rect, { minWidth = 0, minHeight = 0 } = {}) {

@@ -1356,26 +1356,56 @@ def validate_font_color(hexcode):
             )
 
 
+def clamp_rect(x, y, width, height, *, min_width, min_height, precision):
+    """Keep a box of frame percentages on the frame, as the editor's clampRect() does.
+
+    Size is settled first, then the origin is pulled in far enough to keep the whole box on screen.
+    Rounding is applied to the *result* of each clamp, and x and y are clamped against the already
+    rounded width and height, which is what keeps `x + width` landing on exactly 100 for a box
+    against the right edge.
+    """
+    width = round(min(100.0, max(min_width, float(width))), precision)
+    height = round(min(100.0, max(min_height, float(height))), precision)
+    x = round(min(100.0 - width, max(0.0, float(x))), precision)
+    y = round(min(100.0 - height, max(0.0, float(y))), precision)
+    return x, y, width, height
+
+
+COMMENT_MIN_WIDTH = 3.0
+# There is no stored height, so this is only the strip of the box that clamping keeps on the frame
+# to grab it by.
+COMMENT_MIN_HEIGHT = 3.0
+COMMENT_GEOMETRY_PRECISION = 2
+
+
 class CommentAnnotation(BaseAnnotation):
-    """Comment annotation with text and position."""
+    """Comment annotation with text and position.
+
+    x/y are the box's TOP-LEFT corner and x, y, and width are percentages of the rendered video
+    frame, as for BlurAnchorPoint. There is no height: the box is as tall as its wrapped text.
+    """
 
     text = models.TextField(default="This is where your comment will show")
-    top_left_x = models.FloatField(default=0.0)
-    top_left_y = models.FloatField(default=0.0)
-    bottom_right_x = models.FloatField(default=100.0)
-    bottom_right_y = models.FloatField(default=10.0)
+    x = models.FloatField(default=0.0)
+    y = models.FloatField(default=0.0)
+    width = models.FloatField(default=100.0)
     font_size_in_rem = models.FloatField(default=1)
     font_color = models.CharField(
         max_length=6, default="ffffff", validators=[validate_font_color]
     )
 
-    @property
-    def height(self):
-        return (self.bottom_right_y - self.top_left_y) + "%"
-
-    @property
-    def width(self):
-        return (self.bottom_right_x - self.top_left_x) + "%"
+    def save(self, *args, **kwargs):
+        """Clamp so the box always starts on the frame, as BlurAnchorPoint.save() does."""
+        self.x, self.y, self.width, _ = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            0.0,
+            min_width=COMMENT_MIN_WIDTH,
+            min_height=COMMENT_MIN_HEIGHT,
+            precision=COMMENT_GEOMETRY_PRECISION,
+        )
+        super().save(*args, **kwargs)
 
     def to_player_json(self):
         """Override: include text and coordinates."""
@@ -1383,10 +1413,9 @@ class CommentAnnotation(BaseAnnotation):
         data.update(
             {
                 "text": self.text,
-                "top_left_x": self.top_left_x,
-                "top_left_y": self.top_left_y,
-                "bottom_right_x": self.bottom_right_x,
-                "bottom_right_y": self.bottom_right_y,
+                "x": self.x,
+                "y": self.y,
+                "width": self.width,
                 "font_size_in_rem": self.font_size_in_rem,
                 "font_color": self.font_color,
             }
@@ -1396,10 +1425,9 @@ class CommentAnnotation(BaseAnnotation):
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
         new_annotation.text = self.text
-        new_annotation.top_left_x = self.top_left_x
-        new_annotation.top_left_y = self.top_left_y
-        new_annotation.bottom_right_x = self.bottom_right_x
-        new_annotation.bottom_right_y = self.bottom_right_y
+        new_annotation.x = self.x
+        new_annotation.y = self.y
+        new_annotation.width = self.width
         new_annotation.font_size_in_rem = self.font_size_in_rem
         new_annotation.font_color = self.font_color
         new_annotation.save()
@@ -1409,10 +1437,16 @@ class CommentAnnotation(BaseAnnotation):
     def from_import(cls, imported_data, track):
         new_annotation = super().from_import(imported_data, track)
         new_annotation.text = imported_data.get("text", "Your comment here")
-        new_annotation.top_left_x = imported_data.get("top_left_x", 50.0)
-        new_annotation.top_left_y = imported_data.get("top_left_y", 50.0)
-        new_annotation.bottom_right_x = imported_data.get("bottom_right_x", 60.0)
-        new_annotation.bottom_right_y = imported_data.get("bottom_right_y", 60.0)
+        # Files exported before x/y/width replaced the two corners still carry the corners.
+        x = imported_data.get("x", imported_data.get("top_left_x", 50.0))
+        new_annotation.x = x
+        new_annotation.y = imported_data.get("y", imported_data.get("top_left_y", 50.0))
+        if "width" in imported_data:
+            new_annotation.width = imported_data["width"]
+        else:
+            right = imported_data.get("bottom_right_x", x + 10.0)
+            # Inverted corners rendered with the text running to the frame's right edge.
+            new_annotation.width = right - x if right > x else 100.0 - x
         new_annotation.font_size_in_rem = imported_data.get("font_size_in_rem", 1.0)
         new_annotation.font_color = imported_data.get("font_color", "abcdef")
         new_annotation.save()
@@ -1689,24 +1723,17 @@ class BlurAnchorPoint(models.Model):
         the user's work; a rejection here would also have to be surfaced mid-drag, which there
         is nowhere good to do.
 
-        Rounding is applied to the *result* of each clamp rather than to the incoming value, so
-        the guarantee is about what gets stored: whatever the clamp arithmetic produces, the
-        column ends up at 2dp. x and y are clamped against the already rounded width and height,
-        which is what keeps `x + width` landing on exactly 100 for a box against the right edge.
+        See clamp_rect for how the geometry is rounded.
         """
         self.time = round(float(self.time), BLUR_TIME_PRECISION)
-        self.width = round(
-            min(100.0, max(BLUR_MIN_WIDTH, float(self.width))), BLUR_GEOMETRY_PRECISION
-        )
-        self.height = round(
-            min(100.0, max(BLUR_MIN_HEIGHT, float(self.height))),
-            BLUR_GEOMETRY_PRECISION,
-        )
-        self.x = round(
-            min(100.0 - self.width, max(0.0, float(self.x))), BLUR_GEOMETRY_PRECISION
-        )
-        self.y = round(
-            min(100.0 - self.height, max(0.0, float(self.y))), BLUR_GEOMETRY_PRECISION
+        self.x, self.y, self.width, self.height = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+            min_width=BLUR_MIN_WIDTH,
+            min_height=BLUR_MIN_HEIGHT,
+            precision=BLUR_GEOMETRY_PRECISION,
         )
         super().save(*args, **kwargs)
 
