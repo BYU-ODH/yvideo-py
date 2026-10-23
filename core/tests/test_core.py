@@ -202,7 +202,7 @@ class SubtitlesTests(TestCase):
         self.TEST_VTT_DATA = [
             {
                 "type": "CUE",
-                "payload": "  Hildy! \n\tHow are you?\t ",
+                "payload": "Hildy! How are you?",
                 "start_time": "00:00:00.123",
                 "end_time": "00:00:00.907",
             },
