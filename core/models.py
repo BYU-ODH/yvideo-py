@@ -883,10 +883,7 @@ class Content(models.Model):
     allow_definitions = models.BooleanField(default=True)
     allow_captions = models.BooleanField(default=True)
     allow_fast_playback = models.BooleanField(default=True)
-    clips_only = models.BooleanField(
-        default=False,
-        verbose_name="Show only clips defined in the editor (better Fair Use protection)",
-    )
+    clips_only = models.BooleanField(default=False)
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
