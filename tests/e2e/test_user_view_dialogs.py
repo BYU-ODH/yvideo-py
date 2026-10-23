@@ -92,6 +92,10 @@ def test_every_user_view_dialog_uses_the_shared_shell_and_behavior(
             f"/content/{content.pk}/display-settings/",
             [("#content-delete-modal", "#content-details-delete-button")],
         ),
+        (
+            f"/video-editor/{content.pk}/",
+            [("#tools-info-modal", "#tools-info-open-button")],
+        ),
     ]
 
     for path, dialogs in pages_and_dialogs:
