@@ -78,7 +78,6 @@ export class AnnotationPlayer {
       mouseInactive: false,
       hovering: false,
       controlsHovering: false,
-      subtitlesAreAboveControls: false
     };
 
     if (this.controls.volumeBtn) {
@@ -1502,32 +1501,6 @@ export class AnnotationPlayer {
     return;
   }
 
-  positionSubtitlesAboveControls() {
-    if (this.state.subtitlesAreAboveControls) {
-      return;
-    }
-
-    const controls = this.container.querySelector(".video-controls");
-    if (!controls) {
-      return;
-    }
-    const currentTrack = this.getCurrentVttTrack();
-    if (!currentTrack || currentTrack.cues.length == 0) {
-      return;
-    }
-    const videoDim = this.videoElem.getBoundingClientRect();
-    const controlsDim = controls.getBoundingClientRect();
-    const controlHeightAsPercentOfVideoHeight = Math.round(controlsDim.height / videoDim.height * 100)
-    const subtitlePlacementHeight = 100 - controlHeightAsPercentOfVideoHeight - 2;
-
-    const cues = currentTrack.cues
-    for (let cue of cues) {
-      cue.snapToLines = false;
-      cue.line = subtitlePlacementHeight;
-    }
-    this.state.subtitlesAreAboveControls = true;
-  }
-
   destroy() {
     this.subtitleTrackBlobUrls.forEach(url => {
       URL.revokeObjectURL(url);
@@ -1768,7 +1741,6 @@ export class AnnotationPlayer {
 
       this.controls.container.addEventListener('mouseenter', () => {
         this.state.hovering = true;
-        this.positionSubtitlesAboveControls();
         this.state.mouseInactive = false; // Reset inactive state on enter
         if (this.mouseTimer) clearTimeout(this.mouseTimer); // Clear any pending timer
         if (this.controls.container) {
