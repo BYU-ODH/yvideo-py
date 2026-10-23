@@ -258,11 +258,9 @@ class SubtitlesTests(TestCase):
         self.TEST_VTT_CUES = [
             VTTCue(
                 type=entry["type"],
-                identifier=entry["identifier"],
                 payload=entry["payload"],
                 start_time=entry["start_time"],
                 end_time=entry["end_time"],
-                cue_settings=entry["cue_settings"],
             )
             for entry in self.TEST_VTT_DATA
         ]

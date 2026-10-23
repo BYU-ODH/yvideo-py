@@ -25,16 +25,6 @@
                    aria-label="Cue type"
                    type="text"
                    value="{{ cue.type }}">
-            <input class="editor-subtitle-cue-identifier"
-                   hidden
-                   aria-label="Cue identifier"
-                   type="text"
-                   value="{{ cue.identifier|default_if_none:'' }}">
-            <input class="editor-subtitle-cue-settings"
-                   hidden
-                   aria-label="Cue settings"
-                   type="text"
-                   value="{{ cue.cue_settings|default_if_none:'' }}">
         </div>
         <textarea id="editor-subtitle-{{forloop.counter0}}-payload"
                   class="editor-subtitle-cue-content"

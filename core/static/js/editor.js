@@ -2921,10 +2921,8 @@ export class Editor {
         cues.push({
           type: "CUE",
           payload: payloadEl.value,
-          identifier: "",
           start_time: startTimeEl.value,
           end_time: endTimeEl.value,
-          cue_settings: "",
         });
       }
       return cues;
@@ -2994,8 +2992,6 @@ export class Editor {
             end_time: endTime,
             type: "CUE",
             payload: "",
-            identifier: "",
-            cue_settings: "",
           }
         )
         if (!await this.saveCues(cues, false)) return;
