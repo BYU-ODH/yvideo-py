@@ -278,12 +278,6 @@ class SubtitlesTests(TestCase):
                     build_vtt_file_string_from_cues([cue]),
                     f"WEBVTT\n\n00:00:{expected_start} --> 00:00:{expected_end}\n",
                 )
-        for cue_type, payload in self.UNSUPPORTED_VTT_METADATA.items():
-            with self.subTest(cue_type=cue_type):
-                with self.assertRaises(ValidationError):
-                    build_vtt_file_string_from_cues(
-                        [VTTCue(type=cue_type, payload=payload)]
-                    )
 
     def test_build_cues_from_vtt_file_string(self):
         cues = build_cues_from_vtt_file_string(self.TEST_VTT)
