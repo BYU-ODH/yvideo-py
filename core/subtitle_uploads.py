@@ -34,7 +34,7 @@ def _timestamp_to_milliseconds(timestamp):
     Converts a timestamp string into milliseconds. Returns False if an error occurs while parsing.
     """
     if not isinstance(timestamp, str):
-        logger.warn(
+        logger.warning(
             f"_timestamp_to_milliseconds only accepts a string got {type(timestamp)}"
         )
         return False
@@ -58,7 +58,7 @@ def _timestamp_to_milliseconds(timestamp):
             fraction.ljust(3, "0")
         )
     except ValueError:
-        logger.warn(
+        logger.warning(
             f"_timestamp_to_milliseconds encountered invalid subtitle timestamp: {timestamp}"
         )
         return False
@@ -72,7 +72,7 @@ def _seconds_to_milliseconds(value):
         seconds = _timestamp_to_milliseconds(value)
         return _timestamp_to_milliseconds(value)
     if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
-        logger.warn(
+        logger.warning(
             f"_seconds_to_milliseconds input must be timestamps or numeric seconds. Got: {value} which is type: {type(value)}."
         )
         return False
@@ -81,11 +81,11 @@ def _seconds_to_milliseconds(value):
         if seconds < 0:
             seconds = 0
         if not seconds.is_finite():
-            logger.warn("_seconds_to_milliseconds input must be finite")
+            logger.warning("_seconds_to_milliseconds input must be finite")
             return False
         return int((seconds * 1000).to_integral_value(rounding=ROUND_HALF_UP))
     except (InvalidOperation, ValueError, OverflowError):
-        logger.warn(
+        logger.warning(
             "_seconds_to_milliseconds was provided an invalid subtitle timestamp."
         )
         return False
@@ -101,7 +101,7 @@ def _milliseconds_to_seconds(milliseconds):
             raise OverflowError
         return seconds
     except Exception:
-        logger.warn("_milliseconds_to_seconds was provided an invalid input.")
+        logger.warning("_milliseconds_to_seconds was provided an invalid input.")
         return False
 
 
