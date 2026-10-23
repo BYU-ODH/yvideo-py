@@ -493,15 +493,17 @@ def test_the_content_delete_dialog_has_no_a11y_violations(
     assert_no_violations(page, "the delete-content dialog", include=["dialog[open]"])
 
 
-def test_the_clips_only_info_dialog_has_no_a11y_violations(
+def test_the_clips_only_info_popover_has_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
     page = logged_in_page
     page.goto(f"{live_server.url}/content/{awkward_data.birds.id}/display-settings/")
 
     page.locator("#clips-only-info-button").click()
-    page.wait_for_selector("#clips-only-info-modal", state="visible")
-    assert_no_violations(page, "the clips-only info dialog", include=["dialog[open]"])
+    page.wait_for_selector("#clips-only-info", state="visible")
+    assert_no_violations(
+        page, "the clips-only info popover", include=["#clips-only-form-group"]
+    )
 
 
 def test_the_resource_request_form_has_no_a11y_violations_when_it_rejects_a_submission(
@@ -1061,7 +1063,6 @@ AUDITED_TEMPLATES = {
     "core/partials/dialog_close_button.html",
     "core/partials/modals/add_new_playlist.html",
     "core/partials/modals/add_video.html",
-    "core/partials/modals/clips_only_info.html",
     "core/partials/modals/content_delete.html",
     "core/partials/modals/create_from_resource.html",
     "core/partials/modals/playlist_course_assignments.html",

@@ -1807,6 +1807,7 @@ a.blue-button {
 }
 
 .label-with-info {
+    anchor-scope: --info-button;  /* eslint-disable-line css/use-baseline */
     font-weight: 500;
 }
 
@@ -1818,6 +1819,8 @@ a.blue-button {
     all: unset;
 
     cursor: pointer;
+
+    anchor-name: --info-button;  /* eslint-disable-line css/use-baseline */
 
     display: inline-flex;
     align-items: center;
@@ -1835,8 +1838,23 @@ a.blue-button {
     outline: 2px solid var(--primary-blue);
 }
 
-.clips-only-info-body {
-    max-width: 32rem;
+.info-popover {
+    inset: auto;
+    position-anchor: --info-button;  /* eslint-disable-line css/use-baseline */
+    position-area: bottom span-right;  /* eslint-disable-line css/use-baseline */
+    position-try-fallbacks: flip-block, flip-inline;  /* eslint-disable-line css/use-baseline */
+
+    max-width: min(32rem, 90vw);
+    margin: 0.25rem;
+    padding: 0 1rem;
+    border: 2px solid var(--primary-blue);
+    border-radius: 12px;
+
+    font-weight: normal;
+    color: black;
+
+    background: white;
+    box-shadow: 3px 6px 10px #00000050;
 }
 
 .content-form-group.clips-only-invalid label,
