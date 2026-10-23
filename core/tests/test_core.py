@@ -696,10 +696,9 @@ class AnnotationSetCreateForContentTests(TestCase):
             end_time=5.0,
             description="opening comment",
             text="Observe the framing",
-            top_left_x=20.0,
-            top_left_y=30.0,
-            bottom_right_x=20.0,
-            bottom_right_y=30.0,
+            x=20.0,
+            y=30.0,
+            width=20.0,
             font_size_in_rem=1.0,
             font_color="abcdef",
         )
@@ -782,10 +781,9 @@ class AnnotationSetCreateForContentTests(TestCase):
             end_time=40.0,
             description="closing comment",
             text="Note the composition",
-            top_left_x=20.0,
-            top_left_y=30.0,
-            bottom_right_x=20.0,
-            bottom_right_y=30.0,
+            x=20.0,
+            y=30.0,
+            width=20.0,
             font_size_in_rem=1.0,
             font_color="abcdef",
         )
@@ -864,20 +862,8 @@ class AnnotationSetCreateForContentTests(TestCase):
                 self.assertTrue(orig_annotation["type"] == new_annotation["type"])
             elif orig_type == "comment":
                 self.assertTrue(orig_annotation["text"] == new_annotation["text"])
-                self.assertTrue(
-                    orig_annotation["top_left_x"] == new_annotation["top_left_x"]
-                )
-                self.assertTrue(
-                    orig_annotation["top_left_y"] == new_annotation["top_left_y"]
-                )
-                self.assertTrue(
-                    orig_annotation["bottom_right_x"]
-                    == new_annotation["bottom_right_x"]
-                )
-                self.assertTrue(
-                    orig_annotation["bottom_right_y"]
-                    == new_annotation["bottom_right_y"]
-                )
+                for field in ("x", "y", "width"):
+                    self.assertEqual(orig_annotation[field], new_annotation[field])
                 self.assertTrue(
                     orig_annotation["font_size_in_rem"]
                     == new_annotation["font_size_in_rem"]

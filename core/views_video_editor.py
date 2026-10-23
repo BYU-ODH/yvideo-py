@@ -822,20 +822,9 @@ def update_annotation(request, content, annotation_type, annotation_id):
         if annotation_type == "comment":
             if "text" in json_data:
                 fields_to_update["text"] = json_data["text"]
-            if "top_left_x" in json_data and json_data["top_left_x"] is not None:
-                fields_to_update["top_left_x"] = float(json_data["top_left_x"])
-            if "top_left_y" in json_data and json_data["top_left_y"] is not None:
-                fields_to_update["top_left_y"] = float(json_data["top_left_y"])
-            if (
-                "bottom_right_x" in json_data
-                and json_data["bottom_right_x"] is not None
-            ):
-                fields_to_update["bottom_right_x"] = float(json_data["bottom_right_x"])
-            if (
-                "bottom_right_y" in json_data
-                and json_data["bottom_right_y"] is not None
-            ):
-                fields_to_update["bottom_right_y"] = float(json_data["bottom_right_y"])
+            for field in ("x", "y", "width"):
+                if json_data.get(field) is not None:
+                    fields_to_update[field] = float(json_data[field])
             if (
                 "font_size_in_rem" in json_data
                 and json_data["font_size_in_rem"] is not None

@@ -89,45 +89,49 @@
                            value="{{ instance.font_color }}">
                 </div>
             </div>
-            <div class="row-flex flex-apart-aligned">
-                <div class="form-group">
-                    <label for="top-x">Top x:</label>
-                    <input type="number"
-                           id="top-x"
-                           name="top_left_x"
-                           value="{{ instance.top_left_x }}"
-                           step="0.1"
-                           {% if not can_edit %}readonly{% endif %}>
-                </div>
-                <div class="form-group">
-                    <label for="top-y">Top y:</label>
-                    <input type="number"
-                           id="top-y"
-                           name="top_left_y"
-                           value="{{ instance.top_left_y }}"
-                           step="0.1"
-                           {% if not can_edit %}readonly{% endif %}>
-                </div>
-            </div>
-            <div class="row-flex flex-apart-aligned">
-                <div class="form-group">
-                    <label for="bottom-x">Bottom x:</label>
-                    <input type="number"
-                           id="bottom-x"
-                           name="bottom_right_x"
-                           value="{{ instance.bottom_right_x }}"
-                           step="0.1"
-                           {% if not can_edit %}readonly{% endif %}>
-                </div>
-                <div class="form-group">
-                    <label for="bottom-y">Bottom y:</label>
-                    <input type="number"
-                           id="bottom-y"
-                           name="bottom_right_y"
-                           value="{{ instance.bottom_right_y }}"
-                           step="0.1"
-                           {% if not can_edit %}readonly{% endif %}>
-                </div>
+            <div id="comment-geometry">
+                <h4>Position</h4>
+                <p class="comment-geometry-help">
+                    Drag the comment on the video to move it, or its side handles to change its width.
+                    Its height always fits the text.
+                </p>
+                <table id="comment-geometry-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">X (%)</th>
+                            <th scope="col">Y (%)</th>
+                            <th scope="col">W (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="comment-geometry-input-group">
+                                <input id="comment-x"
+                                       type="text"
+                                       name="x"
+                                       value="{{ instance.x|floatformat:2 }}"
+                                       aria-label="comment x as a percentage of the video window, from the left edge"
+                                       {% if not can_edit %}readonly{% endif %}>
+                            </td>
+                            <td class="comment-geometry-input-group">
+                                <input id="comment-y"
+                                       type="text"
+                                       name="y"
+                                       value="{{ instance.y|floatformat:2 }}"
+                                       aria-label="comment y as a percentage of the video window, from the top edge"
+                                       {% if not can_edit %}readonly{% endif %}>
+                            </td>
+                            <td class="comment-geometry-input-group">
+                                <input id="comment-width"
+                                       type="text"
+                                       name="width"
+                                       value="{{ instance.width|floatformat:2 }}"
+                                       aria-label="comment width as a percentage of the video window"
+                                       {% if not can_edit %}readonly{% endif %}>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         {% elif item_type == 'blank' %}
             <div class="form-group">
