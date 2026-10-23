@@ -3,6 +3,7 @@ import json
 import logging
 from urllib.parse import quote
 
+from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db import transaction
@@ -21,6 +22,7 @@ from django.views.decorators.http import require_POST
 from .forms import SubtitleForm
 from .models import BLUR_SNAP_SECONDS
 from .models import BLUR_TIME_PRECISION
+from .models import FONT_COLOR_PRESETS
 from .models import AnnotationSet
 from .models import BlankAnnotation
 from .models import BlurAnchorPoint
@@ -33,6 +35,7 @@ from .models import PauseAnnotation
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import Track
+from .models import validate_font_color
 from .permissions import annotation_set_read_required
 from .permissions import annotation_set_write_required
 from .permissions import checks_permission_inline
@@ -741,6 +744,7 @@ def generate_annotation_updated_html(
             "start_seconds": position["start"],
             "end_seconds": position["end"],
             "item_blur_anchor_points": item_blur_anchor_points,
+            "font_color_presets": FONT_COLOR_PRESETS,
         },
         request=request,
     )
@@ -833,6 +837,11 @@ def update_annotation(request, content, annotation_type, annotation_id):
                     json_data["font_size_in_rem"]
                 )
             if "font_color" in json_data:
+                # edit() creates the new version without running field validators.
+                try:
+                    validate_font_color(json_data["font_color"])
+                except ValidationError as e:
+                    return HttpResponseBadRequest(e.messages[0])
                 fields_to_update["font_color"] = json_data["font_color"]
 
         with transaction.atomic():
