@@ -297,10 +297,6 @@
   backdrop-filter: blur(var(--blur-radius, 80px));  /* eslint-disable-line css/use-baseline */
 }
 
-.annotation-box-blur-editor {
-    pointer-events: auto;
-}
-
 .bottom-controls {
   display: flex;
   align-items: center;
