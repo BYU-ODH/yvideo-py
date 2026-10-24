@@ -1629,6 +1629,8 @@ export class Editor {
         const annotationContainer = trackParentNode.querySelector(".track-row-annotations-container");
         this.setupTrackDragListeners(annotationContainer);
       }
+      // New rows start scrolled to the beginning.
+      this.scrollTracksToPoint(this.timelineScrollLeft);
     }
 
     /* track name change */
@@ -2204,8 +2206,8 @@ export class Editor {
     scrollTracksToPoint(scrollValue) {
       const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
       const tickMarksWrapper = this.timelineTicksContent;
-      // The ruler's clamped offset is the one every track copies: an item that overhangs the end
-      // of its track lets that row scroll further than the ruler can.
+      // Tracks copy the ruler's clamped offset rather than scrollValue, so a track whose item
+      // overhangs its end (e.g. a pause near the end of the video) can't scroll past the ruler.
       tickMarksWrapper.scrollLeft = scrollValue;
       this.timelineScrollLeft = tickMarksWrapper.scrollLeft;
       for (let track of tracksToAdjust) {
@@ -2227,11 +2229,9 @@ export class Editor {
       this.scrollTracksToPoint(contentWidth * this.timelineScrollRatio);
     }
 
-    // Each row is its own scroll container, and the browser scrolls them individually: a trackpad
-    // or shift+wheel over one row (the ruler included), focusing an item that is off screen.
-    // Whichever one moved, the rest follow.
+    // Prevent rows from scrolling out of sync. Each row is its own scroll container, so whichever
+    // row scrolls, the rest follow.
     keepTimelineRowsScrolledTogether() {
-      // scroll does not bubble, so it is only seen here while capturing.
       this.timelineWrapper.addEventListener("scroll", (e) => {
         const scroller = e.target;
         if (scroller !== this.timelineTicksContent && !scroller.classList?.contains("timeline-track-row-right")) return;
@@ -2239,15 +2239,6 @@ export class Editor {
         this.scrollTracksToPoint(scroller.scrollLeft);
         this.adjustScrubberPosition();
       }, true);
-
-      // Rebuilt tracks arrive scrolled to the start.
-      new MutationObserver((mutations) => {
-        const trackRowAdded = mutations.some((mutation) =>
-          [...mutation.addedNodes].some((node) => node.classList?.contains("track-row")));
-        if (trackRowAdded) {
-          this.scrollTracksToPoint(this.timelineScrollLeft);
-        }
-      }).observe(this.timelineWrapper, { childList: true });
     }
 
     watchForTimelineScrollChangeAndHandleIt() {
