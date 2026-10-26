@@ -1407,6 +1407,11 @@ class LegacyMigrationService:
             for legacy_event in legacy_annotations
             if self._annotation_model_for_type(legacy_event.get("type"))
         ]
+        # Legacy layers can skip numbers, but the track menus expect positions 0…n-1.
+        stack_positions = {
+            layer_number: index
+            for index, layer_number in enumerate(sorted(set(layer_numbers)))
+        }
         tracks_by_layer = {}
         for index, legacy_event in enumerate(legacy_annotations):
             model_class = self._annotation_model_for_type(legacy_event.get("type"))
@@ -1418,7 +1423,7 @@ class LegacyMigrationService:
                 track = Track.objects.create(
                     annotation_set=annotation_set,
                     name=f"Imported Layer {layer_number}",
-                    stack_position=layer_number,
+                    stack_position=stack_positions[layer_number],
                 )
                 tracks_by_layer[layer_number] = track
             start_time = float(legacy_event.get("start", 0) or 0)
@@ -1482,7 +1487,7 @@ class LegacyMigrationService:
             clip_track = Track.objects.create(
                 annotation_set=annotation_set,
                 name="Imported Clips",
-                stack_position=max(layer_numbers, default=-1) + 1,
+                stack_position=len(stack_positions),
             )
             for clip_index, legacy_clip in enumerate(legacy_clips):
                 self._ensure_clip(
