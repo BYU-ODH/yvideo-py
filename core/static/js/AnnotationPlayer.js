@@ -1436,7 +1436,7 @@ export class AnnotationPlayer {
       if (trackElem.language) {
         label += ` (${trackElem.language})`;
       }
-      menuHTML += `<div id="${this._renderCaptionTrackOptionIdFromTextTrack(trackElem)}" class="caption-option" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
+      menuHTML += `<div id="${this._renderCaptionTrackOptionIdFromTextTrack(trackElem)}" class="caption-option available-track" style="padding:8px 16px;cursor:pointer;white-space:nowrap;">${label}</div>`;
     });
 
     this.controls.captionsMenu.innerHTML = menuHTML;

@@ -563,11 +563,14 @@ def test_the_player_controls_and_menus_have_no_a11y_violations(
     assert_no_violations(page, "the playback speed menu")
     page.keyboard.press("Escape")
 
+    page.locator(".clips-btn").click()
+    assert_no_violations(page, "the clips menu")
+
     page.locator(".captions-btn").click()
     assert_no_violations(page, "the captions menu")
 
-    page.locator(".clips-btn").click()
-    assert_no_violations(page, "the clips menu")
+    # the test after this requires a caption track to be loaded
+    page.locator(".available-track").first.click()
 
     page.locator(".subtitle-sidebar-btn").click()
     assert_no_violations(page, "the subtitle sidebar")
@@ -771,7 +774,6 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     page.evaluate(
         "() => document.getElementById('annotation-set-export-open-button').click()"
     )
-    page.wait_for_selector("#annotation-set-export-open-button", state="visible")
     assert_no_violations(page, "the export dialog", include=["dialog[open]"])
     page.keyboard.press("Escape")
 
@@ -822,7 +824,6 @@ def test_the_editor_timeline_controls_have_no_a11y_violations(
     # position hides Move up and Delete, and the last hides Move down.
     track_row = page.locator(".track-row").nth(1)
     track_row.locator(".open-multi-option-menu").click()
-    page.wait_for_selector(".multi-option-menu")
     assert_no_violations(page, "a track's options menu", include=[".track-row"])
 
     track_row.locator(".track-menu-rename").click()
