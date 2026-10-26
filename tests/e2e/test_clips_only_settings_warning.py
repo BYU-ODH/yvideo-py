@@ -38,3 +38,42 @@ def test_clips_only_checkbox_shows_warning_live_when_no_clips_are_defined(
 
     expect(warning).to_be_hidden()
     expect(form_group).not_to_have_class(re.compile(r"clips-only-invalid"))
+
+
+def test_clips_only_info_popover_opens_beside_its_button_and_dismisses(
+    logged_in_page, live_server
+):
+    page = logged_in_page
+    content = Content.objects.get(title="Birds Overview")
+    page.goto(f"{live_server.url}/content/{content.pk}/display-settings/")
+
+    info_button = page.locator("#clips-only-info-button")
+    popover = page.locator("#clips-only-info")
+
+    expect(popover).to_be_hidden()
+    info_button.click()
+    expect(popover).to_be_visible()
+    expect(popover).to_contain_text("Fair Use")
+
+    button_box = info_button.bounding_box()
+    popover_box = popover.bounding_box()
+    assert button_box
+    assert popover_box
+    # The popover flips above the button when there is no room below it.
+    gap_below = popover_box["y"] - (button_box["y"] + button_box["height"])
+    gap_above = button_box["y"] - (popover_box["y"] + popover_box["height"])
+    assert 0 <= gap_below < 10 or 0 <= gap_above < 10
+    assert abs(popover_box["x"] - button_box["x"]) < 50
+
+    page.keyboard.press("Escape")
+    expect(popover).to_be_hidden()
+
+    info_button.click()
+    expect(popover).to_be_visible()
+    page.mouse.click(1, 1)
+    expect(popover).to_be_hidden()
+
+    # Reset swaps in a freshly rendered form, so the new button must still open the new popover.
+    page.locator("#content-settings-reset-button").click()
+    page.locator("#clips-only-info-button").click()
+    expect(page.locator("#clips-only-info")).to_be_visible()

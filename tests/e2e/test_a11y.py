@@ -493,6 +493,19 @@ def test_the_content_delete_dialog_has_no_a11y_violations(
     assert_no_violations(page, "the delete-content dialog", include=["dialog[open]"])
 
 
+def test_the_clips_only_info_popover_has_no_a11y_violations(
+    logged_in_page: Page, live_server, awkward_data
+):
+    page = logged_in_page
+    page.goto(f"{live_server.url}/content/{awkward_data.birds.id}/display-settings/")
+
+    page.locator("#clips-only-info-button").click()
+    page.wait_for_selector("#clips-only-info", state="visible")
+    assert_no_violations(
+        page, "the clips-only info popover", include=["#clips-only-form-group"]
+    )
+
+
 def test_the_resource_request_form_has_no_a11y_violations_when_it_rejects_a_submission(
     logged_in_page: Page, live_server, awkward_data
 ):
