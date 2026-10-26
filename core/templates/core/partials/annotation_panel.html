@@ -49,6 +49,18 @@
             {% include 'core/partials/annotation_set_retirement_modal.html' %}
         {% endif %}
     </div>
+    <div id="tools-header" class="row-flex flex-apart-aligned">
+        <span id="tools-header-title">Tools</span>
+        <button id="tools-info-open-button"
+                class="item-form-icon-button"
+                command="show-modal"
+                commandfor="tools-info-modal"
+                aria-label="Tools information">
+            <span aria-hidden="true">ⓘ</span>
+        </button>
+    </div>
+    {% include "core/partials/modals/tools_info.html" with dialog_id="tools-info-modal" %}
+
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}
             <div id="{{ group.type }}-annotation-type-wrapper"

@@ -805,6 +805,20 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
         page.locator("#annotation-set-modal-back").click()
 
 
+def test_the_editor_tools_info_dialog_has_no_a11y_violations(
+    logged_in_page: Page, live_server, content_with_every_annotation_type
+):
+    page = logged_in_page
+    page.goto(
+        f"{live_server.url}/video-editor/{content_with_every_annotation_type.pk}/"
+    )
+    page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
+
+    page.locator("#tools-info-open-button").click()
+    page.wait_for_selector("#tools-info-modal", state="visible")
+    assert_no_violations(page, "the tools info dialog", include=["dialog[open]"])
+
+
 def test_the_editor_timeline_controls_have_no_a11y_violations(
     logged_in_page: Page, live_server, content_with_every_annotation_type
 ):
@@ -1073,6 +1087,7 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_members_list.html",
     "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
+    "core/partials/modals/tools_info.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
     "core/partials/user_view_modal.html",
