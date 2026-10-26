@@ -37,9 +37,9 @@ from ..models import ResourceFileKey
 from ..models import SkipAnnotation
 from ..models import validate_font_color
 from ..subtitle_uploads import VTTCue
-from ..subtitle_uploads import build_cues_from_vtt_file_string
 from ..subtitle_uploads import build_vtt_file_string_from_cues
 from ..subtitle_uploads import nudge_cue_times
+from ..subtitle_uploads import parse_subtitle_text
 from ..utils import estimate_current_yearterm
 from ..utils import seconds2hms
 from ..utils import time2seconds
@@ -279,8 +279,8 @@ class SubtitlesTests(TestCase):
                     f"WEBVTT\n\n00:00:{expected_start} --> 00:00:{expected_end}\n",
                 )
 
-    def test_build_cues_from_vtt_file_string(self):
-        cues = build_cues_from_vtt_file_string(self.TEST_VTT)
+    def test_parse_subtitle_text(self):
+        cues = parse_subtitle_text(self.TEST_VTT)
         new_cues_count = len(cues)
         old_cues_count = len(self.TEST_VTT_CUES)
         self.assertEqual(new_cues_count, old_cues_count)
@@ -294,11 +294,11 @@ class SubtitlesTests(TestCase):
 
         for header in ("WEBVTT\n\n", "WEBVTT\n \t\n"):
             with self.subTest(header=header):
-                self.assertEqual(build_cues_from_vtt_file_string(header), [])
+                self.assertEqual(parse_subtitle_text(header), [])
         for cue_type, payload in self.UNSUPPORTED_VTT_METADATA.items():
             with self.subTest(cue_type=cue_type):
                 self.assertEqual(
-                    build_cues_from_vtt_file_string(f"WEBVTT\n\n{cue_type}\n{payload}"),
+                    parse_subtitle_text(f"WEBVTT\n\n{cue_type}\n{payload}"),
                     [],
                 )
 

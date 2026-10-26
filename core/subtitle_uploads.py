@@ -213,14 +213,6 @@ class VTTCue:
         )
         self.validate()
 
-    def from_string(self, text):
-        if not isinstance(text, str):
-            raise ValidationError("Subtitle contents must be text.")
-        cues = parse_subtitle_text("WEBVTT\n\n" + text)
-        if len(cues) != 1:
-            raise ValidationError("Expected exactly one timed subtitle cue.")
-        self.__dict__.update(cues[0].__dict__)
-
     def to_string(self):
         self.validate()
         lines = []
@@ -354,11 +346,6 @@ def parse_subtitle_text(text, *, file_format="vtt"):
     return cues
 
 
-def build_cues_from_vtt_file_string(text):
-    """Read stored VTT, including the timestamp format used by the older editor."""
-    return parse_subtitle_text(text)
-
-
 def build_vtt_file_string_from_cues(cues):
     return "WEBVTT\n\n" + "\n\n".join(cue.to_string() for cue in cues)
 
@@ -398,10 +385,6 @@ def build_subtitle_vtt(raw_content):
             ) from exception
         cues.append(cue)
     return build_vtt_file_string_from_cues(cues)
-
-
-def convert_srt_content_to_vtt(text):
-    return build_vtt_file_string_from_cues(parse_subtitle_text(text, file_format="srt"))
 
 
 def _decode_subtitle_bytes(data):
@@ -444,8 +427,13 @@ def validate_subtitle_file(file):
         raise ValidationError("Upload a .vtt or .srt subtitle file.")
 
 
-def normalize_subtitle_upload(upload):
-    """Validate the upload boundary, then use the shared parser and VTT serializer."""
+def build_subtitle_file_from_upload(upload):
+    """build_subtitle_file_from_upload
+    Accepts a file upload from a subtitle track edit or subtitle track creation form.
+    Validates the file and raises the ValidationError exception if there is something
+    wrong with the uploaded file or parsing it. Django's form handling will automatically
+    notify the user of a problem with the file if the validation error is raised.
+    """
     validate_subtitle_file(upload)
     if upload.size > MAX_SUBTITLE_UPLOAD_BYTES:
         raise ValidationError("Subtitle files must be no larger than 5 MiB.")
@@ -456,12 +444,9 @@ def normalize_subtitle_upload(upload):
     cues = parse_subtitle_text(
         _decode_subtitle_bytes(data), file_format=splitext(upload.name)[1].lower()[1:]
     )
-    return build_vtt_file_string_from_cues(cues).encode("utf-8")
+    content = build_vtt_file_string_from_cues(cues).encode("utf-8")
 
-
-def build_subtitle_file_from_upload(upload):
-    content = normalize_subtitle_upload(upload)
-    # Recognize both Windows and POSIX separators, regardless of the OS.
+    # Recognize both Windows and POSIX separators.
     filename = PureWindowsPath(upload.name).with_suffix(".vtt").name
     return ContentFile(content, name=filename)
 
