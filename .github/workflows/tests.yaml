@@ -8,7 +8,7 @@ on:
 
 jobs:
   pre-commit:
-    runs-on: arc-runner-pods
+    runs-on: arc-runner-set
     steps:
     - uses: actions/checkout@v6
       with:
@@ -37,7 +37,7 @@ jobs:
         SKIP: no-commit-to-branch
 
   django-tests:
-    runs-on: arc-runner-pods
+    runs-on: arc-runner-set
     steps:
     - uses: actions/checkout@v6
 
@@ -54,7 +54,7 @@ jobs:
       run: uv run python manage.py test core
 
   js-tests:
-    runs-on: arc-runner-pods
+    runs-on: arc-runner-set
     steps:
     - uses: actions/checkout@v6
 
@@ -67,7 +67,7 @@ jobs:
       run: node --test tests/js/*.test.js
 
   e2e:
-    runs-on: arc-runner-pods
+    runs-on: arc-runner-set
     env:
       SKIP_LIVE_YOUTUBE_TESTS: "1"
     steps:
@@ -89,7 +89,7 @@ jobs:
       run: uv run pytest tests/e2e --ignore=tests/e2e/test_a11y.py --browser chromium  # a11y tests run in their own job
 
   a11y:
-    runs-on: arc-runner-pods
+    runs-on: arc-runner-set
     steps:
     - uses: actions/checkout@v6
 
