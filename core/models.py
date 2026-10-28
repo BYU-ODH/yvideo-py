@@ -81,11 +81,6 @@ class Resource(models.Model):
                 fields=["name", "name_disambiguator"],
                 name="unique_resource_name_and_disambiguator",
             ),
-            models.UniqueConstraint(
-                fields=["name"],
-                condition=models.Q(name_disambiguator__isnull=True),
-                name="unique_undisambiguated_resource_name",
-            ),
         ]
 
     name = models.CharField(max_length=255)
