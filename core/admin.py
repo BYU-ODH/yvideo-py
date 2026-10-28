@@ -467,7 +467,11 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
 
             if resource_choice == self.CREATE_RESOURCE:
                 resource_title = cleaned_data.get("resource_title") or ""
-                if Resource.objects.filter(name=resource_title).exists():
+                if Resource.objects.filter(
+                    name=resource_title,
+                    name_disambiguator=cleaned_data.get("resource_name_disambiguator")
+                    or "",
+                ).exists():
                     self.add_error(
                         "resource_to_use",
                         "A Resource with this exact name already exists. Select it or "
