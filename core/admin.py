@@ -821,6 +821,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                 if resource is None:
                     resource = Resource.objects.create(
                         name=obj.resource_title,
+                        name_disambiguator=obj.resource_name_disambiguator,
                         media_type=Resource.MediaType.VIDEO,
                         requester_username=obj.owner.username,
                         physical_copy_exists=True,
