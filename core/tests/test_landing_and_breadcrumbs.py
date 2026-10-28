@@ -4,7 +4,9 @@ from django.test import override_settings
 from django.urls import reverse
 
 from ..factories import PlaylistFactory
+from ..factories import PlaylistUserAccessFactory
 from ..factories import UserFactory
+from ..models import PlaylistRole
 
 
 @modify_settings(
@@ -15,6 +17,21 @@ class LandingPageTests(TestCase):
     def setUp(self):
         self.instructor = UserFactory(instructor=True, netid="instr1")
         self.student = UserFactory(student=True, netid="stud1")
+        self.ta = UserFactory(student=True, netid="ta1")
+        self.collaborating_instructor = UserFactory(
+            instructor=True, netid="collabinstr"
+        )
+        self.playlist = PlaylistFactory(owner=self.instructor)
+        PlaylistUserAccessFactory(
+            user=self.ta,
+            playlist=self.playlist,
+            playlist_role=PlaylistRole.COLLABORATOR,
+        )
+        PlaylistUserAccessFactory(
+            user=self.collaborating_instructor,
+            playlist=self.playlist,
+            playlist_role=PlaylistRole.COLLABORATOR,
+        )
 
     def test_root_redirects_to_playlists(self):
         self.client.force_login(self.student)
@@ -49,6 +66,64 @@ class LandingPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "prose-page")
+
+    def test_student_only_sees_assigned_playlists(self):
+        """Asserts that a student who is not a TA or co-instructor does not see the My Playlists section
+        because the section never renders"""
+        self.client.force_login(self.student)
+        response = self.client.get("/playlists/")
+        self.assertNotContains(response, "my-playlists-wrapper")
+        self.assertNotContains(response, "collaborator-playlists-wrapper")
+        self.assertContains(response, "playlists-wrapper")
+
+    def test_instructor_sees_correct_playlists(self):
+        """Asserts that instructor sees assigned playlists and my playlists"""
+        self.client.force_login(self.instructor)
+        response = self.client.get("/playlists/")
+        self.assertNotContains(response, "collaborator-playlists-wrapper")
+        self.assertContains(response, "my-playlists-wrapper")
+        self.assertContains(response, "playlists-wrapper")
+
+    def test_ta_sees_collaborator_and_assigned_playlists(self):
+        """Asserts that TA can see collaborator playlists and assigned playlists"""
+        self.client.force_login(self.ta)
+        response = self.client.get("/playlists/")
+        self.assertNotContains(response, "my-playlists-wrapper")
+        self.assertContains(response, "collaborator-playlists-wrapper")
+        self.assertContains(response, "playlists-wrapper")
+
+    def test_instructor_sees_all_playlists_when_set_as_collaborator(self):
+        """Asserts that instructor acting as collaborator on a playlist sees all playlist types"""
+        self.client.force_login(self.collaborating_instructor)
+        response = self.client.get("/playlists/")
+        self.assertContains(response, "my-playlists-wrapper")
+        self.assertContains(response, "collaborator-playlists-wrapper")
+        self.assertContains(response, "playlists-wrapper")
+
+    def test_collaborator_and_read_only_grants_do_not_overlap(self):
+        published = PlaylistFactory(
+            owner=self.instructor, name="Published", published=True
+        )
+        PlaylistUserAccessFactory(
+            user=self.ta, playlist=published, playlist_role=PlaylistRole.COLLABORATOR
+        )
+        PlaylistUserAccessFactory(
+            user=self.student, playlist=published, playlist_role=PlaylistRole.STUDENT
+        )
+
+        self.client.force_login(self.ta)
+        context = self.client.get("/playlists/").context
+        self.assertIn(
+            published.pk, [p["pk"] for p in context["collaborator_playlists"]]
+        )
+        self.assertEqual(context["read_only_grant_playlists"], [])
+
+        self.client.force_login(self.student)
+        context = self.client.get("/playlists/").context
+        self.assertEqual(context["collaborator_playlists"], [])
+        self.assertEqual(
+            [p["pk"] for p in context["read_only_grant_playlists"]], [published.pk]
+        )
 
 
 @modify_settings(

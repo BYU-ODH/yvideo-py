@@ -153,7 +153,7 @@ def test_existing_resource_modal_chain_stays_on_the_playlist_page(
 
     expect(logged_in_page).to_have_url(playlist_url)
     expect(
-        logged_in_page.locator(".playlist-video .video-title").filter(
+        logged_in_page.locator(".playlist-item-tile .video-item-title").filter(
             has_text="Added in modal chain"
         )
     ).to_have_count(1)

@@ -40,10 +40,7 @@ class PrivilegeLevel(models.IntegerChoices):
 
 
 class PlaylistRole(models.IntegerChoices):
-    # Labels are spelled out because they reach users in the Manage People picker, and
-    # the generated ones would read "Instructor" (which the owner also is) and "Ta".
-    INSTRUCTOR = 0, "Co-instructor"
-    TA = 1, "TA"
+    COLLABORATOR = 0, "Collaborator"
     STUDENT = 2, "Student"
 
 
@@ -244,6 +241,14 @@ class User(AbstractUser):
             return True
         return not target_user.is_admin
 
+    def get_collaborator_playlists(self):
+        """Returns playlists that this user is a collaborator on."""
+        return list(
+            self.accessible_playlists.filter(
+                playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR
+            ).exclude(owner=self.pk)
+        )
+
     def can_access_resource(self, resource):
         """Whether this user may reach a Resource on an authoring path.
 
@@ -259,15 +264,12 @@ class User(AbstractUser):
         if self.is_instructor and resource.belongs_to_byu_library:
             return True
         # Write access on a playlist inherits that playlist owner's resource access,
-        # scoped to the owner rather than the playlist, so a TA can reach everything
-        # the instructor can.
+        # scoped to the owner rather than the playlist, so a collaborator can reach
+        # everything the instructor can.
         return ResourceAccess.objects.filter(
             resource=resource,
             user__playlists_owned__playlistuseraccess__user=self,
-            user__playlists_owned__playlistuseraccess__playlist_role__in=(
-                PlaylistRole.INSTRUCTOR,
-                PlaylistRole.TA,
-            ),
+            user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
         ).exists()
 
     def get_content_source_url(self, content):
@@ -354,7 +356,7 @@ class Playlist(models.Model):
         unique_together = ("name", "owner")
 
     def can_be_administered_by(self, user):
-        """Delete the playlist; grant the TA or INSTRUCTOR role."""
+        """Delete the playlist; grant the COLLABORATOR role."""
         return user.is_superuser or self.owner_id == user.pk
 
     def can_be_edited_by(self, user):
@@ -364,7 +366,7 @@ class Playlist(models.Model):
             or PlaylistUserAccess.objects.filter(
                 user=user,
                 playlist=self,
-                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
 
@@ -382,7 +384,7 @@ class Playlist(models.Model):
         )
 
     def can_grant_role(self, user, role):
-        if role in (PlaylistRole.INSTRUCTOR, PlaylistRole.TA):
+        if role == PlaylistRole.COLLABORATOR:
             return self.can_be_administered_by(user)
         return self.can_be_edited_by(user)
 
@@ -625,7 +627,7 @@ class AnnotationSet(models.Model):
             or PlaylistUserAccess.objects.filter(
                 user=user,
                 playlist__owner_id=self.owner_id,
-                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
 
@@ -633,7 +635,7 @@ class AnnotationSet(models.Model):
         return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
 
     def can_be_orphaned_by(self, user):
-        """Only the owner may retire a set, mirroring a TA's inability to delete a playlist."""
+        """Only the owner may retire a set, mirroring a collaborator's inability to delete a playlist."""
         return user.is_superuser or self.owner_id == user.pk
 
     def orphan(self):
@@ -718,9 +720,8 @@ class AnnotationSet(models.Model):
                                 f"Failed to import annotation. Annotation type: {annotation_class}. Exception: {e}"
                             )
                             continue
-
                 # copying from pre-existing annotation set
-                if (
+                elif (
                     annotation_set_json is None
                     and annotation_set_id_to_copy is not None
                 ):
@@ -736,6 +737,14 @@ class AnnotationSet(models.Model):
                     )
                     for annotation in annotations:
                         annotation.copy_to_new_annotation_set(annotation_set)
+                # a new set with no annotations. Any new empty set setup should happen here
+
+                # users can't add annotations without a track, so make sure a track exists on the set
+                existing_track_count = Track.objects.filter(
+                    annotation_set=annotation_set
+                ).count()
+                if existing_track_count == 0:
+                    Track.objects.create(annotation_set=annotation_set)
 
             return annotation_set
         except Exception as e:
@@ -876,10 +885,7 @@ class Content(models.Model):
     allow_definitions = models.BooleanField(default=True)
     allow_captions = models.BooleanField(default=True)
     allow_fast_playback = models.BooleanField(default=True)
-    clips_only = models.BooleanField(
-        default=False,
-        verbose_name="Show only clips defined in the editor (better Fair Use protection)",
-    )
+    clips_only = models.BooleanField(default=False)
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1224,8 +1230,6 @@ class BaseAnnotation(models.Model):
 class SkipAnnotation(BaseAnnotation):
     """Skip annotation - standard time range. Allows optional message to be displayed at the beginning of a skip."""
 
-    message = models.TextField(max_length=255, blank=True)
-
     def calculate_position(self):
         return {
             "left": "0%",
@@ -1237,12 +1241,10 @@ class SkipAnnotation(BaseAnnotation):
     def to_player_json(self):
         data = super().to_player_json()  # includes start/end + display strings
         data["type"] = "skip"  # keep/ensure type
-        data["message"] = self.message
         return data
 
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        new_annotation.message = self.message
         new_annotation.save()
         return new_annotation
 
@@ -1325,6 +1327,18 @@ class PauseAnnotation(BaseAnnotation):
         return obj
 
 
+FONT_COLOR_PRESETS = [
+    ("Black", "000000"),
+    ("White", "ffffff"),
+    ("Dark gray", "333333"),
+    ("Blue", "0066cc"),
+    ("Red", "d32f2f"),
+    ("Green", "2e7d32"),
+    ("Orange", "d35400"),
+    ("Yellow", "f9a825"),
+]
+
+
 def validate_font_color(hexcode):
     # font color must be at least 3 characters or 6 characters.
     font_color_length = len(hexcode)
@@ -1341,26 +1355,56 @@ def validate_font_color(hexcode):
             )
 
 
+def clamp_rect(x, y, width, height, *, min_width, min_height, precision):
+    """Keep a box of frame percentages on the frame, as the editor's clampRect() does.
+
+    Size is settled first, then the origin is pulled in far enough to keep the whole box on screen.
+    Rounding is applied to the *result* of each clamp, and x and y are clamped against the already
+    rounded width and height, which is what keeps `x + width` landing on exactly 100 for a box
+    against the right edge.
+    """
+    width = round(min(100.0, max(min_width, float(width))), precision)
+    height = round(min(100.0, max(min_height, float(height))), precision)
+    x = round(min(100.0 - width, max(0.0, float(x))), precision)
+    y = round(min(100.0 - height, max(0.0, float(y))), precision)
+    return x, y, width, height
+
+
+COMMENT_MIN_WIDTH = 3.0
+# There is no stored height, so this is only the strip of the box that clamping keeps on the frame
+# to grab it by.
+COMMENT_MIN_HEIGHT = 3.0
+COMMENT_GEOMETRY_PRECISION = 2
+
+
 class CommentAnnotation(BaseAnnotation):
-    """Comment annotation with text and position."""
+    """Comment annotation with text and position.
+
+    x/y are the box's TOP-LEFT corner and x, y, and width are percentages of the rendered video
+    frame, as for BlurAnchorPoint. There is no height: the box is as tall as its wrapped text.
+    """
 
     text = models.TextField(default="This is where your comment will show")
-    top_left_x = models.FloatField(default=0.0)
-    top_left_y = models.FloatField(default=0.0)
-    bottom_right_x = models.FloatField(default=100.0)
-    bottom_right_y = models.FloatField(default=10.0)
+    x = models.FloatField(default=0.0)
+    y = models.FloatField(default=0.0)
+    width = models.FloatField(default=100.0)
     font_size_in_rem = models.FloatField(default=1)
     font_color = models.CharField(
         max_length=6, default="ffffff", validators=[validate_font_color]
     )
 
-    @property
-    def height(self):
-        return (self.bottom_right_y - self.top_left_y) + "%"
-
-    @property
-    def width(self):
-        return (self.bottom_right_x - self.top_left_x) + "%"
+    def save(self, *args, **kwargs):
+        """Clamp so the box always starts on the frame, as BlurAnchorPoint.save() does."""
+        self.x, self.y, self.width, _ = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            0.0,
+            min_width=COMMENT_MIN_WIDTH,
+            min_height=COMMENT_MIN_HEIGHT,
+            precision=COMMENT_GEOMETRY_PRECISION,
+        )
+        super().save(*args, **kwargs)
 
     def to_player_json(self):
         """Override: include text and coordinates."""
@@ -1368,10 +1412,9 @@ class CommentAnnotation(BaseAnnotation):
         data.update(
             {
                 "text": self.text,
-                "top_left_x": self.top_left_x,
-                "top_left_y": self.top_left_y,
-                "bottom_right_x": self.bottom_right_x,
-                "bottom_right_y": self.bottom_right_y,
+                "x": self.x,
+                "y": self.y,
+                "width": self.width,
                 "font_size_in_rem": self.font_size_in_rem,
                 "font_color": self.font_color,
             }
@@ -1381,10 +1424,9 @@ class CommentAnnotation(BaseAnnotation):
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
         new_annotation.text = self.text
-        new_annotation.top_left_x = self.top_left_x
-        new_annotation.top_left_y = self.top_left_y
-        new_annotation.bottom_right_x = self.bottom_right_x
-        new_annotation.bottom_right_y = self.bottom_right_y
+        new_annotation.x = self.x
+        new_annotation.y = self.y
+        new_annotation.width = self.width
         new_annotation.font_size_in_rem = self.font_size_in_rem
         new_annotation.font_color = self.font_color
         new_annotation.save()
@@ -1394,33 +1436,39 @@ class CommentAnnotation(BaseAnnotation):
     def from_import(cls, imported_data, track):
         new_annotation = super().from_import(imported_data, track)
         new_annotation.text = imported_data.get("text", "Your comment here")
-        new_annotation.top_left_x = imported_data.get("top_left_x", 50.0)
-        new_annotation.top_left_y = imported_data.get("top_left_y", 50.0)
-        new_annotation.bottom_right_x = imported_data.get("bottom_right_x", 60.0)
-        new_annotation.bottom_right_y = imported_data.get("bottom_right_y", 60.0)
+        # Files exported before x/y/width replaced the two corners still carry the corners.
+        x = imported_data.get("x", imported_data.get("top_left_x", 50.0))
+        new_annotation.x = x
+        new_annotation.y = imported_data.get("y", imported_data.get("top_left_y", 50.0))
+        if "width" in imported_data:
+            new_annotation.width = imported_data["width"]
+        else:
+            right = imported_data.get("bottom_right_x", x + 10.0)
+            # Inverted corners rendered with the text running to the frame's right edge.
+            new_annotation.width = right - x if right > x else 100.0 - x
         new_annotation.font_size_in_rem = imported_data.get("font_size_in_rem", 1.0)
         new_annotation.font_color = imported_data.get("font_color", "abcdef")
         new_annotation.save()
         return new_annotation
 
 
-# Matches the rounding BaseAnnotation.save() applies to start_time/end_time, so a position's time
+# Matches the rounding BaseAnnotation.save() applies to start_time/end_time, so an anchor point's time
 # and its annotation's bounds are always comparable at the same precision.
 BLUR_TIME_PRECISION = 2
 # Geometry is a percentage of the video frame, so a hundredth of a percent is already well under a
 # pixel on any real display; beyond that the digits are float noise, and they are shown to the user
 # in the points panel.
 BLUR_GEOMETRY_PRECISION = 2
-# How close a requested time has to be to an existing position to mean "that one". Slightly coarser
+# How close a requested time has to be to an existing anchor point to mean "that one". Slightly coarser
 # than the stored precision so two rapid edits at the same playhead can't race into two rows a
 # hundredth of a second apart.
 BLUR_SNAP_SECONDS = 0.05
 # How much a duration may change and still count as a move rather than a resize in
-# reconcile_positions, which decides whether positions travel with the annotation or get dropped.
+# reconcile_blur_anchor_points, which decides whether anchor points travel with the annotation or get dropped.
 # Looser than the stored precision because it absorbs the client computing end as
 # `originalEnd - originalStart + newStart` while save() rounds start and end to 2dp independently.
 #
-# pointsLostByRetiming in core/static/js/video-geometry.js classifies on this same value so the
+# blurAnchorPointsLostByRetiming in core/static/js/video-geometry.js classifies on this same value so the
 # browser can warn before a resize deletes points; parity tests named there hold the two together.
 BLUR_RETIME_TOLERANCE_SECONDS = 0.02
 # Floors, not defaults: a box smaller than this is impossible to grab.
@@ -1432,63 +1480,66 @@ BLUR_DEFAULT_GEOMETRY = {"x": 40.0, "y": 42.5, "width": 20.0, "height": 15.0}
 
 class BlurAnnotation(BaseAnnotation):
     def _copy_related_data_to_version(self, new_annotation):
-        BlurAnnotationPosition.objects.bulk_create(
+        BlurAnchorPoint.objects.bulk_create(
             [
-                BlurAnnotationPosition(
+                BlurAnchorPoint(
                     blur_annotation=new_annotation,
-                    time=position.time,
-                    x=position.x,
-                    y=position.y,
-                    width=position.width,
-                    height=position.height,
+                    time=blur_anchor_point.time,
+                    x=blur_anchor_point.x,
+                    y=blur_anchor_point.y,
+                    width=blur_anchor_point.width,
+                    height=blur_anchor_point.height,
                 )
-                for position in self.positions.all()
+                for blur_anchor_point in self.blur_anchor_points.all()
             ]
         )
 
     def to_player_json(self):
-        """Override: include positions data."""
+        """Override: include anchor points data."""
         data = super().to_player_json()
-        positions = [position.to_json() for position in self.positions.all()]
-        data.update({"positions": positions, "type": "blur"})
+        blur_anchor_points = [
+            blur_anchor_point.to_json()
+            for blur_anchor_point in self.blur_anchor_points.all()
+        ]
+        data.update({"positions": blur_anchor_points, "type": "blur"})
         return data
 
-    def get_position_locators(self):
-        """Timeline tick marks for this blur's positions.
+    def get_blur_anchor_point_dots(self):
+        """Timeline tick marks for this blur's anchor points.
 
-        The first position is skipped deliberately: its time is always start_time, so a tick
+        The first anchor point is skipped deliberately: its time is always start_time, so a tick
         for it would sit exactly on the item's left edge and cover the resize handle there.
         Dragging that edge is how its time is changed.
         """
-        positions = self.positions.all()
-        locators = []
+        blur_anchor_points = self.blur_anchor_points.all()
+        blur_anchor_point_dots = []
         normalized_duration = self.end_time - self.start_time
         if normalized_duration <= 0:
-            return locators
-        for position in positions[1:]:
-            relative_time = position.time - self.start_time
-            locators.append(
+            return blur_anchor_point_dots
+        for blur_anchor_point in blur_anchor_points[1:]:
+            relative_time = blur_anchor_point.time - self.start_time
+            blur_anchor_point_dots.append(
                 {
-                    "id": position.pk,
-                    "time": position.time,
+                    "id": blur_anchor_point.pk,
+                    "time": blur_anchor_point.time,
                     "relative_location": round(
                         (relative_time / normalized_duration) * 100, 2
                     ),
                 }
             )
-        return locators
+        return blur_anchor_point_dots
 
-    def ensure_first_position(self):
-        """Guarantee at least one position, with the earliest of them pinned to start_time.
+    def ensure_first_blur_anchor_point(self):
+        """Guarantee at least one anchor point, with the earliest of them pinned to start_time.
 
-        A blur with no positions has no geometry and cannot render, and the earliest position
+        A blur with no anchor points has no geometry and cannot render, and the earliest anchor point
         is by definition the geometry in effect when the blur begins - so anchoring it to
         start_time is what makes "the first row" a meaningful thing to show a user, and what
         makes dragging the item's left edge change that row's time.
         """
-        first = self.positions.first()
+        first = self.blur_anchor_points.first()
         if first is None:
-            return BlurAnnotationPosition.objects.create(
+            return BlurAnchorPoint.objects.create(
                 blur_annotation=self, time=self.start_time, **BLUR_DEFAULT_GEOMETRY
             )
 
@@ -1496,10 +1547,12 @@ class BlurAnnotation(BaseAnnotation):
         if first.time == target:
             return first
 
-        # A position already sitting exactly at start_time supplies the geometry there, so an earlier
+        # An anchor point already sitting exactly at start_time supplies the geometry there, so an earlier
         # one is redundant rather than something to retime onto it - which would also collide with the
         # unique (blur_annotation, time) index.
-        occupant = self.positions.filter(time=target).exclude(pk=first.pk).first()
+        occupant = (
+            self.blur_anchor_points.filter(time=target).exclude(pk=first.pk).first()
+        )
         if occupant is not None:
             first.delete()
             return occupant
@@ -1509,28 +1562,28 @@ class BlurAnnotation(BaseAnnotation):
         return first
 
     def geometry_at(self, time):
-        """The rect on screen at `time`, interpolated between the positions bracketing it.
+        """The rect on screen at `time`, interpolated between the anchor points bracketing it.
 
         The server needs this to reconcile a resize; the browser needs it to render. That makes
         this a deliberate second implementation of rectAtTime in
         core/static/js/video-geometry.js, so the two are held to the same case table -
-        core/tests/test_blur_positions.py and tests/js/video-geometry.test.js.
+        core/tests/test_blur_anchor_points.py and tests/js/video-geometry.test.js.
         """
-        positions = list(self.positions.all())
-        if not positions:
+        blur_anchor_points = list(self.blur_anchor_points.all())
+        if not blur_anchor_points:
             return None
 
         fields = ("x", "y", "width", "height")
 
-        def rect(position):
-            return {field: getattr(position, field) for field in fields}
+        def rect(blur_anchor_point):
+            return {field: getattr(blur_anchor_point, field) for field in fields}
 
-        if len(positions) == 1 or time <= positions[0].time:
-            return rect(positions[0])
-        if time >= positions[-1].time:
-            return rect(positions[-1])
+        if len(blur_anchor_points) == 1 or time <= blur_anchor_points[0].time:
+            return rect(blur_anchor_points[0])
+        if time >= blur_anchor_points[-1].time:
+            return rect(blur_anchor_points[-1])
 
-        for later, earlier in zip(positions[1:], positions):
+        for later, earlier in zip(blur_anchor_points[1:], blur_anchor_points):
             if later.time < time:
                 continue
             span = later.time - earlier.time
@@ -1540,11 +1593,11 @@ class BlurAnnotation(BaseAnnotation):
                 + (getattr(later, field) - getattr(earlier, field)) * fraction
                 for field in fields
             }
-        return rect(positions[-1])
+        return rect(blur_anchor_points[-1])
 
     @transaction.atomic
-    def reconcile_positions(self, old_start, old_end):
-        """Bring positions back in line with start_time/end_time after the annotation moved.
+    def reconcile_blur_anchor_points(self, old_start, old_end):
+        """Bring anchor points back in line with start_time/end_time after the annotation moved.
 
         Call after saving the annotation. Two distinct cases, because they mean different
         things to the person dragging:
@@ -1552,7 +1605,7 @@ class BlurAnnotation(BaseAnnotation):
         * The item was *moved* along the timeline (duration unchanged) - the whole motion path
           should travel with it, so every time shifts by the same delta.
         * The item was *resized* - the path stays where it is in the video and the window that
-          exposes it changes, so positions outside the new window are dropped.
+          exposes it changes, so anchor points outside the new window are dropped.
 
         See BLUR_RETIME_TOLERANCE_SECONDS for why the two are told apart on a tolerance rather
         than on equality, and for the browser-side copy of that decision.
@@ -1561,22 +1614,22 @@ class BlurAnnotation(BaseAnnotation):
         new_duration = self.end_time - self.start_time
         delta = self.start_time - old_start
         # Sampled before anything is mutated: what the person dragging can see at the new start time,
-        # which is generally a tween rather than any stored position.
+        # which is generally a tween rather than any stored anchor point.
         showing_at_new_start = self.geometry_at(self.start_time)
 
         if abs(new_duration - old_duration) <= BLUR_RETIME_TOLERANCE_SECONDS and delta:
             # Furthest along the direction of travel first: the unique (blur_annotation, time) index
-            # is checked per-row, so moving a position onto a time a sibling still occupies would
+            # is checked per-row, so moving an anchor point onto a time a sibling still occupies would
             # collide even though the final state is fine.
             ordering = "-time" if delta > 0 else "time"
-            for position in self.positions.order_by(ordering):
-                position.time = position.time + delta
-                position.save()
+            for blur_anchor_point in self.blur_anchor_points.order_by(ordering):
+                blur_anchor_point.time = blur_anchor_point.time + delta
+                blur_anchor_point.save()
         else:
-            # Give the position that will survive at the new start the geometry that was actually
+            # Give the anchor point that will survive at the new start the geometry that was actually
             # showing there. Retiming it without this leaves the blur's opening frames covering where
             # the subject *used to be*, which for a blur is exposure, not a cosmetic pop.
-            stale = list(self.positions.filter(time__lt=self.start_time))
+            stale = list(self.blur_anchor_points.filter(time__lt=self.start_time))
             if stale and showing_at_new_start:
                 survivor = stale[-1]
                 for field, value in showing_at_new_start.items():
@@ -1585,27 +1638,29 @@ class BlurAnnotation(BaseAnnotation):
 
         # start_time <= time <= end_time is the annotation's own invariant, so it is enforced for both
         # branches: a start-only edit of a single hundredth reads as a move under the tolerance and
-        # shifts every position, landing the last one past end_time where geometry_at would
+        # shifts every anchor point, landing the last one past end_time where geometry_at would
         # interpolate toward geometry playback can never reach.
-        self.positions.filter(time__gt=self.end_time).delete()
-        # Of the positions before the window, keep the last one - ensure_first_position pins it to
+        self.blur_anchor_points.filter(time__gt=self.end_time).delete()
+        # Of the anchor points before the window, keep the last one - ensure_first_blur_anchor_point pins it to
         # start_time below - and discard the rest.
-        for position in list(self.positions.filter(time__lt=self.start_time))[:-1]:
-            position.delete()
+        for blur_anchor_point in list(
+            self.blur_anchor_points.filter(time__lt=self.start_time)
+        )[:-1]:
+            blur_anchor_point.delete()
 
-        self.ensure_first_position()
+        self.ensure_first_blur_anchor_point()
 
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        positions = self.positions.all()
-        for position in positions:
-            BlurAnnotationPosition.objects.create(
+        blur_anchor_points = self.blur_anchor_points.all()
+        for blur_anchor_point in blur_anchor_points:
+            BlurAnchorPoint.objects.create(
                 blur_annotation=new_annotation,
-                time=position.time,
-                x=position.x,
-                y=position.y,
-                width=position.width,
-                height=position.height,
+                time=blur_anchor_point.time,
+                x=blur_anchor_point.x,
+                y=blur_anchor_point.y,
+                width=blur_anchor_point.width,
+                height=blur_anchor_point.height,
             )
         new_annotation.save()
         return new_annotation
@@ -1613,19 +1668,19 @@ class BlurAnnotation(BaseAnnotation):
     @classmethod
     def from_import(cls, imported_data, track):
         obj = super().from_import(imported_data, track)
-        for position in imported_data.get("positions", []):
-            BlurAnnotationPosition.objects.create(
+        for blur_anchor_point in imported_data.get("positions", []):
+            BlurAnchorPoint.objects.create(
                 blur_annotation=obj,
-                time=position.get("time"),
-                x=position.get("x"),
-                y=position.get("y"),
-                width=position.get("width"),
-                height=position.get("height"),
+                time=blur_anchor_point.get("time"),
+                x=blur_anchor_point.get("x"),
+                y=blur_anchor_point.get("y"),
+                width=blur_anchor_point.get("width"),
+                height=blur_anchor_point.get("height"),
             )
         return obj
 
 
-class BlurAnnotationPosition(models.Model):
+class BlurAnchorPoint(models.Model):
     """One keyframe of a blur's geometry: where the box is at a given moment.
 
     x/y are the box's TOP-LEFT corner and every value is a percentage of the rendered video
@@ -1637,7 +1692,7 @@ class BlurAnnotationPosition(models.Model):
         on_delete=models.CASCADE,
         null=False,
         blank=False,
-        related_name="positions",
+        related_name="blur_anchor_points",
     )
     time = models.FloatField(null=False, blank=False)
     x = models.FloatField(null=False, blank=False)
@@ -1646,13 +1701,13 @@ class BlurAnnotationPosition(models.Model):
     height = models.FloatField(null=False, blank=False)
 
     class Meta:
-        # Interpolating between positions is only correct on a sorted sequence, so no caller should
+        # Interpolating between anchor points is only correct on a sorted sequence, so no caller should
         # have to remember to sort.
         ordering = ["time"]
         constraints = [
             models.UniqueConstraint(
                 fields=["blur_annotation", "time"],
-                name="unique_blur_annotation_position_time",
+                name="unique_blur_anchor_point_time",
             )
         ]
 
@@ -1660,31 +1715,24 @@ class BlurAnnotationPosition(models.Model):
         """Quantize and clamp on the way in - the single choke point for valid geometry.
 
         Doing this in save() rather than in a view means every writer is covered: the editor's
-        endpoints, annotation-set copies, imports, and reconcile_positions alike.
+        endpoints, annotation-set copies, imports, and reconcile_blur_anchor_points alike.
 
         Values are clamped rather than rejected. A drag that ends past the edge of the frame is
         a perfectly clear instruction ("put it against the edge"), and refusing it would lose
         the user's work; a rejection here would also have to be surfaced mid-drag, which there
         is nowhere good to do.
 
-        Rounding is applied to the *result* of each clamp rather than to the incoming value, so
-        the guarantee is about what gets stored: whatever the clamp arithmetic produces, the
-        column ends up at 2dp. x and y are clamped against the already rounded width and height,
-        which is what keeps `x + width` landing on exactly 100 for a box against the right edge.
+        See clamp_rect for how the geometry is rounded.
         """
         self.time = round(float(self.time), BLUR_TIME_PRECISION)
-        self.width = round(
-            min(100.0, max(BLUR_MIN_WIDTH, float(self.width))), BLUR_GEOMETRY_PRECISION
-        )
-        self.height = round(
-            min(100.0, max(BLUR_MIN_HEIGHT, float(self.height))),
-            BLUR_GEOMETRY_PRECISION,
-        )
-        self.x = round(
-            min(100.0 - self.width, max(0.0, float(self.x))), BLUR_GEOMETRY_PRECISION
-        )
-        self.y = round(
-            min(100.0 - self.height, max(0.0, float(self.y))), BLUR_GEOMETRY_PRECISION
+        self.x, self.y, self.width, self.height = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+            min_width=BLUR_MIN_WIDTH,
+            min_height=BLUR_MIN_HEIGHT,
+            precision=BLUR_GEOMETRY_PRECISION,
         )
         super().save(*args, **kwargs)
 
@@ -1948,7 +1996,7 @@ class Subtitle(models.Model):
             or PlaylistUserAccess.objects.filter(
                 user=user,
                 playlist__owner_id=self.owner_id,
-                playlist_role__in=(PlaylistRole.INSTRUCTOR, PlaylistRole.TA),
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
 

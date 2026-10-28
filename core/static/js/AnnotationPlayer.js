@@ -291,6 +291,10 @@ export class AnnotationPlayer {
       this._updateSubtitleSidebarButtonDisplay();
     }
 
+    this._updateClipsControls();
+  }
+
+  _updateClipsControls() {
     if (this.controls.clipsBtnWrapper && !this.disabledControls.includes('clipsBtn')) {
       const hasClips = this.clips && this.clips.length > 0;
       this.controls.clipsBtnWrapper.style.display = hasClips ? 'inline-block' : 'none';
@@ -384,7 +388,7 @@ export class AnnotationPlayer {
         details: icAnno.options["details"],
       };
       if (annotation.type === "blur") {
-        annotation.positions = this.icPositionsToCanonical(
+        annotation.positions = this.icPositionsToBlurAnchorPoints(
           annotation.details.position,
         );
       }
@@ -393,15 +397,15 @@ export class AnnotationPlayer {
     return annotations;
   }
 
-  icPositionsToCanonical(positionMap) {
+  icPositionsToBlurAnchorPoints(positionMap) {
     const times = Object.keys(positionMap || {}).sort(
       (a, b) => parseFloat(a) - parseFloat(b),
     );
-    const positions = [];
+    const blurAnchorPoints = [];
     for (const timeKey of times) {
       const [x, y, width, height] = positionMap[timeKey];
-      const previous = positions[positions.length - 1];
-      positions.push({
+      const previous = blurAnchorPoints[blurAnchorPoints.length - 1];
+      blurAnchorPoints.push({
         time: parseFloat(timeKey),
         x,
         y,
@@ -409,7 +413,7 @@ export class AnnotationPlayer {
         height: height ?? previous?.height ?? 15,
       });
     }
-    return positions;
+    return blurAnchorPoints;
   }
 
   parseYvideoV1Annotations(annotationObj) {
@@ -427,10 +431,9 @@ export class AnnotationPlayer {
         details: anno.details || {},
         positions: anno.positions || [],
         id: anno.id,
-        top_left_x: anno.top_left_x,
-        top_left_y: anno.top_left_y,
-        bottom_right_x: anno.bottom_right_x,
-        bottom_right_y: anno.bottom_right_y,
+        x: anno.x,
+        y: anno.y,
+        width: anno.width,
         font_color: anno.font_color,
         font_size_in_rem: anno.font_size_in_rem,
         text: anno.text,
@@ -444,10 +447,18 @@ export class AnnotationPlayer {
       this.annotations = data;
     } else {
       this.annotations = data.annotations || [];
-      this.clips = data.clips || this.clips;
 
-      if (data.tracks && Array.isArray(data.subtitles)) {
-        this._loadSubtitleTracks(data.subtitles);
+      if (data.clips) {
+        // Clip ids change on every edit, so an edited active clip is deselected rather than
+        // left pointing at whichever clip now occupies its index.
+        const activeClipId = this.clips?.[this.activeClipIndex]?.id;
+        this.clips = data.clips;
+        const activeIndex = activeClipId === undefined ? -1 : this.clips.findIndex((clip) => clip.id === activeClipId);
+        this.activeClipIndex = activeIndex === -1 ? null : activeIndex;
+      }
+
+      if (Array.isArray(data.subtitles)) {
+        this._replaceSubtitleTracks(data.subtitles);
       }
     }
 
@@ -465,15 +476,29 @@ export class AnnotationPlayer {
       }
     }
     this._removeOverlaysForDeletedAnnotations();
+    this._clearAnnotationEffects();
     this.setupVideoElemAnnotations();
     this.renderSkipsOnScrubber();
-    this.renderClipsOnScrubber();
+    this._updateClipHighlighting();
+    this._updateClipsControls();
     this.applyAnnotations();
 
-    this.videoElem.addEventListener('loadedmetadata', () => {
-      this.renderSkipsOnScrubber();
-      this.renderClipsOnScrubber();
-    });
+    // Before metadata loads the duration is unknown, so the scrubber marks above were skipped.
+    if (this.videoElem.readyState < HTMLMediaElement.HAVE_METADATA) {
+      this.videoElem.addEventListener('loadedmetadata', () => {
+        this.renderSkipsOnScrubber();
+        this.renderClipsOnScrubber();
+      }, { once: true });
+    }
+  }
+
+  // The annotation that muted, blanked, or blurred the screen may no longer exist, so its effect is
+  // undone here and applyAnnotations re-applies whatever the new data still calls for.
+  _clearAnnotationEffects() {
+    this.videoElem.removeEventListener("playing", this._onPlaying);
+    if (this.currently.muting !== -1) this.unmute(true);
+    if (this.currently.blanking !== -1) this.unblank();
+    if (this.currently.screenBlurring !== -1) this.unscreenBlur();
   }
 
   renderSkipsOnScrubber() {
@@ -723,16 +748,11 @@ export class AnnotationPlayer {
       let aStart = a["start"];
       let aEnd = a["end"];
       let aType = a["type"];
-      let aPositions = a["positions"];
+      let blurAnchorPoints = a["positions"];
       const isActiveNow = time >= aStart && time < aEnd
       switch (aType) {
         case "skip":
-          if (isActiveNow) {
-            if (a["message"]) {
-              this.pause(a["message"]);
-            } else {
-              this.pause();
-            }
+          if (isActiveNow && this._skipsAreHonored()) {
             this.skipTo(aEnd);
           }
           break;
@@ -805,7 +825,7 @@ export class AnnotationPlayer {
           const blurId = "blur-overlay-" + a.id;
           const existingBlur = this.annotationBox.querySelector("#" + blurId);
           const isBlurVisible = time >= aStart && time <= aEnd;
-          const rect = isBlurVisible ? rectAtTime(aPositions, time) : null;
+          const rect = isBlurVisible ? rectAtTime(blurAnchorPoints, time) : null;
 
           if (!rect) {
             if (existingBlur) {
@@ -842,10 +862,9 @@ export class AnnotationPlayer {
               commentTextBox.dataset["annotationId"] = a.id;
               commentTextBox.dataset["annotationType"] = a.type;
               commentTextBox.classList.add("comment-text-box");
-              commentTextBox.style.top = a.top_left_y + '%';
-              commentTextBox.style.left = a.top_left_x + '%';
-              commentTextBox.style.width = (a.bottom_right_x - a.top_left_x) + '%';
-              commentTextBox.style.height = (a.bottom_right_y - a.top_left_y) + '%';
+              commentTextBox.style.top = a.y + '%';
+              commentTextBox.style.left = a.x + '%';
+              commentTextBox.style.width = a.width + '%';
               commentTextBox.style.fontSize = a.font_size_in_rem + 'rem';
               commentTextBox.style.color = "#" + a.font_color;
               this.annotationBox.appendChild(commentTextBox);
@@ -863,7 +882,10 @@ export class AnnotationPlayer {
     this._updateVolumeControlsDisplay();
 
     if (this.videoElem.paused) return;
-    requestAnimationFrame(() => this.applyAnnotations());
+    // Cancelled first so callers outside the per-frame loop (loadData, skipTo, "playing") cannot
+    // start a second loop alongside it.
+    cancelAnimationFrame(this._applyAnnotationsFrame);
+    this._applyAnnotationsFrame = requestAnimationFrame(() => this.applyAnnotations());
   }
 
   static _overlayKey(annotationType, annotationId) {
@@ -888,19 +910,15 @@ export class AnnotationPlayer {
     }
   }
 
-  replaceAnnotationPositions(annotationId, positions) {
+  replaceBlurAnchorPoints(annotationId, blurAnchorPoints) {
     const annotation = this.annotations?.find(
       (candidate) =>
         candidate["type"] === "blur" &&
         String(candidate["id"]) === String(annotationId),
     );
     if (!annotation) return false;
-    annotation["positions"] = positions;
-    // Only when paused: while playing, applyAnnotations reschedules itself every frame and will pick
-    // this up on its own, so calling it here would start a second rAF chain that never stops.
-    if (this.videoElem.paused) {
-      this.applyAnnotations();
-    }
+    annotation["positions"] = blurAnchorPoints;
+    this.applyAnnotations();
     return true;
   }
 
@@ -1113,8 +1131,16 @@ export class AnnotationPlayer {
     this.timeCache = newTime;
   }
 
+  // Editors need to inspect and scrub through skipped footage while paused, but still see
+  // skips take effect during playback.
+  _skipsAreHonored() {
+    if (!this.editorMode) return true;
+    // Dragging pauses the video, so the pre-drag state decides.
+    return this.isDragging ? this.wasPlayingBeforeDrag : !this.videoElem.paused;
+  }
+
   _getSkipBoundary(time, direction = 'nearest') {
-    if (!this.annotations) return null;
+    if (!this.annotations || !this._skipsAreHonored()) return null;
 
     const skipEvents = this.annotations.filter(event =>
       (event.type === 'Skip' || event.type === 'skip')
@@ -1314,7 +1340,34 @@ export class AnnotationPlayer {
     this._renderSpeedMenu();
   }
 
+    _replaceSubtitleTracks(subtitleObjs) {
+    // Every annotation edit refreshes the player, so unchanged subtitles are skipped to avoid
+    // reloading cues and the sidebar each time.
+    if (JSON.stringify(subtitleObjs) === this._subtitleTracksSignature) return;
+
+    // Kept from the first of several quick replacements, since later ones would capture tracks the
+    // browser auto-selected rather than the viewer's choice.
+    this._pendingTrackModes ??= Array.from(this.videoElem.textTracks, (track) => track.mode);
+    this.videoElem.querySelectorAll('track').forEach((trackElem) => trackElem.remove());
+    this.subtitleTrackBlobUrls.forEach((url) => URL.revokeObjectURL(url));
+    this.subtitleTrackBlobUrls = [];
+    this._enableSubtitleSidebar = subtitleObjs.length > 0;
+    this._loadSubtitleTracks(subtitleObjs);
+  }
+
+  // Applied from onTracksReady rather than right after the tracks are added: the browser runs its
+  // automatic track selection on added tracks in a later task, which would turn on extra tracks.
+  _restorePendingTrackModes() {
+    if (!this._pendingTrackModes) return;
+    Array.from(this.videoElem.textTracks).forEach((track, index) => {
+      if (this._pendingTrackModes[index]) track.mode = this._pendingTrackModes[index];
+    });
+    this._pendingTrackModes = null;
+    this.subtitleSidebar?.onTrackChanged();
+  }
+
     _loadSubtitleTracks(subtitleObjs) {
+    this._subtitleTracksSignature = JSON.stringify(subtitleObjs);
     subtitleObjs.forEach((trackData, index) => {
       const subtitleTrackElem = document.createElement('track');
 
@@ -1348,6 +1401,8 @@ export class AnnotationPlayer {
     });
 
     const onTracksReady = () => {
+      this._restorePendingTrackModes();
+
       if (this.controls.captionsMenu) {
         this._renderCaptionsMenu();
       }

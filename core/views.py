@@ -83,9 +83,9 @@ def prepare_playlist_for_display(playlist):
     parsed_playlist = {
         "pk": playlist.pk,
         "name": playlist.name,
-        "items_display": f"{contents_count} items"
+        "items_display": f"{contents_count} published items"
         if contents_count > 1 or contents_count == 0
-        else f"{contents_count} item",
+        else f"{contents_count} published item",
         "published_contents": published_contents,
     }
     return parsed_playlist
@@ -179,6 +179,18 @@ def player(request, content):
     if not resource_file_key and not content_source_url:
         return HttpResponse(
             "User does not have permission to view this content", status=403
+        )
+
+    try:
+        content.views += 1
+        content.save()
+        content.resource.views += 1
+        content.resource.save()
+
+    except Exception as e:
+        # log the error, but still provide the video in case of failure
+        logger.error(
+            f"Failed to update views for content and associated resource. Exception: {e}"
         )
 
     context = {
@@ -321,6 +333,11 @@ def playlists(request):
             for playlist in Playlist.objects.filter(owner=request.user)
         ]
 
+    collaborator_playlists = [
+        prepare_playlist_for_display(playlist)
+        for playlist in request.user.get_collaborator_playlists()
+    ]
+
     # Course-derived access expires with the term, so only terms whose grace window
     # is still open can contribute a playlist the user could actually open.
     active = active_yearterms()
@@ -354,12 +371,15 @@ def playlists(request):
             }
         )
 
-    # Direct grants are listed whatever the role, but the same published/archived
-    # filter applies, so a card is never shown for a playlist that would 403.
-    manual_playlists = [
+    # Collaborator grants are listed above regardless of state; read-only grants get
+    # the same published/archived filter, so a card is never shown that would 403.
+    read_only_grant_playlists = [
         prepare_playlist_for_display(playlist)
         for playlist in Playlist.objects.filter(
-            playlistuseraccess__user=request.user, published=True, archived=False
+            playlistuseraccess__user=request.user,
+            playlistuseraccess__playlist_role=PlaylistRole.STUDENT,
+            published=True,
+            archived=False,
         ).exclude(owner=request.user)
     ]
 
@@ -367,8 +387,9 @@ def playlists(request):
         "user": request.user,
         "is_instructor": request.user.is_instructor,
         "owned_playlists": owned_playlists,
+        "collaborator_playlists": collaborator_playlists,
         "assigned_courses_by_yearterm": playlists_by_course_by_yearterm,
-        "manual_playlists": manual_playlists,
+        "read_only_grant_playlists": read_only_grant_playlists,
         # Lab assistants act on an instructor's behalf, so the legacy differences are
         # theirs to know too.
         "show_whats_new": request.user.is_instructor or request.user.is_lab_assistant,
@@ -710,19 +731,14 @@ def update_playlist_settings(request, playlist):
 
 
 GRANTABLE_PLAYLIST_ROLES = (
-    PlaylistRole.INSTRUCTOR,
-    PlaylistRole.TA,
+    PlaylistRole.COLLABORATOR,
     PlaylistRole.STUDENT,
 )
 
 PLAYLIST_ROLE_DESCRIPTIONS = {
-    PlaylistRole.INSTRUCTOR: (
-        "Another instructor for this playlist. Can edit it and its videos, but "
-        "cannot delete it or manage people."
-    ),
-    PlaylistRole.TA: (
-        "Helps run this playlist. The same editing access as a co-instructor; "
-        "cannot delete it or manage people."
+    PlaylistRole.COLLABORATOR: (
+        "Co-instructor or TA. Can edit this playlist and its videos, but cannot "
+        "delete it or manage people."
     ),
     PlaylistRole.STUDENT: "Can watch published videos. Cannot make changes.",
 }
@@ -789,7 +805,7 @@ def playlist_members_context(request, playlist):
     """Everything the Manage People panel renders.
 
     Each row carries its own may_manage flag rather than a single page-level one: an
-    owner may touch every row, but a TA may touch only the read-only ones, and deciding
+    owner may touch every row, but a collaborator may touch only the read-only ones, and deciding
     that here keeps the template and the endpoints agreeing on one answer.
     """
     accesses = (
@@ -798,10 +814,10 @@ def playlist_members_context(request, playlist):
         .select_related("user")
         .order_by("playlist_role", "user__last_name", "user__username")
     )
-    # A stray role integer degrades to its number instead of raising: migration 0011 and
-    # map_legacy_collection_role cover the one value we know about (legacy auditor), but
-    # this now renders on the playlist page itself, so an unknown one would take the whole
-    # page down rather than just this panel.
+    # A stray role integer degrades to its number instead of raising: migrations 0011 and
+    # 0014 and map_legacy_collection_role cover the values we know about (legacy auditor
+    # and TA), but this now renders on the playlist page itself, so an unknown one would
+    # take the whole page down rather than just this panel.
     labels = {role.value: role.label for role in PlaylistRole}
     members = [
         {
@@ -929,7 +945,7 @@ def _resolve_member_to_add(request):
     """The user being added, either picked from the search results or looked up by id.
 
     Returns (user, error_message, warning). The lookup form provisions from BYU's
-    directory, so a TA who has never signed in to Y-Video can still be given a role
+    directory, so a collaborator who has never signed in to Y-Video can still be given a role
     before the term starts -- the reason the picker accepts a raw NetID at all.
 
     The warning is the form's enrollment_warning: a provisioned account whose enrollment
@@ -1011,8 +1027,8 @@ def update_playlist_member_role(request, playlist, user_id):
     if new_role not in GRANTABLE_PLAYLIST_ROLES:
         return _member_error("Choose a role.")
 
-    # Both ends, because demoting a TA is revoking a TA grant. Checking only the new
-    # role would let a TA quietly strip a co-instructor.
+    # Both ends, because demoting a collaborator is revoking a collaborator grant.
+    # Checking only the new role would let a collaborator quietly strip another.
     if not (
         playlist.can_grant_role(request.user, access.playlist_role)
         and playlist.can_grant_role(request.user, new_role)
@@ -1044,14 +1060,11 @@ def accessible_resources(user):
     if user.is_superuser or user.is_lab_assistant:
         return Resource.objects.all()
     granted = Q(resourceaccess__user=user)
-    # A TA or co-instructor inherits every grant held by the owner of a playlist
+    # A collaborator inherits every grant held by the owner of a playlist
     # they can write to.
     inherited = Q(
         resourceaccess__user__playlists_owned__playlistuseraccess__user=user,
-        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role__in=(
-            PlaylistRole.INSTRUCTOR,
-            PlaylistRole.TA,
-        ),
+        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
     )
     visible = granted | inherited
     if user.is_instructor:

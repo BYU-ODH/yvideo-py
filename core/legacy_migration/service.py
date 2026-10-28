@@ -16,8 +16,8 @@ from django.utils import timezone
 from ..models import BLUR_TIME_PRECISION
 from ..models import AnnotationSet
 from ..models import BlankAnnotation
+from ..models import BlurAnchorPoint
 from ..models import BlurAnnotation
-from ..models import BlurAnnotationPosition
 from ..models import Clip
 from ..models import CommentAnnotation
 from ..models import Content
@@ -40,6 +40,7 @@ from .dump import run_legacy_dump
 from .file_index import ChecksumCache
 from .file_index import CurrentFileIndex
 from .file_index import compute_checksum
+from .legacy_roles import map_legacy_collection_role
 from .models import LegacyMigrationFileAction
 from .models import LegacyMigrationFileDecision
 from .models import LegacyMigrationIssue
@@ -57,7 +58,6 @@ from .parsers import LegacyFileInfo
 from .parsers import build_subtitle_vtt
 from .parsers import build_user_fingerprint
 from .parsers import make_json_safe
-from .parsers import map_legacy_collection_role
 from .parsers import map_legacy_media_type
 from .parsers import normalize_name
 from .parsers import parse_legacy_annotations
@@ -78,11 +78,11 @@ logger = logging.getLogger(__name__)
 UNTRUSTWORTHY_LEGACY_LANGUAGE_BCP47 = "cak"
 
 
-def blur_positions_from_legacy(position_map, start_time, end_time):
+def blur_anchor_points_from_legacy(position_map, start_time, end_time):
     """A legacy censor's keyframes, in this app's coordinate space and obeying its invariants.
 
     Legacy stored `{key: [time, centerX, centerY, width, height]}` with the geometry anchored at the
-    box's **center**; BlurAnnotationPosition stores the top-left corner, one row per time. Importing
+    box's **center**; BlurAnchorPoint stores the top-left corner, one row per time. Importing
     the numbers verbatim would put every box `width/2` right and `height/2` down from where its author
     placed it, leaving the bottom-right of whatever it covered exposed.
 
@@ -93,7 +93,7 @@ def blur_positions_from_legacy(position_map, start_time, end_time):
     part-way through a playlist.
 
     Returns creation kwargs sorted by time. Corners that convert to negatives are left as they are -
-    BlurAnnotationPosition.save clamps them onto the frame, which keeps a single definition of what a
+    BlurAnchorPoint.save clamps them onto the frame, which keeps a single definition of what a
     valid box is.
     """
     by_quantized_time = {}
@@ -122,12 +122,16 @@ def blur_positions_from_legacy(position_map, start_time, end_time):
             "height": height,
         }
 
-    positions = [by_quantized_time[time] for time in sorted(by_quantized_time)]
+    blur_anchor_points = [by_quantized_time[time] for time in sorted(by_quantized_time)]
     # Of the keyframes before the censor starts, only the last was still showing when it began;
-    # ensure_first_position pins that one to start_time. Migration 0004 applies the same rule, so a
+    # ensure_first_blur_anchor_point pins that one to start_time. Migration 0004 applies the same rule, so a
     # re-import cannot reintroduce data that migration was written to clean up.
-    started_early = sum(1 for position in positions if position["time"] < start_time)
-    return positions[max(0, started_early - 1) :]
+    started_early = sum(
+        1
+        for blur_anchor_point in blur_anchor_points
+        if blur_anchor_point["time"] < start_time
+    )
+    return blur_anchor_points[max(0, started_early - 1) :]
 
 
 class LegacyMigrationJobCanceled(Exception):
@@ -1432,12 +1436,7 @@ class LegacyMigrationService:
                 "active": True,
             }
 
-            if model_class is SkipAnnotation:
-                annotation = model_class.objects.create(
-                    message=legacy_event.get("message", ""),
-                    **common_kwargs,
-                )
-            elif model_class is PauseAnnotation:
+            if model_class is PauseAnnotation:
                 # Pause is a point marker: its end time equals its start time.
                 annotation = model_class.objects.create(
                     message=legacy_event.get("message", ""),
@@ -1445,27 +1444,30 @@ class LegacyMigrationService:
                 )
             elif model_class is CommentAnnotation:
                 position = legacy_event.get("position") or {}
+                x = float(position.get("x", 0) or 0)
                 annotation = model_class.objects.create(
                     text=legacy_event.get("comment") or legacy_event.get("text") or "",
-                    top_left_x=float(position.get("x", 0) or 0),
-                    top_left_y=float(position.get("y", 0) or 0),
+                    x=x,
+                    y=float(position.get("y", 0) or 0),
+                    # Legacy comments had no width; their text ran to the frame's right edge.
+                    width=100.0 - x,
                     **common_kwargs,
                 )
             elif model_class is BlankAnnotation:
                 annotation = model_class.objects.create(type="k", **common_kwargs)
             elif model_class is BlurAnnotation:
                 annotation = model_class.objects.create(**common_kwargs)
-                for position_kwargs in blur_positions_from_legacy(
+                for blur_anchor_point_kwargs in blur_anchor_points_from_legacy(
                     legacy_event.get("position"), start_time, end_time
                 ):
-                    BlurAnnotationPosition.objects.create(
-                        blur_annotation=annotation, **position_kwargs
+                    BlurAnchorPoint.objects.create(
+                        blur_annotation=annotation, **blur_anchor_point_kwargs
                     )
                 # Legacy censors could arrive with `position: {}` or with an earliest keyframe after
-                # their start, and either leaves a blur no user can repair: with no positions there is
-                # no geometry to render and no create-a-region gesture, and a first position after
-                # start_time is skipped by get_position_locators and readonly in the panel.
-                annotation.ensure_first_position()
+                # their start, and either leaves a blur no user can repair: with no anchor points there is
+                # no geometry to render and no create-a-region gesture, and a first anchor point after
+                # start_time is skipped by get_blur_anchor_point_dots and readonly in the panel.
+                annotation.ensure_first_blur_anchor_point()
             else:
                 annotation = model_class.objects.create(**common_kwargs)
 
@@ -1555,7 +1557,7 @@ class LegacyMigrationService:
             PlaylistUserAccess.objects.get_or_create(
                 user=owner,
                 playlist=playlist,
-                defaults={"playlist_role": PlaylistRole.INSTRUCTOR},
+                defaults={"playlist_role": PlaylistRole.COLLABORATOR},
             )
 
             snapshot_collection = request_obj.raw_snapshot.get("collection") or {}
@@ -1570,7 +1572,7 @@ class LegacyMigrationService:
                 PlaylistUserAccess.objects.get_or_create(
                     user=legacy_owner.matched_user,
                     playlist=playlist,
-                    defaults={"playlist_role": PlaylistRole.INSTRUCTOR},
+                    defaults={"playlist_role": PlaylistRole.COLLABORATOR},
                 )
 
             for access_row in request_obj.raw_snapshot.get("collection_access", []):

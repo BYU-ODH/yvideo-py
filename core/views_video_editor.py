@@ -3,6 +3,7 @@ import json
 import logging
 from urllib.parse import quote
 
+from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db import transaction
@@ -21,10 +22,11 @@ from django.views.decorators.http import require_POST
 from .forms import SubtitleForm
 from .models import BLUR_SNAP_SECONDS
 from .models import BLUR_TIME_PRECISION
+from .models import FONT_COLOR_PRESETS
 from .models import AnnotationSet
 from .models import BlankAnnotation
+from .models import BlurAnchorPoint
 from .models import BlurAnnotation
-from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
@@ -33,6 +35,7 @@ from .models import PauseAnnotation
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import Track
+from .models import validate_font_color
 from .permissions import annotation_set_read_required
 from .permissions import annotation_set_write_required
 from .permissions import checks_permission_inline
@@ -185,7 +188,7 @@ def video_editor(request, content):
         )
 
         # Renaming and retiring a set are the owner's alone, unlike editing its
-        # contents, which any of that owner's TAs may do.
+        # contents, which any of that owner's collaborators may do.
         can_administer_annotation_set = (
             annotation_set is not None
             and annotation_set.can_be_orphaned_by(request.user)
@@ -437,7 +440,7 @@ def create_annotation(request, track, annotation_type):
 
     annotation = model_class.objects.create(**data)
     if annotation_type == "blur":
-        annotation.ensure_first_position()
+        annotation.ensure_first_blur_anchor_point()
 
     # Render item using shared partial
     track_item_html = render_to_string(
@@ -501,40 +504,40 @@ def validate_annotation_update_request(user, content, annotation_type, annotatio
 #
 # 400s deliberately have no body: a malformed request is a bug in the editor, not something the user
 # did, and there is nothing to tell them beyond the generic failure the client falls back to.
-BLUR_POSITION_FORBIDDEN = "You do not have permission to edit this annotation set."
-BLUR_POSITION_TIME_TAKEN = "Another blur point is already at that time."
-BLUR_POSITION_FIRST_UNDELETABLE = (
-    "The first point follows the blur's start time and cannot be deleted."
+BLUR_ANCHOR_POINT_FORBIDDEN = "You do not have permission to edit this annotation set."
+BLUR_ANCHOR_POINT_TIME_TAKEN = "Another blur anchor point is already at that time."
+BLUR_ANCHOR_POINT_FIRST_UNDELETABLE = (
+    "The first anchor point follows the blur's start time and cannot be deleted."
 )
 
 
-def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
+def generate_blur_item_and_anchor_points_html(parent_annotation_id, request=None):
     """Everything the page needs to redraw one blur's points after a write.
 
     Three projections of a single list, because three parts of the page consume it differently: the
-    points panel (`blurPositions`), the timeline bar's dots (`trackItem`), and the player's own copy
-    of the annotation (`positions`, the only one that is data rather than markup).
+    points panel (`blurAnchorPointsHtml`), the timeline bar's dots (`trackItem`), and the player's own copy
+    of the annotation (`blurAnchorPoints`, the only one that is data rather than markup).
 
-    Anything new that needs these positions should read one of the two client-side copies - the
-    player's array, or the panel's row `data-*` attributes, which BlurEditor._positions() treats as
+    Anything new that needs these anchor points should read one of the two client-side copies - the
+    player's array, or the panel's row `data-*` attributes, which BlurEditor._blurAnchorPoints() treats as
     canonical - rather than becoming a fourth thing to patch on every save.
     """
     try:
         # Prefetched so the three projections below share one read of the relation; each calls
-        # positions.all() independently, which is otherwise three identical queries per point edit.
-        parent_annotation = BlurAnnotation.objects.prefetch_related("positions").get(
-            pk=parent_annotation_id
-        )
+        # blur_anchor_points.all() independently, which is otherwise three identical queries per point edit.
+        parent_annotation = BlurAnnotation.objects.prefetch_related(
+            "blur_anchor_points"
+        ).get(pk=parent_annotation_id)
     except Exception as e:
         logger.error(
-            f"Failed to get parent_annotation while updating blur positions html. Exception: {e}"
+            f"Failed to get parent_annotation while updating blur anchor points html. Exception: {e}"
         )
         return False
 
     try:
-        blur_positions_html = render_to_string(
-            "core/partials/blur_positions.html",
-            {"item_positions": parent_annotation.positions.all()},
+        blur_anchor_points_html = render_to_string(
+            "core/partials/blur_anchor_points.html",
+            {"item_blur_anchor_points": parent_annotation.blur_anchor_points.all()},
             request=request,
         )
         track_item_html = render_to_string(
@@ -544,30 +547,31 @@ def generate_blur_item_and_positions_html(parent_annotation_id, request=None):
             request=request,
         )
         return {
-            "blurPositions": blur_positions_html,
+            "blurAnchorPointsHtml": blur_anchor_points_html,
             "trackItem": track_item_html,
-            "positions": [
-                position.to_json() for position in parent_annotation.positions.all()
+            "blurAnchorPoints": [
+                blur_anchor_point.to_json()
+                for blur_anchor_point in parent_annotation.blur_anchor_points.all()
             ],
         }
 
     except Exception as e:
-        logger.error(f"Failed to generate blur_position html. Exception: {e}")
+        logger.error(f"Failed to generate blur anchor point html. Exception: {e}")
         return False
 
 
 @require_POST
 @checks_permission_inline("annotation set of the blur annotation")
 @transaction.atomic
-def upsert_blur_position(request, annotation_id):
-    """Write the geometry of one blur position, creating it if there isn't one yet.
+def upsert_blur_anchor_point(request, annotation_id):
+    """Write the geometry of one blur anchor point, creating it if there isn't one yet.
 
     One endpoint for create and update because the editor cannot tell the difference: a drag means
     "the blur belongs *here* at the time I'm looking at", and whether that is a new point or an
     existing one is a fact about stored data, not about the gesture. Deciding it here - where the
     stored times are - stops a drag at a new time from silently retiming the last point touched.
 
-    `position_id` is optional and means "this exact row", for the numeric inputs and for
+    `blur_anchor_point_id` is optional and means "this exact row", for the numeric inputs and for
     dragging a timeline dot, where the user is deliberately naming a point rather than a time.
     """
     # `active=True` because a deleted annotation is one delete_with_history() marked inactive, and
@@ -575,26 +579,30 @@ def upsert_blur_position(request, annotation_id):
     # placed deliberately.
     annotation = get_object_or_404(BlurAnnotation, pk=annotation_id, active=True)
     if not annotation.track.annotation_set.can_be_edited_by(request.user):
-        return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
+        return HttpResponse(BLUR_ANCHOR_POINT_FORBIDDEN, status=403)
 
     try:
         parsed_body = json.loads(request.body)
         geometry = {
             field: parsed_body[field] for field in ("x", "y", "width", "height")
         }
-        position_time = parsed_body["time"]
-        position_id = parsed_body.get("position_id")
+        blur_anchor_point_time = parsed_body["time"]
+        blur_anchor_point_id = parsed_body.get("blur_anchor_point_id")
     except Exception as e:
-        logger.error(f"Unable to parse data for writing a blur position: {e}")
+        logger.error(f"Unable to parse data for writing a blur anchor point: {e}")
         return HttpResponseBadRequest()
 
     # `is None` rather than a falsy test: 0 is legitimate for every one of these - a box flush against
-    # the left or top edge, or a position at the very start.
-    if position_time is None or any(value is None for value in geometry.values()):
+    # the left or top edge, or an anchor point at the very start.
+    if blur_anchor_point_time is None or any(
+        value is None for value in geometry.values()
+    ):
         return HttpResponseBadRequest()
 
     try:
-        position_time = round(float(position_time), BLUR_TIME_PRECISION)
+        blur_anchor_point_time = round(
+            float(blur_anchor_point_time), BLUR_TIME_PRECISION
+        )
         geometry = {field: float(value) for field, value in geometry.items()}
     except (TypeError, ValueError):
         return HttpResponseBadRequest()
@@ -602,109 +610,114 @@ def upsert_blur_position(request, annotation_id):
     # Clamped instead of rejected: the editor only offers the rig while the playhead is inside the
     # blur's window, so an out-of-range time is rounding at a boundary or a stale request. The model
     # clamps geometry the same way.
-    position_time = min(annotation.end_time, max(annotation.start_time, position_time))
+    blur_anchor_point_time = min(
+        annotation.end_time, max(annotation.start_time, blur_anchor_point_time)
+    )
 
-    if position_id is not None:
+    if blur_anchor_point_id is not None:
         # Scoped to this annotation: an id belonging to someone else's blur is a 404, not an
         # opening to write through it.
-        position = get_object_or_404(
-            BlurAnnotationPosition, pk=position_id, blur_annotation=annotation
+        blur_anchor_point = get_object_or_404(
+            BlurAnchorPoint, pk=blur_anchor_point_id, blur_annotation=annotation
         )
-        position.time = position_time
+        blur_anchor_point.time = blur_anchor_point_time
     else:
         # A point already sitting within a frame or two of the playhead *is* the point the user is
         # editing, so keep its time and only move the box. Anything else creates a point.
         #
-        # The *nearest* candidate, not the earliest, because BlurEditor._pointAt picks the closest and
+        # The *nearest* candidate, not the earliest, because BlurEditor._blurAnchorPointAt picks the closest and
         # the two have to agree: two points less than BLUR_SNAP_SECONDS apart (which the panel's time
         # field allows) would otherwise land a drag on a neighbour.
-        nearby = annotation.positions.filter(
-            time__gte=position_time - BLUR_SNAP_SECONDS,
-            time__lte=position_time + BLUR_SNAP_SECONDS,
+        nearby = annotation.blur_anchor_points.filter(
+            time__gte=blur_anchor_point_time - BLUR_SNAP_SECONDS,
+            time__lte=blur_anchor_point_time + BLUR_SNAP_SECONDS,
         )
-        position = min(
+        blur_anchor_point = min(
             nearby,
-            key=lambda candidate: abs(candidate.time - position_time),
+            key=lambda candidate: abs(candidate.time - blur_anchor_point_time),
             default=None,
-        ) or BlurAnnotationPosition(blur_annotation=annotation, time=position_time)
+        ) or BlurAnchorPoint(blur_annotation=annotation, time=blur_anchor_point_time)
 
     # Recorded before save() gives it a pk. Only this side of the request knows whether a drag added a
     # point or moved one, and the editor reports that to the user.
-    created = position.pk is None
+    created = blur_anchor_point.pk is None
 
     for field, value in geometry.items():
-        setattr(position, field, value)
+        setattr(blur_anchor_point, field, value)
 
     try:
         # An inner savepoint so a rejected retime does not poison the outer transaction: the
         # views below this line still have to query to rebuild the panel.
         with transaction.atomic():
-            position.save()
+            blur_anchor_point.save()
     except IntegrityError:
-        # Only reachable by retiming a named position onto another one's time, which the panel's
+        # Only reachable by retiming a named anchor point onto another one's time, which the panel's
         # time input allows. The request is well-formed, so 409 rather than 400.
-        return HttpResponse(BLUR_POSITION_TIME_TAKEN, status=409)
+        return HttpResponse(BLUR_ANCHOR_POINT_TIME_TAKEN, status=409)
     except Exception as e:
-        logger.error(f"Failed to save BlurAnnotationPosition. Exception: {e}")
+        logger.error(f"Failed to save BlurAnchorPoint. Exception: {e}")
         return HttpResponseServerError()
 
     # A retime could have moved some other point ahead of the earliest one, and the first point
     # is the geometry in effect when the blur starts, so it has to stay pinned to start_time.
-    annotation.ensure_first_position()
+    annotation.ensure_first_blur_anchor_point()
 
-    item_and_positions_html = generate_blur_item_and_positions_html(
+    item_and_blur_anchor_points_html = generate_blur_item_and_anchor_points_html(
         annotation.pk, request=request
     )
-    if item_and_positions_html is False:
+    if item_and_blur_anchor_points_html is False:
         return HttpResponseServerError()
     # Read back rather than echoed from the request: the time is clamped into the blur's window, may
-    # snap onto a nearby point, and ensure_first_position above can retime this very row. The editor
+    # snap onto a nearby point, and ensure_first_blur_anchor_point above can retime this very row. The editor
     # puts this in front of the user, so it has to be the time that was actually stored.
     saved_time = (
-        BlurAnnotationPosition.objects.filter(pk=position.pk)
+        BlurAnchorPoint.objects.filter(pk=blur_anchor_point.pk)
         .values_list("time", flat=True)
         .first()
     )
     return JsonResponse(
         {
-            **item_and_positions_html,
+            **item_and_blur_anchor_points_html,
             "created": created,
-            "time": position_time if saved_time is None else saved_time,
+            "time": blur_anchor_point_time if saved_time is None else saved_time,
         }
     )
 
 
 @require_http_methods(["DELETE"])
-@checks_permission_inline("annotation set of the position's blur annotation")
+@checks_permission_inline("annotation set of the blur anchor point's blur annotation")
 @transaction.atomic
-def delete_blur_position(request, position_id):
-    # Scoped to a live annotation, matching upsert_blur_position: an inactive blur is deleted as
+def delete_blur_anchor_point(request, blur_anchor_point_id):
+    # Scoped to a live annotation, matching upsert_blur_anchor_point: an inactive blur is deleted as
     # far as the editor is concerned, and its points are the record undo() restores.
-    position = get_object_or_404(
-        BlurAnnotationPosition, pk=position_id, blur_annotation__active=True
+    blur_anchor_point = get_object_or_404(
+        BlurAnchorPoint, pk=blur_anchor_point_id, blur_annotation__active=True
     )
-    annotation = position.blur_annotation
+    annotation = blur_anchor_point.blur_annotation
     if not annotation.track.annotation_set.can_be_edited_by(request.user):
-        return HttpResponse(BLUR_POSITION_FORBIDDEN, status=403)
+        return HttpResponse(BLUR_ANCHOR_POINT_FORBIDDEN, status=403)
 
-    # A blur with no positions has no geometry and cannot render, and the earliest position is the one
+    # A blur with no anchor points has no geometry and cannot render, and the earliest anchor point is the one
     # that supplies the geometry the blur starts with. 409, not 400: the request is well-formed, it
     # just conflicts with that invariant.
-    if position.pk == annotation.positions.values_list("pk", flat=True).first():
-        return HttpResponse(BLUR_POSITION_FIRST_UNDELETABLE, status=409)
+    if (
+        blur_anchor_point.pk
+        == annotation.blur_anchor_points.values_list("pk", flat=True).first()
+    ):
+        return HttpResponse(BLUR_ANCHOR_POINT_FIRST_UNDELETABLE, status=409)
 
     try:
-        position.delete()
+        blur_anchor_point.delete()
     except Exception as e:
-        logger.error(f"Failed to delete blur position. Exception: {e}")
+        logger.error(f"Failed to delete blur anchor point. Exception: {e}")
         return HttpResponseServerError()
 
-    item_and_positions_html = generate_blur_item_and_positions_html(
+    item_and_blur_anchor_points_html = generate_blur_item_and_anchor_points_html(
         annotation.pk, request=request
     )
-    if item_and_positions_html is False:
+    if item_and_blur_anchor_points_html is False:
         return HttpResponseServerError()
-    return JsonResponse(item_and_positions_html)
+    return JsonResponse(item_and_blur_anchor_points_html)
 
 
 def generate_annotation_updated_html(
@@ -716,9 +729,9 @@ def generate_annotation_updated_html(
         request=request,
     )
 
-    item_positions = []
+    item_blur_anchor_points = []
     if annotation_type == "blur":
-        item_positions = annotation.positions.all()
+        item_blur_anchor_points = annotation.blur_anchor_points.all()
 
     form_html = render_to_string(
         "core/partials/annotation_form.html",
@@ -730,7 +743,8 @@ def generate_annotation_updated_html(
             "can_edit": annotation.track.annotation_set.can_be_edited_by(request.user),
             "start_seconds": position["start"],
             "end_seconds": position["end"],
-            "item_positions": item_positions,
+            "item_blur_anchor_points": item_blur_anchor_points,
+            "font_color_presets": FONT_COLOR_PRESETS,
         },
         request=request,
     )
@@ -771,8 +785,8 @@ def update_annotation(request, content, annotation_type, annotation_id):
             return validation_result["result"]
         annotation = validation_result["result"]
 
-        # Captured before any field is reassigned: reconcile_positions below needs the window
-        # the positions were authored against to tell a move apart from a resize.
+        # Captured before any field is reassigned: reconcile_blur_anchor_points below needs the window
+        # the anchor points were authored against to tell a move apart from a resize.
         old_start = annotation.start_time
         old_end = getattr(annotation, "end_time", old_start)
 
@@ -803,9 +817,7 @@ def update_annotation(request, content, annotation_type, annotation_id):
         if annotation_type != "pause":
             fields_to_update["end_time"] = time2seconds(json_data["end_time"])
 
-        if (
-            annotation_type == "pause" or annotation_type == "skip"
-        ) and "message" in json_data:
+        if (annotation_type == "pause") and "message" in json_data:
             fields_to_update["message"] = json_data["message"]
 
         if annotation_type == "blank" and "blank_type" in json_data:
@@ -814,20 +826,9 @@ def update_annotation(request, content, annotation_type, annotation_id):
         if annotation_type == "comment":
             if "text" in json_data:
                 fields_to_update["text"] = json_data["text"]
-            if "top_left_x" in json_data and json_data["top_left_x"] is not None:
-                fields_to_update["top_left_x"] = float(json_data["top_left_x"])
-            if "top_left_y" in json_data and json_data["top_left_y"] is not None:
-                fields_to_update["top_left_y"] = float(json_data["top_left_y"])
-            if (
-                "bottom_right_x" in json_data
-                and json_data["bottom_right_x"] is not None
-            ):
-                fields_to_update["bottom_right_x"] = float(json_data["bottom_right_x"])
-            if (
-                "bottom_right_y" in json_data
-                and json_data["bottom_right_y"] is not None
-            ):
-                fields_to_update["bottom_right_y"] = float(json_data["bottom_right_y"])
+            for field in ("x", "y", "width"):
+                if json_data.get(field) is not None:
+                    fields_to_update[field] = float(json_data[field])
             if (
                 "font_size_in_rem" in json_data
                 and json_data["font_size_in_rem"] is not None
@@ -836,12 +837,17 @@ def update_annotation(request, content, annotation_type, annotation_id):
                     json_data["font_size_in_rem"]
                 )
             if "font_color" in json_data:
+                # edit() creates the new version without running field validators.
+                try:
+                    validate_font_color(json_data["font_color"])
+                except ValidationError as e:
+                    return HttpResponseBadRequest(e.messages[0])
                 fields_to_update["font_color"] = json_data["font_color"]
 
         with transaction.atomic():
             annotation = annotation.edit(**fields_to_update)
             if annotation_type == "blur":
-                annotation.reconcile_positions(old_start, old_end)
+                annotation.reconcile_blur_anchor_points(old_start, old_end)
         annotation.refresh_from_db()
 
         new_start_time = annotation.start_time
