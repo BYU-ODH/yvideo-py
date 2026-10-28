@@ -49,12 +49,14 @@ from ..legacy_migration import LegacyMigrationStatus
 from ..legacy_migration import LegacyMigrationUserResolutionStatus
 from ..legacy_migration import LegacySourceMap
 from ..legacy_migration import dump as legacy_dump
+from ..legacy_migration.legacy_roles import LegacyCollectionRole
 from ..legacy_migration.parsers import LegacyFileInfo
 from ..models import LAB_ASSISTANT_GROUP_NAME
 from ..models import BlankAnnotation
+from ..models import BlurAnchorPoint
 from ..models import BlurAnnotation
-from ..models import BlurAnnotationPosition
 from ..models import Clip
+from ..models import CommentAnnotation
 from ..models import Content
 from ..models import MuteAnnotation
 from ..models import PauseAnnotation
@@ -318,7 +320,7 @@ class LegacyMigrationTests(TestCase):
         PlaylistUserAccess.objects.create(
             user=ta_user,
             playlist=current_playlist,
-            playlist_role=PlaylistRole.TA,
+            playlist_role=PlaylistRole.COLLABORATOR,
         )
         Content.objects.create(
             playlist=current_playlist,
@@ -383,7 +385,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": "caseyta",
                 "collection_id": legacy_collection_id,
-                "account_role": 1,
+                "account_role": LegacyCollectionRole.TA,
             },
         )
         self.insert_legacy_row(
@@ -798,7 +800,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": "caseyta",
                 "collection_id": legacy_collection_id,
-                "account_role": 1,
+                "account_role": LegacyCollectionRole.TA,
             },
         )
         self.insert_legacy_row(
@@ -998,12 +1000,28 @@ class LegacyMigrationTests(TestCase):
         # box is top-left (30, 35). See core/tests/test_legacy_blur_import.py for the cases.
         self.assertEqual(
             [
-                (position.time, position.x, position.y, position.width, position.height)
-                for position in BlurAnnotationPosition.objects.filter(
+                (
+                    blur_anchor_point.time,
+                    blur_anchor_point.x,
+                    blur_anchor_point.y,
+                    blur_anchor_point.width,
+                    blur_anchor_point.height,
+                )
+                for blur_anchor_point in BlurAnchorPoint.objects.filter(
                     blur_annotation__track__annotation_set=imported_video.annotation_set
                 )
             ],
             [(2.0, 30.0, 35.0, 20.0, 30.0), (4.0, 60.0, 50.0, 10.0, 20.0)],
+        )
+
+        # Legacy comments carry only their top-left corner; with no width their text ran to the
+        # frame's right edge, so that is the width they arrive with.
+        comment = CommentAnnotation.objects.get(
+            track__annotation_set=imported_video.annotation_set
+        )
+        self.assertEqual(
+            (comment.text, comment.x, comment.y, comment.width),
+            ("Discuss this scene", 10.0, 20.0, 90.0),
         )
 
         subtitle = Subtitle.objects.get(resource=imported_video.resource)
@@ -1029,14 +1047,14 @@ class LegacyMigrationTests(TestCase):
             PlaylistUserAccess.objects.filter(
                 user=target_owner,
                 playlist=imported_playlist,
-                playlist_role=PlaylistRole.INSTRUCTOR,
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
         self.assertTrue(
             PlaylistUserAccess.objects.filter(
                 user=playlist_ta,
                 playlist=imported_playlist,
-                playlist_role=PlaylistRole.TA,
+                playlist_role=PlaylistRole.COLLABORATOR,
             ).exists()
         )
         self.assertFalse(
@@ -1781,7 +1799,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": "missingguest",
                 "collection_id": legacy_collection_id,
-                "account_role": PlaylistRole.TA,
+                "account_role": LegacyCollectionRole.TA,
             },
         )
 
@@ -1800,7 +1818,7 @@ class LegacyMigrationTests(TestCase):
             [
                 {
                     "collection_id": legacy_collection_id,
-                    "account_role": PlaylistRole.TA,
+                    "account_role": LegacyCollectionRole.TA,
                     "username": "missingguest",
                     "legacy_user_id": None,
                     "byu_person_id": None,
@@ -1887,7 +1905,7 @@ class LegacyMigrationTests(TestCase):
                 "deleted": None,
                 "username": ta_user.netid,
                 "collection_id": legacy_collection_id,
-                "account_role": PlaylistRole.TA,
+                "account_role": LegacyCollectionRole.TA,
             },
         )
         self.insert_legacy_row(
@@ -1998,7 +2016,7 @@ class LegacyMigrationTests(TestCase):
         )
 
         self.assertIn(ta_user.netid, access_preview)
-        self.assertIn(PlaylistRole(PlaylistRole.TA).label, access_preview)
+        self.assertIn(PlaylistRole(PlaylistRole.COLLABORATOR).label, access_preview)
         self.assertIn("FILM 101-001", course_preview)
         self.assertIn(resource_guest.netid, resource_access_preview)
 
@@ -3214,7 +3232,7 @@ class LegacyMigrationTests(TestCase):
                         "username": "auditor",
                         "byu_person_id": "",
                         "email": "",
-                        "account_role": 3,
+                        "account_role": LegacyCollectionRole.AUDITOR,
                         "collection_id": "c1",
                     }
                 ],
@@ -3227,9 +3245,18 @@ class LegacyMigrationTests(TestCase):
             migration_request.issues.filter(code="unknown_collection_role").exists()
         )
         self.assertEqual(
-            service._resolve_collection_role(3),
+            service._resolve_collection_role(LegacyCollectionRole.AUDITOR),
             PlaylistRole.STUDENT,
         )
+
+    def test_legacy_instructors_and_tas_both_import_as_collaborators(self):
+        service = LegacyMigrationService(require_catalog=False)
+        for legacy_role in (LegacyCollectionRole.INSTRUCTOR, LegacyCollectionRole.TA):
+            with self.subTest(legacy_role=legacy_role):
+                self.assertEqual(
+                    service._resolve_collection_role(legacy_role),
+                    PlaylistRole.COLLABORATOR,
+                )
 
     def test_claim_job_is_atomic(self):
         service = LegacyMigrationService(require_catalog=False)

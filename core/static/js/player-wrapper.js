@@ -19,6 +19,17 @@ async function getPlayerData(contentId) {
   return await playerDataResponse.json();
 }
 
+function subtitleTracksFor(videoElem, playerData) {
+  if (videoElem.tagName === 'YOUTUBE-VIDEO' || !playerData.subtitleTracks) {
+    return [];
+  }
+  const subtitles = playerData.subtitleTracks;
+  const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
+  return subtitleArray.filter(sub => sub.vtt || sub.url);
+}
+
+let playerReady;
+
 function attachAnnotationPlayer() {
     'use strict';
 
@@ -39,14 +50,7 @@ function attachAnnotationPlayer() {
         }
 
         const videoElem = container.querySelector('#video-player');
-        const supportsTextTracks = videoElem.tagName !== 'YOUTUBE-VIDEO';
-
-        let tracks = [];
-        if (supportsTextTracks && playerData && playerData.subtitleTracks) {
-            const subtitles = playerData.subtitleTracks;
-            const subtitleArray = Array.isArray(subtitles) ? subtitles : [subtitles];
-            tracks = subtitleArray.filter(sub => sub.vtt || sub.url);
-        }
+        const tracks = subtitleTracksFor(videoElem, playerData);
 
         let clips = [];
         if (playerData && playerData.clips) {
@@ -78,9 +82,11 @@ function attachAnnotationPlayer() {
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        playerReady = new Promise((resolve) => {
+            document.addEventListener('DOMContentLoaded', () => resolve(init()));
+        });
     } else {
-        init();
+        playerReady = init();
     }
 }
 
@@ -88,16 +94,25 @@ attachAnnotationPlayer();
 
 // watch for changes in video section. reload annotation player if changes occur
 
+let latestRefreshId = 0;
+
 async function handleVideoSectionChanges() {
+  await playerReady;
   const player = window.videoPlayer;
+  if (!player) return;
+
+  // Saves often land in quick succession; only the newest refresh is applied so a slower, older
+  // response cannot overwrite the player with stale data.
+  const refreshId = ++latestRefreshId;
   const contentId = player.container.dataset["contentid"];
   const playerData = await getPlayerData(contentId);
-  if (playerData !== false) {
-    player.loadData({
-      annotations: playerData.annotations || [],
-      clips: playerData.clips || []
-    });
-  }
+  if (playerData === false || refreshId !== latestRefreshId) return;
+
+  player.loadData({
+    annotations: playerData.annotations || [],
+    clips: playerData.clips || [],
+    subtitles: subtitleTracksFor(player.videoElem, playerData),
+  });
 }
 
 function listenForChangesToAnnotations() {

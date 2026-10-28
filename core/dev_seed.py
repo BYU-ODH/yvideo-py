@@ -10,8 +10,8 @@ from .dev_features import DEMO_ADMIN_PASSWORD
 from .dev_features import DEMO_ADMIN_USERNAME
 from .factories import AnnotationSetFactory
 from .factories import BlankAnnotationFactory
+from .factories import BlurAnchorPointFactory
 from .factories import BlurAnnotationFactory
-from .factories import BlurAnnotationPositionFactory
 from .factories import ClipFactory
 from .factories import CommentAnnotationFactory
 from .factories import ContentFactory
@@ -301,15 +301,15 @@ def create_demo_data():
     )
 
     for playlist, user, role in [
-        (ada_playlist, professor_ada, PlaylistRole.INSTRUCTOR),
-        (ada_playlist, teaching_assistant, PlaylistRole.TA),
+        (ada_playlist, professor_ada, PlaylistRole.COLLABORATOR),
+        (ada_playlist, teaching_assistant, PlaylistRole.COLLABORATOR),
         (ada_playlist, student_alice, PlaylistRole.STUDENT),
         (ada_playlist, student_bob, PlaylistRole.STUDENT),
-        (ada_drafts, professor_ada, PlaylistRole.INSTRUCTOR),
-        (admin_playlist, admin, PlaylistRole.INSTRUCTOR),
-        (admin_drafts, admin, PlaylistRole.INSTRUCTOR),
-        (ben_playlist, professor_ben, PlaylistRole.INSTRUCTOR),
-        (ben_playlist, teaching_assistant, PlaylistRole.TA),
+        (ada_drafts, professor_ada, PlaylistRole.COLLABORATOR),
+        (admin_playlist, admin, PlaylistRole.COLLABORATOR),
+        (admin_drafts, admin, PlaylistRole.COLLABORATOR),
+        (ben_playlist, professor_ben, PlaylistRole.COLLABORATOR),
+        (ben_playlist, teaching_assistant, PlaylistRole.COLLABORATOR),
         (ben_playlist, student_bob, PlaylistRole.STUDENT),
         (ben_playlist, student_ivy, PlaylistRole.STUDENT),
     ]:
@@ -368,7 +368,7 @@ def create_demo_data():
         description="Blank the display",
         type="#",
     )
-    # Two blurs covering both authoring shapes. Every position is deliberately asymmetric
+    # Two blurs covering both authoring shapes. Every anchor point is deliberately asymmetric
     # (x != y, width != height) so an axis or dimension mix-up cannot cancel itself out, and
     # both stay clear of the 12.0-14.5 full-screen blank above, which would otherwise mask
     # them and make manual verification impossible.
@@ -379,7 +379,7 @@ def create_demo_data():
         end_time=5.0,
         description="Stationary blur covering a burned-in watermark.",
     )
-    BlurAnnotationPositionFactory(
+    BlurAnchorPointFactory(
         blur_annotation=birds_watermark_blur,
         time=1.0,
         x=68.0,
@@ -396,14 +396,14 @@ def create_demo_data():
         end_time=11.0,
         description="Moving blur that follows a bird across the frame.",
     )
-    for position_time, x, y, width, height in (
+    for blur_anchor_point_time, x, y, width, height in (
         (3.0, 12.5, 30.0, 22.0, 14.0),
         (7.0, 40.0, 22.0, 26.0, 17.0),
         (11.0, 66.5, 44.0, 18.0, 11.0),
     ):
-        BlurAnnotationPositionFactory(
+        BlurAnchorPointFactory(
             blur_annotation=birds_flight_blur,
-            time=position_time,
+            time=blur_anchor_point_time,
             x=x,
             y=y,
             width=width,
@@ -416,10 +416,9 @@ def create_demo_data():
         end_time=15.0,
         description="Prompt students to compare the birds' motion.",
         text="Notice how the group gathers before the turn.",
-        top_left_x=42.0,
-        top_left_y=28.0,
-        bottom_right_x=20.0,
-        bottom_right_y=10.0,
+        x=42.0,
+        y=28.0,
+        width=30.0,
         font_size_in_rem=2.0,
         font_color="aaaaaa",
     )
@@ -430,10 +429,9 @@ def create_demo_data():
         end_time=19.5,
         description="Call out the wing movement overlap on the same track.",
         text="Compare the spacing between the front and rear birds.",
-        top_left_x=32.0,
-        top_left_y=18.0,
-        bottom_right_x=25.0,
-        bottom_right_y=15.0,
+        x=32.0,
+        y=18.0,
+        width=35.0,
         font_size_in_rem=1.5,
         font_color="bbbbbb",
     )
@@ -444,10 +442,9 @@ def create_demo_data():
         end_time=22.5,
         description="Keep one more overlapping comment active later in the clip.",
         text="The final turn stays visible long enough to test overlap rendering.",
-        top_left_x=37.0,
-        top_left_y=23.0,
-        bottom_right_x=22.0,
-        bottom_right_y=18.0,
+        x=37.0,
+        y=23.0,
+        width=30.0,
         font_size_in_rem=1.0,
         font_color="cccccc",
     )
@@ -473,10 +470,9 @@ def create_demo_data():
         end_time=9.0,
         description="Call out the grid region students should focus on.",
         text="Watch how the pattern shifts across the center cells.",
-        top_left_x=50.0,
-        top_left_y=50.0,
-        bottom_right_x=25.0,
-        bottom_right_y=20.0,
+        x=50.0,
+        y=50.0,
+        width=40.0,
         font_size_in_rem=2.5,
         font_color="dddddd",
     )

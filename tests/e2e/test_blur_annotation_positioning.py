@@ -23,14 +23,14 @@ def _inject_blur_annotation(page):
     # through the player's public API - the geometry being tested lives
     # entirely in AnnotationPlayer/CSS, not in how the annotation was authored.
     page.evaluate(
-        """(position) => {
+        """(blurAnchorPoint) => {
             window.videoPlayer.loadData({
                 annotations: [{
                     id: 1,
                     type: 'blur',
                     start: 0,
                     end: 999999,
-                    positions: [position],
+                    positions: [blurAnchorPoint],
                 }],
             });
             window.videoPlayer.setCurrentTime(0.1);
@@ -375,15 +375,15 @@ def test_blur_radius_scales_with_the_rendered_frame(page, open_player):
 
 
 def test_the_blur_glides_between_positions(page, open_player):
-    """A blur with several positions interpolates between them rather than snapping.
+    """A blur with several anchor points interpolates between them rather than snapping.
 
-    This is a safety property, not a nicety: a box that snaps to the last position passed lags
+    This is a safety property, not a nicety: a box that snaps to the last anchor point passed lags
     behind whatever it is covering, briefly exposing it. Interpolating is what makes a handful
-    of positions sufficient to keep a moving subject hidden.
+    of anchor points sufficient to keep a moving subject hidden.
     """
     open_player(viewport={"width": 1280, "height": 720})
 
-    # Two positions four seconds apart, moving right and growing. Every field differs so a
+    # Two anchor points four seconds apart, moving right and growing. Every field differs so a
     # field mix-up cannot cancel out.
     page.evaluate(
         """() => {
@@ -429,7 +429,7 @@ def test_the_blur_glides_between_positions(page, open_player):
     quarter = seek_and_measure(1.0)
     assert quarter["x"] == pytest.approx(0.20, abs=0.01)
 
-    # Past the last position the geometry holds rather than extrapolating off-frame.
+    # Past the last anchor point the geometry holds rather than extrapolating off-frame.
     beyond = seek_and_measure(6.0)
     assert beyond["x"] == pytest.approx(0.50, abs=0.01)
     assert beyond["width"] == pytest.approx(0.30, abs=0.01)

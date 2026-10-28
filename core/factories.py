@@ -7,8 +7,8 @@ import factory
 from .models import LAB_ASSISTANT_GROUP_NAME
 from .models import AnnotationSet
 from .models import BlankAnnotation
+from .models import BlurAnchorPoint
 from .models import BlurAnnotation
-from .models import BlurAnnotationPosition
 from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
@@ -244,12 +244,12 @@ class BlurAnnotationFactory(factory.django.DjangoModelFactory):
     description = "Blur sensitive on-screen content"
 
 
-class BlurAnnotationPositionFactory(factory.django.DjangoModelFactory):
+class BlurAnchorPointFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = BlurAnnotationPosition
+        model = BlurAnchorPoint
 
     blur_annotation = factory.SubFactory(BlurAnnotationFactory)
-    # Default to the parent's start_time rather than 0: the first position is the geometry in
+    # Default to the parent's start_time rather than 0: the first anchor point is the geometry in
     # effect when the blur begins, so pinning it there is what makes it meaningful.
     time = factory.SelfAttribute("blur_annotation.start_time")
     # Deliberately asymmetric (x != y, width != height) so that an axis or dimension mix-up
@@ -270,10 +270,9 @@ class CommentAnnotationFactory(factory.django.DjangoModelFactory):
     end_time = 18.0
     description = "Comment overlay"
     text = "Demo comment"
-    top_left_x = 0.0
-    top_left_y = 0.0
-    bottom_right_x = 100.0
-    bottom_right_y = 10.0
+    x = 0.0
+    y = 0.0
+    width = 100.0
     font_size_in_rem = 1.0
     font_color = "ffffff"
 

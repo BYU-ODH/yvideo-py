@@ -1,0 +1,104 @@
+{% load static %}
+{% load annotation_extras %}
+
+<div id="blur-anchor-points-wrapper">
+    <h4>Blur Anchor Points</h4>
+    <p class="blur-anchor-points-help">
+        Drag the blur on the video to move it, or its handles to resize it. For moving targets,
+        adjust the blur at the beginning, then adjust the blur at the end, then repeatedly find
+        where the blur is farthest from the target and adjust its position there.
+    </p>
+    <div id="blur-anchor-points-list"
+         tabindex="0"
+         role="group"
+         aria-label="Blur anchor points">
+        <table id="blur-anchor-points-table">
+            <colgroup>
+                <col class="blur-anchor-point-column-number">
+                <col span="5">
+                <col class="blur-anchor-point-column-actions">
+            </colgroup>
+            <thead>
+                <tr>
+                    <td></td>
+                    <th scope="col">Time</th>
+                    <th scope="col">X (%)</th>
+                    <th scope="col">Y (%)</th>
+                    <th scope="col">W (%)</th>
+                    <th scope="col">H (%)</th>
+                    <td></td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for blur_anchor_point in item_blur_anchor_points %}
+                    <tr class="blur-anchor-point-entry"
+                        data-blur-anchor-point-id="{{ blur_anchor_point.pk }}"
+                        data-time="{{ blur_anchor_point.time|floatformat:2 }}"
+                        data-x="{{ blur_anchor_point.x|floatformat:2 }}"
+                        data-y="{{ blur_anchor_point.y|floatformat:2 }}"
+                        data-width="{{ blur_anchor_point.width|floatformat:2 }}"
+                        data-height="{{ blur_anchor_point.height|floatformat:2 }}">
+                        <th scope="row" class="blur-anchor-point-counter">{{ forloop.counter }}.</th>
+                        <td class="blur-anchor-point-input-group">
+                            {% if forloop.counter == 1 %}
+                                {% comment %}
+                           The first anchor point always sits at the blur's start time, so its time is
+                           derived rather than entered - readonly.
+                                {% endcomment %}
+                                <input class="blur-anchor-point-time-input"
+                                       type="text"
+                                       value="{{ blur_anchor_point.time|hms_time }}"
+                                       readonly
+                                       title="Always starts with the blur. Drag the blur's left edge on the timeline to change it."
+                                       aria-label="anchor point {{ forloop.counter }} time (follows the blur's start time)">
+                            {% else %}
+                                <input class="blur-anchor-point-time-input"
+                                       type="text"
+                                       value="{{ blur_anchor_point.time|hms_time }}"
+                                       aria-label="anchor point {{ forloop.counter }} time">
+                            {% endif %}
+                        </td>
+                        <td class="blur-anchor-point-input-group">
+                            <input class="blur-anchor-point-x-input"
+                                   type="text"
+                                   value="{{ blur_anchor_point.x|floatformat:2 }}"
+                                   aria-label="anchor point {{ forloop.counter }} x as a percentage of the video window, from the left edge">
+                        </td>
+                        <td class="blur-anchor-point-input-group">
+                            <input class="blur-anchor-point-y-input"
+                                   type="text"
+                                   value="{{ blur_anchor_point.y|floatformat:2 }}"
+                                   aria-label="anchor point {{ forloop.counter }} y as a percentage of the video window, from the top edge">
+                        </td>
+                        <td class="blur-anchor-point-input-group">
+                            <input class="blur-anchor-point-width-input"
+                                   type="text"
+                                   value="{{ blur_anchor_point.width|floatformat:2 }}"
+                                   aria-label="anchor point {{ forloop.counter }} width as a percentage of the video window">
+                        </td>
+                        <td class="blur-anchor-point-input-group">
+                            <input class="blur-anchor-point-height-input"
+                                   type="text"
+                                   value="{{ blur_anchor_point.height|floatformat:2 }}"
+                                   aria-label="anchor point {{ forloop.counter }} height as a percentage of the video window">
+                        </td>
+                        <td>
+                            {% if forloop.counter != 1 %}
+                                <button type="button"
+                                        class="blur-anchor-point-delete-button"
+                                        data-delete-url="{% url 'delete_blur_anchor_point' blur_anchor_point.pk %}"
+                                        aria-label="delete blur anchor point {{ forloop.counter }}">
+                                    <img src="{% static 'img/white-trash-can.svg' %}" alt=""></img>
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p id="blur-anchor-point-status"
+       class="blur-anchor-point-status"
+       role="status"
+       aria-live="polite"></p>
+</div>

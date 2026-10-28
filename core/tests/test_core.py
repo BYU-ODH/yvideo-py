@@ -28,8 +28,8 @@ from ..factories import TrackFactory
 from ..factories import UserCourseFactory
 from ..factories import UserFactory
 from ..models import AnnotationSet
+from ..models import BlurAnchorPoint
 from ..models import BlurAnnotation
-from ..models import BlurAnnotationPosition
 from ..models import Content
 from ..models import PauseAnnotation
 from ..models import Resource
@@ -696,10 +696,9 @@ class AnnotationSetCreateForContentTests(TestCase):
             end_time=5.0,
             description="opening comment",
             text="Observe the framing",
-            top_left_x=20.0,
-            top_left_y=30.0,
-            bottom_right_x=20.0,
-            bottom_right_y=30.0,
+            x=20.0,
+            y=30.0,
+            width=20.0,
             font_size_in_rem=1.0,
             font_color="abcdef",
         )
@@ -734,7 +733,7 @@ class AnnotationSetCreateForContentTests(TestCase):
             description="blur face on screen",
         )
         for time, x, y in [(15.0, 10.0, 20.0), (17.5, 15.0, 25.0), (20.0, 20.0, 30.0)]:
-            BlurAnnotationPosition.objects.create(
+            BlurAnchorPoint.objects.create(
                 blur_annotation=self.blur_annotation,
                 time=time,
                 x=x,
@@ -782,10 +781,9 @@ class AnnotationSetCreateForContentTests(TestCase):
             end_time=40.0,
             description="closing comment",
             text="Note the composition",
-            top_left_x=20.0,
-            top_left_y=30.0,
-            bottom_right_x=20.0,
-            bottom_right_y=30.0,
+            x=20.0,
+            y=30.0,
+            width=20.0,
             font_size_in_rem=1.0,
             font_color="abcdef",
         )
@@ -797,7 +795,7 @@ class AnnotationSetCreateForContentTests(TestCase):
             description="blur logo",
         )
         for time, x, y in [(42.0, 5.0, 10.0), (45.0, 6.0, 11.0), (48.0, 7.0, 12.0)]:
-            BlurAnnotationPosition.objects.create(
+            BlurAnchorPoint.objects.create(
                 blur_annotation=distributed_blur,
                 time=time,
                 x=x,
@@ -864,20 +862,8 @@ class AnnotationSetCreateForContentTests(TestCase):
                 self.assertTrue(orig_annotation["type"] == new_annotation["type"])
             elif orig_type == "comment":
                 self.assertTrue(orig_annotation["text"] == new_annotation["text"])
-                self.assertTrue(
-                    orig_annotation["top_left_x"] == new_annotation["top_left_x"]
-                )
-                self.assertTrue(
-                    orig_annotation["top_left_y"] == new_annotation["top_left_y"]
-                )
-                self.assertTrue(
-                    orig_annotation["bottom_right_x"]
-                    == new_annotation["bottom_right_x"]
-                )
-                self.assertTrue(
-                    orig_annotation["bottom_right_y"]
-                    == new_annotation["bottom_right_y"]
-                )
+                for field in ("x", "y", "width"):
+                    self.assertEqual(orig_annotation[field], new_annotation[field])
                 self.assertTrue(
                     orig_annotation["font_size_in_rem"]
                     == new_annotation["font_size_in_rem"]
@@ -890,16 +876,30 @@ class AnnotationSetCreateForContentTests(TestCase):
                     len(orig_annotation["positions"])
                     == len(new_annotation["positions"])
                 )
-                # check that the positions are correct
+                # check that the anchor points are correct
                 for j in range(0, len(orig_annotation["positions"])):
-                    orig_position = orig_annotation["positions"][j]
-                    new_position = new_annotation["positions"][j]
-                    self.assertTrue(orig_position["id"] != new_position["id"])
-                    self.assertTrue(orig_position["time"] == new_position["time"])
-                    self.assertTrue(orig_position["x"] == new_position["x"])
-                    self.assertTrue(orig_position["y"] == new_position["y"])
-                    self.assertTrue(orig_position["width"] == new_position["width"])
-                    self.assertTrue(orig_position["height"] == new_position["height"])
+                    orig_blur_anchor_point = orig_annotation["positions"][j]
+                    new_blur_anchor_point = new_annotation["positions"][j]
+                    self.assertTrue(
+                        orig_blur_anchor_point["id"] != new_blur_anchor_point["id"]
+                    )
+                    self.assertTrue(
+                        orig_blur_anchor_point["time"] == new_blur_anchor_point["time"]
+                    )
+                    self.assertTrue(
+                        orig_blur_anchor_point["x"] == new_blur_anchor_point["x"]
+                    )
+                    self.assertTrue(
+                        orig_blur_anchor_point["y"] == new_blur_anchor_point["y"]
+                    )
+                    self.assertTrue(
+                        orig_blur_anchor_point["width"]
+                        == new_blur_anchor_point["width"]
+                    )
+                    self.assertTrue(
+                        orig_blur_anchor_point["height"]
+                        == new_blur_anchor_point["height"]
+                    )
 
     def test_create_for_content_with_annotations_json(self):
         original_set_json = self.original_set.to_player_json()
