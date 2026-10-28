@@ -16,6 +16,11 @@
     --pale-red: #fdecea;
     --pale-green: #e6f4ea;
     --green: #1e7e34;
+    --success-green: #8CC97E;
+    --warning-yellow: #E7E262;
+    --error-red: #CB2020;
+    --info-blue: #83B5D5;
+    --debug-beige: #F3E9D2;
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
@@ -255,6 +260,59 @@ a.blue-button {
         transform: scale(1, 1);
     }
 }
+
+/* Django messages */
+#django-messages-container {
+    position: absolute;
+    z-index: 10;
+
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+
+    width: 20rem;
+}
+
+.django-message {
+    width: 100%;
+    padding: 8px;
+    border: 2px solid;
+    border-color: black;
+    border-radius: 8px;
+}
+
+.django-message-status {
+    margin: 0 0 8px;
+    font-weight: bold;
+}
+
+.django-message-text {
+    margin: 0;
+}
+
+.django-message.success {
+    background-color: var(--success-green);
+}
+
+.django-message.debug {
+    background-color: var(--debug-beige);
+}
+
+.django-message.info {
+    background-color: var(--info-blue);
+}
+
+.django-message.warning {
+    background-color: var(--warning-yellow);
+}
+
+.django-message.error {
+    border-color: black;
+    color: white;
+    background-color: var(--error-red);
+}
+
+/* non-decorative styles */
 
 .dialog-content {
     position: relative;

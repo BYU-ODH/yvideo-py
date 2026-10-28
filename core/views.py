@@ -125,6 +125,11 @@ def content_parent_crumbs(content):
 
 @require_GET
 def index(request):
+    messages.success(request, "Well hey there! welcome to y-video!")
+    messages.debug(request, "Debug message")
+    messages.info(request, "Info message")
+    messages.warning(request, "Warning message")
+    messages.error(request, "Error message")
     return HttpResponseRedirect(reverse("playlists"))
 
 

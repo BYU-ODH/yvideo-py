@@ -124,6 +124,9 @@ DATABASES = {
     }
 }
 
+# Message configuration
+MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
 LEGACY_MIGRATION_ENABLED = getattr(secret_settings, "LEGACY_MIGRATION_ENABLED", False)
 LEGACY_MIGRATION_MEDIA_ROOT = getattr(
     secret_settings, "LEGACY_MIGRATION_MEDIA_ROOT", ""
