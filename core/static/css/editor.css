@@ -1255,7 +1255,7 @@
 }
 
 .track-row.active-track .timeline-row-left {
-    border-left: 3px solid #fff;
+    box-shadow: inset 0 0 0 2px white;
 }
 
 .timeline-row-right {
