@@ -262,7 +262,7 @@ class StrangerIsRefusedTests(TestCase):
         )
 
     def test_retire_annotation_set_refuses_a_stranger(self):
-        response = self.client.delete(
+        response = self.client.post(
             reverse("retire_annotation_set", args=[self.annotation_set.pk])
         )
 
@@ -670,7 +670,7 @@ class CollaboratorTests(TestCase):
         )
 
     def test_a_collaborator_may_not_retire_the_owners_annotation_set(self):
-        response = self.client.delete(
+        response = self.client.post(
             reverse("retire_annotation_set", args=[self.annotation_set.pk])
         )
 
@@ -709,7 +709,7 @@ class OwnerHappyPathTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_the_owner_may_retire_their_own_set(self):
-        response = self.client.delete(
+        response = self.client.post(
             reverse("retire_annotation_set", args=[self.annotation_set.pk])
         )
 
