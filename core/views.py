@@ -9,6 +9,7 @@ import re
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
@@ -1427,10 +1428,9 @@ def request_resource(request):
             )
             return redirect("request_resource")
         else:
-            errors = form.errors.as_json()
-            name_collision_error = "Resource intake request with this Resource title and Resource name disambiguator already exists."
-            if name_collision_error in errors:
-                title_collision_error = True
+            title_collision_error = form.has_error(
+                NON_FIELD_ERRORS, code="unique_together"
+            )
 
         for field_name in form.errors:
             if field_name in form.fields:
