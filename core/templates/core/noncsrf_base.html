@@ -33,11 +33,12 @@
         <main id="site-content">
             {% block content %}{% endblock %}
         </main>
+        <div id="django-messages-container">
+            {% if messages %}
+                {% for message in messages %}
+                    {% include 'core/partials/user_message.html' %}
+                {% endfor %}
+            {% endif %}
+        </div>
     </body>
-    <div id="django-messages-container"></div>
-    {% if messages %}
-        {% for message in messages %}
-            {% include 'core/partials/user_message.html' %}
-        {% endfor %}
-    {% endif %}
 </html>

@@ -451,6 +451,7 @@ def create_playlist(request):
     if data and "name" in data:
         try:
             Playlist.objects.create(name=data["name"], owner=request.user)
+            messages.success(request, "Playlist created.")
             return HttpResponse()
         except Exception as e:
             logger.error(
@@ -757,6 +758,7 @@ def update_playlist_settings(request, playlist):
             else:
                 playlist.published = form.cleaned_data["published"]
             playlist.save()
+            messages.success(request, "Playlist settings saved.")
             return render_playlist_info(request, playlist)
         except Exception as e:
             logger.error(
@@ -1123,6 +1125,7 @@ def get_playlist_contents(playlist):
 def delete_playlist(request, playlist):
     try:
         playlist.delete()
+        messages.success(request, "Playlist deleted.")
         return HttpResponse()
     except Exception as e:
         logger.error(
@@ -1150,6 +1153,7 @@ def create_content(request, playlist):
             title=parsed_data["title"],
             resource_file=resource_file,
         )
+        messages.success(request, "Video added to playlist.")
         return HttpResponse()
     except ResourceFile.DoesNotExist:
         logger.error("Failed to create new content due to missing ResourceFile")
@@ -1190,6 +1194,7 @@ def create_content_from_youtube_url(request, playlist):
             url=parsed_data["url"],
             resource=resource,
         )
+        messages.success(request, "YouTube video added to playlist.")
         return HttpResponse()
     except json.JSONDecodeError:
         logger.error(
@@ -1253,6 +1258,7 @@ def delete_content(request, content):
     try:
         contents_count = Content.objects.filter(playlist=content.playlist).count()
         content.delete()
+        messages.success(request, "Video removed from playlist.")
         if contents_count <= 1:
             return HttpResponse(
                 "There is no published content for this playlist", status=200
@@ -1333,9 +1339,11 @@ def update_content(request, content):
             content.default_subtitle_track = None
 
         content.save()
+        messages.success(request, "Video settings saved.")
         return HttpResponse()
     except Exception as e:
         logger.error(f"An error occured while updating content. Exception: {e}")
+        messages.error(request, "Failed to save video settings.")
         return HttpResponseServerError()
 
 
