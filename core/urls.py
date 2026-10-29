@@ -13,6 +13,8 @@ urlpatterns = [
     path("", views.index, name="index"),
     path("about/", views.about, name="about"),
     path("whats-new/", views.whats_new, name="whats_new"),
+    path("connection/poll/", views.poll_connection, name="poll_connection"),
+    path("messages/render/", views.render_user_message, name="render_user_message"),
     path(
         "legacy-migrations/",
         views_legacy_migration.legacy_migration_requests,

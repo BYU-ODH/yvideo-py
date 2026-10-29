@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./utils.js";
+import { getCSRFToken, displayUserMessage } from "./utils.js";
 
 function setupSubmit() {
   const submitButton = document.getElementById("content-settings-submit-button");
@@ -49,7 +49,7 @@ function setupReset() {
     const contentId = contentIdInput.value;
     const resetResponse = await fetch(`/content/${contentId}/render-settings-form/`);
     if (!resetResponse.ok) {
-      console.error("Failed to reset content settings form");
+      displayUserMessage("error", "Failed to reset content settings form");
       return;
     }
 

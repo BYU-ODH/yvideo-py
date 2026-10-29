@@ -96,3 +96,43 @@ export function getCSRFToken() {
   }
   return cookieValue;
 }
+
+// Render and display a user message. A message cannot be empty
+// and if the level is not a valid value, the resulting message will be
+// an error type message.
+export async function displayUserMessage(level, message) {
+  if (!message.trim()) {
+    console.error("Django Messages cannot be empty");
+    return;
+  }
+
+  if (level?.toLowerCase() === "error") {
+    console.error(message);
+  }
+
+  const container = document.getElementById("django-messages-container");
+  if (!container) {
+    console.error("The Django messages container is missing.");
+    return;
+  }
+
+  const url = new URL("/messages/render/", window.location.origin);
+  url.searchParams.set("message", message);
+  url.searchParams.set("level", level);
+
+  const response = await fetch(url, {
+    headers: { Accept: "text/html" },
+  });
+  if (!response.ok || response.redirected) {
+    console.log("Failed to render user message.");
+    return;
+  }
+
+  const html = await response.text();
+  if (html === "") {
+    console.error("Received empty HTML while rendering a user message.");
+    return;
+  }
+
+  container.insertAdjacentHTML("beforeend", html);
+}

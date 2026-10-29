@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./utils.js";
+import { getCSRFToken, displayUserMessage } from "./utils.js";
 
 function setupDeleteFromPlaylist() {
   const confirmDeleteButton = document.getElementById("content-confirm-delete");
@@ -14,7 +14,7 @@ function setupDeleteFromPlaylist() {
       headers: { "X-CSRFToken": getCSRFToken() },
     });
     if (!deleteResponse.ok) {
-      console.error("Failed to delete content from playlist");
+      displayUserMessage("error", "Failed to delete content from playlist");
       return;
     }
     window.location.replace(`/playlists/${playlistIdInput.value}/`);

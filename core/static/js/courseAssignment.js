@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./utils.js";
+import { getCSRFToken, displayUserMessage } from "./utils.js";
 import { getPlaylistIdValue } from "./utils.js";
 
 function getYear() {
@@ -34,7 +34,7 @@ function setupSemesterSelectionHandlers() {
       })
     });
     if (!renderResponse.ok) {
-      console.error("Failed to render assigned courses html");
+      displayUserMessage("error", "Failed to load assigned courses");
       return;
     }
 
@@ -99,7 +99,7 @@ function setupAssignCourseButton() {
     });
 
     if (!assignmentResponse.ok) {
-      console.error("Failed to assign course to playlist");
+      displayUserMessage("error", "Failed to assign course to playlist");
       return;
     }
 
@@ -151,7 +151,7 @@ function setupSubmitSectionButtons() {
       });
 
       if (!saveResponse.ok) {
-        console.error("Failed to update sections because of a bad request");
+        displayUserMessage("error", "Failed to update course sections");
         return;
       }
 
@@ -193,7 +193,7 @@ function setupRemoveCourseButtons() {
       });
 
       if (!removeRequest.ok) {
-        console.error("Failed to remove playlist from course");
+        displayUserMessage("error", "Failed to remove playlist from course");
         return;
       }
 

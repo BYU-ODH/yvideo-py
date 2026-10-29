@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect, displayUserMessage } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
 import { PendingNudge, beginRectGesture, createRig, nudgeDelta } from "./overlay-rig.js";
@@ -563,7 +563,7 @@ export class Editor {
       });
 
       if (!response.ok) {
-        console.error("Failed to delete item!");
+        displayUserMessage("error", "Failed to delete item!");
         return;
       }
 
@@ -715,7 +715,7 @@ export class Editor {
         });
 
         if (!response.ok) {
-          console.error(`Failed to ${button.dataset.historyAction} annotation history`);
+          displayUserMessage("error", `Failed to ${button.dataset.historyAction} annotation history`);
           if (button.isConnected) {
             button.disabled = false;
           }
@@ -738,6 +738,7 @@ export class Editor {
         return applied;
       } catch (error) {
         console.error(`Failed to ${button.dataset.historyAction} annotation history`, error);
+                displayUserMessage("error", `Failed to ${button.dataset.historyAction} annotation history`);
         if (button.isConnected) {
           button.disabled = false;
         }
@@ -882,7 +883,7 @@ export class Editor {
       });
 
       if (!response.ok) {
-        console.error("An error occurred while updating an annotation");
+        displayUserMessage("error", "An error occurred while updating an annotation");
         return false;
       }
 
@@ -1257,7 +1258,7 @@ export class Editor {
         method: "GET"
       });
       if (!response.ok) {
-        console.error("Failed to load the annotation detail form");
+        displayUserMessage("error", "Failed to load the annotation detail form");
         return false;
       }
       const detailForm = document.getElementById("detail-form");
@@ -1405,7 +1406,7 @@ export class Editor {
             displayText(payload);
           } else {
             displayText(originalNameValue);
-            console.error("Failed to update annotation set name");
+            displayUserMessage("error", "Failed to update annotation set name");
           }
         }
         else if (e.key == "Escape") {
@@ -1742,7 +1743,7 @@ export class Editor {
       });
 
       if (!trackDeleteResponse.ok) {
-        console.error("Failed to delete track");
+        displayUserMessage("error", "Failed to delete track");
         return;
       }
       window.dispatchEvent(this.annotationUpdatedEvent);
@@ -1809,7 +1810,7 @@ export class Editor {
       );
 
       if (!orderUpdateResponse.ok) {
-        console.error("Failed to update stack positions across all tracks");
+        displayUserMessage("error", "Failed to reorder tracks");
         return;
       }
       const jsonData = await orderUpdateResponse.json();
@@ -1865,7 +1866,7 @@ export class Editor {
         dialog.close();
 
         if (!newTrackResponse.ok) {
-          console.error("Failed to create new track!");
+          displayUserMessage("error", "Failed to create new track!");
           return;
         }
 
@@ -2012,6 +2013,7 @@ export class Editor {
             }
             else {
               console.error(response);
+                            displayUserMessage("error", "Failed to create annotation");
             }
           })
         }
@@ -2421,7 +2423,7 @@ export class Editor {
       });
 
       if (!createResponse.ok) {
-        console.error("Failed to create new annotation set");
+        displayUserMessage("error", "Failed to create new annotation set");
         return;
       }
       window.location.reload();
@@ -2445,7 +2447,7 @@ export class Editor {
       const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-display");
       const contentResponse = await fetch(url);
       if (!contentResponse.ok) {
-        console.error("Failed to get new content for annotation set options modal");
+        displayUserMessage("error", "Failed to load annotation set options");
         return false;
       }
       const newHTML = await contentResponse.text();
@@ -2486,7 +2488,7 @@ export class Editor {
             body: JSON.stringify({ "annotation_set_id": setSelector.value })
           });
         if (!contentSetAssignmentResponse.ok) {
-          console.error("Failed to set annotation set for this content");
+          displayUserMessage("error", "Failed to set annotation set for this content");
           return;
         }
         window.location.reload();
@@ -2549,7 +2551,7 @@ export class Editor {
         try {
           JSON.parse(jsonFile);
         } catch {
-          console.error("Invalid JSON provided");
+          displayUserMessage("error", "The selected file contains invalid JSON. Please choose a valid annotation set file.");
           return;
         }
 
@@ -2615,7 +2617,7 @@ export class Editor {
           }
         });
         if (!deleteResponse.ok) {
-          console.error("Failed to delete annotation set");
+          displayUserMessage("error", "Failed to delete annotation set");
           return;
         }
 
@@ -2662,7 +2664,7 @@ export class Editor {
             mode: "same-origin"
         });
         if (!htmlContentResponse.ok) {
-          console.error("Failed to update annotation_set!");
+          displayUserMessage("error", "Failed to switch annotation sets");
           return;
         }
         // rebuild the page with the new annotation set
@@ -2768,7 +2770,7 @@ export class Editor {
         this.selectedSubtitleTrackId = newSubtitleTrackId;
         const subtitlesResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/editable/`);
         if (!subtitlesResponse.ok) {
-          console.error("Failed to get subtitle cues");
+          displayUserMessage("error", "Failed to load subtitle cues");
           return;
         }
         const subtitlesPanelHTML = await subtitlesResponse.text();
@@ -2827,7 +2829,7 @@ export class Editor {
       });
 
       if (!updateResponse.ok) {
-        console.error("Failed to save cues");
+        displayUserMessage("error", "Failed to save subtitle changes");
         return;
       }
       window.dispatchEvent(this.annotationUpdatedEvent);

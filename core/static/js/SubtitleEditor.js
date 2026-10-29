@@ -1,3 +1,5 @@
+import { displayUserMessage } from "./utils.js";
+
 function findEditableCue(element) {
   if (element == null) {
     return null;
@@ -165,7 +167,7 @@ class SubtitleEditor {
         body: JSON.stringify({ subtitle_id: this.selectedTrackId, cues: cues, is_autosave: isAutosave, seconds_nudge: secondsNudge, nudge_excluded_cues: nudgeExcludedCues })
       });
       if (!result.ok) {
-        console.log("Request to update subtitles failed! " + result.status);
+        displayUserMessage("error", "Request to update subtitles failed! " + result.status);
       }
       this.cuesAreBeingUpdated = false;
     }

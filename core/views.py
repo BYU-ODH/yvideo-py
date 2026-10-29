@@ -9,6 +9,7 @@ import re
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.contrib.messages.storage.base import Message
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
@@ -24,6 +25,7 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
@@ -120,6 +122,41 @@ def content_parent_crumbs(content):
         return ()
     return (
         (content.playlist.name, reverse("playlist_info", args=[content.playlist_id])),
+    )
+
+
+@require_GET
+@never_cache
+def poll_connection(request):
+    return HttpResponse(status=204)
+
+
+@login_not_required
+@require_GET
+def render_user_message(request):
+    text = request.GET.get("message", "")
+    if not text.strip():
+        return HttpResponse(b"", content_type="text/html")
+
+    level = request.GET.get("level", "info")
+    levels = {
+        "debug": messages.DEBUG,
+        "info": messages.INFO,
+        "success": messages.SUCCESS,
+        "warning": messages.WARNING,
+        "error": messages.ERROR,
+    }
+    if level not in levels:
+        text = (
+            "Invalid message level, could not create message "
+            f"with level ({level}) and message ({text})"
+        )
+        level = "error"
+
+    return render(
+        request,
+        "core/partials/user_message.html",
+        {"message": Message(levels[level], text)},
     )
 
 
