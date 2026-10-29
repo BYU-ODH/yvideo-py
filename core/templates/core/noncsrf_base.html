@@ -19,6 +19,7 @@
         <script src="{% static 'js/vendor/htmx.js' %}"></script>
         <script src="{% static 'js/general.js' %}"></script>
         <script src="{% static 'js/messages.js' %}" defer></script>
+        {% block extra_js %}{% endblock %}
         <link rel="shortcut icon"
               type="image/png"
               href="{% static 'img/favicon.ico' %}">
@@ -33,20 +34,10 @@
             {% block content %}{% endblock %}
         </main>
     </body>
-    <div id="django-messages-container">
-        {% if messages %}
-            {% for message in messages %}
-                <div class="django-message {% if message.tags %}{{ message.tags }}{% endif %}"
-                     data-message-age="10">
-                    {% if message.tags %}
-                        <p class="django-message-status">{{ message.tags|capfirst }}</p>
-                    {% endif %}
-                    <p class="django-message-text">{{ message }}</p>
-                    <button class="django-message-remove" aria-label="Close this message">
-                        <img src="{% static 'img/black-x.svg' %}" alt="x">
-                    </button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    </div>
+    <div id="django-messages-container"></div>
+    {% if messages %}
+        {% for message in messages %}
+            {% include 'core/partials/user_message.html' %}
+        {% endfor %}
+    {% endif %}
 </html>
