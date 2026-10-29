@@ -16,6 +16,7 @@
     --pale-red: #fdecea;
     --pale-green: #e6f4ea;
     --green: #1e7e34;
+    --warning-yellow: #826C2B;
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
@@ -357,11 +358,11 @@ a.blue-button {
 }
 
 .django-message.warning {
-    border-color: var(--yellow);
+    border-color: var(--warning-yellow);
 }
 
 .django-message.warning .django-message-status {
-    color: var(--yellow);
+    color: var(--warning-yellow);
 }
 
 .django-message.error {
