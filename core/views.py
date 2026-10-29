@@ -125,11 +125,23 @@ def content_parent_crumbs(content):
 
 @require_GET
 def index(request):
-    messages.success(request, "Well hey there! welcome to y-video!")
+    messages.success(
+        request,
+        "Well hey there! welcome to y-video! Here is a long message string about this success. I hope you feel great about yourself!",
+    )
     messages.debug(request, "Debug message")
-    messages.info(request, "Info message")
-    messages.warning(request, "Warning message")
-    messages.error(request, "Error message")
+    messages.info(
+        request,
+        "Info message. Here is a really long explanation about something. Maybe you should read this? It could be important.",
+    )
+    messages.warning(
+        request,
+        "Warning message. I don't mean to scare you, but you're doing something you might not want to do. And I don't think you want to do that.",
+    )
+    messages.error(
+        request,
+        "Error message. Hey! You screwed something up! Or maybe we did? Either way, you should probably know that the action you attempted to make failed.",
+    )
     return HttpResponseRedirect(reverse("playlists"))
 
 

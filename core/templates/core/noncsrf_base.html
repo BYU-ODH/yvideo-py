@@ -18,6 +18,7 @@
         {% block extra_css %}{% endblock %}
         <script src="{% static 'js/vendor/htmx.js' %}"></script>
         <script src="{% static 'js/general.js' %}"></script>
+        <script src="{% static 'js/messages.js' %}" defer></script>
         <link rel="shortcut icon"
               type="image/png"
               href="{% static 'img/favicon.ico' %}">
@@ -29,19 +30,23 @@
             {% endblock %}
         </header>
         <main id="site-content">
-            <div id="django-messages-container">
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="django-message {% if message.tags %}{{ message.tags }}{% endif %}">
-                            {% if message.tags %}
-                                <p class="django-message-status">{{ message.tags }}</p>
-                            {% endif %}
-                            <p class="django-message-text">{{ message }}</p>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            </div>
             {% block content %}{% endblock %}
         </main>
     </body>
+    <div id="django-messages-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="django-message {% if message.tags %}{{ message.tags }}{% endif %}"
+                     data-message-age="10">
+                    {% if message.tags %}
+                        <p class="django-message-status">{{ message.tags|capfirst }}</p>
+                    {% endif %}
+                    <p class="django-message-text">{{ message }}</p>
+                    <button class="django-message-remove" aria-label="Close this message">
+                        <img src="{% static 'img/black-x.svg' %}" alt="x">
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
 </html>

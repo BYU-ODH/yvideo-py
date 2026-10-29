@@ -16,11 +16,6 @@
     --pale-red: #fdecea;
     --pale-green: #e6f4ea;
     --green: #1e7e34;
-    --success-green: #8CC97E;
-    --warning-yellow: #E7E262;
-    --error-red: #CB2020;
-    --info-blue: #83B5D5;
-    --debug-beige: #F3E9D2;
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
@@ -263,8 +258,10 @@ a.blue-button {
 
 /* Django messages */
 #django-messages-container {
-    position: absolute;
+    position: fixed;
     z-index: 10;
+    top: 4rem;
+    right: 4rem;
 
     display: flex;
     flex-direction: column;
@@ -274,16 +271,69 @@ a.blue-button {
 }
 
 .django-message {
+    position: relative;
+
     width: 100%;
     padding: 8px;
     border: 2px solid;
-    border-color: black;
     border-radius: 8px;
+
+    background-color: white;
+
+    transition: opacity 1s linear;
+}
+
+.django-message[data-message-age="3"] {
+    opacity: 0.67;
+}
+
+.django-message[data-message-age="2"] {
+    opacity: 0.33;
+}
+
+.django-message[data-message-age="1"] {
+    opacity: 0;
+}
+
+.django-message:hover {
+    opacity: 1;
+    transition: opacity 100ms linear;
+}
+
+.django-message-remove {
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+
+    display: flex;
+
+    padding: 4px;
+    border: 1px solid var(--grey);
+    border-radius: 50%;
+
+    visibility: hidden;
+    background-color: var(--selectable-grey);
+}
+
+.django-message-remove:hover {
+    box-shadow: 1px 2px 2px 0 var(--grey);
+}
+
+.django-message:hover .django-message-remove {
+    visibility: visible;
 }
 
 .django-message-status {
-    margin: 0 0 8px;
+    position: absolute;
+    top: -0.8rem;
+    left: 1rem;
+
+    margin: 0;
+    padding: 0 4px;
+
     font-weight: bold;
+
+    background: white;
 }
 
 .django-message-text {
@@ -291,25 +341,35 @@ a.blue-button {
 }
 
 .django-message.success {
-    background-color: var(--success-green);
+    border-color: var(--green);
 }
 
-.django-message.debug {
-    background-color: var(--debug-beige);
+.django-message.success .django-message-status {
+    color: var(--green);
 }
 
 .django-message.info {
-    background-color: var(--info-blue);
+    border-color: var(--medium-blue);
+}
+
+.django-message.info .django-message-status {
+    color: var(--medium-blue);
 }
 
 .django-message.warning {
-    background-color: var(--warning-yellow);
+    border-color: var(--yellow);
+}
+
+.django-message.warning .django-message-status {
+    color: var(--yellow);
 }
 
 .django-message.error {
-    border-color: black;
-    color: white;
-    background-color: var(--error-red);
+    border-color: var(--red);
+}
+
+.django-message.error .django-message-status {
+    color: var(--red);
 }
 
 /* non-decorative styles */
