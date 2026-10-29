@@ -63,13 +63,15 @@ YOUTUBE_READY = (
 READY_TIMEOUT_MS = 10_000
 
 
-def _run_axe(page: Page, include=None, exclude=None) -> dict:
+def _run_axe(page: Page, include=None, exclude=None, rules=None) -> dict:
     page.add_script_tag(content=AXE_MIN_JS.read_text(encoding="utf-8"))
     options = {}
     if include:
         options["include"] = [[selector] for selector in include]
     if exclude:
         options["exclude"] = [[selector] for selector in exclude]
+    if rules:
+        options["runOnly"] = {"type": "rule", "values": rules}
     return page.evaluate("async (options) => await axe.run(options)", options)
 
 
@@ -370,6 +372,35 @@ def test_the_youtube_player_has_no_a11y_violations(
 
 
 # ------------------------------------------------------------------------ page states
+
+
+@pytest.mark.parametrize("level", ["debug", "info", "success", "warning", "error"])
+def test_message_levels_have_no_color_contrast_violations(
+    logged_in_page: Page, live_server, level
+):
+    page = logged_in_page
+    page.goto(f"{live_server.url}/about/")
+    page.evaluate(
+        """async (level) => {
+            const { displayUserMessage } = await import('/static/js/utils.js');
+            await displayUserMessage(level, `A ${level} message`);
+        }""",
+        level,
+    )
+    message = page.locator(f"#django-messages-container .django-message.{level}")
+    message.wait_for(state="visible")
+
+    for state in ("default", "hover"):
+        if state == "hover":
+            message.hover()
+        results = _run_axe(
+            page,
+            include=["#django-messages-container"],
+            rules=["color-contrast"],
+        )
+        assert not results["violations"], _format_violations(
+            results["violations"], f"the {level} message ({state})"
+        )
 
 
 def test_the_playlists_page_states_have_no_a11y_violations(
@@ -1056,6 +1087,8 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_settings.html",
     "core/partials/resource_intake_request.html",
     "core/partials/whats_new_banner.html",
+    # message-level color-contrast sweep
+    "core/partials/user_message.html",
     # dialogs
     "core/partials/course_assignment.html",
     "core/partials/create_from_resource_form.html",
