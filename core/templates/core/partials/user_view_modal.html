@@ -1,3 +1,5 @@
+{% load static %}
+
 <dialog id="{{ dialog_id }}"
         class="user-view-modal"
         aria-labelledby="{{ dialog_id }}-title">
@@ -11,7 +13,14 @@
             {% block modal_title %}{% endblock %}
         </h3>
         <div class="user-view-modal-header-end">
-            {% include "core/partials/dialog_close_button.html" with dialog_id=dialog_id only %}
+            <button type="button"
+                    id="close-user-view-modal"
+                    command="close"
+                    commandfor="{{ dialog_id }}"
+                    aria-label="Close"
+                    title="Close">
+                <img src="{% static 'img/black-x.svg' %}" alt="x">
+            </button>
         </div>
     </header>
     {# The separating space lives outside the block so a formatter cannot strip it and glue class names together. #}
