@@ -736,9 +736,8 @@ export class Editor {
           button.disabled = false;
         }
         return applied;
-      } catch (error) {
-        console.error(`Failed to ${button.dataset.historyAction} annotation history`, error);
-                displayUserMessage("error", `Failed to ${button.dataset.historyAction} annotation history`);
+      } catch {
+        displayUserMessage("error", `Failed to ${button.dataset.historyAction} annotation history`);
         if (button.isConnected) {
           button.disabled = false;
         }
@@ -2012,8 +2011,7 @@ export class Editor {
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
             else {
-              console.error(response);
-                            displayUserMessage("error", "Failed to create annotation");
+              displayUserMessage("error", "Failed to create annotation");
             }
           })
         }
