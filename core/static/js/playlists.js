@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./utils.js";
+import { getCSRFToken, displayUserMessage } from "./utils.js";
 
 function setupPlaylistSearch() {
   for (let searchInput of document.querySelectorAll(".list-search-input")) {
@@ -36,7 +36,7 @@ function setupNewPlaylistSubmit() {
       })
     });
     if (!response.ok) {
-      console.error("Failed to save new playlist");
+      displayUserMessage("error", "Failed to save new playlist");
       return;
     }
     location.reload();

@@ -3,6 +3,7 @@ import json
 import logging
 from urllib.parse import quote
 
+from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
@@ -1071,6 +1072,10 @@ def delete_annotation_set(request, annotation_set):
         return forbidden("Only the owner of an annotation set can retire it.")
     try:
         annotation_set.orphan()
+        messages.success(
+            request,
+            f'The Annotation set "{annotation_set.name}" was retired.',
+        )
         return HttpResponse()
     except Exception as e:
         logger.error(f"Failed to retire annotation set. Exception: {e}")

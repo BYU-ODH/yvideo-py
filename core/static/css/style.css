@@ -16,6 +16,7 @@
     --pale-red: #fdecea;
     --pale-green: #e6f4ea;
     --green: #1e7e34;
+    --warning-yellow: #826C2B;
     --header-height: 69px;
     --primary-blue: #3b85a1;
     --dark-primary-blue: #2e677c;
@@ -145,17 +146,14 @@ a.blue-button {
     color: var(--red);
 }
 
-.clips-only-warning,
-.resource-intake-message {
+.clips-only-warning {
     padding: 12px 16px;
-    border-radius: 6px;
-    font-weight: 500;
-}
-
-.clips-only-warning,
-.resource-intake-message-error {
     border: 1px solid var(--red);
+    border-radius: 6px;
+
+    font-weight: 500;
     color: var(--dark-red);
+
     background-color: var(--pale-red);
 }
 
@@ -255,6 +253,124 @@ a.blue-button {
         transform: scale(1, 1);
     }
 }
+
+/* Django messages */
+#django-messages-container {
+    position: fixed;
+    z-index: 10;
+    top: 4rem;
+    right: 4rem;
+
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+
+    width: 20rem;
+}
+
+.django-message {
+    position: relative;
+
+    width: 100%;
+    padding: 8px;
+    border: 2px solid;
+    border-radius: 8px;
+
+    background-color: white;
+
+    transition: opacity 1s linear;
+}
+
+.django-message[data-message-age="3"] {
+    opacity: 0.67;
+}
+
+.django-message[data-message-age="2"] {
+    opacity: 0.33;
+}
+
+.django-message[data-message-age="1"] {
+    opacity: 0;
+}
+
+.django-message:hover {
+    opacity: 1;
+    transition: opacity 100ms linear;
+}
+
+.django-message-remove {
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+
+    display: flex;
+
+    padding: 4px;
+    border: 1px solid var(--grey);
+    border-radius: 50%;
+
+    visibility: hidden;
+    background-color: var(--selectable-grey);
+}
+
+.django-message-remove:hover {
+    box-shadow: 1px 2px 2px 0 var(--grey);
+}
+
+.django-message:hover .django-message-remove {
+    visibility: visible;
+}
+
+.django-message-status {
+    position: absolute;
+    top: -0.8rem;
+    left: 1rem;
+
+    margin: 0;
+    padding: 0 4px;
+
+    font-weight: bold;
+
+    background: white;
+}
+
+.django-message-text {
+    margin: 0;
+}
+
+.django-message.success {
+    border-color: var(--green);
+}
+
+.django-message.success .django-message-status {
+    color: var(--green);
+}
+
+.django-message.info {
+    border-color: var(--medium-blue);
+}
+
+.django-message.info .django-message-status {
+    color: var(--medium-blue);
+}
+
+.django-message.warning {
+    border-color: var(--warning-yellow);
+}
+
+.django-message.warning .django-message-status {
+    color: var(--warning-yellow);
+}
+
+.django-message.error {
+    border-color: var(--red);
+}
+
+.django-message.error .django-message-status {
+    color: var(--red);
+}
+
+/* non-decorative styles */
 
 .dialog-content {
     position: relative;
@@ -1493,13 +1609,6 @@ a.blue-button {
 #resource-intake-form-messages {
     margin-bottom: 1.5rem;
 }
-
-.resource-intake-message-success {
-    border: 1px solid var(--green);
-    color: var(--green);
-    background-color: var(--pale-green);
-}
-
 
 /* What's new banner */
 .whats-new-banner {

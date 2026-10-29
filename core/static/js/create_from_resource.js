@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./utils.js";
+import { getCSRFToken, displayUserMessage } from "./utils.js";
 import { getPlaylistIdValue } from "./utils.js";
 
 async function displayCreateFromResourceForm(
@@ -21,7 +21,7 @@ async function displayCreateFromResourceForm(
     },
   );
   if (!response.ok) {
-    console.error("Failed to get create from resource form because of a system error");
+    displayUserMessage("error", "Failed to load the create from resource form");
     return;
   }
 
@@ -74,7 +74,7 @@ function setupPlaylistResourcePicker() {
       `/playlists/${playlistId}/create-from-resource/resources/`,
     );
     if (!response.ok) {
-      console.error("Failed to load resources");
+      displayUserMessage("error", "Failed to load resources");
       return;
     }
 
@@ -141,7 +141,7 @@ function setupCreateResourceForm(formRoot) {
       },
     );
     if (!response.ok) {
-      console.error("Failed to create content from resource");
+      displayUserMessage("error", "Failed to create content from resource");
       return;
     }
 

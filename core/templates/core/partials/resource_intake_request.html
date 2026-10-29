@@ -5,13 +5,6 @@
     <div id="resource-intake-form-wrapper">
         <h2>Resource Intake Request</h2>
         <div id="resource-intake-form-main-content">
-            {% if messages %}
-                <div id="resource-intake-form-messages">
-                    {% for message in messages %}
-                        <p class="resource-intake-message resource-intake-message-{{ message.tags }}">{{ message }}</p>
-                    {% endfor %}
-                </div>
-            {% endif %}
             <form id="resource-intake-form" method="post" novalidate>
                 {% csrf_token %}
                 <div>

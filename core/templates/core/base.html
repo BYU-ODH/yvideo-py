@@ -4,9 +4,13 @@
 
 {% block extra_css %}
     {{ block.super }}
+{% endblock %}
+{% block extra_js %}
+    {{ block.super }}
     <meta name="csrf-token" content="{{ csrf_token }}">
     <!-- HTMX CSRF Configuration -->
     <script>
+
         // Get CSRF token from cookie
         function getCookie(name) {
             let cookieValue = null;
@@ -29,5 +33,19 @@
                 event.detail.headers['X-CSRFToken'] = getCookie('csrftoken');
             });
         });
+    </script>
+    <script>
+        window.addEventListener("offline", () => {
+            window.alert("The browser has lost connection to the internet. Check your internet connection before continuing.");
+        });
+
+        const serverPoll = window.setInterval(() => {
+            fetch("{% url 'poll_connection' %}", { cache: "no-store", signal: AbortSignal.timeout(60000) })
+                .then(response => { if (!response.ok) console.log("Connection check failed."); })
+                .catch(() => {
+                    window.clearInterval(serverPoll);
+                    window.alert("Could not communicate with the server. Your latest changes may not have been saved. When you are sure your internet connection is intact, refresh the page before continuing.");
+                });
+        }, 10000);
     </script>
 {% endblock %}
