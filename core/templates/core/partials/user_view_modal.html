@@ -6,7 +6,9 @@
     <header class="user-view-modal-header">
         <div class="user-view-modal-header-start">
             {% if previous_dialog_id %}
-                {% include "core/partials/dialog_back_button.html" with previous_dialog_id=previous_dialog_id only %}
+                <button type="button"
+                        class="cancel-button"
+                        data-previous-dialog-id="{{ previous_dialog_id }}">Back</button>
             {% endif %}
         </div>
         <h3 id="{{ dialog_id }}-title">
