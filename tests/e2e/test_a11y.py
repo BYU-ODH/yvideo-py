@@ -1059,8 +1059,6 @@ AUDITED_TEMPLATES = {
     # dialogs
     "core/partials/course_assignment.html",
     "core/partials/create_from_resource_form.html",
-    "core/partials/dialog_back_button.html",
-    "core/partials/dialog_close_button.html",
     "core/partials/modals/add_new_playlist.html",
     "core/partials/modals/add_video.html",
     "core/partials/modals/content_delete.html",
