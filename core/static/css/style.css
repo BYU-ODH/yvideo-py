@@ -69,6 +69,50 @@ button:hover {
     cursor: pointer;
 }
 
+.action-link {
+    display: flex;
+    flex-direction: row;
+
+    width: fit-content;
+    padding: 8px;
+    border: 2px solid var(--deep-blue);
+    border-radius: 20px;
+
+    color: var(--deep-blue);
+    text-decoration: none;
+}
+
+.action-link:hover {
+    color: var(--medium-blue);
+}
+
+.action-link p {
+    margin: 0;
+    margin-right: 1rem;
+}
+
+.action-link:hover p {
+    text-decoration: underline;
+}
+
+.action-link-arrow {
+    transform: rotate(-90deg);
+
+    align-self: center;
+
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    margin-right: 0.5rem;
+
+    transition: margin 200ms linear;
+}
+
+.action-link:hover .action-link-arrow {
+    margin-right: 0;
+    margin-left: 0.5rem;
+}
+
 .blue-button, .white-button-with-border, .red-button, .cancel-button {
     margin: 2px;
     padding: 10px 20px;
@@ -79,7 +123,7 @@ button:hover {
     text-decoration: none;
 }
 
-.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible {
+.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible {
     outline: var(--medium-blue) dashed;
 }
 
@@ -90,11 +134,6 @@ button:hover {
 
 .blue-button:hover {
     background-color: var(--deep-blue);
-}
-
-a.blue-button, a.white-button-with-border, a.red-button, a.cancel-button {
-    cursor: pointer;
-    text-align: center;
 }
 
 .white-button-with-border {
