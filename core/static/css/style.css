@@ -79,7 +79,7 @@ button:hover {
     text-decoration: none;
 }
 
-.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible {
+.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible {
     outline: var(--medium-blue) dashed;
 }
 
@@ -278,7 +278,7 @@ a.blue-button, a.white-button-with-border, a.red-button, a.cancel-button {
     font-size: 1rem;
 }
 
-#close-user-view-modal {
+.close-modal {
     display: flex;
 
     width: 2rem;
@@ -290,23 +290,7 @@ a.blue-button, a.white-button-with-border, a.red-button, a.cancel-button {
     background: transparent;
 }
 
-#close-user-view-modal:hover {
-    background: #00000010;
-}
-
-.user-view-modal-back-button {
-    height: 2rem;
-    padding: 0 0.5rem;
-    border: 0;
-
-    font-size: 1rem;
-    color: inherit;
-
-    background: transparent;
-}
-
-.user-view-modal-back-button:hover {
-    border-radius: 4px;
+.close-modal:hover {
     background: #00000010;
 }
 
