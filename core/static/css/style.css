@@ -70,13 +70,20 @@ button:hover {
 }
 
 .blue-button, .white-button-with-border, .red-button, .cancel-button {
+    margin: 2px;
     padding: 10px 20px;
+    border: 2px solid white;
     border-radius: 20px;
+
+    font-size: 0.8rem;
     text-decoration: none;
 }
 
+.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible {
+    outline: var(--medium-blue) dashed;
+}
+
 .blue-button {
-    border: none;
     color: white;
     background-color: var(--dark-primary-blue);
 }
@@ -85,8 +92,9 @@ button:hover {
     background-color: var(--deep-blue);
 }
 
-a.blue-button {
+a.blue-button, a.white-button-with-border, a.red-button, a.cancel-button {
     cursor: pointer;
+    text-align: center;
 }
 
 .white-button-with-border {
@@ -117,7 +125,6 @@ a.blue-button {
 }
 
 .cancel-button {
-    border: none;
     color: white;
     background-color: var(--dark-grey);
 }
@@ -127,8 +134,6 @@ a.blue-button {
 }
 
 .red-button {
-    border: none;
-    border-radius: 1rem;
     color: white;
     background-color: var(--red);
 }
@@ -1723,10 +1728,6 @@ a.blue-button {
 .user-view-modal {
     padding: 0;
     border: 2px solid var(--primary-blue);
-    border-radius: 12px;
-
-    color: black;
-
     background: white;
     box-shadow: 3px 6px 10px #00000050;
 }
