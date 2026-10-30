@@ -9,6 +9,7 @@ import re
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
@@ -1412,7 +1413,7 @@ def subtitle_editor(request, content_id):
 @require_http_methods(["GET", "POST"])
 @instructor_required
 def request_resource(request):
-
+    title_collision_error = False
     if request.method == "POST":
         form = ResourceIntakeRequestForm(request.POST)
         if form.is_valid():
@@ -1426,6 +1427,11 @@ def request_resource(request):
                 "Humanities Learning Commons (HLC) so we can begin processing it.",
             )
             return redirect("request_resource")
+        else:
+            title_collision_error = form.has_error(
+                NON_FIELD_ERRORS, code="unique_together"
+            )
+
         for field_name in form.errors:
             if field_name in form.fields:
                 widget = form.fields[field_name].widget
@@ -1438,7 +1444,5 @@ def request_resource(request):
     return render(
         request,
         "core/partials/resource_intake_request.html",
-        {
-            "form": form,
-        },
+        {"form": form, "title_collision_error": title_collision_error},
     )

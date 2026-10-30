@@ -467,7 +467,11 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
 
             if resource_choice == self.CREATE_RESOURCE:
                 resource_title = cleaned_data.get("resource_title") or ""
-                if Resource.objects.filter(name=resource_title).exists():
+                if Resource.objects.filter(
+                    name=resource_title,
+                    name_disambiguator=cleaned_data.get("resource_name_disambiguator")
+                    or "",
+                ).exists():
                     self.add_error(
                         "resource_to_use",
                         "A Resource with this exact name already exists. Select it or "
@@ -690,6 +694,7 @@ class UserAdmin(VersionAdmin):
 class ResourceAdmin(VersionAdmin):
     list_display = (
         "name",
+        "name_disambiguator",
         "media_type",
         "requester_username",
         "copyrighted",
@@ -697,7 +702,7 @@ class ResourceAdmin(VersionAdmin):
         "created_at",
     )
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
-    search_fields = ("name",)
+    search_fields = ("name", "name_disambiguator")
 
     class Media:
         js = ("js/admin_call_number.js",)
@@ -722,6 +727,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
     change_form_template = "admin/core/resourceintakerequest/change_form.html"
     list_display = (
         "resource_title",
+        "resource_name_disambiguator",
         "owner",
         "date_needed",
         "existing_matches_summary",
@@ -741,6 +747,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                 "fields": (
                     ("owner", "date_needed"),
                     "resource_title",
+                    "resource_name_disambiguator",
                     "imdb_link",
                     ("audio_language", "subtitle_language"),
                     (
@@ -818,6 +825,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                 if resource is None:
                     resource = Resource.objects.create(
                         name=obj.resource_title,
+                        name_disambiguator=obj.resource_name_disambiguator,
                         media_type=Resource.MediaType.VIDEO,
                         requester_username=obj.owner.username,
                         physical_copy_exists=True,

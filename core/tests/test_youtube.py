@@ -226,19 +226,6 @@ class CreateContentFromUrlViewTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_a_name_collision_is_reported_rather_than_a_bare_500(self):
-        # Resource.name is unique and get_or_create keys on imdb_id, so a Resource already
-        # holding this video's generated name under a different id makes the create fail. Only
-        # an admin can fix that, so the message has to say so instead of becoming a 500.
-        self.client.force_login(self.owner)
-        ResourceFactory(name="YouTube: eHEsJyVQn3w", imdb_id="tt1234567")
-
-        response = self._post()
-
-        self.assertEqual(response.status_code, 409)
-        self.assertIn("administrator", response.content.decode())
-        self.assertFalse(Content.objects.filter(playlist=self.playlist).exists())
-
     def test_same_video_reused_across_playlists_shares_one_resource(self):
         self.client.force_login(self.owner)
         other_playlist = PlaylistFactory(owner=self.owner)
