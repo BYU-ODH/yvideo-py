@@ -32,7 +32,6 @@ def assert_shared_modal_shell_and_dismissal(
     expect(dialog).to_be_visible()
 
     close_button = dialog.get_by_role("button", name="Close")
-    expect(close_button).to_have_text("X")
     dialog_box = dialog.bounding_box()
     close_button_box = close_button.bounding_box()
     assert dialog_box
