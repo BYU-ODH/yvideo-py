@@ -1701,11 +1701,6 @@ button:hover {
 
     transition: 0.15s linear box-shadow;
 
-    /* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
-    reports that it is supported by all browsers:
-    https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
-
-
     &:hover {
         cursor: pointer;
         box-shadow: var(--box-shadow-color) 2px 4px 6px;
@@ -1941,11 +1936,6 @@ button.disabled {
     cursor: not-allowed;
     color: #434343;
     background-color: #e0e0e040;
-
-/* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
-reports that it is supported by all browsers:
-https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
-
 
     &:hover {
         background-color: #e0e0e040;
