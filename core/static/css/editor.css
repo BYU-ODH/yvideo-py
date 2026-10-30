@@ -1539,8 +1539,8 @@ of the page */
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
-.track-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
-#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
+.track-item:has(+ form):focus-within,
+#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {
     background: #2a5f8f;
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2a5f8f;
 }
