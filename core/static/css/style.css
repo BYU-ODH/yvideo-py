@@ -121,6 +121,12 @@ button:hover {
     border-radius: 20px;
 
     text-decoration: none;
+
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+
+    &:hover {
+        box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
+    }
 }
 
 .blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible {
@@ -132,20 +138,10 @@ button:hover {
     background-color: var(--dark-primary-blue);
 }
 
-.blue-button:hover {
-    background-color: var(--deep-blue);
-}
-
 .white-button-with-border {
     border: 2px solid var(--dark-primary-blue);
     color: var(--dark-primary-blue);
     background-color: white;
-}
-
-.white-button-with-border:hover {
-    border: 2px solid white;
-    color: white;
-    background-color: var(--dark-primary-blue);
 }
 
 .large-button {
@@ -168,17 +164,9 @@ button:hover {
     background-color: var(--dark-grey);
 }
 
-.cancel-button:hover {
-    background-color: var(--darker-grey);
-}
-
 .red-button {
     color: white;
     background-color: var(--red);
-}
-
-.red-button:hover {
-    background-color: var(--dark-red);
 }
 
 .invalid-input {
@@ -1501,7 +1489,7 @@ button:hover {
 }
 
 #resource-intake-policy-compliance-label {
-    text-wrap: wrap; /* eslint-disable-line */
+    text-wrap: wrap;
 }
 
 #content-advisory-choice-set {
@@ -1717,7 +1705,7 @@ button:hover {
     reports that it is supported by all browsers:
     https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
 
-    /* eslint-disable-next-line css/use-baseline */
+
     &:hover {
         cursor: pointer;
         box-shadow: var(--box-shadow-color) 2px 4px 6px;
@@ -1958,7 +1946,7 @@ button.disabled {
 reports that it is supported by all browsers:
 https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
 
-/* eslint-disable-next-line css/use-baseline */
+
     &:hover {
         background-color: #e0e0e040;
     }
