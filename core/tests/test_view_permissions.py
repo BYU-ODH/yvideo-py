@@ -36,7 +36,7 @@ PERMISSION_EXEMPT_VIEWS = {
 }
 
 # Methods that change state. A view answering one of these without a method guard also
-# answers GET, which is how delete_annotation_set was exploitable with a bare link.
+# answers GET, which is how retire_annotation_set was exploitable with a bare link.
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 # Views that render on GET and write on POST -- the standard Django form pattern. The
@@ -175,7 +175,7 @@ def test_object_ids_are_not_taken_from_the_request_body():
         "select_annotation_set": "content_id",
         "create_annotation_set": "content_id",
         "update_annotation_set_name": "annotation_set_id",
-        "delete_annotation_set": "annotation_set_id",
+        "retire_annotation_set": "annotation_set_id",
         "export_annotation_set": "annotation_set_id",
         "update_track": "track_id",
         "create_track": "annotation_set_id",
