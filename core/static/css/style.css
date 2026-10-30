@@ -34,8 +34,9 @@ html {
     font-family: system-ui;
 }
 
-input, textarea, select, option {
+input, textarea, select, option, button {
     font-family: system-ui;
+    font-size: inherit;
 }
 
 body {
@@ -119,7 +120,6 @@ button:hover {
     border: 2px solid white;
     border-radius: 20px;
 
-    font-size: 0.8rem;
     text-decoration: none;
 }
 
@@ -311,10 +311,7 @@ button:hover {
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;
-
     padding: 0.2rem 1rem;
-
-    font-size: 1rem;
 }
 
 .close-modal {
