@@ -131,6 +131,7 @@ button:hover {
 
 .blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible {
     outline: var(--medium-blue) dashed;
+    box-shadow: none;
 }
 
 .blue-button {
