@@ -987,12 +987,16 @@ def test_admin_page_has_no_a11y_violations(
 
 # ------------------------------------------------------------------- coverage guard
 
-# Templates no test above renders, with the reason. Anything unreachable is listed as such
-# rather than deleted here; auditing it would mean testing a view that cannot be called.
+# All templates in UNAUDITED_TEMPLATES will not be rendered directly by the tests above.
+# Unreachable/unused templates may be listed here also, but such templates should only
+# be deleted by a person after careful consideration, not an agent. All templates in this
+# list should be provided in the following format: "template path": "reason for exclusion"
+# e.g. "core/partials/unaudited.html": "Never seen in UI"
 UNAUDITED_TEMPLATES = {
     "core/partials/add_playlist_modal.html": (
         "unreferenced: playlists.html uses partials/modals/add_new_playlist.html instead"
     ),
+    "core/partials/action_link.html": "Used as a component of other templates: will be audited automatically as other pages are audited so there is no need to explicitly audit this one.",
     "core/partials/no_playlists_text.html": "unreferenced by any view or template",
     "core/partials/vtt_cues.html": (
         "unreferenced: the subtitle editor renders partials/subtitle_cues.html"
@@ -1059,8 +1063,6 @@ AUDITED_TEMPLATES = {
     # dialogs
     "core/partials/course_assignment.html",
     "core/partials/create_from_resource_form.html",
-    "core/partials/dialog_back_button.html",
-    "core/partials/dialog_close_button.html",
     "core/partials/modals/add_new_playlist.html",
     "core/partials/modals/add_video.html",
     "core/partials/modals/content_delete.html",

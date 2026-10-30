@@ -34,8 +34,9 @@ html {
     font-family: system-ui;
 }
 
-input, textarea, select, option {
+input, textarea, select, option, button {
     font-family: system-ui;
+    font-size: inherit;
 }
 
 body {
@@ -69,36 +70,79 @@ button:hover {
     cursor: pointer;
 }
 
-.blue-button, .white-button-with-border, .red-button, .cancel-button {
-    padding: 10px 20px;
+.action-link {
+    display: flex;
+    flex-direction: row;
+
+    width: fit-content;
+    padding: 8px;
+    border: 2px solid var(--deep-blue);
     border-radius: 20px;
+
+    color: var(--deep-blue);
     text-decoration: none;
 }
 
+.action-link:hover {
+    color: var(--medium-blue);
+}
+
+.action-link p {
+    margin: 0;
+    margin-right: 1rem;
+}
+
+.action-link:hover p {
+    text-decoration: underline;
+}
+
+.action-link-arrow {
+    transform: rotate(-90deg);
+
+    align-self: center;
+
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    margin-right: 0.5rem;
+
+    transition: margin 200ms linear;
+}
+
+.action-link:hover .action-link-arrow {
+    margin-right: 0;
+    margin-left: 0.5rem;
+}
+
+.blue-button, .white-button-with-border, .red-button, .cancel-button {
+    margin: 2px;
+    padding: 10px 20px;
+    border: 2px solid white;
+    border-radius: 20px;
+
+    text-decoration: none;
+
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+
+    &:hover {
+        box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
+    }
+}
+
+.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible {
+    outline: var(--medium-blue) dashed;
+    box-shadow: none;
+}
+
 .blue-button {
-    border: none;
     color: white;
     background-color: var(--dark-primary-blue);
-}
-
-.blue-button:hover {
-    background-color: var(--deep-blue);
-}
-
-a.blue-button {
-    cursor: pointer;
 }
 
 .white-button-with-border {
     border: 2px solid var(--dark-primary-blue);
     color: var(--dark-primary-blue);
     background-color: white;
-}
-
-.white-button-with-border:hover {
-    border: 2px solid white;
-    color: white;
-    background-color: var(--dark-primary-blue);
 }
 
 .large-button {
@@ -117,24 +161,13 @@ a.blue-button {
 }
 
 .cancel-button {
-    border: none;
     color: white;
     background-color: var(--dark-grey);
 }
 
-.cancel-button:hover {
-    background-color: var(--darker-grey);
-}
-
 .red-button {
-    border: none;
-    border-radius: 1rem;
     color: white;
     background-color: var(--red);
-}
-
-.red-button:hover {
-    background-color: var(--dark-red);
 }
 
 .invalid-input {
@@ -267,43 +300,22 @@ a.blue-button {
     position: absolute;
     top: 0.5rem;
     left: 0.5rem;
-
     padding: 0.2rem 1rem;
-
-    font-size: 1rem;
 }
 
-.flat-close-dialog-button {
+.close-modal {
+    display: flex;
+
     width: 2rem;
     height: 2rem;
-    padding: 0;
+    padding: 4px;
     border: 0;
-
-    font-size: 1.5rem;
-    line-height: 1;
-    color: inherit;
-
-    background: transparent;
-}
-
-.flat-close-dialog-button:hover {
     border-radius: 50%;
-    background: #00000010;
-}
-
-.user-view-modal-back-button {
-    height: 2rem;
-    padding: 0 0.5rem;
-    border: 0;
-
-    font-size: 1rem;
-    color: inherit;
 
     background: transparent;
 }
 
-.user-view-modal-back-button:hover {
-    border-radius: 4px;
+.close-modal:hover {
     background: #00000010;
 }
 
@@ -1478,7 +1490,7 @@ a.blue-button {
 }
 
 #resource-intake-policy-compliance-label {
-    text-wrap: wrap; /* eslint-disable-line */
+    text-wrap: wrap;
 }
 
 #content-advisory-choice-set {
@@ -1690,11 +1702,6 @@ a.blue-button {
 
     transition: 0.15s linear box-shadow;
 
-    /* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
-    reports that it is supported by all browsers:
-    https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
-
-    /* eslint-disable-next-line css/use-baseline */
     &:hover {
         cursor: pointer;
         box-shadow: var(--box-shadow-color) 2px 4px 6px;
@@ -1725,10 +1732,6 @@ a.blue-button {
 .user-view-modal {
     padding: 0;
     border: 2px solid var(--primary-blue);
-    border-radius: 12px;
-
-    color: black;
-
     background: white;
     box-shadow: 3px 6px 10px #00000050;
 }
@@ -1749,7 +1752,6 @@ a.blue-button {
     align-items: center;
 
     padding: 0.5rem;
-    border-radius: 12px 12px 0 0;
 
     text-align: center;
 
@@ -1936,11 +1938,6 @@ button.disabled {
     color: #434343;
     background-color: #e0e0e040;
 
-/* the linter(eslint) complains about the &:hover selector not being baseline, but MDN
-reports that it is supported by all browsers:
-https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
-
-/* eslint-disable-next-line css/use-baseline */
     &:hover {
         background-color: #e0e0e040;
     }

@@ -12,8 +12,9 @@
             <h3>{{ content.playlist.name }}: {{ content.title }}</h3>
         </div>
         {% if can_edit %}
-            <a class="white-button-with-border position-flex-start"
-               href="{% url 'video_editor' content.id %}">Edit Video</a>
+            {% url 'video_editor' content.id as video_editor_url %}
+            {% include 'core/partials/action_link.html' with link_href=video_editor_url link_text="Edit Video" %}
+
             <div id="content-settings">
                 <div class="row-flex flex-apart-aligned">
                     <h3>Settings</h3>
