@@ -25,7 +25,6 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
@@ -123,12 +122,6 @@ def content_parent_crumbs(content):
     return (
         (content.playlist.name, reverse("playlist_info", args=[content.playlist_id])),
     )
-
-
-@require_GET
-@never_cache
-def poll_connection(request):
-    return HttpResponse(status=204)
 
 
 @login_not_required
