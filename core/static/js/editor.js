@@ -2946,12 +2946,7 @@ export class Editor {
       return cues;
     }
 
-    async saveCues(cues, isAutosave=true) {
-      if (typeof isAutosave !== "boolean") {
-        console.error("Could not save cues: isAutosave must be a boolean.");
-        return false;
-      }
-
+    async saveCues(cues) {
       if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
@@ -2963,7 +2958,6 @@ export class Editor {
               cues: cues,
               seconds_nudge: 0,
               nudge_excluded_cues: [],
-              is_autosave: isAutosave
             })
           );
           if (this.selectedSubtitleTrackId !== trackId) return false;
@@ -3012,7 +3006,7 @@ export class Editor {
             payload: "",
           }
         )
-        if (!await this.saveCues(cues, false)) return;
+        if (!await this.saveCues(cues)) return;
 
         // Normalize the lookup time string so it will always fine the right cue
         // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
@@ -3063,7 +3057,7 @@ export class Editor {
         const cues = this.collectCues();
         // use splice to allow cue marked for deletion to still appear unless the deletion is successful
         cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
-        this.saveCues(cues, false);
+        this.saveCues(cues);
       }
       const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
       for (let cueDelButton of editorSubtitleCueDeleteButtons) {
@@ -3071,7 +3065,7 @@ export class Editor {
       }
 
       const saveUpdatedInformation = () => {
-        this.saveCues(this.collectCues(), false);
+        this.saveCues(this.collectCues());
       }
       const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
       const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");

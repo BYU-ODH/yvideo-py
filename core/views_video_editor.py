@@ -1481,8 +1481,7 @@ def update_subtitle(request, subtitle):
                 subtitle.subtitles_file = store_independent_subtitle_file(
                     subtitle, upload, created_files
                 )
-                subtitle.subtitles_temp_file = None
-                update_fields.extend(["subtitles_file", "subtitles_temp_file"])
+                update_fields.extend(["subtitles_file"])
             subtitle.save(using=database, update_fields=update_fields)
             if obsolete_files:
                 transaction.on_commit(
@@ -1570,7 +1569,6 @@ def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
                 owner=request.user,
                 language_id=source.language_id,
                 is_original=False,
-                subtitles_temp_file=None,
             )
             copied.subtitles_file = store_independent_subtitle_file(
                 copied, canonical_file, created_files
@@ -1731,7 +1729,7 @@ def update_subtitle_content(request, subtitle):
         return JsonResponse(
             {"error": "Request body must be a JSON object."}, status=400
         )
-    required_fields = ("cues", "seconds_nudge", "nudge_excluded_cues", "is_autosave")
+    required_fields = ("cues", "seconds_nudge", "nudge_excluded_cues")
     missing_fields = [field for field in required_fields if field not in request_data]
     if missing_fields:
         return JsonResponse(
@@ -1741,9 +1739,6 @@ def update_subtitle_content(request, subtitle):
     dict_cue_list = request_data["cues"]
     if not isinstance(dict_cue_list, list):
         return JsonResponse({"error": "'cues' must be a list."}, status=400)
-    is_autosave = request_data["is_autosave"]
-    if not isinstance(is_autosave, bool):
-        return JsonResponse({"error": "'is_autosave' must be a boolean."}, status=400)
     seconds_nudge = request_data["seconds_nudge"]
     try:
         valid_nudge = (
@@ -1770,7 +1765,6 @@ def update_subtitle_content(request, subtitle):
         )
 
     original_main_name = subtitle.subtitles_file.name
-    original_temp_name = subtitle.subtitles_temp_file.name
     database = subtitle._state.db
     created_files = []
     committed = False
@@ -1806,25 +1800,18 @@ def update_subtitle_content(request, subtitle):
             )
             if not current.can_be_edited_by(request.user):
                 return forbidden()
-            if current.subtitles_file.name != original_main_name or (
-                is_autosave and current.subtitles_temp_file.name != original_temp_name
-            ):
+            if current.subtitles_file.name != original_main_name:
                 return _subtitle_cue_conflict_response()
 
-            field_name = "subtitles_temp_file" if is_autosave else "subtitles_file"
-            old_file = getattr(current, field_name)
+            old_file = getattr(current, "subtitles_file")
             obsolete_files = [(old_file.storage, old_file.name)] if old_file else []
-            new_name = store_independent_subtitle_file(
-                current, new_file, created_files, field_name=field_name
-            )
+            new_name = store_independent_subtitle_file(current, new_file, created_files)
             matches = Subtitle.objects.using(database).filter(
                 pk=current.pk, subtitles_file=original_main_name
             )
-            if is_autosave:
-                matches = matches.filter(subtitles_temp_file=original_temp_name)
             # SQLite ignores row locks; the filename predicate is the actual CAS.
             updated = matches.update(
-                **{field_name: new_name, "updated_at": timezone.now()}
+                **{"subtitles_file": new_name, "updated_at": timezone.now()}
             )
             if updated == 1 and obsolete_files:
                 transaction.on_commit(
