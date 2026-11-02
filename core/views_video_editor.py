@@ -1568,7 +1568,6 @@ def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
                 resource=source.resource,
                 owner=request.user,
                 language_id=source.language_id,
-                is_original=False,
             )
             copied.subtitles_file = store_independent_subtitle_file(
                 copied, canonical_file, created_files

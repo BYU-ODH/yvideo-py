@@ -1961,7 +1961,6 @@ class Subtitle(models.Model):
         upload_to=subtitle_file_upload_path,
         validators=[validate_subtitle_file],
     )
-    is_original = models.BooleanField(null=False, blank=False, default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

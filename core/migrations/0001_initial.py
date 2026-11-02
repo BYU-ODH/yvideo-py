@@ -447,7 +447,6 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=255)),
                 ('subtitles_file', models.FileField(upload_to=core.models.subtitle_file_upload_path, validators=[core.models.validate_subtitle_file])),
-                ('is_original', models.BooleanField(default=False)),
                 ('words', models.TextField(blank=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),

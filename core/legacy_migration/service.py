@@ -1513,7 +1513,6 @@ class LegacyMigrationService:
                 "owner": self._get_target_owner(request_obj),
                 "language": language,
                 "name": subtitle_row["title"] or language.language,
-                "is_original": True,
             }
             vtt_content = build_subtitle_vtt(subtitle_row["content"])
             with transaction.atomic():
