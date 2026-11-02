@@ -1,4 +1,4 @@
-"""The blur constants the browser keeps its own copy of, held to the values in core/models.py.
+"""The geometry constants the browser keeps its own copy of, held to the values in core/models.py.
 
 The rig has to clamp, snap and predict between animation frames, without a round trip, so a handful
 of the numbers in core/models.py are re-declared in JavaScript. Two copies of one number drift in
@@ -28,6 +28,8 @@ from core.models import BLUR_MIN_WIDTH
 from core.models import BLUR_RETIME_TOLERANCE_SECONDS
 from core.models import BLUR_SNAP_SECONDS
 from core.models import BLUR_TIME_PRECISION
+from core.models import COMMENT_MIN_HEIGHT
+from core.models import COMMENT_MIN_WIDTH
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -43,6 +45,8 @@ MIRRORED_CONSTANTS = [
     ("core/static/js/BlurEditor.js", "MIN_WIDTH", BLUR_MIN_WIDTH),
     ("core/static/js/BlurEditor.js", "MIN_HEIGHT", BLUR_MIN_HEIGHT),
     ("core/static/js/BlurEditor.js", "SNAP_SECONDS", BLUR_SNAP_SECONDS),
+    ("core/static/js/editor.js", "COMMENT_MIN_WIDTH", COMMENT_MIN_WIDTH),
+    ("core/static/js/editor.js", "COMMENT_MIN_HEIGHT", COMMENT_MIN_HEIGHT),
     *[
         (module, name, value)
         for module in GEOMETRY_MODULES

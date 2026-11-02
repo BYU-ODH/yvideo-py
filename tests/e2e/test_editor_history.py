@@ -252,7 +252,7 @@ def test_comment_box_is_still_editable_after_a_save_makes_a_new_version(
     expect(page.locator(f"#comment-text-box-{original_id}")).to_be_visible()
     rig = page.locator("#comment-edit-rig")
     expect(rig).to_be_visible()
-    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+    expect(rig.locator(".comment-rig-handle")).to_have_count(2)
 
     new_id = _commit_name(page, "Renamed comment", original_id)
 
@@ -262,7 +262,7 @@ def test_comment_box_is_still_editable_after_a_save_makes_a_new_version(
     # the player's box and the box the user was looking at silently stopped responding.
     expect(page.locator(f"#comment-text-box-{new_id}")).to_be_visible()
     expect(rig).to_be_visible()
-    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+    expect(rig.locator(".comment-rig-handle")).to_have_count(2)
 
 
 def test_comment_rig_is_hidden_while_the_playhead_is_outside_the_comment(
@@ -296,7 +296,7 @@ def test_comment_rig_is_hidden_while_the_playhead_is_outside_the_comment(
     # And it comes back, rather than needing the annotation reselected.
     _seek(page, 10.0)
     expect(rig).to_be_visible()
-    expect(rig.locator(".comment-rig-handle")).to_have_count(8)
+    expect(rig.locator(".comment-rig-handle")).to_have_count(2)
 
 
 def test_selecting_another_annotation_type_takes_the_comment_rig_away(
@@ -328,7 +328,7 @@ def test_selecting_another_annotation_type_takes_the_comment_rig_away(
 
 
 def _drag_grip(page, handle_name, by=None, to=None, measure=False):
-    """Drag one of the open comment box's eight grips and wait out the save it commits.
+    """Drag one of the open comment box's two grips and wait out the save it commits.
 
     `by` is a pixel offset, `to` a fraction of the video frame. `measure` reports the box while the
     pointer is still down - the editor's own arithmetic, before the server has had its say.
@@ -338,9 +338,10 @@ def _drag_grip(page, handle_name, by=None, to=None, measure=False):
     addressing a box that is about to be replaced.
     """
     previous_id = _active_form_id(page)
-    grip = page.locator(
-        f'#comment-edit-rig [data-handle="{handle_name}"]'
-    ).bounding_box()
+    grip = page.locator(f'#comment-edit-rig [data-handle="{handle_name}"]')
+    # The rig is hidden until the player has drawn the box it takes its height from.
+    expect(grip).to_be_visible()
+    grip = grip.bounding_box()
     start_x = grip["x"] + grip["width"] / 2
     start_y = grip["y"] + grip["height"] / 2
     if to is not None:
@@ -361,13 +362,16 @@ def _drag_grip(page, handle_name, by=None, to=None, measure=False):
         " !== previous",
         arg=str(previous_id),
     )
-    expect(page.locator("#comment-edit-rig .comment-rig-handle")).to_have_count(8)
+    handles = page.locator("#comment-edit-rig .comment-rig-handle")
+    expect(handles).to_have_count(2)
+    for handle in handles.all():
+        expect(handle).to_be_visible()
     return dragged
 
 
 def _resize_box(page, previous_id):
-    """Drag a corner, which saves a new version on pointer-up."""
-    _drag_grip(page, "se", by=(40, 30))
+    """Drag the right edge, which saves a new version on pointer-up."""
+    _drag_grip(page, "e", by=(40, 0))
     return _active_form_id(page)
 
 
@@ -386,8 +390,19 @@ def _box_rect(page):
     )
 
 
-def test_comment_box_edge_handles_resize_one_axis(page, open_editor):
-    """The eight grips are shared with the blur rig, so an edge grip moves one edge and no more."""
+def _player_box_height(page):
+    """The player's box height as a percentage of the frame, to compare with the rig's."""
+    return page.evaluate(
+        """() => {
+            const frame = document.querySelector('#annotation-box').getBoundingClientRect();
+            const box = document.querySelector('.comment-text-box').getBoundingClientRect();
+            return box.height / frame.height * 100;
+        }"""
+    )
+
+
+def test_comment_box_height_follows_its_text(page, open_editor):
+    """The user sets only the width; the height is whatever the wrapped text needs."""
     content = open_editor()
     _select(
         page,
@@ -397,27 +412,190 @@ def test_comment_box_edge_handles_resize_one_axis(page, open_editor):
             active=True,
         ),
     )
-    # A corner drag first, to give the box a rectangle to work from: the seeded comment stores its
-    # bottom-right corner above and left of its top-left one, so it starts with no size at all.
-    # Dragged to a point rather than by an offset, so the box ends up small enough that the edge
-    # drags below cannot run into the frame and be clamped, which would move an edge they must not.
-    _drag_grip(page, "se", to=(0.4, 0.5))
+    # The rig takes its height from the player's box, so it appears once that box has been drawn.
+    expect(page.locator("#comment-edit-rig")).to_be_visible()
+    # Dragged to points rather than by offsets, so the widths do not depend on the seeded one.
+    _drag_grip(page, "e", to=(0.95, 0.5))
+    wide = _box_rect(page)
+    assert wide["height"] == pytest.approx(_player_box_height(page), abs=0.5)
+
+    narrow = _drag_grip(page, "e", to=(0.55, 0.5), measure=True)
+
+    assert narrow["width"] < wide["width"] - 2, (wide, narrow)
+    assert narrow["left"] == pytest.approx(wide["left"], abs=0.5)
+    assert narrow["top"] == pytest.approx(wide["top"], abs=0.5)
+    assert narrow["height"] > wide["height"] + 1, (wide, narrow)
+    assert _box_rect(page)["height"] == pytest.approx(_player_box_height(page), abs=0.5)
+
+
+def test_a_comment_with_no_text_can_still_be_dragged(page, open_editor):
+    content = open_editor()
+    comment = _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+    page.locator("#text").fill("")
+    page.locator("#description").click()
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(comment.id),
+    )
+    rig = page.locator("#comment-edit-rig")
+    expect(rig).to_be_visible()
+    body = rig.bounding_box()
+    assert body["height"] >= 10
 
     before = _box_rect(page)
-    widened = _drag_grip(page, "e", by=(30, 0), measure=True)
+    previous_id = _active_form_id(page)
+    page.mouse.move(body["x"] + body["width"] / 2, body["y"] + body["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        body["x"] + body["width"] / 2 - 40, body["y"] + body["height"] / 2, steps=5
+    )
+    page.mouse.up()
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
 
-    assert widened["width"] > before["width"] + 2, (before, widened)
-    assert widened["left"] == pytest.approx(before["left"], abs=0.5)
-    assert widened["top"] == pytest.approx(before["top"], abs=0.5)
-    assert widened["height"] == pytest.approx(before["height"], abs=0.5)
+    assert _box_rect(page)["left"] < before["left"] - 1
 
+
+def _open_seeded_comment(page, open_editor):
+    content = open_editor()
+    _select(
+        page,
+        CommentAnnotation.objects.get(
+            name=SEEDED_COMMENT,
+            track__annotation_set=content.annotation_set,
+            active=True,
+        ),
+    )
+    rig = page.locator("#comment-edit-rig")
+    expect(rig).to_be_visible()
+    return rig
+
+
+def _press_on_rig_body(page, rig):
+    """Put the pointer down on the middle of the rig, clear of its side grips."""
+    body = rig.bounding_box()
+    start = (body["x"] + body["width"] / 2, body["y"] + body["height"] / 2)
+    page.mouse.move(*start)
+    page.mouse.down()
+    return start
+
+
+def test_a_comment_dragged_past_the_edge_keeps_its_grip(page, open_editor):
+    rig = _open_seeded_comment(page, open_editor)
     before = _box_rect(page)
-    raised = _drag_grip(page, "n", by=(0, -30), measure=True)
+    previous_id = _active_form_id(page)
+    frame = page.locator("#annotation-box").bounding_box()
 
-    assert raised["top"] < before["top"] - 1, (before, raised)
-    assert raised["height"] > before["height"] + 1
-    assert raised["left"] == pytest.approx(before["left"], abs=0.5)
-    assert raised["width"] == pytest.approx(before["width"], abs=0.5)
+    start = _press_on_rig_body(page, rig)
+    page.mouse.move(frame["x"] + frame["width"] + 200, start[1], steps=5)
+    against_the_edge = _box_rect(page)
+    page.mouse.move(*start, steps=5)
+    returned = _box_rect(page)
+    page.mouse.up()
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
+
+    assert against_the_edge["left"] + against_the_edge["width"] == pytest.approx(
+        100, abs=0.5
+    )
+    assert returned["left"] == pytest.approx(before["left"], abs=0.5)
+
+
+def test_escape_cancels_a_comment_drag(page, open_editor):
+    rig = _open_seeded_comment(page, open_editor)
+    before = _box_rect(page)
+    previous_id = _active_form_id(page)
+
+    start = _press_on_rig_body(page, rig)
+    page.mouse.move(start[0] - 60, start[1] + 30, steps=5)
+    assert _box_rect(page)["left"] < before["left"] - 1
+    page.keyboard.press("Escape")
+    page.mouse.up()
+    # Long enough for a save, had the release started one.
+    page.wait_for_timeout(500)
+
+    assert _active_form_id(page) == previous_id
+    after = _box_rect(page)
+    assert after["left"] == pytest.approx(before["left"], abs=0.01)
+    assert after["top"] == pytest.approx(before["top"], abs=0.01)
+
+
+def test_arrow_keys_nudge_a_comment_and_save_once(page, open_editor):
+    rig = _open_seeded_comment(page, open_editor)
+    previous_id = _active_form_id(page)
+    x = float(page.locator("#comment-x").input_value())
+
+    rig.focus()
+    for _ in range(3):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.press("Shift+ArrowDown")
+    y_before_save = _box_rect(page)["top"]
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
+
+    saved = CommentAnnotation.objects.get(pk=_active_form_id(page))
+    assert saved.x == pytest.approx(x + 1.5)
+    assert saved.y == pytest.approx(y_before_save)
+    # One version for the whole burst of keys.
+    assert saved.prev_id == int(previous_id)
+
+
+def test_undo_during_a_pending_comment_nudge_drops_only_the_nudge(page, open_editor):
+    """An undo request would let the nudge save on top of the undone version and clear redo."""
+    rig = _open_seeded_comment(page, open_editor)
+    _drag_grip(page, "e", by=(-40, 0))
+    dragged_id = _active_form_id(page)
+    before = _box_rect(page)
+
+    rig.focus()
+    for _ in range(3):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.press("Control+z")
+    # Long enough for the nudge to have saved, had it still been pending.
+    page.wait_for_timeout(600)
+
+    assert _active_form_id(page) == dragged_id
+    assert _box_rect(page)["left"] == pytest.approx(before["left"], abs=0.01)
+    dragged = CommentAnnotation.objects.get(pk=dragged_id)
+    assert dragged.active and dragged.next_id is None
+
+
+def test_a_comment_position_that_is_not_a_number_is_not_saved(page, open_editor):
+    _open_seeded_comment(page, open_editor)
+    previous_id = _active_form_id(page)
+    x_input = page.locator("#comment-x")
+
+    x_input.fill("12%")
+    # Long enough for the autosave, had it gone out.
+    page.wait_for_timeout(600)
+    assert _active_form_id(page) == previous_id
+    expect(x_input).to_have_attribute("aria-invalid", "true")
+
+    x_input.fill("12")
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=str(previous_id),
+    )
+    expect(x_input).to_have_attribute("aria-invalid", "false")
+    assert CommentAnnotation.objects.get(pk=_active_form_id(page)).x == 12.0
 
 
 def test_superseded_comment_versions_leave_no_box_behind(page, open_editor):

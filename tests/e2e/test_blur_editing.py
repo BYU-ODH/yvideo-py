@@ -17,6 +17,8 @@ the box must never be interpreted as "retime whichever point was last selected".
 now that the rendered box is usually a tween between two points, so no single stored row owns it.
 """
 
+import re
+
 from playwright.sync_api import expect
 import pytest
 
@@ -159,11 +161,7 @@ def _frame_point(page, percent):
 
 
 def _drag_in_frame(page, from_percent, to_percent, steps=8):
-    """Drag the mouse across the video frame, in frame percentages.
-
-    Nothing on the frame answers this except the blur box itself, so a drag that starts on empty
-    picture is inert by design - see test_dragging_on_empty_frame_does_nothing.
-    """
+    """Drag the mouse across the video frame, in frame percentages."""
     _mark_panel(page)
     page.mouse.move(*_frame_point(page, from_percent))
     page.mouse.down()
@@ -253,11 +251,7 @@ def _saved_points(page, name, expected_count):
 
 
 def test_dragging_on_empty_frame_does_nothing(page, open_editor):
-    """The frame is not a canvas. This is the removed create gesture, asserted absent.
-
-    A drag on empty picture used to rubber-band a new rectangle over the existing box. Nothing
-    should answer it now: not a new point, not a changed one, not a resized box.
-    """
+    """Only the blur box is editable, so a drag or click elsewhere on the frame changes no points."""
     open_editor()
     _select(page, MOVING_BLUR)
     _seek(page, 5.0)
@@ -269,11 +263,39 @@ def test_dragging_on_empty_frame_does_nothing(page, open_editor):
     page.wait_for_timeout(500)
     page.mouse.click(*_frame_point(page, (80, 15)))
     page.wait_for_timeout(500)
+    # Each of those reached the video and toggled playback, so the box has to be compared at the
+    # same frame it was measured at.
+    page.evaluate("() => window.videoPlayer.videoElem.pause()")
+    _seek(page, 5.0)
 
     assert _stored_points(MOVING_BLUR) == before, "the frame accepted an edit"
     after = _rig_percent(page)
     assert after["x"] == pytest.approx(box_before["x"], abs=1)
     assert after["width"] == pytest.approx(box_before["width"], abs=1)
+
+
+def test_clicking_the_frame_off_the_box_toggles_playback(page, open_editor):
+    """Clicking the picture plays and pauses the video, and selecting a blur must not stop that.
+
+    This clicks the picture itself, not the play/pause button in the controls.
+    """
+    open_editor()
+    _select(page, MOVING_BLUR)
+    _seek(page, 5.0)
+    assert page.evaluate("() => window.videoPlayer.videoElem.paused")
+
+    # Halfway between the box's right edge and the frame's, so the click misses the box wherever
+    # the seed puts it.
+    rig = _rig_percent(page)
+    rig_right = rig["x"] + rig["width"]
+    off_the_box = _frame_point(
+        page, ((rig_right + 100) / 2, rig["y"] + rig["height"] / 2)
+    )
+
+    page.mouse.click(*off_the_box)
+    page.wait_for_function("() => !window.videoPlayer.videoElem.paused", timeout=2000)
+    page.mouse.click(*off_the_box)
+    page.wait_for_function("() => window.videoPlayer.videoElem.paused", timeout=2000)
 
 
 def test_the_rig_survives_the_response_it_triggered(page, open_editor):
@@ -1820,6 +1842,34 @@ def test_a_burst_of_nudges_is_written_once(page, open_editor):
     assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(42.0, abs=0.01)
 
 
+def test_undo_during_a_pending_nudge_drops_only_the_nudge(page, open_editor):
+    """An undo request would let the nudge save on top of the undone version, so undo drops it."""
+    writes = []
+    page.on(
+        "request",
+        lambda request: (
+            writes.append(request.url)
+            if request.method == "POST"
+            and re.search(r"/anchor-points/|/undo/|/redo/", request.url)
+            else None
+        ),
+    )
+    open_editor()
+    _select(page, MOVING_BLUR)
+    _seek(page, 7.0)
+    before = _rig_percent(page)
+    _focus_rig(page)
+
+    for _ in range(4):
+        page.keyboard.press("ArrowRight")
+    page.keyboard.press("Control+z")
+    page.wait_for_timeout(600)
+
+    assert writes == []
+    assert _rig_percent(page)["x"] == pytest.approx(before["x"], abs=0.1)
+    assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(40.0, abs=0.01)
+
+
 def test_the_rig_keeps_the_arrow_keys_away_from_the_player(page, open_editor):
     """The player binds bare arrows on `document` and only steps aside for inputs and textareas, so
     without stopPropagation a nudge would also seek the video and change the volume under it."""
@@ -2026,8 +2076,11 @@ def test_editing_a_field_saves_it_without_being_asked(page, open_editor):
     annotation = _select(page, MOVING_BLUR)
 
     page.locator("#annotation_name").fill("Renamed by autosave")
-    # Focus leaves the field, which is what `change` waits for.
-    page.locator("#description").click()
+    # The save makes the player refetch its data. The test waits for that request to finish,
+    # because if it is still running at teardown it holds a lock and the DB flush fails.
+    with page.expect_response("**/player-data/"):
+        # Focus leaves the field, which is what `change` waits for.
+        page.locator("#description").click()
     page.wait_for_function(
         "() => document.querySelector('.track-item[data-annotation-type=blur]"
         ".active-track-item .track-item-label')?.textContent.trim() === 'Renamed by autosave'",

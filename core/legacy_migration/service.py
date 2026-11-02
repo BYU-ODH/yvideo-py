@@ -1444,10 +1444,13 @@ class LegacyMigrationService:
                 )
             elif model_class is CommentAnnotation:
                 position = legacy_event.get("position") or {}
+                x = float(position.get("x", 0) or 0)
                 annotation = model_class.objects.create(
                     text=legacy_event.get("comment") or legacy_event.get("text") or "",
-                    top_left_x=float(position.get("x", 0) or 0),
-                    top_left_y=float(position.get("y", 0) or 0),
+                    x=x,
+                    y=float(position.get("y", 0) or 0),
+                    # Legacy comments had no width; their text ran to the frame's right edge.
+                    width=100.0 - x,
                     **common_kwargs,
                 )
             elif model_class is BlankAnnotation:
