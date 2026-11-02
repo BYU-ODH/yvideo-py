@@ -56,6 +56,7 @@ from ..models import BlankAnnotation
 from ..models import BlurAnchorPoint
 from ..models import BlurAnnotation
 from ..models import Clip
+from ..models import CommentAnnotation
 from ..models import Content
 from ..models import MuteAnnotation
 from ..models import PauseAnnotation
@@ -1011,6 +1012,16 @@ class LegacyMigrationTests(TestCase):
                 )
             ],
             [(2.0, 30.0, 35.0, 20.0, 30.0), (4.0, 60.0, 50.0, 10.0, 20.0)],
+        )
+
+        # Legacy comments carry only their top-left corner; with no width their text ran to the
+        # frame's right edge, so that is the width they arrive with.
+        comment = CommentAnnotation.objects.get(
+            track__annotation_set=imported_video.annotation_set
+        )
+        self.assertEqual(
+            (comment.text, comment.x, comment.y, comment.width),
+            ("Discuss this scene", 10.0, 20.0, 90.0),
         )
 
         subtitle = Subtitle.objects.get(resource=imported_video.resource)

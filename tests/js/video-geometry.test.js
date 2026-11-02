@@ -331,8 +331,8 @@ test("resizeRect does not mutate its input", () => {
   assert.deepEqual(origin, ORIGIN);
 });
 
-// The handle table is shared by every resizable overlay - the blur rig and the comment box both
-// build their grips and resize from it - so a gap here is a gap in both at once.
+// The handle table is shared by every resizable overlay - the blur rig builds its grips from it and
+// both it and the comment box resize through it - so a gap here is a gap in both at once.
 test("RESIZE_HANDLES names all eight grips of a box", () => {
   assert.deepEqual(
     RESIZE_HANDLES.map(([name]) => name),
