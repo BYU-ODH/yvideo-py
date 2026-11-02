@@ -3086,6 +3086,11 @@ export class Editor {
               saveUpdatedInformation();
             }
           });
+
+          cueInput.addEventListener("change", (e) => {
+            e.preventDefault();
+            saveUpdatedInformation();
+          });
         }
       }
       for (let cueStartOrTextInput of cueStartAndTextInputs){
