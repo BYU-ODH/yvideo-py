@@ -56,6 +56,8 @@ function setupReset() {
     const newFormHTML = await resetResponse.text();
     const oldForm = document.getElementById("content-settings-form");
     oldForm.outerHTML = newFormHTML;
+    // Scripts inserted via outerHTML never run, so the new form's elements need their listeners attached here.
+    initialize();
   });
 }
 
