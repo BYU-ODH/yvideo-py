@@ -3,6 +3,7 @@ import json
 import logging
 from urllib.parse import quote
 
+from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
@@ -45,6 +46,7 @@ from .permissions import forbidden
 from .permissions import subtitle_read_required
 from .permissions import subtitle_write_required
 from .permissions import track_write_required
+from .utils import ANNOTATION_DESCRIPTIONS
 from .utils import ANNOTATION_ICONS
 from .utils import VTTCue
 from .utils import build_vtt_file_string_from_cues
@@ -74,10 +76,12 @@ def get_annotation_groups(annotations):
     groups = {}
     for type_name in ANNOTATION_MODELS.keys():
         type_icon = ANNOTATION_ICONS[type_name]
+        tool_description = ANNOTATION_DESCRIPTIONS[type_name]
         new_group = {
             "type": type_name,
             "type_display": type_name.capitalize(),
             "icon": type_icon,
+            "tool_description": tool_description,
             "instances": [],
         }
         groups[type_name] = new_group
@@ -1071,6 +1075,10 @@ def delete_annotation_set(request, annotation_set):
         return forbidden("Only the owner of an annotation set can retire it.")
     try:
         annotation_set.orphan()
+        messages.success(
+            request,
+            f'The Annotation set "{annotation_set.name}" was retired.',
+        )
         return HttpResponse()
     except Exception as e:
         logger.error(f"Failed to retire annotation set. Exception: {e}")

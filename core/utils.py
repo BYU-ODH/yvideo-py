@@ -3,6 +3,16 @@ from re import sub
 
 from django.utils import timezone
 
+ANNOTATION_DESCRIPTIONS = {
+    "skip": "Sets the video to the end time. Any scrubber clicks between the start and end of a skip are automatically moved to the end time.",
+    "mute": "Turns off the audio during between the start and end times.",
+    "blank": "Places a black box over the video display (a mute for visual content).",
+    "pause": "Forces the video to pause playback. If a message is defined, that message will display until the video resumes. The video will not resume until the viewer clicks play.",
+    "blur": "Creates a movable, re-sizable box that blurs any content behind it. The box will change location and size based on anchor point times and dimensions. Multiple blurs can be active at the same time. To place a blur in a new location, simply click where the center of the blur should be or click and drag the blur into position. If the blur needs to change every frame or nearly every frame, push the right arrow key to advance the video 1 frame and click where the blur should be centered at, then adjust the size of the blur as needed. If you find you need to blur a large part of the video, consider using a blank or skip annotation.",
+    "comment": "Creates a movable, re-sizable box that contains a text field. The color of the text can be changed if black text doesn't provide enough contrast with the background video scene.",
+    "clip": "Creates a snippet of a video and includes all annotations that would normally be played during the viewing of the entire content.",
+}
+
 # Map annotation type strings to their timeline/panel icon's static path.
 ANNOTATION_ICONS = {
     "skip": "img/skip-icon.svg",
