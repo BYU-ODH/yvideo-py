@@ -51,6 +51,7 @@ export class Editor {
         this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrollRatio = 0;
+        this.timelineScrollLeft = 0;
         this.scrubberBounds = null;
         this.timelineScrubber = null;
         this.isDragging = false;
@@ -125,6 +126,7 @@ export class Editor {
         this.watchForTrackCreation();
         this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
+        this.keepTimelineRowsScrolledTogether();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchAndHandleAnnotationSetDelete();
         this.setupAnnotationSetOptionsModal();
@@ -1645,6 +1647,8 @@ export class Editor {
         const annotationContainer = trackParentNode.querySelector(".track-row-annotations-container");
         this.setupTrackDragListeners(annotationContainer);
       }
+      // New rows start scrolled to the beginning.
+      this.scrollTracksToPoint(this.timelineScrollLeft);
     }
 
     /* track name change */
@@ -2174,26 +2178,14 @@ export class Editor {
     }
 
     handleZoom() {
-      const annotationContainers = this.timelineWrapper.querySelectorAll(".track-row-annotations-container");
-      if (annotationContainers.length == 0) {
-        return;
-      }
-
-      const newWidth = `${100 * this.zoomLevel}%`;
       const zoomSliderWidth = `${100 / this.zoomLevel}%`;
       document.documentElement.style.setProperty("--zoom-thumb-width", zoomSliderWidth);
-      const tickMarksContainer = document.getElementById("tick-marks-container");
-      if (tickMarksContainer) {
-        tickMarksContainer.style.width = newWidth;
-      }
-      for (let annotationContainer of annotationContainers) {
-        annotationContainer.style.width = newWidth;
-      }
+      // One variable sizes the ruler and every track, so they cannot be zoomed differently.
+      this.timelineWrapper.style.setProperty("--timeline-content-width", `${100 * this.zoomLevel}%`);
 
       const locationRatio = this.video.currentTime / this.video.duration;
-      const trackWidth = tickMarksContainer.getBoundingClientRect().width;
-      const tickMarkContainerParent = tickMarksContainer.closest("#timeline-ticks-content");
-      const parentWidth = tickMarkContainerParent.getBoundingClientRect().width;
+      const trackWidth = this.tickMarksContainer.getBoundingClientRect().width;
+      const parentWidth = this.timelineTicksContent.getBoundingClientRect().width;
       this.scrollTracksToPoint((trackWidth * locationRatio) - parentWidth / 2);
       this.renderTickMarksAndLabels();
       // Zoom changes the visible time window, so recompute the scrubber bounds.
@@ -2231,11 +2223,14 @@ export class Editor {
 
     scrollTracksToPoint(scrollValue) {
       const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
-      const tickMarksWrapper = document.getElementById("timeline-ticks-content");
-      for (let track of tracksToAdjust) {
-        track.scrollLeft = scrollValue;
-      }
+      const tickMarksWrapper = this.timelineTicksContent;
+      // Tracks copy the ruler's clamped offset rather than scrollValue, so a track whose item
+      // overhangs its end (e.g. a pause near the end of the video) can't scroll past the ruler.
       tickMarksWrapper.scrollLeft = scrollValue;
+      this.timelineScrollLeft = tickMarksWrapper.scrollLeft;
+      for (let track of tracksToAdjust) {
+        track.scrollLeft = this.timelineScrollLeft;
+      }
 
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (contentWidth > 0) {
@@ -2250,6 +2245,18 @@ export class Editor {
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (!contentWidth || !this.timelineScrollRatio) return;
       this.scrollTracksToPoint(contentWidth * this.timelineScrollRatio);
+    }
+
+    // Prevent rows from scrolling out of sync. Each row is its own scroll container, so whichever
+    // row scrolls, the rest follow.
+    keepTimelineRowsScrolledTogether() {
+      this.timelineWrapper.addEventListener("scroll", (e) => {
+        const scroller = e.target;
+        if (scroller !== this.timelineTicksContent && !scroller.classList?.contains("timeline-track-row-right")) return;
+        if (scroller.scrollLeft === this.timelineScrollLeft) return;
+        this.scrollTracksToPoint(scroller.scrollLeft);
+        this.adjustScrubberPosition();
+      }, true);
     }
 
     watchForTimelineScrollChangeAndHandleIt() {
