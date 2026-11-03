@@ -1946,12 +1946,6 @@ def subtitle_file_upload_path(instance, filename):
         return f"{instance.resource.name}/subtitles/{filename}"
 
 
-def subtitle_temp_file_upload_path(instance, filename=None):
-    """Generate upload path to media/<resource name>/subtitles/<filename>"""
-    if isinstance(instance, Subtitle):
-        return f"{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
-
-
 class Subtitle(models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="subtitles"
@@ -1967,13 +1961,6 @@ class Subtitle(models.Model):
         upload_to=subtitle_file_upload_path,
         validators=[validate_subtitle_file],
     )
-    subtitles_temp_file = models.FileField(
-        upload_to=subtitle_temp_file_upload_path,
-        validators=[validate_subtitle_file],
-        null=True,
-        blank=True,
-    )
-    is_original = models.BooleanField(null=False, blank=False, default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

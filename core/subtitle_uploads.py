@@ -15,12 +15,11 @@ from uuid import uuid4
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
-from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
 MAX_SUBTITLE_UPLOAD_BYTES = 5 * 1024 * 1024
-SUBTITLE_FILE_FIELDS = ("subtitles_file", "subtitles_temp_file")
+
 _TIMESTAMP = r"(?:[0-9]+:)?[0-5][0-9]:[0-5][0-9][.,][0-9]{1,3}"
 _TIMING_LINE = re.compile(
     rf"[ \t]*(?P<start>{_TIMESTAMP})[ \t]+-->[ \t]+(?P<end>{_TIMESTAMP})"
@@ -462,35 +461,25 @@ def _same_storage(first, second):
 def _subtitle_file_is_referenced(storage, name, using=None):
     from .models import Subtitle
 
-    references = Q()
-    for field_name in SUBTITLE_FILE_FIELDS:
-        field = Subtitle._meta.get_field(field_name)
-        if _same_storage(field.storage, storage):
-            references |= Q(**{field_name: name})
-    return (
-        bool(references) and Subtitle.objects.using(using).filter(references).exists()
+    field = Subtitle._meta.get_field("subtitles_file")
+    return _same_storage(field.storage, storage) and (
+        Subtitle.objects.using(using).filter(subtitles_file=name).exists()
     )
 
 
 def subtitle_file_references(subtitle):
-    return [
-        (file.storage, file.name)
-        for field_name in SUBTITLE_FILE_FIELDS
-        if (file := getattr(subtitle, field_name)) and file.name
-    ]
+    file = subtitle.subtitles_file
+    return [(file.storage, file.name)] if file and file.name else []
 
 
-def store_independent_subtitle_file(
-    subtitle, content, created_files, extension=".vtt", *, field_name="subtitles_file"
-):
-    """Save to the selected field's storage and track attempted writes for cleanup."""
+def store_independent_subtitle_file(subtitle, content, created_files, extension=".vtt"):
+    """Save to the subtitle file's storage and track attempted writes for cleanup."""
     from .models import Subtitle
 
-    field = Subtitle._meta.get_field(field_name)
+    field = Subtitle._meta.get_field("subtitles_file")
     storage = field.storage
-    path_field = Subtitle._meta.get_field("subtitles_file")
     while True:
-        name = path_field.generate_filename(subtitle, f"{uuid4().hex}{extension}")
+        name = field.generate_filename(subtitle, f"{uuid4().hex}{extension}")
         if not storage.exists(name) and not _subtitle_file_is_referenced(
             storage, name, using=subtitle._state.db
         ):

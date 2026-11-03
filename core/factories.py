@@ -302,7 +302,6 @@ class SubtitleFactory(factory.django.DjangoModelFactory):
             content_type="text/vtt",
         )
     )
-    is_original = True
 
 
 class ResourceFileKeyFactory(factory.django.DjangoModelFactory):
