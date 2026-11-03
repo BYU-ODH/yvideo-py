@@ -1478,7 +1478,7 @@ a.blue-button {
 }
 
 #resource-intake-policy-compliance-label {
-    text-wrap: wrap; /* eslint-disable-line */
+    text-wrap: wrap;
 }
 
 #content-advisory-choice-set {
@@ -1694,7 +1694,6 @@ a.blue-button {
     reports that it is supported by all browsers:
     https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
 
-    /* eslint-disable-next-line css/use-baseline */
     &:hover {
         cursor: pointer;
         box-shadow: var(--box-shadow-color) 2px 4px 6px;
@@ -1940,7 +1939,6 @@ button.disabled {
 reports that it is supported by all browsers:
 https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/Nesting_selector */
 
-/* eslint-disable-next-line css/use-baseline */
     &:hover {
         background-color: #e0e0e040;
     }
