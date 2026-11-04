@@ -68,7 +68,8 @@ class SaveStatus {
     }
     const text = busy ? WAITING_TEXT : this.settledText;
 
-    const element = document.getElementById("annotation-save-status");
+    // globalThis because PendingNudge reports here, and its unit tests run under Node with no DOM.
+    const element = globalThis.document?.getElementById("annotation-save-status");
     if (!element) return;
     const textElement = element.querySelector(".save-status-text");
     // Unchanged text is left alone so the live region does not re-announce it.
