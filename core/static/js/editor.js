@@ -58,6 +58,7 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.lastSavedItemFormState = null;
+        this.itemFormPlaceholderHTML = document.getElementById("detail-form").innerHTML;
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
@@ -126,6 +127,8 @@ export class Editor {
         this.attachTimelineListeners();
         this.attachVideoListeners();
         this.setupTracks();
+        this.watchForClickOnEmptySpace();
+        this.watchForEscapeToDeselect();
         this.watchForTrackCreation();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.keepTimelineRowsScrolledTogether();
@@ -604,8 +607,7 @@ export class Editor {
         const itemFormType = itemForm.dataset["annotationType"];
         const itemFormId = itemForm.dataset["annotationId"];
         if (annotationType == itemFormType && annotationId == itemFormId) {
-          const detailForm = document.getElementById("detail-form");
-          detailForm.innerHTML = "";
+          this.deselectItem();
         }
       }
       this.placeTrackItems();
@@ -840,17 +842,20 @@ export class Editor {
       const annotationType = responseData.annotation_type;
       const annotationId = String(responseData.annotation_id);
       const detailForm = document.getElementById("detail-form");
+      // A save can land after the user has deselected or moved to another item, and that
+      // newer selection has to keep its highlight.
+      const formShowsThisItem = replaceForm || this.syncOpenFormToVersion(responseData, previousAnnotationId);
       if (replaceForm) {
         detailForm.innerHTML = responseData.form_html;
         this.setUpLoadedItemForm(annotationType, annotationId);
-      } else {
-        this.syncOpenFormToVersion(responseData, previousAnnotationId);
       }
 
       if (!placed) {
         return false;
       }
-      this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      if (formShowsThisItem) {
+        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      }
       return true;
     }
 
@@ -1344,6 +1349,63 @@ export class Editor {
       if (startTime && !isNaN(startTime)) {
         this.video.currentTime = startTime;
       }
+    }
+
+    deselectItem() {
+      if (!document.getElementById("existing-item-form")) {
+        return;
+      }
+
+      // querySelectorAll returns a static list. getElementsByClassName's list is live, so removing
+      // the class mid-loop would drop items from it and skip some.
+      for (let panelItem of document.querySelectorAll(".active-panel-item")) {
+        const annotationType = panelItem.dataset["annotationType"];
+        panelItem.classList.remove(`${annotationType}-list-item-wrapper-selected`, "active-panel-item");
+      }
+      this.timelineWrapper.querySelector(".active-track-item")?.classList.remove("active-track-item");
+
+      document.getElementById("detail-form").innerHTML = this.itemFormPlaceholderHTML;
+      this.setUpItemForm();
+    }
+
+    watchForClickOnEmptySpace() {
+      // Matched against the click target itself, so clicks on items, buttons, menus, and
+      // dialogs nested inside these containers keep their own behavior.
+      const emptySpaceSelector = [
+        ".track-row-annotations-container",
+        ".timeline-track-row-right",
+        "#editor-annotation-panel",
+        "#annotation-groups-wrapper",
+        ".annotation-type-wrapper",
+        ".annotation-type-list",
+        ".annotation-items-list",
+      ].join(", ");
+      document.addEventListener("click", (e) => {
+        if (e.target.matches(emptySpaceSelector)) {
+          this.deselectItem();
+        }
+      });
+    }
+
+    watchForEscapeToDeselect() {
+      document.addEventListener("keydown", (e) => {
+        // Anything else that uses Escape (menus, comboboxes, rigs) handles it first and calls
+        // preventDefault(), so it closes that thing instead of also deselecting. New Escape
+        // handlers should do the same rather than being added to the checks below.
+        if (e.key !== "Escape" || e.defaultPrevented) {
+          return;
+        }
+        // Escape already means "cancel this edit" in text fields and "close" in dialogs.
+        const isTextEntry = e.target.matches?.("input, textarea, select, [contenteditable='true']");
+        if (isTextEntry || document.querySelector("dialog[open]")) {
+          return;
+        }
+        // Mid-gesture, Escape abandons the gesture; BlurEditor's handler for that runs after this one.
+        if (this.blurEditor.gesture || this.commentRigDragging || this.dragState || this.isDragging) {
+          return;
+        }
+        this.deselectItem();
+      });
     }
 
     setUpPanelItemClickListeners() {
