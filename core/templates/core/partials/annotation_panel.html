@@ -3,21 +3,26 @@
 <div id="editor-annotation-panel"
      class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
     <div id="annotation-panel-header" class="row-flex flex-apart-aligned">
-        <div id="annotation-set-title-wrapper"
-             class="row-flex flex-apart-aligned"
-             data-annotation-set-id="{{ annotation_set.id }}">
-            <span id="annotation-set-title">{{ annotation_set.name }}</span>
+        <div id="annotation-set-heading" class="column-flex-no-gap">
+            <div id="annotation-set-title-wrapper"
+                 class="row-flex flex-apart-aligned"
+                 data-annotation-set-id="{{ annotation_set.id }}">
+                <span id="annotation-set-title">{{ annotation_set.name }}</span>
+                {% if can_edit %}
+                    <input id="annotation-set-title-input"
+                           class="hidden"
+                           value="{{ annotation_set.name }}"
+                           aria-label="Input annotation set name">
+                    <button id="annotation-set-edit-button"
+                            class="item-form-icon-button"
+                            aria-label="Rename this annotation set"
+                            title="Rename this annotation set">
+                        <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
+                    </button>
+                {% endif %}
+            </div>
             {% if can_edit %}
-                <input id="annotation-set-title-input"
-                       class="hidden"
-                       value="{{ annotation_set.name }}"
-                       aria-label="Input annotation set name">
-                <button id="annotation-set-edit-button"
-                        class="item-form-icon-button"
-                        aria-label="Rename this annotation set"
-                        title="Rename this annotation set">
-                    <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
-                </button>
+                {% include "core/partials/save_status.html" with status_id="annotation-save-status" %}
             {% endif %}
         </div>
         <div id="annotation-set-settings-menu-wrapper"
@@ -51,6 +56,18 @@
             {% include 'core/partials/annotation_set_retirement_modal.html' %}
         {% endif %}
     </div>
+    <div id="tools-header" class="row-flex flex-apart-aligned">
+        <span id="tools-header-title">Tools</span>
+        <button id="tools-info-open-button"
+                class="item-form-icon-button"
+                command="show-modal"
+                commandfor="tools-info-modal"
+                aria-label="Tools information">
+            <span aria-hidden="true">ⓘ</span>
+        </button>
+    </div>
+    {% include "core/partials/modals/tools_info.html" with dialog_id="tools-info-modal" %}
+
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}
             <div id="{{ group.type }}-annotation-type-wrapper"

@@ -21,6 +21,7 @@ a template exists that no test here renders and no exclusion explains.
 from pathlib import Path
 
 from playwright.sync_api import Page
+from playwright.sync_api import expect
 import pytest
 
 from core.models import Content
@@ -749,6 +750,39 @@ def test_the_blur_editing_ui_has_no_a11y_violations(page: Page, open_editor):
     )
 
 
+def test_the_save_status_has_no_a11y_violations(page: Page, open_editor):
+    """The autosave line under the annotation set title, in each state, and its help dialog.
+
+    The line is empty until something is saved, and its failed state and help button only
+    exist after a save is refused, so neither is reached by the panel audits above.
+    """
+    from core.models import MuteAnnotation
+
+    content = open_editor()
+    mute = MuteAnnotation.objects.filter(
+        track__annotation_set=content.annotation_set, active=True
+    ).first()
+    page.locator(f"#mute-{mute.pk} .track-item-content").click()
+    status = page.locator("#annotation-save-status")
+
+    page.locator("#annotation_name").fill("Saved name")
+    page.locator("#description").click()
+    expect(status).to_contain_text("Changes saved")
+    assert_no_violations(page, "the saved status", include=["#annotation-save-status"])
+
+    page.route("**/annotations/mute/*/update/", lambda route: route.fulfill(status=500))
+    page.locator("#annotation_name").fill("Refused name")
+    page.locator("#description").click()
+    expect(status).to_contain_text("Save failed")
+    assert_no_violations(page, "the failed status", include=["#annotation-save-status"])
+
+    status.locator(".save-status-help").click()
+    expect(page.locator("#save-failed-help-modal")).to_be_visible()
+    assert_no_violations(
+        page, "the save failed help dialog", include=["#save-failed-help-modal"]
+    )
+
+
 def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     logged_in_page: Page, live_server, content_with_every_annotation_type
 ):
@@ -798,6 +832,20 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
         )
         assert_no_violations(page, f"the {description} view", include=["dialog[open]"])
         page.locator("#annotation-set-modal-back").click()
+
+
+def test_the_editor_tools_info_dialog_has_no_a11y_violations(
+    logged_in_page: Page, live_server, content_with_every_annotation_type
+):
+    page = logged_in_page
+    page.goto(
+        f"{live_server.url}/video-editor/{content_with_every_annotation_type.pk}/"
+    )
+    page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
+
+    page.locator("#tools-info-open-button").click()
+    page.wait_for_selector("#tools-info-modal", state="visible")
+    assert_no_violations(page, "the tools info dialog", include=["dialog[open]"])
 
 
 def test_the_editor_timeline_controls_have_no_a11y_violations(
@@ -1081,6 +1129,7 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_members_list.html",
     "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
+    "core/partials/modals/tools_info.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
     "core/partials/modals/user_view_modal.html",
@@ -1097,6 +1146,8 @@ AUDITED_TEMPLATES = {
     "core/partials/annotation_set_selector.html",
     "core/partials/annotation_set_retirement_modal.html",
     "core/partials/blur_anchor_points.html",
+    "core/partials/modals/save_failed_help.html",
+    "core/partials/save_status.html",
     "core/partials/item.html",
     "core/partials/item_form_placeholder.html",
     "core/partials/item_undo_redo_buttons.html",
