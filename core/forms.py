@@ -9,10 +9,12 @@ from .api import Api
 from .model_utils import update_user_enrollment
 from .models import Clip
 from .models import Content
+from .models import Language
 from .models import Playlist
 from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
+from .subtitle_uploads import build_subtitle_file_from_upload
 from .utils import hms2seconds
 
 logger = logging.getLogger(__name__)
@@ -115,20 +117,142 @@ class ClipForm(forms.ModelForm):
         return cleaned_data
 
 
-class SubtitleForm(forms.ModelForm):
+class SubtitleAdminForm(forms.ModelForm):
+    subtitles_file = forms.FileField(allow_empty_file=True)
+    subtitles_temp_file = forms.FileField(required=False, allow_empty_file=True)
+
     class Meta:
         model = Subtitle
-        fields = [
-            "resource",
-            "owner",
-            "language",
-            "name",
-            "subtitles_file",
-            "is_original",
-        ]
+        fields = "__all__"
 
-    resource = forms.CharField(widget=forms.HiddenInput)
-    owner = forms.CharField(widget=forms.HiddenInput)
+    def _clean_subtitle_upload(self, field_name):
+        upload = self.cleaned_data.get(field_name)
+        if self.add_prefix(field_name) not in self.files:
+            return upload
+        return build_subtitle_file_from_upload(upload)
+
+    def clean_subtitles_file(self):
+        return self._clean_subtitle_upload("subtitles_file")
+
+    def clean_subtitles_temp_file(self):
+        return self._clean_subtitle_upload("subtitles_temp_file")
+
+
+class SubtitleUpdateForm(forms.Form):
+    duplicate_name_error = (
+        "A subtitle track with this name, language, and owner already exists "
+        "for this resource. Choose a different name."
+    )
+
+    name = forms.CharField(label="Subtitle track name", max_length=255, strip=True)
+    language = forms.ModelChoiceField(queryset=Language.objects.all())
+    subtitles_file = forms.FileField(
+        label="Subtitle file (optional)",
+        required=False,
+        allow_empty_file=True,
+        widget=forms.FileInput(attrs={"accept": ".vtt,.srt"}),
+        help_text="Upload a .vtt or .srt file up to 5 MiB.",
+    )
+
+    def __init__(self, *args, subtitle, **kwargs):
+        kwargs.setdefault("auto_id", "subtitle-track-edit-%s")
+        super().__init__(*args, **kwargs)
+        self.subtitle = subtitle
+
+    def clean_subtitles_file(self):
+        upload = self.cleaned_data.get("subtitles_file")
+        if upload is None:
+            return None
+        return build_subtitle_file_from_upload(upload)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        name = cleaned_data.get("name")
+        language = cleaned_data.get("language")
+        if name and language:
+            duplicates = Subtitle.objects.filter(
+                resource_id=self.subtitle.resource_id,
+                owner_id=self.subtitle.owner_id,
+                language=language,
+                name=name,
+            ).exclude(pk=self.subtitle.pk)
+            if duplicates.exists():
+                self.add_error("name", self.duplicate_name_error)
+        return cleaned_data
+
+
+class SubtitleCreateForm(SubtitleUpdateForm):
+    subtitles_file = None
+
+    def __init__(self, *args, resource=None, owner=None, **kwargs):
+        kwargs.setdefault("auto_id", "subtitle-track-create-%s")
+        super().__init__(
+            *args, subtitle=Subtitle(resource=resource, owner=owner), **kwargs
+        )
+
+    def clean(self):
+        for field_name in ("name", "language"):
+            key = self.add_prefix(field_name)
+            if key in self.data and not isinstance(self.data.get(key), str):
+                self.add_error(field_name, f"'{field_name}' must be a string.")
+        return super().clean()
+
+
+class _SubtitleCopySourceChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return f"{obj.name} ({obj.language.bcp47})"
+
+
+class SubtitleCopyForm(forms.Form):
+    duplicate_name_error = SubtitleUpdateForm.duplicate_name_error
+
+    source_id = _SubtitleCopySourceChoiceField(
+        label="Track to copy",
+        queryset=Subtitle.objects.none(),
+        empty_label="Select a subtitle track",
+    )
+    name = forms.CharField(label="New subtitle track name", max_length=255, strip=True)
+
+    def __init__(self, *args, resource=None, source=None, owner=None, **kwargs):
+        kwargs.setdefault("auto_id", "subtitle-track-copy-%s")
+        super().__init__(*args, **kwargs)
+        self.owner = owner
+        if resource is None and source is not None:
+            resource = source.resource
+        if resource is not None:
+            self.fields["source_id"].queryset = (
+                Subtitle.objects.using(resource._state.db)
+                .filter(resource=resource)
+                .select_related("language", "resource")
+            )
+        if source is not None:
+            self.initial["source_id"] = source.pk
+            if self.is_bound:
+                self.data = self.data.copy()
+                self.data[self.add_prefix("source_id")] = source.pk
+
+    def clean_source_id(self):
+        source = self.cleaned_data["source_id"]
+        if self.owner is None or not source.can_be_read_by(self.owner):
+            raise ValidationError(
+                "Select a subtitle track you have permission to read."
+            )
+        return source
+
+    def clean(self):
+        cleaned_data = super().clean()
+        source = cleaned_data.get("source_id")
+        name = cleaned_data.get("name")
+        if source is not None and name and self.owner is not None:
+            duplicates = Subtitle.objects.using(source._state.db).filter(
+                resource_id=source.resource_id,
+                owner=self.owner,
+                language_id=source.language_id,
+                name=name,
+            )
+            if duplicates.exists():
+                self.add_error("name", self.duplicate_name_error)
+        return cleaned_data
 
 
 class ResourceIntakeRequestForm(forms.ModelForm):

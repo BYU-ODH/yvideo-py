@@ -8,7 +8,6 @@ from django.contrib import admin
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db import transaction
 from django.http import HttpResponseRedirect
@@ -21,6 +20,7 @@ from reversion.admin import VersionAdmin
 # migration admin has to be imported here for its @admin.register calls to run.
 from . import admin_legacy_migration  # noqa: F401
 from .forms import AddUserLookupForm
+from .forms import SubtitleAdminForm
 from .models import AnnotationSet
 from .models import AuthToken
 from .models import BlankAnnotation
@@ -47,7 +47,6 @@ from .models import Track
 from .models import User
 from .models import UserCourses
 from .models import YearTerm
-from .utils import convert_srt_content_to_vtt
 
 logger = logging.getLogger(__name__)
 
@@ -467,7 +466,11 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
 
             if resource_choice == self.CREATE_RESOURCE:
                 resource_title = cleaned_data.get("resource_title") or ""
-                if Resource.objects.filter(name=resource_title).exists():
+                if Resource.objects.filter(
+                    name=resource_title,
+                    name_disambiguator=cleaned_data.get("resource_name_disambiguator")
+                    or "",
+                ).exists():
                     self.add_error(
                         "resource_to_use",
                         "A Resource with this exact name already exists. Select it or "
@@ -690,6 +693,7 @@ class UserAdmin(VersionAdmin):
 class ResourceAdmin(VersionAdmin):
     list_display = (
         "name",
+        "name_disambiguator",
         "media_type",
         "requester_username",
         "copyrighted",
@@ -697,7 +701,7 @@ class ResourceAdmin(VersionAdmin):
         "created_at",
     )
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
-    search_fields = ("name",)
+    search_fields = ("name", "name_disambiguator")
 
     class Media:
         js = ("js/admin_call_number.js",)
@@ -722,6 +726,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
     change_form_template = "admin/core/resourceintakerequest/change_form.html"
     list_display = (
         "resource_title",
+        "resource_name_disambiguator",
         "owner",
         "date_needed",
         "existing_matches_summary",
@@ -741,6 +746,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                 "fields": (
                     ("owner", "date_needed"),
                     "resource_title",
+                    "resource_name_disambiguator",
                     "imdb_link",
                     ("audio_language", "subtitle_language"),
                     (
@@ -818,6 +824,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                 if resource is None:
                     resource = Resource.objects.create(
                         name=obj.resource_title,
+                        name_disambiguator=obj.resource_name_disambiguator,
                         media_type=Resource.MediaType.VIDEO,
                         requester_username=obj.owner.username,
                         physical_copy_exists=True,
@@ -1025,21 +1032,7 @@ class ClipAdmin(VersionAdmin):
 
 @admin.register(Subtitle)
 class SubtitleAdmin(VersionAdmin):
-    def save_model(self, request, obj, form, change):
-        obj.save()
-        file_name_parts = os.path.splitext(obj.subtitles_file.name)
-        file_ext = file_name_parts[1]
-        file_name_split = file_name_parts[0].split("/")
-        file_name = file_name_split[len(file_name_split) - 1]
-        if file_ext == ".srt":
-            vtt_content = convert_srt_content_to_vtt(
-                obj.subtitles_file.read().decode("utf-8")
-            )
-            new_file_name = file_name + ".vtt"
-            obj.subtitles_file.delete()
-            obj.save()
-            obj.subtitles_file = ContentFile(content=vtt_content, name=new_file_name)
-        super().save_model(request, obj, form, change)
+    form = SubtitleAdminForm
 
     list_display = ("name", "language", "owner", "resource", "created_at")
     list_filter = ("language", "created_at")
