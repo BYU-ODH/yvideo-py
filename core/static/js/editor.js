@@ -1356,7 +1356,9 @@ export class Editor {
         return;
       }
 
-      for (let panelItem of [...document.getElementsByClassName("active-panel-item")]) {
+      // querySelectorAll returns a static list. getElementsByClassName's list is live, so removing
+      // the class mid-loop would drop items from it and skip some.
+      for (let panelItem of document.querySelectorAll(".active-panel-item")) {
         const annotationType = panelItem.dataset["annotationType"];
         panelItem.classList.remove(`${annotationType}-list-item-wrapper-selected`, "active-panel-item");
       }
@@ -1387,6 +1389,9 @@ export class Editor {
 
     watchForEscapeToDeselect() {
       document.addEventListener("keydown", (e) => {
+        // Anything else that uses Escape (menus, comboboxes, rigs) handles it first and calls
+        // preventDefault(), so it closes that thing instead of also deselecting. New Escape
+        // handlers should do the same rather than being added to the checks below.
         if (e.key !== "Escape" || e.defaultPrevented) {
           return;
         }

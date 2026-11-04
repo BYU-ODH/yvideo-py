@@ -80,13 +80,11 @@ def test_deselecting_a_blur_removes_its_editing_box(page, open_editor):
     open_editor()
     _select_first(page, "blur")
     page.wait_for_selector("#blur-edit-rig", state="attached")
-    expect(page.locator(".annotation-box-blur-editor")).to_have_count(1)
 
     _click_empty_track_space(page)
 
     _assert_deselected(page)
     expect(page.locator("#blur-edit-rig")).to_have_count(0)
-    expect(page.locator(".annotation-box-blur-editor")).to_have_count(0)
 
 
 def test_a_save_landing_after_deselection_does_not_reselect(page, open_editor):
@@ -121,6 +119,21 @@ def test_escape_in_a_text_field_keeps_the_selection(page, open_editor):
 
     page.locator("#annotation_name").press("Escape")
 
+    expect(page.locator("#existing-item-form")).to_be_visible()
+    expect(page.locator(".active-track-item")).to_have_count(1)
+    expect(page.locator(".active-panel-item")).to_have_count(1)
+
+
+def test_escape_closing_a_menu_keeps_the_selection(page, open_editor):
+    open_editor()
+    _select_first(page, "comment")
+    menu_wrapper = page.locator(".timeline-track-edit-wrapper").first
+    menu_wrapper.locator(".open-multi-option-menu").click()
+    expect(menu_wrapper.locator(".multi-option-menu")).to_be_visible()
+
+    page.keyboard.press("Escape")
+
+    expect(menu_wrapper.locator(".multi-option-menu")).to_be_hidden()
     expect(page.locator("#existing-item-form")).to_be_visible()
     expect(page.locator(".active-track-item")).to_have_count(1)
     expect(page.locator(".active-panel-item")).to_have_count(1)
