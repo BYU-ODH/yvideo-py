@@ -63,6 +63,7 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.lastSavedItemFormState = null;
+        this.itemFormPlaceholderHTML = document.getElementById("detail-form").innerHTML;
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
@@ -131,6 +132,8 @@ export class Editor {
         this.attachTimelineListeners();
         this.attachVideoListeners();
         this.setupTracks();
+        this.watchForClickOnEmptySpace();
+        this.watchForEscapeToDeselect();
         this.watchForTrackCreation();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.keepTimelineRowsScrolledTogether();
@@ -620,9 +623,7 @@ export class Editor {
         const itemFormType = itemForm.dataset["annotationType"];
         const itemFormId = itemForm.dataset["annotationId"];
         if (annotationType == itemFormType && annotationId == itemFormId) {
-          const detailForm = document.getElementById("detail-form");
-          detailForm.innerHTML = "";
-          saveStatus.settle("item-form");
+          this.deselectItem();
         }
       }
       this.placeTrackItems();
@@ -857,17 +858,20 @@ export class Editor {
       const annotationType = responseData.annotation_type;
       const annotationId = String(responseData.annotation_id);
       const detailForm = document.getElementById("detail-form");
+      // A save can land after the user has deselected or moved to another item, and that
+      // newer selection has to keep its highlight.
+      const formShowsThisItem = replaceForm || this.syncOpenFormToVersion(responseData, previousAnnotationId);
       if (replaceForm) {
         detailForm.innerHTML = responseData.form_html;
         this.setUpLoadedItemForm(annotationType, annotationId);
-      } else {
-        this.syncOpenFormToVersion(responseData, previousAnnotationId);
       }
 
       if (!placed) {
         return false;
       }
-      this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      if (formShowsThisItem) {
+        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      }
       return true;
     }
 
@@ -1364,6 +1368,65 @@ export class Editor {
       }
     }
 
+    deselectItem() {
+      // The form is about to be replaced, so any edit it was holding for autosave goes with it.
+      saveStatus.settle("item-form");
+      if (!document.getElementById("existing-item-form")) {
+        return;
+      }
+
+      // querySelectorAll returns a static list. getElementsByClassName's list is live, so removing
+      // the class mid-loop would drop items from it and skip some.
+      for (let panelItem of document.querySelectorAll(".active-panel-item")) {
+        const annotationType = panelItem.dataset["annotationType"];
+        panelItem.classList.remove(`${annotationType}-list-item-wrapper-selected`, "active-panel-item");
+      }
+      this.timelineWrapper.querySelector(".active-track-item")?.classList.remove("active-track-item");
+
+      document.getElementById("detail-form").innerHTML = this.itemFormPlaceholderHTML;
+      this.setUpItemForm();
+    }
+
+    watchForClickOnEmptySpace() {
+      // Matched against the click target itself, so clicks on items, buttons, menus, and
+      // dialogs nested inside these containers keep their own behavior.
+      const emptySpaceSelector = [
+        ".track-row-annotations-container",
+        ".timeline-track-row-right",
+        "#editor-annotation-panel",
+        "#annotation-groups-wrapper",
+        ".annotation-type-wrapper",
+        ".annotation-type-list",
+        ".annotation-items-list",
+      ].join(", ");
+      document.addEventListener("click", (e) => {
+        if (e.target.matches(emptySpaceSelector)) {
+          this.deselectItem();
+        }
+      });
+    }
+
+    watchForEscapeToDeselect() {
+      document.addEventListener("keydown", (e) => {
+        // Anything else that uses Escape (menus, comboboxes, rigs) handles it first and calls
+        // preventDefault(), so it closes that thing instead of also deselecting. New Escape
+        // handlers should do the same rather than being added to the checks below.
+        if (e.key !== "Escape" || e.defaultPrevented) {
+          return;
+        }
+        // Escape already means "cancel this edit" in text fields and "close" in dialogs.
+        const isTextEntry = e.target.matches?.("input, textarea, select, [contenteditable='true']");
+        if (isTextEntry || document.querySelector("dialog[open]")) {
+          return;
+        }
+        // Mid-gesture, Escape abandons the gesture; BlurEditor's handler for that runs after this one.
+        if (this.blurEditor.gesture || this.commentRigDragging || this.dragState || this.isDragging) {
+          return;
+        }
+        this.deselectItem();
+      });
+    }
+
     setUpPanelItemClickListeners() {
       const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
@@ -1705,6 +1768,15 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
+      const trackItems = Array.from(trackRow.querySelectorAll(".track-item"));
+      const itemCount = trackItems.length;
+      if (itemCount > 0) {
+        const items = itemCount === 1 ? "1 annotation" : `${itemCount} annotations`;
+        const message = `Delete track "${trackRow.querySelector(".track-name").innerText}" and its ${items}? This cannot be undone.`;
+        if (!window.confirm(message)) {
+          return;
+        }
+      }
       const trackDeleteResponse = await saveStatus.fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
@@ -1717,10 +1789,30 @@ export class Editor {
         console.error("Failed to delete track");
         return;
       }
+      // Only change the page after the server has confirmed the delete.
+      const jsonData = await trackDeleteResponse.json();
       window.dispatchEvent(this.annotationUpdatedEvent);
 
-      trackRow.remove();
+      // The annotation panel lists the same items as the tracks, but it is not
+      // redrawn with the tracks. Remove the deleted items from it here so the two stay in sync.
+      for (const item of trackItems) {
+        document.getElementById(`${item.dataset["annotationType"]}-panel-item-${item.dataset["annotationId"]}`)?.remove();
+      }
+      const itemForm = document.getElementById("existing-item-form");
+      const formItemWasDeleted = itemForm && trackItems.some(item =>
+        item.dataset["annotationType"] == itemForm.dataset["annotationType"]
+        && item.dataset["annotationId"] == itemForm.dataset["annotationId"]
+      );
+      if (formItemWasDeleted) {
+        document.getElementById("detail-form").innerHTML = "";
+        saveStatus.settle("item-form");
+        this.changeAnnotationInFocus();
+      }
+
+      this.replaceTracksWithNewHTML(jsonData["tracks_html"]);
       this.updateTracks();
+      this.placeTrackItems();
+      this.adjustScrubberHeight();
     }
 
     watchForTrackDelete(trackRootElement) {
