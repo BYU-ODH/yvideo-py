@@ -100,6 +100,7 @@ class ResourceFactory(factory.django.DjangoModelFactory):
         model = Resource
 
     name = factory.Sequence(lambda n: f"Demo Resource {n}")
+    name_disambiguator = ""
     media_type = Resource.MediaType.VIDEO
     requester_username = factory.Sequence(lambda n: f"req{n:05d}"[:8])
     copyrighted = False
@@ -269,10 +270,9 @@ class CommentAnnotationFactory(factory.django.DjangoModelFactory):
     end_time = 18.0
     description = "Comment overlay"
     text = "Demo comment"
-    top_left_x = 0.0
-    top_left_y = 0.0
-    bottom_right_x = 100.0
-    bottom_right_y = 10.0
+    x = 0.0
+    y = 0.0
+    width = 100.0
     font_size_in_rem = 1.0
     font_color = "ffffff"
 
@@ -303,7 +303,6 @@ class SubtitleFactory(factory.django.DjangoModelFactory):
             content_type="text/vtt",
         )
     )
-    is_original = True
 
 
 class ResourceFileKeyFactory(factory.django.DjangoModelFactory):

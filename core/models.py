@@ -16,6 +16,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 import xxhash
 
+from .subtitle_uploads import validate_subtitle_file
 from .utils import estimate_current_yearterm
 from .utils import seconds2hms
 
@@ -75,7 +76,16 @@ class Resource(models.Model):
         WEB = ("www", "Web")
         AUDIO = ("aud", "Audio")
 
-    name = models.CharField(max_length=255, unique=True)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "name_disambiguator"],
+                name="unique_resource_name_and_disambiguator",
+            ),
+        ]
+
+    name = models.CharField(max_length=255)
+    name_disambiguator = models.CharField(max_length=200, blank=True, default="")
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
     requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
@@ -113,7 +123,9 @@ class Resource(models.Model):
     )
 
     def __str__(self):
-        return f"{self.name}"
+        if self.name_disambiguator:
+            return f"{self.name} ({self.name_disambiguator})"
+        return self.name
 
     @property
     def belongs_to_byu_library(self):
@@ -883,10 +895,7 @@ class Content(models.Model):
     allow_definitions = models.BooleanField(default=True)
     allow_captions = models.BooleanField(default=True)
     allow_fast_playback = models.BooleanField(default=True)
-    clips_only = models.BooleanField(
-        default=False,
-        verbose_name="Show only clips defined in the editor (better Fair Use protection)",
-    )
+    clips_only = models.BooleanField(default=False)
     views = models.IntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -963,16 +972,28 @@ class Content(models.Model):
             return []
         sub_objs = Subtitle.objects.filter(resource=resource)
         default_id = self.default_subtitle_track_id
-        subtitles = [
-            {
-                "id": sub.pk,
-                "srclang": sub.language.bcp47,
-                "vtt": sub.subtitles_file.read().decode("utf-8"),
-                "name": sub.name,
-                "default": sub.pk == default_id,
-            }
-            for sub in sub_objs
-        ]
+        subtitles = []
+        for sub in sub_objs:
+            vtt = ""
+            try:
+                with sub.subtitles_file.open("rb") as subtitle_file:
+                    vtt = subtitle_file.read().decode("utf-8-sig")
+            except (OSError, ValueError) as exception:
+                logger.warning(
+                    "Could not read subtitle track %s for content %s: %s",
+                    sub.pk,
+                    self.pk,
+                    exception,
+                )
+            subtitles.append(
+                {
+                    "id": sub.pk,
+                    "srclang": sub.language.bcp47,
+                    "vtt": vtt,
+                    "name": sub.name,
+                    "default": sub.pk == default_id,
+                }
+            )
         return subtitles
 
     def has_clips(self):
@@ -989,13 +1010,6 @@ class Content(models.Model):
         return Clip.objects.filter(
             track__annotation_set_id=self.annotation_set_id, active=True
         ).exists()
-
-    def get_subtitle_options(self):
-        """Get (id, name) pairs for every subtitle on this content's resource, for use in selection UI."""
-        resource = self.get_resource()
-        if not resource:
-            return []
-        return list(Subtitle.objects.filter(resource=resource).values("id", "name"))
 
     def get_player_json(self):
         """
@@ -1328,6 +1342,18 @@ class PauseAnnotation(BaseAnnotation):
         return obj
 
 
+FONT_COLOR_PRESETS = [
+    ("Black", "000000"),
+    ("White", "ffffff"),
+    ("Dark gray", "333333"),
+    ("Blue", "0066cc"),
+    ("Red", "d32f2f"),
+    ("Green", "2e7d32"),
+    ("Orange", "d35400"),
+    ("Yellow", "f9a825"),
+]
+
+
 def validate_font_color(hexcode):
     # font color must be at least 3 characters or 6 characters.
     font_color_length = len(hexcode)
@@ -1344,26 +1370,56 @@ def validate_font_color(hexcode):
             )
 
 
+def clamp_rect(x, y, width, height, *, min_width, min_height, precision):
+    """Keep a box of frame percentages on the frame, as the editor's clampRect() does.
+
+    Size is settled first, then the origin is pulled in far enough to keep the whole box on screen.
+    Rounding is applied to the *result* of each clamp, and x and y are clamped against the already
+    rounded width and height, which is what keeps `x + width` landing on exactly 100 for a box
+    against the right edge.
+    """
+    width = round(min(100.0, max(min_width, float(width))), precision)
+    height = round(min(100.0, max(min_height, float(height))), precision)
+    x = round(min(100.0 - width, max(0.0, float(x))), precision)
+    y = round(min(100.0 - height, max(0.0, float(y))), precision)
+    return x, y, width, height
+
+
+COMMENT_MIN_WIDTH = 3.0
+# There is no stored height, so this is only the strip of the box that clamping keeps on the frame
+# to grab it by.
+COMMENT_MIN_HEIGHT = 3.0
+COMMENT_GEOMETRY_PRECISION = 2
+
+
 class CommentAnnotation(BaseAnnotation):
-    """Comment annotation with text and position."""
+    """Comment annotation with text and position.
+
+    x/y are the box's TOP-LEFT corner and x, y, and width are percentages of the rendered video
+    frame, as for BlurAnchorPoint. There is no height: the box is as tall as its wrapped text.
+    """
 
     text = models.TextField(default="This is where your comment will show")
-    top_left_x = models.FloatField(default=0.0)
-    top_left_y = models.FloatField(default=0.0)
-    bottom_right_x = models.FloatField(default=100.0)
-    bottom_right_y = models.FloatField(default=10.0)
+    x = models.FloatField(default=0.0)
+    y = models.FloatField(default=0.0)
+    width = models.FloatField(default=100.0)
     font_size_in_rem = models.FloatField(default=1)
     font_color = models.CharField(
         max_length=6, default="ffffff", validators=[validate_font_color]
     )
 
-    @property
-    def height(self):
-        return (self.bottom_right_y - self.top_left_y) + "%"
-
-    @property
-    def width(self):
-        return (self.bottom_right_x - self.top_left_x) + "%"
+    def save(self, *args, **kwargs):
+        """Clamp so the box always starts on the frame, as BlurAnchorPoint.save() does."""
+        self.x, self.y, self.width, _ = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            0.0,
+            min_width=COMMENT_MIN_WIDTH,
+            min_height=COMMENT_MIN_HEIGHT,
+            precision=COMMENT_GEOMETRY_PRECISION,
+        )
+        super().save(*args, **kwargs)
 
     def to_player_json(self):
         """Override: include text and coordinates."""
@@ -1371,10 +1427,9 @@ class CommentAnnotation(BaseAnnotation):
         data.update(
             {
                 "text": self.text,
-                "top_left_x": self.top_left_x,
-                "top_left_y": self.top_left_y,
-                "bottom_right_x": self.bottom_right_x,
-                "bottom_right_y": self.bottom_right_y,
+                "x": self.x,
+                "y": self.y,
+                "width": self.width,
                 "font_size_in_rem": self.font_size_in_rem,
                 "font_color": self.font_color,
             }
@@ -1384,10 +1439,9 @@ class CommentAnnotation(BaseAnnotation):
     def copy_to_new_annotation_set(self, annotation_set):
         new_annotation = super().copy_to_new_annotation_set(annotation_set)
         new_annotation.text = self.text
-        new_annotation.top_left_x = self.top_left_x
-        new_annotation.top_left_y = self.top_left_y
-        new_annotation.bottom_right_x = self.bottom_right_x
-        new_annotation.bottom_right_y = self.bottom_right_y
+        new_annotation.x = self.x
+        new_annotation.y = self.y
+        new_annotation.width = self.width
         new_annotation.font_size_in_rem = self.font_size_in_rem
         new_annotation.font_color = self.font_color
         new_annotation.save()
@@ -1397,10 +1451,16 @@ class CommentAnnotation(BaseAnnotation):
     def from_import(cls, imported_data, track):
         new_annotation = super().from_import(imported_data, track)
         new_annotation.text = imported_data.get("text", "Your comment here")
-        new_annotation.top_left_x = imported_data.get("top_left_x", 50.0)
-        new_annotation.top_left_y = imported_data.get("top_left_y", 50.0)
-        new_annotation.bottom_right_x = imported_data.get("bottom_right_x", 60.0)
-        new_annotation.bottom_right_y = imported_data.get("bottom_right_y", 60.0)
+        # Files exported before x/y/width replaced the two corners still carry the corners.
+        x = imported_data.get("x", imported_data.get("top_left_x", 50.0))
+        new_annotation.x = x
+        new_annotation.y = imported_data.get("y", imported_data.get("top_left_y", 50.0))
+        if "width" in imported_data:
+            new_annotation.width = imported_data["width"]
+        else:
+            right = imported_data.get("bottom_right_x", x + 10.0)
+            # Inverted corners rendered with the text running to the frame's right edge.
+            new_annotation.width = right - x if right > x else 100.0 - x
         new_annotation.font_size_in_rem = imported_data.get("font_size_in_rem", 1.0)
         new_annotation.font_color = imported_data.get("font_color", "abcdef")
         new_annotation.save()
@@ -1677,24 +1737,17 @@ class BlurAnchorPoint(models.Model):
         the user's work; a rejection here would also have to be surfaced mid-drag, which there
         is nowhere good to do.
 
-        Rounding is applied to the *result* of each clamp rather than to the incoming value, so
-        the guarantee is about what gets stored: whatever the clamp arithmetic produces, the
-        column ends up at 2dp. x and y are clamped against the already rounded width and height,
-        which is what keeps `x + width` landing on exactly 100 for a box against the right edge.
+        See clamp_rect for how the geometry is rounded.
         """
         self.time = round(float(self.time), BLUR_TIME_PRECISION)
-        self.width = round(
-            min(100.0, max(BLUR_MIN_WIDTH, float(self.width))), BLUR_GEOMETRY_PRECISION
-        )
-        self.height = round(
-            min(100.0, max(BLUR_MIN_HEIGHT, float(self.height))),
-            BLUR_GEOMETRY_PRECISION,
-        )
-        self.x = round(
-            min(100.0 - self.width, max(0.0, float(self.x))), BLUR_GEOMETRY_PRECISION
-        )
-        self.y = round(
-            min(100.0 - self.height, max(0.0, float(self.y))), BLUR_GEOMETRY_PRECISION
+        self.x, self.y, self.width, self.height = clamp_rect(
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+            min_width=BLUR_MIN_WIDTH,
+            min_height=BLUR_MIN_HEIGHT,
+            precision=BLUR_GEOMETRY_PRECISION,
         )
         super().save(*args, **kwargs)
 
@@ -1904,22 +1957,6 @@ def subtitle_file_upload_path(instance, filename):
         return f"{instance.resource.name}/subtitles/{filename}"
 
 
-def subtitle_temp_file_upload_path(instance):
-    """Generate upload path to media/<resource name>/subtitles/<filename>"""
-    if isinstance(instance, Subtitle):
-        return f"{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
-
-
-def validate_subtitle_file(file):
-    """Ensure filetype is .vtt or .srt"""
-    file_name_split = os.path.splitext(file.name)
-    file_ext = file_name_split[1]
-    if file_ext != ".vtt" and file_ext != ".srt":
-        raise ValidationError(
-            f"Subtitles must be .vtt or .srt format. Format provided: {file_ext}"
-        )
-
-
 class Subtitle(models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="subtitles"
@@ -1935,13 +1972,6 @@ class Subtitle(models.Model):
         upload_to=subtitle_file_upload_path,
         validators=[validate_subtitle_file],
     )
-    subtitles_temp_file = models.FileField(
-        upload_to=subtitle_temp_file_upload_path,
-        validators=[validate_subtitle_file],
-        null=True,
-        blank=True,
-    )
-    is_original = models.BooleanField(null=False, blank=False, default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -2025,6 +2055,14 @@ def get_date_5_days_from_now():
 
 
 class ResourceIntakeRequest(models.Model):
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource_title", "resource_name_disambiguator"],
+                name="unique_resource_title_and_disambiguator",
+            )
+        ]
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -2040,6 +2078,11 @@ class ResourceIntakeRequest(models.Model):
 
     # Resource-specific fields
     resource_title = models.CharField(default="")
+    resource_name_disambiguator = models.CharField(
+        blank=True,
+        default="",
+        help_text="Provide some information that would differentiate this resource from another of the same name (e.g. release year, starting actor/actress, or director)",
+    )
     imdb_link = models.URLField(default="", blank=True)
     audio_language = models.CharField(default="", blank=True)
     subtitle_language = models.CharField(default="", blank=True)

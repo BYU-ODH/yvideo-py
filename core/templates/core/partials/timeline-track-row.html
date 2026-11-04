@@ -16,29 +16,29 @@
                        maxlength="50" />
             </div>
         </div>
-        <div class="timeline-track-edit-wrapper multi-select-menu-parent">
-            <div class="multi-select-menu">
-                <button class="multi-select-menu-button track-menu-rename"
-                        aria-label="Rename track {{ track.name }}">Rename</button>
-                {% if track.stack_position != 0 %}
-                    <button class="multi-select-menu-button track-menu-move-up"
-                            aria-label="Move track {{ track.name }} up">Move Up</button>
-                {% endif %}
-                {% if not track.is_final_stack_position %}
-                    <button class="multi-select-menu-button track-menu-move-down"
-                            aria-label="Move track {{ track.name }} down">Move Down</button>
-                {% endif %}
-                {% if track.stack_position != 0 %}
-                    <button class="multi-select-menu-button track-menu-delete"
-                            aria-label="Delete track {{ track.name }}">Delete</button>
-                {% endif %}
-            </div>
-            <button class="editor-menu-button open-multi-select-button"
+        <div class="timeline-track-edit-wrapper multi-option-menu-wrapper">
+            <button class="editor-menu-button open-multi-option-menu"
                     aria-label="Show options menu for track {{ track.name }}">
                 <img class="timeline-track-icon"
                      src="{% static 'img/dots_menu_white.svg' %}"
                      alt="">
             </button>
+            <div class="multi-option-menu">
+                <button class="multi-option-menu-button track-menu-rename"
+                        aria-label="Rename track {{ track.name }}">Rename</button>
+                {% if track.stack_position != 0 %}
+                    <button class="multi-option-menu-button track-menu-move-up"
+                            aria-label="Move track {{ track.name }} up">Move Up</button>
+                {% endif %}
+                {% if not track.is_final_stack_position %}
+                    <button class="multi-option-menu-button track-menu-move-down"
+                            aria-label="Move track {{ track.name }} down">Move Down</button>
+                {% endif %}
+                {% if track.stack_position != 0 %}
+                    <button class="multi-option-menu-button track-menu-delete"
+                            aria-label="Delete track {{ track.name }}">Delete</button>
+                {% endif %}
+            </div>
         </div>
     </div>
     <div class="timeline-row-right timeline-row-right-dark timeline-track-row-right">

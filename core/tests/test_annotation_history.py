@@ -40,10 +40,9 @@ class AnnotationHistoryModelTests(TestCase):
                 track=self.track,
                 description="comment",
                 text="Original text",
-                top_left_x=11,
-                top_left_y=12,
-                bottom_right_x=51,
-                bottom_right_y=52,
+                x=11,
+                y=12,
+                width=40,
                 font_size_in_rem=1.5,
                 font_color="abcdef",
             ),
@@ -174,10 +173,9 @@ class AnnotationHistoryViewTests(TestCase):
             "end_time": 9.5,
             "description": "Updated description",
             "text": "After",
-            "top_left_x": 1,
-            "top_left_y": 2,
-            "bottom_right_x": 80,
-            "bottom_right_y": 40,
+            "x": 1,
+            "y": 2,
+            "width": 79,
             "font_size_in_rem": 2,
             "font_color": "123abc",
         }
@@ -224,6 +222,18 @@ class AnnotationHistoryViewTests(TestCase):
         self.assertEqual(updated.end_time, 9.5)
         self.assertIn('value="0:00:03.50"', data["form_html"])
         self.assertIn('value="0:00:09.50"', data["form_html"])
+
+    def test_update_rejects_an_invalid_font_color(self):
+        for font_color in ["12", "abcd", "abcdefa", "#abcdef", "ggg"]:
+            with self.subTest(font_color=font_color):
+                response = self.update_annotation(font_color=font_color)
+
+                self.assertEqual(response.status_code, 400)
+                self.annotation.refresh_from_db()
+                self.assertTrue(self.annotation.active)
+                self.assertEqual(
+                    CommentAnnotation.objects.filter(prev=self.annotation).count(), 0
+                )
 
     def test_undo_and_redo_return_the_new_active_version(self):
         update_response = self.update_annotation()

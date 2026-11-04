@@ -43,7 +43,28 @@
             {% endcomment %}
             <div id="clips-only-form-group"
                  class="content-settings-form-group{% if content.clips_only and not content_has_clips %} clips-only-invalid{% endif %}">
-                <label for="clips-only">Show only clips defined in the editor (better Fair Use protection):</label>
+                {# The info button sits outside the label because a label may not contain another labelable element. #}
+                <div class="label-with-info">
+                    <label for="clips-only">Clips only:</label>
+                    <button type="button"
+                            id="clips-only-info-button"
+                            class="info-button"
+                            popovertarget="clips-only-info"
+                            aria-label="About clips only"
+                            title="About clips only">
+                        <span aria-hidden="true">ⓘ</span>
+                    </button>
+                    <div id="clips-only-info" class="info-popover" popover>
+                        <p>
+                            When this setting is turned on, viewers can only watch the parts of this video that are defined as clips in the video editor.
+                            Playback pauses at the end of each clip. Seeking to a point outside every clip moves to the closest start or end of a clip.
+                        </p>
+                        <p>
+                            Showing only the portions of a video needed for instruction gives better Fair Use protection when using copyrighted material.
+                        </p>
+                        <p>If no clips are defined, turning this setting on will prevent viewers from being able to watch any part of the video.</p>
+                    </div>
+                </div>
                 <input id="clips-only"
                        type="checkbox"
                        {% if content.clips_only %}checked{% endif %}

@@ -35,6 +35,7 @@ from ..models import SkipAnnotation
 from ..models import Subtitle
 from ..models import Track
 from ..models import User
+from ..subtitle_uploads import build_subtitle_vtt
 from .catalog import LegacyCatalogClient
 from .dump import run_legacy_dump
 from .file_index import ChecksumCache
@@ -55,7 +56,6 @@ from .models import LegacyMigrationUserResolution
 from .models import LegacyMigrationUserResolutionStatus
 from .models import LegacySourceMap
 from .parsers import LegacyFileInfo
-from .parsers import build_subtitle_vtt
 from .parsers import build_user_fingerprint
 from .parsers import make_json_safe
 from .parsers import map_legacy_media_type
@@ -1444,10 +1444,13 @@ class LegacyMigrationService:
                 )
             elif model_class is CommentAnnotation:
                 position = legacy_event.get("position") or {}
+                x = float(position.get("x", 0) or 0)
                 annotation = model_class.objects.create(
                     text=legacy_event.get("comment") or legacy_event.get("text") or "",
-                    top_left_x=float(position.get("x", 0) or 0),
-                    top_left_y=float(position.get("y", 0) or 0),
+                    x=x,
+                    y=float(position.get("y", 0) or 0),
+                    # Legacy comments had no width; their text ran to the frame's right edge.
+                    width=100.0 - x,
                     **common_kwargs,
                 )
             elif model_class is BlankAnnotation:
@@ -1510,7 +1513,6 @@ class LegacyMigrationService:
                 "owner": self._get_target_owner(request_obj),
                 "language": language,
                 "name": subtitle_row["title"] or language.language,
-                "is_original": True,
             }
             vtt_content = build_subtitle_vtt(subtitle_row["content"])
             with transaction.atomic():

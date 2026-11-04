@@ -416,10 +416,9 @@ def create_demo_data():
         end_time=15.0,
         description="Prompt students to compare the birds' motion.",
         text="Notice how the group gathers before the turn.",
-        top_left_x=42.0,
-        top_left_y=28.0,
-        bottom_right_x=20.0,
-        bottom_right_y=10.0,
+        x=42.0,
+        y=28.0,
+        width=30.0,
         font_size_in_rem=2.0,
         font_color="aaaaaa",
     )
@@ -430,10 +429,9 @@ def create_demo_data():
         end_time=19.5,
         description="Call out the wing movement overlap on the same track.",
         text="Compare the spacing between the front and rear birds.",
-        top_left_x=32.0,
-        top_left_y=18.0,
-        bottom_right_x=25.0,
-        bottom_right_y=15.0,
+        x=32.0,
+        y=18.0,
+        width=35.0,
         font_size_in_rem=1.5,
         font_color="bbbbbb",
     )
@@ -444,10 +442,9 @@ def create_demo_data():
         end_time=22.5,
         description="Keep one more overlapping comment active later in the clip.",
         text="The final turn stays visible long enough to test overlap rendering.",
-        top_left_x=37.0,
-        top_left_y=23.0,
-        bottom_right_x=22.0,
-        bottom_right_y=18.0,
+        x=37.0,
+        y=23.0,
+        width=30.0,
         font_size_in_rem=1.0,
         font_color="cccccc",
     )
@@ -473,10 +470,9 @@ def create_demo_data():
         end_time=9.0,
         description="Call out the grid region students should focus on.",
         text="Watch how the pattern shifts across the center cells.",
-        top_left_x=50.0,
-        top_left_y=50.0,
-        bottom_right_x=25.0,
-        bottom_right_y=20.0,
+        x=50.0,
+        y=50.0,
+        width=40.0,
         font_size_in_rem=2.5,
         font_color="dddddd",
     )
@@ -535,7 +531,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_EN.encode("utf-8"), name="birds-en.vtt"
         ),
-        is_original=True,
     )
     SubtitleFactory(
         resource=birds_resource,
@@ -545,7 +540,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_ES.encode("utf-8"), name="birds-es.vtt"
         ),
-        is_original=False,
     )
     SubtitleFactory(
         resource=grid_resource,
@@ -555,7 +549,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_GRID_EN.encode("utf-8"), name="grid-en.vtt"
         ),
-        is_original=True,
     )
     SubtitleFactory(
         resource=grid_resource,
@@ -565,7 +558,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_GRID_ES.encode("utf-8"), name="grid-es.vtt"
         ),
-        is_original=False,
     )
     SubtitleFactory(
         resource=overlay_resource,
@@ -575,7 +567,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_OVERLAY_EN.encode("utf-8"), name="overlay-en.vtt"
         ),
-        is_original=True,
     )
     SubtitleFactory(
         resource=overlay_resource,
@@ -585,7 +576,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_OVERLAY_ES.encode("utf-8"), name="overlay-es.vtt"
         ),
-        is_original=False,
     )
 
     birds_content.default_subtitle_track = birds_en_subtitle

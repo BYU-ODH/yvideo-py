@@ -1,19 +1,35 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, animateDuringPlayback, applyRect } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { saveStatus } from "./save-status.js";
+import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
+import { PendingNudge, beginRectGesture, createRig, nudgeDelta } from "./overlay-rig.js";
 import {
-  RESIZE_HANDLES,
   clampRect,
-  edgesForHandle,
-  percentWithin,
   blurAnchorPointsLostByRetiming,
-  resizeRect,
 } from "./video-geometry.js";
 
+// makePostRequest for a request that persists an edit, so the save indicator sees it.
+const savePost = (url, body, contentType) =>
+  makePostRequest(url, body, contentType, (...args) => saveStatus.fetch(...args));
+
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
+// Mirror COMMENT_MIN_WIDTH / COMMENT_MIN_HEIGHT in core/models.py. A comment has no stored height,
+// so the minimum is only what keeps a strip of the box on the frame.
 const COMMENT_MIN_WIDTH = 3;
-const COMMENT_MIN_HEIGHT = 4;
+const COMMENT_MIN_HEIGHT = 3;
+const COMMENT_CLAMP_LIMITS = {minWidth: COMMENT_MIN_WIDTH, minHeight: COMMENT_MIN_HEIGHT};
 const MIN_ITEM_SECONDS = 0.1;
+// Stricter than parseFloat, which reads "12%" as 12: the form sends the text itself, and the server
+// rejects anything float() cannot read.
+const COMMENT_GEOMETRY_PATTERN = /^\s*[-+]?(\d+\.?\d*|\.\d+)\s*$/;
+const COMMENT_GEOMETRY_FIELDS = ["x", "y", "width"];
+
+function readCommentGeometry(form) {
+  return COMMENT_GEOMETRY_FIELDS.map((field) => {
+    const value = form.querySelector(`#comment-${field}`)?.value ?? "";
+    return COMMENT_GEOMETRY_PATTERN.test(value) ? parseFloat(value) : NaN;
+  });
+}
 
 function convertPercentStringToDecimal(percentString) {
   if (typeof(percentString) === 'string') {
@@ -40,6 +56,7 @@ export class Editor {
         this.editorScrubber = document.querySelector('#editor-scrubber');
         this.zoomLevel = 1;
         this.timelineScrollRatio = 0;
+        this.timelineScrollLeft = 0;
         this.scrubberBounds = null;
         this.timelineScrubber = null;
         this.isDragging = false;
@@ -49,6 +66,9 @@ export class Editor {
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
+        this.selectedSubtitleTrackText = null;
+        this.subtitleTrackEditBusy = false;
+        this.subtitleCueSaves = new Set();
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
@@ -61,7 +81,8 @@ export class Editor {
         this.commentRigWindow = null;
         // Set while a pointer is down, so the render below cannot overwrite the geometry the user is
         // actively dragging.
-        this.commentRigDragging = false;
+        this.commentGesture = null;
+        this.commentNudge = new PendingNudge((rect) => this._saveCommentRect(rect));
         this.renderCommentRig = this.renderCommentRig.bind(this);
         // The same two cadences BlurEditor uses: timeupdate/seeked cover scrubbing and the paused
         // case, while animateDuringPlayback runs every animation frame, the rate at which the player
@@ -71,6 +92,12 @@ export class Editor {
         animateDuringPlayback(this.video, this.renderCommentRig);
 
         this.annotationBox = window.videoPlayer.annotationBox;
+        // The rig's height is the comment box's rendered height, so it has to be redrawn whenever
+        // the player adds a box or the box reflows (font size, width, frame size). Neither fires a
+        // video event while paused.
+        new MutationObserver(this.renderCommentRig).observe(this.annotationBox, {childList: true});
+        this.commentBoxObserver = new ResizeObserver(this.renderCommentRig);
+        this.observedCommentBox = null;
 
         this.blurEditor = new BlurEditor({
           video: this.video,
@@ -105,15 +132,21 @@ export class Editor {
         this.attachVideoListeners();
         this.setupTracks();
         this.watchForTrackCreation();
-        this.watchForClickOutsideOfTrackMenu();
         this.watchForTimelineScrollChangeAndHandleIt();
+        this.keepTimelineRowsScrolledTogether();
         this.watchAndHandleAnnotationSetMenuOpen();
         this.watchAndHandleAnnotationSetDelete();
         this.setupAnnotationSetOptionsModal();
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.watchAndHandleEditorPanelSwitch();
+        this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
+        this.watchForSubtitleTrackCreation();
+
+        this.watchForSubtitleTrackEditing();
+        this.watchForSubtitleTrackDeletion();
+        this.checkForAndLoadSubtitleTrack();
         this.handleNoAnnotationSet();
     }
 
@@ -373,9 +406,9 @@ export class Editor {
         this.markItemAsActive(annotationType, annotationId);
       });
 
-      const panelItemDeleteButton = element.querySelector(".panel-item-delete");
-      if (panelItemDeleteButton) {
-        panelItemDeleteButton.addEventListener("click", async (e) => {
+      const annotationItemDeleteButton = element.querySelector(".annotation-item-delete");
+      if (annotationItemDeleteButton) {
+        annotationItemDeleteButton.addEventListener("click", async (e) => {
           e.preventDefault();
           // Keeps the parent panel item's click handler from reloading the deleted item's form
           e.stopPropagation();
@@ -468,6 +501,11 @@ export class Editor {
 
           const annotationId = itemForm.dataset["annotationId"];
           const annotationType = itemForm.dataset["annotationType"];
+
+          // Held until the field is fixed; the field is marked invalid and the rig is hidden.
+          if (annotationType == "comment" && !readCommentGeometry(itemForm).every(Number.isFinite)) {
+            return;
+          }
 
           if (annotationType == "blur") {
             const item = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="blur"][data-annotation-id="${annotationId}"]`);
@@ -615,53 +653,6 @@ export class Editor {
       this.changeAnnotationInFocus();
     }
 
-    buildMoveHandler(elementToMove) {
-      let lastEvent;
-      return (event) => {
-        const referenceRect = elementToMove.parentElement.getBoundingClientRect();
-        if (lastEvent && referenceRect.width > 0 && referenceRect.height > 0) {
-          // Clamped, so a box cannot be dragged off the frame and out of reach.
-          const moved = clampRect({
-            x: (parseFloat(elementToMove.style.left) || 0) + (event.clientX - lastEvent.x) / referenceRect.width * 100,
-            y: (parseFloat(elementToMove.style.top) || 0) + (event.clientY - lastEvent.y) / referenceRect.height * 100,
-            width: parseFloat(elementToMove.style.width) || 0,
-            height: parseFloat(elementToMove.style.height) || 0,
-          });
-          elementToMove.style.left = `${moved.x}%`;
-          elementToMove.style.top = `${moved.y}%`;
-        }
-        lastEvent = {x: event.clientX, y: event.clientY};
-      }
-    }
-
-    buildResizePointMoveHandler(minHeight = COMMENT_MIN_HEIGHT, minWidth = COMMENT_MIN_WIDTH) {
-      return (event) => {
-        event.stopPropagation();
-        const elementToResize = event.target.parentElement;
-        const limits = {minWidth, minHeight};
-        const pointer = percentWithin(
-          {x: event.clientX, y: event.clientY, width: 0, height: 0},
-          event.target.closest(".annotation-box").getBoundingClientRect(),
-        );
-        const origin = {
-          x: parseFloat(elementToResize.style.left) || 0,
-          y: parseFloat(elementToResize.style.top) || 0,
-          width: parseFloat(elementToResize.style.width) || 0,
-          height: parseFloat(elementToResize.style.height) || 0,
-        };
-        const edges = edgesForHandle(event.target.dataset["handle"]);
-        if (!edges) return;
-        const resized = clampRect(resizeRect(origin, pointer, {
-          ...edges,
-          ...limits,
-        }), limits);
-        elementToResize.style.left = `${resized.x}%`;
-        elementToResize.style.top = `${resized.y}%`;
-        elementToResize.style.width = `${resized.width}%`;
-        elementToResize.style.height = `${resized.height}%`;
-      }
-    }
-
     changeAnnotationInFocus() {
       const previousTypeInFocus = this.typeOfAnnotationInFocus;
       const itemForm = document.getElementById("existing-item-form");
@@ -705,6 +696,17 @@ export class Editor {
           return;
         }
 
+        // An unsaved nudge is the newest edit, so undo drops it and there is nothing to redo. Sending
+        // either request instead would let the nudge save on top of the version it lands on.
+        if (this.commentNudge.value || this.blurEditor.nudge.value) {
+          event.preventDefault();
+          if (!event.shiftKey) {
+            this._discardCommentNudge();
+            this.blurEditor.discardNudge();
+          }
+          return;
+        }
+
         // Scoped to the open form rather than the document: the shortcut has to act on the
         // annotation the user is looking at, not on whichever toolbar happens to be first.
         const action = event.shiftKey ? "redo" : "undo";
@@ -727,17 +729,14 @@ export class Editor {
       button.disabled = true;
 
       try {
-        const response = await saveStatus.fetch(button.dataset.historyUrl, {
-          method: "POST",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
+        const response = await savePost(
+          button.dataset.historyUrl,
+          new URLSearchParams({
             annotation_id: button.dataset.annotationId,
             annotation_type: button.dataset.annotationType,
           }),
-        });
+          "application/x-www-form-urlencoded"
+        );
 
         if (!response.ok) {
           console.error(`Failed to ${button.dataset.historyAction} annotation history`);
@@ -897,14 +896,11 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await saveStatus.fetch(`/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": contentType,
-        },
-        body: requestBody
-      });
+      const response = await savePost(
+        `/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`,
+        requestBody,
+        contentType
+      );
 
       if (!response.ok) {
         console.error("An error occurred while updating an annotation");
@@ -1019,66 +1015,54 @@ export class Editor {
 
       // handle font color change
       const fontColorInput = itemForm.querySelector("#font-color");
+      setUpColorCombobox(fontColorInput);
       fontColorInput.addEventListener("input", () => {
         const commentTextBox = getCommentBoxOrWriteError();
         if (!commentTextBox) return;
 
-        const newFontColor = fontColorInput.value;
-        const newLength = newFontColor.length;
-        if (newLength != 3 && newLength != 6) {
-          return;
-        }
-        else {
+        if (isHexColor(fontColorInput.value)) {
           commentTextBox.style.color = "#" + fontColorInput.value;
           update();
         }
       });
 
       const repaintFromForm = () => {
-        this.renderCommentRig();
-        this._previewCommentBox();
+        const values = readCommentGeometry(itemForm);
+        COMMENT_GEOMETRY_FIELDS.forEach((field, i) => {
+          itemForm.querySelector(`#comment-${field}`)
+            ?.setAttribute("aria-invalid", String(!Number.isFinite(values[i])));
+        });
+        this._restoreCommentRig();
         update();
       };
-      for (const selector of ["#top-x", "#top-y", "#bottom-x", "#bottom-y"]) {
-        itemForm.querySelector(selector)?.addEventListener("input", repaintFromForm);
+      for (const field of COMMENT_GEOMETRY_FIELDS) {
+        itemForm.querySelector(`#comment-${field}`)?.addEventListener("input", repaintFromForm);
       }
     }
 
     removeCommentRig() {
+      this.commentNudge.discard();
+      this.commentGesture?.cancel();
       this.commentRig?.remove();
       this.commentRig = null;
       this.commentRigAnnotationId = null;
       this.commentRigWindow = null;
-      this.commentRigDragging = false;
+      this.commentBoxObserver.disconnect();
+      this.observedCommentBox = null;
     }
 
-    updateCommentBoxPositionAndSize() {
+    _saveCommentRect(rect) {
       const updateForm = document.getElementById("annotation-update-form");
-      const rig = this.commentRig;
-      if (!rig || rig.hidden || !updateForm) return;
-
+      if (!updateForm) return;
       const annotationId = updateForm.dataset["annotationId"];
       if (this.commentRigAnnotationId !== String(annotationId)) return;
 
-      // update the form and save
-      const boxTop = parseFloat(rig.style.top);
-      const boxLeft = parseFloat(rig.style.left);
-
-      const formTopX = updateForm.querySelector("#top-x");
-      const formTopY = updateForm.querySelector("#top-y");
-      const formBottomX = updateForm.querySelector("#bottom-x");
-      const formBottomY = updateForm.querySelector("#bottom-y");
-      if (!formTopX || !formTopY || !formBottomX || !formBottomY) {
+      const inputs = COMMENT_GEOMETRY_FIELDS.map((field) => [field, updateForm.querySelector(`#comment-${field}`)]);
+      if (inputs.some(([, input]) => !input)) {
         console.error("Failed to get all comment form elements to update");
         return;
       }
-
-      // save original values in case update request goes wrong
-
-      formTopX.value = boxLeft;
-      formTopY.value = boxTop;
-      formBottomX.value = boxLeft + parseFloat(rig.style.width);
-      formBottomY.value = boxTop + parseFloat(rig.style.height);
+      for (const [field, input] of inputs) input.value = rect[field].toFixed(2);
 
       this.updateAnnotation({annotationType:"comment", annotationId});
     }
@@ -1086,81 +1070,133 @@ export class Editor {
     _ensureCommentRig() {
       if (this.commentRig?.isConnected) return this.commentRig;
 
-      const rig = document.createElement("div");
-      rig.id = "comment-edit-rig";
-      rig.setAttribute("role", "group");
-      rig.setAttribute("aria-label", "Comment box");
-      rig.title = "Drag to move, handles to resize.";
-      rig.hidden = true;
-      this._onCommentRigGesture(rig, () => this.buildMoveHandler(rig));
-
-      // The same eight grips the blur rig offers, positioned by data-handle.
-      for (const [handleName] of RESIZE_HANDLES) {
-        const handle = document.createElement("div");
-        handle.classList.add("overlay-resize-handle");
-        handle.classList.add("comment-rig-handle");
-        handle.dataset["handle"] = handleName;
-        this._onCommentRigGesture(handle, () => this.buildResizePointMoveHandler());
-        rig.appendChild(handle);
-      }
+      const rig = createRig({
+        id: "comment-edit-rig",
+        label: "Comment box",
+        title: "Drag to move, side handles to resize. Arrow keys nudge (Shift for bigger steps).",
+        keyShortcuts: "ArrowUp ArrowDown ArrowLeft ArrowRight",
+        // Only the side grips: the height follows the text.
+        handles: ["w", "e"],
+        handleClass: "comment-rig-handle",
+      });
+      rig.addEventListener("pointerdown", (event) => this._onCommentRigPointerDown(event));
+      rig.addEventListener("keydown", (event) => this._onCommentRigKeyDown(event));
+      // Written as soon as focus leaves rather than after the delay, because leaving usually means
+      // selecting something else, and the form the nudge saves through goes with the selection.
+      rig.addEventListener("focusout", () => this.commentNudge.flush());
 
       this.annotationBox.appendChild(rig);
       this.commentRig = rig;
       return rig;
     }
 
-    _onCommentRigGesture(target, buildHandler) {
-      target.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0) return;
-        event.stopPropagation();
-        target.setPointerCapture(event.pointerId);
-        this.commentRigDragging = true;
+    _onCommentRigPointerDown(event) {
+      if (event.button !== 0) return;
+      // A gesture started on top of a nudge carries it along and writes it on release.
+      const origin = this.commentNudge.value ?? this._commentRigRect();
+      if (!origin) return;
 
-        const moveHandler = buildHandler();
-        const onMove = (moveEvent) => {
-          moveHandler(moveEvent);
-          this._previewCommentBox();
-        };
-        const finish = (save) => {
-          target.removeEventListener("pointermove", onMove);
-          target.removeEventListener("pointerup", onUp);
-          target.removeEventListener("pointercancel", onCancel);
-          this.commentRigDragging = false;
-          if (save) {
-            this.updateCommentBoxPositionAndSize();
-          } else {
-            this.renderCommentRig();
-            this._previewCommentBox();
-          }
-        };
-        const onUp = () => finish(true);
-        const onCancel = () => finish(false);
-
-        target.addEventListener("pointermove", onMove);
-        target.addEventListener("pointerup", onUp);
-        target.addEventListener("pointercancel", onCancel);
+      const done = () => {
+        this.commentGesture = null;
+      };
+      const gesture = beginRectGesture(event, {
+        frame: this.annotationBox.getBoundingClientRect(),
+        origin,
+        handleName: event.target.closest(".comment-rig-handle")?.dataset["handle"],
+        limits: COMMENT_CLAMP_LIMITS,
+        onPaint: (rect) => this._paintComment(rect),
+        onCommit: (rect) => {
+          done();
+          this._saveCommentRect(rect);
+        },
+        onCancel: () => {
+          done();
+          this._restoreCommentRig();
+        },
       });
+      if (!gesture) return;
+      this.commentNudge.discard();
+      this.commentGesture = gesture;
     }
 
-    _previewCommentBox() {
-      const box = document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
-      if (!box || !this.commentRig) return;
-      box.style.left = this.commentRig.style.left;
-      box.style.top = this.commentRig.style.top;
-      box.style.width = this.commentRig.style.width;
-      box.style.height = this.commentRig.style.height;
+    _onCommentRigKeyDown(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const delta = nudgeDelta(event);
+      if (delta) {
+        const origin = this.commentNudge.value ?? this._commentRigRect();
+        if (!origin || this.commentRig.hidden) return;
+        const rect = clampRect(
+          {...origin, x: origin.x + delta.dx, y: origin.y + delta.dy},
+          COMMENT_CLAMP_LIMITS,
+        );
+        this._paintComment(rect);
+        this.commentNudge.hold(rect);
+      } else if (event.key === "Enter") {
+        this.commentNudge.flush();
+      } else if (event.key === "Escape") {
+        this._discardCommentNudge();
+        this.commentRig.blur();
+      } else {
+        return;
+      }
+      // The player binds these keys from a listener on `document`.
+      event.preventDefault();
+      event.stopPropagation();
     }
 
-    _commentRectFromForm() {
+    /** Drop an unsaved nudge and repaint from the form. */
+    _discardCommentNudge() {
+      if (!this.commentNudge.value) return;
+      this.commentNudge.discard();
+      this._restoreCommentRig();
+    }
+
+    _commentBox() {
+      return document.getElementById("comment-text-box-" + this.commentRigAnnotationId);
+    }
+
+    _commentBoxHeight(box) {
+      const frameHeight = this.annotationBox.getBoundingClientRect().height;
+      if (!(frameHeight > 0)) return null;
+      return box.getBoundingClientRect().height / frameHeight * 100;
+    }
+
+    _observeCommentBox(box) {
+      if (box === this.observedCommentBox) return;
+      this.commentBoxObserver.disconnect();
+      if (box) this.commentBoxObserver.observe(box);
+      this.observedCommentBox = box;
+    }
+
+    // The player's box only learns the stored geometry, so a drag, nudge or typed value is
+    // previewed by writing the box directly.
+    _paintComment(rect) {
+      const rig = this._ensureCommentRig();
+      const box = this._commentBox();
+      if (box) {
+        box.style.left = `${rect.x}%`;
+        box.style.top = `${rect.y}%`;
+        box.style.width = `${rect.width}%`;
+      }
+      // Measured after the width is written, since the width is what reflows the text.
+      const height = box ? this._commentBoxHeight(box) : null;
+      applyRect(rig, {...rect, height: height ?? rect.height});
+    }
+
+    // The form's x/y/width, clamped as the server clamps them, with the height the player's box
+    // has at that width. Null until the box is drawn.
+    _commentRigRect() {
       const updateForm = document.getElementById("annotation-update-form");
       if (!updateForm) return null;
-      const read = (selector) => parseFloat(updateForm.querySelector(selector)?.value);
-      const x = read("#top-x");
-      const y = read("#top-y");
-      const right = read("#bottom-x");
-      const bottom = read("#bottom-y");
-      if (![x, y, right, bottom].every(Number.isFinite)) return null;
-      return {x, y, width: right - x, height: bottom - y};
+      const [x, y, width] = readCommentGeometry(updateForm);
+      if (![x, y, width].every(Number.isFinite)) return null;
+      const box = this._commentBox();
+      this._observeCommentBox(box);
+      const height = box ? this._commentBoxHeight(box) : null;
+      if (height === null) return null;
+      // Clamped as a box of no height, as the server does: the player draws it at the stored y.
+      const clamped = clampRect({x, y, width, height: 0}, COMMENT_CLAMP_LIMITS);
+      return {...clamped, height};
     }
 
     _readCommentWindow(annotationId) {
@@ -1180,19 +1216,21 @@ export class Editor {
     }
 
     renderCommentRig() {
-      if (!this.commentRigAnnotationId || this.commentRigDragging) return;
+      if (!this.commentRigAnnotationId || this.commentGesture || this.commentNudge.value) return;
       const rig = this._ensureCommentRig();
-      const rect = this._commentRectFromForm();
+      const rect = this._commentRigRect();
       const time = this.video.currentTime;
       const range = this.commentRigWindow;
       const inRange = range !== null && time >= range.start && time < range.end;
       rig.hidden = !inRange || rect === null;
-      if (!rig.hidden) {
-        applyRect(rig, clampRect(rect, {
-          minWidth: COMMENT_MIN_WIDTH,
-          minHeight: COMMENT_MIN_HEIGHT,
-        }));
-      }
+      if (!rig.hidden) applyRect(rig, rect);
+    }
+
+    // Puts the rig and the player's box back on the form's geometry after a preview.
+    _restoreCommentRig() {
+      this.renderCommentRig();
+      const rect = this._commentRigRect();
+      if (rect && this.commentRig && !this.commentRig.hidden) this._paintComment(rect);
     }
 
     setUpLoadedItemForm(annotationType, annotationId) {
@@ -1208,34 +1246,22 @@ export class Editor {
           // use 1 to advance forward, -1 to advance backward
           const advanceValue = isAdvancing ? 1 : -1;
 
-          // we need to know where we are so we can determine which clip to click on.
-          const clipList = document.getElementById("clip-annotation-items-list");
-          const clipLen = clipList.children.length;
-          let currentIndex;
-          for (let index = 0; index < clipLen; index++) {
-            const child = clipList.children[index];
-            if (child.dataset["annotationId"] == annotationId) {
-              currentIndex = index;
-              break;
-            }
-          }
+          // The panel list is in creation order, so order by timeline position instead.
+          const clipIds = [...document.querySelectorAll('.track-item[data-annotation-type="clip"]')]
+            .sort((a, b) => parseFloat(a.dataset["start"]) - parseFloat(b.dataset["start"]))
+            .map((item) => item.dataset["annotationId"]);
+          const clipLen = clipIds.length;
+          const currentIndex = clipIds.findIndex((id) => id == annotationId);
 
-          if (currentIndex === undefined) {
+          if (currentIndex === -1) {
             console.error(`Could not find clip annotation id (${annotationId}) matching the currently active clip.`);
             return;
           }
 
-          const nextIndex = currentIndex + advanceValue;
-          if (nextIndex >= clipLen) {
-            // roll over to start of list
-            clipList.children[0].click();
-          }
-          else if (nextIndex < 0) {
-            clipList.children[clipLen - 1].click();
-          }
-          else {
-            clipList.children[nextIndex].click();
-          }
+          // wrap around at either end of the timeline
+          const nextId = clipIds[(currentIndex + advanceValue + clipLen) % clipLen];
+          const clipList = document.getElementById("clip-annotation-items-list");
+          clipList.querySelector(`[data-annotation-id="${nextId}"]`)?.click();
         }
         const nextClipButton = document.getElementById("next-clip-button");
         if (nextClipButton) {
@@ -1390,13 +1416,10 @@ export class Editor {
             displayText(originalNameValue);
             return;
           }
-          const response = await saveStatus.fetch(`/annotation-set/${annotationSetId}/update-name/`, {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken()
-            },
-            body: JSON.stringify({name: payload})
-          });
+          const response = await savePost(
+            `/annotation-set/${annotationSetId}/update-name/`,
+            JSON.stringify({name: payload})
+          );
           if (response.ok) {
             displayText(payload);
           } else {
@@ -1563,7 +1586,7 @@ export class Editor {
     // use this method to apply all relevant watchers (event listeners) to
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
-      this.watchForMultiSelectMenuOpen(trackRootElement);
+      setupMultiOptionMenu(trackRootElement);
       this.watchForDisplayTrackRename(trackRootElement);
       this.watchForTrackRename(trackRootElement);
       this.watchForTrackMovement(trackRootElement);
@@ -1574,54 +1597,6 @@ export class Editor {
     watchForTrackActivation(trackRootElement) {
       const trackId = trackRootElement.dataset["trackId"];
       trackRootElement.addEventListener("click", () => this.setActiveTrack(trackId));
-    }
-
-    /* track options menu */
-    handleMultiSelectMenuOpen(e) {
-      e.stopPropagation();
-      // we don't want more than one track menu visible at one time
-      const visibleMenuCSSClass = "visible-multi-select-menu";
-      const allVisibleTrackMenus = document.getElementsByClassName(visibleMenuCSSClass);
-      for (let menu of allVisibleTrackMenus) {
-        menu.classList.remove(visibleMenuCSSClass);
-      }
-
-      // get track menu and position it properly
-      const wrapperDim = this.timelineWrapper.getBoundingClientRect();
-      const trackMenuWrapper = e.target.closest(".multi-select-menu-parent");
-      const trackOptionsMenu = trackMenuWrapper.querySelector(".multi-select-menu");
-      trackOptionsMenu.style.visibility = "hidden";
-      trackOptionsMenu.classList.add(visibleMenuCSSClass);
-      const trackMenuDim = trackOptionsMenu.getBoundingClientRect();
-      if ((trackMenuDim.bottom - wrapperDim.bottom) > -20) {
-        trackOptionsMenu.classList.add("multi-select-menu-bumped-up");
-      }
-
-      // now we are safe to make the track menu visible
-      trackOptionsMenu.style.visibility = "";
-    }
-
-    watchForMultiSelectMenuOpen(multiSelectMenuWrapper) {
-      const menuButton = multiSelectMenuWrapper.querySelector(".open-multi-select-button");
-      if (menuButton) {
-        menuButton.addEventListener("click", this.handleMultiSelectMenuOpen.bind(this));
-      }
-      else {
-        console.error("No menu button element found");
-      }
-    }
-
-    watchForClickOutsideOfTrackMenu() {
-      const editorContainer = document.getElementById("editor-container");
-      editorContainer.addEventListener("click", (e) => {
-        const visibleTrackMenus = document.getElementsByClassName("visible-multi-select-menu");
-        for (let menu of visibleTrackMenus) {
-          const menuDim = menu.getBoundingClientRect();
-          if (e.x < menuDim.left || e.x > menuDim.right || e.y < menuDim.top || e.y > menuDim.bottom) {
-            menu.classList.remove("visible-multi-select-menu");
-          }
-        }
-      });
     }
 
     replaceTracksWithNewHTML(newTracksHTML) {
@@ -1641,6 +1616,8 @@ export class Editor {
         const annotationContainer = trackParentNode.querySelector(".track-row-annotations-container");
         this.setupTrackDragListeners(annotationContainer);
       }
+      // New rows start scrolled to the beginning.
+      this.scrollTracksToPoint(this.timelineScrollLeft);
     }
 
     /* track name change */
@@ -1664,11 +1641,10 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await saveStatus.fetch(`/track/${trackId}/update/`, {
-          method: "post",
-          headers: {"X-CSRFToken": getCSRFToken()},
-          body: JSON.stringify({"new_track_name": newTrackName})
-        });
+        const response = await savePost(
+          `/track/${trackId}/update/`,
+          JSON.stringify({"new_track_name": newTrackName})
+        );
         if (!response.ok) {
           resetTrackName();
           return;
@@ -1791,17 +1767,11 @@ export class Editor {
         }
       }
 
-      const orderUpdateResponse = await saveStatus.fetch(`/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
-        {
-          method: "post",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            track_ids: trackIdOrder
-          })
-        }
+      const orderUpdateResponse = await savePost(
+        `/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
+        JSON.stringify({
+          track_ids: trackIdOrder
+        })
       );
 
       if (!orderUpdateResponse.ok) {
@@ -1847,16 +1817,12 @@ export class Editor {
           return;
         }
 
-        const newTrackResponse = await saveStatus.fetch(`/annotation-set/${annotationSetId}/track/create/`, {
-          method: "post",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
+        const newTrackResponse = await savePost(
+          `/annotation-set/${annotationSetId}/track/create/`,
+          JSON.stringify({
             "track_name": newTrackName
           })
-        });
+        );
 
         dialog.close();
 
@@ -1974,18 +1940,13 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const response = await saveStatus.fetch(`/track/${trackId}/annotations/${annotationType}/create/`,
-              {
-                method: "POST",
-                headers: {
-                  "X-CSRFToken": getCSRFToken(),
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  "start_time": startTime,
-                  "end_time": endTime
-                })
-              });
+            const response = await savePost(
+              `/track/${trackId}/annotations/${annotationType}/create/`,
+              JSON.stringify({
+                "start_time": startTime,
+                "end_time": endTime
+              })
+            );
             if (response.ok) {
               const parsedResponse = await response.json();
               const newPanelItemHtml = parsedResponse["panel_item_html"];
@@ -2170,26 +2131,14 @@ export class Editor {
     }
 
     handleZoom() {
-      const annotationContainers = this.timelineWrapper.querySelectorAll(".track-row-annotations-container");
-      if (annotationContainers.length == 0) {
-        return;
-      }
-
-      const newWidth = `${100 * this.zoomLevel}%`;
       const zoomSliderWidth = `${100 / this.zoomLevel}%`;
       document.documentElement.style.setProperty("--zoom-thumb-width", zoomSliderWidth);
-      const tickMarksContainer = document.getElementById("tick-marks-container");
-      if (tickMarksContainer) {
-        tickMarksContainer.style.width = newWidth;
-      }
-      for (let annotationContainer of annotationContainers) {
-        annotationContainer.style.width = newWidth;
-      }
+      // One variable sizes the ruler and every track, so they cannot be zoomed differently.
+      this.timelineWrapper.style.setProperty("--timeline-content-width", `${100 * this.zoomLevel}%`);
 
       const locationRatio = this.video.currentTime / this.video.duration;
-      const trackWidth = tickMarksContainer.getBoundingClientRect().width;
-      const tickMarkContainerParent = tickMarksContainer.closest("#timeline-ticks-content");
-      const parentWidth = tickMarkContainerParent.getBoundingClientRect().width;
+      const trackWidth = this.tickMarksContainer.getBoundingClientRect().width;
+      const parentWidth = this.timelineTicksContent.getBoundingClientRect().width;
       this.scrollTracksToPoint((trackWidth * locationRatio) - parentWidth / 2);
       this.renderTickMarksAndLabels();
       // Zoom changes the visible time window, so recompute the scrubber bounds.
@@ -2227,11 +2176,14 @@ export class Editor {
 
     scrollTracksToPoint(scrollValue) {
       const tracksToAdjust = document.getElementsByClassName("timeline-track-row-right");
-      const tickMarksWrapper = document.getElementById("timeline-ticks-content");
-      for (let track of tracksToAdjust) {
-        track.scrollLeft = scrollValue;
-      }
+      const tickMarksWrapper = this.timelineTicksContent;
+      // Tracks copy the ruler's clamped offset rather than scrollValue, so a track whose item
+      // overhangs its end (e.g. a pause near the end of the video) can't scroll past the ruler.
       tickMarksWrapper.scrollLeft = scrollValue;
+      this.timelineScrollLeft = tickMarksWrapper.scrollLeft;
+      for (let track of tracksToAdjust) {
+        track.scrollLeft = this.timelineScrollLeft;
+      }
 
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (contentWidth > 0) {
@@ -2246,6 +2198,18 @@ export class Editor {
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (!contentWidth || !this.timelineScrollRatio) return;
       this.scrollTracksToPoint(contentWidth * this.timelineScrollRatio);
+    }
+
+    // Prevent rows from scrolling out of sync. Each row is its own scroll container, so whichever
+    // row scrolls, the rest follow.
+    keepTimelineRowsScrolledTogether() {
+      this.timelineWrapper.addEventListener("scroll", (e) => {
+        const scroller = e.target;
+        if (scroller !== this.timelineTicksContent && !scroller.classList?.contains("timeline-track-row-right")) return;
+        if (scroller.scrollLeft === this.timelineScrollLeft) return;
+        this.scrollTracksToPoint(scroller.scrollLeft);
+        this.adjustScrubberPosition();
+      }, true);
     }
 
     watchForTimelineScrollChangeAndHandleIt() {
@@ -2398,23 +2362,19 @@ export class Editor {
     }
 
     watchAndHandleAnnotationSetMenuOpen() {
-      const annotationSetMenuWrapper = document.getElementById("annotation-panel-header");
-      this.watchForMultiSelectMenuOpen(annotationSetMenuWrapper);
+      const annotationSetMenuWrapper = document.getElementById("annotation-set-settings-menu-wrapper");
+      setupMultiOptionMenu(annotationSetMenuWrapper);
     }
 
     async handleAnnotationSetCreation(setName, annotationSetId = undefined, annotationSetJson = undefined) {
-      const createResponse = await fetch(`/content/${this.contentId}/annotation-set/create/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      const createResponse = await makePostRequest(
+        `/content/${this.contentId}/annotation-set/create/`,
+        JSON.stringify({
           name: setName,
           annotation_set_id_to_copy: annotationSetId,
           annotation_set_json: annotationSetJson
         })
-      });
+      );
 
       if (!createResponse.ok) {
         console.error("Failed to create new annotation set");
@@ -2472,15 +2432,10 @@ export class Editor {
         } else {
           setSelector.classList.remove("invalid-input");
         }
-        const contentSetAssignmentResponse = await fetch(
-          `/content/${this.contentId}/select-annotation-set/`, {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ "annotation_set_id": setSelector.value })
-          });
+        const contentSetAssignmentResponse = await makePostRequest(
+          `/content/${this.contentId}/select-annotation-set/`,
+          JSON.stringify({ "annotation_set_id": setSelector.value })
+        );
         if (!contentSetAssignmentResponse.ok) {
           console.error("Failed to set annotation set for this content");
           return;
@@ -2648,15 +2603,10 @@ export class Editor {
             console.error("could not retrieve content id while switching annotation sets!");
             return;
         }
-        const htmlContentResponse = await fetch(`/content/${this.contentId}/select-annotation-set/`, {
-            method: "POST",
-            body: JSON.stringify({"annotation_set_id": annotationSetId}),
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json"
-            },
-            mode: "same-origin"
-        });
+        const htmlContentResponse = await makePostRequest(
+            `/content/${this.contentId}/select-annotation-set/`,
+            JSON.stringify({"annotation_set_id": annotationSetId})
+        );
         if (!htmlContentResponse.ok) {
           console.error("Failed to update annotation_set!");
           return;
@@ -2748,33 +2698,257 @@ export class Editor {
         subtitlesPanel.classList.toggle("subtitle-editor-panel-visible");
         subtitlesPanel.classList.toggle("subtitle-editor-panel-hidden");
       }
-      annotationPanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+      annotationPanelSwitchButton.addEventListener("click", () => {
+        togglePanelVisiblity();
+      });
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
+    }
+
+    setupSubtitleEditorMenu() {
+      const subtitleMenu= document.getElementById("subtitle-track-settings-menu-wrapper");
+      setupMultiOptionMenu(subtitleMenu);
+    }
+
+
+    async loadSubtitleTrack(trackId) {
+      try {
+        const subtitlesResponse = await fetch(`/subtitles/${trackId}/editable/`);
+        if (!subtitlesResponse.ok) {
+          console.error("Failed to get subtitle cues");
+          return false;
+        }
+        const subtitlesPanelContentHTML = await subtitlesResponse.text();
+        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
+        this.selectedSubtitleTrackId = trackId;
+        this.selectedSubtitleTrackText = document.querySelector(
+          `.subtitles-track-option[value="${trackId}"]`
+        )?.textContent.trim() || "";
+        document.getElementById(`cap-track-${trackId}-button`)?.click();
+        this.buildWatchersForSubtitlePanelContent();
+        this.buildWatchersForSubtitleEditorCues();
+        document.getElementById("open-subtitle-track-edit-modal").disabled = false;
+        document.getElementById("open-delete-subtitle-track-modal").disabled =
+          document.getElementById("subtitle-panel-content-wrapper").dataset.canEdit !== "true";
+        return true;
+      } catch (error) {
+        console.error("Failed to load subtitle track", error);
+        return false;
+      } finally {
+        const subtitleSelectInput = document.getElementById("subtitles-track-selector");
+        if (subtitleSelectInput) subtitleSelectInput.value = this.selectedSubtitleTrackId || "";
+      }
+    }
+
+    async checkForAndLoadSubtitleTrack() {
+      const pageUrl = new URL(window.location.href);
+      const trackId = pageUrl.searchParams.get("subtitle_track");
+      const subtitlePanel = document.getElementById("subtitle-editor-panel");
+      if (!trackId || !subtitlePanel) return;
+
+      try {
+        if (subtitlePanel.classList.contains("subtitle-editor-panel-hidden")) {
+          document.getElementById("annotation-panel-switch")?.click();
+        }
+        if (!await this.loadSubtitleTrack(trackId)) return;
+        pageUrl.searchParams.delete("subtitle_track");
+        window.history.replaceState(window.history.state, "", pageUrl);
+        await this.loadSubtitleTrackEditForm();
+      } catch (error) {
+        console.error("Failed to load subtitle track from URL", error);
+      }
     }
 
     watchAndHandleSubtitleTrackChange() {
       const subtitleSelectInput = document.getElementById("subtitles-track-selector");
       if (!subtitleSelectInput) return;
+      const dialog = subtitleSelectInput.closest("dialog");
+
       subtitleSelectInput.addEventListener("change", async () => {
-        const newSubtitleTrackId = subtitleSelectInput.value;
-        if (subtitleSelectInput == undefined) {
-          console.error("Invalid subtitle track id");
+        const trackId = subtitleSelectInput.value;
+        if (!trackId || subtitleSelectInput.disabled) return;
+        subtitleSelectInput.disabled = true;
+        try {
+          if (!await this.loadSubtitleTrack(trackId)) return;
+          dialog.close();
+        } catch (error) {
+          console.error("Failed to select subtitle track", error);
+        } finally {
+          subtitleSelectInput.disabled = false;
+        }
+      });
+    }
+
+
+    watchForSubtitleTrackCreation() {
+      const dialog = document.getElementById("subtitle-track-create-form")?.closest("dialog");
+      if (!dialog) return;
+
+      dialog.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        if (form.dataset.submitting === "true") return;
+
+        const body = new FormData(form);
+        const controls = Array.from(form.elements);
+        const disabledStates = controls.map((control) => control.disabled);
+        form.dataset.submitting = "true";
+        controls.forEach((control) => { control.disabled = true; });
+        try {
+          await Promise.allSettled(this.subtitleCueSaves);
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: { "X-CSRFToken": getCSRFToken() },
+            body
+          });
+          if (!response.ok) {
+            if (response.status === 400 && response.headers.get("Content-Type")?.includes("text/html")) {
+              const html = new DOMParser().parseFromString(await response.text(), "text/html");
+              const renderedForm = html.getElementById(form.id);
+              if (renderedForm) {
+                form.replaceWith(renderedForm);
+                renderedForm.querySelector('[aria-invalid="true"]')?.focus();
+              } else {
+                console.error("Submitted form missing from validation response");
+              }
+            } else {
+              console.error("Failed to create subtitle track", response.status);
+            }
+            return;
+          }
+          const track = await response.json();
+          const reloadUrl = new URL(window.location.href);
+          reloadUrl.searchParams.set("subtitle_track", track.id);
+          window.location.assign(reloadUrl.href);
+        } catch (error) {
+          console.error("Failed to create subtitle track", error);
+        } finally {
+          controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
+          delete form.dataset.submitting;
+        }
+      });
+    }
+
+    watchForSubtitleTrackEditing() {
+      const openButton = document.getElementById("open-subtitle-track-edit-modal");
+      const dialog = document.getElementById("edit-subtitle-track-modal");
+      if (!openButton || !dialog) return;
+
+      openButton.addEventListener("click", () => this.loadSubtitleTrackEditForm());
+
+      dialog.addEventListener("cancel", (event) => {
+        if (this.subtitleTrackEditBusy) event.preventDefault();
+      });
+      dialog.addEventListener("submit", (event) => {
+        if (event.target.id !== "subtitle-track-edit-form") return;
+        event.preventDefault();
+        const form = event.target;
+        this.submitSubtitleTrackEdit(form.action, new FormData(form));
+      });
+      dialog.addEventListener("click", (event) => {
+        const copyButton = event.target.closest("#subtitle-track-copy");
+        if (copyButton) this.submitSubtitleTrackEdit(copyButton.dataset.copyUrl, null, true);
+      });
+    }
+
+    async loadSubtitleTrackEditForm() {
+      if (!this.selectedSubtitleTrackId || this.subtitleTrackEditBusy) return;
+      const content = document.getElementById("subtitle-track-edit-content");
+      const status = document.getElementById("subtitle-track-edit-status");
+
+      content.replaceChildren();
+      content.setAttribute("aria-busy", "true");
+      status.textContent = "Loading track details…";
+
+      try {
+        // A queued cue save must finish before a replacement or copy can start.
+        await Promise.allSettled(this.subtitleCueSaves);
+        const response = await fetch(
+          `/subtitles/${this.selectedSubtitleTrackId}/edit/?content_id=${encodeURIComponent(this.contentId)}`
+        );
+        if (!response.ok) {
+          console.error("Failed to load subtitle track details", response.status);
           return;
         }
-        this.selectedSubtitleTrackId = newSubtitleTrackId;
-        const subtitlesResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/editable/`);
-        if (!subtitlesResponse.ok) {
-          console.error("Failed to get subtitle cues");
+        const html = await response.text();
+        content.innerHTML = new DOMParser().parseFromString(html, "text/html").getElementById("subtitle-track-edit-content").innerHTML;
+      } catch (error) {
+        console.error("Failed to load subtitle track details", error);
+      } finally {
+        status.textContent = "";
+        content.removeAttribute("aria-busy");
+      }
+    }
+
+    async submitSubtitleTrackEdit(url, body, copying = false) {
+      if (this.subtitleTrackEditBusy) return;
+      this.subtitleTrackEditBusy = true;
+
+      const dialog = document.getElementById("edit-subtitle-track-modal");
+      const status = document.getElementById("subtitle-track-edit-status");
+      const controls = Array.from(dialog.querySelectorAll("button, input, select"));
+      const disabledStates = controls.map((control) => control.disabled);
+      controls.forEach((control) => { control.disabled = true; });
+      status.textContent = copying ? "Copying track…" : "Saving changes…";
+      dialog.setAttribute("aria-busy", "true");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken() },
+          body
+        });
+        if (!response.ok) {
+          console.error("Subtitle track request failed", response.status);
           return;
         }
-        const subtitlesPanelHTML = await subtitlesResponse.text();
-        const currentSubtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-        currentSubtitlesPanel.outerHTML = subtitlesPanelHTML;
-        const subtitlesSettingsModal = document.getElementById("subtitles-settings");
-        this.buildWatchersForSubtitlePanelContent();
-        this.buildWatchersForSubtitleEditorCues();
-        subtitlesSettingsModal.close();
-      })
+        const track = await response.json();
+        const reloadUrl = new URL(window.location.href);
+        reloadUrl.searchParams.set("subtitle_track", track.id);
+        window.location.assign(reloadUrl.href);
+      } catch (error) {
+        console.error("Subtitle track request failed", error);
+      } finally {
+        controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
+        this.subtitleTrackEditBusy = false;
+        status.textContent = "";
+        dialog.removeAttribute("aria-busy");
+      }
+    }
+
+    watchForSubtitleTrackDeletion() {
+      const openButton = document.getElementById("open-delete-subtitle-track-modal");
+      const deleteButton = document.getElementById("delete-subtitle-track-confirm");
+      if (!openButton || !deleteButton) {
+        console.error("Cannot setup subtitle track delete button because the required elements do not exist.");
+        return;
+      }
+
+      openButton.addEventListener("click", () => {
+        if (!this.selectedSubtitleTrackId) return;
+        document.getElementById("delete-subtitle-track-text").textContent = this.selectedSubtitleTrackText;
+      });
+
+      deleteButton.addEventListener("click", async () => {
+        const trackId = this.selectedSubtitleTrackId;
+        if (!trackId || deleteButton.disabled) return;
+        deleteButton.disabled = true;
+        try {
+          const response = await fetch(`/subtitles/${trackId}/delete/`, {
+            method: "DELETE",
+            headers: { "X-CSRFToken": getCSRFToken() }
+          });
+          if (!response.ok) {
+            response.status === 403
+              ? console.error("You do not have permission to delete this subtitle track.")
+              : console.error("Failed to delete the subtitle track.");
+            return;
+          }
+          window.location.reload();
+        } catch (error) {
+          console.error("Failed to delete subtitle track", error);
+        } finally {
+          deleteButton.disabled = false;
+        }
+      });
     }
 
     collectCues() {
@@ -2782,85 +2956,133 @@ export class Editor {
       const cues = [];
       for (let cue of rawCues) {
         // gather elements to extract data from
-        const typeEl = cue.querySelector(".editor-subtitle-cue-type");
         const payloadEl = cue.querySelector(".editor-subtitle-cue-content");
-        const identifierEl = cue.querySelector(".editor-subtitle-cue-identifier");
         const startTimeEl = cue.querySelector(".editor-subtitle-cue-start");
         const endTimeEl = cue.querySelector(".editor-subtitle-cue-end");
-        const settingsEl = cue.querySelector(".editor-subtitle-cue-settings");
 
         // extract the data and package into array to send to backend
         cues.push({
-          type: typeEl.value,
+          type: "CUE",
           payload: payloadEl.value,
-          identifier: identifierEl.value,
           start_time: startTimeEl.value,
           end_time: endTimeEl.value,
-          cue_settings: settingsEl.value,
         });
       }
       return cues;
     }
 
-    async saveCues(cues, isAutosave=true) {
-      if (typeof isAutosave !== "boolean") {
-        console.error("isAutosave must be a boolean");
-        return;
+    async saveCues(cues) {
+      if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
+      const trackId = this.selectedSubtitleTrackId;
+      const originalCueState = JSON.stringify(this.collectCues());
+      const save = (async () => {
+        try {
+          const updateResponse = await makePostRequest(
+            `/subtitles/${trackId}/update-cues/`,
+            JSON.stringify({
+              cues: cues,
+              seconds_nudge: 0,
+              nudge_excluded_cues: [],
+            })
+          );
+          if (this.selectedSubtitleTrackId !== trackId) return false;
+          if (!updateResponse.ok) {
+            console.error("Failed to save subtitle cues", updateResponse.status);
+            return false;
+          }
+          const html = await updateResponse.text();
+          if (this.selectedSubtitleTrackId !== trackId) return false;
+          // A response must not replace edits made while the save was in flight.
+          if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
+          document.getElementById("subtitle-panel-list").innerHTML = html;
+          window.dispatchEvent(this.annotationUpdatedEvent);
+
+          this.buildWatchersForSubtitleEditorCues();
+          return true;
+        } catch (error) {
+          console.error("Failed to save subtitle cues", error);
+          return false;
+        }
+      })();
+      this.subtitleCueSaves.add(save);
+      try {
+        return await save;
+      } finally {
+        this.subtitleCueSaves.delete(save);
       }
-
-      const updateResponse = await fetch(`/subtitles/${this.selectedSubtitleTrackId}/update-cues/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCSRFToken(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          cues: cues,
-          seconds_nudge: 0,
-          nudge_excluded_cues: [],
-          is_autosave: isAutosave
-        })
-      });
-
-      if (!updateResponse.ok) {
-        console.error("Failed to save cues");
-        return;
-      }
-      window.dispatchEvent(this.annotationUpdatedEvent);
-
-      const subtitleCueListWrapper = document.getElementById("subtitle-panel-list");
-      subtitleCueListWrapper.innerHTML = await updateResponse.text();
-      this.buildWatchersForSubtitleEditorCues();
     }
 
     buildWatchersForSubtitlePanelContent() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      if (subtitlesPanel.dataset.canEdit !== "true") return;
       const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
-      addNewCueButton.addEventListener("click", () => {
+      addNewCueButton.addEventListener("click", async () => {
         const cues = this.collectCues();
         // build new cue and append it to cues array
         const time = this.video.currentTime;
+        const startTime = Math.round(time * 1000) / 1000;
+        const endTime = Math.round((time + 2) * 1000) / 1000;
         // the back end sorts cues, so this will go in its correct place.
         cues.push(
           {
-            start_time: formatSecondsToString(time),
-            end_time: formatSecondsToString(time + 2),
+            start_time: startTime,
+            end_time: endTime,
             type: "CUE",
             payload: "",
-            identifier: "",
-            cue_settings: "",
           }
         )
-        this.saveCues(cues, false)
+        if (!await this.saveCues(cues)) return;
+
+        // Normalize the lookup time string so it will always fine the right cue
+        // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
+        // A cue's end and start time values are to 3 decimal places, the video's
+        // current time has no decimal place limiter. Both of these cases should
+        // be handled here.
+        const cueLookupTime = parseFloat(startTime);
+        let lookupTimeString = cueLookupTime.toString();
+        const lookupStringSplit = lookupTimeString.split('.');
+
+        if (lookupStringSplit.length == 1) {
+          lookupTimeString = lookupTimeString + ".0";
+        }
+        else if (lookupStringSplit[1].length > 3) {
+          lookupTimeString = cueLookupTime.toFixed(3);
+        }
+        const newCue = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
+        if (!newCue) {
+          console.log(cueLookupTime, lookupTimeString, time);
+          console.error("no new cue found!");
+          return;
+        }
+        const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
+        if (cueTA) {
+          cueTA.focus();
+        }
+        else {
+          console.error("Unable to locate cue text content.");
+        }
+
       });
+
+      const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
+      function updateTrackDisplayInSelector() {
+        const trackSelectOption = document.querySelector(`.subtitles-track-option[value='${this.selectedSubtitleTrackId}']`);
+        const newTitle = subtitleTitleWrapper.querySelector("#subtitle-track-title").innerText;
+        trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
+        this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
+      }
+      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
     }
 
     buildWatchersForSubtitleEditorCues() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
       const deleteCue = (e) => {
         const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
-        editorSubtitleCueEl.remove();
-        this.saveCues(this.collectCues(), false);
+        const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
+        const cues = this.collectCues();
+        // use splice to allow cue marked for deletion to still appear unless the deletion is successful
+        cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
+        this.saveCues(cues);
       }
       const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
       for (let cueDelButton of editorSubtitleCueDeleteButtons) {
@@ -2868,15 +3090,38 @@ export class Editor {
       }
 
       const saveUpdatedInformation = () => {
-        this.saveCues(this.collectCues(), false);
+        this.saveCues(this.collectCues());
       }
-      const cueInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
-      for (let cueInput of cueInputs) {
-        cueInput.addEventListener("keydown", (e) => {
-          if (e.key != "Enter") {
-            return;
-          }
-          saveUpdatedInformation();
+      const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
+      const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");
+      const cueInputs = [...cueStartAndTextInputs, ...cueEndInputs];
+      if (subtitlesPanel.dataset.canEdit === "true") {
+        for (let cueInput of cueInputs) {
+          cueInput.addEventListener("keydown", (e) => {
+            // An Enter key press in a textarea creates a new line. We want that to submit the cues instead,
+            // but a Shift + Enter in a cue textarea will still create a new line if needed.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              saveUpdatedInformation();
+            }
+          });
+
+          cueInput.addEventListener("change", (e) => {
+            e.preventDefault();
+            saveUpdatedInformation();
+          });
+        }
+      }
+      for (let cueStartOrTextInput of cueStartAndTextInputs){
+        cueStartOrTextInput.addEventListener("click", (e) => {
+          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
+          const cueStartTime = parentCueWrapper.dataset["startTime"];
+          this.seekVideoTo(parseFloat(cueStartTime));
+        });
+      }
+      for (let cueEndInput of cueEndInputs) {
+        cueEndInput.addEventListener("click", () => {
+          this.seekVideoTo(parseFloat(cueEndInput.dataset["endTime"]));
         });
       }
     }
