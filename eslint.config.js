@@ -42,7 +42,8 @@ export default defineConfig([
     rules: {
       "css/no-important": "error",
       "css/no-unmatchable-selectors": "error",
-      "css/use-baseline": "error",
+      // :has() is supported in all major browsers since Dec 2023
+      "css/use-baseline": ["error", { allowSelectors: ["has"] }],
     },
   },
 ]);
