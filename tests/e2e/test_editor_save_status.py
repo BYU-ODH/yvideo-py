@@ -65,7 +65,7 @@ def test_failed_save_is_reported(page, open_editor):
     status = page.locator("#annotation-save-status")
     expect(status).to_contain_text("Save failed")
 
-    status.get_by_role("button", name="Why did saving fail?").click()
+    status.get_by_role("button", name="About failed saves").click()
     expect(page.locator("#save-failed-help-modal")).to_be_visible()
     page.locator("#save-failed-help-modal").get_by_role("button", name="Close").click()
     expect(page.locator("#save-failed-help-modal")).to_be_hidden()

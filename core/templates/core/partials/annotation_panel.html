@@ -35,13 +35,9 @@
                             command="show-modal"
                             commandfor="save-failed-help-modal"
                             aria-haspopup="dialog"
-                            aria-label="Why did saving fail?"
-                            title="Why did saving fail?">
-                        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                            <circle cx="8" cy="8" r="7" />
-                            <path d="M6 6.2 A2 2 0 1 1 8.6 8 C8.1 8.2 8 8.6 8 9.3" />
-                            <circle class="save-status-help-dot" cx="8" cy="11.8" r="0.6" />
-                        </svg>
+                            aria-label="About failed saves"
+                            title="About failed saves">
+                        <span aria-hidden="true">ⓘ</span>
                     </button>
                 </div>
                 {% include "core/partials/modals/save_failed_help.html" with dialog_id="save-failed-help-modal" %}

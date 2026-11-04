@@ -481,20 +481,6 @@
     display: flex;
 }
 
-.save-status-help svg {
-    width: 0.9rem;
-    height: 0.9rem;
-
-    fill: none;
-    stroke: currentcolor;
-    stroke-linecap: round;
-    stroke-width: 1.5;
-}
-
-.save-status-help .save-status-help-dot {
-    fill: currentcolor;
-}
-
 .save-failed-help-body {
     max-width: 28rem;
 }
