@@ -1,0 +1,14 @@
+{% load static %}
+
+{% if message %}
+    <div class="django-message {% if message.tags %}{{ message.tags }}{% endif %}"
+         data-message-age="10">
+        {% if message.tags %}
+            <p class="django-message-status">{{ message.tags|capfirst }}</p>
+        {% endif %}
+        <p class="django-message-text">{{ message }}</p>
+        <button class="django-message-remove" aria-label="Close this message">
+            <img src="{% static 'img/black-x.svg' %}" alt="x">
+        </button>
+    </div>
+{% endif %}
