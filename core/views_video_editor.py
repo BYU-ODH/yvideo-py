@@ -5,6 +5,7 @@ import math
 from os.path import splitext
 from urllib.parse import quote
 
+from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
@@ -61,6 +62,7 @@ from .subtitle_uploads import nudge_cue_times
 from .subtitle_uploads import read_subtitle_cues
 from .subtitle_uploads import store_independent_subtitle_file
 from .subtitle_uploads import subtitle_file_references
+from .utils import ANNOTATION_DESCRIPTIONS
 from .utils import ANNOTATION_ICONS
 from .utils import time2seconds
 from .youtube_utils import youtube_video_id_for_content
@@ -85,10 +87,12 @@ def get_annotation_groups(annotations):
     groups = {}
     for type_name in ANNOTATION_MODELS.keys():
         type_icon = ANNOTATION_ICONS[type_name]
+        tool_description = ANNOTATION_DESCRIPTIONS[type_name]
         new_group = {
             "type": type_name,
             "type_display": type_name.capitalize(),
             "icon": type_icon,
+            "tool_description": tool_description,
             "instances": [],
         }
         groups[type_name] = new_group
@@ -1099,6 +1103,10 @@ def delete_annotation_set(request, annotation_set):
         return forbidden("Only the owner of an annotation set can retire it.")
     try:
         annotation_set.orphan()
+        messages.success(
+            request,
+            f'The Annotation set "{annotation_set.name}" was retired.',
+        )
         return HttpResponse()
     except Exception as e:
         logger.error(f"Failed to retire annotation set. Exception: {e}")

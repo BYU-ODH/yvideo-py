@@ -1,0 +1,19 @@
+{# The autosave status line. Each editor panel has one; save-status.js renders the same state into all of them. #}
+<div id="{{ status_id }}" class="save-status row-flex">
+    <span class="save-status-text" role="status"></span>
+    <svg class="save-status-check"
+         viewBox="0 0 16 16"
+         aria-hidden="true"
+         focusable="false">
+        <path d="M3 8.5 L6.5 12 L13 4.5" pathLength="1" />
+    </svg>
+    <button type="button"
+            class="save-status-help"
+            command="show-modal"
+            commandfor="save-failed-help-modal"
+            aria-haspopup="dialog"
+            aria-label="About failed saves"
+            title="About failed saves">
+        <span aria-hidden="true">ⓘ</span>
+    </button>
+</div>

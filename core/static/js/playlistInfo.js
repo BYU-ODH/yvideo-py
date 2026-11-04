@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./utils.js";
+import { getCSRFToken, displayUserMessage } from "./utils.js";
 import { getPlaylistIdValue } from "./utils.js";
 
 function setupVideoSearch() {
@@ -33,7 +33,7 @@ function setupDeletePlaylist() {
       }
     });
     if (!deleteResponse.ok) {
-      console.error("Failed to delete playlist");
+      displayUserMessage("error", "Failed to delete playlist");
     } else {
       window.location.replace("/playlists/");
     }
@@ -50,7 +50,7 @@ function setupResetPlaylistSettings() {
     const playlistId = getPlaylistIdValue();
     const resetResponse = await fetch(`/playlists/${playlistId}/settings/`);
     if (!resetResponse.ok) {
-      console.error("Failed to reset playlist settings");
+      displayUserMessage("error", "Failed to reset playlist settings");
       return;
     }
     const settingsHTML = await resetResponse.text();
