@@ -60,7 +60,7 @@ def test_youtube_editor_offers_no_subtitle_editor(
 ):
     # A YouTube embed exposes no TextTrack surface, so subtitles edited here could never be
     # displayed - offering the panel would invite work that is silently discarded. Both the panel
-    # and the buttons that switch to it are absent (see annotation_panel.html).
+    # and the buttons that show subtitle editor/show annotation editor are absent (see annotation_panel.html).
     content = youtube_content("Editor Warning - No Subtitle Panel")
 
     page.goto(f"{live_server.url}/login/dev/quick/")
