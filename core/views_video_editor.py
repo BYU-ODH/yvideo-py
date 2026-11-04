@@ -1241,6 +1241,15 @@ def update_track_positions_in_set(request, annotation_set):
     if "track_ids" not in parsed_data:
         logger.error("Failed to update track positions due to invalid input")
         return HttpResponseBadRequest()
+    if not isinstance(parsed_data["track_ids"], list):
+        logger.error("Failed to update track positions due to invalid input")
+        return HttpResponseBadRequest()
+    # The editor reads track ids from data attributes, so they arrive as strings.
+    try:
+        track_ids = [int(track_id) for track_id in parsed_data["track_ids"]]
+    except (TypeError, ValueError):
+        logger.error("Failed to update track positions due to invalid track ids")
+        return HttpResponseBadRequest()
 
     try:
         with transaction.atomic():
@@ -1248,18 +1257,14 @@ def update_track_positions_in_set(request, annotation_set):
                 track.pk: track
                 for track in Track.objects.filter(annotation_set=annotation_set)
             }
-            set_track_ids = list(tracks.keys())
-
-            # ensure that only tracks belonging to this set are reordered
-            for track_id in parsed_data["track_ids"]:
-                if int(track_id) not in set_track_ids:
-                    logger.error(
-                        f"Refused to reorder tracks: track with id {track_id} does not belong to this annotation set"
-                    )
-                    return HttpResponseBadRequest()
-
-            for index, track_id in enumerate(parsed_data["track_ids"]):
-                track = tracks[int(track_id)]
+            # Every track must appear exactly once, or two tracks could share a position.
+            if sorted(track_ids) != sorted(tracks):
+                logger.error(
+                    "Refused to reorder tracks: ids do not match the tracks in this set"
+                )
+                return HttpResponseBadRequest()
+            for index, track_id in enumerate(track_ids):
+                track = tracks[track_id]
                 track.stack_position = index
                 track.save()
     except Exception as e:
@@ -1297,13 +1302,20 @@ def create_track(request, annotation_set):
 @track_write_required
 def delete_track(request, track):
     try:
-        if track.stack_position == 0:
+        if track.is_only_track():
             logger.error(
-                f"Request to delete primary track ignored. Track id: {track.pk}"
+                f"Request to delete the only track ignored. Track id: {track.pk}"
             )
             return HttpResponseBadRequest()
-        track.delete()
-        return HttpResponse()
+        annotation_set = track.annotation_set
+        with transaction.atomic():
+            track.delete()
+            # The track menus decide Move Up/Down from stack positions, so close the gap.
+            for index, remaining_track in enumerate(annotation_set.get_tracks()):
+                if remaining_track.stack_position != index:
+                    remaining_track.stack_position = index
+                    remaining_track.save(update_fields=["stack_position"])
+        return convertTracksToHTML(annotation_set, request)
     except Exception as e:
         logger.error(f"Failed to delete track. Exception: {e}")
         return HttpResponseServerError()
