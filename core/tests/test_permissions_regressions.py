@@ -410,7 +410,6 @@ class StrangerIsRefusedTests(TestCase):
                 ],
                 "seconds_nudge": 0,
                 "nudge_excluded_cues": [],
-                "is_autosave": False,
             },
         )
 

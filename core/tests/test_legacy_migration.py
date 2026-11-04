@@ -335,7 +335,6 @@ class LegacyMigrationTests(TestCase):
             language=language,
             name="Current English",
             subtitles_file="legacy/current.vtt",
-            is_original=True,
         )
 
         legacy_collection_id = str(uuid.uuid4())

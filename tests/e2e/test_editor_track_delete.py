@@ -22,7 +22,7 @@ def _add_track(content, name):
 
 def _click_delete(page, track):
     row = page.locator(f'.track-row[data-track-id="{track.id}"]')
-    row.locator(".open-multi-select-button").click()
+    row.locator(".open-multi-option-menu").click()
     row.locator(".track-menu-delete").click()
     return row
 
@@ -42,7 +42,7 @@ def test_deleting_a_track_with_items_asks_first(page, open_editor, demo_content)
     assert Track.objects.filter(id=track.id).exists()
 
     page.once("dialog", lambda dialog: dialog.accept())
-    row.locator(".track-menu-delete").click()
+    _click_delete(page, track)
 
     expect(row).to_have_count(0)
     assert not Track.objects.filter(id=track.id).exists()

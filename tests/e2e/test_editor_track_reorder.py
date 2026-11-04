@@ -24,7 +24,7 @@ def _track_names(page):
 
 def _click_menu(page, track, button_class):
     row = page.locator(f'.track-row[data-track-id="{track.id}"]')
-    row.locator(".open-multi-select-button").click()
+    row.locator(".open-multi-option-menu").click()
     row.locator(button_class).click()
 
 

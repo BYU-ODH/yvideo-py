@@ -16,6 +16,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 import xxhash
 
+from .subtitle_uploads import validate_subtitle_file
 from .utils import estimate_current_yearterm
 from .utils import seconds2hms
 
@@ -75,7 +76,16 @@ class Resource(models.Model):
         WEB = ("www", "Web")
         AUDIO = ("aud", "Audio")
 
-    name = models.CharField(max_length=255, unique=True)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "name_disambiguator"],
+                name="unique_resource_name_and_disambiguator",
+            ),
+        ]
+
+    name = models.CharField(max_length=255)
+    name_disambiguator = models.CharField(max_length=200, blank=True, default="")
     media_type = models.CharField(max_length=3, choices=MediaType.choices, blank=True)
     requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
@@ -113,7 +123,9 @@ class Resource(models.Model):
     )
 
     def __str__(self):
-        return f"{self.name}"
+        if self.name_disambiguator:
+            return f"{self.name} ({self.name_disambiguator})"
+        return self.name
 
     @property
     def belongs_to_byu_library(self):
@@ -963,16 +975,28 @@ class Content(models.Model):
             return []
         sub_objs = Subtitle.objects.filter(resource=resource)
         default_id = self.default_subtitle_track_id
-        subtitles = [
-            {
-                "id": sub.pk,
-                "srclang": sub.language.bcp47,
-                "vtt": sub.subtitles_file.read().decode("utf-8"),
-                "name": sub.name,
-                "default": sub.pk == default_id,
-            }
-            for sub in sub_objs
-        ]
+        subtitles = []
+        for sub in sub_objs:
+            vtt = ""
+            try:
+                with sub.subtitles_file.open("rb") as subtitle_file:
+                    vtt = subtitle_file.read().decode("utf-8-sig")
+            except (OSError, ValueError) as exception:
+                logger.warning(
+                    "Could not read subtitle track %s for content %s: %s",
+                    sub.pk,
+                    self.pk,
+                    exception,
+                )
+            subtitles.append(
+                {
+                    "id": sub.pk,
+                    "srclang": sub.language.bcp47,
+                    "vtt": vtt,
+                    "name": sub.name,
+                    "default": sub.pk == default_id,
+                }
+            )
         return subtitles
 
     def has_clips(self):
@@ -989,13 +1013,6 @@ class Content(models.Model):
         return Clip.objects.filter(
             track__annotation_set_id=self.annotation_set_id, active=True
         ).exists()
-
-    def get_subtitle_options(self):
-        """Get (id, name) pairs for every subtitle on this content's resource, for use in selection UI."""
-        resource = self.get_resource()
-        if not resource:
-            return []
-        return list(Subtitle.objects.filter(resource=resource).values("id", "name"))
 
     def get_player_json(self):
         """
@@ -1943,22 +1960,6 @@ def subtitle_file_upload_path(instance, filename):
         return f"{instance.resource.name}/subtitles/{filename}"
 
 
-def subtitle_temp_file_upload_path(instance):
-    """Generate upload path to media/<resource name>/subtitles/<filename>"""
-    if isinstance(instance, Subtitle):
-        return f"{instance.resource.name}/subtitles/{instance.name}_temp.vtt"
-
-
-def validate_subtitle_file(file):
-    """Ensure filetype is .vtt or .srt"""
-    file_name_split = os.path.splitext(file.name)
-    file_ext = file_name_split[1]
-    if file_ext != ".vtt" and file_ext != ".srt":
-        raise ValidationError(
-            f"Subtitles must be .vtt or .srt format. Format provided: {file_ext}"
-        )
-
-
 class Subtitle(models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="subtitles"
@@ -1974,13 +1975,6 @@ class Subtitle(models.Model):
         upload_to=subtitle_file_upload_path,
         validators=[validate_subtitle_file],
     )
-    subtitles_temp_file = models.FileField(
-        upload_to=subtitle_temp_file_upload_path,
-        validators=[validate_subtitle_file],
-        null=True,
-        blank=True,
-    )
-    is_original = models.BooleanField(null=False, blank=False, default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -2064,6 +2058,14 @@ def get_date_5_days_from_now():
 
 
 class ResourceIntakeRequest(models.Model):
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource_title", "resource_name_disambiguator"],
+                name="unique_resource_title_and_disambiguator",
+            )
+        ]
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
@@ -2079,6 +2081,11 @@ class ResourceIntakeRequest(models.Model):
 
     # Resource-specific fields
     resource_title = models.CharField(default="")
+    resource_name_disambiguator = models.CharField(
+        blank=True,
+        default="",
+        help_text="Provide some information that would differentiate this resource from another of the same name (e.g. release year, starting actor/actress, or director)",
+    )
     imdb_link = models.URLField(default="", blank=True)
     audio_language = models.CharField(default="", blank=True)
     subtitle_language = models.CharField(default="", blank=True)
