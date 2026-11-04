@@ -148,6 +148,31 @@ urlpatterns = [
     path("spoof-user-stop/", views.spoof_user_stop, name="stop_spoofing"),
     path("spoof-user-search/", views.spoof_user_search, name="spoof_user_search"),
     path(
+        "content/<int:content_id>/subtitles/create/",
+        views_video_editor.create_subtitle_track,
+        name="create_subtitle_track",
+    ),
+    path(
+        "subtitles/<int:subtitle_id>/edit/",
+        views_video_editor.edit_subtitle_track,
+        name="edit_subtitle_track",
+    ),
+    path(
+        "subtitles/<int:subtitle_id>/update/",
+        views_video_editor.update_subtitle,
+        name="update_subtitle",
+    ),
+    path(
+        "content/<int:content_id>/subtitles/<int:subtitle_id>/copy/",
+        views_video_editor.copy_subtitle_track,
+        name="copy_subtitle_track",
+    ),
+    path(
+        "subtitles/<int:subtitle_id>/update-title",
+        views_video_editor.update_subtitle_name,
+        name="update_subtitle_name",
+    ),
+    path(
         "subtitles/<int:subtitle_id>/editable/",
         views_video_editor.get_editable_subtitles,
         name="get_editable_subtitles",
@@ -156,6 +181,11 @@ urlpatterns = [
         "subtitles/<int:subtitle_id>/update-cues/",
         views_video_editor.update_subtitle_content,
         name="update_subtitle_content",
+    ),
+    path(
+        "subtitles/<int:subtitle_id>/delete/",
+        views_video_editor.delete_subtitle,
+        name="delete_subtitle",
     ),
     # Video editor page
     path(
