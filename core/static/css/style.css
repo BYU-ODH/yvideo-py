@@ -338,7 +338,6 @@ a.blue-button {
     font-size: 1rem;
     white-space: nowrap;
 
-    /* eslint-disable-next-line css/use-baseline */
     &:hover {
         box-shadow: inset 0 0 2px 1px var(--dark-mode-background-light);
     }
@@ -358,7 +357,6 @@ a.blue-button {
     color: lightgrey;
     background-color: grey;
 
-    /* eslint-disable-next-line css/use-baseline */
     &:hover {
         cursor: not-allowed;
         box-shadow: 0 0 0 0;
