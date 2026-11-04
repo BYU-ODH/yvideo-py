@@ -147,6 +147,30 @@
     padding: 8px;
 }
 
+#tool-descriptions {
+    max-width: 50rem;
+}
+
+.tool-description {
+    margin: 0;
+}
+
+.tool-description-title {
+    font-weight: bold;
+}
+
+#tools-header {
+    padding: 8px;
+}
+
+#tools-header-title {
+    font-size: 1.2rem;
+}
+
+#tools-info-open-button {
+    font-size: 1.4rem;
+}
+
 #subtitle-panel-title {
     margin: 0;
 }
@@ -1620,8 +1644,8 @@ start at the current zoom instead of needing their own width. */
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
-.track-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
-#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
+.track-item:has(+ form):focus-within,
+#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {
     background: #2a5f8f;
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2a5f8f;
 }
