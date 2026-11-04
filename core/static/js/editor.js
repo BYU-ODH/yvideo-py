@@ -1749,6 +1749,15 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
+      const trackItems = Array.from(trackRow.querySelectorAll(".track-item"));
+      const itemCount = trackItems.length;
+      if (itemCount > 0) {
+        const items = itemCount === 1 ? "1 annotation" : `${itemCount} annotations`;
+        const message = `Delete track "${trackRow.querySelector(".track-name").innerText}" and its ${items}? This cannot be undone.`;
+        if (!window.confirm(message)) {
+          return;
+        }
+      }
       const trackDeleteResponse = await fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
@@ -1761,10 +1770,29 @@ export class Editor {
         console.error("Failed to delete track");
         return;
       }
+      // Only change the page after the server has confirmed the delete.
+      const jsonData = await trackDeleteResponse.json();
       window.dispatchEvent(this.annotationUpdatedEvent);
 
-      trackRow.remove();
+      // The annotation panel lists the same items as the tracks, but it is not
+      // redrawn with the tracks. Remove the deleted items from it here so the two stay in sync.
+      for (const item of trackItems) {
+        document.getElementById(`${item.dataset["annotationType"]}-panel-item-${item.dataset["annotationId"]}`)?.remove();
+      }
+      const itemForm = document.getElementById("existing-item-form");
+      const formItemWasDeleted = itemForm && trackItems.some(item =>
+        item.dataset["annotationType"] == itemForm.dataset["annotationType"]
+        && item.dataset["annotationId"] == itemForm.dataset["annotationId"]
+      );
+      if (formItemWasDeleted) {
+        document.getElementById("detail-form").innerHTML = "";
+        this.changeAnnotationInFocus();
+      }
+
+      this.replaceTracksWithNewHTML(jsonData["tracks_html"]);
       this.updateTracks();
+      this.placeTrackItems();
+      this.adjustScrubberHeight();
     }
 
     watchForTrackDelete(trackRootElement) {
