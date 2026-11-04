@@ -47,6 +47,30 @@
         {% include 'core/partials/modals/delete_subtitle_track.html' with dialog_id="delete-subtitle-track-modal" %}
     </div>
     <div id="subtitle-editor-panel-content">
+        <div id="cue-find-and-replace-wrapper" class="cue-find-and-replace-hidden">
+            <div id="cue-find-and-replace-header" class="row-flex flex-apart-aligned">
+                <p>Find and Replace</p>
+                <img src="{% static 'img/arrow-white.svg' %}" alt=">">
+            </div>
+            <div id="cue-find-and-replace-content" class="row-flex">
+                <div class="column-flex">
+                    <div class="cue-find-and-replace-input-group">
+                        <input id="cue-find-input"
+                               type="text"
+                               placeholder="Search..."
+                               aria-label="Search word">
+                        <p id="cue-find-match-count"></p>
+                    </div>
+                    <div class="cue-find-and-replace-input-group">
+                        <input id="cue-replace-input"
+                               type="text"
+                               placeholder="Replace with..."
+                               aria-label="Replace word">
+                        <button id="execute-find-and-replace-button" disasbled>Replace all</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="subtitle-editor-content-empty">
             <button id="subtitle-panel-select-existing-track"
                     command="show-modal"
