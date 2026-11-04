@@ -1,11 +1,16 @@
 import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
+import { saveStatus } from "./save-status.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
 import { PendingNudge, beginRectGesture, createRig, nudgeDelta } from "./overlay-rig.js";
 import {
   clampRect,
   blurAnchorPointsLostByRetiming,
 } from "./video-geometry.js";
+
+// makePostRequest for a request that persists an edit, so the save indicator sees it.
+const saveFetch = (...args) => saveStatus.fetch(...args);
+const savePost = (url, body, contentType) => makePostRequest(url, body, contentType, saveFetch);
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 // Mirror COMMENT_MIN_WIDTH / COMMENT_MIN_HEIGHT in core/models.py. A comment has no stored height,
@@ -65,6 +70,8 @@ export class Editor {
         this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
+        // The cues as last sent to (or rendered by) the server; see buildWatchersForSubtitleEditorCues.
+        this.sentCueState = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
@@ -476,6 +483,7 @@ export class Editor {
 
     autoSaveItemForm() {
       const itemForm = document.getElementById("annotation-update-form");
+      saveStatus.settle("item-form");
       if (!itemForm) {
         this.saveItemForm = null;
         return;
@@ -486,6 +494,7 @@ export class Editor {
       let saveQueued = false;
 
       const save = this.saveItemForm = async () => {
+        saveStatus.settle("item-form");
         if (saveInFlight) {
           saveQueued = true;
           return;
@@ -531,6 +540,15 @@ export class Editor {
         }
       };
 
+      itemForm.addEventListener("input", (e) => {
+        if (!e.target.name) return;
+        if (this.serializeItemForm(itemForm) === this.lastSavedItemFormState) {
+          saveStatus.settle("item-form");
+        } else {
+          saveStatus.wait("item-form");
+        }
+      });
+
       itemForm.addEventListener("change", (e) => {
         if (!e.target.name) return;
         save();
@@ -570,7 +588,7 @@ export class Editor {
         return;
       }
 
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
+      const response = await saveStatus.fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": getCSRFToken()}
       });
@@ -714,7 +732,7 @@ export class Editor {
       button.disabled = true;
 
       try {
-        const response = await makePostRequest(
+        const response = await savePost(
           button.dataset.historyUrl,
           new URLSearchParams({
             annotation_id: button.dataset.annotationId,
@@ -884,7 +902,7 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await makePostRequest(
+      const response = await savePost(
         `/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`,
         requestBody,
         contentType
@@ -982,6 +1000,7 @@ export class Editor {
         clearTimeout(updateTimerId);
         updateTimerId = setTimeout(() => {
           if (!itemForm.isConnected) {
+            saveStatus.settle("item-form");
             return;
           }
           this.saveItemForm?.();
@@ -1352,6 +1371,8 @@ export class Editor {
     }
 
     deselectItem() {
+      // The form is about to be replaced, so any edit it was holding for autosave goes with it.
+      saveStatus.settle("item-form");
       if (!document.getElementById("existing-item-form")) {
         return;
       }
@@ -1460,7 +1481,7 @@ export class Editor {
             displayText(originalNameValue);
             return;
           }
-          const response = await makePostRequest(
+          const response = await savePost(
             `/annotation-set/${annotationSetId}/update-name/`,
             JSON.stringify({name: payload})
           );
@@ -1685,7 +1706,7 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await makePostRequest(
+        const response = await savePost(
           `/track/${trackId}/update/`,
           JSON.stringify({"new_track_name": newTrackName})
         );
@@ -1758,7 +1779,7 @@ export class Editor {
           return;
         }
       }
-      const trackDeleteResponse = await fetch(`/track/${trackId}/delete/`, {
+      const trackDeleteResponse = await saveStatus.fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -1786,6 +1807,7 @@ export class Editor {
       );
       if (formItemWasDeleted) {
         document.getElementById("detail-form").innerHTML = "";
+        saveStatus.settle("item-form");
         this.changeAnnotationInFocus();
       }
 
@@ -1839,7 +1861,7 @@ export class Editor {
         }
       }
 
-      const orderUpdateResponse = await makePostRequest(
+      const orderUpdateResponse = await savePost(
         `/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
         JSON.stringify({
           track_ids: trackIdOrder
@@ -1889,7 +1911,7 @@ export class Editor {
           return;
         }
 
-        const newTrackResponse = await makePostRequest(
+        const newTrackResponse = await savePost(
           `/annotation-set/${annotationSetId}/track/create/`,
           JSON.stringify({
             "track_name": newTrackName
@@ -2012,7 +2034,7 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const response = await makePostRequest(
+            const response = await savePost(
               `/track/${trackId}/annotations/${annotationType}/create/`,
               JSON.stringify({
                 "start_time": startTime,
@@ -3047,9 +3069,11 @@ export class Editor {
       if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
+      this.sentCueState = originalCueState;
+      saveStatus.settle("subtitle-cues");
       const save = (async () => {
         try {
-          const updateResponse = await makePostRequest(
+          const updateResponse = await savePost(
             `/subtitles/${trackId}/update-cues/`,
             JSON.stringify({
               cues: cues,
@@ -3143,11 +3167,14 @@ export class Editor {
         trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
         this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
       }
-      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
+      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this), saveFetch);
     }
 
     buildWatchersForSubtitleEditorCues() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
+      this.sentCueState = JSON.stringify(this.collectCues());
+      saveStatus.settle("subtitle-cues");
       const deleteCue = (e) => {
         const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
         const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
@@ -3181,6 +3208,15 @@ export class Editor {
           cueInput.addEventListener("change", (e) => {
             e.preventDefault();
             saveUpdatedInformation();
+          });
+          // A cue saves on change or Enter, so typed text waits until then. Typing back to what was
+          // last sent is not a pending edit.
+          cueInput.addEventListener("input", () => {
+            if (JSON.stringify(this.collectCues()) === this.sentCueState) {
+              saveStatus.settle("subtitle-cues");
+            } else {
+              saveStatus.wait("subtitle-cues");
+            }
           });
         }
       }
