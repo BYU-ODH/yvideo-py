@@ -143,7 +143,7 @@
     display: none;
 }
 
-#annotation-panel-header, #subtitle-panel-header {
+#annotation-panel-header {
     padding: 8px;
 }
 
@@ -661,11 +661,15 @@
 
 /* Subtitle Editor Panel */
 #subtitle-editor-panel {
+    flex-direction: column;
+    row-gap: 1rem;
     width: 350px;
+    padding: 8px;
 }
 
 #subtitle-editor-panel-content {
     overflow-y: auto;
+    flex: 1;
 }
 
 #subtitle-panel-content-wrapper, #subtitle-panel-list {
@@ -922,7 +926,9 @@
 }
 
 .item-form-icon-button:focus-visible,
-.item-form-icon-button:hover:not(:disabled) {
+.item-form-icon-button:hover:not(:disabled),
+.open-multi-option-menu:focus-visible,
+.open-multi-option-menu:hover:not(:disabled) {
     box-shadow: 0 0 0 1px white;
 }
 
@@ -1616,8 +1622,8 @@ start at the current zoom instead of needing their own width. */
 }
 
 /* Use CSS :has() selector to detect when form is loaded for this item */
-.track-item:has(+ form):focus-within,  /* eslint-disable-line css/use-baseline */
-#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {   /* eslint-disable-line css/use-baseline */
+.track-item:has(+ form):focus-within,
+#detail-form:has([data-clip-id]) ~ .track-items .track-item[data-item-id]:is(:focus, :focus-within) {
     background: #2a5f8f;
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2a5f8f;
 }
