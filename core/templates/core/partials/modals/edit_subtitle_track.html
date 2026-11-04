@@ -1,0 +1,70 @@
+{% extends "core/partials/modals/user_view_modal.html" %}
+
+{% block modal_title %}Edit subtitle track{% endblock %}
+{% block modal_body %}
+    <p id="subtitle-track-edit-status" role="status"></p>
+    <div id="subtitle-track-edit-content">
+        {% if subtitle_track %}
+            <div id="subtitle-track-edit-details"
+                 data-track-id="{{ subtitle_track.pk }}">
+                <p class="subtitle-track-owner">Owner: {{ owner_display_name }}</p>
+                {% if can_edit %}
+                    <p>Any changes made to this subtitle track will appear in other videos where this track is used.</p>
+                    <form id="subtitle-track-edit-form"
+                          action="{% url 'update_subtitle' subtitle_track.pk %}"
+                          method="post"
+                          enctype="multipart/form-data"
+                          novalidate>
+                        {% csrf_token %}
+                        {{ form.non_field_errors }}
+                        <div class="column-flex">
+                            <div class="subtitle-track-edit-field">
+                                {{ form.name.label_tag }}
+                                {{ form.name }}
+                                {{ form.name.errors }}
+                            </div>
+                            <div class="subtitle-track-edit-field">
+                                {{ form.language.label_tag }}
+                                {{ form.language }}
+                                {{ form.language.errors }}
+                            </div>
+                            <div class="subtitle-track-edit-field">
+                                {{ form.subtitles_file.label_tag }}
+                                {{ form.subtitles_file }}
+                                {{ form.subtitles_file.errors }}
+                                <div id="{{ form.subtitles_file.auto_id }}_helptext">
+                                    <p>{{ form.subtitles_file.help_text }} Uploading a file will replace all existing cues in this track.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="subtitle-track-edit-actions">
+                            <button type="button"
+                                    class="white-button-with-border"
+                                    command="close"
+                                    commandfor="edit-subtitle-track-modal">Cancel</button>
+                            <button id="subtitle-track-edit-save"
+                                    type="submit"
+                                    class="white-button-with-border">Save changes</button>
+                        </div>
+                    </form>
+                {% else %}
+                    <p>You cannot edit this track. Contact its owner or make your own editable copy.</p>
+                    <p>Subtitle track name: {{ subtitle_track.name }}</p>
+                    <p>Language: {{ subtitle_track.language }}</p>
+                    <div class="subtitle-track-edit-actions">
+                        <button type="button"
+                                class="white-button-with-border"
+                                command="close"
+                                commandfor="edit-subtitle-track-modal">Cancel</button>
+                        <button id="subtitle-track-copy"
+                                type="button"
+                                class="white-button-with-border"
+                                data-copy-url="{% url 'core:copy_subtitle_track' content_id subtitle_track.pk %}">
+                            Copy this track
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

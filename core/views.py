@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
 from django.contrib.messages.storage.base import Message
+from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
@@ -1281,7 +1282,7 @@ def display_content_info(request, content):
                 content, content_source_url
             ),
             "content_has_clips": content.has_clips(),
-            "subtitle_options": content.get_subtitle_options(),
+            "subtitle_options": content.get_subtitles(),
             "breadcrumbs": breadcrumb_trail(
                 *content_parent_crumbs(content),
                 (content.title, reverse("player", args=[content.pk])),
@@ -1301,7 +1302,7 @@ def render_content_settings_form(request, content):
         context = {
             "content": content,
             "content_has_clips": content.has_clips(),
-            "subtitle_options": content.get_subtitle_options(),
+            "subtitle_options": content.get_subtitles(),
         }
         return render(request, "core/partials/content_settings_form.html", context)
     except Exception as e:
@@ -1450,7 +1451,7 @@ def subtitle_editor(request, content_id):
 @require_http_methods(["GET", "POST"])
 @instructor_required
 def request_resource(request):
-
+    title_collision_error = False
     if request.method == "POST":
         form = ResourceIntakeRequestForm(request.POST)
         if form.is_valid():
@@ -1464,6 +1465,11 @@ def request_resource(request):
                 "Humanities Learning Commons (HLC) so we can begin processing it.",
             )
             return redirect("request_resource")
+        else:
+            title_collision_error = form.has_error(
+                NON_FIELD_ERRORS, code="unique_together"
+            )
+
         for field_name in form.errors:
             if field_name in form.fields:
                 widget = form.fields[field_name].widget
@@ -1476,7 +1482,5 @@ def request_resource(request):
     return render(
         request,
         "core/partials/resource_intake_request.html",
-        {
-            "form": form,
-        },
+        {"form": form, "title_collision_error": title_collision_error},
     )

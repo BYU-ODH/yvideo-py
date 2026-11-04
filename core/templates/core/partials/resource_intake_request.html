@@ -23,6 +23,10 @@
                                 <label for="{{ form.resource_title.id_for_label }}">Resource Title <span class="resource-intake-required-marker">*</span></label>
                                 {{ form.resource_title }}
                             </div>
+                            <div class="resource-intake-form-group{% if form.resource_name_disambiguator.errors %} resource-intake-field-error{% endif %}">
+                                <label for="{{ form.resource_name_disambiguator.id_for_label }}">Title disambiguator</label>
+                                {{ form.resource_name_disambiguator }}
+                            </div>
                             <div class="resource-intake-form-group">
                                 <label for="{{ form.imdb_link.id_for_label }}">IMDb Link (optional)</label>
                                 {{ form.imdb_link }}

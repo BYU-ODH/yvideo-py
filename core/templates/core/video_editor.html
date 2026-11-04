@@ -42,5 +42,8 @@
         <!-- Bottom Panel: Timeline -->
         {% include 'core/partials/timeline_base.html' %}
     </div>
+    {# Outside both panels: a dialog inside whichever panel is hidden could not be shown. #}
+    {% include "core/partials/modals/save_failed_help.html" with dialog_id="save-failed-help-modal" %}
+
     <script type="module" src="{% static 'js/editor.js' %}"></script>
 {% endblock %}

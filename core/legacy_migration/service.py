@@ -35,6 +35,7 @@ from ..models import SkipAnnotation
 from ..models import Subtitle
 from ..models import Track
 from ..models import User
+from ..subtitle_uploads import build_subtitle_vtt
 from .catalog import LegacyCatalogClient
 from .dump import run_legacy_dump
 from .file_index import ChecksumCache
@@ -55,7 +56,6 @@ from .models import LegacyMigrationUserResolution
 from .models import LegacyMigrationUserResolutionStatus
 from .models import LegacySourceMap
 from .parsers import LegacyFileInfo
-from .parsers import build_subtitle_vtt
 from .parsers import build_user_fingerprint
 from .parsers import make_json_safe
 from .parsers import map_legacy_media_type
@@ -1407,6 +1407,11 @@ class LegacyMigrationService:
             for legacy_event in legacy_annotations
             if self._annotation_model_for_type(legacy_event.get("type"))
         ]
+        # Legacy layers can skip numbers, but the track menus expect positions 0…n-1.
+        stack_positions = {
+            layer_number: index
+            for index, layer_number in enumerate(sorted(set(layer_numbers)))
+        }
         tracks_by_layer = {}
         for index, legacy_event in enumerate(legacy_annotations):
             model_class = self._annotation_model_for_type(legacy_event.get("type"))
@@ -1418,7 +1423,7 @@ class LegacyMigrationService:
                 track = Track.objects.create(
                     annotation_set=annotation_set,
                     name=f"Imported Layer {layer_number}",
-                    stack_position=layer_number,
+                    stack_position=stack_positions[layer_number],
                 )
                 tracks_by_layer[layer_number] = track
             start_time = float(legacy_event.get("start", 0) or 0)
@@ -1482,7 +1487,7 @@ class LegacyMigrationService:
             clip_track = Track.objects.create(
                 annotation_set=annotation_set,
                 name="Imported Clips",
-                stack_position=max(layer_numbers, default=-1) + 1,
+                stack_position=len(stack_positions),
             )
             for clip_index, legacy_clip in enumerate(legacy_clips):
                 self._ensure_clip(
@@ -1513,7 +1518,6 @@ class LegacyMigrationService:
                 "owner": self._get_target_owner(request_obj),
                 "language": language,
                 "name": subtitle_row["title"] or language.language,
-                "is_original": True,
             }
             vtt_content = build_subtitle_vtt(subtitle_row["content"])
             with transaction.atomic():
