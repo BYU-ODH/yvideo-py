@@ -1,5 +1,6 @@
 import re
 
+from django.db import OperationalError
 from playwright.sync_api import expect
 import pytest
 
@@ -31,13 +32,18 @@ def _open_comment(page, open_editor):
 
 def _wait_for_saved_color(page, content, expected):
     def saved_colors():
-        return set(
-            CommentAnnotation.objects.filter(
-                track__annotation_set=content.annotation_set,
-                name=SEEDED_COMMENT,
-                active=True,
-            ).values_list("font_color", flat=True)
-        )
+        # The live server may be mid-save, and the shared in-memory test database reports
+        # "table is locked" right away instead of waiting for the write to finish.
+        try:
+            return set(
+                CommentAnnotation.objects.filter(
+                    track__annotation_set=content.annotation_set,
+                    name=SEEDED_COMMENT,
+                    active=True,
+                ).values_list("font_color", flat=True)
+            )
+        except OperationalError:
+            return set()
 
     for _ in range(50):
         if expected in saved_colors():

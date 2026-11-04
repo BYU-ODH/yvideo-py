@@ -604,6 +604,10 @@
   max-width: 300px;
 }
 
+.captions-menu div:not(.active-value):hover {
+    background-color: #3d3d3d;
+}
+
 .speed-menu {
   min-width: 80px;
 }

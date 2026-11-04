@@ -100,6 +100,7 @@ class ResourceFactory(factory.django.DjangoModelFactory):
         model = Resource
 
     name = factory.Sequence(lambda n: f"Demo Resource {n}")
+    name_disambiguator = ""
     media_type = Resource.MediaType.VIDEO
     requester_username = factory.Sequence(lambda n: f"req{n:05d}"[:8])
     copyrighted = False
@@ -302,7 +303,6 @@ class SubtitleFactory(factory.django.DjangoModelFactory):
             content_type="text/vtt",
         )
     )
-    is_original = True
 
 
 class ResourceFileKeyFactory(factory.django.DjangoModelFactory):

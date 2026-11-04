@@ -531,7 +531,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_EN.encode("utf-8"), name="birds-en.vtt"
         ),
-        is_original=True,
     )
     SubtitleFactory(
         resource=birds_resource,
@@ -541,7 +540,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_ES.encode("utf-8"), name="birds-es.vtt"
         ),
-        is_original=False,
     )
     SubtitleFactory(
         resource=grid_resource,
@@ -551,7 +549,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_GRID_EN.encode("utf-8"), name="grid-en.vtt"
         ),
-        is_original=True,
     )
     SubtitleFactory(
         resource=grid_resource,
@@ -561,7 +558,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_GRID_ES.encode("utf-8"), name="grid-es.vtt"
         ),
-        is_original=False,
     )
     SubtitleFactory(
         resource=overlay_resource,
@@ -571,7 +567,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_OVERLAY_EN.encode("utf-8"), name="overlay-en.vtt"
         ),
-        is_original=True,
     )
     SubtitleFactory(
         resource=overlay_resource,
@@ -581,7 +576,6 @@ def create_demo_data():
         subtitles_file=ContentFile(
             DEMO_SUBTITLE_VTT_OVERLAY_ES.encode("utf-8"), name="overlay-es.vtt"
         ),
-        is_original=False,
     )
 
     birds_content.default_subtitle_track = birds_en_subtitle
