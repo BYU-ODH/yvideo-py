@@ -118,8 +118,9 @@ export async function makePostRequest(URL, body, contentType = "application/json
 * The new input is provided to the endpointURL as JSON with the structure {"new_value": VALUE}.
 * postEditCallback is provided to enable whatever after effects may be useful after a
 * successful edit. postEditCallback is not called on failed edits.
+* fetchImpl is passed through to makePostRequest.
 */
-export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null) {
+export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null, fetchImpl = fetch) {
   const titleElement = wrapperElement.querySelector("p, h1, h2, h3, h4, h5, h6, span");
   const inputElement = wrapperElement.querySelector("input, textarea, select");
   const editButton = wrapperElement.querySelector("button");
@@ -159,7 +160,7 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditC
       const body = JSON.stringify({
         new_value: newValue
       });
-      const response = await makePostRequest(editEndpointURL, body);
+      const response = await makePostRequest(editEndpointURL, body, undefined, fetchImpl);
       if (response.ok) {
         titleElement.innerText = newValue;
         postEditCallback();

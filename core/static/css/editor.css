@@ -440,12 +440,12 @@
     margin: 0;
 }
 
-#annotation-set-heading {
+#annotation-set-heading, #subtitle-panel-heading {
     flex: 1;
     min-width: 0;
 }
 
-#annotation-save-status {
+.save-status {
     column-gap: 0.3rem;
     align-items: center;
 
@@ -461,7 +461,7 @@
     white-space: nowrap;
 }
 
-#annotation-save-status.save-status-failed {
+.save-status.save-status-failed {
     color: #ff8a80;
 }
 
@@ -477,7 +477,7 @@
     background: none;
 }
 
-#annotation-save-status.save-status-failed .save-status-help {
+.save-status.save-status-failed .save-status-help {
     display: flex;
 }
 

@@ -1130,6 +1130,7 @@ AUDITED_TEMPLATES = {
     "core/partials/annotation_set_retirement_modal.html",
     "core/partials/blur_anchor_points.html",
     "core/partials/modals/save_failed_help.html",
+    "core/partials/save_status.html",
     "core/partials/item.html",
     "core/partials/item_form_placeholder.html",
     "core/partials/item_undo_redo_buttons.html",

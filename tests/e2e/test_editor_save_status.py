@@ -69,3 +69,31 @@ def test_failed_save_is_reported(page, open_editor):
     expect(page.locator("#save-failed-help-modal")).to_be_visible()
     page.locator("#save-failed-help-modal").get_by_role("button", name="Close").click()
     expect(page.locator("#save-failed-help-modal")).to_be_hidden()
+
+
+def test_subtitle_cue_edit_shows_status_in_the_subtitle_panel(page, open_editor):
+    open_editor()
+    page.locator("#annotation-panel-switch").click()
+    page.locator("#subtitle-panel-select-existing-track").click()
+    track_value = page.locator(
+        "#subtitles-track-selector option.subtitles-track-option"
+    ).first.get_attribute("value")
+    page.select_option("#subtitles-track-selector", track_value)
+    page.wait_for_selector(".editor-subtitle-cue")
+
+    status = page.locator("#subtitle-save-status")
+    cue = page.locator(".editor-subtitle-cue-content").first
+    original = cue.input_value()
+    cue.fill(original + " edited")
+    expect(status.locator(".save-status-text")).to_have_text("Waiting to autosave...")
+
+    # Typing back to the saved text leaves nothing to save.
+    cue.fill(original)
+    expect(status.locator(".save-status-text")).to_have_text("")
+
+    cue.fill(original + " edited")
+    cue.press("Enter")
+    expect(status).to_contain_text("Changes saved")
+    expect(page.locator(".editor-subtitle-cue-content").first).to_have_value(
+        original + " edited"
+    )

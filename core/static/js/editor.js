@@ -9,8 +9,8 @@ import {
 } from "./video-geometry.js";
 
 // makePostRequest for a request that persists an edit, so the save indicator sees it.
-const savePost = (url, body, contentType) =>
-  makePostRequest(url, body, contentType, (...args) => saveStatus.fetch(...args));
+const saveFetch = (...args) => saveStatus.fetch(...args);
+const savePost = (url, body, contentType) => makePostRequest(url, body, contentType, saveFetch);
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 // Mirror COMMENT_MIN_WIDTH / COMMENT_MIN_HEIGHT in core/models.py. A comment has no stored height,
@@ -70,6 +70,8 @@ export class Editor {
         this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
+        // The cues as last sent to (or rendered by) the server; see buildWatchersForSubtitleEditorCues.
+        this.sentCueState = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
@@ -3067,9 +3069,11 @@ export class Editor {
       if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
+      this.sentCueState = originalCueState;
+      saveStatus.settle("subtitle-cues");
       const save = (async () => {
         try {
-          const updateResponse = await makePostRequest(
+          const updateResponse = await savePost(
             `/subtitles/${trackId}/update-cues/`,
             JSON.stringify({
               cues: cues,
@@ -3163,11 +3167,14 @@ export class Editor {
         trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
         this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
       }
-      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
+      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this), saveFetch);
     }
 
     buildWatchersForSubtitleEditorCues() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
+      this.sentCueState = JSON.stringify(this.collectCues());
+      saveStatus.settle("subtitle-cues");
       const deleteCue = (e) => {
         const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
         const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
@@ -3201,6 +3208,15 @@ export class Editor {
           cueInput.addEventListener("change", (e) => {
             e.preventDefault();
             saveUpdatedInformation();
+          });
+          // A cue saves on change or Enter, so typed text waits until then. Typing back to what was
+          // last sent is not a pending edit.
+          cueInput.addEventListener("input", () => {
+            if (JSON.stringify(this.collectCues()) === this.sentCueState) {
+              saveStatus.settle("subtitle-cues");
+            } else {
+              saveStatus.wait("subtitle-cues");
+            }
           });
         }
       }

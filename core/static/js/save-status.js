@@ -1,4 +1,4 @@
-// The "Waiting to autosave..." / "Changes saved" line under the annotation set title.
+// The "Waiting to autosave..." / "Changes saved" line under each editor panel's title.
 //
 // Every editor request that persists a change goes through saveStatus.fetch, so the indicator
 // cannot miss a save. Edits that are held back before being sent (debounced form input, keyboard
@@ -69,19 +69,22 @@ class SaveStatus {
     const text = busy ? WAITING_TEXT : this.settledText;
 
     // globalThis because PendingNudge reports here, and its unit tests run under Node with no DOM.
-    const element = globalThis.document?.getElementById("annotation-save-status");
-    if (!element) return;
-    const textElement = element.querySelector(".save-status-text");
-    // Unchanged text is left alone so the live region does not re-announce it.
-    if (textElement.textContent !== text) textElement.textContent = text;
-    element.classList.toggle("save-status-failed", text === FAILED_TEXT);
+    // Every panel has its own line, but there is one editor and so one state: each line shows it.
+    // A line in a hidden panel is not rendered, so its live region does not announce twice.
+    const elements = globalThis.document?.querySelectorAll(".save-status") ?? [];
+    for (const element of elements) {
+      const textElement = element.querySelector(".save-status-text");
+      // Unchanged text is left alone so the live region does not re-announce it.
+      if (textElement.textContent !== text) textElement.textContent = text;
+      element.classList.toggle("save-status-failed", text === FAILED_TEXT);
 
-    if (justSaved) {
-      const check = element.querySelector(".save-status-check");
-      check.classList.remove("save-status-check-animating");
-      // Forces a reflow so back-to-back saves restart the animation instead of continuing it.
-      void check.getBoundingClientRect();
-      check.classList.add("save-status-check-animating");
+      if (justSaved) {
+        const check = element.querySelector(".save-status-check");
+        check.classList.remove("save-status-check-animating");
+        // Forces a reflow so back-to-back saves restart the animation instead of continuing it.
+        void check.getBoundingClientRect();
+        check.classList.add("save-status-check-animating");
+      }
     }
   }
 }
