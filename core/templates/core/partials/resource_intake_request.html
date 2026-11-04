@@ -5,11 +5,16 @@
     <div id="resource-intake-form-wrapper">
         <h2>Resource Intake Request</h2>
         <div id="resource-intake-form-main-content">
-            {% if messages %}
+            {% if messages or title_collision_error %}
                 <div id="resource-intake-form-messages">
                     {% for message in messages %}
                         <p class="resource-intake-message resource-intake-message-{{ message.tags }}">{{ message }}</p>
                     {% endfor %}
+                    {% if title_collision_error %}
+                        <p class="resource-intake-message resource-intake-message-error">
+                            The resource title and name disambiguator combination already exists. Provide a different name disambiguator.
+                        </p>
+                    {% endif %}
                 </div>
             {% endif %}
             <form id="resource-intake-form" method="post" novalidate>
@@ -29,6 +34,10 @@
                             <div class="resource-intake-form-group{% if form.resource_title.errors %} resource-intake-field-error{% endif %}">
                                 <label for="{{ form.resource_title.id_for_label }}">Resource Title <span class="resource-intake-required-marker">*</span></label>
                                 {{ form.resource_title }}
+                            </div>
+                            <div class="resource-intake-form-group{% if form.resource_name_disambiguator.errors %} resource-intake-field-error{% endif %}">
+                                <label for="{{ form.resource_name_disambiguator.id_for_label }}">Title disambiguator</label>
+                                {{ form.resource_name_disambiguator }}
                             </div>
                             <div class="resource-intake-form-group">
                                 <label for="{{ form.imdb_link.id_for_label }}">IMDb Link (optional)</label>
