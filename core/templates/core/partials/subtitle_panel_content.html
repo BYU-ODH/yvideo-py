@@ -5,26 +5,28 @@
      data-language="{{ subtitle_track.language.bcp47 }}">
     {% if subtitle_track %}
         {% if can_edit %}
-            <div id="cue-find-and-replace-wrapper" class="cue-find-and-replace-hidden">
-                <div id="cue-find-and-replace-header" class="row-flex flex-apart-aligned">
-                    <p>Find and Replace</p>
-                    <img src="{% static 'img/arrow-white.svg' %}" alt=">">
+            <div id="cue-far-wrapper" class="cue-far-hidden">
+                <div id="cue-far-header" class="row-flex flex-apart-aligned">
+                    <p id="cue-far-header-text">Find & Replace cue text</p>
+                    <img id="cue-far-header-img"
+                         src="{% static 'img/arrow-white.svg' %}"
+                         alt=">">
                 </div>
-                <div id="cue-find-and-replace-content" class="row-flex">
+                <div id="cue-far-content" class="row-flex">
                     <div class="column-flex">
-                        <div class="cue-find-and-replace-input-group">
+                        <div class="cue-far-input-group">
                             <input id="cue-find-input"
                                    type="text"
                                    placeholder="Search..."
                                    aria-label="Search word">
                             <p id="cue-find-match-count"></p>
                         </div>
-                        <div class="cue-find-and-replace-input-group">
+                        <div class="cue-far-input-group">
                             <input id="cue-replace-input"
                                    type="text"
                                    placeholder="Replace with..."
                                    aria-label="Replace word">
-                            <button id="execute-find-and-replace-button" disasbled>Replace all</button>
+                            <button id="execute-far-button" disasbled>Replace all</button>
                         </div>
                     </div>
                 </div>

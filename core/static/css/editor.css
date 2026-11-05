@@ -789,11 +789,11 @@
     flex: 1;
 }
 
-#subtitle-panel-content-wrapper, #subtitle-panel-list {
+#subtitle-panel-content, #subtitle-panel-list {
     flex: 1;
 }
 
-#subtitle-panel-content-wrapper {
+#subtitle-panel-content {
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -810,11 +810,40 @@
     display: flex;
 }
 
-#cue-find-and-replace-wrapper {
+/* cue find and replace (cue-far) controls. keep "cue-find-and-replace"
+here in this comment for search purposes */
+#cue-far-wrapper {
     padding: 8px;
+    border-radius: 8px;
+    background-color: var(--dark-mode-background-light);
 }
 
-.cue-find-and-replace-input-group {
+#cue-far-header-img {
+    transform: rotate(0deg);
+    transition: transform 50ms linear;
+}
+
+.cue-far-hidden #cue-far-header-img {
+    transform: rotate(-90deg);
+}
+
+#cue-far-header {
+    cursor: pointer;
+}
+
+#cue-far-header-text {
+    margin: 0;
+}
+
+#cue-far-content {
+    margin-top: 1rem;
+}
+
+.cue-far-hidden #cue-far-content {
+    display: none;
+}
+
+.cue-far-input-group {
     display: flex;
     flex-direction: row;
 }

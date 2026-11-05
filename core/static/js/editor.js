@@ -2812,7 +2812,7 @@ export class Editor {
       // click watcher
       subtitlePanel.addEventListener("click", async (e) => {
         // adding a new subtitle cue
-        if (e?.target?.id == "add-new-subtitle-button") {
+        if (e?.target?.closest("#add-new-subtitle-button")) {
           e.preventDefault();
           const cues = this.collectCues();
           // build new cue and append it to cues array
@@ -2858,8 +2858,9 @@ export class Editor {
             displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
           }
         }
+
         // handle cue deletion
-        else if (e?.target?.closest('.editor-subtitle-cue-delete')) {
+        if (e?.target?.closest('.editor-subtitle-cue-delete')) {
           e.preventDefault();
           const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
           const cueElements = Array.from(subtitlePanel.querySelectorAll(".editor-subtitle-cue"));
@@ -2868,18 +2869,28 @@ export class Editor {
           cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
           this.saveCues(cues);
         }
+
         // handle video time seek on cue start or text content input selection
-        else if (e?.target?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-content")) {
+        if (e?.target?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-content")) {
           e.preventDefault();
           const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
           const cueStartTime = parentCueWrapper.dataset["startTime"];
           this.seekVideoTo(parseFloat(cueStartTime));
         }
+
         // handle video time seek to cue end time on end time input selection
-        else if (e?.target?.closest(".editor-subtitle-cue-end")) {
+        if (e?.target?.closest(".editor-subtitle-cue-end")) {
           e.preventDefault();
           const cueEndTimeInput = e.target.closest(".editor-subtitle-cue-end");
           this.seekVideoTo(parseFloat(cueEndTimeInput.dataset["endTime"]));
+        }
+
+        // handle find and replace header click. Don't use closest because if the user clicks empty space in
+        // the header's content, it will unexpectedly hide find and replace.
+        const targetId = e?.target?.id;
+        if (targetId == "cue-far-header" || targetId == "cue-far-header-text" || targetId == "cue-far-header-img") {
+          const header = document.getElementById("cue-far-wrapper");
+          header.classList.toggle("cue-far-hidden");
         }
       });
 
