@@ -4,6 +4,7 @@
      class="subtitle-editor-panel-hidden editor-container-component-dark editor-panel-wrapper">
     <div id="subtitle-panel-header" class="row-flex flex-apart-aligned">
         <h3 id="subtitle-panel-title">Subtitle Editor</h3>
+        {% include "core/partials/save_status.html" with status_id="subtitle-save-status" %}
     </div>
     <div id="subtitle-editor-panel-track-info">
         {% if editable_subtitle_options %}
