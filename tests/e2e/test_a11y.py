@@ -977,12 +977,6 @@ def test_the_subtitle_editor_panel_has_no_a11y_violations(
         include=["#subtitle-track-settings-menu"],
     )
 
-    page.locator("#open-subtitle-track-options-modal").click()
-    page.wait_for_selector("#subtitle-track-selection-modal")
-    assert_no_violations(
-        page, "visible subtitle track selection modal", include=["dialog[open]"]
-    )
-
     track_value = page.locator(
         "#subtitles-track-selector option.subtitles-track-option"
     ).first.get_attribute("value")

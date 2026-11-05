@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { saveStatus } from "./save-status.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
@@ -70,7 +70,7 @@ export class Editor {
         this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
-        // The cues as last sent to (or rendered by) the server; see buildWatchersForSubtitleEditorCues.
+        // The cues as last sent to (or rendered by) the server; see setupSubtitleEditor input watcher
         this.sentCueState = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
@@ -145,7 +145,7 @@ export class Editor {
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.watchAndHandleEditorPanelSwitch();
-        this.setupSubtitleEditorMenu();
+        this.setupSubtitleEditor();
         this.watchAndHandleSubtitleTrackChange();
         this.watchForSubtitleTrackCreation();
 
@@ -2798,11 +2798,119 @@ export class Editor {
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
     }
 
-    setupSubtitleEditorMenu() {
-      const subtitleMenu= document.getElementById("subtitle-track-settings-menu-wrapper");
-      setupMultiOptionMenu(subtitleMenu);
-    }
+    setupSubtitleEditor() {
+      const subtitlePanel = document.getElementById("subtitle-editor-panel");
+      if (!subtitlePanel) {
+        displayUserMessage("error", "Failed to setup subtitle editor, you will not be able to make edits to subtitle tracks during this session.");
+        return;
+      }
 
+      // multi option menu
+      const subtitleTrackMenu = document.getElementById("subtitle-track-settings-menu-wrapper");
+      setupMultiOptionMenu(subtitleTrackMenu);
+
+      // click watcher
+      subtitlePanel.addEventListener("click", async (e) => {
+        // adding a new subtitle cue
+        if (e?.target?.id == "add-new-subtitle-button") {
+          e.preventDefault();
+          const cues = this.collectCues();
+          // build new cue and append it to cues array
+          const time = this.video.currentTime;
+          const startTime = Math.round(time * 1000) / 1000;
+          const endTime = Math.round((time + 2) * 1000) / 1000;
+          // the back end sorts cues, so this will go in its correct place.
+          cues.push(
+            {
+              start_time: startTime,
+              end_time: endTime,
+              type: "CUE",
+              payload: "",
+            }
+          )
+          if (!await this.saveCues(cues)) return;
+
+          // Normalize the lookup time string so it will always fine the right cue
+          // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
+          // A cue's end and start time values are to 3 decimal places, the video's
+          // current time has no decimal place limiter. Both of these cases should
+          // be handled here.
+          const cueLookupTime = parseFloat(startTime);
+          let lookupTimeString = cueLookupTime.toString();
+          const lookupStringSplit = lookupTimeString.split('.');
+
+          if (lookupStringSplit.length == 1) {
+            lookupTimeString = lookupTimeString + ".0";
+          }
+          else if (lookupStringSplit[1].length > 3) {
+            lookupTimeString = cueLookupTime.toFixed(3);
+          }
+          const newCue = subtitlePanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
+          if (!newCue) {
+            displayUserMessage("warning", "Unable to automatically find the new cue, this may be because it has the same start time as another cue, or something went wrong while creating the cue.");
+            return;
+          }
+          const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
+          if (cueTA) {
+            cueTA.focus();
+          }
+          else {
+            displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
+          }
+        }
+        // handle cue deletion
+        else if (e?.target?.closest('.editor-subtitle-cue-delete')) {
+          const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
+          const cueElements = Array.from(subtitlePanel.querySelectorAll(".editor-subtitle-cue"));
+          const cues = this.collectCues();
+          // use splice to allow cue marked for deletion to still appear unless the deletion is successful
+          cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
+          this.saveCues(cues);
+        }
+        // handle video time seek on cue start or text content input selection
+        else if (e?.target?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-content")) {
+          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
+          const cueStartTime = parentCueWrapper.dataset["startTime"];
+          this.seekVideoTo(parseFloat(cueStartTime));
+        }
+        // handle video time seek to cue end time on end time input selection
+        else if (e?.target?.closest(".editor-subtitle-cue-end")) {
+          const cueEndTimeInput = e.target.closest(".editor-subtitle-cue-end");
+          this.seekVideoTo(parseFloat(cueEndTimeInput.dataset["endTime"]));
+        }
+      });
+
+      function isACueInput(targetEl) {
+        return targetEl?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
+      }
+
+      // change watcher
+      subtitlePanel.addEventListener("change", (e) => {
+        if (isACueInput(e?.target)) {
+          e.preventDefault();
+          this.saveCues(this.collectCues());
+        }
+      })
+
+      // keydown watcher
+      subtitlePanel.addEventListener("keydown", (e) => {
+        if (isACueInput(e?.target) && e.key == "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          this.saveCues(this.collectCues());
+        }
+      })
+
+      // input watcher
+      subtitlePanel.addEventListener("input", (e) => {
+        if (isACueInput(e?.target)) {
+          if (JSON.stringify(this.collectCues()) === this.sentCueState) {
+            saveStatus.settle("subtitle-cues");
+          } else {
+            saveStatus.wait("subtitle-cues");
+          }
+        }
+      })
+    }
 
     async loadSubtitleTrack(trackId) {
       try {
@@ -2812,17 +2920,15 @@ export class Editor {
           return false;
         }
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
-        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
+        document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
         this.selectedSubtitleTrackId = trackId;
         this.selectedSubtitleTrackText = document.querySelector(
           `.subtitles-track-option[value="${trackId}"]`
         )?.textContent.trim() || "";
         document.getElementById(`cap-track-${trackId}-button`)?.click();
-        this.buildWatchersForSubtitlePanelContent();
-        this.buildWatchersForSubtitleEditorCues();
         document.getElementById("open-subtitle-track-edit-modal").disabled = false;
         document.getElementById("open-delete-subtitle-track-modal").disabled =
-          document.getElementById("subtitle-panel-content-wrapper").dataset.canEdit !== "true";
+          document.getElementById("subtitle-panel-content").dataset.canEdit !== "true";
         return true;
       } catch {
         displayUserMessage("error", "Failed to load subtitle track");
@@ -2855,7 +2961,6 @@ export class Editor {
     watchAndHandleSubtitleTrackChange() {
       const subtitleSelectInput = document.getElementById("subtitles-track-selector");
       if (!subtitleSelectInput) return;
-      const dialog = subtitleSelectInput.closest("dialog");
 
       subtitleSelectInput.addEventListener("change", async () => {
         const trackId = subtitleSelectInput.value;
@@ -2863,7 +2968,6 @@ export class Editor {
         subtitleSelectInput.disabled = true;
         try {
           if (!await this.loadSubtitleTrack(trackId)) return;
-          dialog.close();
         } catch {
           displayUserMessage("error", "Failed to select subtitle track.");
         } finally {
@@ -3064,7 +3168,7 @@ export class Editor {
     }
 
     async saveCues(cues) {
-      if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
+      if (document.getElementById("subtitle-panel-content")?.dataset.canEdit !== "true") return false;
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
       this.sentCueState = originalCueState;
@@ -3091,7 +3195,6 @@ export class Editor {
           document.getElementById("subtitle-panel-list").innerHTML = html;
           window.dispatchEvent(this.annotationUpdatedEvent);
 
-          this.buildWatchersForSubtitleEditorCues();
           return true;
         } catch {
           displayUserMessage("error", "Failed to save changes to subtitle cues");
@@ -3103,131 +3206,6 @@ export class Editor {
         return await save;
       } finally {
         this.subtitleCueSaves.delete(save);
-      }
-    }
-
-    buildWatchersForSubtitlePanelContent() {
-      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-      if (subtitlesPanel.dataset.canEdit !== "true") return;
-      const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
-      addNewCueButton.addEventListener("click", async () => {
-        const cues = this.collectCues();
-        // build new cue and append it to cues array
-        const time = this.video.currentTime;
-        const startTime = Math.round(time * 1000) / 1000;
-        const endTime = Math.round((time + 2) * 1000) / 1000;
-        // the back end sorts cues, so this will go in its correct place.
-        cues.push(
-          {
-            start_time: startTime,
-            end_time: endTime,
-            type: "CUE",
-            payload: "",
-          }
-        )
-        if (!await this.saveCues(cues)) return;
-
-        // Normalize the lookup time string so it will always fine the right cue
-        // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
-        // A cue's end and start time values are to 3 decimal places, the video's
-        // current time has no decimal place limiter. Both of these cases should
-        // be handled here.
-        const cueLookupTime = parseFloat(startTime);
-        let lookupTimeString = cueLookupTime.toString();
-        const lookupStringSplit = lookupTimeString.split('.');
-
-        if (lookupStringSplit.length == 1) {
-          lookupTimeString = lookupTimeString + ".0";
-        }
-        else if (lookupStringSplit[1].length > 3) {
-          lookupTimeString = cueLookupTime.toFixed(3);
-        }
-        const newCue = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
-        if (!newCue) {
-          displayUserMessage("warning", "Unable to automatically find the new cue, this may be because it has the same start time as another cue, or something went wrong while creating the cue.");
-          return;
-        }
-        const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
-        if (cueTA) {
-          cueTA.focus();
-        }
-        else {
-          displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
-        }
-
-      });
-
-      const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
-      function updateTrackDisplayInSelector() {
-        const trackSelectOption = document.querySelector(`.subtitles-track-option[value='${this.selectedSubtitleTrackId}']`);
-        const newTitle = subtitleTitleWrapper.querySelector("#subtitle-track-title").innerText;
-        trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
-        this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
-      }
-      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this), saveFetch);
-    }
-
-    buildWatchersForSubtitleEditorCues() {
-      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-      // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
-      this.sentCueState = JSON.stringify(this.collectCues());
-      saveStatus.settle("subtitle-cues");
-      const deleteCue = (e) => {
-        const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
-        const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
-        const cues = this.collectCues();
-        // use splice to allow cue marked for deletion to still appear unless the deletion is successful
-        cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
-        this.saveCues(cues);
-      }
-      const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
-      for (let cueDelButton of editorSubtitleCueDeleteButtons) {
-        cueDelButton.addEventListener("click", deleteCue.bind(this));
-      }
-
-      const saveUpdatedInformation = () => {
-        this.saveCues(this.collectCues());
-      }
-      const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
-      const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");
-      const cueInputs = [...cueStartAndTextInputs, ...cueEndInputs];
-      if (subtitlesPanel.dataset.canEdit === "true") {
-        for (let cueInput of cueInputs) {
-          cueInput.addEventListener("keydown", (e) => {
-            // An Enter key press in a textarea creates a new line. We want that to submit the cues instead,
-            // but a Shift + Enter in a cue textarea will still create a new line if needed.
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              saveUpdatedInformation();
-            }
-          });
-
-          cueInput.addEventListener("change", (e) => {
-            e.preventDefault();
-            saveUpdatedInformation();
-          });
-          // A cue saves on change or Enter, so typed text waits until then. Typing back to what was
-          // last sent is not a pending edit.
-          cueInput.addEventListener("input", () => {
-            if (JSON.stringify(this.collectCues()) === this.sentCueState) {
-              saveStatus.settle("subtitle-cues");
-            } else {
-              saveStatus.wait("subtitle-cues");
-            }
-          });
-        }
-      }
-      for (let cueStartOrTextInput of cueStartAndTextInputs){
-        cueStartOrTextInput.addEventListener("click", (e) => {
-          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
-          const cueStartTime = parentCueWrapper.dataset["startTime"];
-          this.seekVideoTo(parseFloat(cueStartTime));
-        });
-      }
-      for (let cueEndInput of cueEndInputs) {
-        cueEndInput.addEventListener("click", () => {
-          this.seekVideoTo(parseFloat(cueEndInput.dataset["endTime"]));
-        });
       }
     }
 }
