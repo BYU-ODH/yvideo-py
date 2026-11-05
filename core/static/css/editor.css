@@ -836,6 +836,11 @@ here in this comment for search purposes */
 }
 
 #cue-far-content {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+
+    width: 100%;
     margin-top: 1rem;
 }
 
@@ -846,6 +851,8 @@ here in this comment for search purposes */
 .cue-far-input-group {
     display: flex;
     flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
 }
 
 #cue-find-match-count {

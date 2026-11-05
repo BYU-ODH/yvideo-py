@@ -2857,6 +2857,7 @@ export class Editor {
           else {
             displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
           }
+          return;
         }
 
         // handle cue deletion
@@ -2868,6 +2869,7 @@ export class Editor {
           // use splice to allow cue marked for deletion to still appear unless the deletion is successful
           cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
           this.saveCues(cues);
+          return;
         }
 
         // handle video time seek on cue start or text content input selection
@@ -2876,6 +2878,7 @@ export class Editor {
           const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
           const cueStartTime = parentCueWrapper.dataset["startTime"];
           this.seekVideoTo(parseFloat(cueStartTime));
+          return;
         }
 
         // handle video time seek to cue end time on end time input selection
@@ -2883,6 +2886,7 @@ export class Editor {
           e.preventDefault();
           const cueEndTimeInput = e.target.closest(".editor-subtitle-cue-end");
           this.seekVideoTo(parseFloat(cueEndTimeInput.dataset["endTime"]));
+          return;
         }
 
         // handle find and replace header click. Don't use closest because if the user clicks empty space in
@@ -2891,6 +2895,7 @@ export class Editor {
         if (targetId == "cue-far-header" || targetId == "cue-far-header-text" || targetId == "cue-far-header-img") {
           const header = document.getElementById("cue-far-wrapper");
           header.classList.toggle("cue-far-hidden");
+          return;
         }
       });
 
@@ -2903,6 +2908,7 @@ export class Editor {
         if (isACueInput(e?.target)) {
           e.preventDefault();
           this.saveCues(this.collectCues());
+          return;
         }
       })
 
@@ -2911,11 +2917,46 @@ export class Editor {
         if (isACueInput(e?.target) && e.key == "Enter" && !e.shiftKey) {
           e.preventDefault();
           this.saveCues(this.collectCues());
+          return;
         }
-      })
+      });
+
+      // cue find and replace search text input callback
+      // This has to be defined outside of an event
+      // listener so it does not get redefined with each
+      // event trigger
+      let cueTextFindTimerRef;
+      const searchCuesForText = (e) => {
+        clearTimeout(cueTextFindTimerRef);
+        cueTextFindTimerRef = setTimeout(() => {
+          const cueMatchCountEl = document.getElementById("cue-find-match-count");
+          const cueReplaceButton = document.getElementById("execute-far-button");
+          const cueTexts = subtitlePanel.querySelectorAll(".editor-subtitle-cue-content");
+          let matches = 0;
+          const findText = e.target.value;
+          if (findText == "") {
+            cueMatchCountEl.textContent = "";
+            cueReplaceButton.disabled = true;
+            return;
+          }
+
+          for (let cueText of cueTexts) {
+            matches += cueText.textContent.includes(findText);
+          }
+          const plural = matches == 1 ? "match" : "matches";
+          const matchText = `Found ${matches} ${plural}`;
+
+
+          if (cueMatchCountEl && cueReplaceButton) {
+            cueMatchCountEl.textContent = matchText;
+            cueReplaceButton.disabled = false;
+          }
+        }, 500);
+      }
 
       // input watcher
       subtitlePanel.addEventListener("input", (e) => {
+        // cue autosave updater
         if (isACueInput(e?.target)) {
           e.preventDefault();
           if (JSON.stringify(this.collectCues()) === this.sentCueState) {
@@ -2923,8 +2964,15 @@ export class Editor {
           } else {
             saveStatus.wait("subtitle-cues");
           }
+          return;
         }
-      })
+
+        // cue find and replace search input
+        if (e?.target?.id == "cue-find-input") {
+          searchCuesForText(e);
+          return;
+        }
+      });
     }
 
     async loadSubtitleTrack(trackId) {
