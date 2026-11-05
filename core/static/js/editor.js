@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { saveStatus } from "./save-status.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
@@ -2855,7 +2855,6 @@ export class Editor {
     watchAndHandleSubtitleTrackChange() {
       const subtitleSelectInput = document.getElementById("subtitles-track-selector");
       if (!subtitleSelectInput) return;
-      const dialog = subtitleSelectInput.closest("dialog");
 
       subtitleSelectInput.addEventListener("change", async () => {
         const trackId = subtitleSelectInput.value;
@@ -2863,7 +2862,6 @@ export class Editor {
         subtitleSelectInput.disabled = true;
         try {
           if (!await this.loadSubtitleTrack(trackId)) return;
-          dialog.close();
         } catch {
           displayUserMessage("error", "Failed to select subtitle track.");
         } finally {
@@ -3156,15 +3154,6 @@ export class Editor {
         }
 
       });
-
-      const subtitleTitleWrapper = document.getElementById("subtitle-track-title-wrapper");
-      function updateTrackDisplayInSelector() {
-        const trackSelectOption = document.querySelector(`.subtitles-track-option[value='${this.selectedSubtitleTrackId}']`);
-        const newTitle = subtitleTitleWrapper.querySelector("#subtitle-track-title").innerText;
-        trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
-        this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
-      }
-      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this), saveFetch);
     }
 
     buildWatchersForSubtitleEditorCues() {
