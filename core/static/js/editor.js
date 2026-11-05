@@ -1,11 +1,16 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupInPlaceFieldEdit, setupMultiOptionMenu } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
+import { saveStatus } from "./save-status.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
 import { PendingNudge, beginRectGesture, createRig, nudgeDelta } from "./overlay-rig.js";
 import {
   clampRect,
   blurAnchorPointsLostByRetiming,
 } from "./video-geometry.js";
+
+// makePostRequest for a request that persists an edit, so the save indicator sees it.
+const saveFetch = (...args) => saveStatus.fetch(...args);
+const savePost = (url, body, contentType) => makePostRequest(url, body, contentType, saveFetch);
 
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 // Mirror COMMENT_MIN_WIDTH / COMMENT_MIN_HEIGHT in core/models.py. A comment has no stored height,
@@ -58,12 +63,15 @@ export class Editor {
         this.wasPlayingBeforeDrag = false;
         this.annotationUpdatedEvent = new CustomEvent("annotationUpdated");
         this.lastSavedItemFormState = null;
+        this.itemFormPlaceholderHTML = document.getElementById("detail-form").innerHTML;
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
         this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
+        // The cues as last sent to (or rendered by) the server; see buildWatchersForSubtitleEditorCues.
+        this.sentCueState = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
         this.activeTrackId = null;
@@ -126,6 +134,8 @@ export class Editor {
         this.attachTimelineListeners();
         this.attachVideoListeners();
         this.setupTracks();
+        this.watchForClickOnEmptySpace();
+        this.watchForEscapeToDeselect();
         this.watchForTrackCreation();
         this.watchForTimelineScrollChangeAndHandleIt();
         this.keepTimelineRowsScrolledTogether();
@@ -473,6 +483,7 @@ export class Editor {
 
     autoSaveItemForm() {
       const itemForm = document.getElementById("annotation-update-form");
+      saveStatus.settle("item-form");
       if (!itemForm) {
         this.saveItemForm = null;
         return;
@@ -483,6 +494,7 @@ export class Editor {
       let saveQueued = false;
 
       const save = this.saveItemForm = async () => {
+        saveStatus.settle("item-form");
         if (saveInFlight) {
           saveQueued = true;
           return;
@@ -528,6 +540,15 @@ export class Editor {
         }
       };
 
+      itemForm.addEventListener("input", (e) => {
+        if (!e.target.name) return;
+        if (this.serializeItemForm(itemForm) === this.lastSavedItemFormState) {
+          saveStatus.settle("item-form");
+        } else {
+          saveStatus.wait("item-form");
+        }
+      });
+
       itemForm.addEventListener("change", (e) => {
         if (!e.target.name) return;
         save();
@@ -567,13 +588,13 @@ export class Editor {
         return;
       }
 
-      const response = await fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
+      const response = await saveStatus.fetch(`/annotations/${annotationType}/${annotationId}/delete`, {
         method: "delete",
         headers: {"X-CSRFToken": getCSRFToken()}
       });
 
       if (!response.ok) {
-        console.error("Failed to delete item!");
+        displayUserMessage("error", "Failed to delete item!");
         return;
       }
 
@@ -587,7 +608,7 @@ export class Editor {
       if (panelItemToRemove) {
         panelItemToRemove.remove();
       } else {
-        console.error("Failed to remove deleted panel item");
+        displayUserMessage("error", "Failed to remove an annotation panel item because it could not be found. Try refreshing the page.");
       }
 
       // remove item from track
@@ -595,7 +616,7 @@ export class Editor {
       if (trackItemToRemove) {
         trackItemToRemove.remove();
       } else {
-        console.error("Failed to remove deleted track item");
+        displayUserMessage("error", "Failed to remove item from its track because it could not be found. Try refreshing the page.");
       }
 
       // check if right side panel form should be emptied
@@ -604,8 +625,7 @@ export class Editor {
         const itemFormType = itemForm.dataset["annotationType"];
         const itemFormId = itemForm.dataset["annotationId"];
         if (annotationType == itemFormType && annotationId == itemFormId) {
-          const detailForm = document.getElementById("detail-form");
-          detailForm.innerHTML = "";
+          this.deselectItem();
         }
       }
       this.placeTrackItems();
@@ -712,7 +732,7 @@ export class Editor {
       button.disabled = true;
 
       try {
-        const response = await makePostRequest(
+        const response = await savePost(
           button.dataset.historyUrl,
           new URLSearchParams({
             annotation_id: button.dataset.annotationId,
@@ -722,7 +742,7 @@ export class Editor {
         );
 
         if (!response.ok) {
-          console.error(`Failed to ${button.dataset.historyAction} annotation history`);
+          displayUserMessage("error", `Failed to ${button.dataset.historyAction} annotation history`);
           if (button.isConnected) {
             button.disabled = false;
           }
@@ -743,8 +763,8 @@ export class Editor {
           button.disabled = false;
         }
         return applied;
-      } catch (error) {
-        console.error(`Failed to ${button.dataset.historyAction} annotation history`, error);
+      } catch {
+        displayUserMessage("error", `Failed to ${button.dataset.historyAction} annotation history`);
         if (button.isConnected) {
           button.disabled = false;
         }
@@ -764,7 +784,7 @@ export class Editor {
       );
 
       if (!destination) {
-        console.error("Could not place the active annotation version in the timeline");
+        displayUserMessage("error", "Could not place the active annotation version in the timeline");
         return false;
       }
 
@@ -840,17 +860,20 @@ export class Editor {
       const annotationType = responseData.annotation_type;
       const annotationId = String(responseData.annotation_id);
       const detailForm = document.getElementById("detail-form");
+      // A save can land after the user has deselected or moved to another item, and that
+      // newer selection has to keep its highlight.
+      const formShowsThisItem = replaceForm || this.syncOpenFormToVersion(responseData, previousAnnotationId);
       if (replaceForm) {
         detailForm.innerHTML = responseData.form_html;
         this.setUpLoadedItemForm(annotationType, annotationId);
-      } else {
-        this.syncOpenFormToVersion(responseData, previousAnnotationId);
       }
 
       if (!placed) {
         return false;
       }
-      this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      if (formShowsThisItem) {
+        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+      }
       return true;
     }
 
@@ -879,14 +902,14 @@ export class Editor {
         contentType = "application/json";
       }
 
-      const response = await makePostRequest(
+      const response = await savePost(
         `/content/${this.contentId}/annotations/${annotationType}/${annotationId}/update/`,
         requestBody,
         contentType
       );
 
       if (!response.ok) {
-        console.error("An error occurred while updating an annotation");
+        displayUserMessage("error", "An error occurred while updating an annotation");
         return false;
       }
 
@@ -905,11 +928,11 @@ export class Editor {
         const startAndEndTimesAreUnknown = !item.style.left || item.style.left == '' || !item.style.width || item.style.width == '';
 
         if (stateTypeIsUnknown) {
-          console.error("Unknown state type:", state.type);
+          displayUserMessage("warning", "Unable to save the annotation change. The annotation may have been deleted. The annotation has been restored to its original position.");
         }
 
         if (startAndEndTimesAreUnknown) {
-          console.error("Could not determine item start and end times");
+          displayUserMessage("warning", "Unable to save the annotation change. The start and/or end times could not be determined; was the annotation deleted? The annotation has been restored to its original position.");
         }
 
         if (stateTypeIsUnknown || startAndEndTimesAreUnknown) {
@@ -923,13 +946,13 @@ export class Editor {
 
         const leftAsDecimal = convertPercentStringToDecimal(item.style.left)
         if (isNaN(leftAsDecimal)) {
-          console.error(`Unable to parse item's left position: ${item.style.left}`);
+          displayUserMessage("warning", "The annotation could not be saved because its left position is in an invalid format. Try refreshing the page.");
           return;
         }
         const newStartTime = leftAsDecimal * this.duration;
         const widthAsDecimal = convertPercentStringToDecimal(item.style.width)
         if (isNaN(widthAsDecimal)) {
-          console.error(`Unable to parse item's width: ${item.style.width}`);
+          displayUserMessage("warning", "The annotation could not be saved becaue its right position is in an invalid format. Try refreshing the page.");
           return;
         }
         const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
@@ -967,7 +990,7 @@ export class Editor {
         const annotationId = itemForm.dataset["annotationId"];
         const commentTextBox = document.getElementById("comment-text-box-" + annotationId);
         if (!commentTextBox) {
-          console.error("could not find comment text box with annotation id: " + annotationId);
+          displayUserMessage("warning", "Could not set up comment annotation because it could not be found. If you believe this is an error, try refreshing the page.");
           return undefined;
         }
         return commentTextBox;
@@ -977,6 +1000,7 @@ export class Editor {
         clearTimeout(updateTimerId);
         updateTimerId = setTimeout(() => {
           if (!itemForm.isConnected) {
+            saveStatus.settle("item-form");
             return;
           }
           this.saveItemForm?.();
@@ -1041,7 +1065,7 @@ export class Editor {
 
       const inputs = COMMENT_GEOMETRY_FIELDS.map((field) => [field, updateForm.querySelector(`#comment-${field}`)]);
       if (inputs.some(([, input]) => !input)) {
-        console.error("Failed to get all comment form elements to update");
+        displayUserMessage("warning", "Check that the comment annotation's update fields are correct. If they are not, try refreshing the page.");
         return;
       }
       for (const [field, input] of inputs) input.value = rect[field].toFixed(2);
@@ -1236,7 +1260,7 @@ export class Editor {
           const currentIndex = clipIds.findIndex((id) => id == annotationId);
 
           if (currentIndex === -1) {
-            console.error(`Could not find clip annotation id (${annotationId}) matching the currently active clip.`);
+            displayUserMessage("error", "Failed to find the requested clip; was it deleted? Try refreshing the page.");
             return;
           }
 
@@ -1261,7 +1285,7 @@ export class Editor {
         method: "GET"
       });
       if (!response.ok) {
-        console.error("Failed to load the annotation detail form");
+        displayUserMessage("error", "Failed to load the annotation detail form");
         return false;
       }
       const detailForm = document.getElementById("detail-form");
@@ -1272,7 +1296,7 @@ export class Editor {
 
     markItemAsActive(annotationType, annotationId, {navigate = true} = {}) {
       if (!annotationType || !annotationId) {
-        console.error("Invalid annotation type of annotation id");
+        displayUserMessage("error", "The annotation you tried to select is invalid. Please refresh the page.");
         return;
       }
 
@@ -1283,7 +1307,7 @@ export class Editor {
       const thisPanelItem = document.getElementById(`${annotationType}-panel-item-${annotationId}`);
 
       if (!thisPanelItem) {
-        console.error("Failed to identify the focused panel item");
+        displayUserMessage("error", "The annotation you tried to select cannot be found in the annotation panel. Please refresh the page.");
         return;
       }
 
@@ -1325,7 +1349,7 @@ export class Editor {
 
       const trackItem = this.timelineWrapper.querySelector(`.track-item[data-annotation-type="${annotationType}"][data-annotation-id="${annotationId}"]`);
       if (!trackItem) {
-        console.error("No track item found");
+        displayUserMessage("error", "The item you tried to select cannot be found in the annotation tracks; it may have been deleted. Please refresh the page.");
         return;
       }
       trackItem.classList.add(activeTrackItemCSSClass);
@@ -1346,6 +1370,65 @@ export class Editor {
       }
     }
 
+    deselectItem() {
+      // The form is about to be replaced, so any edit it was holding for autosave goes with it.
+      saveStatus.settle("item-form");
+      if (!document.getElementById("existing-item-form")) {
+        return;
+      }
+
+      // querySelectorAll returns a static list. getElementsByClassName's list is live, so removing
+      // the class mid-loop would drop items from it and skip some.
+      for (let panelItem of document.querySelectorAll(".active-panel-item")) {
+        const annotationType = panelItem.dataset["annotationType"];
+        panelItem.classList.remove(`${annotationType}-list-item-wrapper-selected`, "active-panel-item");
+      }
+      this.timelineWrapper.querySelector(".active-track-item")?.classList.remove("active-track-item");
+
+      document.getElementById("detail-form").innerHTML = this.itemFormPlaceholderHTML;
+      this.setUpItemForm();
+    }
+
+    watchForClickOnEmptySpace() {
+      // Matched against the click target itself, so clicks on items, buttons, menus, and
+      // dialogs nested inside these containers keep their own behavior.
+      const emptySpaceSelector = [
+        ".track-row-annotations-container",
+        ".timeline-track-row-right",
+        "#editor-annotation-panel",
+        "#annotation-groups-wrapper",
+        ".annotation-type-wrapper",
+        ".annotation-type-list",
+        ".annotation-items-list",
+      ].join(", ");
+      document.addEventListener("click", (e) => {
+        if (e.target.matches(emptySpaceSelector)) {
+          this.deselectItem();
+        }
+      });
+    }
+
+    watchForEscapeToDeselect() {
+      document.addEventListener("keydown", (e) => {
+        // Anything else that uses Escape (menus, comboboxes, rigs) handles it first and calls
+        // preventDefault(), so it closes that thing instead of also deselecting. New Escape
+        // handlers should do the same rather than being added to the checks below.
+        if (e.key !== "Escape" || e.defaultPrevented) {
+          return;
+        }
+        // Escape already means "cancel this edit" in text fields and "close" in dialogs.
+        const isTextEntry = e.target.matches?.("input, textarea, select, [contenteditable='true']");
+        if (isTextEntry || document.querySelector("dialog[open]")) {
+          return;
+        }
+        // Mid-gesture, Escape abandons the gesture; BlurEditor's handler for that runs after this one.
+        if (this.blurEditor.gesture || this.commentRigDragging || this.dragState || this.isDragging) {
+          return;
+        }
+        this.deselectItem();
+      });
+    }
+
     setUpPanelItemClickListeners() {
       const annotationPanelItems = document.getElementsByClassName("panel-item");
       for (let panelItem of annotationPanelItems) {
@@ -1357,7 +1440,7 @@ export class Editor {
       // in place annotation set name edit click listener
       const annotationSetTitleWrapper = document.getElementById("annotation-set-title-wrapper");
       if (!annotationSetTitleWrapper) {
-        console.error("Failed to find annotation set title wrapper element. Cannot listen for annotation name edits.");
+        displayUserMessage("warning", "Cannot find the annotation set title element. You won't be able to change this set's title using the in place title editor.");
         document.getElementById("annotation-set-edit-img-wrapper").classList.add("hidden");
         return;
       }
@@ -1398,7 +1481,7 @@ export class Editor {
             displayText(originalNameValue);
             return;
           }
-          const response = await makePostRequest(
+          const response = await savePost(
             `/annotation-set/${annotationSetId}/update-name/`,
             JSON.stringify({name: payload})
           );
@@ -1406,7 +1489,7 @@ export class Editor {
             displayText(payload);
           } else {
             displayText(originalNameValue);
-            console.error("Failed to update annotation set name");
+            displayUserMessage("error", "Failed to update annotation set name");
           }
         }
         else if (e.key == "Escape") {
@@ -1608,7 +1691,7 @@ export class Editor {
       let parentTrackRow = e.target.closest(".track-row");
 
       if (!parentTrackRow) {
-        console.error("Failed to change track name due to undefined track row element");
+        displayUserMessage("error", "Failed to update the name of the track. Please try again or refresh the page.");
         return;
       }
 
@@ -1623,7 +1706,7 @@ export class Editor {
 
       if (e.key == "Enter") {
         const newTrackName = e.target.value.trim();
-        const response = await makePostRequest(
+        const response = await savePost(
           `/track/${trackId}/update/`,
           JSON.stringify({"new_track_name": newTrackName})
         );
@@ -1687,7 +1770,16 @@ export class Editor {
     async deleteTrack(e) {
       const trackRow = e.target.closest(".track-row");
       const trackId = trackRow.dataset["trackId"];
-      const trackDeleteResponse = await fetch(`/track/${trackId}/delete/`, {
+      const trackItems = Array.from(trackRow.querySelectorAll(".track-item"));
+      const itemCount = trackItems.length;
+      if (itemCount > 0) {
+        const items = itemCount === 1 ? "1 annotation" : `${itemCount} annotations`;
+        const message = `Delete track "${trackRow.querySelector(".track-name").innerText}" and its ${items}? This cannot be undone.`;
+        if (!window.confirm(message)) {
+          return;
+        }
+      }
+      const trackDeleteResponse = await saveStatus.fetch(`/track/${trackId}/delete/`, {
         method: "delete",
         headers: {
           "X-CSRFToken": getCSRFToken(),
@@ -1696,13 +1788,33 @@ export class Editor {
       });
 
       if (!trackDeleteResponse.ok) {
-        console.error("Failed to delete track");
+        displayUserMessage("error", "Failed to delete track");
         return;
       }
+      // Only change the page after the server has confirmed the delete.
+      const jsonData = await trackDeleteResponse.json();
       window.dispatchEvent(this.annotationUpdatedEvent);
 
-      trackRow.remove();
+      // The annotation panel lists the same items as the tracks, but it is not
+      // redrawn with the tracks. Remove the deleted items from it here so the two stay in sync.
+      for (const item of trackItems) {
+        document.getElementById(`${item.dataset["annotationType"]}-panel-item-${item.dataset["annotationId"]}`)?.remove();
+      }
+      const itemForm = document.getElementById("existing-item-form");
+      const formItemWasDeleted = itemForm && trackItems.some(item =>
+        item.dataset["annotationType"] == itemForm.dataset["annotationType"]
+        && item.dataset["annotationId"] == itemForm.dataset["annotationId"]
+      );
+      if (formItemWasDeleted) {
+        document.getElementById("detail-form").innerHTML = "";
+        saveStatus.settle("item-form");
+        this.changeAnnotationInFocus();
+      }
+
+      this.replaceTracksWithNewHTML(jsonData["tracks_html"]);
       this.updateTracks();
+      this.placeTrackItems();
+      this.adjustScrubberHeight();
     }
 
     watchForTrackDelete(trackRootElement) {
@@ -1715,7 +1827,7 @@ export class Editor {
     /* Track order reassignment */
     async handleTrackOrderReassignment(trackIdToMove, isMoveUp) {
       if (typeof(isMoveUp) != "boolean") {
-        console.error("isMoveUp must be boolean type");
+        displayUserMessage("error", "An error occurred while attempting to move the track up. Please try again or refresh the page.");
         return;
       }
       const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
@@ -1749,7 +1861,7 @@ export class Editor {
         }
       }
 
-      const orderUpdateResponse = await makePostRequest(
+      const orderUpdateResponse = await savePost(
         `/annotation-set/${annotationSetId}/tracks/update_stack_positions/`,
         JSON.stringify({
           track_ids: trackIdOrder
@@ -1757,7 +1869,7 @@ export class Editor {
       );
 
       if (!orderUpdateResponse.ok) {
-        console.error("Failed to update stack positions across all tracks");
+        displayUserMessage("error", "Failed to reorder tracks");
         return;
       }
       const jsonData = await orderUpdateResponse.json();
@@ -1799,7 +1911,7 @@ export class Editor {
           return;
         }
 
-        const newTrackResponse = await makePostRequest(
+        const newTrackResponse = await savePost(
           `/annotation-set/${annotationSetId}/track/create/`,
           JSON.stringify({
             "track_name": newTrackName
@@ -1809,7 +1921,7 @@ export class Editor {
         dialog.close();
 
         if (!newTrackResponse.ok) {
-          console.error("Failed to create new track!");
+          displayUserMessage("error", "Failed to create new track!");
           return;
         }
 
@@ -1922,7 +2034,7 @@ export class Editor {
                 endTime = Math.min(startTime + itemDuration, this.duration);
             }
 
-            const response = await makePostRequest(
+            const response = await savePost(
               `/track/${trackId}/annotations/${annotationType}/create/`,
               JSON.stringify({
                 "start_time": startTime,
@@ -1950,7 +2062,7 @@ export class Editor {
               window.dispatchEvent(this.annotationUpdatedEvent);
             }
             else {
-              console.error(response);
+              displayUserMessage("error", "Failed to create annotation");
             }
           })
         }
@@ -2359,7 +2471,7 @@ export class Editor {
       );
 
       if (!createResponse.ok) {
-        console.error("Failed to create new annotation set");
+        displayUserMessage("error", "Failed to create new annotation set");
         return;
       }
       window.location.reload();
@@ -2383,7 +2495,7 @@ export class Editor {
       const annotationSetOptionsModalContent = document.getElementById("annotation-set-modal-option-display");
       const contentResponse = await fetch(url);
       if (!contentResponse.ok) {
-        console.error("Failed to get new content for annotation set options modal");
+        displayUserMessage("error", "Failed to load annotation set options");
         return false;
       }
       const newHTML = await contentResponse.text();
@@ -2419,7 +2531,7 @@ export class Editor {
           JSON.stringify({ "annotation_set_id": setSelector.value })
         );
         if (!contentSetAssignmentResponse.ok) {
-          console.error("Failed to set annotation set for this content");
+          displayUserMessage("error", "Failed to set annotation set for this content");
           return;
         }
         window.location.reload();
@@ -2482,7 +2594,7 @@ export class Editor {
         try {
           JSON.parse(jsonFile);
         } catch {
-          console.error("Invalid JSON provided");
+          displayUserMessage("error", "The selected file contains invalid JSON. Please choose a valid annotation set file.");
           return;
         }
 
@@ -2532,7 +2644,7 @@ export class Editor {
     watchAndHandleAnnotationSetDelete() {
       const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
       if (!deleteAnnotationSetButton) {
-        console.error("Failed to get annotation set delete button");
+        displayUserMessage("warning", "The annotation set delete button cannot be setup; you will not be able to delete the annotation set during this session.");
         return;
       }
 
@@ -2548,7 +2660,7 @@ export class Editor {
           }
         });
         if (!deleteResponse.ok) {
-          console.error("Failed to delete annotation set");
+          displayUserMessage("error", "Failed to delete annotation set");
           return;
         }
 
@@ -2577,20 +2689,20 @@ export class Editor {
         let annotationSetId = event.target.value;
 
         if (isNaN(annotationSetId) || annotationSetId === undefined) {
-            console.error("Selected value was not defined!");
-            return;
+          displayUserMessage("error", "The annotation set you attempted to change to cannot be found; it may have been deleted. Please refresh the page.");
+          return;
         }
 
         if (!this.contentId) {
-            console.error("could not retrieve content id while switching annotation sets!");
-            return;
+          displayUserMessage("error", "An error occurred while attempting to change annotation sets. Please refresh the page.");
+          return;
         }
         const htmlContentResponse = await makePostRequest(
             `/content/${this.contentId}/select-annotation-set/`,
             JSON.stringify({"annotation_set_id": annotationSetId})
         );
         if (!htmlContentResponse.ok) {
-          console.error("Failed to update annotation_set!");
+          displayUserMessage("error", "Failed to switch annotation sets");
           return;
         }
         // rebuild the page with the new annotation set
@@ -2696,7 +2808,7 @@ export class Editor {
       try {
         const subtitlesResponse = await fetch(`/subtitles/${trackId}/editable/`);
         if (!subtitlesResponse.ok) {
-          console.error("Failed to get subtitle cues");
+          displayUserMessage("error", "An error occurred while retrieving the subtitle cues. Please try again or refresh the page.");
           return false;
         }
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
@@ -2712,8 +2824,8 @@ export class Editor {
         document.getElementById("open-delete-subtitle-track-modal").disabled =
           document.getElementById("subtitle-panel-content-wrapper").dataset.canEdit !== "true";
         return true;
-      } catch (error) {
-        console.error("Failed to load subtitle track", error);
+      } catch {
+        displayUserMessage("error", "Failed to load subtitle track");
         return false;
       } finally {
         const subtitleSelectInput = document.getElementById("subtitles-track-selector");
@@ -2735,8 +2847,8 @@ export class Editor {
         pageUrl.searchParams.delete("subtitle_track");
         window.history.replaceState(window.history.state, "", pageUrl);
         await this.loadSubtitleTrackEditForm();
-      } catch (error) {
-        console.error("Failed to load subtitle track from URL", error);
+      } catch {
+        displayUserMessage("warning", "An error occurred while trying to load the selected subtitle track. Please select the track again.");
       }
     }
 
@@ -2752,8 +2864,8 @@ export class Editor {
         try {
           if (!await this.loadSubtitleTrack(trackId)) return;
           dialog.close();
-        } catch (error) {
-          console.error("Failed to select subtitle track", error);
+        } catch {
+          displayUserMessage("error", "Failed to select subtitle track.");
         } finally {
           subtitleSelectInput.disabled = false;
         }
@@ -2789,11 +2901,9 @@ export class Editor {
               if (renderedForm) {
                 form.replaceWith(renderedForm);
                 renderedForm.querySelector('[aria-invalid="true"]')?.focus();
-              } else {
-                console.error("Submitted form missing from validation response");
               }
             } else {
-              console.error("Failed to create subtitle track", response.status);
+              displayUserMessage("error", "Failed to create subtitle track.");
             }
             return;
           }
@@ -2801,8 +2911,8 @@ export class Editor {
           const reloadUrl = new URL(window.location.href);
           reloadUrl.searchParams.set("subtitle_track", track.id);
           window.location.assign(reloadUrl.href);
-        } catch (error) {
-          console.error("Failed to create subtitle track", error);
+        } catch {
+          displayUserMessage("error", "Failed to create subtitle track");
         } finally {
           controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
           delete form.dataset.submitting;
@@ -2848,13 +2958,13 @@ export class Editor {
           `/subtitles/${this.selectedSubtitleTrackId}/edit/?content_id=${encodeURIComponent(this.contentId)}`
         );
         if (!response.ok) {
-          console.error("Failed to load subtitle track details", response.status);
+          displayUserMessage("error", "Failed to load subtitle track information.");
           return;
         }
         const html = await response.text();
         content.innerHTML = new DOMParser().parseFromString(html, "text/html").getElementById("subtitle-track-edit-content").innerHTML;
-      } catch (error) {
-        console.error("Failed to load subtitle track details", error);
+      } catch {
+        displayUserMessage("error", "Failed to load subtitle track information.");
       } finally {
         status.textContent = "";
         content.removeAttribute("aria-busy");
@@ -2879,15 +2989,15 @@ export class Editor {
           body
         });
         if (!response.ok) {
-          console.error("Subtitle track request failed", response.status);
+          displayUserMessage("error", "Failed to edit subtitle track.");
           return;
         }
         const track = await response.json();
         const reloadUrl = new URL(window.location.href);
         reloadUrl.searchParams.set("subtitle_track", track.id);
         window.location.assign(reloadUrl.href);
-      } catch (error) {
-        console.error("Subtitle track request failed", error);
+      } catch {
+        displayUserMessage("error", "Failed to edit subtitle track.");
       } finally {
         controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
         this.subtitleTrackEditBusy = false;
@@ -2900,7 +3010,7 @@ export class Editor {
       const openButton = document.getElementById("open-delete-subtitle-track-modal");
       const deleteButton = document.getElementById("delete-subtitle-track-confirm");
       if (!openButton || !deleteButton) {
-        console.error("Cannot setup subtitle track delete button because the required elements do not exist.");
+        displayUserMessage("warning", "Unable to setup subtitle track deletion modal. You will not be able to delete subtitle tracks until this is resolved.");
         return;
       }
 
@@ -2920,13 +3030,13 @@ export class Editor {
           });
           if (!response.ok) {
             response.status === 403
-              ? console.error("You do not have permission to delete this subtitle track.")
-              : console.error("Failed to delete the subtitle track.");
+              ? displayUserMessage("info", "You do not have permission to delete this subtitle track.")
+              : displayUserMessage("error", "Failed to delete the subtitle track.");
             return;
           }
           window.location.reload();
-        } catch (error) {
-          console.error("Failed to delete subtitle track", error);
+        } catch {
+          displayUserMessage("error", "Failed to delete subtitle track.");
         } finally {
           deleteButton.disabled = false;
         }
@@ -2957,9 +3067,11 @@ export class Editor {
       if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
+      this.sentCueState = originalCueState;
+      saveStatus.settle("subtitle-cues");
       const save = (async () => {
         try {
-          const updateResponse = await makePostRequest(
+          const updateResponse = await savePost(
             `/subtitles/${trackId}/update-cues/`,
             JSON.stringify({
               cues: cues,
@@ -2969,7 +3081,7 @@ export class Editor {
           );
           if (this.selectedSubtitleTrackId !== trackId) return false;
           if (!updateResponse.ok) {
-            console.error("Failed to save subtitle cues", updateResponse.status);
+            displayUserMessage("error", "Failed to save changes to subtitle cues.");
             return false;
           }
           const html = await updateResponse.text();
@@ -2981,8 +3093,8 @@ export class Editor {
 
           this.buildWatchersForSubtitleEditorCues();
           return true;
-        } catch (error) {
-          console.error("Failed to save subtitle cues", error);
+        } catch {
+          displayUserMessage("error", "Failed to save changes to subtitle cues");
           return false;
         }
       })();
@@ -3032,8 +3144,7 @@ export class Editor {
         }
         const newCue = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
         if (!newCue) {
-          console.log(cueLookupTime, lookupTimeString, time);
-          console.error("no new cue found!");
+          displayUserMessage("warning", "Unable to automatically find the new cue, this may be because it has the same start time as another cue, or something went wrong while creating the cue.");
           return;
         }
         const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
@@ -3041,7 +3152,7 @@ export class Editor {
           cueTA.focus();
         }
         else {
-          console.error("Unable to locate cue text content.");
+          displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
         }
 
       });
@@ -3053,11 +3164,14 @@ export class Editor {
         trackSelectOption.textContent = `${newTitle} (${subtitlesPanel.dataset.language})`;
         this.selectedSubtitleTrackText = trackSelectOption.textContent.trim();
       }
-      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this));
+      setupInPlaceFieldEdit(subtitleTitleWrapper, `/subtitles/${this.selectedSubtitleTrackId}/update-title`, updateTrackDisplayInSelector.bind(this), saveFetch);
     }
 
     buildWatchersForSubtitleEditorCues() {
       const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
+      // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
+      this.sentCueState = JSON.stringify(this.collectCues());
+      saveStatus.settle("subtitle-cues");
       const deleteCue = (e) => {
         const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
         const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
@@ -3091,6 +3205,15 @@ export class Editor {
           cueInput.addEventListener("change", (e) => {
             e.preventDefault();
             saveUpdatedInformation();
+          });
+          // A cue saves on change or Enter, so typed text waits until then. Typing back to what was
+          // last sent is not a pending edit.
+          cueInput.addEventListener("input", () => {
+            if (JSON.stringify(this.collectCues()) === this.sentCueState) {
+              saveStatus.settle("subtitle-cues");
+            } else {
+              saveStatus.wait("subtitle-cues");
+            }
           });
         }
       }

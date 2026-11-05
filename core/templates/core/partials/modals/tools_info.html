@@ -1,0 +1,10 @@
+{% extends "core/partials/modals/user_view_modal.html" %}
+
+{% block modal_title %}Tool Descriptions{% endblock %}
+{% block modal_body %}
+    <div id="tool-descriptions" class="column-flex">
+        {% for group in annotation_groups %}
+            <p class="tool-description"><span class="tool-description-title">{{ group.type_display }}</span> - {{ group.tool_description }}</p>
+        {% endfor %}
+    </div>
+{% endblock %}

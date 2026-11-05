@@ -3,7 +3,10 @@
 <div id="subtitle-editor-panel"
      class="subtitle-editor-panel-hidden editor-container-component-dark editor-panel-wrapper">
     <div id="subtitle-panel-header" class="row-flex flex-apart-aligned">
-        <h3 id="subtitle-panel-title">Subtitle Editor</h3>
+        <div id="subtitle-panel-heading" class="column-flex-no-gap">
+            <h3 id="subtitle-panel-title">Subtitle Editor</h3>
+            {% include "core/partials/save_status.html" with status_id="subtitle-save-status" %}
+        </div>
         <div id="subtitle-track-settings-menu-wrapper"
              class="multi-option-menu-wrapper">
             <button id="subtitle-track-menu-button"
@@ -85,5 +88,5 @@
         </div>
     </div>
     <button id="subtitle-panel-switch"
-            class="white-button-with-border editor-panel-switch">Switch to Annotation Editor</button>
+            class="white-button-with-border editor-panel-switch">Show Annotation Editor</button>
 </div>

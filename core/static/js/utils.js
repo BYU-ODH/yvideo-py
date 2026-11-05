@@ -97,11 +97,51 @@ export function getCSRFToken() {
   return cookieValue;
 }
 
+// Render and display a user message. A message cannot be empty
+// and if the level is not a valid value, the resulting message will be
+// an error type message.
+export async function displayUserMessage(level, message) {
+  if (!message.trim()) {
+    console.error("Django Messages cannot be empty");
+    return;
+  }
+
+  if (level?.toLowerCase() === "error") {
+    console.error(message);
+  }
+
+  const container = document.getElementById("django-messages-container");
+  if (!container) {
+    console.error("The Django messages container is missing.");
+    return;
+  }
+
+  const url = new URL("/messages/render/", window.location.origin);
+  url.searchParams.set("message", message);
+  url.searchParams.set("level", level);
+
+  const response = await fetch(url, {
+    headers: { Accept: "text/html" },
+  });
+  if (!response.ok || response.redirected) {
+    console.log("Failed to render user message.");
+    return;
+  }
+
+  const html = await response.text();
+  if (html === "") {
+    console.error("Received empty HTML while rendering a user message.");
+    return;
+  }
+
+  container.insertAdjacentHTML("beforeend", html);
+}
 /* makePostRequest
 * handles csrf token and conent type placement. Returns the result of the request.
+* fetchImpl lets callers route the request through a wrapper such as saveStatus.fetch.
 */
-export async function makePostRequest(URL, body, contentType = "application/json") {
-  return fetch(URL, {
+export async function makePostRequest(URL, body, contentType = "application/json", fetchImpl = fetch) {
+  return fetchImpl(URL, {
     method: "post",
     headers: {
       "X-CSRFToken": getCSRFToken(),
@@ -117,8 +157,9 @@ export async function makePostRequest(URL, body, contentType = "application/json
 * The new input is provided to the endpointURL as JSON with the structure {"new_value": VALUE}.
 * postEditCallback is provided to enable whatever after effects may be useful after a
 * successful edit. postEditCallback is not called on failed edits.
+* fetchImpl is passed through to makePostRequest.
 */
-export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null) {
+export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null, fetchImpl = fetch) {
   const titleElement = wrapperElement.querySelector("p, h1, h2, h3, h4, h5, h6, span");
   const inputElement = wrapperElement.querySelector("input, textarea, select");
   const editButton = wrapperElement.querySelector("button");
@@ -158,7 +199,7 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditC
       const body = JSON.stringify({
         new_value: newValue
       });
-      const response = await makePostRequest(editEndpointURL, body);
+      const response = await makePostRequest(editEndpointURL, body, undefined, fetchImpl);
       if (response.ok) {
         titleElement.innerText = newValue;
         postEditCallback();

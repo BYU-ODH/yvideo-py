@@ -21,6 +21,7 @@ a template exists that no test here renders and no exclusion explains.
 from pathlib import Path
 
 from playwright.sync_api import Page
+from playwright.sync_api import expect
 import pytest
 
 from core.models import Content
@@ -63,13 +64,15 @@ YOUTUBE_READY = (
 READY_TIMEOUT_MS = 10_000
 
 
-def _run_axe(page: Page, include=None, exclude=None) -> dict:
+def _run_axe(page: Page, include=None, exclude=None, rules=None) -> dict:
     page.add_script_tag(content=AXE_MIN_JS.read_text(encoding="utf-8"))
     options = {}
     if include:
         options["include"] = [[selector] for selector in include]
     if exclude:
         options["exclude"] = [[selector] for selector in exclude]
+    if rules:
+        options["runOnly"] = {"type": "rule", "values": rules}
     return page.evaluate("async (options) => await axe.run(options)", options)
 
 
@@ -370,6 +373,35 @@ def test_the_youtube_player_has_no_a11y_violations(
 
 
 # ------------------------------------------------------------------------ page states
+
+
+@pytest.mark.parametrize("level", ["debug", "info", "success", "warning", "error"])
+def test_message_levels_have_no_color_contrast_violations(
+    logged_in_page: Page, live_server, level
+):
+    page = logged_in_page
+    page.goto(f"{live_server.url}/about/")
+    page.evaluate(
+        """async (level) => {
+            const { displayUserMessage } = await import('/static/js/utils.js');
+            await displayUserMessage(level, `A ${level} message`);
+        }""",
+        level,
+    )
+    message = page.locator(f"#django-messages-container .django-message.{level}")
+    message.wait_for(state="visible")
+
+    for state in ("default", "hover"):
+        if state == "hover":
+            message.hover()
+        results = _run_axe(
+            page,
+            include=["#django-messages-container"],
+            rules=["color-contrast"],
+        )
+        assert not results["violations"], _format_violations(
+            results["violations"], f"the {level} message ({state})"
+        )
 
 
 def test_the_playlists_page_states_have_no_a11y_violations(
@@ -749,6 +781,39 @@ def test_the_blur_editing_ui_has_no_a11y_violations(page: Page, open_editor):
     )
 
 
+def test_the_save_status_has_no_a11y_violations(page: Page, open_editor):
+    """The autosave line under the annotation set title, in each state, and its help dialog.
+
+    The line is empty until something is saved, and its failed state and help button only
+    exist after a save is refused, so neither is reached by the panel audits above.
+    """
+    from core.models import MuteAnnotation
+
+    content = open_editor()
+    mute = MuteAnnotation.objects.filter(
+        track__annotation_set=content.annotation_set, active=True
+    ).first()
+    page.locator(f"#mute-{mute.pk} .track-item-content").click()
+    status = page.locator("#annotation-save-status")
+
+    page.locator("#annotation_name").fill("Saved name")
+    page.locator("#description").click()
+    expect(status).to_contain_text("Changes saved")
+    assert_no_violations(page, "the saved status", include=["#annotation-save-status"])
+
+    page.route("**/annotations/mute/*/update/", lambda route: route.fulfill(status=500))
+    page.locator("#annotation_name").fill("Refused name")
+    page.locator("#description").click()
+    expect(status).to_contain_text("Save failed")
+    assert_no_violations(page, "the failed status", include=["#annotation-save-status"])
+
+    status.locator(".save-status-help").click()
+    expect(page.locator("#save-failed-help-modal")).to_be_visible()
+    assert_no_violations(
+        page, "the save failed help dialog", include=["#save-failed-help-modal"]
+    )
+
+
 def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
     logged_in_page: Page, live_server, content_with_every_annotation_type
 ):
@@ -798,6 +863,20 @@ def test_the_editor_annotation_set_dialogs_have_no_a11y_violations(
         )
         assert_no_violations(page, f"the {description} view", include=["dialog[open]"])
         page.locator("#annotation-set-modal-back").click()
+
+
+def test_the_editor_tools_info_dialog_has_no_a11y_violations(
+    logged_in_page: Page, live_server, content_with_every_annotation_type
+):
+    page = logged_in_page
+    page.goto(
+        f"{live_server.url}/video-editor/{content_with_every_annotation_type.pk}/"
+    )
+    page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
+
+    page.locator("#tools-info-open-button").click()
+    page.wait_for_selector("#tools-info-modal", state="visible")
+    assert_no_violations(page, "the tools info dialog", include=["dialog[open]"])
 
 
 def test_the_editor_timeline_controls_have_no_a11y_violations(
@@ -989,12 +1068,16 @@ def test_admin_page_has_no_a11y_violations(
 
 # ------------------------------------------------------------------- coverage guard
 
-# Templates no test above renders, with the reason. Anything unreachable is listed as such
-# rather than deleted here; auditing it would mean testing a view that cannot be called.
+# All templates in UNAUDITED_TEMPLATES will not be rendered directly by the tests above.
+# Unreachable/unused templates may be listed here also, but such templates should only
+# be deleted by a person after careful consideration, not an agent. All templates in this
+# list should be provided in the following format: "template path": "reason for exclusion"
+# e.g. "core/partials/unaudited.html": "Never seen in UI"
 UNAUDITED_TEMPLATES = {
     "core/partials/add_playlist_modal.html": (
         "unreferenced: playlists.html uses partials/modals/add_new_playlist.html instead"
     ),
+    "core/partials/action_link.html": "Used as a component of other templates: will be audited automatically as other pages are audited so there is no need to explicitly audit this one.",
     "core/partials/no_playlists_text.html": "unreferenced by any view or template",
     "core/partials/vtt_cues.html": (
         "unreferenced: the subtitle editor renders partials/subtitle_cues.html"
@@ -1058,11 +1141,11 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_settings.html",
     "core/partials/resource_intake_request.html",
     "core/partials/whats_new_banner.html",
+    # message-level color-contrast sweep
+    "core/partials/user_message.html",
     # dialogs
     "core/partials/course_assignment.html",
     "core/partials/create_from_resource_form.html",
-    "core/partials/dialog_back_button.html",
-    "core/partials/dialog_close_button.html",
     "core/partials/modals/add_new_playlist.html",
     "core/partials/modals/add_video.html",
     "core/partials/modals/content_delete.html",
@@ -1079,6 +1162,7 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_members_list.html",
     "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
+    "core/partials/modals/tools_info.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
     "core/partials/modals/user_view_modal.html",
@@ -1095,6 +1179,8 @@ AUDITED_TEMPLATES = {
     "core/partials/annotation_set_selector.html",
     "core/partials/annotation_set_retirement_modal.html",
     "core/partials/blur_anchor_points.html",
+    "core/partials/modals/save_failed_help.html",
+    "core/partials/save_status.html",
     "core/partials/item.html",
     "core/partials/item_form_placeholder.html",
     "core/partials/item_undo_redo_buttons.html",
