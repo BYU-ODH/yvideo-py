@@ -2860,6 +2860,7 @@ export class Editor {
         }
         // handle cue deletion
         else if (e?.target?.closest('.editor-subtitle-cue-delete')) {
+          e.preventDefault();
           const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
           const cueElements = Array.from(subtitlePanel.querySelectorAll(".editor-subtitle-cue"));
           const cues = this.collectCues();
@@ -2869,12 +2870,14 @@ export class Editor {
         }
         // handle video time seek on cue start or text content input selection
         else if (e?.target?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-content")) {
+          e.preventDefault();
           const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
           const cueStartTime = parentCueWrapper.dataset["startTime"];
           this.seekVideoTo(parseFloat(cueStartTime));
         }
         // handle video time seek to cue end time on end time input selection
         else if (e?.target?.closest(".editor-subtitle-cue-end")) {
+          e.preventDefault();
           const cueEndTimeInput = e.target.closest(".editor-subtitle-cue-end");
           this.seekVideoTo(parseFloat(cueEndTimeInput.dataset["endTime"]));
         }
@@ -2903,6 +2906,7 @@ export class Editor {
       // input watcher
       subtitlePanel.addEventListener("input", (e) => {
         if (isACueInput(e?.target)) {
+          e.preventDefault();
           if (JSON.stringify(this.collectCues()) === this.sentCueState) {
             saveStatus.settle("subtitle-cues");
           } else {
