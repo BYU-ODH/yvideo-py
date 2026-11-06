@@ -125,6 +125,22 @@ def content_parent_crumbs(content):
     )
 
 
+def content_details_trail(content, *crumbs):
+    """Trail for pages an editor reaches from a content's Details page.
+
+    Editors enter content through Details, so its preview and editor pages hang
+    below it rather than Details hanging below the player (#467).
+    """
+    return breadcrumb_trail(
+        *content_parent_crumbs(content),
+        (
+            f"{content.title} Details",
+            reverse("display_content_info", args=[content.pk]),
+        ),
+        *crumbs,
+    )
+
+
 @login_not_required
 @require_GET
 def render_user_message(request):
@@ -230,8 +246,12 @@ def player(request, content):
         "content_source_url": content_source_url,
         "youtube_video_id": youtube_video_id_for_content(content, content_source_url),
         "allow_events": True,
-        "breadcrumbs": breadcrumb_trail(
-            *content_parent_crumbs(content), (content.title, None)
+        "breadcrumbs": (
+            content_details_trail(content, ("Preview", None))
+            if content.can_be_edited_by(request.user)
+            else breadcrumb_trail(
+                *content_parent_crumbs(content), (content.title, None)
+            )
         ),
     }
 
@@ -1283,11 +1303,7 @@ def display_content_info(request, content):
             ),
             "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitles(),
-            "breadcrumbs": breadcrumb_trail(
-                *content_parent_crumbs(content),
-                (content.title, reverse("player", args=[content.pk])),
-                ("Details", None),
-            ),
+            "breadcrumbs": content_details_trail(content),
         }
         return render(request, "core/content_info.html", context)
     except Exception as e:

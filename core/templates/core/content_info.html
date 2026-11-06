@@ -12,9 +12,13 @@
             <h3>{{ content.playlist.name }}: {{ content.title }}</h3>
         </div>
         {% if can_edit %}
-            {% url 'video_editor' content.id as video_editor_url %}
-            {% include 'core/partials/action_link.html' with link_href=video_editor_url link_text="Edit Video" %}
+            <div class="row-flex">
+                {% url 'video_editor' content.id as video_editor_url %}
+                {% include 'core/partials/action_link.html' with link_href=video_editor_url link_text="Edit Video" %}
 
+                {% url 'player' content.id as player_url %}
+                {% include 'core/partials/action_link.html' with link_href=player_url link_text="Preview" %}
+            </div>
             <div id="content-settings">
                 <div class="row-flex flex-apart-aligned">
                     <h3>Settings</h3>
