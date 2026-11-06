@@ -273,6 +273,11 @@ urlpatterns = [
         name="update_track",
     ),
     path(
+        "track/<int:track_id>/update-name/",
+        views_video_editor.update_track_name,
+        name="update_track_name",
+    ),
+    path(
         "annotation-set/<int:annotation_set_id>/tracks/update_stack_positions/",
         views_video_editor.update_track_positions_in_set,
         name="update_tracks_stack_positions",

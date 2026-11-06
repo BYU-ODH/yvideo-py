@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupMultiOptionMenu } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupMultiOptionMenu, setupInPlaceFieldEdit } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { saveStatus } from "./save-status.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
@@ -1652,8 +1652,7 @@ export class Editor {
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
       setupMultiOptionMenu(trackRootElement);
-      this.watchForDisplayTrackRename(trackRootElement);
-      this.watchForTrackRename(trackRootElement);
+      setupInPlaceFieldEdit(trackRootElement.querySelector(".timeline-track-name-wrapper"), `/track/${trackRootElement.dataset.trackId}/update-name/`, null, fetch, trackRootElement.querySelector(".track-menu-rename"));
       this.watchForTrackMovement(trackRootElement);
       this.watchForTrackDelete(trackRootElement);
       this.watchForTrackActivation(trackRootElement);
@@ -1724,16 +1723,6 @@ export class Editor {
       }
     }
 
-    watchForTrackRename(trackRootElement) {
-      const trackRenameInput = trackRootElement.querySelector(".track-rename-input");
-      if (trackRenameInput) {
-        trackRenameInput.addEventListener("keydown", this.handleTrackNameChange.bind(this));
-      }
-      else {
-        console.error("No rename input found for track");
-      }
-    }
-
     // Handles renaming of track name, canceling attempted rename,
     // replacement of track with new track, and appending this same
     // event listener to the new track name edit button.
@@ -1754,16 +1743,6 @@ export class Editor {
       renameWrapper.classList.add(visibleRenameCSSClass);
       renameInput.focus();
       renameInput.setSelectionRange(0, 50);
-    }
-
-    watchForDisplayTrackRename(trackRootElement) {
-      const renameButton = trackRootElement.querySelector(".track-menu-rename");
-      if (renameButton) {
-        renameButton.addEventListener("click", this.displayTrackRenameField.bind(this))
-      }
-      else {
-        console.error("No rename button found for track");
-      }
     }
 
     /* track delete */

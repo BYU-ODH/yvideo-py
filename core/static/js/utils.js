@@ -159,10 +159,10 @@ export async function makePostRequest(URL, body, contentType = "application/json
 * successful edit. postEditCallback is not called on failed edits.
 * fetchImpl is passed through to makePostRequest.
 */
-export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null, fetchImpl = fetch) {
+export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null, fetchImpl = fetch, buttonEl = null) {
   const titleElement = wrapperElement.querySelector("p, h1, h2, h3, h4, h5, h6, span");
   const inputElement = wrapperElement.querySelector("input, textarea, select");
-  const editButton = wrapperElement.querySelector("button");
+  const editButton = buttonEl ? buttonEl : wrapperElement.querySelector("button");
 
   const missingTitle = !titleElement;
   const missingInput = !inputElement;
@@ -202,7 +202,9 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditC
       const response = await makePostRequest(editEndpointURL, body, undefined, fetchImpl);
       if (response.ok) {
         titleElement.innerText = newValue;
-        postEditCallback();
+        if (postEditCallback && typeof postEditCallback === "function") {
+          postEditCallback();
+        }
       }
       else {
         inputElement.value = originalTitle;

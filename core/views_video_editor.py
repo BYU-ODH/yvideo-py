@@ -1196,7 +1196,6 @@ def display_use_existing_annotation_set_option(request, content):
 @require_POST
 @track_write_required
 def update_track(request, track):
-    """Edit track name by changing the track_name attribute of all associated annotations"""
     try:
         parsed_data = json.loads(request.body)
     except Exception as e:
@@ -1218,6 +1217,22 @@ def update_track(request, track):
     )
 
     return HttpResponse(track_html)
+
+
+@require_POST
+@track_write_required
+def update_track_name(request, track):
+    try:
+        parsed_data = json.loads(request.body)
+        if "new_value" in parsed_data:
+            track.name = parsed_data["new_value"]
+            track.save()
+        else:
+            return HttpResponseBadRequest()
+    except Exception as e:
+        logger.error(f"Failed to update track name. Exception: {e}")
+        return HttpResponseServerError()
+    return HttpResponse(status=200)
 
 
 def convertTracksToHTML(annotation_set, request):
