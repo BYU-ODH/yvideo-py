@@ -61,6 +61,8 @@ export class AnnotationPlayer {
 
     this.allowFastPlayback = options.allowFastPlayback !== false;
     this.editorMode = options.editorMode === true;
+    // Ignore allow_captions restriction in editor mode so subtitles can still be edited/previewed.
+    this.allowCaptions = options.allowCaptions !== false || this.editorMode;
     // Ignore clips_only restriction in editor mode.
     this.clipsOnly = options.clipsOnly === true && !this.editorMode;
     this.playbackRates = options.playbackRates || [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
@@ -96,11 +98,11 @@ export class AnnotationPlayer {
     this.draggingRAF = null; // Track requestAnimationFrame for dragging
 
     if (options.tracks && Array.isArray(options.tracks)) {
-      this._loadSubtitleTracks(options.tracks);
+      this._loadSubtitleTracks(this._allowedSubtitleTracks(options.tracks));
     }
 
     this.subtitleSidebar = null;
-    this._enableSubtitleSidebar = options.subtitleSidebar === true;
+    this._enableSubtitleSidebar = options.subtitleSidebar === true && this.allowCaptions;
 
     this.clips = options.clips || [];
 
@@ -452,7 +454,7 @@ export class AnnotationPlayer {
       }
 
       if (Array.isArray(data.subtitles)) {
-        this._replaceSubtitleTracks(data.subtitles);
+        this._replaceSubtitleTracks(this._allowedSubtitleTracks(data.subtitles));
       }
     }
 
@@ -1332,6 +1334,12 @@ export class AnnotationPlayer {
       }
     }
     this._renderSpeedMenu();
+  }
+
+  // With captions disallowed no tracks are attached at all, which also hides the captions
+  // button and subtitle sidebar since both only appear when tracks exist.
+  _allowedSubtitleTracks(subtitleObjs) {
+    return this.allowCaptions ? subtitleObjs : [];
   }
 
     _replaceSubtitleTracks(subtitleObjs) {

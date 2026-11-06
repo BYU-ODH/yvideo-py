@@ -21,6 +21,7 @@ from ..factories import CourseFactory
 from ..factories import LanguageFactory
 from ..factories import MuteAnnotationFactory
 from ..factories import PlaylistFactory
+from ..factories import PlaylistUserAccessFactory
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import SubtitleFactory
@@ -32,6 +33,7 @@ from ..models import BlurAnchorPoint
 from ..models import BlurAnnotation
 from ..models import Content
 from ..models import PauseAnnotation
+from ..models import PlaylistRole
 from ..models import Resource
 from ..models import ResourceFileKey
 from ..models import SkipAnnotation
@@ -67,24 +69,33 @@ class ResourceImdbIdGenerationTests(TestCase):
         self.assertTrue(Resource._meta.get_field("imdb_id").null)
 
 
-class ApiTests(TestCase):
-    @unittest.expectedFailure
-    def test_build_auth_header(self):
+_LIVE_OIT_API_CONFIGURED = bool(api.secret_settings.API_AUTH_TOKEN_URL)
+
+
+@unittest.skipUnless(
+    _LIVE_OIT_API_CONFIGURED,
+    "needs real OIT API credentials in yvideo/secret_settings.py (absent in CI)",
+)
+class LiveOitApiTests(TestCase):
+    """Calls BYU's real OIT APIs, so these only run where credentials are configured."""
+
+    def test_live_api_build_auth_header(self):
         new_api = api.Api()
         pattern = r"Bearer[ ]\S*"
         result = new_api.build_auth_header()
         self.assertRegex(result, pattern)
 
-    @unittest.expectedFailure
-    def test_get_current_year_term(self):
+    def test_live_api_get_current_year_term(self):
         pattern = r"[0-9]{4}[1-6]"
         new_api = api.Api()
         result = new_api.get_current_year_term()
         self.assertRegex(result["yearterm"], pattern)
 
-    @unittest.expectedFailure
+
+class ApiTests(TestCase):
     def test_calculate_next_year_term(self):
-        new_api = api.Api()
+        # Pure date arithmetic; bypasses __init__, which would fetch a live auth token.
+        new_api = api.Api.__new__(api.Api)
         fall_to_winter = new_api.calculate_next_year_term("20255")
         self.assertEqual(fall_to_winter, "20261")
         winter_to_spring = new_api.calculate_next_year_term("20261")
@@ -788,6 +799,59 @@ class ContentClipsOnlyViewTests(TestCase):
         self.content_clips_only.refresh_from_db()
         self.assertTrue(self.content_no_clips_only.clips_only)
         self.assertFalse(self.content_clips_only.clips_only)
+
+
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+)
+class ContentAllowCaptionsViewTests(TestCase):
+    """Tests for how Content.allow_captions shapes get_player_data."""
+
+    def setUp(self):
+        self.owner = UserFactory(instructor=True)
+        self.playlist = PlaylistFactory(owner=self.owner, published=True)
+        self.resource_file = ResourceFileFactory()
+        SubtitleFactory(resource=self.resource_file.resource, owner=self.owner)
+        self.student = UserFactory(student=True)
+        PlaylistUserAccessFactory(
+            user=self.student,
+            playlist=self.playlist,
+            playlist_role=PlaylistRole.STUDENT,
+        )
+
+    def _player_data(self, user, allow_captions):
+        content = ContentFactory(
+            playlist=self.playlist,
+            resource_file=self.resource_file,
+            published=True,
+            allow_captions=allow_captions,
+        )
+        self.client.force_login(user)
+        response = self.client.post(reverse("get_player_data", args=[content.pk]))
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_student_gets_subtitles_when_captions_are_allowed(self):
+        data = self._player_data(self.student, allow_captions=True)
+        self.assertTrue(data["allowCaptions"])
+        self.assertEqual(len(data["subtitleTracks"]), 1)
+        self.assertTrue(data["has_subtitles"])
+
+    def test_student_gets_no_subtitles_when_captions_are_disallowed(self):
+        data = self._player_data(self.student, allow_captions=False)
+        self.assertFalse(data["allowCaptions"])
+        self.assertEqual(data["subtitleTracks"], [])
+        self.assertFalse(data["has_subtitles"])
+
+    def test_editor_still_gets_subtitles_when_captions_are_disallowed(self):
+        data = self._player_data(self.owner, allow_captions=False)
+        self.assertFalse(data["allowCaptions"])
+        self.assertEqual(len(data["subtitleTracks"]), 1)
 
 
 @override_settings(
