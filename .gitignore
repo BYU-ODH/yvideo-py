@@ -182,8 +182,5 @@ cython_debug/
 
 # System files
 .DS_Store
-# IC_Player
-IC_Player/node_modules/
-
-# ESLint and dependencies
-node_modules/
+# npm dependencies (no trailing slash so symlinked node_modules are ignored too)
+node_modules
