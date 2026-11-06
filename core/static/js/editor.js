@@ -2897,6 +2897,42 @@ export class Editor {
           header.classList.toggle("cue-far-hidden");
           return;
         }
+
+        // handle the replace function of the find and replace feature
+        // handles whole word replace only
+        if (e?.target?.id == "execute-far-button") {
+          if (e.target.disabled == true) {
+            return;
+          }
+          const findInput = document.getElementById("cue-find-input");
+          const replaceInput = document.getElementById("cue-replace-input");
+          if (!findInput || !replaceInput) {
+            displayUserMessage("error", "Failed to locate the inputs for the find and replace function.");
+            return;
+          }
+          // I don't think most users will want to use this tool to
+          // delete words or replace words with whitespace.
+          if (replaceInput.value.trim == "") {
+            return;
+          }
+          const findWord = findInput.value;
+          const replaceWord = replaceInput.value;
+          let cues = this.collectCues();
+          for (let cue of cues) {
+            let split = cue.payload.split(' ');
+            for (let wordI = 0; wordI < split.length; wordI++) {
+              if (split[wordI] == findWord) {
+                split[wordI] = replaceWord;
+              }
+            }
+            cue.payload = split.join(' ');
+          }
+          this.saveCues(cues);
+          findInput.value = "";
+          const cueMatchCountEl = document.getElementById("cue-find-match-count");
+          cueMatchCountEl.textContent = "";
+          return;
+        }
       });
 
       function isACueInput(targetEl) {
@@ -2924,7 +2960,7 @@ export class Editor {
       // cue find and replace search text input callback
       // This has to be defined outside of an event
       // listener so it does not get redefined with each
-      // event trigger
+      // event trigger. handles whole word find only
       let cueTextFindTimerRef;
       const searchCuesForText = (e) => {
         clearTimeout(cueTextFindTimerRef);
@@ -2941,7 +2977,10 @@ export class Editor {
           }
 
           for (let cueText of cueTexts) {
-            matches += cueText.textContent.includes(findText);
+            const split = cueText.textContent.split(' ');
+            for (let word of split) {
+              matches += word === findText;
+            }
           }
           const plural = matches == 1 ? "match" : "matches";
           const matchText = `Found ${matches} ${plural}`;
@@ -2949,7 +2988,7 @@ export class Editor {
 
           if (cueMatchCountEl && cueReplaceButton) {
             cueMatchCountEl.textContent = matchText;
-            cueReplaceButton.disabled = false;
+            cueReplaceButton.disabled = matches <= 0;
           }
         }, 500);
       }
