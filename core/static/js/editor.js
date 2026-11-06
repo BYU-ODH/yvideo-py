@@ -2799,6 +2799,14 @@ export class Editor {
     }
 
     setupSubtitleEditor() {
+      const buildCueWordPattern = (text) => {
+        const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(
+          `(?<![\\p{L}\\p{M}\\p{N}\\p{Pc}])${escapedText}(?![\\p{L}\\p{M}\\p{N}\\p{Pc}])`,
+          "gu"
+        );
+      };
+
       const subtitlePanel = document.getElementById("subtitle-editor-panel");
       if (!subtitlePanel) {
         displayUserMessage("error", "Failed to setup subtitle editor, you will not be able to make edits to subtitle tracks during this session.");
@@ -2917,15 +2925,10 @@ export class Editor {
           }
           const findWord = findInput.value;
           const replaceWord = replaceInput.value;
+          const pattern = buildCueWordPattern(findWord);
           let cues = this.collectCues();
           for (let cue of cues) {
-            let split = cue.payload.split(' ');
-            for (let wordI = 0; wordI < split.length; wordI++) {
-              if (split[wordI].includes(findWord)) {
-                split[wordI] = split[wordI].replaceAll(findWord, replaceWord);
-              }
-            }
-            cue.payload = split.join(' ');
+            cue.payload = cue.payload.replace(pattern, () => replaceWord);
           }
           this.saveCues(cues);
           findInput.value = "";
@@ -2976,11 +2979,9 @@ export class Editor {
             return;
           }
 
+          const pattern = buildCueWordPattern(findText);
           for (let cueText of cueTexts) {
-            const split = cueText.textContent.split(' ');
-            for (let word of split) {
-              matches += word.includes(findText);
-            }
+            matches += (cueText.textContent.match(pattern) || []).length;
           }
           const plural = matches == 1 ? "match" : "matches";
           const matchText = `${matches} ${plural}`;
