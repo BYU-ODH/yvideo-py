@@ -928,7 +928,6 @@ export class AnnotationPlayer {
 
   blank() {
     this.videoElem.classList.add("blanked");
-    // TODO Optionally add style for blanked video
   }
 
   unblank() {
@@ -937,7 +936,6 @@ export class AnnotationPlayer {
 
   screenBlur() {  // Blur the whole screen (not the individual blur-position boxes)
     this.videoElem.classList.add("screen-blurred");
-    // TODO Make this subtype of `blanked` with CSS options
   }
 
   unscreenBlur() {
