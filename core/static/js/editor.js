@@ -2912,7 +2912,7 @@ export class Editor {
           }
           // I don't think most users will want to use this tool to
           // delete words or replace words with whitespace.
-          if (replaceInput.value.trim == "") {
+          if (replaceInput.value.trim() == "") {
             return;
           }
           const findWord = findInput.value;
