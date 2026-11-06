@@ -49,12 +49,12 @@ body {
 
 dialog {
     position: relative;
-
-    border: 3px solid var(--dark-mode-border-color);
     border-radius: 20px;
+}
 
+dialog.dark-mode {
+    border: 3px solid var(--dark-mode-border-color);
     color: var(--dark-mode-text-color);
-
     background-color: var(--dark-mode-background-medium);
 }
 
