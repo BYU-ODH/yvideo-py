@@ -909,7 +909,12 @@ export class Editor {
       );
 
       if (!response.ok) {
-        displayUserMessage("error", "An error occurred while updating an annotation");
+        const status = response.status;
+        if (status == 403) {
+          displayUserMessage("warning", "You do not have permission to edit this annotation set.")
+        } else {
+          displayUserMessage("error", "An error occurred while updating an annotation");
+        }
         return false;
       }
 
@@ -1285,7 +1290,12 @@ export class Editor {
         method: "GET"
       });
       if (!response.ok) {
-        displayUserMessage("error", "Failed to load the annotation detail form");
+        const status = response.status;
+        if (status == 403) {
+          displayUserMessage("warning", "You do not have permission to make edits to this permission set. If you would like to make your own copy, click the three dot menu in the annotation panel on the left of the screen.");
+        } else {
+          displayUserMessage("error", "Failed to load the annotation detail form");
+        }
         return false;
       }
       const detailForm = document.getElementById("detail-form");
@@ -2642,6 +2652,8 @@ export class Editor {
 
 
     watchAndHandleAnnotationSetDelete() {
+      if (!this.canEditAnnotationSet) return;
+
       const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
       if (!deleteAnnotationSetButton) {
         displayUserMessage("warning", "The annotation set delete button cannot be setup; you will not be able to delete the annotation set during this session.");
