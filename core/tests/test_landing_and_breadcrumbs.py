@@ -3,8 +3,11 @@ from django.test import modify_settings
 from django.test import override_settings
 from django.urls import reverse
 
+from ..factories import ContentFactory
+from ..factories import CourseFactory
 from ..factories import PlaylistFactory
 from ..factories import PlaylistUserAccessFactory
+from ..factories import UserCourseFactory
 from ..factories import UserFactory
 from ..models import PlaylistRole
 
@@ -250,3 +253,109 @@ class BreadcrumbTests(TestCase):
 
         self.assertContains(response, 'aria-label="Breadcrumb"')
         self.assertContains(response, f'href="{reverse("playlists")}"')
+
+
+@modify_settings(
+    MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
+)
+@override_settings(DEBUG=True)
+class ContentBreadcrumbTests(TestCase):
+    """Editors enter content through Details; preview and editor sit below it (#467)."""
+
+    def setUp(self):
+        self.instructor = UserFactory(instructor=True, netid="instr4")
+        self.course = CourseFactory()
+        self.playlist = PlaylistFactory(
+            owner=self.instructor, name="Phonetics 101", published=True
+        )
+        self.playlist.courses.add(self.course)
+        self.content = ContentFactory(
+            playlist=self.playlist, title="Vowels", published=True
+        )
+        self.playlist_crumbs = [
+            ("Playlists", reverse("playlists")),
+            ("Phonetics 101", reverse("playlist_info", args=[self.playlist.pk])),
+        ]
+        self.details_url = reverse("display_content_info", args=[self.content.pk])
+
+    def trail(self, response):
+        self.assertEqual(response.status_code, 200)
+        return [(c["label"], c["url"]) for c in response.context["breadcrumbs"]]
+
+    def test_details_sits_directly_under_the_playlist(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(self.details_url)
+
+        self.assertEqual(
+            self.trail(response),
+            [*self.playlist_crumbs, ("Vowels Details", self.details_url)],
+        )
+
+    def test_details_links_to_the_preview(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(self.details_url)
+
+        self.assertContains(
+            response, f'href="{reverse("player", args=[self.content.pk])}"'
+        )
+
+    def test_editor_preview_trails_back_through_details(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(reverse("player", args=[self.content.pk]))
+
+        self.assertEqual(
+            self.trail(response)[:-1],
+            [*self.playlist_crumbs, ("Vowels Details", self.details_url)],
+        )
+        self.assertEqual(self.trail(response)[-1][0], "Preview")
+
+    def test_video_editor_trails_back_through_details(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(reverse("video_editor", args=[self.content.pk]))
+
+        self.assertEqual(
+            self.trail(response)[:-1],
+            [*self.playlist_crumbs, ("Vowels Details", self.details_url)],
+        )
+        self.assertEqual(self.trail(response)[-1][0], "Editor")
+        self.assertContains(response, 'aria-label="Breadcrumb"')
+
+    def test_student_player_trail_skips_details_they_cannot_open(self):
+        student = UserFactory(student=True, netid="stud4")
+        UserCourseFactory(
+            user=student, course=self.course, yearterm=self.course.yearterm
+        )
+        self.client.force_login(student)
+
+        response = self.client.get(reverse("player", args=[self.content.pk]))
+
+        self.assertEqual(self.trail(response)[:-1], self.playlist_crumbs)
+        self.assertEqual(self.trail(response)[-1][0], "Vowels")
+
+    def test_editor_preview_does_not_count_as_a_view(self):
+        self.client.force_login(self.instructor)
+
+        self.client.get(reverse("player", args=[self.content.pk]))
+
+        self.content.refresh_from_db()
+        self.content.resource.refresh_from_db()
+        self.assertEqual(self.content.views, 0)
+        self.assertEqual(self.content.resource.views, 0)
+
+    def test_student_visit_counts_as_a_view(self):
+        student = UserFactory(student=True, netid="stud5")
+        UserCourseFactory(
+            user=student, course=self.course, yearterm=self.course.yearterm
+        )
+        self.client.force_login(student)
+
+        self.client.get(reverse("player", args=[self.content.pk]))
+
+        self.content.refresh_from_db()
+        self.content.resource.refresh_from_db()
+        self.assertEqual(self.content.views, 1)
+        self.assertEqual(self.content.resource.views, 1)
