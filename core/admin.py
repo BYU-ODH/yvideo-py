@@ -695,13 +695,14 @@ class ResourceAdmin(VersionAdmin):
         "name",
         "name_disambiguator",
         "media_type",
+        "imdb_id",
         "requester_username",
         "copyrighted",
         "views",
         "created_at",
     )
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
-    search_fields = ("name", "name_disambiguator")
+    search_fields = ("name", "name_disambiguator", "imdb_id")
 
     class Media:
         js = ("js/admin_call_number.js",)
@@ -900,6 +901,7 @@ class ResourceFileAdmin(VersionAdmin):
 class ContentAdmin(VersionAdmin):
     list_display = (
         "title",
+        "extended_display_name",
         "playlist",
         "resource",
         "published",
@@ -914,7 +916,14 @@ class ContentAdmin(VersionAdmin):
         "created_at",
     )
     readonly_fields = ("views",)
-    search_fields = ("title", "description", "playlist__name")
+    search_fields = (
+        "title",
+        "description",
+        "playlist__name",
+        "resource__name",
+        "resource__name_disambiguator",
+        "resource__imdb_id",
+    )
 
     def get_form(self, request, obj=None, **kwargs):
         """Dynamically filters the 'resource_file' field's queryset.

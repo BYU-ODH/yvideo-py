@@ -913,7 +913,7 @@ class Content(models.Model):
 
     @property
     def display_name(self):
-        return f"{self.title} ({self.resource.__str__() if self.resource else 'unknown resource'})"
+        return f"{self.title}: {self.resource.__str__() if self.resource else 'unknown resource'}"
 
     @property
     def extended_display_name(self):
