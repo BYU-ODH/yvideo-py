@@ -50,6 +50,16 @@ That removes the local SQLite database, generated media under `media/`, and any 
 derived files in `media/`. It does not touch `demo_media/`, committed migrations,
 or `yvideo/secret_settings.py`.
 
+To work on a branch in a separate git worktree, run from any existing checkout:
+```bash
+bash scripts/new_worktree.sh <branch> [path] [--base=main] [--no-db]
+```
+
+This creates the worktree (default: a sibling directory named after the branch), symlinks
+`node_modules`, `.env`, `yvideo/secret_settings.py`, and other untracked local config from
+the main worktree, runs `uv sync --dev`, and builds a fresh database with `migrate` and
+`seed_demo_data`.
+
 If you want a one-click local app login for that admin, enable `DEV_QUICK_LOGIN_ENABLED = True`
 in `yvideo/secret_settings.py` and visit `/login/dev/quick/` on localhost. The route
 returns 404 unless both `DEBUG` and `DEV_QUICK_LOGIN_ENABLED` are true, and it is only

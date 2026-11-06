@@ -4,9 +4,13 @@
 
 {% block extra_css %}
     {{ block.super }}
+{% endblock %}
+{% block extra_js %}
+    {{ block.super }}
     <meta name="csrf-token" content="{{ csrf_token }}">
     <!-- HTMX CSRF Configuration -->
     <script>
+
         // Get CSRF token from cookie
         function getCookie(name) {
             let cookieValue = null;
@@ -28,6 +32,11 @@
             document.body.addEventListener('htmx:configRequest', function(event) {
                 event.detail.headers['X-CSRFToken'] = getCookie('csrftoken');
             });
+        });
+    </script>
+    <script>
+        window.addEventListener("offline", () => {
+            window.alert("The browser has lost connection to the internet. Check your internet connection before continuing.");
         });
     </script>
 {% endblock %}

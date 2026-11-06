@@ -31,6 +31,7 @@ import {
   getCSRFToken,
   parseTimeStringToSeconds,
 } from "./utils.js";
+import { saveStatus } from "./save-status.js";
 
 // Mirrors BLUR_MIN_WIDTH / BLUR_MIN_HEIGHT in core/models.py, which the server clamps against.
 // Matching here keeps the box from jumping on release.
@@ -550,7 +551,7 @@ export class BlurEditor {
 
     let response;
     try {
-      response = await fetch(url, {
+      response = await saveStatus.fetch(url, {
         method: "POST",
         headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -600,7 +601,7 @@ export class BlurEditor {
       console.error("No delete endpoint on the control for the blur anchor point being deleted");
       return false;
     }
-    const response = await fetch(url, {
+    const response = await saveStatus.fetch(url, {
       method: "DELETE",
       headers: { "X-CSRFToken": getCSRFToken() },
     });

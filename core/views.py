@@ -9,6 +9,8 @@ import re
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.views import redirect_to_login
+from django.contrib.messages.storage.base import Message
+from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
@@ -120,6 +122,35 @@ def content_parent_crumbs(content):
         return ()
     return (
         (content.playlist.name, reverse("playlist_info", args=[content.playlist_id])),
+    )
+
+
+@login_not_required
+@require_GET
+def render_user_message(request):
+    text = request.GET.get("message", "")
+    if not text.strip():
+        return HttpResponse(b"", content_type="text/html")
+
+    level = request.GET.get("level", "info")
+    levels = {
+        "debug": messages.DEBUG,
+        "info": messages.INFO,
+        "success": messages.SUCCESS,
+        "warning": messages.WARNING,
+        "error": messages.ERROR,
+    }
+    if level not in levels:
+        text = (
+            "Invalid message level, could not create message "
+            f"with level ({level}) and message ({text})"
+        )
+        level = "error"
+
+    return render(
+        request,
+        "core/partials/user_message.html",
+        {"message": Message(levels[level], text)},
     )
 
 
@@ -414,6 +445,7 @@ def create_playlist(request):
     if data and "name" in data:
         try:
             Playlist.objects.create(name=data["name"], owner=request.user)
+            messages.success(request, "Playlist created.")
             return HttpResponse()
         except Exception as e:
             logger.error(
@@ -720,6 +752,7 @@ def update_playlist_settings(request, playlist):
             else:
                 playlist.published = form.cleaned_data["published"]
             playlist.save()
+            messages.success(request, "Playlist settings saved.")
             return render_playlist_info(request, playlist)
         except Exception as e:
             logger.error(
@@ -1086,6 +1119,7 @@ def get_playlist_contents(playlist):
 def delete_playlist(request, playlist):
     try:
         playlist.delete()
+        messages.success(request, "Playlist deleted.")
         return HttpResponse()
     except Exception as e:
         logger.error(
@@ -1113,6 +1147,7 @@ def create_content(request, playlist):
             title=parsed_data["title"],
             resource_file=resource_file,
         )
+        messages.success(request, "Video added to playlist.")
         return HttpResponse()
     except ResourceFile.DoesNotExist:
         logger.error("Failed to create new content due to missing ResourceFile")
@@ -1153,6 +1188,7 @@ def create_content_from_youtube_url(request, playlist):
             url=parsed_data["url"],
             resource=resource,
         )
+        messages.success(request, "YouTube video added to playlist.")
         return HttpResponse()
     except json.JSONDecodeError:
         logger.error(
@@ -1216,6 +1252,7 @@ def delete_content(request, content):
     try:
         contents_count = Content.objects.filter(playlist=content.playlist).count()
         content.delete()
+        messages.success(request, "Video removed from playlist.")
         if contents_count <= 1:
             return HttpResponse(
                 "There is no published content for this playlist", status=200
@@ -1245,7 +1282,7 @@ def display_content_info(request, content):
                 content, content_source_url
             ),
             "content_has_clips": content.has_clips(),
-            "subtitle_options": content.get_subtitle_options(),
+            "subtitle_options": content.get_subtitles(),
             "breadcrumbs": breadcrumb_trail(
                 *content_parent_crumbs(content),
                 (content.title, reverse("player", args=[content.pk])),
@@ -1265,7 +1302,7 @@ def render_content_settings_form(request, content):
         context = {
             "content": content,
             "content_has_clips": content.has_clips(),
-            "subtitle_options": content.get_subtitle_options(),
+            "subtitle_options": content.get_subtitles(),
         }
         return render(request, "core/partials/content_settings_form.html", context)
     except Exception as e:
@@ -1296,9 +1333,11 @@ def update_content(request, content):
             content.default_subtitle_track = None
 
         content.save()
+        messages.success(request, "Video settings saved.")
         return HttpResponse()
     except Exception as e:
         logger.error(f"An error occured while updating content. Exception: {e}")
+        messages.error(request, "Failed to save video settings.")
         return HttpResponseServerError()
 
 
@@ -1412,7 +1451,7 @@ def subtitle_editor(request, content_id):
 @require_http_methods(["GET", "POST"])
 @instructor_required
 def request_resource(request):
-
+    title_collision_error = False
     if request.method == "POST":
         form = ResourceIntakeRequestForm(request.POST)
         if form.is_valid():
@@ -1426,6 +1465,11 @@ def request_resource(request):
                 "Humanities Learning Commons (HLC) so we can begin processing it.",
             )
             return redirect("request_resource")
+        else:
+            title_collision_error = form.has_error(
+                NON_FIELD_ERRORS, code="unique_together"
+            )
+
         for field_name in form.errors:
             if field_name in form.fields:
                 widget = form.fields[field_name].widget
@@ -1438,7 +1482,5 @@ def request_resource(request):
     return render(
         request,
         "core/partials/resource_intake_request.html",
-        {
-            "form": form,
-        },
+        {"form": form, "title_collision_error": title_collision_error},
     )

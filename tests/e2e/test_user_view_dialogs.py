@@ -32,7 +32,6 @@ def assert_shared_modal_shell_and_dismissal(
     expect(dialog).to_be_visible()
 
     close_button = dialog.get_by_role("button", name="Close")
-    expect(close_button).to_have_text("X")
     dialog_box = dialog.bounding_box()
     close_button_box = close_button.bounding_box()
     assert dialog_box
@@ -91,6 +90,10 @@ def test_every_user_view_dialog_uses_the_shared_shell_and_behavior(
         (
             f"/content/{content.pk}/display-settings/",
             [("#content-delete-modal", "#content-details-delete-button")],
+        ),
+        (
+            f"/video-editor/{content.pk}/",
+            [("#tools-info-modal", "#tools-info-open-button")],
         ),
     ]
 

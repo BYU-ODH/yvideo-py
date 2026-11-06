@@ -3,6 +3,7 @@
 // building the outline and turning pointer drags and arrow keys into frame-percentage rects.
 
 import { clampRect, edgesForHandle, percentWithin, resizeRect } from "./video-geometry.js";
+import { saveStatus } from "./save-status.js";
 
 export const NUDGE_PERCENT = 0.5;
 export const NUDGE_PERCENT_LARGE = 5;
@@ -58,10 +59,14 @@ export class PendingNudge {
     this.delay = delay;
     this.value = null;
     this.timer = null;
+    // A held nudge is an edit the user can already see, so the save indicator reads as pending
+    // from the first keystroke rather than only once the request leaves.
+    this.statusKey = Symbol("nudge");
   }
 
   hold(value) {
     clearTimeout(this.timer);
+    saveStatus.wait(this.statusKey);
     this.value = value;
     this.timer = setTimeout(() => this.flush(), this.delay);
   }
@@ -78,6 +83,7 @@ export class PendingNudge {
     clearTimeout(this.timer);
     this.value = null;
     this.timer = null;
+    saveStatus.settle(this.statusKey);
   }
 }
 

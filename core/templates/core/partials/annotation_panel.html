@@ -2,53 +2,72 @@
 
 <div id="editor-annotation-panel"
      class="editor-annotation-panel-visible editor-container-component-dark editor-panel-wrapper">
-    <div id="annotation-panel-header"
-         class="row-flex flex-apart-aligned multi-select-menu-parent">
-        <div id="annotation-set-title-wrapper"
-             class="row-flex flex-apart-aligned"
-             data-annotation-set-id="{{ annotation_set.id }}">
-            <span id="annotation-set-title">{{ annotation_set.name }}</span>
+    <div id="annotation-panel-header" class="row-flex flex-apart-aligned">
+        <div id="annotation-set-heading" class="column-flex-no-gap">
+            <div id="annotation-set-title-wrapper"
+                 class="row-flex flex-apart-aligned"
+                 data-annotation-set-id="{{ annotation_set.id }}">
+                <span id="annotation-set-title">{{ annotation_set.name }}</span>
+                {% if can_edit %}
+                    <input id="annotation-set-title-input"
+                           class="hidden"
+                           value="{{ annotation_set.name }}"
+                           aria-label="Input annotation set name">
+                    <button id="annotation-set-edit-button"
+                            class="item-form-icon-button"
+                            aria-label="Rename this annotation set"
+                            title="Rename this annotation set">
+                        <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
+                    </button>
+                {% endif %}
+            </div>
             {% if can_edit %}
-                <input id="annotation-set-title-input"
-                       class="hidden"
-                       value="{{ annotation_set.name }}"
-                       aria-label="Input annotation set name">
-                <button id="annotation-set-edit-button"
-                        class="item-form-icon-button"
-                        aria-label="Rename this annotation set"
-                        title="Rename this annotation set">
-                    <img src="{% static 'img/edit.svg' %}" alt="" aria-hidden="true">
-                </button>
+                {% include "core/partials/save_status.html" with status_id="annotation-save-status" %}
             {% endif %}
         </div>
-        <div class="multi-select-menu">
-            <button id="annotation-set-export-open-button"
-                    class="multi-select-menu-button"
-                    command="show-modal"
-                    commandfor="export-annotation-set">Export Annotations</button>
-            <button id="open-annotation-set-options-modal"
-                    class="multi-select-menu-button"
-                    command="show-modal"
-                    commandfor="annotation-set-options-modal">Change Annotation Set</button>
-            {% if can_administer_annotation_set %}
-                <button id="retire-annotation-set-button"
-                        class="multi-select-menu-button"
+        <div id="annotation-set-settings-menu-wrapper"
+             class="multi-option-menu-wrapper">
+            <button id="annotation-set-menu-button"
+                    class="open-multi-option-menu"
+                    aria-label="Annotation set settings">
+                <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
+            </button>
+            <div id="annotation-set-settings-menu" class="multi-option-menu">
+                <button id="annotation-set-export-open-button"
+                        class="multi-option-menu-button"
                         command="show-modal"
-                        commandfor="annotation-set-retirement-modal">Retire this annotation set</button>
-            {% endif %}
+                        commandfor="export-annotation-set">Export Annotations</button>
+                <button id="open-annotation-set-options-modal"
+                        class="multi-option-menu-button"
+                        command="show-modal"
+                        commandfor="annotation-set-options-modal">Change Annotation Set</button>
+                {% if can_administer_annotation_set %}
+                    <button id="retire-annotation-set-button"
+                            class="multi-option-menu-button"
+                            command="show-modal"
+                            commandfor="annotation-set-retirement-modal">Retire this Annotation Set</button>
+                {% endif %}
+            </div>
         </div>
-        <button id="annotation-set-menu-button"
-                class="open-multi-select-button"
-                aria-label="Annotation set settings">
-            <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
-        </button>
         {% include 'core/partials/annotation_set_export_modal.html' %}
-        {% include 'core/partials/annotation_set_options/base_modal.html' %}
+        {% include 'core/partials/modals/annotation_set_options/base_modal.html' %}
 
         {% if can_administer_annotation_set %}
             {% include 'core/partials/annotation_set_retirement_modal.html' %}
         {% endif %}
     </div>
+    <div id="tools-header" class="row-flex flex-apart-aligned">
+        <span id="tools-header-title">Tools</span>
+        <button id="tools-info-open-button"
+                class="item-form-icon-button"
+                command="show-modal"
+                commandfor="tools-info-modal"
+                aria-label="Tools information">
+            <span aria-hidden="true">ⓘ</span>
+        </button>
+    </div>
+    {% include "core/partials/modals/tools_info.html" with dialog_id="tools-info-modal" %}
+
     <div id="annotation-groups-wrapper">
         {% for group in annotation_groups %}
             <div id="{{ group.type }}-annotation-type-wrapper"
@@ -86,6 +105,6 @@
     </div>
     {% if not youtube_video_id %}
         <button id="annotation-panel-switch"
-                class="white-button-with-border editor-panel-switch">Switch to Subtitle Editor</button>
+                class="white-button-with-border editor-panel-switch">Show Subtitle Editor</button>
     {% endif %}
 </div>
