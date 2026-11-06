@@ -2642,25 +2642,25 @@ export class Editor {
 
 
     watchAndHandleAnnotationSetDelete() {
-      const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
-      if (!deleteAnnotationSetButton) {
-        displayUserMessage("warning", "The annotation set delete button cannot be setup; you will not be able to delete the annotation set during this session.");
+      const retireAnnotationSetButton = document.getElementById("annotation-set-retire");
+      if (!retireAnnotationSetButton) {
+        console.error("Failed to get annotation set retire button");
         return;
       }
 
-      deleteAnnotationSetButton.addEventListener("click", async () => {
+      retireAnnotationSetButton.addEventListener("click", async () => {
         const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
         if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
           return;
         }
-        const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/delete/`, {
-          method: "DELETE",
+        const retireResponse = await fetch(`/annotation-set/${annotationSetId}/retire/`, {
+          method: "POST",
           headers: {
             "X-CSRFToken": getCSRFToken()
           }
         });
-        if (!deleteResponse.ok) {
-          displayUserMessage("error", "Failed to delete annotation set");
+        if (!retireResponse.ok) {
+          console.error("Failed to retire annotation set");
           return;
         }
 
