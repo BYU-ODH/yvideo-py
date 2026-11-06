@@ -2983,7 +2983,7 @@ export class Editor {
             }
           }
           const plural = matches == 1 ? "match" : "matches";
-          const matchText = `Found ${matches} ${plural}`;
+          const matchText = `${matches} ${plural}`;
 
 
           if (cueMatchCountEl && cueReplaceButton) {
