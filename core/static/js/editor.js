@@ -2921,8 +2921,8 @@ export class Editor {
           for (let cue of cues) {
             let split = cue.payload.split(' ');
             for (let wordI = 0; wordI < split.length; wordI++) {
-              if (split[wordI] == findWord) {
-                split[wordI] = replaceWord;
+              if (split[wordI].includes(findWord)) {
+                split[wordI] = split[wordI].replaceAll(findWord, replaceWord);
               }
             }
             cue.payload = split.join(' ');
@@ -2979,7 +2979,7 @@ export class Editor {
           for (let cueText of cueTexts) {
             const split = cueText.textContent.split(' ');
             for (let word of split) {
-              matches += word === findText;
+              matches += word.includes(findText);
             }
           }
           const plural = matches == 1 ? "match" : "matches";
