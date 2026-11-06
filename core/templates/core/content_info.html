@@ -9,7 +9,7 @@
     <div class="main-content column-flex">
         <div id="content-details-header">
             <h2>Content Details</h2>
-            <h3>{{ content.playlist.name }}: {{ content.title }}</h3>
+            <h3>{{ content.playlist.name }}: {{ content.display_name }}</h3>
         </div>
         {% if can_edit %}
             {% url 'video_editor' content.id as video_editor_url %}

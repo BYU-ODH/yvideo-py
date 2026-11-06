@@ -231,7 +231,7 @@ def player(request, content):
         "youtube_video_id": youtube_video_id_for_content(content, content_source_url),
         "allow_events": True,
         "breadcrumbs": breadcrumb_trail(
-            *content_parent_crumbs(content), (content.title, None)
+            *content_parent_crumbs(content), (content.display_name, None)
         ),
     }
 
@@ -1285,7 +1285,7 @@ def display_content_info(request, content):
             "subtitle_options": content.get_subtitles(),
             "breadcrumbs": breadcrumb_trail(
                 *content_parent_crumbs(content),
-                (content.title, reverse("player", args=[content.pk])),
+                (content.display_name, reverse("player", args=[content.pk])),
                 ("Details", None),
             ),
         }
