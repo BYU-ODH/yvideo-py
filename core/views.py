@@ -228,17 +228,22 @@ def player(request, content):
             "User does not have permission to view this content", status=403
         )
 
-    try:
-        content.views += 1
-        content.save()
-        content.resource.views += 1
-        content.resource.save()
+    # Editors reach the player through Details' Preview link, so their visits are
+    # checks on their own content rather than views to count.
+    can_edit = content.can_be_edited_by(request.user)
+    if not can_edit:
+        try:
+            content.views += 1
+            content.save()
+            content.resource.views += 1
+            content.resource.save()
 
-    except Exception as e:
-        # log the error, but still provide the video in case of failure
-        logger.error(
-            f"Failed to update views for content and associated resource. Exception: {e}"
-        )
+        except Exception as e:
+            # log the error, but still provide the video in case of failure
+            logger.error(
+                "Failed to update views for content and associated resource. "
+                f"Exception: {e}"
+            )
 
     context = {
         "content": content,
@@ -248,7 +253,7 @@ def player(request, content):
         "allow_events": True,
         "breadcrumbs": (
             content_details_trail(content, ("Preview", None))
-            if content.can_be_edited_by(request.user)
+            if can_edit
             else breadcrumb_trail(
                 *content_parent_crumbs(content), (content.title, None)
             )

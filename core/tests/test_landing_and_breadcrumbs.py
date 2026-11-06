@@ -335,3 +335,27 @@ class ContentBreadcrumbTests(TestCase):
 
         self.assertEqual(self.trail(response)[:-1], self.playlist_crumbs)
         self.assertEqual(self.trail(response)[-1][0], "Vowels")
+
+    def test_editor_preview_does_not_count_as_a_view(self):
+        self.client.force_login(self.instructor)
+
+        self.client.get(reverse("player", args=[self.content.pk]))
+
+        self.content.refresh_from_db()
+        self.content.resource.refresh_from_db()
+        self.assertEqual(self.content.views, 0)
+        self.assertEqual(self.content.resource.views, 0)
+
+    def test_student_visit_counts_as_a_view(self):
+        student = UserFactory(student=True, netid="stud5")
+        UserCourseFactory(
+            user=student, course=self.course, yearterm=self.course.yearterm
+        )
+        self.client.force_login(student)
+
+        self.client.get(reverse("player", args=[self.content.pk]))
+
+        self.content.refresh_from_db()
+        self.content.resource.refresh_from_db()
+        self.assertEqual(self.content.views, 1)
+        self.assertEqual(self.content.resource.views, 1)
