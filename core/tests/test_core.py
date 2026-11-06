@@ -5,6 +5,7 @@ from functools import cmp_to_key
 import json
 import re
 import unittest
+import unittest.mock
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -847,6 +848,11 @@ class ContentAllowCaptionsViewTests(TestCase):
         self.assertFalse(data["allowCaptions"])
         self.assertEqual(data["subtitleTracks"], [])
         self.assertFalse(data["has_subtitles"])
+
+    def test_student_request_skips_reading_subtitles_when_captions_are_disallowed(self):
+        with unittest.mock.patch.object(Content, "get_subtitles") as get_subtitles:
+            self._player_data(self.student, allow_captions=False)
+        get_subtitles.assert_not_called()
 
     def test_editor_still_gets_subtitles_when_captions_are_disallowed(self):
         data = self._player_data(self.owner, allow_captions=False)

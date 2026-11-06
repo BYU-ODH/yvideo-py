@@ -1370,6 +1370,8 @@ export class AnnotationPlayer {
 
   _loadSubtitleTracks(subtitleObjs) {
     this._subtitleTracksSignature = JSON.stringify(subtitleObjs);
+    // True once the captions menu, sidebar, and control visibility reflect the loaded tracks.
+    this.subtitleTracksReady = false;
     subtitleObjs.forEach((trackData) => {
       const subtitleTrackElem = document.createElement('track');
       subtitleTrackElem.id = trackData.id;
@@ -1417,6 +1419,7 @@ export class AnnotationPlayer {
       }
 
       this._conditionallyUpdateControlsIconVisibility();
+      this.subtitleTracksReady = true;
     };
 
     if (this.videoElem.readyState >= 1) {

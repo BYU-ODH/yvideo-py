@@ -25,7 +25,24 @@
                        {% if content.allow_definitions %}checked{% endif %}>
             </div>
             <div class="content-settings-form-group">
-                <label for="allow-captions">Allow captions:</label>
+                <div class="label-with-info">
+                    <label for="allow-captions">Allow captions:</label>
+                    <button type="button"
+                            id="allow-captions-info-button"
+                            class="info-button"
+                            popovertarget="allow-captions-info"
+                            aria-label="About allow captions"
+                            title="About allow captions">
+                        <span aria-hidden="true">ⓘ</span>
+                    </button>
+                    <div id="allow-captions-info" class="info-popover" popover>
+                        <p>
+                            When this setting is turned off, the player shows no captions or subtitle sidebar, including for you and other editors.
+                            The player then looks the way it does for students.
+                        </p>
+                        <p>Subtitles are still available in the video editor, where you can keep working on them.</p>
+                    </div>
+                </div>
                 <input id="allow-captions"
                        type="checkbox"
                        {% if content.allow_captions %}checked{% endif %}>

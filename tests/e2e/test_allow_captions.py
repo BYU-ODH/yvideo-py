@@ -18,6 +18,8 @@ _CAPTION_STATE = """() => {
     };
 }"""
 
+_TRACKS_READY = "() => window.videoPlayer?.subtitleTracksReady === true"
+
 
 def _set_allow_captions(content, allowed):
     content.allow_captions = allowed
@@ -25,20 +27,19 @@ def _set_allow_captions(content, allowed):
 
 
 def _caption_state_once_tracks_settle(page):
-    # Track loading finishes on a short timeout after loadedmetadata.
-    page.wait_for_timeout(500)
+    # Waits for the player to finish applying its tracks (whether there are any or not), so a
+    # check that no captions appear cannot pass just because they had not loaded yet.
+    page.wait_for_function(_TRACKS_READY)
     return page.evaluate(_CAPTION_STATE)
 
 
 def test_player_offers_captions_when_they_are_allowed(page, open_player, demo_content):
     _set_allow_captions(demo_content, True)
     open_player(demo_content)
-    page.wait_for_function(
-        "() => document.querySelector('.annotation-player-container video').textTracks.length > 0"
-    )
 
     state = _caption_state_once_tracks_settle(page)
 
+    assert state["trackCount"] > 0
     assert state["captionsBtnVisible"]
     assert state["sidebarBtnVisible"]
 
@@ -62,6 +63,7 @@ def test_editor_still_loads_subtitles_when_captions_are_disallowed(
     _set_allow_captions(demo_content, False)
     open_editor(demo_content)
 
-    page.wait_for_function(
-        "() => document.querySelector('.annotation-player-container video').textTracks.length > 0"
-    )
+    state = _caption_state_once_tracks_settle(page)
+
+    assert state["trackCount"] > 0
+    assert state["captionsBtnVisible"]

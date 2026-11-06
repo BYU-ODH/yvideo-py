@@ -1014,11 +1014,14 @@ class Content(models.Model):
             track__annotation_set_id=self.annotation_set_id, active=True
         ).exists()
 
-    def get_player_json(self):
+    def get_player_json(self, include_subtitles=True):
         """
         Generate complete JSON data for AnnotationPlayer.loadData().
         Returns a dict with 'annotations' and 'clips' (Clip annotations are
         split out of 'annotations' since the player treats them separately).
+
+        include_subtitles=False returns no subtitle tracks and skips reading the
+        subtitle files from storage.
         """
         annotation_set_json = (
             self.annotation_set.to_player_json()
@@ -1032,7 +1035,7 @@ class Content(models.Model):
             "annotations": other_annotations,
             "clips": clips,
             "tracks": annotation_set_json["tracks"],
-            "subtitleTracks": self.get_subtitles(),
+            "subtitleTracks": self.get_subtitles() if include_subtitles else [],
         }
 
 
