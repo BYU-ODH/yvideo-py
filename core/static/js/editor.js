@@ -3025,6 +3025,7 @@ export class Editor {
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
         document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
         this.selectedSubtitleTrackId = trackId;
+        this.sentCueState = JSON.stringify(this.collectCues());
         this.selectedSubtitleTrackText = document.querySelector(
           `.subtitles-track-option[value="${trackId}"]`
         )?.textContent.trim() || "";
