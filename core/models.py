@@ -1331,13 +1331,12 @@ class PauseAnnotation(BaseAnnotation):
             "left": "0%",
             "width": "2px",
             "start": self.start_time,
-            "end": self.start_time,  # TODO: Would None be better?
+            "end": self.start_time,
         }
 
     def to_player_json(self):
         """pause needs a start time even though it doesnt have an end time. This is because
         of how the AnnotationPlayer parses annotations for Y-video"""
-        # TODO need to handle null end_time?
         data = super().to_player_json()
         data["message"] = self.message
         return data
