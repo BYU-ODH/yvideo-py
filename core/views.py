@@ -181,7 +181,12 @@ def whats_new(request):
 @content_read_required
 def get_player_data(request, content):
     try:
-        player_json = content.get_player_json()
+        # Editors still receive subtitles when captions are disallowed so they can work on
+        # them in the video editor; everyone else never gets the tracks at all.
+        include_subtitles = content.allow_captions or content.can_be_edited_by(
+            request.user
+        )
+        player_json = content.get_player_json(include_subtitles=include_subtitles)
         has_subtitles = bool(
             any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
         )
@@ -191,6 +196,7 @@ def get_player_data(request, content):
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
+            "allowCaptions": content.allow_captions,
             "clips": player_json["clips"],
             "clipsOnly": content.clips_only,
         }
