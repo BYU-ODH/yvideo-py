@@ -784,11 +784,6 @@
     padding: 8px;
 }
 
-#subtitle-editor-panel-content {
-    overflow-y: auto;
-    flex: 1;
-}
-
 #subtitle-panel-content, #subtitle-panel-list {
     flex: 1;
 }

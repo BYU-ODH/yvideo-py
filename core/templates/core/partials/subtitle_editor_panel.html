@@ -9,7 +9,12 @@
     <div id="subtitle-editor-panel-track-info">
         <div class="column-flex">
             <div class="row-flex flex-apart-aligned">
-                <label for="subtitles-track-selector">Subtitle track</label>
+                {# Only label the selector when it exists; a label pointing at a missing id is orphaned. #}
+                {% if editable_subtitle_options %}
+                    <label for="subtitles-track-selector">Subtitle track</label>
+                {% else %}
+                    <span>Subtitle track</span>
+                {% endif %}
                 <div id="subtitle-track-settings-menu-wrapper"
                      class="multi-option-menu-wrapper">
                     <button id="subtitle-track-menu-button"

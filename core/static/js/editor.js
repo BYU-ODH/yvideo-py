@@ -2799,6 +2799,12 @@ export class Editor {
     }
 
     setupSubtitleEditor() {
+      // Search text is trimmed so stray spaces (common when pasting) don't stop a match, and
+      // NFC-normalized so composed (é) and decomposed (e + ◌́) accents match each other.
+      // Cue text is normalized the same way before it is searched.
+      const normalizeCueSearchText = (text) => text.trim().normalize("NFC");
+
+      // Expects text that has already been through normalizeCueSearchText.
       const buildCueWordPattern = (text) => {
         const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         return new RegExp(
@@ -2816,6 +2822,51 @@ export class Editor {
       // multi option menu
       const subtitleTrackMenu = document.getElementById("subtitle-track-settings-menu-wrapper");
       setupMultiOptionMenu(subtitleTrackMenu);
+
+      // The panel content (and its data-can-edit flag) is swapped whenever a track is loaded,
+      // so look it up each time rather than caching it.
+      const canEditCues = () =>
+        document.getElementById("subtitle-panel-content")?.dataset.canEdit === "true";
+
+      // cue find and replace match count. Updates the count text and enables
+      // "Replace all" only when the current search text has matches.
+      // Handles whole word find only.
+      const updateCueFindCount = () => {
+        const cueFindInput = document.getElementById("cue-find-input");
+        const cueMatchCountEl = document.getElementById("cue-find-match-count");
+        const cueReplaceButton = document.getElementById("execute-far-button");
+        if (!cueFindInput || !cueMatchCountEl || !cueReplaceButton) return;
+
+        const findText = normalizeCueSearchText(cueFindInput.value);
+        if (findText == "") {
+          cueMatchCountEl.textContent = "";
+          cueReplaceButton.disabled = true;
+          return;
+        }
+
+        const pattern = buildCueWordPattern(findText);
+        let matches = 0;
+        for (let cueText of subtitlePanel.querySelectorAll(".editor-subtitle-cue-content")) {
+          // Use value, not textContent: textContent is the text the server rendered
+          // and misses edits, while replace works on value (via collectCues).
+          matches += (cueText.value.normalize("NFC").match(pattern) || []).length;
+        }
+        const plural = matches == 1 ? "match" : "matches";
+        cueMatchCountEl.textContent = `${matches} ${plural}`;
+        cueReplaceButton.disabled = matches <= 0;
+      };
+
+      // Debounced wrapper for updateCueFindCount, for use while the user types.
+      // The timer lives out here so it is shared between input events.
+      let cueTextFindTimerRef;
+      const searchCuesForText = () => {
+        clearTimeout(cueTextFindTimerRef);
+        // Disable replace until the count for the current search text is known,
+        // so it can't run with a search term the count hasn't checked yet.
+        const pendingReplaceButton = document.getElementById("execute-far-button");
+        if (pendingReplaceButton) pendingReplaceButton.disabled = true;
+        cueTextFindTimerRef = setTimeout(updateCueFindCount, 500);
+      };
 
       // click watcher
       subtitlePanel.addEventListener("click", async (e) => {
@@ -2838,7 +2889,7 @@ export class Editor {
           )
           if (!await this.saveCues(cues)) return;
 
-          // Normalize the lookup time string so it will always fine the right cue
+          // Normalize the lookup time string so it will always find the right cue
           // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
           // A cue's end and start time values are to 3 decimal places, the video's
           // current time has no decimal place limiter. Both of these cases should
@@ -2882,7 +2933,6 @@ export class Editor {
 
         // handle video time seek on cue start or text content input selection
         if (e?.target?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-content")) {
-          e.preventDefault();
           const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
           const cueStartTime = parentCueWrapper.dataset["startTime"];
           this.seekVideoTo(parseFloat(cueStartTime));
@@ -2891,7 +2941,6 @@ export class Editor {
 
         // handle video time seek to cue end time on end time input selection
         if (e?.target?.closest(".editor-subtitle-cue-end")) {
-          e.preventDefault();
           const cueEndTimeInput = e.target.closest(".editor-subtitle-cue-end");
           this.seekVideoTo(parseFloat(cueEndTimeInput.dataset["endTime"]));
           return;
@@ -2909,7 +2958,8 @@ export class Editor {
         // handle the replace function of the find and replace feature
         // handles whole word replace only
         if (e?.target?.id == "execute-far-button") {
-          if (e.target.disabled == true) {
+          const replaceButton = e.target;
+          if (replaceButton.disabled == true) {
             return;
           }
           const findInput = document.getElementById("cue-find-input");
@@ -2923,17 +2973,48 @@ export class Editor {
           if (replaceInput.value.trim() == "") {
             return;
           }
-          const findWord = findInput.value;
+          const findWord = normalizeCueSearchText(findInput.value);
+          // An empty pattern matches between every pair of non-word characters,
+          // so replacing with it would insert the replacement all over every cue.
+          if (findWord == "") {
+            replaceButton.disabled = true;
+            return;
+          }
+          // Unlike the search text, the replacement is used exactly as typed (not trimmed),
+          // so a user can deliberately include spacing around it.
           const replaceWord = replaceInput.value;
           const pattern = buildCueWordPattern(findWord);
-          let cues = this.collectCues();
-          for (let cue of cues) {
-            cue.payload = cue.payload.replace(pattern, () => replaceWord);
+          const cues = this.collectCues();
+          for (const cue of cues) {
+            const normalizedPayload = cue.payload.normalize("NFC");
+            // Only rewrite cues that match, so cues without a match keep their stored text
+            // (including its Unicode form) untouched. search() ignores the g flag's lastIndex.
+            if (normalizedPayload.search(pattern) !== -1) {
+              cue.payload = normalizedPayload.replace(pattern, () => replaceWord);
+            }
           }
-          this.saveCues(cues);
-          findInput.value = "";
-          const cueMatchCountEl = document.getElementById("cue-find-match-count");
-          cueMatchCountEl.textContent = "";
+
+          // Disable straight away so a second click (e.g. a double-click) can't start
+          // another replace while this one saves. Cancel any pending count, which could
+          // otherwise re-enable the button mid-save.
+          clearTimeout(cueTextFindTimerRef);
+          replaceButton.disabled = true;
+          const searchedText = findInput.value;
+          const saved = await this.saveCues(cues);
+
+          // Loading another track replaces these elements; leave the new panel alone.
+          if (!findInput.isConnected) return;
+          // The user started a new search during the save; its own count handles the button.
+          if (findInput.value !== searchedText) return;
+          if (saved) {
+            // Setting the value in code fires no input event, so clear the count here too.
+            findInput.value = "";
+            const cueMatchCountEl = document.getElementById("cue-find-match-count");
+            if (cueMatchCountEl) cueMatchCountEl.textContent = "";
+          } else {
+            // Keep the search so the user can retry; recount against the unchanged cues.
+            updateCueFindCount();
+          }
           return;
         }
       });
@@ -2944,7 +3025,7 @@ export class Editor {
 
       // change watcher
       subtitlePanel.addEventListener("change", (e) => {
-        if (isACueInput(e?.target)) {
+        if (canEditCues() && isACueInput(e?.target)) {
           e.preventDefault();
           this.saveCues(this.collectCues());
           return;
@@ -2953,51 +3034,17 @@ export class Editor {
 
       // keydown watcher
       subtitlePanel.addEventListener("keydown", (e) => {
-        if (isACueInput(e?.target) && e.key == "Enter" && !e.shiftKey) {
+        if (canEditCues() && isACueInput(e?.target) && e.key == "Enter" && !e.shiftKey) {
           e.preventDefault();
           this.saveCues(this.collectCues());
           return;
         }
       });
 
-      // cue find and replace search text input callback
-      // This has to be defined outside of an event
-      // listener so it does not get redefined with each
-      // event trigger. handles whole word find only
-      let cueTextFindTimerRef;
-      const searchCuesForText = (e) => {
-        clearTimeout(cueTextFindTimerRef);
-        cueTextFindTimerRef = setTimeout(() => {
-          const cueMatchCountEl = document.getElementById("cue-find-match-count");
-          const cueReplaceButton = document.getElementById("execute-far-button");
-          const cueTexts = subtitlePanel.querySelectorAll(".editor-subtitle-cue-content");
-          let matches = 0;
-          const findText = e.target.value;
-          if (findText == "") {
-            cueMatchCountEl.textContent = "";
-            cueReplaceButton.disabled = true;
-            return;
-          }
-
-          const pattern = buildCueWordPattern(findText);
-          for (let cueText of cueTexts) {
-            matches += (cueText.textContent.match(pattern) || []).length;
-          }
-          const plural = matches == 1 ? "match" : "matches";
-          const matchText = `${matches} ${plural}`;
-
-
-          if (cueMatchCountEl && cueReplaceButton) {
-            cueMatchCountEl.textContent = matchText;
-            cueReplaceButton.disabled = matches <= 0;
-          }
-        }, 500);
-      }
-
       // input watcher
       subtitlePanel.addEventListener("input", (e) => {
         // cue autosave updater
-        if (isACueInput(e?.target)) {
+        if (canEditCues() && isACueInput(e?.target)) {
           e.preventDefault();
           if (JSON.stringify(this.collectCues()) === this.sentCueState) {
             saveStatus.settle("subtitle-cues");
@@ -3009,7 +3056,7 @@ export class Editor {
 
         // cue find and replace search input
         if (e?.target?.id == "cue-find-input") {
-          searchCuesForText(e);
+          searchCuesForText();
           return;
         }
       });
@@ -3025,7 +3072,9 @@ export class Editor {
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
         document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
         this.selectedSubtitleTrackId = trackId;
+        // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
         this.sentCueState = JSON.stringify(this.collectCues());
+        saveStatus.settle("subtitle-cues");
         this.selectedSubtitleTrackText = document.querySelector(
           `.subtitles-track-option[value="${trackId}"]`
         )?.textContent.trim() || "";
@@ -3297,6 +3346,10 @@ export class Editor {
           // A response must not replace edits made while the save was in flight.
           if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
           document.getElementById("subtitle-panel-list").innerHTML = html;
+          // The saved cues can differ from what was on screen when the save started
+          // (add, delete, replace all), so the re-rendered cues are the new baseline.
+          this.sentCueState = JSON.stringify(this.collectCues());
+          saveStatus.settle("subtitle-cues");
           window.dispatchEvent(this.annotationUpdatedEvent);
 
           return true;

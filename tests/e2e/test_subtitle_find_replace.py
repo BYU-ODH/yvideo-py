@@ -211,3 +211,192 @@ def test_empty_replacement_does_not_save_or_change_cues(
         assert saves == []
     finally:
         page.remove_listener("request", record_save)
+
+
+def test_replace_all_disables_itself_so_a_double_click_replaces_once(
+    page, open_editor, subtitle_track
+):
+    open_editor()
+    _select_track(page, subtitle_track)
+    replace = page.get_by_role("button", name="Replace all", exact=True)
+    page.locator("#cue-find-input").fill("cat")
+    expect(page.locator("#cue-find-match-count")).to_have_text("6 matches")
+    page.locator("#cue-replace-input").fill("dog")
+
+    replace.dblclick()
+    expect(replace).to_be_disabled()
+    expected = [
+        "dog dog, (dog) dog-dog cats catalog bobcat Cat CAT",
+        CUE_TEXTS[1],
+        "dog! café? a.b (a.b) acb a+b [word]",
+        CUE_TEXTS[3],
+    ]
+    _assert_visible_cues(page, expected)
+    expect(page.locator("#subtitle-save-status")).to_contain_text("Changes saved")
+    assert _stored_cues(subtitle_track) == _expected_cues(expected)
+
+
+@pytest.mark.parametrize("find_text", ["", "   "], ids=["empty", "whitespace-only"])
+def test_replace_all_never_runs_with_a_blank_search(
+    page, open_editor, subtitle_track, find_text
+):
+    """The handler itself refuses a blank search, even if the button were enabled."""
+    open_editor()
+    _select_track(page, subtitle_track)
+    endpoint = f"/subtitles/{subtitle_track.pk}/update-cues/"
+    saves = []
+
+    def record_save(request):
+        if request.method == "POST" and request.url.endswith(endpoint):
+            saves.append(request)
+
+    page.on("request", record_save)
+    try:
+        page.locator("#cue-find-input").fill(find_text)
+        page.locator("#cue-replace-input").fill("dog")
+        page.locator("#execute-far-button").evaluate(
+            "button => { button.disabled = false; button.click(); }"
+        )
+        expect(page.locator("#execute-far-button")).to_be_disabled()
+        page.wait_for_timeout(500)
+        _assert_visible_cues(page, CUE_TEXTS)
+        assert _stored_cues(subtitle_track) == _expected_cues(CUE_TEXTS)
+        assert saves == []
+    finally:
+        page.remove_listener("request", record_save)
+
+
+def test_editing_the_search_disables_replace_until_the_count_catches_up(
+    page, open_editor, subtitle_track
+):
+    open_editor()
+    _select_track(page, subtitle_track)
+    find = page.locator("#cue-find-input")
+    replace = page.get_by_role("button", name="Replace all", exact=True)
+    find.fill("cat")
+    expect(page.locator("#cue-find-match-count")).to_have_text("6 matches")
+    expect(replace).to_be_enabled()
+
+    # Well inside the 500 ms debounce, so only the immediate disable can satisfy this.
+    find.fill("")
+    expect(replace).to_be_disabled(timeout=250)
+
+
+def test_match_count_includes_cue_edits_that_were_not_rerendered(
+    page, open_editor, subtitle_track
+):
+    open_editor()
+    _select_track(page, subtitle_track)
+    # A failed save leaves the edit in the textarea without re-rendering it from the server.
+    page.route(
+        f"**/subtitles/{subtitle_track.pk}/update-cues/",
+        lambda route: route.fulfill(status=500),
+    )
+    last_cue = page.locator(".editor-subtitle-cue-content").nth(3)
+    last_cue.fill("cat subtitle.")
+    last_cue.press("Enter")
+    expect(page.locator("#subtitle-save-status")).to_contain_text("Save failed")
+
+    page.locator("#cue-find-input").fill("cat")
+    expect(page.locator("#cue-find-match-count")).to_have_text("7 matches")
+
+
+def test_save_status_baseline_follows_the_replaced_cues(
+    page, open_editor, subtitle_track
+):
+    open_editor()
+    _select_track(page, subtitle_track)
+    status_text = page.locator("#subtitle-save-status .save-status-text")
+    page.locator("#cue-find-input").fill("cat")
+    expect(page.locator("#cue-find-match-count")).to_have_text("6 matches")
+    page.locator("#cue-replace-input").fill("dog")
+    page.get_by_role("button", name="Replace all", exact=True).click()
+    replaced = "dog dog, (dog) dog-dog cats catalog bobcat Cat CAT"
+    expect(page.locator(".editor-subtitle-cue-content").first).to_have_value(replaced)
+    expect(status_text).to_have_text("Changes saved")
+
+    first_cue = page.locator(".editor-subtitle-cue-content").first
+    first_cue.fill(replaced + "!")
+    expect(status_text).to_have_text("Waiting to autosave...")
+    # Typing back to the saved (replaced) text leaves nothing to save.
+    first_cue.fill(replaced)
+    expect(status_text).not_to_have_text("Waiting to autosave...")
+
+
+def test_search_text_is_trimmed(page, open_editor, subtitle_track):
+    open_editor()
+    _select_track(page, subtitle_track)
+    page.locator("#cue-find-input").fill("  cat ")
+    expect(page.locator("#cue-find-match-count")).to_have_text("6 matches")
+    page.locator("#cue-replace-input").fill("dog")
+    page.get_by_role("button", name="Replace all", exact=True).click()
+    expected = [
+        "dog dog, (dog) dog-dog cats catalog bobcat Cat CAT",
+        CUE_TEXTS[1],
+        "dog! café? a.b (a.b) acb a+b [word]",
+        CUE_TEXTS[3],
+    ]
+    _assert_visible_cues(page, expected)
+    assert _stored_cues(subtitle_track) == _expected_cues(expected)
+
+
+def test_composed_search_matches_decomposed_cue_text(page, open_editor, demo_content):
+    decomposed = "café au lait"
+    untouched = "Unchanged cafés."
+    track = SubtitleFactory(
+        resource=demo_content.get_resource(),
+        owner=demo_content.playlist.owner,
+        subtitles_file=SimpleUploadedFile(
+            "nfd.vtt",
+            (
+                "WEBVTT\n\n"
+                f"00:00:00.125 --> 00:00:01.875\n{decomposed}\n\n"
+                f"00:00:02.125 --> 00:00:03.875\n{untouched}\n"
+            ).encode(),
+            content_type="text/vtt",
+        ),
+    )
+    open_editor()
+    page.locator("#annotation-panel-switch").click()
+    page.select_option("#subtitles-track-selector", str(track.pk))
+    expect(page.locator(".editor-subtitle-cue-content")).to_have_count(2)
+    page.locator("#cue-far-header").click()
+
+    page.locator("#cue-find-input").fill("café")  # composed é
+    expect(page.locator("#cue-find-match-count")).to_have_text("1 match")
+    page.locator("#cue-replace-input").fill("tea")
+    page.get_by_role("button", name="Replace all", exact=True).click()
+
+    cues = page.locator(".editor-subtitle-cue-content")
+    expect(cues.nth(0)).to_have_value("tea au lait")
+    # A cue without a match is not rewritten, so it keeps its decomposed form.
+    expect(cues.nth(1)).to_have_value(untouched)
+    track.refresh_from_db()
+    stored = [
+        cue.payload
+        for cue in generate_vtt_cues_from_file_path(track.subtitles_file.path)
+    ]
+    assert stored == ["tea au lait", untouched]
+
+
+def test_failed_replace_keeps_the_search_so_it_can_be_retried(
+    page, open_editor, subtitle_track
+):
+    open_editor()
+    _select_track(page, subtitle_track)
+    page.route(
+        f"**/subtitles/{subtitle_track.pk}/update-cues/",
+        lambda route: route.fulfill(status=500),
+    )
+    page.locator("#cue-find-input").fill("cat")
+    expect(page.locator("#cue-find-match-count")).to_have_text("6 matches")
+    page.locator("#cue-replace-input").fill("dog")
+    replace = page.get_by_role("button", name="Replace all", exact=True)
+    replace.click()
+
+    expect(page.locator("#subtitle-save-status")).to_contain_text("Save failed")
+    expect(page.locator("#cue-find-input")).to_have_value("cat")
+    expect(page.locator("#cue-find-match-count")).to_have_text("6 matches")
+    expect(replace).to_be_enabled()
+    _assert_visible_cues(page, CUE_TEXTS)
+    assert _stored_cues(subtitle_track) == _expected_cues(CUE_TEXTS)
