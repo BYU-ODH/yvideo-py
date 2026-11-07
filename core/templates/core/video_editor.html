@@ -2,7 +2,7 @@
 
 {% load static %}
 
-{% block title %}Video Editor - {{ content.title }}{% endblock %}
+{% block title %}Video Editor - {{ content.extended_display_name }}{% endblock %}
 {% block extra_css %}
     {{ block.super }}
     <link rel="stylesheet" href="{% static 'css/AnnotationPlayer.css' %}">

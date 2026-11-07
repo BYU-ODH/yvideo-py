@@ -911,6 +911,14 @@ class Content(models.Model):
         playlist_name = self.playlist.name if self.playlist else "No Playlist"
         return f"{self.title} | {playlist_name} | {self.id}"
 
+    @property
+    def display_name(self):
+        return f"{self.title}: {self.resource.__str__() if self.resource else 'unknown resource'}"
+
+    @property
+    def extended_display_name(self):
+        return f"{self.display_name} | {self.resource.imdb_id if self.resource else 'unknown imdb_id'}"
+
     def save(self, *args, **kwargs):
         if self.resource_file:
             self.resource = self.resource_file.resource
