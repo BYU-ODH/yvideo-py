@@ -784,16 +784,11 @@
     padding: 8px;
 }
 
-#subtitle-editor-panel-content {
-    overflow-y: auto;
+#subtitle-panel-content, #subtitle-panel-list {
     flex: 1;
 }
 
-#subtitle-panel-content-wrapper, #subtitle-panel-list {
-    flex: 1;
-}
-
-#subtitle-panel-content-wrapper {
+#subtitle-panel-content {
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -808,6 +803,55 @@
 
 .subtitle-editor-panel-visible {
     display: flex;
+}
+
+/* cue find and replace (cue-far) controls. keep "cue-find-and-replace"
+here in this comment for search purposes */
+#cue-far-wrapper {
+    padding: 8px;
+    border-radius: 8px;
+    background-color: var(--dark-mode-background-light);
+}
+
+#cue-far-header-img {
+    transform: rotate(0deg);
+    transition: transform 50ms linear;
+}
+
+.cue-far-hidden #cue-far-header-img {
+    transform: rotate(-90deg);
+}
+
+#cue-far-header {
+    cursor: pointer;
+}
+
+#cue-far-header-text {
+    margin: 0;
+}
+
+#cue-far-content {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.cue-far-hidden #cue-far-content {
+    display: none;
+}
+
+.cue-far-input-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#cue-find-match-count {
+    margin: 0;
 }
 
 #add-new-subtitle-button {

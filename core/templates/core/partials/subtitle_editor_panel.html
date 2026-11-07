@@ -7,56 +7,61 @@
         {% include "core/partials/save_status.html" with status_id="subtitle-save-status" %}
     </div>
     <div id="subtitle-editor-panel-track-info">
-        {% if editable_subtitle_options %}
-            <div class="column-flex">
-                <div class="row-flex flex-apart-aligned">
+        <div class="column-flex">
+            <div class="row-flex flex-apart-aligned">
+                {# Only label the selector when it exists; a label pointing at a missing id is orphaned. #}
+                {% if editable_subtitle_options %}
                     <label for="subtitles-track-selector">Subtitle track</label>
-                    <div id="subtitle-track-settings-menu-wrapper"
-                         class="multi-option-menu-wrapper">
-                        <button id="subtitle-track-menu-button"
+                {% else %}
+                    <span>Subtitle track</span>
+                {% endif %}
+                <div id="subtitle-track-settings-menu-wrapper"
+                     class="multi-option-menu-wrapper">
+                    <button id="subtitle-track-menu-button"
+                            type="button"
+                            class="open-multi-option-menu"
+                            aria-label="Subtitle track settings">
+                        <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
+                    </button>
+                    <div id="subtitle-track-settings-menu" class="multi-option-menu">
+                        <button id="open-subtitle-track-creation-modal"
                                 type="button"
-                                class="open-multi-option-menu"
-                                aria-label="Subtitle track settings">
-                            <img src="{% static 'img/dots_menu_white.svg' %}" alt="">
+                                class="multi-option-menu-button"
+                                command="show-modal"
+                                commandfor="{{ subtitle_panel.subtitle_track_creation_modal_id }}">
+                            Create new subtitle track
                         </button>
-                        <div id="subtitle-track-settings-menu" class="multi-option-menu">
-                            <button id="open-subtitle-track-creation-modal"
-                                    type="button"
-                                    class="multi-option-menu-button"
-                                    command="show-modal"
-                                    commandfor="{{ subtitle_panel.subtitle_track_creation_modal_id }}">
-                                Create new subtitle track
-                            </button>
-                            <button id="open-subtitle-track-edit-modal"
-                                    type="button"
-                                    class="multi-option-menu-button"
-                                    command="show-modal"
-                                    commandfor="edit-subtitle-track-modal"
-                                    disabled>Edit subtitle track</button>
-                            <button id="open-delete-subtitle-track-modal"
-                                    type="button"
-                                    class="multi-option-menu-button"
-                                    command="show-modal"
-                                    commandfor="delete-subtitle-track-modal"
-                                    disabled>Delete subtitle track</button>
-                        </div>
+                        <button id="open-subtitle-track-edit-modal"
+                                type="button"
+                                class="multi-option-menu-button"
+                                command="show-modal"
+                                commandfor="edit-subtitle-track-modal"
+                                disabled>Edit subtitle track</button>
+                        <button id="open-delete-subtitle-track-modal"
+                                type="button"
+                                class="multi-option-menu-button"
+                                command="show-modal"
+                                commandfor="delete-subtitle-track-modal"
+                                disabled>Delete subtitle track</button>
                     </div>
-                    {% include 'core/partials/modals/create_subtitle_track.html' with dialog_id=subtitle_panel.subtitle_track_creation_modal_id %}
-                    {% include 'core/partials/modals/edit_subtitle_track.html' with dialog_id="edit-subtitle-track-modal" %}
-                    {% include 'core/partials/modals/delete_subtitle_track.html' with dialog_id="delete-subtitle-track-modal" %}
                 </div>
+                {% include 'core/partials/modals/create_subtitle_track.html' with dialog_id=subtitle_panel.subtitle_track_creation_modal_id %}
+                {% include 'core/partials/modals/edit_subtitle_track.html' with dialog_id="edit-subtitle-track-modal" %}
+                {% include 'core/partials/modals/delete_subtitle_track.html' with dialog_id="delete-subtitle-track-modal" %}
+            </div>
+            {% if editable_subtitle_options %}
                 <select id="subtitles-track-selector">
                     <option value="" disabled selected>Select a subtitle track</option>
                     {% for option in editable_subtitle_options %}
                         <option class="subtitles-track-option" value="{{ option.id }}">{{ option.name }} ({{ option.srclang }})</option>
                     {% endfor %}
                 </select>
-            </div>
-        {% else %}
-            <p id="select-sub-track-none-found-message">Either no subtitle tracks are available for this video, or you don't have permission to edit the subtitle tracks.</p>
-        {% endif %}
+            {% else %}
+                <p>Either you do not have access to any subtitle tracks or none exist. You may want to create a new one.</p>
+            {% endif %}
+        </div>
     </div>
-    <div id="subtitle-editor-panel-content"></div>
+    <div id="subtitle-panel-content"></div>
     <button id="subtitle-panel-switch"
             class="white-button-with-border editor-panel-switch">Show Annotation Editor</button>
 </div>
