@@ -911,6 +911,14 @@ class Content(models.Model):
         playlist_name = self.playlist.name if self.playlist else "No Playlist"
         return f"{self.title} | {playlist_name} | {self.id}"
 
+    @property
+    def display_name(self):
+        return f"{self.title}: {self.resource.__str__() if self.resource else 'unknown resource'}"
+
+    @property
+    def extended_display_name(self):
+        return f"{self.display_name} | {self.resource.imdb_id if self.resource else 'unknown imdb_id'}"
+
     def save(self, *args, **kwargs):
         if self.resource_file:
             self.resource = self.resource_file.resource
@@ -1014,11 +1022,14 @@ class Content(models.Model):
             track__annotation_set_id=self.annotation_set_id, active=True
         ).exists()
 
-    def get_player_json(self):
+    def get_player_json(self, include_subtitles=True):
         """
         Generate complete JSON data for AnnotationPlayer.loadData().
         Returns a dict with 'annotations' and 'clips' (Clip annotations are
         split out of 'annotations' since the player treats them separately).
+
+        include_subtitles=False returns no subtitle tracks and skips reading the
+        subtitle files from storage.
         """
         annotation_set_json = (
             self.annotation_set.to_player_json()
@@ -1032,7 +1043,7 @@ class Content(models.Model):
             "annotations": other_annotations,
             "clips": clips,
             "tracks": annotation_set_json["tracks"],
-            "subtitleTracks": self.get_subtitles(),
+            "subtitleTracks": self.get_subtitles() if include_subtitles else [],
         }
 
 
@@ -1320,13 +1331,12 @@ class PauseAnnotation(BaseAnnotation):
             "left": "0%",
             "width": "2px",
             "start": self.start_time,
-            "end": self.start_time,  # TODO: Would None be better?
+            "end": self.start_time,
         }
 
     def to_player_json(self):
         """pause needs a start time even though it doesnt have an end time. This is because
         of how the AnnotationPlayer parses annotations for Y-video"""
-        # TODO need to handle null end_time?
         data = super().to_player_json()
         data["message"] = self.message
         return data

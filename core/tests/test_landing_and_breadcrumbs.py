@@ -289,7 +289,10 @@ class ContentBreadcrumbTests(TestCase):
 
         self.assertEqual(
             self.trail(response),
-            [*self.playlist_crumbs, ("Vowels Details", self.details_url)],
+            [
+                *self.playlist_crumbs,
+                ("Vowels Details", self.details_url),
+            ],
         )
 
     def test_details_links_to_the_preview(self):
@@ -308,7 +311,10 @@ class ContentBreadcrumbTests(TestCase):
 
         self.assertEqual(
             self.trail(response)[:-1],
-            [*self.playlist_crumbs, ("Vowels Details", self.details_url)],
+            [
+                *self.playlist_crumbs,
+                ("Vowels Details", self.details_url),
+            ],
         )
         self.assertEqual(self.trail(response)[-1][0], "Preview")
 
@@ -319,7 +325,10 @@ class ContentBreadcrumbTests(TestCase):
 
         self.assertEqual(
             self.trail(response)[:-1],
-            [*self.playlist_crumbs, ("Vowels Details", self.details_url)],
+            [
+                *self.playlist_crumbs,
+                ("Vowels Details", self.details_url),
+            ],
         )
         self.assertEqual(self.trail(response)[-1][0], "Editor")
         self.assertContains(response, 'aria-label="Breadcrumb"')

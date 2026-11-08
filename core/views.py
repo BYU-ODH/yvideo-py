@@ -197,7 +197,12 @@ def whats_new(request):
 @content_read_required
 def get_player_data(request, content):
     try:
-        player_json = content.get_player_json()
+        # Editors still receive subtitles when captions are disallowed so they can work on
+        # them in the video editor; everyone else never gets the tracks at all.
+        include_subtitles = content.allow_captions or content.can_be_edited_by(
+            request.user
+        )
+        player_json = content.get_player_json(include_subtitles=include_subtitles)
         has_subtitles = bool(
             any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
         )
@@ -207,6 +212,7 @@ def get_player_data(request, content):
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
+            "allowCaptions": content.allow_captions,
             "clips": player_json["clips"],
             "clipsOnly": content.clips_only,
         }
@@ -1423,50 +1429,6 @@ def spoof_user_search(request):
         "core/partials/spoof_user_options_for_select.html", {"users": users}
     )
     return HttpResponse(html)
-
-
-# TODO (#335, #352): unrouted and unreferenced. Either delete it or route it behind
-# @content_write_required -- as written it hands out a file key and full subtitle text
-# for any content id.
-@require_GET
-def subtitle_editor(request, content_id):
-    try:
-        content = get_object_or_404(Content, id=content_id)
-        resource = content.get_resource()
-        subtitle_files = Subtitle.objects.filter(resource=resource)
-        subtitle_options = []
-        for sub_file in subtitle_files:
-            subtitle_options.append(
-                {
-                    "name": sub_file.name,
-                    "id": sub_file.pk,
-                }
-            )
-        file_key = request.user.get_resource_filekey(content)
-    except Exception as e:
-        logger.error(
-            f"Error retrieving subtitles for content_id: {content_id}. Exception: {e}"
-        )
-        return HttpResponseServerError()
-
-    player_json = content.get_player_json()
-    has_subtitles = bool(
-        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
-    )
-
-    return render(
-        request,
-        "core/subtitle_editor.html",
-        {
-            "content": content,
-            "subtitle_tracks": subtitle_options,
-            "file_key": file_key.id if file_key else None,
-            "content_source_url": request.user.get_content_source_url(content),
-            "events": player_json["annotations"],
-            "subtitles": player_json["subtitleTracks"],
-            "has_subtitles": has_subtitles,
-        },
-    )
 
 
 @require_http_methods(["GET", "POST"])
