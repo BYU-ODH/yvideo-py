@@ -147,6 +147,10 @@
     padding: 8px;
 }
 
+#annotation-set-settings-menu-wrapper {
+    align-self: flex-start;
+}
+
 #tool-descriptions {
     max-width: 50rem;
 }
