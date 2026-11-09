@@ -21,6 +21,9 @@
                     data-can-edit="{{ choice.can_edit|yesno:"true,false" }}"
                     {% if annotation_set and choice.annotation_set.id == annotation_set.id %}selected{% endif %}>
                 <span class="set-option-name">{{ choice.annotation_set.name }}</span>
+                {% if choice.annotation_set.retired %}
+                    <span>| RETIRED |</span>
+                {% endif %}
                 <span class="set-option-owner">({{ choice.owner_label }}, created {{ choice.created_at|date:"M j, Y" }})</span>
                 {% if not choice.can_edit %}<span class="set-option-readonly">— read-only</span>{% endif %}
             </option>
