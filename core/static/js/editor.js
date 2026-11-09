@@ -2799,9 +2799,8 @@ export class Editor {
     }
 
     setupSubtitleEditor() {
-      // Search text is trimmed so stray spaces (common when pasting) don't stop a match, and
       // NFC-normalized so composed (é) and decomposed (e + ◌́) accents match each other.
-      // Cue text is normalized the same way before it is searched.
+      // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize
       const normalizeCueSearchText = (text) => text.trim().normalize("NFC");
 
       // Expects text that has already been through normalizeCueSearchText.
@@ -2813,6 +2812,10 @@ export class Editor {
         );
       };
 
+      // The panel content can change so use this to check if editing it allowed.
+      const canEditCues = () =>
+        document.getElementById("subtitle-panel-content")?.dataset.canEdit === "true";
+
       const subtitlePanel = document.getElementById("subtitle-editor-panel");
       if (!subtitlePanel) {
         displayUserMessage("error", "Failed to setup subtitle editor, you will not be able to make edits to subtitle tracks during this session.");
@@ -2823,13 +2826,9 @@ export class Editor {
       const subtitleTrackMenu = document.getElementById("subtitle-track-settings-menu-wrapper");
       setupMultiOptionMenu(subtitleTrackMenu);
 
-      // The panel content (and its data-can-edit flag) is swapped whenever a track is loaded,
-      // so look it up each time rather than caching it.
-      const canEditCues = () =>
-        document.getElementById("subtitle-panel-content")?.dataset.canEdit === "true";
-
-      // cue find and replace match count. Updates the count text and enables
-      // "Replace all" only when the current search text has matches.
+      // We don't want to use the replace all function for deleting words, so
+      // this function only enables the button if matches is != 0 and won't
+      // match on whitespace or empty string.
       // Handles whole word find only.
       const updateCueFindCount = () => {
         const cueFindInput = document.getElementById("cue-find-input");
@@ -2856,13 +2855,11 @@ export class Editor {
         cueReplaceButton.disabled = matches <= 0;
       };
 
-      // Debounced wrapper for updateCueFindCount, for use while the user types.
-      // The timer lives out here so it is shared between input events.
+      // Debounced input wrapper for updateCueFindCount.
+      // replace button is enabled by updateCueFindCount
       let cueTextFindTimerRef;
       const searchCuesForText = () => {
         clearTimeout(cueTextFindTimerRef);
-        // Disable replace until the count for the current search text is known,
-        // so it can't run with a search term the count hasn't checked yet.
         const pendingReplaceButton = document.getElementById("execute-far-button");
         if (pendingReplaceButton) pendingReplaceButton.disabled = true;
         cueTextFindTimerRef = setTimeout(updateCueFindCount, 500);
@@ -3072,7 +3069,6 @@ export class Editor {
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
         document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
         this.selectedSubtitleTrackId = trackId;
-        // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
         this.sentCueState = JSON.stringify(this.collectCues());
         saveStatus.settle("subtitle-cues");
         this.selectedSubtitleTrackText = document.querySelector(
@@ -3343,11 +3339,11 @@ export class Editor {
           }
           const html = await updateResponse.text();
           if (this.selectedSubtitleTrackId !== trackId) return false;
-          // A response must not replace edits made while the save was in flight.
+          // The sentCueState should be updated to the most recent change. But if there
+          // was a change made while the save was in progress, we don't want to save the
+          // current state because it is now out of date.
           if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
           document.getElementById("subtitle-panel-list").innerHTML = html;
-          // The saved cues can differ from what was on screen when the save started
-          // (add, delete, replace all), so the re-rendered cues are the new baseline.
           this.sentCueState = JSON.stringify(this.collectCues());
           saveStatus.settle("subtitle-cues");
           window.dispatchEvent(this.annotationUpdatedEvent);
