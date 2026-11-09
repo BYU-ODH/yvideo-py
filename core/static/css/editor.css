@@ -42,6 +42,7 @@
     --dark-mode-text-color-muted: #848484;
     --dark-mode-text-color-dimmed: #a8a8a8;
     --zoom-thumb-width: 100%;
+    --retired-set-warning: #B84D00;
 }
 
 /* YouTube Editor Warning Banner */
@@ -149,6 +150,22 @@
 
 #annotation-set-settings-menu-wrapper {
     align-self: flex-start;
+}
+
+#retired-annotation-set-message {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
+    align-items: center;
+
+    margin: 0 8px;
+    padding: 8px;
+    border: 2px solid var(--retired-set-warning);
+    border-radius: 20px;
+}
+
+#retired-annotation-set-message p {
+    margin: 0;
 }
 
 #tool-descriptions {

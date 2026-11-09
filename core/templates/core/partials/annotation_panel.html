@@ -56,6 +56,24 @@
             {% include 'core/partials/annotation_set_retirement_modal.html' %}
         {% endif %}
     </div>
+    {% if annotation_set.retired %}
+        <div id="retired-annotation-set-message">
+            <p>Retired</p>
+            <button type="button"
+                    id="retired-annotation-set-info-button"
+                    class="item-form-icon-button"
+                    popovertarget="retired-annotation-set-info"
+                    aria-label="About retired annotation sets"
+                    title="About retired annotation sets">
+                <span aria-hidden="true">ⓘ</span>
+            </button>
+            <div id="retired-annotation-set-info"
+                 class="unanchored-info-popover"
+                 popover>
+                <p>Retired annotation sets cannot be changed. You may use them for your video but if a change needs to be made, you'll have to make your own copy of the set and make the changes there.</p>
+            </div>
+        </div>
+    {% endif %}
     <div id="tools-header" class="row-flex flex-apart-aligned">
         <span id="tools-header-title">Tools</span>
         <button id="tools-info-open-button"
