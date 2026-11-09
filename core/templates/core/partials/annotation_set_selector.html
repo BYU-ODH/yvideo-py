@@ -1,15 +1,23 @@
 {% comment %} `available_annotation_sets` is a list of dicts from annotation_set_choices(): every set
    on this resource the user may read, each marked with whether they may edit it.
 {% endcomment %}
-<div class="annotation-set-selector-wrapper column-flex-no-gap">
+<div class="annotation-set-selector-wrapper column-flex">
     <label for="{{ selector_id }}">Select an Annotation Set</label>
+    <div class="row-flex">
+        <label for="{{ selector_id }}-show-retired">Show retired sets:</label>
+        <input id="{{ selector_id }}-show-retired"
+               class="annotation-set-show-retired-checkbox"
+               type="checkbox">
+    </div>
     <select id="{{ selector_id }}"
             class="annotation-set-selector"
-            name="annotation_set_id">
+            name="annotation_set_id"
+            data-show-retired="false">
         <option class="annotation-set-option-placeholder" value="">-- Select Annotation Set --</option>
         {% for choice in available_annotation_sets %}
             <option class="annotation-set-option"
                     value="{{ choice.annotation_set.id }}"
+                    data-is-retired="{{ choice.annotation_set.retired|lower }}"
                     data-can-edit="{{ choice.can_edit|yesno:"true,false" }}"
                     {% if annotation_set and choice.annotation_set.id == annotation_set.id %}selected{% endif %}>
                 <span class="set-option-name">{{ choice.annotation_set.name }}</span>

@@ -144,6 +144,7 @@ export class Editor {
         this.setupAnnotationSetOptionsModal();
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
+        this.setupAnnotationSetSelectorWatchers();
         this.watchAndHandleEditorPanelSwitch();
         this.setupSubtitleEditorMenu();
         this.watchAndHandleSubtitleTrackChange();
@@ -2509,6 +2510,23 @@ export class Editor {
 
       this.toggleAnnotationSetOptionSelectorAndContent();
       return true;
+    }
+
+    setupAnnotationSetSelectorWatchers() {
+      // the set selector watchers have to be put on the editor annotation panel because
+      // the selector is reusable and may be found anywhere as a child of the panel
+      const annotationPanel = document.getElementById("editor-annotation-panel");
+
+      // on change watcher
+      annotationPanel.addEventListener("change", (e) => {
+        if (e?.target?.classList.contains("annotation-set-show-retired-checkbox")) {
+          const selectionWrapper = e.target.closest(".annotation-set-selector-wrapper");
+          if (!selectionWrapper) return;
+          const selector = selectionWrapper.querySelector(".annotation-set-selector");
+          if (!selector) return;
+          selector.dataset["showRetired"] = e.target.checked;
+        }
+      });
     }
 
     async setupAnnotationSetUseExistingModal() {

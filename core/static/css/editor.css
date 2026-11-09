@@ -590,6 +590,10 @@
     align-self: flex-start;
 }
 
+.annotation-set-selector[data-show-retired="false"] .annotation-set-option[data-is-retired="true"] {
+    display: none;
+}
+
 #annotation-set-export-button {
     align-self: flex-start;
 }
