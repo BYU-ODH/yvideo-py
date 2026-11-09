@@ -174,7 +174,7 @@ class Seconds2HMSTests(TestCase):
         self.assertEqual(seconds2hms(3720), "1:02:00.00")  # 1h 2m 0s
 
     def test_negative_seconds_goes_to_zero(self):
-        """Test that negative input raises ValueError."""
+        """Negative input is rendered as zero rather than raising."""
         self.assertEqual(seconds2hms(-1), "0:00:00.00")
 
 

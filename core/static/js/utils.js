@@ -153,16 +153,28 @@ export async function makePostRequest(URL, body, contentType = "application/json
 
 /* setupInPlaceFieldEdit
 * May be used to edit any field that can be represented by an input or textarea element.
-* This must be used with a button that switches the value's display and edit modes.
-* The new input is provided to the endpointURL as JSON with the structure {"new_value": VALUE}.
-* postEditCallback is provided to enable whatever after effects may be useful after a
-* successful edit. postEditCallback is not called on failed edits.
-* fetchImpl is passed through to makePostRequest.
+* A button switches the value from display mode to edit mode. Enter saves, Escape or moving
+* focus away cancels. The trimmed new value is POSTed to editEndpointURL as JSON with the
+* structure {"new_value": VALUE}. An empty or unchanged value cancels without a request.
+* The server is the source of truth for the saved value, so the helper never writes the typed
+* value into the page itself. Options:
+* - onSuccess(response) is required. It receives the successful response and renders the
+*   server's version of the field (and anything else that shows it). It is not called on
+*   failed saves, which leave the page as it was.
+* - fetchImpl is passed through to makePostRequest. Pass saveStatus.fetch (or a wrapper of it)
+*   so the save indicator reports the save, including failures.
+* - button supplies the edit button when it lives outside wrapperElement (e.g. inside a
+*   multi-option menu). Defaults to the first <button> in wrapperElement.
 */
-export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditCallback = null, fetchImpl = fetch, buttonEl = null) {
+export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, { onSuccess = null, fetchImpl = fetch, button = null } = {}) {
   const titleElement = wrapperElement.querySelector("p, h1, h2, h3, h4, h5, h6, span");
   const inputElement = wrapperElement.querySelector("input, textarea, select");
-  const editButton = buttonEl ? buttonEl : wrapperElement.querySelector("button");
+  const editButton = button ?? wrapperElement.querySelector("button");
+
+  if (typeof onSuccess !== "function") {
+    console.error("Cannot set up in-place field edit. onSuccess must render the server's response.");
+    return;
+  }
 
   const missingTitle = !titleElement;
   const missingInput = !inputElement;
@@ -176,47 +188,71 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, postEditC
     return;
   }
 
+  // True while a save request is in flight, so a second Enter or the blur caused by
+  // hiding the input cannot act on the same edit.
+  let saving = false;
+
   function hideInput() {
     inputElement.classList.add("hidden");
     titleElement.classList.remove("hidden");
     editButton.classList.remove("hidden");
   }
 
+  function cancelEdit() {
+    inputElement.value = titleElement.innerText;
+    hideInput();
+  }
+
   editButton.addEventListener("click", () => {
     titleElement.classList.add("hidden");
     editButton.classList.add("hidden");
     inputElement.classList.remove("hidden");
-    if (inputElement.select) {
-      inputElement.select();
-    }
+    inputElement.focus();
+    inputElement.select?.();
   });
 
   inputElement.addEventListener("keydown", async (e) => {
-    const key = e.key;
+    if (e.key === "Escape") {
+      cancelEdit();
+      return;
+    }
+    if (e.key !== "Enter" || saving) {
+      return;
+    }
+
     const originalTitle = titleElement.innerText;
-    const newValue = inputElement.value;
-    if (key == "Enter") {
-      const body = JSON.stringify({
-        new_value: newValue
-      });
-      const response = await makePostRequest(editEndpointURL, body, undefined, fetchImpl);
-      if (response.ok) {
-        titleElement.innerText = newValue;
-        if (postEditCallback && typeof postEditCallback === "function") {
-          postEditCallback();
-        }
-      }
-      else {
-        inputElement.value = originalTitle;
-        titleElement.innerText = originalTitle;
-        console.error(`Failed to update title: ${response.error}`);
-      }
-      hideInput();
+    const newValue = inputElement.value.trim();
+    if (!newValue || newValue === originalTitle) {
+      cancelEdit();
+      return;
     }
-    else if (key == "Escape") {
+
+    saving = true;
+    try {
+      const response = await makePostRequest(
+        editEndpointURL, JSON.stringify({ new_value: newValue }), undefined, fetchImpl
+      );
+      if (!response.ok) {
+        throw new Error(`${response.status} ${await response.text()}`);
+      }
+      await onSuccess(response);
+    } catch (err) {
+      // The save indicator reports the failure when fetchImpl is saveStatus.fetch.
       inputElement.value = originalTitle;
+      console.error("In-place edit failed:", err);
+    } finally {
+      // Harmless if onSuccess replaced these elements with the server's rendering.
       hideInput();
+      saving = false;
     }
+  });
+
+  // Clicking elsewhere, including another field's edit button, abandons the edit.
+  inputElement.addEventListener("blur", () => {
+    if (saving || inputElement.classList.contains("hidden")) {
+      return;
+    }
+    cancelEdit();
   });
 }
 

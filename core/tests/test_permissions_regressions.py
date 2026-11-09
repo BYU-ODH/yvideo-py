@@ -326,10 +326,10 @@ class StrangerIsRefusedTests(TestCase):
 
     # --- tracks -----------------------------------------------------------------
 
-    def test_update_track_refuses_a_stranger(self):
+    def test_update_track_name_refuses_a_stranger(self):
         response = self.post_json(
-            reverse("update_track", args=[self.track.pk]),
-            {"new_track_name": "Renamed"},
+            reverse("update_track_name", args=[self.track.pk]),
+            {"new_value": "Renamed"},
         )
 
         self.assert_refused(response)

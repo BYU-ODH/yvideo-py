@@ -1635,10 +1635,14 @@ export class Editor {
           // move item to new position within same track (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
           const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
-          const startTime = this.video.duration * newLeftRatio;
+          // Dropping an item grabbed near its right edge close to the start of the track puts its
+          // left edge before 0, so keep the whole item, at its original length, inside the video.
+          const itemDuration = originalEndTime ? originalEndTime - originalStartTime : 0;
+          const maxStartTime = Math.max(0, this.video.duration - itemDuration);
+          const startTime = Math.min(maxStartTime, Math.max(0, this.video.duration * newLeftRatio));
           let endTime;
           if (originalEndTime) {
-            endTime = originalEndTime - originalStartTime + startTime;
+            endTime = startTime + itemDuration;
           }
           // The dropped item is replaced from the response rather than from the drag payload:
           // applyAnnotationVersionResponse renders the new version, moves it to the destination
@@ -1652,7 +1656,20 @@ export class Editor {
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
       setupMultiOptionMenu(trackRootElement);
-      setupInPlaceFieldEdit(trackRootElement.querySelector(".timeline-track-name-wrapper"), `/track/${trackRootElement.dataset.trackId}/update-name/`, null, fetch, trackRootElement.querySelector(".track-menu-rename"));
+      setupInPlaceFieldEdit(
+        trackRootElement.querySelector(".timeline-track-name-wrapper"),
+        `/track/${trackRootElement.dataset.trackId}/update-name/`,
+        {
+          onSuccess: async (response) => {
+            const jsonData = await response.json();
+            this.replaceTracksWithNewHTML(jsonData["tracks_html"]);
+            this.updateTracks();
+            this.placeTrackItems();
+          },
+          fetchImpl: saveFetch,
+          button: trackRootElement.querySelector(".track-menu-rename"),
+        },
+      );
       this.watchForTrackMovement(trackRootElement);
       this.watchForTrackDelete(trackRootElement);
       this.watchForTrackActivation(trackRootElement);
@@ -1682,67 +1699,6 @@ export class Editor {
       }
       // New rows start scrolled to the beginning.
       this.scrollTracksToPoint(this.timelineScrollLeft);
-    }
-
-    /* track name change */
-    async handleTrackNameChange(e) {
-      e.stopPropagation();
-      let parentTrackRow = e.target.closest(".track-row");
-
-      if (!parentTrackRow) {
-        displayUserMessage("error", "Failed to update the name of the track. Please try again or refresh the page.");
-        return;
-      }
-
-      const trackNameEl = parentTrackRow.querySelector(".track-name");
-      const trackId = parentTrackRow.dataset["trackId"];
-
-      function resetTrackName() {
-        const renameWrapper = parentTrackRow.querySelector(".track-rename-wrapper");
-        renameWrapper.classList.remove("track-rename-wrapper-visible");
-        e.target.value = trackNameEl.innerText;
-      }
-
-      if (e.key == "Enter") {
-        const newTrackName = e.target.value.trim();
-        const response = await savePost(
-          `/track/${trackId}/update/`,
-          JSON.stringify({"new_track_name": newTrackName})
-        );
-        if (!response.ok) {
-          resetTrackName();
-          return;
-        }
-
-        trackNameEl.innerText = newTrackName;
-        e.target.value = trackNameEl.innerText;
-      }
-      if (e.key == "Escape") {
-        resetTrackName();
-        return;
-      }
-    }
-
-    // Handles renaming of track name, canceling attempted rename,
-    // replacement of track with new track, and appending this same
-    // event listener to the new track name edit button.
-    displayTrackRenameField(e) {
-      e.stopPropagation();
-      const visibleRenameCSSClass = "track-rename-wrapper-visible";
-
-      // close any other open rename fields
-      const visibleRenameWrappers = document.getElementsByClassName(visibleRenameCSSClass);
-      for (let wrapper of visibleRenameWrappers) {
-        wrapper.classList.remove(visibleRenameCSSClass);
-      }
-
-      // open the rename wrapper we are interested in
-      const parentRow = e.target.closest(".track-row");
-      const renameWrapper = parentRow.querySelector(".track-rename-wrapper");
-      const renameInput = renameWrapper.querySelector(".track-rename-input");
-      renameWrapper.classList.add(visibleRenameCSSClass);
-      renameInput.focus();
-      renameInput.setSelectionRange(0, 50);
     }
 
     /* track delete */

@@ -71,13 +71,10 @@ def time2seconds(value):
 
 
 def seconds2hms(seconds):
-    """Convert total seconds to a time string in 'HH:MM:SS.SSS' format."""
-    if seconds < 0:
-        # there used to be a value exception here if seconds was negative and
-        # that breaks the entire application if tripped. Instead, just set
-        # seconds to 0 since negative seconds doesn't make sense anyway
-        seconds = 0
-
+    """Convert total seconds to an 'H:MM:SS.SS' string. Negative input renders as 0."""
+    # Display helper: never crash a page over bad stored data. Invalid times are
+    # rejected where they are written (update_annotation), not here.
+    seconds = max(0, seconds)
     seconds = round(seconds, 2)
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)

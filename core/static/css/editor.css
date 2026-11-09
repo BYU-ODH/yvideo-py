@@ -1428,6 +1428,8 @@
 }
 
 #timeline-wrapper {
+    /* No overflow clipping: an open track options menu (.multi-option-menu) has to be
+       able to extend past the wrapper's edges. */
     display: flex;
     flex-direction: column;
     row-gap: 2px;
