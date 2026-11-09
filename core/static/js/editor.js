@@ -1292,7 +1292,7 @@ export class Editor {
       if (!response.ok) {
         const status = response.status;
         if (status == 403) {
-          displayUserMessage("warning", "You do not have permission to make edits to this permission set. If you would like to make your own copy, click the three dot menu in the annotation panel on the left of the screen.");
+          displayUserMessage("warning", "You do not have permission to make edits to this annotation set. If you would like to make your own copy, click the three dot menu in the annotation panel on the left of the screen.");
         } else {
           displayUserMessage("error", "Failed to load the annotation detail form");
         }
