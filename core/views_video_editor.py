@@ -65,6 +65,7 @@ from .subtitle_uploads import subtitle_file_references
 from .utils import ANNOTATION_DESCRIPTIONS
 from .utils import ANNOTATION_ICONS
 from .utils import time2seconds
+from .views import content_details_trail
 from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,7 @@ def video_editor(request, content):
             "subtitle_panel": subtitle_panel,
             "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
             "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),
+            "breadcrumbs": content_details_trail(content, ("Editor", None)),
         }
 
         return render(request, "core/video_editor.html", context)
@@ -281,32 +283,6 @@ def annotation_set_choices(content, user):
         }
         for annotation_set in content.get_available_annotation_sets(user)
     ]
-
-
-# TODO (#335, #352): unrouted and unreferenced. Delete it, or route it and keep the
-# context keys in step with video_editor above.
-@require_GET
-@content_write_required
-def load_annotation_set_form(request, content):
-    """Load the annotation set selection form."""
-    annotation_set = content.annotation_set
-
-    form_html = render_to_string(
-        "core/partials/annotation_set_form.html",
-        {
-            "content": content,
-            "annotation_set": annotation_set,
-            "can_edit": annotation_set.can_be_edited_by(request.user)
-            if annotation_set
-            else True,
-            "can_administer_annotation_set": annotation_set is not None
-            and annotation_set.can_be_orphaned_by(request.user),
-            "available_annotation_sets": annotation_set_choices(content, request.user),
-        },
-        request=request,
-    )
-
-    return HttpResponse(form_html)
 
 
 @require_POST
@@ -963,19 +939,6 @@ def load_annotation_form(request, annotation_type, annotation_id):
     form_html = html_result["form_html"]
 
     return HttpResponse(form_html)
-
-
-# TODO (#335, #352): unrouted and unreferenced -- annotations are created directly.
-# Delete it.
-@require_GET
-@content_write_required
-def create_annotation_form(request, content, annotation_type):
-    """Load blank form for creating a new annotation."""
-    annotation_set = content.annotation_set
-    if not annotation_set or not annotation_set.can_be_edited_by(request.user):
-        return forbidden("Cannot edit this AnnotationSet")
-
-    return HttpResponse("")
 
 
 @require_GET

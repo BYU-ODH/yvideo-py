@@ -125,6 +125,22 @@ def content_parent_crumbs(content):
     )
 
 
+def content_details_trail(content, *crumbs):
+    """Trail for pages an editor reaches from a content's Details page.
+
+    Editors enter content through Details, so its preview and editor pages hang
+    below it rather than Details hanging below the player (#467).
+    """
+    return breadcrumb_trail(
+        *content_parent_crumbs(content),
+        (
+            f"{content.title} Details",
+            reverse("display_content_info", args=[content.pk]),
+        ),
+        *crumbs,
+    )
+
+
 @login_not_required
 @require_GET
 def render_user_message(request):
@@ -181,7 +197,12 @@ def whats_new(request):
 @content_read_required
 def get_player_data(request, content):
     try:
-        player_json = content.get_player_json()
+        # Editors still receive subtitles when captions are disallowed so they can work on
+        # them in the video editor; everyone else never gets the tracks at all.
+        include_subtitles = content.allow_captions or content.can_be_edited_by(
+            request.user
+        )
+        player_json = content.get_player_json(include_subtitles=include_subtitles)
         has_subtitles = bool(
             any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
         )
@@ -191,6 +212,7 @@ def get_player_data(request, content):
             "subtitleTracks": player_json["subtitleTracks"],
             "has_subtitles": has_subtitles,
             "allowFastPlayback": content.allow_fast_playback,
+            "allowCaptions": content.allow_captions,
             "clips": player_json["clips"],
             "clipsOnly": content.clips_only,
         }
@@ -212,17 +234,22 @@ def player(request, content):
             "User does not have permission to view this content", status=403
         )
 
-    try:
-        content.views += 1
-        content.save()
-        content.resource.views += 1
-        content.resource.save()
+    # Editors reach the player through Details' Preview link, so their visits are
+    # checks on their own content rather than views to count.
+    can_edit = content.can_be_edited_by(request.user)
+    if not can_edit:
+        try:
+            content.views += 1
+            content.save()
+            content.resource.views += 1
+            content.resource.save()
 
-    except Exception as e:
-        # log the error, but still provide the video in case of failure
-        logger.error(
-            f"Failed to update views for content and associated resource. Exception: {e}"
-        )
+        except Exception as e:
+            # log the error, but still provide the video in case of failure
+            logger.error(
+                "Failed to update views for content and associated resource. "
+                f"Exception: {e}"
+            )
 
     context = {
         "content": content,
@@ -230,8 +257,12 @@ def player(request, content):
         "content_source_url": content_source_url,
         "youtube_video_id": youtube_video_id_for_content(content, content_source_url),
         "allow_events": True,
-        "breadcrumbs": breadcrumb_trail(
-            *content_parent_crumbs(content), (content.title, None)
+        "breadcrumbs": (
+            content_details_trail(content, ("Preview", None))
+            if can_edit
+            else breadcrumb_trail(
+                *content_parent_crumbs(content), (content.title, None)
+            )
         ),
     }
 
@@ -1283,11 +1314,7 @@ def display_content_info(request, content):
             ),
             "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitles(),
-            "breadcrumbs": breadcrumb_trail(
-                *content_parent_crumbs(content),
-                (content.title, reverse("player", args=[content.pk])),
-                ("Details", None),
-            ),
+            "breadcrumbs": content_details_trail(content),
         }
         return render(request, "core/content_info.html", context)
     except Exception as e:
@@ -1402,50 +1429,6 @@ def spoof_user_search(request):
         "core/partials/spoof_user_options_for_select.html", {"users": users}
     )
     return HttpResponse(html)
-
-
-# TODO (#335, #352): unrouted and unreferenced. Either delete it or route it behind
-# @content_write_required -- as written it hands out a file key and full subtitle text
-# for any content id.
-@require_GET
-def subtitle_editor(request, content_id):
-    try:
-        content = get_object_or_404(Content, id=content_id)
-        resource = content.get_resource()
-        subtitle_files = Subtitle.objects.filter(resource=resource)
-        subtitle_options = []
-        for sub_file in subtitle_files:
-            subtitle_options.append(
-                {
-                    "name": sub_file.name,
-                    "id": sub_file.pk,
-                }
-            )
-        file_key = request.user.get_resource_filekey(content)
-    except Exception as e:
-        logger.error(
-            f"Error retrieving subtitles for content_id: {content_id}. Exception: {e}"
-        )
-        return HttpResponseServerError()
-
-    player_json = content.get_player_json()
-    has_subtitles = bool(
-        any(x.get("vtt") or x.get("url") for x in player_json["subtitleTracks"])
-    )
-
-    return render(
-        request,
-        "core/subtitle_editor.html",
-        {
-            "content": content,
-            "subtitle_tracks": subtitle_options,
-            "file_key": file_key.id if file_key else None,
-            "content_source_url": request.user.get_content_source_url(content),
-            "events": player_json["annotations"],
-            "subtitles": player_json["subtitleTracks"],
-            "has_subtitles": has_subtitles,
-        },
-    )
 
 
 @require_http_methods(["GET", "POST"])

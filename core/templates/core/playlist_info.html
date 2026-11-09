@@ -40,13 +40,13 @@
                         {% if can_edit %}
                             <a href="{% url 'display_content_info' content.id %}"
                                class="playlist-item-tile"
-                               aria-label="View {{ content.title }} settings">
+                               aria-label="View {{ content.display_name }} settings">
                         {% else %}
                             <a href="{% url 'player' content.id %}"
                                class="playlist-item-tile"
-                               aria-label="Play {{ content.title }}">
+                               aria-label="Play {{ content.display_name }}">
                         {% endif %}
-                            <h3 class="video-item-title">{{ content.title }}</h3>
+                            <h3 class="video-item-title">{{ content.display_name }}</h3>
                         </a>
                     {% empty %}
                         <p>There are no videos assigned to this playlist</p>
