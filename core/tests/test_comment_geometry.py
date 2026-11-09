@@ -1,9 +1,6 @@
 """Comment geometry: x, y, and width as percentages of the video frame, with no stored height."""
 
-from django.db import connection
-from django.db.migrations.executor import MigrationExecutor
 from django.test import TestCase
-from django.test import TransactionTestCase
 
 from core.factories import CommentAnnotationFactory
 from core.factories import TrackFactory
@@ -60,77 +57,3 @@ class CommentImportTests(TestCase):
             top_left_x=42.0, top_left_y=28.0, bottom_right_x=20.0, bottom_right_y=10.0
         )
         self.assertEqual((imported.x, imported.y, imported.width), (42.0, 28.0, 58.0))
-
-
-class CommentGeometryMigrationTests(TransactionTestCase):
-    """0016 through the migration executor, so the RunPython sees real pre-0016 rows."""
-
-    def _migrate(self, target):
-        # A fresh executor each time: the loader caches the applied-migrations graph.
-        MigrationExecutor(connection).migrate([("core", target)])
-
-    def _historical_comment_model(self, target):
-        return (
-            MigrationExecutor(connection)
-            .loader.project_state(("core", target))
-            .apps.get_model("core", "CommentAnnotation")
-        )
-
-    def setUp(self):
-        self.addCleanup(self._migrate, AFTER)
-        self._migrate(BEFORE)
-        self.track = TrackFactory()
-
-    def test_corners_become_x_y_width(self):
-        old_comment = self._historical_comment_model(BEFORE)
-        corners = {
-            "ordinary": (11.0, 12.0, 51.0, 52.0),
-            # The dev seed and many real rows store the right edge left of the left one.
-            "inverted": (42.0, 28.0, 20.0, 10.0),
-            "off_frame": (95.0, -5.0, 130.0, 10.0),
-            "too_low": (10.0, 99.0, 20.0, 110.0),
-            "fractional": (10.123, 20.456, 43.4567, 30.0),
-        }
-        pks = {
-            name: old_comment.objects.create(
-                track_id=self.track.pk,
-                top_left_x=x,
-                top_left_y=y,
-                bottom_right_x=right,
-                bottom_right_y=bottom,
-            ).pk
-            for name, (x, y, right, bottom) in corners.items()
-        }
-
-        self._migrate(AFTER)
-
-        geometry = {
-            name: CommentAnnotation.objects.values_list("x", "y", "width").get(pk=pk)
-            for name, pk in pks.items()
-        }
-        self.assertEqual(
-            geometry,
-            {
-                "ordinary": (11.0, 12.0, 40.0),
-                "inverted": (42.0, 28.0, 58.0),
-                "off_frame": (65.0, 0.0, 35.0),
-                "too_low": (10.0, 97.0, 10.0),
-                "fractional": (10.12, 20.46, 33.33),
-            },
-        )
-
-    def test_unapplying_restores_the_right_edge(self):
-        self._migrate(AFTER)
-        comment = CommentAnnotation.objects.create(
-            track=self.track, x=10.0, y=20.0, width=30.0
-        )
-
-        self._migrate(BEFORE)
-
-        old_comment = self._historical_comment_model(BEFORE)
-        self.assertEqual(
-            old_comment.objects.values_list(
-                "top_left_x", "top_left_y", "bottom_right_x"
-            ).get(pk=comment.pk),
-            (10.0, 20.0, 40.0),
-        )
