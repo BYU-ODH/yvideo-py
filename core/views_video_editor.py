@@ -65,6 +65,7 @@ from .subtitle_uploads import subtitle_file_references
 from .utils import ANNOTATION_DESCRIPTIONS
 from .utils import ANNOTATION_ICONS
 from .utils import time2seconds
+from .views import content_details_trail
 from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,7 @@ def video_editor(request, content):
             "subtitle_panel": subtitle_panel,
             "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
             "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),
+            "breadcrumbs": content_details_trail(content, ("Editor", None)),
         }
 
         return render(request, "core/video_editor.html", context)

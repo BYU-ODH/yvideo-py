@@ -125,6 +125,22 @@ def content_parent_crumbs(content):
     )
 
 
+def content_details_trail(content, *crumbs):
+    """Trail for pages an editor reaches from a content's Details page.
+
+    Editors enter content through Details, so its preview and editor pages hang
+    below it rather than Details hanging below the player (#467).
+    """
+    return breadcrumb_trail(
+        *content_parent_crumbs(content),
+        (
+            f"{content.title} Details",
+            reverse("display_content_info", args=[content.pk]),
+        ),
+        *crumbs,
+    )
+
+
 @login_not_required
 @require_GET
 def render_user_message(request):
@@ -218,17 +234,22 @@ def player(request, content):
             "User does not have permission to view this content", status=403
         )
 
-    try:
-        content.views += 1
-        content.save()
-        content.resource.views += 1
-        content.resource.save()
+    # Editors reach the player through Details' Preview link, so their visits are
+    # checks on their own content rather than views to count.
+    can_edit = content.can_be_edited_by(request.user)
+    if not can_edit:
+        try:
+            content.views += 1
+            content.save()
+            content.resource.views += 1
+            content.resource.save()
 
-    except Exception as e:
-        # log the error, but still provide the video in case of failure
-        logger.error(
-            f"Failed to update views for content and associated resource. Exception: {e}"
-        )
+        except Exception as e:
+            # log the error, but still provide the video in case of failure
+            logger.error(
+                "Failed to update views for content and associated resource. "
+                f"Exception: {e}"
+            )
 
     context = {
         "content": content,
@@ -236,8 +257,12 @@ def player(request, content):
         "content_source_url": content_source_url,
         "youtube_video_id": youtube_video_id_for_content(content, content_source_url),
         "allow_events": True,
-        "breadcrumbs": breadcrumb_trail(
-            *content_parent_crumbs(content), (content.display_name, None)
+        "breadcrumbs": (
+            content_details_trail(content, ("Preview", None))
+            if can_edit
+            else breadcrumb_trail(
+                *content_parent_crumbs(content), (content.title, None)
+            )
         ),
     }
 
@@ -1289,11 +1314,7 @@ def display_content_info(request, content):
             ),
             "content_has_clips": content.has_clips(),
             "subtitle_options": content.get_subtitles(),
-            "breadcrumbs": breadcrumb_trail(
-                *content_parent_crumbs(content),
-                (content.display_name, reverse("player", args=[content.pk])),
-                ("Details", None),
-            ),
+            "breadcrumbs": content_details_trail(content),
         }
         return render(request, "core/content_info.html", context)
     except Exception as e:
