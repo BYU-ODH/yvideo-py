@@ -2516,6 +2516,7 @@ export class Editor {
       // the set selector watchers have to be put on the editor annotation panel because
       // the selector is reusable and may be found anywhere as a child of the panel
       const annotationPanel = document.getElementById("editor-annotation-panel");
+      if (!annotationPanel) return;
 
       // on change watcher
       annotationPanel.addEventListener("change", (e) => {
