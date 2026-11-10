@@ -2217,9 +2217,12 @@ export class Editor {
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (contentWidth > 0) {
         this.timelineScrollRatio = tickMarksWrapper.scrollLeft / contentWidth;
-        if (this.zoomSliderInput) {
-          this.zoomSliderInput.value = this.timelineScrollRatio * 100;
-        }
+      }
+      if (this.zoomSliderInput) {
+        const maxScrollLeft = tickMarksWrapper.scrollWidth - tickMarksWrapper.clientWidth;
+        this.zoomSliderInput.value = maxScrollLeft > 0
+          ? (tickMarksWrapper.scrollLeft / maxScrollLeft) * 100
+          : 0;
       }
     }
 
@@ -2244,9 +2247,8 @@ export class Editor {
     watchForTimelineScrollChangeAndHandleIt() {
       this.zoomSliderInput.addEventListener("input", (e) => {
         const newValue = e.target.value;
-        const tickMarksContainer = document.getElementById("tick-marks-container");
-        const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
-        const newScrollLeft = widthInPixels * (newValue / 100);
+        const maxScrollLeft = this.timelineTicksContent.scrollWidth - this.timelineTicksContent.clientWidth;
+        const newScrollLeft = maxScrollLeft * (newValue / 100);
         this.scrollTracksToPoint(newScrollLeft);
         this.adjustScrubberPosition();
       });

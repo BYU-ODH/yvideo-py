@@ -1546,6 +1546,10 @@ of the page */
     display: none;
 }
 
+#tick-marks-container {
+    overflow: hidden;
+}
+
 /* Set by Editor.handleZoom on #timeline-wrapper, so rows added later
 start at the current zoom instead of needing their own width. */
 .track-row-annotations-container, #tick-marks-container {
