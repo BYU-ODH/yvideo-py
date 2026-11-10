@@ -2662,6 +2662,12 @@ export class Editor {
 
     watchAndHandleAnnotationSetDelete() {
       const retireAnnotationSetButton = document.getElementById("annotation-set-retire");
+      // don't show the user a message if there is no annotation set selected.
+      // The retire set button doesn't appear where there is no set
+      if (this.timelineWrapper.dataset["annotationSetId"] == '') {
+        return;
+      }
+
       if (!retireAnnotationSetButton) {
         displayUserMessage("error", "Failed to setup retire annotation button. You won't be able to retire annotation sets during this session.")
         return;
