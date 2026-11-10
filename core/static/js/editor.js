@@ -2219,7 +2219,6 @@ export class Editor {
         this.timelineScrollRatio = tickMarksWrapper.scrollLeft / contentWidth;
       }
       if (this.zoomSliderInput) {
-        // The slider covers the available scroll distance, not the full timeline width.
         const maxScrollLeft = tickMarksWrapper.scrollWidth - tickMarksWrapper.clientWidth;
         this.zoomSliderInput.value = maxScrollLeft > 0
           ? (tickMarksWrapper.scrollLeft / maxScrollLeft) * 100
