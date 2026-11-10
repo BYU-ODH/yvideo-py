@@ -70,7 +70,7 @@ export class Editor {
         this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
-        // The cues as last sent to (or rendered by) the server; see buildWatchersForSubtitleEditorCues.
+        // The cues as last sent to (or rendered by) the server; see setupSubtitleEditor input watcher
         this.sentCueState = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
@@ -145,7 +145,7 @@ export class Editor {
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.watchAndHandleEditorPanelSwitch();
-        this.setupSubtitleEditorMenu();
+        this.setupSubtitleEditor();
         this.watchAndHandleSubtitleTrackChange();
         this.watchForSubtitleTrackCreation();
 
@@ -2798,11 +2798,266 @@ export class Editor {
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
     }
 
-    setupSubtitleEditorMenu() {
-      const subtitleMenu= document.getElementById("subtitle-track-settings-menu-wrapper");
-      setupMultiOptionMenu(subtitleMenu);
-    }
+    setupSubtitleEditor() {
+      // NFC-normalized so composed (é) and decomposed (e + ◌́) accents match each other.
+      // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize
+      const normalizeCueSearchText = (text) => text.trim().normalize("NFC");
 
+      // Expects text that has already been through normalizeCueSearchText.
+      const buildCueWordPattern = (text) => {
+        const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(
+          `(?<![\\p{L}\\p{M}\\p{N}\\p{Pc}])${escapedText}(?![\\p{L}\\p{M}\\p{N}\\p{Pc}])`,
+          "gu"
+        );
+      };
+
+      // The panel content can change so use this to check if editing it allowed.
+      const canEditCues = () =>
+        document.getElementById("subtitle-panel-content")?.dataset.canEdit === "true";
+
+      const subtitlePanel = document.getElementById("subtitle-editor-panel");
+      if (!subtitlePanel) {
+        displayUserMessage("error", "Failed to setup subtitle editor, you will not be able to make edits to subtitle tracks during this session.");
+        return;
+      }
+
+      // multi option menu
+      const subtitleTrackMenu = document.getElementById("subtitle-track-settings-menu-wrapper");
+      setupMultiOptionMenu(subtitleTrackMenu);
+
+      // We don't want to use the replace all function for deleting words, so
+      // this function only enables the button if matches is != 0 and won't
+      // match on whitespace or empty string.
+      // Handles whole word find only.
+      const updateCueFindCount = () => {
+        const cueFindInput = document.getElementById("cue-find-input");
+        const cueMatchCountEl = document.getElementById("cue-find-match-count");
+        const cueReplaceButton = document.getElementById("execute-far-button");
+        if (!cueFindInput || !cueMatchCountEl || !cueReplaceButton) return;
+
+        const findText = normalizeCueSearchText(cueFindInput.value);
+        if (findText == "") {
+          cueMatchCountEl.textContent = "";
+          cueReplaceButton.disabled = true;
+          return;
+        }
+
+        const pattern = buildCueWordPattern(findText);
+        let matches = 0;
+        for (let cueText of subtitlePanel.querySelectorAll(".editor-subtitle-cue-content")) {
+          // Use value, not textContent: textContent is the text the server rendered
+          // and misses edits, while replace works on value (via collectCues).
+          matches += (cueText.value.normalize("NFC").match(pattern) || []).length;
+        }
+        const plural = matches == 1 ? "match" : "matches";
+        cueMatchCountEl.textContent = `${matches} ${plural}`;
+        cueReplaceButton.disabled = matches <= 0;
+      };
+
+      // Debounced input wrapper for updateCueFindCount.
+      // replace button is enabled by updateCueFindCount
+      let cueTextFindTimerRef;
+      const searchCuesForText = () => {
+        clearTimeout(cueTextFindTimerRef);
+        const pendingReplaceButton = document.getElementById("execute-far-button");
+        if (pendingReplaceButton) pendingReplaceButton.disabled = true;
+        cueTextFindTimerRef = setTimeout(updateCueFindCount, 500);
+      };
+
+      // click watcher
+      subtitlePanel.addEventListener("click", async (e) => {
+        // adding a new subtitle cue
+        if (e?.target?.closest("#add-new-subtitle-button")) {
+          e.preventDefault();
+          const cues = this.collectCues();
+          // build new cue and append it to cues array
+          const time = this.video.currentTime;
+          const startTime = Math.round(time * 1000) / 1000;
+          const endTime = Math.round((time + 2) * 1000) / 1000;
+          // the back end sorts cues, so this will go in its correct place.
+          cues.push(
+            {
+              start_time: startTime,
+              end_time: endTime,
+              type: "CUE",
+              payload: "",
+            }
+          )
+          if (!await this.saveCues(cues)) return;
+
+          // Normalize the lookup time string so it will always find the right cue
+          // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
+          // A cue's end and start time values are to 3 decimal places, the video's
+          // current time has no decimal place limiter. Both of these cases should
+          // be handled here.
+          const cueLookupTime = parseFloat(startTime);
+          let lookupTimeString = cueLookupTime.toString();
+          const lookupStringSplit = lookupTimeString.split('.');
+
+          if (lookupStringSplit.length == 1) {
+            lookupTimeString = lookupTimeString + ".0";
+          }
+          else if (lookupStringSplit[1].length > 3) {
+            lookupTimeString = cueLookupTime.toFixed(3);
+          }
+          const newCue = subtitlePanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
+          if (!newCue) {
+            displayUserMessage("warning", "Unable to automatically find the new cue, this may be because it has the same start time as another cue, or something went wrong while creating the cue.");
+            return;
+          }
+          const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
+          if (cueTA) {
+            cueTA.focus();
+          }
+          else {
+            displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
+          }
+          return;
+        }
+
+        // handle cue deletion
+        if (e?.target?.closest('.editor-subtitle-cue-delete')) {
+          e.preventDefault();
+          const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
+          const cueElements = Array.from(subtitlePanel.querySelectorAll(".editor-subtitle-cue"));
+          const cues = this.collectCues();
+          // use splice to allow cue marked for deletion to still appear unless the deletion is successful
+          cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
+          this.saveCues(cues);
+          return;
+        }
+
+        // handle video time seek on cue start or text content input selection
+        if (e?.target?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-content")) {
+          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
+          const cueStartTime = parentCueWrapper.dataset["startTime"];
+          this.seekVideoTo(parseFloat(cueStartTime));
+          return;
+        }
+
+        // handle video time seek to cue end time on end time input selection
+        if (e?.target?.closest(".editor-subtitle-cue-end")) {
+          const cueEndTimeInput = e.target.closest(".editor-subtitle-cue-end");
+          this.seekVideoTo(parseFloat(cueEndTimeInput.dataset["endTime"]));
+          return;
+        }
+
+        // handle find and replace header click. Don't use closest because if the user clicks empty space in
+        // the header's content, it will unexpectedly hide find and replace.
+        const targetId = e?.target?.id;
+        if (targetId == "cue-far-header" || targetId == "cue-far-header-text" || targetId == "cue-far-header-img") {
+          const header = document.getElementById("cue-far-wrapper");
+          header.classList.toggle("cue-far-hidden");
+          return;
+        }
+
+        // handle the replace function of the find and replace feature
+        // handles whole word replace only
+        if (e?.target?.id == "execute-far-button") {
+          const replaceButton = e.target;
+          if (replaceButton.disabled == true) {
+            return;
+          }
+          const findInput = document.getElementById("cue-find-input");
+          const replaceInput = document.getElementById("cue-replace-input");
+          if (!findInput || !replaceInput) {
+            displayUserMessage("error", "Failed to locate the inputs for the find and replace function.");
+            return;
+          }
+          // I don't think most users will want to use this tool to
+          // delete words or replace words with whitespace.
+          if (replaceInput.value.trim() == "") {
+            return;
+          }
+          const findWord = normalizeCueSearchText(findInput.value);
+          // An empty pattern matches between every pair of non-word characters,
+          // so replacing with it would insert the replacement all over every cue.
+          if (findWord == "") {
+            replaceButton.disabled = true;
+            return;
+          }
+          // Unlike the search text, the replacement is used exactly as typed (not trimmed),
+          // so a user can deliberately include spacing around it.
+          const replaceWord = replaceInput.value;
+          const pattern = buildCueWordPattern(findWord);
+          const cues = this.collectCues();
+          for (const cue of cues) {
+            const normalizedPayload = cue.payload.normalize("NFC");
+            // Only rewrite cues that match, so cues without a match keep their stored text
+            // (including its Unicode form) untouched. search() ignores the g flag's lastIndex.
+            if (normalizedPayload.search(pattern) !== -1) {
+              cue.payload = normalizedPayload.replace(pattern, () => replaceWord);
+            }
+          }
+
+          // Disable straight away so a second click (e.g. a double-click) can't start
+          // another replace while this one saves. Cancel any pending count, which could
+          // otherwise re-enable the button mid-save.
+          clearTimeout(cueTextFindTimerRef);
+          replaceButton.disabled = true;
+          const searchedText = findInput.value;
+          const saved = await this.saveCues(cues);
+
+          // Loading another track replaces these elements; leave the new panel alone.
+          if (!findInput.isConnected) return;
+          // The user started a new search during the save; its own count handles the button.
+          if (findInput.value !== searchedText) return;
+          if (saved) {
+            // Setting the value in code fires no input event, so clear the count here too.
+            findInput.value = "";
+            const cueMatchCountEl = document.getElementById("cue-find-match-count");
+            if (cueMatchCountEl) cueMatchCountEl.textContent = "";
+          } else {
+            // Keep the search so the user can retry; recount against the unchanged cues.
+            updateCueFindCount();
+          }
+          return;
+        }
+      });
+
+      function isACueInput(targetEl) {
+        return targetEl?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
+      }
+
+      // change watcher
+      subtitlePanel.addEventListener("change", (e) => {
+        if (canEditCues() && isACueInput(e?.target)) {
+          e.preventDefault();
+          this.saveCues(this.collectCues());
+          return;
+        }
+      })
+
+      // keydown watcher
+      subtitlePanel.addEventListener("keydown", (e) => {
+        if (canEditCues() && isACueInput(e?.target) && e.key == "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          this.saveCues(this.collectCues());
+          return;
+        }
+      });
+
+      // input watcher
+      subtitlePanel.addEventListener("input", (e) => {
+        // cue autosave updater
+        if (canEditCues() && isACueInput(e?.target)) {
+          e.preventDefault();
+          if (JSON.stringify(this.collectCues()) === this.sentCueState) {
+            saveStatus.settle("subtitle-cues");
+          } else {
+            saveStatus.wait("subtitle-cues");
+          }
+          return;
+        }
+
+        // cue find and replace search input
+        if (e?.target?.id == "cue-find-input") {
+          searchCuesForText();
+          return;
+        }
+      });
+    }
 
     async loadSubtitleTrack(trackId) {
       try {
@@ -2812,17 +3067,17 @@ export class Editor {
           return false;
         }
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
-        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
+        document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
         this.selectedSubtitleTrackId = trackId;
+        this.sentCueState = JSON.stringify(this.collectCues());
+        saveStatus.settle("subtitle-cues");
         this.selectedSubtitleTrackText = document.querySelector(
           `.subtitles-track-option[value="${trackId}"]`
         )?.textContent.trim() || "";
         document.getElementById(`cap-track-${trackId}-button`)?.click();
-        this.buildWatchersForSubtitlePanelContent();
-        this.buildWatchersForSubtitleEditorCues();
         document.getElementById("open-subtitle-track-edit-modal").disabled = false;
         document.getElementById("open-delete-subtitle-track-modal").disabled =
-          document.getElementById("subtitle-panel-content-wrapper").dataset.canEdit !== "true";
+          document.getElementById("subtitle-panel-content").dataset.canEdit !== "true";
         return true;
       } catch {
         displayUserMessage("error", "Failed to load subtitle track");
@@ -3062,7 +3317,7 @@ export class Editor {
     }
 
     async saveCues(cues) {
-      if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
+      if (document.getElementById("subtitle-panel-content")?.dataset.canEdit !== "true") return false;
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
       this.sentCueState = originalCueState;
@@ -3084,12 +3339,15 @@ export class Editor {
           }
           const html = await updateResponse.text();
           if (this.selectedSubtitleTrackId !== trackId) return false;
-          // A response must not replace edits made while the save was in flight.
+          // The sentCueState should be updated to the most recent change. But if there
+          // was a change made while the save was in progress, we don't want to save the
+          // current state because it is now out of date.
           if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
           document.getElementById("subtitle-panel-list").innerHTML = html;
+          this.sentCueState = JSON.stringify(this.collectCues());
+          saveStatus.settle("subtitle-cues");
           window.dispatchEvent(this.annotationUpdatedEvent);
 
-          this.buildWatchersForSubtitleEditorCues();
           return true;
         } catch {
           displayUserMessage("error", "Failed to save changes to subtitle cues");
@@ -3101,122 +3359,6 @@ export class Editor {
         return await save;
       } finally {
         this.subtitleCueSaves.delete(save);
-      }
-    }
-
-    buildWatchersForSubtitlePanelContent() {
-      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-      if (subtitlesPanel.dataset.canEdit !== "true") return;
-      const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
-      addNewCueButton.addEventListener("click", async () => {
-        const cues = this.collectCues();
-        // build new cue and append it to cues array
-        const time = this.video.currentTime;
-        const startTime = Math.round(time * 1000) / 1000;
-        const endTime = Math.round((time + 2) * 1000) / 1000;
-        // the back end sorts cues, so this will go in its correct place.
-        cues.push(
-          {
-            start_time: startTime,
-            end_time: endTime,
-            type: "CUE",
-            payload: "",
-          }
-        )
-        if (!await this.saveCues(cues)) return;
-
-        // Normalize the lookup time string so it will always fine the right cue
-        // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
-        // A cue's end and start time values are to 3 decimal places, the video's
-        // current time has no decimal place limiter. Both of these cases should
-        // be handled here.
-        const cueLookupTime = parseFloat(startTime);
-        let lookupTimeString = cueLookupTime.toString();
-        const lookupStringSplit = lookupTimeString.split('.');
-
-        if (lookupStringSplit.length == 1) {
-          lookupTimeString = lookupTimeString + ".0";
-        }
-        else if (lookupStringSplit[1].length > 3) {
-          lookupTimeString = cueLookupTime.toFixed(3);
-        }
-        const newCue = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
-        if (!newCue) {
-          displayUserMessage("warning", "Unable to automatically find the new cue, this may be because it has the same start time as another cue, or something went wrong while creating the cue.");
-          return;
-        }
-        const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
-        if (cueTA) {
-          cueTA.focus();
-        }
-        else {
-          displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
-        }
-
-      });
-    }
-
-    buildWatchersForSubtitleEditorCues() {
-      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-      // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
-      this.sentCueState = JSON.stringify(this.collectCues());
-      saveStatus.settle("subtitle-cues");
-      const deleteCue = (e) => {
-        const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
-        const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
-        const cues = this.collectCues();
-        // use splice to allow cue marked for deletion to still appear unless the deletion is successful
-        cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
-        this.saveCues(cues);
-      }
-      const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
-      for (let cueDelButton of editorSubtitleCueDeleteButtons) {
-        cueDelButton.addEventListener("click", deleteCue.bind(this));
-      }
-
-      const saveUpdatedInformation = () => {
-        this.saveCues(this.collectCues());
-      }
-      const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
-      const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");
-      const cueInputs = [...cueStartAndTextInputs, ...cueEndInputs];
-      if (subtitlesPanel.dataset.canEdit === "true") {
-        for (let cueInput of cueInputs) {
-          cueInput.addEventListener("keydown", (e) => {
-            // An Enter key press in a textarea creates a new line. We want that to submit the cues instead,
-            // but a Shift + Enter in a cue textarea will still create a new line if needed.
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              saveUpdatedInformation();
-            }
-          });
-
-          cueInput.addEventListener("change", (e) => {
-            e.preventDefault();
-            saveUpdatedInformation();
-          });
-          // A cue saves on change or Enter, so typed text waits until then. Typing back to what was
-          // last sent is not a pending edit.
-          cueInput.addEventListener("input", () => {
-            if (JSON.stringify(this.collectCues()) === this.sentCueState) {
-              saveStatus.settle("subtitle-cues");
-            } else {
-              saveStatus.wait("subtitle-cues");
-            }
-          });
-        }
-      }
-      for (let cueStartOrTextInput of cueStartAndTextInputs){
-        cueStartOrTextInput.addEventListener("click", (e) => {
-          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
-          const cueStartTime = parentCueWrapper.dataset["startTime"];
-          this.seekVideoTo(parseFloat(cueStartTime));
-        });
-      }
-      for (let cueEndInput of cueEndInputs) {
-        cueEndInput.addEventListener("click", () => {
-          this.seekVideoTo(parseFloat(cueEndInput.dataset["endTime"]));
-        });
       }
     }
 }
