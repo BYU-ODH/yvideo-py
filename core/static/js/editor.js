@@ -2679,7 +2679,7 @@ export class Editor {
           }
         });
         if (!retireResponse.ok) {
-          console.error("Failed to retire annotation set");
+          displayUserMessage("error", "An error occurred while retiring this annotation set. Please refresh the page and try again.");
           return;
         }
 
