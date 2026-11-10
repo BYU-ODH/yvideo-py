@@ -958,11 +958,12 @@ class Content(models.Model):
 
         Includes sets the user cannot edit -- sharing is the point -- so callers
         rendering a chooser must mark those rather than assume they are editable.
+        Retired sets are at the end of the result list.
         """
         resource = self.get_resource()
         if not resource:
             return AnnotationSet.objects.none()
-        sets = AnnotationSet.objects.filter(resource=resource)
+        sets = AnnotationSet.objects.filter(resource=resource).order_by("retired")
         if user is None:
             return sets
         return [

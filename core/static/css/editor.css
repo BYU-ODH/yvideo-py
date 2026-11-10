@@ -611,14 +611,14 @@
     align-self: flex-start;
 }
 
-.show-retirement-sets-wrapper {
+.annotation-set-retire-info-wrapper {
     display: flex;
     flex-direction: row;
     align-items: center;
 }
 
-.annotation-set-selector[data-show-retired="false"] .annotation-set-option[data-is-retired="true"] {
-    display: none;
+.annotation-set-retire-info-wrapper p {
+    margin: 0;
 }
 
 #annotation-set-export-button {

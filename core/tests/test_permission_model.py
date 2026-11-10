@@ -403,6 +403,41 @@ class AnnotationSetSharingTests(TestCase):
         self.assertTrue(choices[own_set.pk])
         self.assertFalse(choices[self.annotation_set.pk])
 
+    def test_the_chooser_lists_all_active_sets_before_retired_sets(self):
+        from core.views_video_editor import annotation_set_choices
+
+        expected_sets = [self.annotation_set]
+        for name, retired in [
+            ("A retired set", True),
+            ("Y active set", False),
+            ("B retired set", True),
+            ("Z active set", False),
+        ]:
+            annotation_set = AnnotationSetFactory(
+                owner=self.owner, resource=self.resource, name=name
+            )
+            if retired:
+                annotation_set.orphan()
+            expected_sets.append(annotation_set)
+
+        content = ContentFactory(
+            playlist=PlaylistFactory(owner=self.owner),
+            resource_file=ResourceFileFactory(resource=self.resource),
+        )
+        sets = [
+            choice["annotation_set"]
+            for choice in annotation_set_choices(content, self.owner)
+        ]
+
+        self.assertCountEqual(
+            [annotation_set.pk for annotation_set in sets],
+            [annotation_set.pk for annotation_set in expected_sets],
+        )
+        self.assertEqual(
+            [annotation_set.retired for annotation_set in sets],
+            [False, False, False, True, True],
+        )
+
 
 class SubtitlePermissionTests(TestCase):
     def setUp(self):
