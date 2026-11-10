@@ -118,8 +118,8 @@ def test_arrow_up_from_a_custom_color_starts_at_the_last_preset(page, open_edito
     )
 
 
-def test_the_swatch_clears_while_the_hex_code_is_incomplete(page, open_editor):
-    _open_comment(page, open_editor)
+def test_the_swatch_clears_for_incomplete_hex_and_returns_when_valid(page, open_editor):
+    content, _ = _open_comment(page, open_editor)
     color_input = page.locator("#font-color")
     swatch = page.locator(".color-combobox > .color-swatch")
 
@@ -127,3 +127,4 @@ def test_the_swatch_clears_while_the_hex_code_is_incomplete(page, open_editor):
     expect(swatch).to_have_css("background-color", "rgba(0, 0, 0, 0)")
     color_input.fill("123")
     expect(swatch).to_have_css("background-color", "rgb(17, 34, 51)")
+    _wait_for_saved_color(page, content, "123")
