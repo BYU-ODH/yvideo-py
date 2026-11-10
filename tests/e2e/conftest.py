@@ -166,6 +166,33 @@ def demo_content(seeded_demo_data):
 
 
 @pytest.fixture
+def read_only_annotation_set_content(seeded_demo_data):
+    """A content whose owner may edit the video but not the annotation set it points at.
+
+    Sharing a set rather than copying it is the point of the annotation-set model, so
+    "someone else owns these annotations" is a first-class state of the editor: the set
+    picker renders disabled, annotations open read-only, and edit controls are
+    intercepted by an offer to copy.
+    """
+    from core.factories import ContentFactory
+    from core.models import AnnotationSet
+    from core.models import Content
+    from core.models import Playlist
+
+    ada_playlist = Playlist.objects.get(name="Birds of a Feather")
+    bens_set = AnnotationSet.objects.get(name="Professor Ben Grid Annotations")
+    grid_content = Content.objects.get(title="Pattern Analysis Warmup")
+
+    return ContentFactory(
+        playlist=ada_playlist,
+        resource_file=grid_content.resource_file,
+        annotation_set=bens_set,
+        title="A11y Borrowed Annotations",
+        published=True,
+    )
+
+
+@pytest.fixture
 def logged_in_page(page, live_server, seeded_demo_data):
     """A page authenticated as the demo admin, who can view and edit the seeded content.
 

@@ -944,9 +944,14 @@ def load_annotation_form(request, annotation_type, annotation_id):
     if annotation.track.annotation_set_id != content.annotation_set_id:
         return HttpResponseNotFound("Annotation does not belong to this content")
 
-    if not annotation.track.annotation_set.can_be_edited_by(request.user):
+    # Loading the form is a read; annotation_form.html renders read-only for borrowers.
+    # Editing the content is what opens its editor, which already shows this set.
+    if not (
+        content.can_be_edited_by(request.user)
+        or annotation.track.annotation_set.can_be_read_by(request.user)
+    ):
         return HttpResponse(
-            "You don't have permission to edit this annotation", status=403
+            "You don't have permission to view this annotation", status=403
         )
 
     start_seconds = annotation.start_time

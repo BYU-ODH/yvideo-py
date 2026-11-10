@@ -215,9 +215,13 @@ export class Editor {
         const resizeHandle = e.target.closest('.resize-handle');
 
         if (resizeHandle) {
-            this.startResize(trackItem, resizeHandle, e);
             e.preventDefault();
             e.stopPropagation();
+            if (!this.canEditAnnotationSet) {
+                this.promptToCopyAnnotationSet();
+                return;
+            }
+            this.startResize(trackItem, resizeHandle, e);
         }
     }
 
@@ -449,6 +453,11 @@ export class Editor {
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
+        if (!this.canEditAnnotationSet) {
+          event.preventDefault();
+          this.promptToCopyAnnotationSet();
+          return;
+        }
         this.itemBeingDragged = item;
         this.dragGrabOffsetX = event.clientX - item.getBoundingClientRect().left;
         this.resetTrackItemProjectionsStyle();
@@ -909,9 +918,8 @@ export class Editor {
       );
 
       if (!response.ok) {
-        const status = response.status;
-        if (status == 403) {
-          displayUserMessage("warning", "You do not have permission to edit this annotation set.")
+        if (response.status === 403) {
+          this.promptToCopyAnnotationSet();
         } else {
           displayUserMessage("error", "An error occurred while updating an annotation");
         }
@@ -924,7 +932,7 @@ export class Editor {
       return responseData;
     }
 
-    triggerSave(state) {
+    async triggerSave(state) {
         const item = state.item;
         const annotationType = item.dataset["annotationType"];
         const annotationId = item.dataset["annotationId"];
@@ -969,7 +977,12 @@ export class Editor {
           return;
         }
 
-        this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
+        const saved = await this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
+        if (!saved) {
+          item.dataset.deltaLeft = '0';
+          item.dataset.deltaWidth = '0';
+          this.placeTrackItems();
+        }
     }
 
     countBlurAnchorPointsLost(item, newStart, newEnd) {
@@ -1290,9 +1303,8 @@ export class Editor {
         method: "GET"
       });
       if (!response.ok) {
-        const status = response.status;
-        if (status == 403) {
-          displayUserMessage("warning", "You do not have permission to make edits to this annotation set. If you would like to make your own copy, click the three dot menu in the annotation panel on the left of the screen.");
+        if (response.status === 403) {
+          displayUserMessage("warning", "You do not have permission to view this annotation.");
         } else {
           displayUserMessage("error", "Failed to load the annotation detail form");
         }
@@ -2652,13 +2664,9 @@ export class Editor {
 
 
     watchAndHandleAnnotationSetDelete() {
-      if (!this.canEditAnnotationSet) return;
-
+      // Only rendered for users who may retire the set (annotation_panel.html).
       const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
-      if (!deleteAnnotationSetButton) {
-        displayUserMessage("warning", "The annotation set delete button cannot be setup; you will not be able to delete the annotation set during this session.");
-        return;
-      }
+      if (!deleteAnnotationSetButton) return;
 
       deleteAnnotationSetButton.addEventListener("click", async () => {
         const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
@@ -2751,7 +2759,9 @@ export class Editor {
         if (e.target.closest("#annotation-set-copy-prompt, .annotation-set-selector-wrapper, #video-section")) {
           return;
         }
-        if (!e.target.closest("button, input, select, textarea, .track-row-annotation-item")) {
+        // Selecting an annotation is a read: its form renders read-only for borrowers
+        // (annotation_form.html), so only real edit controls are intercepted here.
+        if (!e.target.closest("button, input, select, textarea")) {
           return;
         }
         e.preventDefault();
