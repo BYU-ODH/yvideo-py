@@ -2663,7 +2663,7 @@ export class Editor {
     watchAndHandleAnnotationSetDelete() {
       const retireAnnotationSetButton = document.getElementById("annotation-set-retire");
       if (!retireAnnotationSetButton) {
-        console.error("Failed to get annotation set retire button");
+        displayUserMessage("error", "Failed to setup retire annotation button. You won't be able to retire annotation sets during this session.")
         return;
       }
 
