@@ -611,6 +611,12 @@
     align-self: flex-start;
 }
 
+.show-retirement-sets-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
 .annotation-set-selector[data-show-retired="false"] .annotation-set-option[data-is-retired="true"] {
     display: none;
 }

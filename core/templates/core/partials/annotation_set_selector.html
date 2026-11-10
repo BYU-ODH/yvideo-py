@@ -3,8 +3,19 @@
 {% endcomment %}
 <div class="annotation-set-selector-wrapper column-flex">
     <label for="{{ selector_id }}">Select an Annotation Set</label>
-    <div class="row-flex">
+    <div class="label-with-info show-retirement-sets-wrapper">
         <label for="{{ selector_id }}-show-retired">Show retired sets:</label>
+        <button type="button"
+                id="retired-sets-info-button"
+                class="info-button"
+                popovertarget="{{ selector_id }}-retired-sets-info"
+                aria-label="About retired sets"
+                title="About retired sets">
+            <span aria-hidden="true">ⓘ</span>
+        </button>
+        <div id="{{ selector_id }}-retired-sets-info" class="info-popover" popover>
+            <p>A retired annotation set is not editable but may be used. If you end up needing to make a change to it, you must make a copy of it and make your changes there.</p>
+        </div>
         <input id="{{ selector_id }}-show-retired"
                class="annotation-set-show-retired-checkbox"
                type="checkbox">
