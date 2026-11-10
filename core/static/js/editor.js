@@ -135,6 +135,8 @@ export class Editor {
         this.updateTracks();
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
         document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        // Capture phase, so the player's bare-key seeking and Escape-to-deselect do not see it.
+        document.addEventListener('keydown', this.handleResizeKeyDown.bind(this), true);
 
         this.placeTrackItems();
         document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
@@ -407,6 +409,34 @@ export class Editor {
             document.addEventListener('click', preventNextClick, true);
         }
         // If !hasMoved, don't prevent - let the click bubble to HTMX
+    }
+
+    // Escape mid-resize puts the item back where it was, saves nothing, and returns the player to
+    // the parked time. The button is still down, so the click that follows the release is
+    // swallowed too: it would select the item and seek to its start.
+    handleResizeKeyDown(e) {
+        if (e.key !== 'Escape' || !this.dragState) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const state = this.dragState;
+        this.dragState = null;
+        document.body.classList.remove('resizing', 'resizing-item');
+        state.item.dataset.deltaLeft = '0';
+        state.item.dataset.deltaWidth = '0';
+        // Re-lays out every item from its saved times, blur anchor point dots included.
+        this.placeTrackItems();
+        this.endDragPreview();
+
+        const swallowClick = (clickEvent) => {
+            clickEvent.preventDefault();
+            clickEvent.stopPropagation();
+        };
+        document.addEventListener('mouseup', () => {
+            document.addEventListener('click', swallowClick, {capture: true, once: true});
+            // A release that produces no click (off the item) must not eat a later, real one.
+            setTimeout(() => document.removeEventListener('click', swallowClick, true), 0);
+        }, {capture: true, once: true});
     }
 
     setUpItemElevationOnMousedown(item) {

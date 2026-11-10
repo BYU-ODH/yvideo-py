@@ -194,3 +194,42 @@ def test_a_moved_item_snaps_its_start_to_the_playhead(editor):
         before["end"] - before["start"], abs=0.01
     ), "a move should keep the item's length"
     assert _current_time(page) == pytest.approx(parked, abs=0.05)
+
+
+def test_escape_mid_resize_puts_the_item_back_and_saves_nothing(editor):
+    page = editor
+    before = _item_times(page)
+    spp = _seconds_per_pixel(page)
+    parked = _park_playhead(page, before["end"] + PARK_OFFSET_PIXELS * spp)
+    item = page.locator(ITEM_SELECTOR)
+    width_before = item.evaluate("el => el.style.width")
+
+    saves = []
+    page.on(
+        "request", lambda request: request.method != "GET" and saves.append(request.url)
+    )
+
+    x, y = _press_at(page, item.locator(".resize-handle-right"))
+    page.mouse.move(x + PARK_OFFSET_PIXELS + FAR_PIXELS, y, steps=8)
+    page.wait_for_timeout(100)
+    page.keyboard.press("Escape")
+
+    # Restored at once, before the button is even released.
+    assert item.evaluate("el => el.style.width") == width_before
+    assert "visible" not in (
+        page.locator("#editor-shadow-scrubber").get_attribute("class") or ""
+    )
+    page.wait_for_function(
+        f"(parked) => Math.abs({VIDEO}.currentTime - parked) < 0.05",
+        arg=parked,
+        timeout=2000,
+    )
+
+    # Neither the release nor the click that follows it may save, select, or seek.
+    page.mouse.move(x + PARK_OFFSET_PIXELS - NEAR_PIXELS, y, steps=4)
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    assert saves == []
+    assert _item_times(page)["raw"] == before["raw"]
+    assert item.evaluate("el => el.style.width") == width_before
+    assert _current_time(page) == pytest.approx(parked, abs=0.05)
