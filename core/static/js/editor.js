@@ -2663,10 +2663,14 @@ export class Editor {
 
 
 
-    watchAndHandleAnnotationSetDelete() {
-      // Only rendered for users who may retire the set (annotation_panel.html).
-      const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
-      if (!deleteAnnotationSetButton) return;
+  watchAndHandleAnnotationSetDelete() {
+      if (!this.canEditAnnotationSet) return;
+
+    const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
+      if (!deleteAnnotationSetButton) {
+        displayUserMessage("warning", "The annotation set delete button cannot be setup; you will not be able to delete the annotation set during this session.");
+        return;
+      }
 
       deleteAnnotationSetButton.addEventListener("click", async () => {
         const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
