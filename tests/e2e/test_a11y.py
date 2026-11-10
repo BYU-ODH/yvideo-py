@@ -906,7 +906,7 @@ def test_the_editor_timeline_controls_have_no_a11y_violations(
     assert_no_violations(page, "a track's options menu", include=[".track-row"])
 
     track_row.locator(".track-menu-rename").click()
-    page.wait_for_selector(".track-rename-wrapper-visible, .track-rename-input:visible")
+    page.wait_for_selector(".track-rename-input:visible")
     assert_no_violations(page, "a track's rename field", include=[".track-row"])
 
 

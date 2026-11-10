@@ -799,7 +799,10 @@ def update_annotation(request, content, annotation_type, annotation_id):
         old_end = getattr(annotation, "end_time", old_start)
 
         fields_to_update = {}
-        fields_to_update["start_time"] = time2seconds(json_data["start_time"])
+        start_time = time2seconds(json_data["start_time"])
+        if start_time < 0:
+            return HttpResponseBadRequest("start_time cannot be negative")
+        fields_to_update["start_time"] = start_time
         if "annotation_name" in json_data:
             fields_to_update["name"] = json_data["annotation_name"]
 
@@ -823,7 +826,10 @@ def update_annotation(request, content, annotation_type, annotation_id):
             fields_to_update["description"] = json_data["description"]
 
         if annotation_type != "pause":
-            fields_to_update["end_time"] = time2seconds(json_data["end_time"])
+            end_time = time2seconds(json_data["end_time"])
+            if end_time < start_time:
+                return HttpResponseBadRequest("end_time cannot precede start_time")
+            fields_to_update["end_time"] = end_time
 
         if (annotation_type == "pause") and "message" in json_data:
             fields_to_update["message"] = json_data["message"]
@@ -1158,29 +1164,33 @@ def display_use_existing_annotation_set_option(request, content):
 
 @require_POST
 @track_write_required
-def update_track(request, track):
-    """Edit track name by changing the track_name attribute of all associated annotations"""
+def update_track_name(request, track):
+    """Rename a track. Body: {"new_value": "<name>"}.
+
+    Responds like the other track endpoints, with every track row re-rendered, so the
+    editor shows the name as saved rather than as typed.
+    """
     try:
         parsed_data = json.loads(request.body)
-    except Exception as e:
-        logger.error(f"Failed to parse the track update request. Exception: {e}")
-        return HttpResponseBadRequest()
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("Invalid JSON")
+
+    name = parsed_data.get("new_value") if isinstance(parsed_data, dict) else None
+    if not isinstance(name, str):
+        return HttpResponseBadRequest("new_value must be a string")
+
+    name = name.strip()
+    max_length = Track._meta.get_field("name").max_length
+    if not name or len(name) > max_length:
+        return HttpResponseBadRequest(f"Track names must be 1-{max_length} characters")
 
     try:
-        if "new_track_name" in parsed_data:
-            track.name = parsed_data["new_track_name"]
-        if "new_stack_position" in parsed_data:
-            track.stack_position = parsed_data["new_stack_position"]
-        track.save()
+        track.name = name
+        track.save(update_fields=["name"])
     except Exception as e:
         logger.error(f"Failed to update track name. Exception: {e}")
         return HttpResponseServerError()
-
-    track_html = render_to_string(
-        "core/partials/timeline-track-row.html", {"track": track}, request
-    )
-
-    return HttpResponse(track_html)
+    return convertTracksToHTML(track.annotation_set, request)
 
 
 def convertTracksToHTML(annotation_set, request):

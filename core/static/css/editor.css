@@ -1472,7 +1472,8 @@ here in this comment for search purposes */
 }
 
 #timeline-wrapper {
-    overflow: hidden;
+    /* No overflow clipping: an open track options menu (.multi-option-menu) has to be
+       able to extend past the wrapper's edges. */
     display: flex;
     flex-direction: column;
     row-gap: 2px;
@@ -1502,6 +1503,14 @@ here in this comment for search purposes */
 
 .track-row.active-track .timeline-row-left {
     box-shadow: inset 0 0 0 2px white;
+}
+
+.track-name {
+    margin: 0;
+}
+
+.track-rename-input {
+    max-width: 8rem;
 }
 
 .timeline-row-right {
@@ -1573,15 +1582,6 @@ start at the current zoom instead of needing their own width. */
 
 .annotations-container-no-child-pointer-events .track-item {
     pointer-events: none;
-}
-
-.track-rename-wrapper {
-    display: none;
-    flex-direction: column
-}
-
-.track-rename-wrapper-visible {
-    display: flex;
 }
 
 /* Scrollable content area */

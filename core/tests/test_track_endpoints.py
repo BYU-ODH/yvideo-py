@@ -101,3 +101,42 @@ class TrackEndpointTests(TestCase):
 
         response = self.delete(self.tracks[1])
         self.assertNotIn("track-menu-delete", response.json()["tracks_html"][0])
+
+    def rename(self, track, body):
+        return self.client.post(
+            reverse("update_track_name", args=[track.pk]),
+            data=body if isinstance(body, str) else json.dumps(body),
+            content_type="application/json",
+        )
+
+    def test_rename_saves_the_stripped_name(self):
+        track = self.tracks[0]
+
+        response = self.rename(track, {"new_value": "  Intro  "})
+
+        self.assertEqual(response.status_code, 200)
+        track.refresh_from_db()
+        self.assertEqual(track.name, "Intro")
+        # Like the other track endpoints, it answers with every row as now saved.
+        tracks_html = response.json()["tracks_html"]
+        self.assertEqual(len(tracks_html), 3)
+        self.assertIn('<p class="track-name">Intro</p>', tracks_html[0])
+
+    def test_rename_rejects_bad_input(self):
+        track = self.tracks[0]
+        for body in [
+            "not json",
+            ["new_value"],
+            {},
+            {"new_value": ""},
+            {"new_value": "   "},
+            {"new_value": None},
+            {"new_value": 5},
+            {"new_value": "x" * 51},
+        ]:
+            with self.subTest(body=body):
+                response = self.rename(track, body)
+
+                self.assertEqual(response.status_code, 400)
+                track.refresh_from_db()
+                self.assertEqual(track.name, "Top")
