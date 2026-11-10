@@ -11,6 +11,8 @@
             <div id="timeline-scrubber"></div>
             <div id="editor-scrubber" class="vertical-scrubber"></div>
             <div id="timeline-hover-scrubber" class="vertical-scrubber"></div>
+            {# Follows the edge being dragged while the playhead stays put; see beginDragPreview in editor.js. #}
+            <div id="editor-shadow-scrubber" class="vertical-scrubber"></div>
             {# Scrolls horizontally, so it has to be reachable by keyboard to be scrollable at all. #}
             <div id="timeline-ticks-content"
                  tabindex="0"

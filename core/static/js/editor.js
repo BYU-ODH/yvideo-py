@@ -7,6 +7,7 @@ import {
   clampRect,
   blurAnchorPointsLostByRetiming,
 } from "./video-geometry.js";
+import { nearestEdge, pickSnapEdge } from "./timeline-snap.js";
 
 // makePostRequest for a request that persists an edit, so the save indicator sees it.
 const saveFetch = (...args) => saveStatus.fetch(...args);
@@ -54,6 +55,16 @@ export class Editor {
         this.timelineWrapper = document.getElementById('timeline-wrapper');
         this.zoomSliderInput = document.getElementById('timeline-scroll-input');
         this.editorScrubber = document.querySelector('#editor-scrubber');
+        this.editorShadowScrubber = document.querySelector('#editor-shadow-scrubber');
+        // Set while an item or handle is being dragged; see beginDragPreview.
+        this.dragPreview = null;
+        // Same-track move state, carried from dragover to drop: which edge (0 start, 1 end) is
+        // snapped to the playhead, and the start time the drop should save.
+        this.moveSnapIndex = -1;
+        this.moveDropStartTime = null;
+        // See scrubVideoTo
+        this.scrubTarget = 0;
+        this.scrubSeekInFlight = false;
         this.zoomLevel = 1;
         this.timelineScrollRatio = 0;
         this.timelineScrollLeft = 0;
@@ -192,7 +203,9 @@ export class Editor {
             containerWidth,
             hasMoved: false,
             originalLeft: itemLeft,
-            originalWidth: itemWidth
+            originalWidth: itemWidth,
+            // Whether the dragged edge is snapped to the playhead (kept between moves for hysteresis)
+            snapped: false,
         };
 
         // Reset deltas
@@ -204,8 +217,11 @@ export class Editor {
         // Hide the hover scrubber for the duration of the resize
         if (this.timelineScrubber) this.timelineScrubber.style.opacity = '0';
 
-        // Seek video to the handle position being dragged
-        this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
+        // Show the frame under the handle being dragged, leaving the playhead where it is
+        this.beginDragPreview();
+        this.dragState.parkedTime = this.dragPreview.parkedTime;
+        const edgeRatio = isLeft ? itemLeft : itemLeft + itemWidth;
+        this.showDragPreview(edgeRatio * this.duration, false);
     }
 
     handleMouseDown(e) {
@@ -287,45 +303,67 @@ export class Editor {
     }
 
     updateResizePosition(e) {
-        const deltaX = e.clientX - this.dragState.startX;
+        const state = this.dragState;
+        const deltaX = e.clientX - state.startX;
         // Don't account for zoom in percent calculation - container width is already adjusted
-        const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
+        const deltaPercent = (deltaX / state.containerWidth) * 100;
         const minWidthPercent = (MIN_ITEM_SECONDS / this.duration) * 100;
+        const percentToPx = (percent) => (percent / 100) * state.containerWidth;
+        const parkedTime = state.parkedTime;
+        const parkedPercent = (parkedTime / this.duration) * 100;
+        const startRight = state.startLeft + state.startWidth;
 
-        if (this.dragState.isLeft) {
-            let newLeft = this.dragState.startLeft + deltaPercent;
-            let newWidth = this.dragState.startWidth - deltaPercent;
+        // Where the pointer puts the edge, before snapping or clamping. Snapping is judged from
+        // this, so leaving a snap takes the same pointer movement however the edge was drawn.
+        const rawEdgePercent = (state.isLeft ? state.startLeft : startRight) + deltaPercent;
+        // Only offer the snap if it leaves the item at least MIN_ITEM_SECONDS long.
+        const snapAllowed = state.isLeft
+            ? startRight - parkedPercent >= minWidthPercent
+            : parkedPercent - state.startLeft >= minWidthPercent;
+        state.snapped = pickSnapEdge(
+            [snapAllowed ? percentToPx(rawEdgePercent) : null],
+            percentToPx(parkedPercent),
+            state.snapped ? 0 : -1,
+        ) === 0;
 
-            newLeft = Math.max(0, newLeft);
-            newWidth = Math.max(minWidthPercent, newWidth);
-
-            if (newLeft + newWidth > 100) {
-                newWidth = 100 - newLeft;
+        let newLeft;
+        let newWidth;
+        if (state.isLeft) {
+            if (state.snapped) {
+                newLeft = parkedPercent;
+                newWidth = startRight - parkedPercent;
+            } else {
+                newLeft = Math.max(0, state.startLeft + deltaPercent);
+                newWidth = Math.max(minWidthPercent, state.startWidth - deltaPercent);
+                if (newLeft + newWidth > 100) {
+                    newWidth = 100 - newLeft;
+                }
             }
 
-            this.dragState.item.style.left = `${newLeft}%`;
-            this.dragState.item.style.width = `${newWidth}%`;
+            state.item.style.left = `${newLeft}%`;
+            state.item.style.width = `${newWidth}%`;
 
-            const deltaLeft = newLeft - this.dragState.originalLeft;
-            const deltaWidth = newWidth - this.dragState.originalWidth;
-            this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
-            this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
-
-            this.seekToHandlePosition(true, newLeft, newWidth);
+            const deltaLeft = newLeft - state.originalLeft;
+            const deltaWidth = newWidth - state.originalWidth;
+            state.item.dataset.deltaLeft = deltaLeft.toFixed(2);
+            state.item.dataset.deltaWidth = deltaWidth.toFixed(2);
         } else {
-            let newWidth = this.dragState.startWidth + deltaPercent;
+            newLeft = state.startLeft;
+            if (state.snapped) {
+                newWidth = parkedPercent - state.startLeft;
+            } else {
+                newWidth = Math.max(minWidthPercent, state.startWidth + deltaPercent);
+                newWidth = Math.min(newWidth, 100 - state.startLeft);
+            }
 
-            newWidth = Math.max(minWidthPercent, newWidth);
-            const maxWidth = 100 - this.dragState.startLeft;
-            newWidth = Math.min(newWidth, maxWidth);
+            state.item.style.width = `${newWidth}%`;
 
-            this.dragState.item.style.width = `${newWidth}%`;
-
-            const deltaWidth = newWidth - this.dragState.originalWidth;
-            this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
-
-            this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
+            const deltaWidth = newWidth - state.originalWidth;
+            state.item.dataset.deltaWidth = deltaWidth.toFixed(2);
         }
+
+        const edgePercent = state.isLeft ? newLeft : newLeft + newWidth;
+        this.showDragPreview(state.snapped ? parkedTime : (edgePercent / 100) * this.duration, state.snapped);
 
         this.updateBlurAnchorPointDotsDuringResize();
     }
@@ -344,23 +382,6 @@ export class Editor {
         });
     }
 
-    seekToHandlePosition(isLeft, leftPercent, widthPercent) {
-        const video = document.querySelector('#video-player');
-        if (!video) return;
-
-        // Calculate time based on which handle is being dragged
-        const timePercent = isLeft ? leftPercent : (leftPercent + widthPercent);
-        const targetTime = (timePercent / 100) * this.duration;
-
-        // Seek the video (this will trigger timeupdate and update the scrubber)
-        video.currentTime = targetTime;
-
-        // Also update via the player API if available
-        if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
-        }
-    }
-
     handleMouseUp(e) {
         if (!this.dragState) return;
 
@@ -368,6 +389,8 @@ export class Editor {
         this.dragState = null;
 
         document.body.classList.remove('resizing', 'resizing-item');
+        // The player goes back to the parked time; the drag only previewed frames.
+        this.endDragPreview();
 
         if (state.hasMoved) {
             this.triggerSave(state);
@@ -446,6 +469,41 @@ export class Editor {
       }
     }
 
+    // Where a same-track move puts an item whose left edge the pointer has at `leftRatio` of a
+    // track `trackWidthPx` wide. Either edge snaps to the playhead (see timeline-snap.js), and the
+    // whole item, at its original length, stays inside the video: dropping an item grabbed near its
+    // right edge close to the start of the track would otherwise put its left edge before 0.
+    // Returns the start time to save and the time to show in the player: the snapped edge, or
+    // failing that the edge nearest the playhead, since that is the one being lined up.
+    placeMovedItem(item, leftRatio, trackWidthPx) {
+      const duration = this.video.duration;
+      const itemStart = parseFloat(item.dataset["start"]);
+      const itemEnd = parseFloat(item.dataset["end"]);
+      const itemDuration = Number.isFinite(itemEnd) ? itemEnd - itemStart : 0;
+      const hasEnd = itemDuration > 0;
+      const maxStartTime = Math.max(0, duration - itemDuration);
+      const parkedTime = this.dragPreview ? this.dragPreview.parkedTime : this.video.currentTime;
+      const timeToPx = (time) => (time / duration) * trackWidthPx;
+
+      const rawStart = duration * leftRatio;
+      // The start time that would put each edge on the playhead; only offered if it fits.
+      const snapStarts = [parkedTime, hasEnd ? parkedTime - itemDuration : null];
+      const rawEdges = [rawStart, hasEnd ? rawStart + itemDuration : null].map((edge, index) => {
+        const snapStart = snapStarts[index];
+        const fits = snapStart !== null && snapStart >= 0 && snapStart <= maxStartTime;
+        return fits ? timeToPx(edge) : null;
+      });
+      this.moveSnapIndex = pickSnapEdge(rawEdges, timeToPx(parkedTime), this.moveSnapIndex);
+
+      const snapped = this.moveSnapIndex >= 0;
+      const startTime = snapped
+        ? snapStarts[this.moveSnapIndex]
+        : Math.min(maxStartTime, Math.max(0, rawStart));
+      const edges = [startTime, hasEnd ? startTime + itemDuration : null];
+      const previewIndex = snapped ? this.moveSnapIndex : nearestEdge(edges.map((edge) => edge === null ? null : timeToPx(edge)), timeToPx(parkedTime));
+      return { startTime, previewTime: snapped ? parkedTime : edges[previewIndex], snapped };
+    }
+
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
@@ -458,12 +516,19 @@ export class Editor {
         event.dataTransfer.setData("text/plain", item.id);
         event.dataTransfer.setDragImage(this.dragGhostImage, 0, 0);
         item.classList.add("is-dragging");
+        this.moveSnapIndex = -1;
+        this.moveDropStartTime = null;
+        this.beginDragPreview();
       });
 
+      // Fires after drop, and also when the drag is abandoned (Escape, or released off the timeline).
       item.addEventListener("dragend", () => {
         this.itemBeingDragged = null;
         item.classList.remove("is-dragging");
         this.allowTrackItemPointerEvents();
+        this.moveSnapIndex = -1;
+        this.moveDropStartTime = null;
+        this.endDragPreview();
       })
     }
 
@@ -851,7 +916,7 @@ export class Editor {
       return true;
     }
 
-    applyAnnotationVersionResponse(responseData, previousAnnotationId, replaceForm) {
+    applyAnnotationVersionResponse(responseData, previousAnnotationId, replaceForm, {seek = replaceForm} = {}) {
       const placed = this.replaceAnnotationVersionElements(
         responseData,
         previousAnnotationId,
@@ -872,12 +937,14 @@ export class Editor {
         return false;
       }
       if (formShowsThisItem) {
-        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm, seek});
       }
       return true;
     }
 
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true}) {
+    // `seek: false` leaves the player where it is instead of jumping to the item's start. Timeline
+    // drags use it: the playhead goes back to where the user parked it (see beginDragPreview).
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -915,7 +982,7 @@ export class Editor {
 
       const responseData = await response.json();
       window.dispatchEvent(this.annotationUpdatedEvent);
-      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
+      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm, {seek});
       return responseData;
     }
 
@@ -949,13 +1016,22 @@ export class Editor {
           displayUserMessage("warning", "The annotation could not be saved because its left position is in an invalid format. Try refreshing the page.");
           return;
         }
-        const newStartTime = leftAsDecimal * this.duration;
+        let newStartTime = leftAsDecimal * this.duration;
         const widthAsDecimal = convertPercentStringToDecimal(item.style.width)
         if (isNaN(widthAsDecimal)) {
           displayUserMessage("warning", "The annotation could not be saved becaue its right position is in an invalid format. Try refreshing the page.");
           return;
         }
-        const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
+        let newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
+        // An edge snapped to the playhead saves the playhead's exact time rather than a round trip
+        // through the item's percentage position.
+        if (state.snapped) {
+          if (state.isLeft) {
+            newStartTime = state.parkedTime;
+          } else {
+            newEndTime = state.parkedTime;
+          }
+        }
 
         if (!this.confirmBlurAnchorPointLoss(item, newStartTime, newEndTime)) {
           item.dataset.deltaLeft = '0';
@@ -964,7 +1040,7 @@ export class Editor {
           return;
         }
 
-        this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
+        this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true, seek: false});
     }
 
     countBlurAnchorPointsLost(item, newStart, newEnd) {
@@ -1294,7 +1370,7 @@ export class Editor {
       return true;
     }
 
-    markItemAsActive(annotationType, annotationId, {navigate = true} = {}) {
+    markItemAsActive(annotationType, annotationId, {navigate = true, seek = navigate} = {}) {
       if (!annotationType || !annotationId) {
         displayUserMessage("error", "The annotation you tried to select is invalid. Please refresh the page.");
         return;
@@ -1365,7 +1441,7 @@ export class Editor {
 
       // skip to start of this annotation in video
       const startTime = Number(trackItem.dataset["start"]);
-      if (startTime && !isNaN(startTime)) {
+      if (seek && startTime && !isNaN(startTime)) {
         this.video.currentTime = startTime;
       }
     }
@@ -1586,13 +1662,17 @@ export class Editor {
           // show the projection moving in concert with the mouse (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
           const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
-          this.video.currentTime = this.video.duration * newLeftRatio;
-          projectionEl.style.left = (newLeftRatio * 100) + '%';
+          const { startTime, previewTime, snapped } = this.placeMovedItem(this.itemBeingDragged, newLeftRatio, containerDim.width);
+          this.moveDropStartTime = startTime;
+          this.showDragPreview(previewTime, snapped);
+          projectionEl.style.left = (startTime / this.video.duration * 100) + '%';
           projectionEl.style.top = this.itemBeingDragged.style.top;
         }
         else {
           // show the projection statically placed with same position as itemBeingDragged.
-          this.video.currentTime = this.itemBeingDragged.dataset["start"];
+          this.moveSnapIndex = -1;
+          this.moveDropStartTime = null;
+          this.showDragPreview(parseFloat(this.itemBeingDragged.dataset["start"]), false);
           projectionEl.style.left = this.itemBeingDragged.style.left;
         }
       });
@@ -1630,16 +1710,17 @@ export class Editor {
         }
         if (trackId != originalTrackId) {
           // transfer item to new track
-          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime});
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, seek: false});
         } else {
-          // move item to new position within same track (with offset)
-          const containerDim = annotationContainer.getBoundingClientRect();
-          const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
-          // Dropping an item grabbed near its right edge close to the start of the track puts its
-          // left edge before 0, so keep the whole item, at its original length, inside the video.
+          // move item to new position within same track (with offset), where the last dragover
+          // placed it, snap included
           const itemDuration = originalEndTime ? originalEndTime - originalStartTime : 0;
-          const maxStartTime = Math.max(0, this.video.duration - itemDuration);
-          const startTime = Math.min(maxStartTime, Math.max(0, this.video.duration * newLeftRatio));
+          let startTime = this.moveDropStartTime;
+          if (startTime === null) {
+            const containerDim = annotationContainer.getBoundingClientRect();
+            const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
+            startTime = this.placeMovedItem(originalItem, newLeftRatio, containerDim.width).startTime;
+          }
           let endTime;
           if (originalEndTime) {
             endTime = startTime + itemDuration;
@@ -1647,7 +1728,7 @@ export class Editor {
           // The dropped item is replaced from the response rather than from the drag payload:
           // applyAnnotationVersionResponse renders the new version, moves it to the destination
           // track, and marks it active.
-          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime});
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, seek: false});
         }
       });
     }
@@ -2142,21 +2223,75 @@ export class Editor {
     // to run every animation frame during playback.
     paintScrubber() {
       if (!this.scrubberBounds || !this.editorScrubber) return;
+      // During a drag preview the video shows the dragged edge's frame, but the playhead stays parked.
+      let time = this.video.currentTime;
+      if (this.dragPreview) {
+        time = this.dragPreview.parkedTime;
+      } else if (this.isDragging || this.scrubSeekInFlight) {
+        time = this.scrubTarget;
+      }
+      this.editorScrubber.style.transform = `translateX(${this.scrubberOffsetFor(time)}px)`;
+    }
 
+    // Pixel offset of a time within the visible timeline window, pinned to its edges.
+    scrubberOffsetFor(time) {
       const { windowWidth, leftTime, rightTime } = this.scrubberBounds;
       const span = rightTime - leftTime;
-      const currentTime = this.video.currentTime;
 
       let ratio;
-      if (span <= 0 || currentTime <= leftTime) {
+      if (span <= 0 || time <= leftTime) {
         ratio = 0;
-      } else if (currentTime >= rightTime) {
+      } else if (time >= rightTime) {
         ratio = 1;
       } else {
-        ratio = (currentTime - leftTime) / span;
+        ratio = (time - leftTime) / span;
       }
+      return ratio * windowWidth;
+    }
 
-      this.editorScrubber.style.transform = `translateX(${ratio * windowWidth}px)`;
+    /* DRAG PREVIEW (#443)
+    While an item or one of its handles is dragged, the player shows the frame under the dragged
+    edge, but the playhead stays where the user parked it (typically with `,` / `.`). A dashed
+    "shadow" scrubber follows the edge, and turns solid when the edge snaps to the playhead. On
+    release the player goes back to the parked time, whether or not the edge snapped. */
+    beginDragPreview() {
+      if (this.dragPreview) return;
+      const wasPlaying = !this.video.paused;
+      if (wasPlaying) this.video.pause();
+      this.dragPreview = { parkedTime: this.video.currentTime, wasPlaying, shownTime: null };
+      this.refreshScrubberBounds();
+      this.editorShadowScrubber?.classList.add("visible");
+    }
+
+    showDragPreview(time, snapped) {
+      const preview = this.dragPreview;
+      if (!preview) return;
+      // dragover fires continuously even when the pointer is still; only seek on a change.
+      if (preview.shownTime !== time) {
+        preview.shownTime = time;
+        this.scrubVideoTo(time);
+      }
+      if (this.editorShadowScrubber && this.scrubberBounds) {
+        this.editorShadowScrubber.style.transform = `translateX(${this.scrubberOffsetFor(time)}px)`;
+        this.editorShadowScrubber.classList.toggle("snapped", snapped);
+      }
+    }
+
+    endDragPreview() {
+      const preview = this.dragPreview;
+      if (!preview) return;
+      this.dragPreview = null;
+      this.editorShadowScrubber?.classList.remove("visible", "snapped");
+      // Also when the last preview *was* the parked time (a snapped edge) but an earlier preview
+      // seek is still in flight and would otherwise land last.
+      if (preview.shownTime !== null && (preview.shownTime !== preview.parkedTime || this.scrubSeekInFlight)) {
+        // At once rather than queued behind a preview seek; one still in flight sees the new
+        // target when it lands and seeks here again, which is harmless.
+        this.scrubTarget = preview.parkedTime;
+        this.seekVideoTo(preview.parkedTime);
+      }
+      if (preview.wasPlaying) this.video.play();
+      this.paintScrubber();
     }
 
     handleZoom() {
@@ -2287,11 +2422,32 @@ export class Editor {
     }
 
     seekVideoTo(time) {
-        this.video.currentTime = time;
-        // Also update via the player API if available
+        // The player API seeks the same element and also re-applies annotations; setting
+        // currentTime as well would start a second seek that aborts the first.
         if (window.videoPlayer && window.videoPlayer.skipTo) {
             window.videoPlayer.skipTo(time);
+        } else {
+            this.video.currentTime = time;
         }
+    }
+
+    // Seek for a drag. A new seek aborts an unfinished one, so seeking on every mousemove lets a
+    // fast drag abort seek after seek: the frame freezes, then jumps. Instead keep one seek in
+    // flight and, when it lands, chase the latest requested time.
+    scrubVideoTo(time) {
+        this.scrubTarget = time;
+        if (this.scrubSeekInFlight) return;
+        this.scrubSeekInFlight = true;
+        const landed = () => {
+            clearTimeout(backstop);
+            this.video.removeEventListener('seeked', landed);
+            this.scrubSeekInFlight = false;
+            if (this.scrubTarget !== time) this.scrubVideoTo(this.scrubTarget);
+        };
+        // In case a seek never reports back, so later seeks are not held up forever
+        const backstop = setTimeout(landed, 500);
+        this.video.addEventListener('seeked', landed);
+        this.seekVideoTo(time);
     }
 
     // Whether an event target is somewhere a click should seek: inside a seek
@@ -2316,10 +2472,19 @@ export class Editor {
             this.timelineScrubber.style.opacity = '0';
         }
 
-        // Seek to initial position
-        this.seekVideoTo(this.timeFromClientX(e.clientX));
+        // Seek to initial position at once: a click is a fresh request, not part of a drag
+        // already being chased (see scrubVideoTo, which a seek still in flight hands over to).
+        this.scrubTarget = this.timeFromClientX(e.clientX);
+        this.seekVideoTo(this.scrubTarget);
+        this.paintScrubber();
 
         e.preventDefault();
+    }
+
+    // The scrubber follows the pointer directly rather than waiting for each seek to land.
+    scrubTimelineTo(time) {
+        this.scrubVideoTo(time);
+        this.paintScrubber();
     }
 
     endTimelineDrag() {
@@ -2363,7 +2528,7 @@ export class Editor {
 
         document.addEventListener('mousemove', (e) => {
             if (this.isDragging) {
-                this.seekVideoTo(this.timeFromClientX(e.clientX));
+                this.scrubTimelineTo(this.timeFromClientX(e.clientX));
                 e.preventDefault();
             }
         });
