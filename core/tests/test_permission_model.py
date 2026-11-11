@@ -22,11 +22,9 @@ from core.factories import ResourceFactory
 from core.factories import ResourceFileFactory
 from core.factories import ResourceFileKeyFactory
 from core.factories import SubtitleFactory
-from core.factories import TrackFactory
 from core.factories import UserCourseFactory
 from core.factories import UserFactory
 from core.models import TERM_GRACE_PERIOD
-from core.models import AnnotationSet
 from core.models import PlaylistRole
 from core.models import ResourceFileKey
 from core.models import User
@@ -254,107 +252,6 @@ class ResourceAccessTests(TestCase):
         visible = set(accessible_resources(self.instructor))
 
         self.assertEqual(visible, {self.granted_resource, self.library_resource})
-
-
-class OrphanedAnnotationSetTests(TestCase):
-    def setUp(self):
-        self.owner = UserFactory(
-            instructor=True, first_name="Ada", last_name="Lovelace", netid="alovelace"
-        )
-        self.resource_file = ResourceFileFactory()
-        self.resource = self.resource_file.resource
-        ResourceAccessFactory(user=self.owner, resource=self.resource)
-        self.annotation_set = AnnotationSetFactory(
-            owner=self.owner, resource=self.resource, name="Ada's Annotations"
-        )
-        self.track = TrackFactory(annotation_set=self.annotation_set)
-        self.borrower = UserFactory(instructor=True)
-        ResourceAccessFactory(user=self.borrower, resource=self.resource)
-        self.borrowed_content = ContentFactory(
-            playlist=PlaylistFactory(owner=self.borrower),
-            resource_file=self.resource_file,
-        )
-        self.borrowed_content.annotation_set = self.annotation_set
-        self.borrowed_content.save()
-
-    def test_orphaning_keeps_the_row_and_records_the_previous_owner(self):
-        self.annotation_set.orphan()
-
-        self.annotation_set.refresh_from_db()
-        self.assertIsNone(self.annotation_set.owner_id)
-        self.assertEqual(self.annotation_set.previous_owner, "Ada Lovelace (alovelace)")
-        self.assertTrue(
-            AnnotationSet.objects.filter(pk=self.annotation_set.pk).exists()
-        )
-
-    def test_an_orphaned_set_stays_the_active_set_of_borrowing_content(self):
-        self.annotation_set.orphan()
-
-        self.borrowed_content.refresh_from_db()
-        self.assertEqual(
-            self.borrowed_content.annotation_set_id, self.annotation_set.pk
-        )
-
-    def test_an_orphaned_set_is_still_readable_and_copyable(self):
-        self.annotation_set.orphan()
-
-        self.assertTrue(self.annotation_set.can_be_read_by(self.borrower))
-
-    def test_an_orphaned_set_is_frozen_even_for_the_user_who_retired_it(self):
-        self.annotation_set.orphan()
-
-        self.assertFalse(self.annotation_set.can_be_edited_by(self.owner))
-
-    def test_a_superuser_can_still_edit_an_orphaned_set(self):
-        self.annotation_set.orphan()
-
-        self.assertTrue(self.annotation_set.can_be_edited_by(UserFactory(admin=True)))
-
-    def test_str_does_not_raise_on_an_orphaned_set(self):
-        self.annotation_set.orphan()
-
-        self.assertIn("no owner", str(self.annotation_set))
-        self.assertIn("Ada Lovelace", str(self.annotation_set))
-
-    def test_the_label_degrades_gracefully_with_no_previous_owner(self):
-        self.annotation_set.owner = None
-        self.annotation_set.save()
-
-        self.assertEqual(self.annotation_set.owner_label(), "no owner")
-        self.assertIn("no owner", str(self.annotation_set))
-
-    def test_orphaning_twice_under_the_same_name_leaves_two_distinguishable_rows(self):
-        """SQL treats NULLs as distinct, so (name, resource, NULL) permits duplicates."""
-        self.annotation_set.orphan()
-        recreated = AnnotationSetFactory(
-            owner=self.owner, resource=self.resource, name="Ada's Annotations"
-        )
-        recreated.orphan()
-
-        orphans = AnnotationSet.objects.filter(
-            resource=self.resource, owner__isnull=True, name="Ada's Annotations"
-        )
-        self.assertEqual(orphans.count(), 2)
-        self.assertNotEqual(*[orphan.created_at for orphan in orphans])
-
-    def test_deleting_the_owner_orphans_rather_than_destroys(self):
-        self.owner.delete()
-
-        self.annotation_set.refresh_from_db()
-        self.assertIsNone(self.annotation_set.owner_id)
-        self.assertEqual(self.annotation_set.previous_owner, "Ada Lovelace (alovelace)")
-
-    def test_deleting_the_owner_leaves_the_tracks_in_place(self):
-        self.owner.delete()
-
-        self.assertTrue(type(self.track).objects.filter(pk=self.track.pk).exists())
-
-    def test_a_name_may_be_reused_by_a_different_owner_on_the_same_resource(self):
-        duplicate = AnnotationSetFactory(
-            owner=self.borrower, resource=self.resource, name="Ada's Annotations"
-        )
-
-        self.assertNotEqual(duplicate.pk, self.annotation_set.pk)
 
 
 class AnnotationSetSharingTests(TestCase):

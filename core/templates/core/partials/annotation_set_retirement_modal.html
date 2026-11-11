@@ -1,30 +1,39 @@
 {% load static %}
 
-<dialog id="annotation-set-retirement-modal" class="dark-mode">
+<dialog id="annotation-set-deletion-modal" class="dark-mode">
     <div id="annotation-set-settings-compact"
          class="column-flex"
          data-annotation-set-id="{{ annotation_set.id }}"
          data-annotation-set-name="{{ annotation_set.name }}">
         <button class="close-dialog-button"
                 command="close"
-                commandfor="annotation-set-retirement-modal"
-                aria-label="Close annotation set retirement modal">X</button>
-        <h2>Retire Annotation set</h2>
+                commandfor="annotation-set-deletion-modal"
+                aria-label="Close delete annotation set modal">X</button>
+        <h2>Delete Annotation set</h2>
         <div class="column-flex">
             <p class="annotation-set-editors-note">
-                Retiring "{{ annotation_set.name }}" keeps the set readable and
-                copyable for anyone already using it, but nobody will be able to
-                change it again.
+                Deleting "{{ annotation_set.name }}" will transfer ownership to
+                another user that uses this set, if one is available.
+                Otherwise, the set and its annotations will be permanently deleted.
             </p>
+            {% if annotation_set_owner_candidates|length > 1 %}
+                <label for="annotation-set-new-owner">Reassign ownership to (optional):</label>
+                <select id="annotation-set-new-owner" name="new_owner_id">
+                    <option value="">Choose automatically</option>
+                    {% for candidate in annotation_set_owner_candidates %}
+                        <option value="{{ candidate.pk }}">{{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})</option>
+                    {% endfor %}
+                </select>
+            {% endif %}
             <div>
                 <button id="annotation-set-delete"
                         class="red-button"
-                        aria-label="Retire the {{ annotation_set.name }} annotation set">Retire this set</button>
+                        aria-label="Remove the {{ annotation_set.name }} annotation set">Delete this set</button>
                 <button type="button"
                         class="cancel-button"
                         command="close"
-                        commandfor="annotation-set-retirement-modal"
-                        aria-label="Cancel annotation set retirement">Cancel</button>
+                        commandfor="annotation-set-deletion-modal"
+                        aria-label="Cancel annotation set deletion">Cancel</button>
             </div>
         </div>
     </div>

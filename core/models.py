@@ -11,8 +11,6 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db import transaction
-from django.db.models.signals import pre_delete
-from django.dispatch import receiver
 from django.utils import timezone
 import xxhash
 
@@ -314,26 +312,6 @@ class User(AbstractUser):
         return resource_file_key
 
 
-def describe_user_for_attribution(user):
-    """Name and netid, for records that must outlive the User row."""
-    full_name = user.get_full_name().strip()
-    if user.netid:
-        return f"{full_name} ({user.netid})".strip()
-    return full_name or user.username
-
-
-@receiver(pre_delete, sender=settings.AUTH_USER_MODEL)
-def stamp_previous_owner_on_annotation_sets(sender, instance, **kwargs):
-    """Preserve attribution before the database nulls AnnotationSet.owner.
-
-    on_delete=SET_NULL runs in the database, which cannot populate a sibling column,
-    so deleting an account would otherwise leave its sets labelled only "no owner".
-    """
-    instance.owned_annotation_sets.update(
-        previous_owner=describe_user_for_attribution(instance)
-    )
-
-
 class ResourceAccess(models.Model):  # "through" model
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
@@ -596,14 +574,6 @@ class AnnotationSet(models.Model):
         null=True,
         blank=True,
     )
-    previous_owner = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text=(
-            "Display name and netid of the owner at the time the set was orphaned. "
-            "Preserves attribution after the owner deletes the set or their account."
-        ),
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -618,12 +588,7 @@ class AnnotationSet(models.Model):
         """Chooser and admin label for the owner, which may be NULL."""
         if self.owner_id:
             return self.owner.get_full_name()
-        if self.previous_owner:
-            return f"no owner — was {self.previous_owner}"
         return "no owner"
-
-    def is_orphaned(self):
-        return self.owner_id is None
 
     def can_be_edited_by(self, user):
         if user.is_superuser:
@@ -645,20 +610,53 @@ class AnnotationSet(models.Model):
     def can_be_read_by(self, user):
         return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
 
-    def can_be_orphaned_by(self, user):
-        """Only the owner may retire a set, mirroring a collaborator's inability to delete a playlist."""
+    def can_be_administered_by(self, user):
+        """Admin and owner are the only users that have full control over an annotation set"""
         return user.is_superuser or self.owner_id == user.pk
 
-    def orphan(self):
-        """Retire this set without deleting it.
-
-        Contents that already reference it keep working, and it stays readable and
-        copyable, so retiring a set never forces borrowers into near-identical copies.
+    def delete_or_reassign_ownership(self, user, new_owner=None):
+        """If the set has no other users, delete it immediately. If there is 1 other user or a named new_owner,
+        transfer ownership to that user. If there is more than one other user and no named owner, choose an
+        owner by ???
         """
-        if self.owner_id:
-            self.previous_owner = describe_user_for_attribution(self.owner)
-        self.owner = None
-        self.save(update_fields=["owner", "previous_owner", "updated_at"])
+        if user.id != self.owner_id:
+            return False
+
+        try:
+            with transaction.atomic():
+                # allows for admin user to become the owner, but only if there is not a non-admin user.
+                users_using_this_set_other_than_owner = list(
+                    User.objects.filter(playlists_owned__contents__annotation_set=self)
+                    .exclude(pk=user.id)
+                    .order_by("is_superuser", "pk")
+                    .distinct()
+                )
+
+                # determine who should be the new owner
+                if new_owner and new_owner in users_using_this_set_other_than_owner:
+                    self.owner = new_owner
+                else:
+                    self.owner = (
+                        users_using_this_set_other_than_owner[0]
+                        if users_using_this_set_other_than_owner
+                        else None
+                    )
+
+                # handle deletion/reassignment
+                if self.owner is None:
+                    self.delete()
+                else:
+                    self.save(update_fields=["owner", "updated_at"])
+                    self.contents.filter(playlist__owner_id=user.id).update(
+                        annotation_set=None
+                    )
+
+        except Exception as e:
+            logger.error(
+                f"An error occurred while attempting to delete an annotation set or reassign its owner. Exception: {e}"
+            )
+            return False
+        return True
 
     @classmethod
     def create_for_content(

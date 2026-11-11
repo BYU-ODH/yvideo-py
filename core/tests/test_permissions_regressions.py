@@ -668,7 +668,7 @@ class CollaboratorTests(TestCase):
             self.playlist.can_grant_role(self.collaborator, PlaylistRole.STUDENT)
         )
 
-    def test_a_collaborator_may_not_retire_the_owners_annotation_set(self):
+    def test_a_collaborator_may_not_delete_the_owners_annotation_set(self):
         response = self.client.delete(
             reverse("delete_annotation_set", args=[self.annotation_set.pk])
         )
@@ -706,16 +706,6 @@ class OwnerHappyPathTests(TestCase):
         response = self.client.get(reverse("video_editor", args=[self.content.pk]))
 
         self.assertEqual(response.status_code, 200)
-
-    def test_the_owner_may_retire_their_own_set(self):
-        response = self.client.delete(
-            reverse("delete_annotation_set", args=[self.annotation_set.pk])
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.annotation_set.refresh_from_db()
-        self.assertIsNone(self.annotation_set.owner_id)
-        self.assertTrue(self.annotation_set.previous_owner)
 
     def test_the_owner_may_copy_a_set_they_can_read(self):
         borrowed = AnnotationSetFactory(resource=self.resource, name="Someone else's")
@@ -763,20 +753,6 @@ class OwnerHappyPathTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.content.refresh_from_db()
         self.assertEqual(self.content.annotation_set_id, borrowed.pk)
-
-    def test_the_owner_may_select_an_orphaned_set(self):
-        """Retiring a set must not strip it out of everyone else's chooser."""
-        orphan = AnnotationSetFactory(resource=self.resource)
-        orphan.orphan()
-
-        response = self.post_json(
-            reverse("select_annotation_set", args=[self.content.pk]),
-            {"annotation_set_id": orphan.pk},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.content.refresh_from_db()
-        self.assertEqual(self.content.annotation_set_id, orphan.pk)
 
     def test_the_owner_may_create_content_from_an_accessible_resource(self):
         response = self.post_json(
