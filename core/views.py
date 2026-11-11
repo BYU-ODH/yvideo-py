@@ -316,9 +316,27 @@ def _stream_content_type(file_obj, file_path):
     return "application/octet-stream"
 
 
-def _iter_file(file_path, chunk_size=8192):
+# Largest slice of a file sent for one Range request. Browsers open video with
+# "bytes=0-" (the whole file); answering that with a capped 206 makes them come
+# back for the next slice as playback needs it, so no request holds a worker for
+# a whole video. Range-capable clients, Safari/AVFoundation included, read
+# Content-Range and continue from where the response ended.
+MAX_RANGE_RESPONSE_BYTES = 8 * 1024 * 1024
+STREAM_CHUNK_BYTES = 64 * 1024
+
+
+def _iter_file(file_path, start=0, length=None, chunk_size=STREAM_CHUNK_BYTES):
+    """Yield the file from ``start`` in chunks: ``length`` bytes, or to EOF."""
     with open(file_path, "rb") as f:
-        while chunk := f.read(chunk_size):
+        f.seek(start)
+        remaining = length
+        while remaining is None or remaining > 0:
+            size = chunk_size if remaining is None else min(chunk_size, remaining)
+            chunk = f.read(size)
+            if not chunk:
+                break
+            if remaining is not None:
+                remaining -= len(chunk)
             yield chunk
 
 
@@ -333,20 +351,23 @@ def _file_response(request, file_obj):
         start = int(range_match.group(1))
         end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
 
-        if start >= file_size:
+        # A start past EOF, or a reversed range such as "bytes=5-2", cannot be
+        # served. Without the reversed check, the negative read length below
+        # would turn a bad client header into a garbage response or a 500.
+        if start >= file_size or end < start:
             response = HttpResponse(status=416)  # Range Not Satisfiable
             response["Content-Range"] = f"bytes */{file_size}"
             return response
 
-        end = min(end, file_size - 1)
-        chunk_size = end - start + 1
-        with open(file_path, "rb") as f:
-            f.seek(start)
-            content = f.read(chunk_size)
-
-        response = HttpResponse(content, status=206, content_type=content_type)
+        end = min(end, file_size - 1, start + MAX_RANGE_RESPONSE_BYTES - 1)
+        length = end - start + 1
+        response = StreamingHttpResponse(
+            _iter_file(file_path, start, length),
+            status=206,
+            content_type=content_type,
+        )
         response["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-        response["Content-Length"] = str(chunk_size)
+        response["Content-Length"] = str(length)
     else:
         response = StreamingHttpResponse(
             _iter_file(file_path), content_type=content_type
@@ -354,7 +375,9 @@ def _file_response(request, file_obj):
         response["Content-Length"] = str(file_size)
 
     response["Accept-Ranges"] = "bytes"
-    response["Cache-Control"] = "public, max-age=3600"
+    # private: the media key is bound to one user (#320), so shared caches must
+    # not store the bytes and serve them to anyone else.
+    response["Cache-Control"] = "private, max-age=3600"
     response["ETag"] = f'"{file_size}-{os.path.getmtime(file_path)}"'
     return response
 

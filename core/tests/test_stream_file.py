@@ -18,6 +18,10 @@ from core.factories import UserFactory
 PAYLOAD = b"0123456789abcdef"
 
 
+def body(response):
+    return b"".join(response.streaming_content)
+
+
 def login(client, user):
     client.force_login(user)
     session = client.session
@@ -55,7 +59,7 @@ class StreamFileTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response, StreamingHttpResponse)
-        self.assertEqual(b"".join(response.streaming_content), PAYLOAD)
+        self.assertEqual(body(response), PAYLOAD)
         self.assertEqual(response["Content-Length"], str(len(PAYLOAD)))
         self.assertEqual(response["Content-Type"], "video/mp4")
         self.assertEqual(response["Accept-Ranges"], "bytes")
@@ -64,22 +68,98 @@ class StreamFileTests(TestCase):
         response = self.client.get(self.url, HTTP_RANGE="bytes=2-5")
 
         self.assertEqual(response.status_code, 206)
-        self.assertEqual(response.content, PAYLOAD[2:6])
+        self.assertEqual(body(response), PAYLOAD[2:6])
         self.assertEqual(response["Content-Range"], f"bytes 2-5/{len(PAYLOAD)}")
         self.assertEqual(response["Content-Length"], "4")
         self.assertEqual(response["Content-Type"], "video/mp4")
+
+    def test_range_response_is_streamed(self):
+        response = self.client.get(self.url, HTTP_RANGE="bytes=0-")
+
+        self.assertIsInstance(response, StreamingHttpResponse)
+
+    def test_open_ended_range_is_capped(self):
+        # "bytes=0-" is how Chrome and Firefox open a <video>. It must not
+        # send the whole file in one response.
+        with mock.patch("core.views.MAX_RANGE_RESPONSE_BYTES", 4):
+            response = self.client.get(self.url, HTTP_RANGE="bytes=0-")
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(body(response), PAYLOAD[:4])
+        self.assertEqual(response["Content-Range"], f"bytes 0-3/{len(PAYLOAD)}")
+        self.assertEqual(response["Content-Length"], "4")
+
+    def test_explicit_large_range_is_capped(self):
+        # Safari follows its "bytes=0-1" probe with an explicit range over the
+        # whole file, so closed ranges are capped too.
+        with mock.patch("core.views.MAX_RANGE_RESPONSE_BYTES", 4):
+            response = self.client.get(
+                self.url, HTTP_RANGE=f"bytes=2-{len(PAYLOAD) - 1}"
+            )
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(body(response), PAYLOAD[2:6])
+        self.assertEqual(response["Content-Range"], f"bytes 2-5/{len(PAYLOAD)}")
+        self.assertEqual(response["Content-Length"], "4")
+
+    def test_following_content_range_reassembles_file(self):
+        # A client that resumes from each Content-Range gets the exact file.
+        received = b""
+        with mock.patch("core.views.MAX_RANGE_RESPONSE_BYTES", 5):
+            while len(received) < len(PAYLOAD):
+                response = self.client.get(
+                    self.url, HTTP_RANGE=f"bytes={len(received)}-"
+                )
+                self.assertEqual(response.status_code, 206)
+                chunk = body(response)
+                self.assertEqual(response["Content-Length"], str(len(chunk)))
+                received += chunk
+
+        self.assertEqual(received, PAYLOAD)
 
     def test_open_ended_range_runs_to_end(self):
         response = self.client.get(self.url, HTTP_RANGE="bytes=10-")
 
         self.assertEqual(response.status_code, 206)
-        self.assertEqual(response.content, PAYLOAD[10:])
+        self.assertEqual(body(response), PAYLOAD[10:])
 
     def test_unsatisfiable_range_is_416(self):
         response = self.client.get(self.url, HTTP_RANGE=f"bytes={len(PAYLOAD)}-")
 
         self.assertEqual(response.status_code, 416)
         self.assertEqual(response["Content-Range"], f"bytes */{len(PAYLOAD)}")
+
+    def test_reversed_range_is_416(self):
+        response = self.client.get(self.url, HTTP_RANGE="bytes=5-2")
+
+        self.assertEqual(response.status_code, 416)
+        self.assertEqual(response["Content-Range"], f"bytes */{len(PAYLOAD)}")
+
+    def test_safari_probe_range_returns_exact_two_bytes(self):
+        # Safari/iOS opens media with "bytes=0-1" and refuses to play unless the
+        # server answers 206 with exactly those bytes and the total size.
+        response = self.client.get(self.url, HTTP_RANGE="bytes=0-1")
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(body(response), PAYLOAD[:2])
+        self.assertEqual(response["Content-Range"], f"bytes 0-1/{len(PAYLOAD)}")
+        self.assertEqual(response["Content-Length"], "2")
+        self.assertEqual(response["Accept-Ranges"], "bytes")
+        self.assertEqual(response["Content-Type"], "video/mp4")
+
+    def test_range_end_past_eof_is_clamped(self):
+        response = self.client.get(self.url, HTTP_RANGE="bytes=10-999")
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(body(response), PAYLOAD[10:])
+        self.assertEqual(
+            response["Content-Range"], f"bytes 10-{len(PAYLOAD) - 1}/{len(PAYLOAD)}"
+        )
+
+    def test_cache_control_is_private(self):
+        for headers in ({}, {"HTTP_RANGE": "bytes=0-1"}):
+            response = self.client.get(self.url, **headers)
+            self.assertEqual(response["Cache-Control"], "private, max-age=3600")
 
     def test_unknown_key_is_404(self):
         response = self.client.get(reverse("stream_file", args=[self.key.pk + 1000]))
