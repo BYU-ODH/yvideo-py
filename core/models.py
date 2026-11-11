@@ -963,7 +963,9 @@ class Content(models.Model):
         resource = self.get_resource()
         if not resource:
             return AnnotationSet.objects.none()
-        sets = AnnotationSet.objects.filter(resource=resource).order_by("retired")
+        sets = AnnotationSet.objects.filter(resource=resource).order_by(
+            "retired", "name"
+        )
         if user is None:
             return sets
         return [
