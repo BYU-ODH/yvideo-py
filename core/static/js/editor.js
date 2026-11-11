@@ -2890,9 +2890,10 @@ export class Editor {
       }
       const editorContainer = document.getElementById("editor-container");
       editorContainer.addEventListener("click", (e) => {
-        // The copy prompt itself, and read-only controls like the set chooser and playback,
-        // have to stay usable.
-        if (e.target.closest("#annotation-set-copy-prompt, .annotation-set-selector-wrapper, #video-section")) {
+        // Keep the menu and its dialogs usable, along with the copy prompt and playback controls.
+        if (e.target.closest(`#annotation-set-copy-prompt, .annotation-set-selector-wrapper,
+          #annotation-set-settings-menu-wrapper, #annotation-set-options-modal,
+          #export-annotation-set, #video-section`)) {
           return;
         }
         // Selecting an annotation is a read: its form renders read-only for borrowers
