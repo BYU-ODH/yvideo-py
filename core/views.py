@@ -21,6 +21,7 @@ from django.http import HttpResponseBadRequest
 from django.http import HttpResponseRedirect
 from django.http import HttpResponseServerError
 from django.http import JsonResponse
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
@@ -272,118 +273,90 @@ def player(request, content):
 @require_GET
 def stream_file(request, resource_file_key_id):
     """Stream file content with support for HTTP Range requests (partial content)."""
+    # Keys are minted per playback by User.get_resource_filekey, which is where
+    # the permission check happens. Binding the key to its user and expiring it
+    # stops a key id -- sequential, and visible in the page source -- from being
+    # a durable capability anyone can replay (#320).
+    resource_file_key_obj = get_object_or_404(ResourceFileKey, id=resource_file_key_id)
+    if not resource_file_key_obj.can_be_used_by(request.user):
+        return forbidden("This media key is not valid for you, or has expired.")
+    file_obj = resource_file_key_obj.resource_file
+
+    if not file_obj.file or not os.path.exists(file_obj.file.path):
+        raise Http404("File not found")
+
     try:
-        # Keys are minted per playback by User.get_resource_filekey, which is where
-        # the permission check happens. Binding the key to its user and expiring it
-        # stops a key id -- sequential, and visible in the page source -- from being
-        # a durable capability anyone can replay (#320).
-        resource_file_key_obj = get_object_or_404(
-            ResourceFileKey, id=resource_file_key_id
+        return _file_response(request, file_obj)
+    except Exception:
+        logger.exception(
+            "Error streaming resource file %s (key %s)",
+            file_obj.pk,
+            resource_file_key_id,
         )
-        if not resource_file_key_obj.can_be_used_by(request.user):
-            return forbidden("This media key is not valid for you, or has expired.")
-        file_obj = resource_file_key_obj.resource_file
+        return HttpResponseServerError("Error streaming file.")
 
-        # Check if file exists
-        if not file_obj.file or not os.path.exists(file_obj.file.path):
-            raise Http404("File not found")
 
-        file_path = file_obj.file.path
-        file_size = os.path.getsize(file_path)
+def _stream_content_type(file_obj, file_path):
+    content_type, _ = mimetypes.guess_type(file_path)
+    if content_type:
+        return content_type
+    name = file_obj.file.name.lower()
+    if name.endswith((".mp4", ".m4v")):
+        return "video/mp4"
+    if name.endswith(".webm"):
+        return "video/webm"
+    if name.endswith((".mov", ".qt")):
+        return "video/quicktime"
+    if name.endswith(".mp3"):
+        return "audio/mpeg"
+    if name.endswith(".m4a"):
+        return "audio/mp4"
+    if name.endswith(".wav"):
+        return "audio/wav"
+    return "application/octet-stream"
 
-        # Get proper MIME type
-        content_type, _ = mimetypes.guess_type(file_path)
-        if not content_type:
-            if file_obj.file.name.lower().endswith((".mp4", ".m4v")):
-                content_type = "video/mp4"
-            elif file_obj.file.name.lower().endswith(".webm"):
-                content_type = "video/webm"
-            elif file_obj.file.name.lower().endswith((".mov", ".qt")):
-                content_type = "video/quicktime"
-            elif file_obj.file.name.lower().endswith(".mp3"):
-                content_type = "audio/mpeg"
-            elif file_obj.file.name.lower().endswith(".m4a"):
-                content_type = "audio/mp4"
-            elif file_obj.file.name.lower().endswith(".wav"):
-                content_type = "audio/wav"
-            else:
-                content_type = "application/octet-stream"
 
-        # Parse Range header
-        range_header = request.META.get("HTTP_RANGE")
-        if range_header:
-            # Parse range header like "bytes=0-1023" or "bytes=1024-"
-            range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
-            if range_match:
-                start = int(range_match.group(1))
-                end = (
-                    int(range_match.group(2)) if range_match.group(2) else file_size - 1
-                )
+def _iter_file(file_path, chunk_size=8192):
+    with open(file_path, "rb") as f:
+        while chunk := f.read(chunk_size):
+            yield chunk
 
-                # Validate range - fix the validation logic
-                if start >= file_size:
-                    response = HttpResponse(status=416)  # Range Not Satisfiable
-                    response["Content-Range"] = f"bytes */{file_size}"
-                    return response
 
-                # Ensure end doesn't exceed file size
-                end = min(end, file_size - 1)
+def _file_response(request, file_obj):
+    file_path = file_obj.file.path
+    file_size = os.path.getsize(file_path)
+    content_type = _stream_content_type(file_obj, file_path)
 
-                # Read file chunk
-                with open(file_path, "rb") as f:
-                    f.seek(start)
-                    chunk_size = end - start + 1
-                    content = f.read(chunk_size)
+    # Parse a Range header like "bytes=0-1023" or "bytes=1024-".
+    range_match = re.match(r"bytes=(\d+)-(\d*)", request.META.get("HTTP_RANGE", ""))
+    if range_match:
+        start = int(range_match.group(1))
+        end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
 
-                # Create partial content response
-                response = HttpResponse(content, status=206)  # Partial Content
-                response["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-                response["Content-Length"] = str(chunk_size)
-                response["Accept-Ranges"] = "bytes"
-                response["Content-Type"] = content_type
+        if start >= file_size:
+            response = HttpResponse(status=416)  # Range Not Satisfiable
+            response["Content-Range"] = f"bytes */{file_size}"
+            return response
 
-                # Add caching headers for better performance
-                response["Cache-Control"] = "public, max-age=3600"
-                response["ETag"] = f'"{file_size}-{os.path.getmtime(file_path)}"'
+        end = min(end, file_size - 1)
+        chunk_size = end - start + 1
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            content = f.read(chunk_size)
 
-                return response
-
-        # No range header - return full file (but WebKit will likely request ranges anyway)
-        # For large files, consider always forcing range requests
-        response = HttpResponse()
+        response = HttpResponse(content, status=206, content_type=content_type)
+        response["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        response["Content-Length"] = str(chunk_size)
+    else:
+        response = StreamingHttpResponse(
+            _iter_file(file_path), content_type=content_type
+        )
         response["Content-Length"] = str(file_size)
-        response["Accept-Ranges"] = "bytes"
-        response["Content-Type"] = content_type
-        response["Cache-Control"] = "public, max-age=3600"
-        response["ETag"] = f'"{file_size}-{os.path.getmtime(file_path)}"'
 
-        # For large video files, encourage range requests
-        if file_size > 1024 * 1024 and content_type.startswith("video/"):  # > 1MB
-            # Return 206 with full range to encourage proper range handling
-            response.status_code = 206
-            response["Content-Range"] = f"bytes 0-{file_size - 1}/{file_size}"
-
-        # Stream the content in chunks to avoid memory issues
-        def file_iterator(file_path, chunk_size=8192):
-            with open(file_path, "rb") as f:
-                while True:
-                    chunk = f.read(chunk_size)
-                    if not chunk:
-                        break
-                    yield chunk
-
-        response = HttpResponse(file_iterator(file_path), content_type=content_type)
-        response["Content-Length"] = str(file_size)
-        response["Accept-Ranges"] = "bytes"
-        response["Cache-Control"] = "public, max-age=3600"
-        response["ETag"] = f'"{file_size}-{os.path.getmtime(file_path)}"'
-
-        return response
-
-    except ResourceFileKey.DoesNotExist:
-        raise Http404("Invalid resource file key")
-    except Exception as e:
-        return HttpResponse(f"Error streaming file: {str(e)}", status=500)
+    response["Accept-Ranges"] = "bytes"
+    response["Cache-Control"] = "public, max-age=3600"
+    response["ETag"] = f'"{file_size}-{os.path.getmtime(file_path)}"'
+    return response
 
 
 @require_GET
