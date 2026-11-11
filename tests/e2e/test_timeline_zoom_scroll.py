@@ -43,6 +43,7 @@ def _timeline_state(page):
             return {
                 scrollLeft: content.scrollLeft,
                 contentWidth: contentWidth,
+                maxScrollLeft: content.scrollWidth - content.clientWidth,
                 leftEdgeSeconds: duration * (content.scrollLeft / contentWidth),
                 trackScrollLefts: [...document.getElementsByClassName('timeline-track-row-right')]
                     .map((row) => row.scrollLeft),
@@ -154,8 +155,31 @@ def test_the_scroll_slider_reflects_where_the_timeline_actually_is(page, open_ed
         "zooming did not scroll the timeline, so this proves nothing"
     )
     assert slider_percent == pytest.approx(
-        state["scrollLeft"] / state["contentWidth"] * 100, abs=1
+        state["scrollLeft"] / state["maxScrollLeft"] * 100, abs=1
     )
+
+
+@pytest.mark.parametrize("zoom_clicks", [1, ZOOM_CLICKS])
+def test_the_scroll_slider_reaches_both_ends(page, open_editor, zoom_clicks):
+    page.set_viewport_size(WIDE_VIEWPORT)
+    open_editor()
+    for _ in range(zoom_clicks):
+        page.locator("#zoom-in-button").click()
+
+    slider = page.locator("#timeline-scroll-input")
+    for key, percent in [("End", 100), ("Home", 0)]:
+        slider.press(key)
+        page.wait_for_timeout(200)
+        state = _timeline_state(page)
+
+        assert state["maxScrollLeft"] > 0, "the timeline must be zoomed to scroll"
+        assert float(slider.input_value()) == pytest.approx(percent, abs=0.01)
+        assert state["scrollLeft"] == pytest.approx(
+            state["maxScrollLeft"] * percent / 100, abs=1
+        )
+        assert state["trackScrollLefts"], "no track rows were found"
+        for offset in state["trackScrollLefts"]:
+            assert offset == pytest.approx(state["scrollLeft"], abs=1)
 
 
 def _misalignments(page):

@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupMultiOptionMenu } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupMultiOptionMenu, setupInPlaceFieldEdit } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { saveStatus } from "./save-status.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
@@ -7,6 +7,7 @@ import {
   clampRect,
   blurAnchorPointsLostByRetiming,
 } from "./video-geometry.js";
+import { nearestEdge, pickSnapEdge } from "./timeline-snap.js";
 
 // makePostRequest for a request that persists an edit, so the save indicator sees it.
 const saveFetch = (...args) => saveStatus.fetch(...args);
@@ -54,6 +55,16 @@ export class Editor {
         this.timelineWrapper = document.getElementById('timeline-wrapper');
         this.zoomSliderInput = document.getElementById('timeline-scroll-input');
         this.editorScrubber = document.querySelector('#editor-scrubber');
+        this.editorShadowScrubber = document.querySelector('#editor-shadow-scrubber');
+        // Set while an item or handle is being dragged; see beginDragPreview.
+        this.dragPreview = null;
+        // Same-track move state, carried from dragover to drop: which edge (0 start, 1 end) is
+        // snapped to the playhead, and the start time the drop should save.
+        this.moveSnapIndex = -1;
+        this.moveDropStartTime = null;
+        // See scrubVideoTo
+        this.scrubTarget = 0;
+        this.scrubSeekInFlight = false;
         this.zoomLevel = 1;
         this.timelineScrollRatio = 0;
         this.timelineScrollLeft = 0;
@@ -70,7 +81,7 @@ export class Editor {
         this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
-        // The cues as last sent to (or rendered by) the server; see buildWatchersForSubtitleEditorCues.
+        // The cues as last sent to (or rendered by) the server; see setupSubtitleEditor input watcher
         this.sentCueState = null;
         this.itemBeingDragged = null;
         this.dragGrabOffsetX = 0;
@@ -124,6 +135,8 @@ export class Editor {
         this.updateTracks();
         document.addEventListener('mousemove', this.handleMouseMove.bind(this));
         document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        // Capture phase, so the player's bare-key seeking and Escape-to-deselect do not see it.
+        document.addEventListener('keydown', this.handleResizeKeyDown.bind(this), true);
 
         this.placeTrackItems();
         document.body.addEventListener('htmx:afterSettle', this.handleTrackItemPlacementAfterEvent.bind(this));
@@ -145,7 +158,7 @@ export class Editor {
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
         this.watchAndHandleEditorPanelSwitch();
-        this.setupSubtitleEditorMenu();
+        this.setupSubtitleEditor();
         this.watchAndHandleSubtitleTrackChange();
         this.watchForSubtitleTrackCreation();
 
@@ -192,7 +205,9 @@ export class Editor {
             containerWidth,
             hasMoved: false,
             originalLeft: itemLeft,
-            originalWidth: itemWidth
+            originalWidth: itemWidth,
+            // Whether the dragged edge is snapped to the playhead (kept between moves for hysteresis)
+            snapped: false,
         };
 
         // Reset deltas
@@ -204,8 +219,11 @@ export class Editor {
         // Hide the hover scrubber for the duration of the resize
         if (this.timelineScrubber) this.timelineScrubber.style.opacity = '0';
 
-        // Seek video to the handle position being dragged
-        this.seekToHandlePosition(isLeft, parseFloat(trackItem.style.left), parseFloat(trackItem.style.width));
+        // Show the frame under the handle being dragged, leaving the playhead where it is
+        this.beginDragPreview();
+        this.dragState.parkedTime = this.dragPreview.parkedTime;
+        const edgeRatio = isLeft ? itemLeft : itemLeft + itemWidth;
+        this.showDragPreview(edgeRatio * this.duration, false);
     }
 
     handleMouseDown(e) {
@@ -215,9 +233,13 @@ export class Editor {
         const resizeHandle = e.target.closest('.resize-handle');
 
         if (resizeHandle) {
-            this.startResize(trackItem, resizeHandle, e);
             e.preventDefault();
             e.stopPropagation();
+            if (!this.canEditAnnotationSet) {
+                this.promptToCopyAnnotationSet();
+                return;
+            }
+            this.startResize(trackItem, resizeHandle, e);
         }
     }
 
@@ -287,45 +309,67 @@ export class Editor {
     }
 
     updateResizePosition(e) {
-        const deltaX = e.clientX - this.dragState.startX;
+        const state = this.dragState;
+        const deltaX = e.clientX - state.startX;
         // Don't account for zoom in percent calculation - container width is already adjusted
-        const deltaPercent = (deltaX / this.dragState.containerWidth) * 100;
+        const deltaPercent = (deltaX / state.containerWidth) * 100;
         const minWidthPercent = (MIN_ITEM_SECONDS / this.duration) * 100;
+        const percentToPx = (percent) => (percent / 100) * state.containerWidth;
+        const parkedTime = state.parkedTime;
+        const parkedPercent = (parkedTime / this.duration) * 100;
+        const startRight = state.startLeft + state.startWidth;
 
-        if (this.dragState.isLeft) {
-            let newLeft = this.dragState.startLeft + deltaPercent;
-            let newWidth = this.dragState.startWidth - deltaPercent;
+        // Where the pointer puts the edge, before snapping or clamping. Snapping is judged from
+        // this, so leaving a snap takes the same pointer movement however the edge was drawn.
+        const rawEdgePercent = (state.isLeft ? state.startLeft : startRight) + deltaPercent;
+        // Only offer the snap if it leaves the item at least MIN_ITEM_SECONDS long.
+        const snapAllowed = state.isLeft
+            ? startRight - parkedPercent >= minWidthPercent
+            : parkedPercent - state.startLeft >= minWidthPercent;
+        state.snapped = pickSnapEdge(
+            [snapAllowed ? percentToPx(rawEdgePercent) : null],
+            percentToPx(parkedPercent),
+            state.snapped ? 0 : -1,
+        ) === 0;
 
-            newLeft = Math.max(0, newLeft);
-            newWidth = Math.max(minWidthPercent, newWidth);
-
-            if (newLeft + newWidth > 100) {
-                newWidth = 100 - newLeft;
+        let newLeft;
+        let newWidth;
+        if (state.isLeft) {
+            if (state.snapped) {
+                newLeft = parkedPercent;
+                newWidth = startRight - parkedPercent;
+            } else {
+                newLeft = Math.max(0, state.startLeft + deltaPercent);
+                newWidth = Math.max(minWidthPercent, state.startWidth - deltaPercent);
+                if (newLeft + newWidth > 100) {
+                    newWidth = 100 - newLeft;
+                }
             }
 
-            this.dragState.item.style.left = `${newLeft}%`;
-            this.dragState.item.style.width = `${newWidth}%`;
+            state.item.style.left = `${newLeft}%`;
+            state.item.style.width = `${newWidth}%`;
 
-            const deltaLeft = newLeft - this.dragState.originalLeft;
-            const deltaWidth = newWidth - this.dragState.originalWidth;
-            this.dragState.item.dataset.deltaLeft = deltaLeft.toFixed(2);
-            this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
-
-            this.seekToHandlePosition(true, newLeft, newWidth);
+            const deltaLeft = newLeft - state.originalLeft;
+            const deltaWidth = newWidth - state.originalWidth;
+            state.item.dataset.deltaLeft = deltaLeft.toFixed(2);
+            state.item.dataset.deltaWidth = deltaWidth.toFixed(2);
         } else {
-            let newWidth = this.dragState.startWidth + deltaPercent;
+            newLeft = state.startLeft;
+            if (state.snapped) {
+                newWidth = parkedPercent - state.startLeft;
+            } else {
+                newWidth = Math.max(minWidthPercent, state.startWidth + deltaPercent);
+                newWidth = Math.min(newWidth, 100 - state.startLeft);
+            }
 
-            newWidth = Math.max(minWidthPercent, newWidth);
-            const maxWidth = 100 - this.dragState.startLeft;
-            newWidth = Math.min(newWidth, maxWidth);
+            state.item.style.width = `${newWidth}%`;
 
-            this.dragState.item.style.width = `${newWidth}%`;
-
-            const deltaWidth = newWidth - this.dragState.originalWidth;
-            this.dragState.item.dataset.deltaWidth = deltaWidth.toFixed(2);
-
-            this.seekToHandlePosition(false, this.dragState.startLeft, newWidth);
+            const deltaWidth = newWidth - state.originalWidth;
+            state.item.dataset.deltaWidth = deltaWidth.toFixed(2);
         }
+
+        const edgePercent = state.isLeft ? newLeft : newLeft + newWidth;
+        this.showDragPreview(state.snapped ? parkedTime : (edgePercent / 100) * this.duration, state.snapped);
 
         this.updateBlurAnchorPointDotsDuringResize();
     }
@@ -344,23 +388,6 @@ export class Editor {
         });
     }
 
-    seekToHandlePosition(isLeft, leftPercent, widthPercent) {
-        const video = document.querySelector('#video-player');
-        if (!video) return;
-
-        // Calculate time based on which handle is being dragged
-        const timePercent = isLeft ? leftPercent : (leftPercent + widthPercent);
-        const targetTime = (timePercent / 100) * this.duration;
-
-        // Seek the video (this will trigger timeupdate and update the scrubber)
-        video.currentTime = targetTime;
-
-        // Also update via the player API if available
-        if (window.videoPlayer && window.videoPlayer.skipTo) {
-            window.videoPlayer.skipTo(targetTime);
-        }
-    }
-
     handleMouseUp(e) {
         if (!this.dragState) return;
 
@@ -368,6 +395,8 @@ export class Editor {
         this.dragState = null;
 
         document.body.classList.remove('resizing', 'resizing-item');
+        // The player goes back to the parked time; the drag only previewed frames.
+        this.endDragPreview();
 
         if (state.hasMoved) {
             this.triggerSave(state);
@@ -384,6 +413,34 @@ export class Editor {
             document.addEventListener('click', preventNextClick, true);
         }
         // If !hasMoved, don't prevent - let the click bubble to HTMX
+    }
+
+    // Escape mid-resize puts the item back where it was, saves nothing, and returns the player to
+    // the parked time. The button is still down, so the click that follows the release is
+    // swallowed too: it would select the item and seek to its start.
+    handleResizeKeyDown(e) {
+        if (e.key !== 'Escape' || !this.dragState) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const state = this.dragState;
+        this.dragState = null;
+        document.body.classList.remove('resizing', 'resizing-item');
+        state.item.dataset.deltaLeft = '0';
+        state.item.dataset.deltaWidth = '0';
+        // Re-lays out every item from its saved times, blur anchor point dots included.
+        this.placeTrackItems();
+        this.endDragPreview();
+
+        const swallowClick = (clickEvent) => {
+            clickEvent.preventDefault();
+            clickEvent.stopPropagation();
+        };
+        document.addEventListener('mouseup', () => {
+            document.addEventListener('click', swallowClick, {capture: true, once: true});
+            // A release that produces no click (off the item) must not eat a later, real one.
+            setTimeout(() => document.removeEventListener('click', swallowClick, true), 0);
+        }, {capture: true, once: true});
     }
 
     setUpItemElevationOnMousedown(item) {
@@ -446,9 +503,49 @@ export class Editor {
       }
     }
 
+    // Where a same-track move puts an item whose left edge the pointer has at `leftRatio` of a
+    // track `trackWidthPx` wide. Either edge snaps to the playhead (see timeline-snap.js), and the
+    // whole item, at its original length, stays inside the video: dropping an item grabbed near its
+    // right edge close to the start of the track would otherwise put its left edge before 0.
+    // Returns the start time to save and the time to show in the player: the snapped edge, or
+    // failing that the edge nearest the playhead, since that is the one being lined up.
+    placeMovedItem(item, leftRatio, trackWidthPx) {
+      const duration = this.video.duration;
+      const itemStart = parseFloat(item.dataset["start"]);
+      const itemEnd = parseFloat(item.dataset["end"]);
+      const itemDuration = Number.isFinite(itemEnd) ? itemEnd - itemStart : 0;
+      const hasEnd = itemDuration > 0;
+      const maxStartTime = Math.max(0, duration - itemDuration);
+      const parkedTime = this.dragPreview ? this.dragPreview.parkedTime : this.video.currentTime;
+      const timeToPx = (time) => (time / duration) * trackWidthPx;
+
+      const rawStart = duration * leftRatio;
+      // The start time that would put each edge on the playhead; only offered if it fits.
+      const snapStarts = [parkedTime, hasEnd ? parkedTime - itemDuration : null];
+      const rawEdges = [rawStart, hasEnd ? rawStart + itemDuration : null].map((edge, index) => {
+        const snapStart = snapStarts[index];
+        const fits = snapStart !== null && snapStart >= 0 && snapStart <= maxStartTime;
+        return fits ? timeToPx(edge) : null;
+      });
+      this.moveSnapIndex = pickSnapEdge(rawEdges, timeToPx(parkedTime), this.moveSnapIndex);
+
+      const snapped = this.moveSnapIndex >= 0;
+      const startTime = snapped
+        ? snapStarts[this.moveSnapIndex]
+        : Math.min(maxStartTime, Math.max(0, rawStart));
+      const edges = [startTime, hasEnd ? startTime + itemDuration : null];
+      const previewIndex = snapped ? this.moveSnapIndex : nearestEdge(edges.map((edge) => edge === null ? null : timeToPx(edge)), timeToPx(parkedTime));
+      return { startTime, previewTime: snapped ? parkedTime : edges[previewIndex], snapped };
+    }
+
     setupItemDragListeners(item) {
       // setup the data stored in the drag event
       item.addEventListener("dragstart", (event) => {
+        if (!this.canEditAnnotationSet) {
+          event.preventDefault();
+          this.promptToCopyAnnotationSet();
+          return;
+        }
         this.itemBeingDragged = item;
         this.dragGrabOffsetX = event.clientX - item.getBoundingClientRect().left;
         this.resetTrackItemProjectionsStyle();
@@ -458,12 +555,19 @@ export class Editor {
         event.dataTransfer.setData("text/plain", item.id);
         event.dataTransfer.setDragImage(this.dragGhostImage, 0, 0);
         item.classList.add("is-dragging");
+        this.moveSnapIndex = -1;
+        this.moveDropStartTime = null;
+        this.beginDragPreview();
       });
 
+      // Fires after drop, and also when the drag is abandoned (Escape, or released off the timeline).
       item.addEventListener("dragend", () => {
         this.itemBeingDragged = null;
         item.classList.remove("is-dragging");
         this.allowTrackItemPointerEvents();
+        this.moveSnapIndex = -1;
+        this.moveDropStartTime = null;
+        this.endDragPreview();
       })
     }
 
@@ -851,7 +955,7 @@ export class Editor {
       return true;
     }
 
-    applyAnnotationVersionResponse(responseData, previousAnnotationId, replaceForm) {
+    applyAnnotationVersionResponse(responseData, previousAnnotationId, replaceForm, {seek = replaceForm} = {}) {
       const placed = this.replaceAnnotationVersionElements(
         responseData,
         previousAnnotationId,
@@ -872,12 +976,14 @@ export class Editor {
         return false;
       }
       if (formShowsThisItem) {
-        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm});
+        this.markItemAsActive(annotationType, annotationId, {navigate: replaceForm, seek});
       }
       return true;
     }
 
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true}) {
+    // `seek: false` leaves the player where it is instead of jumping to the item's start. Timeline
+    // drags use it: the playhead goes back to where the user parked it (see beginDragPreview).
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -909,17 +1015,21 @@ export class Editor {
       );
 
       if (!response.ok) {
-        displayUserMessage("error", "An error occurred while updating an annotation");
+        if (response.status === 403) {
+          this.promptToCopyAnnotationSet();
+        } else {
+          displayUserMessage("error", "An error occurred while updating an annotation");
+        }
         return false;
       }
 
       const responseData = await response.json();
       window.dispatchEvent(this.annotationUpdatedEvent);
-      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm);
+      this.applyAnnotationVersionResponse(responseData, annotationId, autoUpdateForm, {seek});
       return responseData;
     }
 
-    triggerSave(state) {
+    async triggerSave(state) {
         const item = state.item;
         const annotationType = item.dataset["annotationType"];
         const annotationId = item.dataset["annotationId"];
@@ -949,13 +1059,22 @@ export class Editor {
           displayUserMessage("warning", "The annotation could not be saved because its left position is in an invalid format. Try refreshing the page.");
           return;
         }
-        const newStartTime = leftAsDecimal * this.duration;
+        let newStartTime = leftAsDecimal * this.duration;
         const widthAsDecimal = convertPercentStringToDecimal(item.style.width)
         if (isNaN(widthAsDecimal)) {
           displayUserMessage("warning", "The annotation could not be saved becaue its right position is in an invalid format. Try refreshing the page.");
           return;
         }
-        const newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
+        let newEndTime = (leftAsDecimal + widthAsDecimal) * this.duration;
+        // An edge snapped to the playhead saves the playhead's exact time rather than a round trip
+        // through the item's percentage position.
+        if (state.snapped) {
+          if (state.isLeft) {
+            newStartTime = state.parkedTime;
+          } else {
+            newEndTime = state.parkedTime;
+          }
+        }
 
         if (!this.confirmBlurAnchorPointLoss(item, newStartTime, newEndTime)) {
           item.dataset.deltaLeft = '0';
@@ -964,7 +1083,12 @@ export class Editor {
           return;
         }
 
-        this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true});
+        const saved = await this.updateAnnotation({annotationType, annotationId, startTime: newStartTime, endTime: newEndTime, isFromItem: true, seek: false});
+        if (!saved) {
+          item.dataset.deltaLeft = '0';
+          item.dataset.deltaWidth = '0';
+          this.placeTrackItems();
+        }
     }
 
     countBlurAnchorPointsLost(item, newStart, newEnd) {
@@ -1285,7 +1409,11 @@ export class Editor {
         method: "GET"
       });
       if (!response.ok) {
-        displayUserMessage("error", "Failed to load the annotation detail form");
+        if (response.status === 403) {
+          displayUserMessage("warning", "You do not have permission to view this annotation.");
+        } else {
+          displayUserMessage("error", "Failed to load the annotation detail form");
+        }
         return false;
       }
       const detailForm = document.getElementById("detail-form");
@@ -1294,7 +1422,7 @@ export class Editor {
       return true;
     }
 
-    markItemAsActive(annotationType, annotationId, {navigate = true} = {}) {
+    markItemAsActive(annotationType, annotationId, {navigate = true, seek = navigate} = {}) {
       if (!annotationType || !annotationId) {
         displayUserMessage("error", "The annotation you tried to select is invalid. Please refresh the page.");
         return;
@@ -1365,7 +1493,7 @@ export class Editor {
 
       // skip to start of this annotation in video
       const startTime = Number(trackItem.dataset["start"]);
-      if (startTime && !isNaN(startTime)) {
+      if (seek && startTime && !isNaN(startTime)) {
         this.video.currentTime = startTime;
       }
     }
@@ -1586,13 +1714,17 @@ export class Editor {
           // show the projection moving in concert with the mouse (with offset)
           const containerDim = annotationContainer.getBoundingClientRect();
           const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
-          this.video.currentTime = this.video.duration * newLeftRatio;
-          projectionEl.style.left = (newLeftRatio * 100) + '%';
+          const { startTime, previewTime, snapped } = this.placeMovedItem(this.itemBeingDragged, newLeftRatio, containerDim.width);
+          this.moveDropStartTime = startTime;
+          this.showDragPreview(previewTime, snapped);
+          projectionEl.style.left = (startTime / this.video.duration * 100) + '%';
           projectionEl.style.top = this.itemBeingDragged.style.top;
         }
         else {
           // show the projection statically placed with same position as itemBeingDragged.
-          this.video.currentTime = this.itemBeingDragged.dataset["start"];
+          this.moveSnapIndex = -1;
+          this.moveDropStartTime = null;
+          this.showDragPreview(parseFloat(this.itemBeingDragged.dataset["start"]), false);
           projectionEl.style.left = this.itemBeingDragged.style.left;
         }
       });
@@ -1630,20 +1762,25 @@ export class Editor {
         }
         if (trackId != originalTrackId) {
           // transfer item to new track
-          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime});
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "trackId": trackId, "startTime": originalStartTime, "endTime": originalEndTime, seek: false});
         } else {
-          // move item to new position within same track (with offset)
-          const containerDim = annotationContainer.getBoundingClientRect();
-          const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
-          const startTime = this.video.duration * newLeftRatio;
+          // move item to new position within same track (with offset), where the last dragover
+          // placed it, snap included
+          const itemDuration = originalEndTime ? originalEndTime - originalStartTime : 0;
+          let startTime = this.moveDropStartTime;
+          if (startTime === null) {
+            const containerDim = annotationContainer.getBoundingClientRect();
+            const newLeftRatio = (event.clientX - this.dragGrabOffsetX - containerDim.left) / containerDim.width;
+            startTime = this.placeMovedItem(originalItem, newLeftRatio, containerDim.width).startTime;
+          }
           let endTime;
           if (originalEndTime) {
-            endTime = originalEndTime - originalStartTime + startTime;
+            endTime = startTime + itemDuration;
           }
           // The dropped item is replaced from the response rather than from the drag payload:
           // applyAnnotationVersionResponse renders the new version, moves it to the destination
           // track, and marks it active.
-          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime});
+          await this.updateAnnotation({annotationType, annotationId, "isFromItem": true, "startTime": startTime, "endTime": endTime, seek: false});
         }
       });
     }
@@ -1652,8 +1789,20 @@ export class Editor {
     // tracks that are new to the DOM.
     setupTrackWatchers(trackRootElement) {
       setupMultiOptionMenu(trackRootElement);
-      this.watchForDisplayTrackRename(trackRootElement);
-      this.watchForTrackRename(trackRootElement);
+      setupInPlaceFieldEdit(
+        trackRootElement.querySelector(".timeline-track-name-wrapper"),
+        `/track/${trackRootElement.dataset.trackId}/update-name/`,
+        {
+          onSuccess: async (response) => {
+            const jsonData = await response.json();
+            this.replaceTracksWithNewHTML(jsonData["tracks_html"]);
+            this.updateTracks();
+            this.placeTrackItems();
+          },
+          fetchImpl: saveFetch,
+          button: trackRootElement.querySelector(".track-menu-rename"),
+        },
+      );
       this.watchForTrackMovement(trackRootElement);
       this.watchForTrackDelete(trackRootElement);
       this.watchForTrackActivation(trackRootElement);
@@ -1683,87 +1832,6 @@ export class Editor {
       }
       // New rows start scrolled to the beginning.
       this.scrollTracksToPoint(this.timelineScrollLeft);
-    }
-
-    /* track name change */
-    async handleTrackNameChange(e) {
-      e.stopPropagation();
-      let parentTrackRow = e.target.closest(".track-row");
-
-      if (!parentTrackRow) {
-        displayUserMessage("error", "Failed to update the name of the track. Please try again or refresh the page.");
-        return;
-      }
-
-      const trackNameEl = parentTrackRow.querySelector(".track-name");
-      const trackId = parentTrackRow.dataset["trackId"];
-
-      function resetTrackName() {
-        const renameWrapper = parentTrackRow.querySelector(".track-rename-wrapper");
-        renameWrapper.classList.remove("track-rename-wrapper-visible");
-        e.target.value = trackNameEl.innerText;
-      }
-
-      if (e.key == "Enter") {
-        const newTrackName = e.target.value.trim();
-        const response = await savePost(
-          `/track/${trackId}/update/`,
-          JSON.stringify({"new_track_name": newTrackName})
-        );
-        if (!response.ok) {
-          resetTrackName();
-          return;
-        }
-
-        trackNameEl.innerText = newTrackName;
-        e.target.value = trackNameEl.innerText;
-      }
-      if (e.key == "Escape") {
-        resetTrackName();
-        return;
-      }
-    }
-
-    watchForTrackRename(trackRootElement) {
-      const trackRenameInput = trackRootElement.querySelector(".track-rename-input");
-      if (trackRenameInput) {
-        trackRenameInput.addEventListener("keydown", this.handleTrackNameChange.bind(this));
-      }
-      else {
-        console.error("No rename input found for track");
-      }
-    }
-
-    // Handles renaming of track name, canceling attempted rename,
-    // replacement of track with new track, and appending this same
-    // event listener to the new track name edit button.
-    displayTrackRenameField(e) {
-      e.stopPropagation();
-      const visibleRenameCSSClass = "track-rename-wrapper-visible";
-
-      // close any other open rename fields
-      const visibleRenameWrappers = document.getElementsByClassName(visibleRenameCSSClass);
-      for (let wrapper of visibleRenameWrappers) {
-        wrapper.classList.remove(visibleRenameCSSClass);
-      }
-
-      // open the rename wrapper we are interested in
-      const parentRow = e.target.closest(".track-row");
-      const renameWrapper = parentRow.querySelector(".track-rename-wrapper");
-      const renameInput = renameWrapper.querySelector(".track-rename-input");
-      renameWrapper.classList.add(visibleRenameCSSClass);
-      renameInput.focus();
-      renameInput.setSelectionRange(0, 50);
-    }
-
-    watchForDisplayTrackRename(trackRootElement) {
-      const renameButton = trackRootElement.querySelector(".track-menu-rename");
-      if (renameButton) {
-        renameButton.addEventListener("click", this.displayTrackRenameField.bind(this))
-      }
-      else {
-        console.error("No rename button found for track");
-      }
     }
 
     /* track delete */
@@ -2207,21 +2275,75 @@ export class Editor {
     // to run every animation frame during playback.
     paintScrubber() {
       if (!this.scrubberBounds || !this.editorScrubber) return;
+      // During a drag preview the video shows the dragged edge's frame, but the playhead stays parked.
+      let time = this.video.currentTime;
+      if (this.dragPreview) {
+        time = this.dragPreview.parkedTime;
+      } else if (this.isDragging || this.scrubSeekInFlight) {
+        time = this.scrubTarget;
+      }
+      this.editorScrubber.style.transform = `translateX(${this.scrubberOffsetFor(time)}px)`;
+    }
 
+    // Pixel offset of a time within the visible timeline window, pinned to its edges.
+    scrubberOffsetFor(time) {
       const { windowWidth, leftTime, rightTime } = this.scrubberBounds;
       const span = rightTime - leftTime;
-      const currentTime = this.video.currentTime;
 
       let ratio;
-      if (span <= 0 || currentTime <= leftTime) {
+      if (span <= 0 || time <= leftTime) {
         ratio = 0;
-      } else if (currentTime >= rightTime) {
+      } else if (time >= rightTime) {
         ratio = 1;
       } else {
-        ratio = (currentTime - leftTime) / span;
+        ratio = (time - leftTime) / span;
       }
+      return ratio * windowWidth;
+    }
 
-      this.editorScrubber.style.transform = `translateX(${ratio * windowWidth}px)`;
+    /* DRAG PREVIEW (#443)
+    While an item or one of its handles is dragged, the player shows the frame under the dragged
+    edge, but the playhead stays where the user parked it (typically with `,` / `.`). A dashed
+    "shadow" scrubber follows the edge, and turns solid when the edge snaps to the playhead. On
+    release the player goes back to the parked time, whether or not the edge snapped. */
+    beginDragPreview() {
+      if (this.dragPreview) return;
+      const wasPlaying = !this.video.paused;
+      if (wasPlaying) this.video.pause();
+      this.dragPreview = { parkedTime: this.video.currentTime, wasPlaying, shownTime: null };
+      this.refreshScrubberBounds();
+      this.editorShadowScrubber?.classList.add("visible");
+    }
+
+    showDragPreview(time, snapped) {
+      const preview = this.dragPreview;
+      if (!preview) return;
+      // dragover fires continuously even when the pointer is still; only seek on a change.
+      if (preview.shownTime !== time) {
+        preview.shownTime = time;
+        this.scrubVideoTo(time);
+      }
+      if (this.editorShadowScrubber && this.scrubberBounds) {
+        this.editorShadowScrubber.style.transform = `translateX(${this.scrubberOffsetFor(time)}px)`;
+        this.editorShadowScrubber.classList.toggle("snapped", snapped);
+      }
+    }
+
+    endDragPreview() {
+      const preview = this.dragPreview;
+      if (!preview) return;
+      this.dragPreview = null;
+      this.editorShadowScrubber?.classList.remove("visible", "snapped");
+      // Also when the last preview *was* the parked time (a snapped edge) but an earlier preview
+      // seek is still in flight and would otherwise land last.
+      if (preview.shownTime !== null && (preview.shownTime !== preview.parkedTime || this.scrubSeekInFlight)) {
+        // At once rather than queued behind a preview seek; one still in flight sees the new
+        // target when it lands and seeks here again, which is harmless.
+        this.scrubTarget = preview.parkedTime;
+        this.seekVideoTo(preview.parkedTime);
+      }
+      if (preview.wasPlaying) this.video.play();
+      this.paintScrubber();
     }
 
     handleZoom() {
@@ -2282,9 +2404,12 @@ export class Editor {
       const contentWidth = this.tickMarksContainer?.getBoundingClientRect().width;
       if (contentWidth > 0) {
         this.timelineScrollRatio = tickMarksWrapper.scrollLeft / contentWidth;
-        if (this.zoomSliderInput) {
-          this.zoomSliderInput.value = this.timelineScrollRatio * 100;
-        }
+      }
+      if (this.zoomSliderInput) {
+        const maxScrollLeft = tickMarksWrapper.scrollWidth - tickMarksWrapper.clientWidth;
+        this.zoomSliderInput.value = maxScrollLeft > 0
+          ? (tickMarksWrapper.scrollLeft / maxScrollLeft) * 100
+          : 0;
       }
     }
 
@@ -2309,9 +2434,8 @@ export class Editor {
     watchForTimelineScrollChangeAndHandleIt() {
       this.zoomSliderInput.addEventListener("input", (e) => {
         const newValue = e.target.value;
-        const tickMarksContainer = document.getElementById("tick-marks-container");
-        const widthInPixels = tickMarksContainer.getBoundingClientRect().width;
-        const newScrollLeft = widthInPixels * (newValue / 100);
+        const maxScrollLeft = this.timelineTicksContent.scrollWidth - this.timelineTicksContent.clientWidth;
+        const newScrollLeft = maxScrollLeft * (newValue / 100);
         this.scrollTracksToPoint(newScrollLeft);
         this.adjustScrubberPosition();
       });
@@ -2352,11 +2476,32 @@ export class Editor {
     }
 
     seekVideoTo(time) {
-        this.video.currentTime = time;
-        // Also update via the player API if available
+        // The player API seeks the same element and also re-applies annotations; setting
+        // currentTime as well would start a second seek that aborts the first.
         if (window.videoPlayer && window.videoPlayer.skipTo) {
             window.videoPlayer.skipTo(time);
+        } else {
+            this.video.currentTime = time;
         }
+    }
+
+    // Seek for a drag. A new seek aborts an unfinished one, so seeking on every mousemove lets a
+    // fast drag abort seek after seek: the frame freezes, then jumps. Instead keep one seek in
+    // flight and, when it lands, chase the latest requested time.
+    scrubVideoTo(time) {
+        this.scrubTarget = time;
+        if (this.scrubSeekInFlight) return;
+        this.scrubSeekInFlight = true;
+        const landed = () => {
+            clearTimeout(backstop);
+            this.video.removeEventListener('seeked', landed);
+            this.scrubSeekInFlight = false;
+            if (this.scrubTarget !== time) this.scrubVideoTo(this.scrubTarget);
+        };
+        // In case a seek never reports back, so later seeks are not held up forever
+        const backstop = setTimeout(landed, 500);
+        this.video.addEventListener('seeked', landed);
+        this.seekVideoTo(time);
     }
 
     // Whether an event target is somewhere a click should seek: inside a seek
@@ -2381,10 +2526,19 @@ export class Editor {
             this.timelineScrubber.style.opacity = '0';
         }
 
-        // Seek to initial position
-        this.seekVideoTo(this.timeFromClientX(e.clientX));
+        // Seek to initial position at once: a click is a fresh request, not part of a drag
+        // already being chased (see scrubVideoTo, which a seek still in flight hands over to).
+        this.scrubTarget = this.timeFromClientX(e.clientX);
+        this.seekVideoTo(this.scrubTarget);
+        this.paintScrubber();
 
         e.preventDefault();
+    }
+
+    // The scrubber follows the pointer directly rather than waiting for each seek to land.
+    scrubTimelineTo(time) {
+        this.scrubVideoTo(time);
+        this.paintScrubber();
     }
 
     endTimelineDrag() {
@@ -2428,7 +2582,7 @@ export class Editor {
 
         document.addEventListener('mousemove', (e) => {
             if (this.isDragging) {
-                this.seekVideoTo(this.timeFromClientX(e.clientX));
+                this.scrubTimelineTo(this.timeFromClientX(e.clientX));
                 e.preventDefault();
             }
         });
@@ -2745,7 +2899,9 @@ export class Editor {
         if (e.target.closest("#annotation-set-copy-prompt, .annotation-set-selector-wrapper, #video-section")) {
           return;
         }
-        if (!e.target.closest("button, input, select, textarea, .track-row-annotation-item")) {
+        // Selecting an annotation is a read: its form renders read-only for borrowers
+        // (annotation_form.html), so only real edit controls are intercepted here.
+        if (!e.target.closest("button, input, select, textarea")) {
           return;
         }
         e.preventDefault();
@@ -2804,11 +2960,266 @@ export class Editor {
       subtitlePanelSwitchButton.addEventListener("click", togglePanelVisiblity);
     }
 
-    setupSubtitleEditorMenu() {
-      const subtitleMenu= document.getElementById("subtitle-track-settings-menu-wrapper");
-      setupMultiOptionMenu(subtitleMenu);
-    }
+    setupSubtitleEditor() {
+      // NFC-normalized so composed (é) and decomposed (e + ◌́) accents match each other.
+      // see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize
+      const normalizeCueSearchText = (text) => text.trim().normalize("NFC");
 
+      // Expects text that has already been through normalizeCueSearchText.
+      const buildCueWordPattern = (text) => {
+        const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(
+          `(?<![\\p{L}\\p{M}\\p{N}\\p{Pc}])${escapedText}(?![\\p{L}\\p{M}\\p{N}\\p{Pc}])`,
+          "gu"
+        );
+      };
+
+      // The panel content can change so use this to check if editing it allowed.
+      const canEditCues = () =>
+        document.getElementById("subtitle-panel-content")?.dataset.canEdit === "true";
+
+      const subtitlePanel = document.getElementById("subtitle-editor-panel");
+      if (!subtitlePanel) {
+        displayUserMessage("error", "Failed to setup subtitle editor, you will not be able to make edits to subtitle tracks during this session.");
+        return;
+      }
+
+      // multi option menu
+      const subtitleTrackMenu = document.getElementById("subtitle-track-settings-menu-wrapper");
+      setupMultiOptionMenu(subtitleTrackMenu);
+
+      // We don't want to use the replace all function for deleting words, so
+      // this function only enables the button if matches is != 0 and won't
+      // match on whitespace or empty string.
+      // Handles whole word find only.
+      const updateCueFindCount = () => {
+        const cueFindInput = document.getElementById("cue-find-input");
+        const cueMatchCountEl = document.getElementById("cue-find-match-count");
+        const cueReplaceButton = document.getElementById("execute-far-button");
+        if (!cueFindInput || !cueMatchCountEl || !cueReplaceButton) return;
+
+        const findText = normalizeCueSearchText(cueFindInput.value);
+        if (findText == "") {
+          cueMatchCountEl.textContent = "";
+          cueReplaceButton.disabled = true;
+          return;
+        }
+
+        const pattern = buildCueWordPattern(findText);
+        let matches = 0;
+        for (let cueText of subtitlePanel.querySelectorAll(".editor-subtitle-cue-content")) {
+          // Use value, not textContent: textContent is the text the server rendered
+          // and misses edits, while replace works on value (via collectCues).
+          matches += (cueText.value.normalize("NFC").match(pattern) || []).length;
+        }
+        const plural = matches == 1 ? "match" : "matches";
+        cueMatchCountEl.textContent = `${matches} ${plural}`;
+        cueReplaceButton.disabled = matches <= 0;
+      };
+
+      // Debounced input wrapper for updateCueFindCount.
+      // replace button is enabled by updateCueFindCount
+      let cueTextFindTimerRef;
+      const searchCuesForText = () => {
+        clearTimeout(cueTextFindTimerRef);
+        const pendingReplaceButton = document.getElementById("execute-far-button");
+        if (pendingReplaceButton) pendingReplaceButton.disabled = true;
+        cueTextFindTimerRef = setTimeout(updateCueFindCount, 500);
+      };
+
+      // click watcher
+      subtitlePanel.addEventListener("click", async (e) => {
+        // adding a new subtitle cue
+        if (e?.target?.closest("#add-new-subtitle-button")) {
+          e.preventDefault();
+          const cues = this.collectCues();
+          // build new cue and append it to cues array
+          const time = this.video.currentTime;
+          const startTime = Math.round(time * 1000) / 1000;
+          const endTime = Math.round((time + 2) * 1000) / 1000;
+          // the back end sorts cues, so this will go in its correct place.
+          cues.push(
+            {
+              start_time: startTime,
+              end_time: endTime,
+              type: "CUE",
+              payload: "",
+            }
+          )
+          if (!await this.saveCues(cues)) return;
+
+          // Normalize the lookup time string so it will always find the right cue
+          // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
+          // A cue's end and start time values are to 3 decimal places, the video's
+          // current time has no decimal place limiter. Both of these cases should
+          // be handled here.
+          const cueLookupTime = parseFloat(startTime);
+          let lookupTimeString = cueLookupTime.toString();
+          const lookupStringSplit = lookupTimeString.split('.');
+
+          if (lookupStringSplit.length == 1) {
+            lookupTimeString = lookupTimeString + ".0";
+          }
+          else if (lookupStringSplit[1].length > 3) {
+            lookupTimeString = cueLookupTime.toFixed(3);
+          }
+          const newCue = subtitlePanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
+          if (!newCue) {
+            displayUserMessage("warning", "Unable to automatically find the new cue, this may be because it has the same start time as another cue, or something went wrong while creating the cue.");
+            return;
+          }
+          const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
+          if (cueTA) {
+            cueTA.focus();
+          }
+          else {
+            displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
+          }
+          return;
+        }
+
+        // handle cue deletion
+        if (e?.target?.closest('.editor-subtitle-cue-delete')) {
+          e.preventDefault();
+          const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
+          const cueElements = Array.from(subtitlePanel.querySelectorAll(".editor-subtitle-cue"));
+          const cues = this.collectCues();
+          // use splice to allow cue marked for deletion to still appear unless the deletion is successful
+          cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
+          this.saveCues(cues);
+          return;
+        }
+
+        // handle video time seek on cue start or text content input selection
+        if (e?.target?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-content")) {
+          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
+          const cueStartTime = parentCueWrapper.dataset["startTime"];
+          this.seekVideoTo(parseFloat(cueStartTime));
+          return;
+        }
+
+        // handle video time seek to cue end time on end time input selection
+        if (e?.target?.closest(".editor-subtitle-cue-end")) {
+          const cueEndTimeInput = e.target.closest(".editor-subtitle-cue-end");
+          this.seekVideoTo(parseFloat(cueEndTimeInput.dataset["endTime"]));
+          return;
+        }
+
+        // handle find and replace header click. Don't use closest because if the user clicks empty space in
+        // the header's content, it will unexpectedly hide find and replace.
+        const targetId = e?.target?.id;
+        if (targetId == "cue-far-header" || targetId == "cue-far-header-text" || targetId == "cue-far-header-img") {
+          const header = document.getElementById("cue-far-wrapper");
+          header.classList.toggle("cue-far-hidden");
+          return;
+        }
+
+        // handle the replace function of the find and replace feature
+        // handles whole word replace only
+        if (e?.target?.id == "execute-far-button") {
+          const replaceButton = e.target;
+          if (replaceButton.disabled == true) {
+            return;
+          }
+          const findInput = document.getElementById("cue-find-input");
+          const replaceInput = document.getElementById("cue-replace-input");
+          if (!findInput || !replaceInput) {
+            displayUserMessage("error", "Failed to locate the inputs for the find and replace function.");
+            return;
+          }
+          // I don't think most users will want to use this tool to
+          // delete words or replace words with whitespace.
+          if (replaceInput.value.trim() == "") {
+            return;
+          }
+          const findWord = normalizeCueSearchText(findInput.value);
+          // An empty pattern matches between every pair of non-word characters,
+          // so replacing with it would insert the replacement all over every cue.
+          if (findWord == "") {
+            replaceButton.disabled = true;
+            return;
+          }
+          // Unlike the search text, the replacement is used exactly as typed (not trimmed),
+          // so a user can deliberately include spacing around it.
+          const replaceWord = replaceInput.value;
+          const pattern = buildCueWordPattern(findWord);
+          const cues = this.collectCues();
+          for (const cue of cues) {
+            const normalizedPayload = cue.payload.normalize("NFC");
+            // Only rewrite cues that match, so cues without a match keep their stored text
+            // (including its Unicode form) untouched. search() ignores the g flag's lastIndex.
+            if (normalizedPayload.search(pattern) !== -1) {
+              cue.payload = normalizedPayload.replace(pattern, () => replaceWord);
+            }
+          }
+
+          // Disable straight away so a second click (e.g. a double-click) can't start
+          // another replace while this one saves. Cancel any pending count, which could
+          // otherwise re-enable the button mid-save.
+          clearTimeout(cueTextFindTimerRef);
+          replaceButton.disabled = true;
+          const searchedText = findInput.value;
+          const saved = await this.saveCues(cues);
+
+          // Loading another track replaces these elements; leave the new panel alone.
+          if (!findInput.isConnected) return;
+          // The user started a new search during the save; its own count handles the button.
+          if (findInput.value !== searchedText) return;
+          if (saved) {
+            // Setting the value in code fires no input event, so clear the count here too.
+            findInput.value = "";
+            const cueMatchCountEl = document.getElementById("cue-find-match-count");
+            if (cueMatchCountEl) cueMatchCountEl.textContent = "";
+          } else {
+            // Keep the search so the user can retry; recount against the unchanged cues.
+            updateCueFindCount();
+          }
+          return;
+        }
+      });
+
+      function isACueInput(targetEl) {
+        return targetEl?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
+      }
+
+      // change watcher
+      subtitlePanel.addEventListener("change", (e) => {
+        if (canEditCues() && isACueInput(e?.target)) {
+          e.preventDefault();
+          this.saveCues(this.collectCues());
+          return;
+        }
+      })
+
+      // keydown watcher
+      subtitlePanel.addEventListener("keydown", (e) => {
+        if (canEditCues() && isACueInput(e?.target) && e.key == "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          this.saveCues(this.collectCues());
+          return;
+        }
+      });
+
+      // input watcher
+      subtitlePanel.addEventListener("input", (e) => {
+        // cue autosave updater
+        if (canEditCues() && isACueInput(e?.target)) {
+          e.preventDefault();
+          if (JSON.stringify(this.collectCues()) === this.sentCueState) {
+            saveStatus.settle("subtitle-cues");
+          } else {
+            saveStatus.wait("subtitle-cues");
+          }
+          return;
+        }
+
+        // cue find and replace search input
+        if (e?.target?.id == "cue-find-input") {
+          searchCuesForText();
+          return;
+        }
+      });
+    }
 
     async loadSubtitleTrack(trackId) {
       try {
@@ -2818,17 +3229,17 @@ export class Editor {
           return false;
         }
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
-        document.getElementById("subtitle-editor-panel-content").innerHTML = subtitlesPanelContentHTML;
+        document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
         this.selectedSubtitleTrackId = trackId;
+        this.sentCueState = JSON.stringify(this.collectCues());
+        saveStatus.settle("subtitle-cues");
         this.selectedSubtitleTrackText = document.querySelector(
           `.subtitles-track-option[value="${trackId}"]`
         )?.textContent.trim() || "";
         document.getElementById(`cap-track-${trackId}-button`)?.click();
-        this.buildWatchersForSubtitlePanelContent();
-        this.buildWatchersForSubtitleEditorCues();
         document.getElementById("open-subtitle-track-edit-modal").disabled = false;
         document.getElementById("open-delete-subtitle-track-modal").disabled =
-          document.getElementById("subtitle-panel-content-wrapper").dataset.canEdit !== "true";
+          document.getElementById("subtitle-panel-content").dataset.canEdit !== "true";
         return true;
       } catch {
         displayUserMessage("error", "Failed to load subtitle track");
@@ -3068,7 +3479,7 @@ export class Editor {
     }
 
     async saveCues(cues) {
-      if (document.getElementById("subtitle-panel-content-wrapper")?.dataset.canEdit !== "true") return false;
+      if (document.getElementById("subtitle-panel-content")?.dataset.canEdit !== "true") return false;
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
       this.sentCueState = originalCueState;
@@ -3090,12 +3501,15 @@ export class Editor {
           }
           const html = await updateResponse.text();
           if (this.selectedSubtitleTrackId !== trackId) return false;
-          // A response must not replace edits made while the save was in flight.
+          // The sentCueState should be updated to the most recent change. But if there
+          // was a change made while the save was in progress, we don't want to save the
+          // current state because it is now out of date.
           if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
           document.getElementById("subtitle-panel-list").innerHTML = html;
+          this.sentCueState = JSON.stringify(this.collectCues());
+          saveStatus.settle("subtitle-cues");
           window.dispatchEvent(this.annotationUpdatedEvent);
 
-          this.buildWatchersForSubtitleEditorCues();
           return true;
         } catch {
           displayUserMessage("error", "Failed to save changes to subtitle cues");
@@ -3107,122 +3521,6 @@ export class Editor {
         return await save;
       } finally {
         this.subtitleCueSaves.delete(save);
-      }
-    }
-
-    buildWatchersForSubtitlePanelContent() {
-      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-      if (subtitlesPanel.dataset.canEdit !== "true") return;
-      const addNewCueButton = subtitlesPanel.querySelector("#add-new-subtitle-button");
-      addNewCueButton.addEventListener("click", async () => {
-        const cues = this.collectCues();
-        // build new cue and append it to cues array
-        const time = this.video.currentTime;
-        const startTime = Math.round(time * 1000) / 1000;
-        const endTime = Math.round((time + 2) * 1000) / 1000;
-        // the back end sorts cues, so this will go in its correct place.
-        cues.push(
-          {
-            start_time: startTime,
-            end_time: endTime,
-            type: "CUE",
-            payload: "",
-          }
-        )
-        if (!await this.saveCues(cues)) return;
-
-        // Normalize the lookup time string so it will always fine the right cue
-        // python rounds the float 3.0 to "3.0" and JS will round the same to "3".
-        // A cue's end and start time values are to 3 decimal places, the video's
-        // current time has no decimal place limiter. Both of these cases should
-        // be handled here.
-        const cueLookupTime = parseFloat(startTime);
-        let lookupTimeString = cueLookupTime.toString();
-        const lookupStringSplit = lookupTimeString.split('.');
-
-        if (lookupStringSplit.length == 1) {
-          lookupTimeString = lookupTimeString + ".0";
-        }
-        else if (lookupStringSplit[1].length > 3) {
-          lookupTimeString = cueLookupTime.toFixed(3);
-        }
-        const newCue = subtitlesPanel.querySelector(`.editor-subtitle-cue[data-start-time='${lookupTimeString}']`);
-        if (!newCue) {
-          displayUserMessage("warning", "Unable to automatically find the new cue, this may be because it has the same start time as another cue, or something went wrong while creating the cue.");
-          return;
-        }
-        const cueTA = newCue.querySelector(".editor-subtitle-cue-content");
-        if (cueTA) {
-          cueTA.focus();
-        }
-        else {
-          displayUserMessage("warning", "Unable to automatically focus on the new cue's content textbox. This may be because the cue has the same start time as another cue.");
-        }
-
-      });
-    }
-
-    buildWatchersForSubtitleEditorCues() {
-      const subtitlesPanel = document.getElementById("subtitle-panel-content-wrapper");
-      // The cues were just rendered from the server, so nothing on screen is waiting to be saved.
-      this.sentCueState = JSON.stringify(this.collectCues());
-      saveStatus.settle("subtitle-cues");
-      const deleteCue = (e) => {
-        const editorSubtitleCueEl = e.target.closest('.editor-subtitle-cue');
-        const cueElements = Array.from(subtitlesPanel.querySelectorAll(".editor-subtitle-cue"));
-        const cues = this.collectCues();
-        // use splice to allow cue marked for deletion to still appear unless the deletion is successful
-        cues.splice(cueElements.indexOf(editorSubtitleCueEl), 1);
-        this.saveCues(cues);
-      }
-      const editorSubtitleCueDeleteButtons = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-delete");
-      for (let cueDelButton of editorSubtitleCueDeleteButtons) {
-        cueDelButton.addEventListener("click", deleteCue.bind(this));
-      }
-
-      const saveUpdatedInformation = () => {
-        this.saveCues(this.collectCues());
-      }
-      const cueStartAndTextInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-start, .editor-subtitle-cue-content");
-      const cueEndInputs = subtitlesPanel.querySelectorAll(".editor-subtitle-cue-end");
-      const cueInputs = [...cueStartAndTextInputs, ...cueEndInputs];
-      if (subtitlesPanel.dataset.canEdit === "true") {
-        for (let cueInput of cueInputs) {
-          cueInput.addEventListener("keydown", (e) => {
-            // An Enter key press in a textarea creates a new line. We want that to submit the cues instead,
-            // but a Shift + Enter in a cue textarea will still create a new line if needed.
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              saveUpdatedInformation();
-            }
-          });
-
-          cueInput.addEventListener("change", (e) => {
-            e.preventDefault();
-            saveUpdatedInformation();
-          });
-          // A cue saves on change or Enter, so typed text waits until then. Typing back to what was
-          // last sent is not a pending edit.
-          cueInput.addEventListener("input", () => {
-            if (JSON.stringify(this.collectCues()) === this.sentCueState) {
-              saveStatus.settle("subtitle-cues");
-            } else {
-              saveStatus.wait("subtitle-cues");
-            }
-          });
-        }
-      }
-      for (let cueStartOrTextInput of cueStartAndTextInputs){
-        cueStartOrTextInput.addEventListener("click", (e) => {
-          const parentCueWrapper = e.target.closest(".editor-subtitle-cue");
-          const cueStartTime = parentCueWrapper.dataset["startTime"];
-          this.seekVideoTo(parseFloat(cueStartTime));
-        });
-      }
-      for (let cueEndInput of cueEndInputs) {
-        cueEndInput.addEventListener("click", () => {
-          this.seekVideoTo(parseFloat(cueEndInput.dataset["endTime"]));
-        });
       }
     }
 }

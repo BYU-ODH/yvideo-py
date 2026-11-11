@@ -250,30 +250,6 @@ def awkward_data(seeded_demo_data, settings):
     )
 
 
-@pytest.fixture
-def read_only_annotation_set_content(seeded_demo_data):
-    """A content whose owner may edit the video but not the annotation set it points at.
-
-    Sharing a set rather than copying it is the point of the annotation-set model, so
-    "someone else owns these annotations" is a first-class state of the editor: the set
-    picker renders disabled, and every other control is intercepted by an offer to copy.
-    """
-    from core.factories import ContentFactory
-    from core.models import AnnotationSet
-
-    ada_playlist = Playlist.objects.get(name="Birds of a Feather")
-    bens_set = AnnotationSet.objects.get(name="Professor Ben Grid Annotations")
-    grid_content = Content.objects.get(title="Pattern Analysis Warmup")
-
-    return ContentFactory(
-        playlist=ada_playlist,
-        resource_file=grid_content.resource_file,
-        annotation_set=bens_set,
-        title="A11y Borrowed Annotations",
-        published=True,
-    )
-
-
 # ------------------------------------------------------------------------- full pages
 
 # Every view that renders a complete document, plus the data shapes that change what it
@@ -906,7 +882,7 @@ def test_the_editor_timeline_controls_have_no_a11y_violations(
     assert_no_violations(page, "a track's options menu", include=[".track-row"])
 
     track_row.locator(".track-menu-rename").click()
-    page.wait_for_selector(".track-rename-wrapper-visible, .track-rename-input:visible")
+    page.wait_for_selector(".track-rename-input:visible")
     assert_no_violations(page, "a track's rename field", include=[".track-row"])
 
 
@@ -984,6 +960,38 @@ def test_the_subtitle_editor_panel_has_no_a11y_violations(
     page.wait_for_selector(".editor-subtitle-cue")
     assert_no_violations(
         page, "the subtitle cue editor", include=["#subtitle-editor-panel"]
+    )
+
+
+def test_find_replace_interface_has_no_a11y_violations(
+    page: Page, open_editor, demo_content
+):
+    """Audit the visible controls, without keyboard-disclosure or live-region checks."""
+    from core.factories import SubtitleFactory
+
+    subtitle_track = SubtitleFactory(
+        resource=demo_content.get_resource(),
+        owner=demo_content.playlist.owner,
+    )
+    open_editor()
+    page.locator("#annotation-panel-switch").click()
+    page.select_option("#subtitles-track-selector", str(subtitle_track.pk))
+    expect(page.locator(".editor-subtitle-cue-content")).to_have_value("Demo subtitle")
+    page.locator("#cue-far-header").click()
+    expect(page.locator("#cue-far-content")).to_be_visible()
+    expect(page.get_by_role("textbox", name="Search word", exact=True)).to_be_visible()
+    expect(page.get_by_role("textbox", name="Replace word", exact=True)).to_be_visible()
+    replace = page.get_by_role("button", name="Replace all", exact=True)
+    expect(replace).to_be_disabled()
+    assert_no_violations(
+        page, "expanded subtitle find/replace", include=["#cue-far-wrapper"]
+    )
+
+    page.get_by_role("textbox", name="Search word", exact=True).fill("Demo")
+    expect(page.locator("#cue-find-match-count")).to_have_text("1 match")
+    expect(replace).to_be_enabled()
+    assert_no_violations(
+        page, "subtitle find/replace with matches", include=["#cue-far-wrapper"]
     )
 
 

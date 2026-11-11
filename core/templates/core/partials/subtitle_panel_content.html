@@ -1,16 +1,42 @@
 {% load static %}
 
-<div id="subtitle-panel-content-wrapper"
+<div id="subtitle-panel-content"
      data-can-edit="{{ can_edit|yesno:'true,false' }}"
      data-language="{{ subtitle_track.language.bcp47 }}">
     {% if subtitle_track %}
         {% if can_edit %}
+            <div id="cue-far-wrapper" class="cue-far-hidden">
+                <div id="cue-far-header" class="row-flex flex-apart-aligned">
+                    <p id="cue-far-header-text">Find & Replace word</p>
+                    <img id="cue-far-header-img"
+                         src="{% static 'img/arrow-white.svg' %}"
+                         alt=">">
+                </div>
+                <div id="cue-far-content" class="row-flex">
+                    <div class="cue-far-input-group">
+                        <input id="cue-find-input"
+                               type="text"
+                               placeholder="Search..."
+                               aria-label="Search word">
+                        <p id="cue-find-match-count"></p>
+                    </div>
+                    <div class="cue-far-input-group">
+                        <input id="cue-replace-input"
+                               type="text"
+                               placeholder="Replace with..."
+                               aria-label="Replace word">
+                        <button id="execute-far-button" type="button" disabled>Replace all</button>
+                    </div>
+                </div>
+            </div>
             <button id="add-new-subtitle-button" class="white-button-with-border">+ Add new subtitle at current time</button>
         {% else %}
-            <p>If you need to change this subtitle track, contact the owner or Use Edit subtitle track to make a copy.</p>
+            <p>You do not have permission to edit this track. If you need to change this subtitle track, contact the owner or Use Edit subtitle track to make a copy.</p>
         {% endif %}
         <div id="subtitle-panel-list">
             {% include 'core/partials/subtitle_cues.html' %}
         </div>
+    {% else %}
+        <p>No subtitle track has been selected.</p>
     {% endif %}
 </div>

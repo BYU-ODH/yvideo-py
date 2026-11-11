@@ -8,6 +8,7 @@ from ..factories import AnnotationSetFactory
 from ..factories import CommentAnnotationFactory
 from ..factories import ContentFactory
 from ..factories import PlaylistFactory
+from ..factories import ResourceAccessFactory
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import TrackFactory
@@ -235,6 +236,21 @@ class AnnotationHistoryViewTests(TestCase):
                     CommentAnnotation.objects.filter(prev=self.annotation).count(), 0
                 )
 
+    def test_update_rejects_negative_or_inverted_times(self):
+        for times in [
+            {"start_time": -0.5, "end_time": 4},
+            {"start_time": 5, "end_time": 4},
+        ]:
+            with self.subTest(times=times):
+                response = self.update_annotation(**times)
+
+                self.assertEqual(response.status_code, 400)
+                self.annotation.refresh_from_db()
+                self.assertTrue(self.annotation.active)
+                self.assertEqual(
+                    CommentAnnotation.objects.filter(prev=self.annotation).count(), 0
+                )
+
     def test_undo_and_redo_return_the_new_active_version(self):
         update_response = self.update_annotation()
         updated_id = update_response.json()["annotation_id"]
@@ -322,6 +338,38 @@ class AnnotationHistoryViewTests(TestCase):
         # Owned by the same user, so this is not about permissions: the annotation simply is not
         # part of the content whose editor is asking for it.
         self.assertEqual(response.status_code, 404)
+
+    def test_form_endpoint_renders_read_only_for_a_borrower_of_the_set(self):
+        # Can read the set (resource access) but not edit it (not owner or collaborator).
+        borrower = UserFactory(instructor=True)
+        ResourceAccessFactory(user=borrower, resource=self.resource)
+        self.client.force_login(
+            borrower, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = self.client.get(
+            reverse("load_annotation_form", args=["comment", self.annotation.id]),
+            {"content_id": self.content.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('id="annotation-update-form"', html)
+        self.assertIn("readonly", html)
+        self.assertNotIn('id="annotation-form-delete-button"', html)
+
+    def test_form_endpoint_rejects_a_user_who_cannot_read_the_set(self):
+        outsider = UserFactory(instructor=True)
+        self.client.force_login(
+            outsider, backend="django.contrib.auth.backends.ModelBackend"
+        )
+
+        response = self.client.get(
+            reverse("load_annotation_form", args=["comment", self.annotation.id]),
+            {"content_id": self.content.id},
+        )
+
+        self.assertEqual(response.status_code, 403)
 
     def test_undo_restores_the_previous_versions_blur_blur_anchor_points(self):
         blur = BlurAnnotation.objects.create(

@@ -185,10 +185,9 @@ class Seconds2HMSTests(TestCase):
         """Test exact hour and minute boundary."""
         self.assertEqual(seconds2hms(3720), "1:02:00.00")  # 1h 2m 0s
 
-    def test_negative_seconds_raises(self):
-        """Test that negative input raises ValueError."""
-        with self.assertRaises(ValueError):
-            seconds2hms(-1)
+    def test_negative_seconds_goes_to_zero(self):
+        """Negative input is rendered as zero rather than raising."""
+        self.assertEqual(seconds2hms(-1), "0:00:00.00")
 
 
 class Time2SecondsTests(TestCase):
