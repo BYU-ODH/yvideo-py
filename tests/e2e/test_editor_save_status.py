@@ -96,3 +96,77 @@ def test_subtitle_cue_edit_shows_status_in_the_subtitle_panel(page, open_editor)
     expect(page.locator(".editor-subtitle-cue-content").first).to_have_value(
         original + " edited"
     )
+
+
+def _open_first_subtitle_track(page):
+    page.locator("#annotation-panel-switch").click()
+    track_value = page.locator(
+        "#subtitles-track-selector option.subtitles-track-option"
+    ).first.get_attribute("value")
+    page.select_option("#subtitles-track-selector", track_value)
+    page.wait_for_selector(".editor-subtitle-cue")
+
+
+def _count_cue_saves(page):
+    saves = []
+    page.on(
+        "request",
+        lambda request: (
+            saves.append(request.url) if "/update-cues/" in request.url else None
+        ),
+    )
+    return saves
+
+
+def test_subtitle_cue_edit_saves_on_focusout(page, open_editor):
+    open_editor()
+    _open_first_subtitle_track(page)
+    saves = _count_cue_saves(page)
+
+    status = page.locator("#subtitle-save-status")
+    cue = page.locator(".editor-subtitle-cue-content").first
+    original = cue.input_value()
+    cue.fill(original + " edited")
+    expect(status.locator(".save-status-text")).to_have_text("Waiting to autosave...")
+
+    cue.blur()
+    expect(status).to_contain_text("Changes saved")
+    expect(page.locator(".editor-subtitle-cue-content").first).to_have_value(
+        original + " edited"
+    )
+    assert len(saves) == 1
+
+
+def test_subtitle_cue_focusout_without_edits_does_not_save(page, open_editor):
+    open_editor()
+    _open_first_subtitle_track(page)
+    saves = _count_cue_saves(page)
+
+    cue = page.locator(".editor-subtitle-cue-content").first
+    cue.focus()
+    cue.blur()
+    page.wait_for_timeout(300)
+    assert saves == []
+
+
+def test_subtitle_cue_reverted_after_failed_enter_saves_on_focusout(page, open_editor):
+    open_editor()
+    _open_first_subtitle_track(page)
+    status = page.locator("#subtitle-save-status")
+    cue = page.locator(".editor-subtitle-cue-content").first
+    original = cue.input_value()
+
+    # A failed save doesn't re-render the list, so the same textarea keeps focus.
+    page.route("**/update-cues/", lambda route: route.fulfill(status=500))
+    cue.fill(original + " edited")
+    cue.press("Enter")
+    expect(status).to_contain_text("Save failed")
+    page.unroute("**/update-cues/")
+
+    # Typing back to the value the field had when focused fires no "change" event,
+    # but it still differs from what was last sent, so leaving the field must save it.
+    saves = _count_cue_saves(page)
+    cue.fill(original)
+    cue.blur()
+    expect(status).to_contain_text("Changes saved")
+    assert len(saves) == 1

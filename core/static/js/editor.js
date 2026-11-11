@@ -3152,14 +3152,21 @@ export class Editor {
         return targetEl?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
       }
 
-      // change watcher
-      subtitlePanel.addEventListener("change", (e) => {
-        if (canEditCues() && isACueInput(e?.target)) {
-          e.preventDefault();
-          this.saveCues(this.collectCues());
-          return;
-        }
-      })
+      // focusout watcher: leaving a cue field saves any unsent edits. Unlike "change", this
+      // also catches an edit that returns a field to the value it had when focused, e.g.
+      // after a failed Enter save (which leaves the field in place) the user undoes the edit.
+      subtitlePanel.addEventListener("focusout", (e) => {
+        const cueInput = e?.target;
+        if (!canEditCues() || !isACueInput(cueInput)) return;
+        // Defer until any in-progress re-render of the cue list finishes, so a field that
+        // loses focus because it was replaced isn't compared against a half-built list.
+        queueMicrotask(() => {
+          if (!cueInput.isConnected) return;
+          const cues = this.collectCues();
+          if (JSON.stringify(cues) === this.sentCueState) return;
+          this.saveCues(cues);
+        });
+      });
 
       // keydown watcher
       subtitlePanel.addEventListener("keydown", (e) => {
