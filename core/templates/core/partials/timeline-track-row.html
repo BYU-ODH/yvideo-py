@@ -5,16 +5,14 @@
      data-track-id="{{ track.id }}">
     <div class="timeline-row-left timeline-row-left-dark">
         <div class="timeline-track-name-wrapper">
-            <div class="track-name">{{ track.name }}</div>
-            <div class="track-rename-wrapper">
-                <label for="track-{{ track.id }}-rename-input">Rename Track</label>
-                <input id="track-{{ track.id }}-rename-input"
-                       class="track-rename-input"
-                       type="text"
-                       placeholder="{{ track.name }}"
-                       value="{{ track.name }}"
-                       maxlength="50" />
-            </div>
+            <p class="track-name">{{ track.name }}</p>
+            <input id="track-{{ track.id }}-rename-input"
+                   class="track-rename-input hidden"
+                   type="text"
+                   placeholder="{{ track.name }}"
+                   value="{{ track.name }}"
+                   maxlength="50"
+                   aria-label="Rename track" />
         </div>
         <div class="timeline-track-edit-wrapper multi-option-menu-wrapper">
             <button class="editor-menu-button open-multi-option-menu"

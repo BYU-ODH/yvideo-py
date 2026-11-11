@@ -65,6 +65,7 @@ from .subtitle_uploads import subtitle_file_references
 from .utils import ANNOTATION_DESCRIPTIONS
 from .utils import ANNOTATION_ICONS
 from .utils import time2seconds
+from .views import content_details_trail
 from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,7 @@ def video_editor(request, content):
             "subtitle_panel": subtitle_panel,
             "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
             "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),
+            "breadcrumbs": content_details_trail(content, ("Editor", None)),
         }
 
         return render(request, "core/video_editor.html", context)
@@ -281,32 +283,6 @@ def annotation_set_choices(content, user):
         }
         for annotation_set in content.get_available_annotation_sets(user)
     ]
-
-
-# TODO (#335, #352): unrouted and unreferenced. Delete it, or route it and keep the
-# context keys in step with video_editor above.
-@require_GET
-@content_write_required
-def load_annotation_set_form(request, content):
-    """Load the annotation set selection form."""
-    annotation_set = content.annotation_set
-
-    form_html = render_to_string(
-        "core/partials/annotation_set_form.html",
-        {
-            "content": content,
-            "annotation_set": annotation_set,
-            "can_edit": annotation_set.can_be_edited_by(request.user)
-            if annotation_set
-            else True,
-            "can_administer_annotation_set": annotation_set is not None
-            and annotation_set.can_be_orphaned_by(request.user),
-            "available_annotation_sets": annotation_set_choices(content, request.user),
-        },
-        request=request,
-    )
-
-    return HttpResponse(form_html)
 
 
 @require_POST
@@ -823,7 +799,10 @@ def update_annotation(request, content, annotation_type, annotation_id):
         old_end = getattr(annotation, "end_time", old_start)
 
         fields_to_update = {}
-        fields_to_update["start_time"] = time2seconds(json_data["start_time"])
+        start_time = time2seconds(json_data["start_time"])
+        if start_time < 0:
+            return HttpResponseBadRequest("start_time cannot be negative")
+        fields_to_update["start_time"] = start_time
         if "annotation_name" in json_data:
             fields_to_update["name"] = json_data["annotation_name"]
 
@@ -847,7 +826,10 @@ def update_annotation(request, content, annotation_type, annotation_id):
             fields_to_update["description"] = json_data["description"]
 
         if annotation_type != "pause":
-            fields_to_update["end_time"] = time2seconds(json_data["end_time"])
+            end_time = time2seconds(json_data["end_time"])
+            if end_time < start_time:
+                return HttpResponseBadRequest("end_time cannot precede start_time")
+            fields_to_update["end_time"] = end_time
 
         if (annotation_type == "pause") and "message" in json_data:
             fields_to_update["message"] = json_data["message"]
@@ -968,19 +950,6 @@ def load_annotation_form(request, annotation_type, annotation_id):
     form_html = html_result["form_html"]
 
     return HttpResponse(form_html)
-
-
-# TODO (#335, #352): unrouted and unreferenced -- annotations are created directly.
-# Delete it.
-@require_GET
-@content_write_required
-def create_annotation_form(request, content, annotation_type):
-    """Load blank form for creating a new annotation."""
-    annotation_set = content.annotation_set
-    if not annotation_set or not annotation_set.can_be_edited_by(request.user):
-        return forbidden("Cannot edit this AnnotationSet")
-
-    return HttpResponse("")
 
 
 @require_GET
@@ -1200,29 +1169,33 @@ def display_use_existing_annotation_set_option(request, content):
 
 @require_POST
 @track_write_required
-def update_track(request, track):
-    """Edit track name by changing the track_name attribute of all associated annotations"""
+def update_track_name(request, track):
+    """Rename a track. Body: {"new_value": "<name>"}.
+
+    Responds like the other track endpoints, with every track row re-rendered, so the
+    editor shows the name as saved rather than as typed.
+    """
     try:
         parsed_data = json.loads(request.body)
-    except Exception as e:
-        logger.error(f"Failed to parse the track update request. Exception: {e}")
-        return HttpResponseBadRequest()
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("Invalid JSON")
+
+    name = parsed_data.get("new_value") if isinstance(parsed_data, dict) else None
+    if not isinstance(name, str):
+        return HttpResponseBadRequest("new_value must be a string")
+
+    name = name.strip()
+    max_length = Track._meta.get_field("name").max_length
+    if not name or len(name) > max_length:
+        return HttpResponseBadRequest(f"Track names must be 1-{max_length} characters")
 
     try:
-        if "new_track_name" in parsed_data:
-            track.name = parsed_data["new_track_name"]
-        if "new_stack_position" in parsed_data:
-            track.stack_position = parsed_data["new_stack_position"]
-        track.save()
+        track.name = name
+        track.save(update_fields=["name"])
     except Exception as e:
         logger.error(f"Failed to update track name. Exception: {e}")
         return HttpResponseServerError()
-
-    track_html = render_to_string(
-        "core/partials/timeline-track-row.html", {"track": track}, request
-    )
-
-    return HttpResponse(track_html)
+    return convertTracksToHTML(track.annotation_set, request)
 
 
 def convertTracksToHTML(annotation_set, request):

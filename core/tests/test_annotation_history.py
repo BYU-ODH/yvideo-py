@@ -236,6 +236,21 @@ class AnnotationHistoryViewTests(TestCase):
                     CommentAnnotation.objects.filter(prev=self.annotation).count(), 0
                 )
 
+    def test_update_rejects_negative_or_inverted_times(self):
+        for times in [
+            {"start_time": -0.5, "end_time": 4},
+            {"start_time": 5, "end_time": 4},
+        ]:
+            with self.subTest(times=times):
+                response = self.update_annotation(**times)
+
+                self.assertEqual(response.status_code, 400)
+                self.annotation.refresh_from_db()
+                self.assertTrue(self.annotation.active)
+                self.assertEqual(
+                    CommentAnnotation.objects.filter(prev=self.annotation).count(), 0
+                )
+
     def test_undo_and_redo_return_the_new_active_version(self):
         update_response = self.update_annotation()
         updated_id = update_response.json()["annotation_id"]

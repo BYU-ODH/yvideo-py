@@ -125,10 +125,10 @@ button:hover {
     text-decoration: none;
 
     box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+}
 
-    &:hover {
-        box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
-    }
+.blue-button:hover, .white-button-with-border:hover, .red-button:hover, .cancel-button:hover {
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
 }
 
 .blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible {
@@ -459,11 +459,10 @@ button:hover {
     border: none;
     font-size: 1rem;
     white-space: nowrap;
+}
 
-
-    &:hover {
-        box-shadow: inset 0 0 2px 1px var(--dark-mode-background-light);
-    }
+.multi-option-menu-button:hover {
+    box-shadow: inset 0 0 2px 1px var(--dark-mode-background-light);
 }
 
 .multi-option-menu-button:first-child {
@@ -479,12 +478,11 @@ button:hover {
 .multi-option-menu-button:disabled {
     color: lightgrey;
     background-color: grey;
+}
 
-
-    &:hover {
-        cursor: not-allowed;
-        box-shadow: 0 0 0 0;
-    }
+.multi-option-menu-button:disabled:hover {
+    cursor: not-allowed;
+    box-shadow: 0 0 0 0;
 }
 
 .open-multi-option-menu {
@@ -868,11 +866,17 @@ button:hover {
     color: var(--dark-grey);
 }
 
+/* The li is a flex container, so its text-overflow never reaches these children. */
+.breadcrumb-item a,
 .breadcrumb-item [aria-current="page"] {
     overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+}
+
+.breadcrumb-item [aria-current="page"] {
     font-weight: 600;
     color: black;
-    text-overflow: ellipsis;
 }
 
 /* The current page's crumb is the long, title-derived one, so it absorbs the truncation. */
@@ -1598,7 +1602,7 @@ button:hover {
 }
 
 #resource-intake-policy-compliance-label {
-    text-wrap: wrap;
+    white-space: normal;
 }
 
 #content-advisory-choice-set {
@@ -1802,11 +1806,11 @@ button:hover {
     background: white;
 
     transition: 0.15s linear box-shadow;
+}
 
-    &:hover {
-        cursor: pointer;
-        box-shadow: var(--box-shadow-color) 2px 4px 6px;
-    }
+.resource-details:hover {
+    cursor: pointer;
+    box-shadow: var(--box-shadow-color) 2px 4px 6px;
 }
 
 .player-page .video-title h2 {
@@ -2038,8 +2042,8 @@ button.disabled {
     cursor: not-allowed;
     color: #434343;
     background-color: #e0e0e040;
+}
 
-    &:hover {
-        background-color: #e0e0e040;
-    }
+button.disabled:hover {
+    background-color: #e0e0e040;
 }

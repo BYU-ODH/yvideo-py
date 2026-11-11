@@ -784,16 +784,11 @@
     padding: 8px;
 }
 
-#subtitle-editor-panel-content {
-    overflow-y: auto;
+#subtitle-panel-content, #subtitle-panel-list {
     flex: 1;
 }
 
-#subtitle-panel-content-wrapper, #subtitle-panel-list {
-    flex: 1;
-}
-
-#subtitle-panel-content-wrapper {
+#subtitle-panel-content {
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -808,6 +803,55 @@
 
 .subtitle-editor-panel-visible {
     display: flex;
+}
+
+/* cue find and replace (cue-far) controls. keep "cue-find-and-replace"
+here in this comment for search purposes */
+#cue-far-wrapper {
+    padding: 8px;
+    border-radius: 8px;
+    background-color: var(--dark-mode-background-light);
+}
+
+#cue-far-header-img {
+    transform: rotate(0deg);
+    transition: transform 50ms linear;
+}
+
+.cue-far-hidden #cue-far-header-img {
+    transform: rotate(-90deg);
+}
+
+#cue-far-header {
+    cursor: pointer;
+}
+
+#cue-far-header-text {
+    margin: 0;
+}
+
+#cue-far-content {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.cue-far-hidden #cue-far-content {
+    display: none;
+}
+
+.cue-far-input-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#cue-find-match-count {
+    margin: 0;
 }
 
 #add-new-subtitle-button {
@@ -1428,7 +1472,8 @@
 }
 
 #timeline-wrapper {
-    overflow: hidden;
+    /* No overflow clipping: an open track options menu (.multi-option-menu) has to be
+       able to extend past the wrapper's edges. */
     display: flex;
     flex-direction: column;
     row-gap: 2px;
@@ -1458,6 +1503,14 @@
 
 .track-row.active-track .timeline-row-left {
     box-shadow: inset 0 0 0 2px white;
+}
+
+.track-name {
+    margin: 0;
+}
+
+.track-rename-input {
+    max-width: 8rem;
 }
 
 .timeline-row-right {
@@ -1491,6 +1544,10 @@ of the page */
 
 #timeline-ticks-content::-webkit-scrollbar {
     display: none;
+}
+
+#tick-marks-container {
+    overflow: hidden;
 }
 
 /* Set by Editor.handleZoom on #timeline-wrapper, so rows added later
@@ -1529,15 +1586,6 @@ start at the current zoom instead of needing their own width. */
 
 .annotations-container-no-child-pointer-events .track-item {
     pointer-events: none;
-}
-
-.track-rename-wrapper {
-    display: none;
-    flex-direction: column
-}
-
-.track-rename-wrapper-visible {
-    display: flex;
 }
 
 /* Scrollable content area */
@@ -1699,6 +1747,32 @@ start at the current zoom instead of needing their own width. */
     height: 8px;
 
     background-color: var(--dark-mode-text-color);
+}
+
+/* Shadow Scrubber: follows the edge being dragged while the playhead stays put. Dashed while the
+   edge is free, solid blue once it snaps to the playhead, drawn over the playhead so the snap shows. */
+#editor-shadow-scrubber {
+    pointer-events: none;
+
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 0;
+
+    width: 0;
+    height: 100%;
+    border-left: 2px dashed rgb(255 255 255 / 60%);
+
+    opacity: 0;
+}
+
+#editor-shadow-scrubber.visible {
+    opacity: 1;
+}
+
+#editor-shadow-scrubber.snapped {
+    border-left-color: rgb(5 130 202);
+    border-left-style: solid;
 }
 
 /* Bottom video controls and timeline */

@@ -177,7 +177,7 @@ def test_object_ids_are_not_taken_from_the_request_body():
         "update_annotation_set_name": "annotation_set_id",
         "delete_annotation_set": "annotation_set_id",
         "export_annotation_set": "annotation_set_id",
-        "update_track": "track_id",
+        "update_track_name": "track_id",
         "create_track": "annotation_set_id",
         "update_tracks_stack_positions": "annotation_set_id",
         "delete_track": "track_id",
