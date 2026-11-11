@@ -1102,3 +1102,52 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
         self.assertEqual(response.status_code, 200)
         content = Content.objects.get(pk=self.content.pk)
         self.assertIsNone(content.default_subtitle_track_id)
+
+
+class UpdateSubtitleCuesSentIndexTests(TestCase):
+    """update-cues sorts the cues it is sent; each rendered cue names its position in the request
+    so the editor can keep focus on the cue the user was in."""
+
+    def setUp(self):
+        import time
+
+        self.owner = UserFactory(instructor=True)
+        self.subtitle = SubtitleFactory(resource=ResourceFactory(), owner=self.owner)
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["oidc_id_token_expiration"] = time.time() + 3600
+        session.save()
+
+    def _cue(self, payload, start, end):
+        return {"type": "CUE", "payload": payload, "start_time": start, "end_time": end}
+
+    def test_rendered_cues_carry_their_index_in_the_request(self):
+        response = self.client.post(
+            reverse("update_subtitle_content", args=[self.subtitle.pk]),
+            data=json.dumps(
+                {
+                    "cues": [
+                        self._cue("later", "00:00:05.000", "00:00:06.000"),
+                        self._cue("earlier", "00:00:01.000", "00:00:02.000"),
+                        self._cue("same start", "00:00:01.000", "00:00:03.000"),
+                    ],
+                    "seconds_nudge": 0,
+                    "nudge_excluded_cues": [],
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content[:200])
+        html = response.content.decode()
+        sent_indexes = re.findall(r'data-sent-index="(\d+)"', html)
+        # Sorted by start time, stably: "earlier" (1), "same start" (2), then "later" (0).
+        self.assertEqual(sent_indexes, ["1", "2", "0"])
+
+    def test_editable_subtitles_have_no_sent_index(self):
+        response = self.client.get(
+            reverse("get_editable_subtitles", args=[self.subtitle.pk])
+        )
+
+        self.assertEqual(response.status_code, 200, response.content[:200])
+        self.assertNotIn("data-sent-index", response.content.decode())
