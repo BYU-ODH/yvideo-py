@@ -250,30 +250,6 @@ def awkward_data(seeded_demo_data, settings):
     )
 
 
-@pytest.fixture
-def read_only_annotation_set_content(seeded_demo_data):
-    """A content whose owner may edit the video but not the annotation set it points at.
-
-    Sharing a set rather than copying it is the point of the annotation-set model, so
-    "someone else owns these annotations" is a first-class state of the editor: the set
-    picker renders disabled, and every other control is intercepted by an offer to copy.
-    """
-    from core.factories import ContentFactory
-    from core.models import AnnotationSet
-
-    ada_playlist = Playlist.objects.get(name="Birds of a Feather")
-    bens_set = AnnotationSet.objects.get(name="Professor Ben Grid Annotations")
-    grid_content = Content.objects.get(title="Pattern Analysis Warmup")
-
-    return ContentFactory(
-        playlist=ada_playlist,
-        resource_file=grid_content.resource_file,
-        annotation_set=bens_set,
-        title="A11y Borrowed Annotations",
-        published=True,
-    )
-
-
 # ------------------------------------------------------------------------- full pages
 
 # Every view that renders a complete document, plus the data shapes that change what it
