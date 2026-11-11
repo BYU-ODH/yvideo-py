@@ -1749,6 +1749,32 @@ start at the current zoom instead of needing their own width. */
     background-color: var(--dark-mode-text-color);
 }
 
+/* Shadow Scrubber: follows the edge being dragged while the playhead stays put. Dashed while the
+   edge is free, solid blue once it snaps to the playhead, drawn over the playhead so the snap shows. */
+#editor-shadow-scrubber {
+    pointer-events: none;
+
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 0;
+
+    width: 0;
+    height: 100%;
+    border-left: 2px dashed rgb(255 255 255 / 60%);
+
+    opacity: 0;
+}
+
+#editor-shadow-scrubber.visible {
+    opacity: 1;
+}
+
+#editor-shadow-scrubber.snapped {
+    border-left-color: rgb(5 130 202);
+    border-left-style: solid;
+}
+
 /* Bottom video controls and timeline */
 #timeline-scrubber-row {
     height: 40px;
