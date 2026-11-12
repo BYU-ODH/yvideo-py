@@ -1,4 +1,4 @@
-"""Root urlconf for the booth kiosk (IS_IC_INSTANCE, IC_ROLE=kiosk).
+"""Root urlconf for the booth kiosk (IS_IC_INSTANCE).
 
 Only booth routes exist here: no admin, no login, no editor, no API. The kiosk serves
 its own static files (there is no Apache on the booth).

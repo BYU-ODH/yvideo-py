@@ -14,10 +14,12 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
+from core.models import ResourceFile
 from core.views import _file_response
 
 from . import booth_state
@@ -92,6 +94,8 @@ def _sync_summary():
         "state": state,
         "latest": latest,
         "agent_alive": booth_state.agent_alive(),
+        # The agent's last check failed. Playback never depends on production.
+        "parent_unreachable": bool(state.parent_check_error),
     }
 
 
@@ -163,17 +167,39 @@ def _item_or_404(item_id):
 @require_GET
 @booth_view
 def item_player_data(request, item_id):
-    return JsonResponse(player_data_for_item(_item_or_404(item_id)))
+    item = _item_or_404(item_id)
+    master = _master_on_disk(item)
+    if master is None:
+        raise Http404("The projection master isn't on this booth.")
+    return JsonResponse(
+        player_data_for_item(
+            item, reverse("ic_local_file", args=[master.pk, master.checksum])
+        )
+    )
 
 
 @require_GET
 @booth_view
-def item_media(request, item_id):
-    """The booth plays the verified local projection master, nothing else."""
-    master = _master_on_disk(_item_or_404(item_id))
-    if master is None:
+def local_file(request, resource_file_id, xxh64):
+    """One verified projection master, addressed by id and checksum.
+
+    The bytes behind a URL never change: a replaced master has a new checksum and so a
+    new URL, and its predecessor stays on disk through prune's grace period. That is why
+    a sync can apply at any time without touching the film that's playing.
+    """
+    local = get_object_or_404(
+        ICLocalFile,
+        kind=ICLocalFile.Kind.PROJECTION,
+        ref_id=resource_file_id,
+        xxh64=xxh64,
+    )
+    # Resolved through ResourceFile's storage, which keeps masters outside MEDIA_ROOT.
+    file_obj = ResourceFile(file=local.name)
+    if not file_obj.file.storage.exists(local.name):
         raise Http404("The projection master isn't on this booth.")
-    return _file_response(request, master)
+    response = _file_response(request, file_obj)
+    response["Cache-Control"] = "private, max-age=31536000, immutable"
+    return response
 
 
 @require_GET
@@ -228,10 +254,7 @@ def sync_run_create(request):
         return HttpResponse(
             booth_state.AGENT_DOWN_MESSAGE, status=503, content_type="text/plain"
         )
-    options = {
-        "full_rehash": _bool_option(request, "full_rehash"),
-        "apply_during_playback": _bool_option(request, "apply_during_playback"),
-    }
+    options = {"full_rehash": _bool_option(request, "full_rehash")}
     run = (
         ICSyncRun.objects.filter(
             status=ICSyncRun.Status.QUEUED,

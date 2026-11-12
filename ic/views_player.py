@@ -43,8 +43,9 @@ def item_json(item, *, playable=True, problems=()):
         "subtitle_track_id": item.content.default_subtitle_track_id
         if item.subtitles == item.Subtitles.VTT
         else None,
+        # The media URL comes with the player data, so the annotations and the file
+        # they're timed against are always fetched as one pair.
         "player_data_url": reverse("ic_item_player_data", args=[item.pk]),
-        "media_url": reverse("ic_item_media", args=[item.pk]),
         "playable": playable,
         "problems": [{"severity": p.severity, "message": p.message} for p in problems],
     }
@@ -70,8 +71,12 @@ def control_context(request, program, *, items, booth):
     }
 
 
-def player_data_for_item(item):
-    """The AnnotationPlayer payload for one item, subtitles chosen by the item's setting."""
+def player_data_for_item(item, media_url):
+    """The AnnotationPlayer payload for one item, subtitles chosen by the item's setting.
+
+    media_url is the video to play with these annotations. The output keeps both for as
+    long as the item is loaded, so nothing a sync does can change a film mid-showing.
+    """
     content = item.content
     player_json = content.get_player_json(include_subtitles=True)
     subtitle_tracks = []
@@ -88,6 +93,7 @@ def player_data_for_item(item):
         "annotations": player_json["annotations"],
         "subtitleTracks": subtitle_tracks,
         "fingerprint": content_fingerprint(content),
+        "media_url": media_url,
     }
 
 
@@ -144,7 +150,9 @@ def output(request):
 @require_GET
 @ic_item_preview_required
 def item_player_data(request, item):
-    return JsonResponse(player_data_for_item(item))
+    return JsonResponse(
+        player_data_for_item(item, reverse("ic_item_media", args=[item.pk]))
+    )
 
 
 @require_GET

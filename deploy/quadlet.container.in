@@ -23,7 +23,6 @@ Volume=@REPO_ROOT@/yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
 Volume=@DEPLOY_HOME@/.ssh:/root/.ssh:ro
 Environment=YVIDEO_DB_DIR=/app/data
 Environment=IC_PROJECTION_ROOT=/app/ic_projection
-Environment=IC_ROLE=@IC_MAIN_ROLE@
 Environment=WORKERS=@WORKERS@
 Environment=THREADS=@THREADS@
 LogDriver=journald

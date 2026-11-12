@@ -65,10 +65,7 @@ OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
 
 # --- International Cinema (#246; see DEPLOY_IC.md) ---------------------------------
 #
-# Production: the HMAC secret shared with each booth that can be pushed to, keyed by
-# the ICInstance name created in the admin. Generate with:
-#   python -c "import secrets; print(secrets.token_urlsafe(32))"
-# IC_INSTANCE_AGENT_SECRETS = {"booth": "<shared secret>"}
+# The booth only ever calls production; production needs no booth credentials.
 #
 # Where projection masters live. Defaults to <repo>/ic_projection; in containers the
 # quadlet mounts it at /app/ic_projection and sets this through the environment.
@@ -79,9 +76,9 @@ OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
 # IC_BOOTH_VERIFIED_MAX = {"height": 1080, "frame_rate": 30, "bitrate": 40_000_000}
 #
 # Booth only. The booth is a userless, read-only mirror: set DEBUG = False and
-# ALLOWED_HOSTS = ["localhost", "127.0.0.1", "<booth LAN hostname>"].
+# ALLOWED_HOSTS = ["localhost", "127.0.0.1"].
 # IS_IC_INSTANCE = True
 # IC_PARENT_URL = "https://yvideo.example.edu"
 # IC_SYNC_TOKEN = "<token shown once when the ICInstance was created>"
-# IC_AGENT_SECRET = "<the same secret as production's IC_INSTANCE_AGENT_SECRETS entry>"
-# IC_POLL_INTERVAL_SECONDS = 900
+# IC_CHECK_INTERVAL_SECONDS = 30   # cheap "anything new / any push?" check
+# IC_POLL_INTERVAL_SECONDS = 900   # full manifest fetch, as a safety net

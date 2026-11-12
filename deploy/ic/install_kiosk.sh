@@ -33,7 +33,6 @@ Installed $unit_dir/$APP_NAME-ic-kiosk.service
 
 Finish as an administrator (once):
   sudo install -D -m 644 $policy /etc/opt/chrome/policies/managed/ic.json
-  sudo ufw allow from <production server IP> to any port ${IC_AGENT_BIND##*:} proto tcp
 
 Then log out and back in (or: systemctl --user start $APP_NAME-ic-kiosk.service).
 MSG

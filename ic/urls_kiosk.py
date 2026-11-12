@@ -1,4 +1,4 @@
-"""The booth kiosk's /ic/ routes (IC_ROLE=kiosk, bound to localhost)."""
+"""The booth kiosk's /ic/ routes (IS_IC_INSTANCE, bound to localhost)."""
 
 from django.urls import path
 
@@ -13,7 +13,11 @@ urlpatterns = [
         views_booth.item_player_data,
         name="ic_item_player_data",
     ),
-    path("item/<int:item_id>/media/", views_booth.item_media, name="ic_item_media"),
+    path(
+        "file/<int:resource_file_id>/<str:xxh64>/",
+        views_booth.local_file,
+        name="ic_local_file",
+    ),
     path("heartbeat/", views_booth.heartbeat, name="ic_heartbeat"),
     path("status/", views_booth.status, name="ic_booth_status"),
     path("sync/badge/", views_booth.sync_badge, name="ic_sync_badge"),

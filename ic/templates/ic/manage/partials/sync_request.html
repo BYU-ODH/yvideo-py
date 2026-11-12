@@ -1,12 +1,11 @@
 {% load ic_tags %}
 
-{# Live indicator for a force push; polls production, which asks the booth. #}
+{# Live indicator for a force push. The booth collects the push on its next check and #}
+{# posts progress here; this polls production, which never contacts the booth. #}
 <div class="ic-sync-request"
      data-status="{{ sync_request.status }}"
      {% if not sync_request.is_final %}hx-get="{% url 'ic_sync_request_detail' sync_request.pk %}" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML"{% endif %}>
-    {% if sync_request.status == "unreachable" %}
-        <p class="ic-error">❌ {{ sync_request.error }}</p>
-    {% elif sync_request.status == "succeeded" %}
+    {% if sync_request.status == "succeeded" %}
         <p class="ic-ok">
             ✅ Booth verified.
             {% if matches_current %}
@@ -18,14 +17,30 @@
     {% elif sync_request.status == "up_to_date" %}
         <p class="ic-ok">✅ Booth was already up to date.</p>
     {% elif sync_request.status == "partial" %}
-        <p class="ic-warn">⚠️ Partial: the booth applied the data, but some programs aren't playable yet.</p>
+        <p class="ic-warn">⚠️ Partial: the booth applied what it could, but some programs aren't playable yet.</p>
     {% elif sync_request.status == "failed" %}
         <p class="ic-error">❌ {{ sync_request.error }} Nothing changed on the booth.</p>
-    {% elif sync_request.status == "waiting_for_playback" %}
-        <p class="ic-warn">⏸ The booth is playing; files are ready and the data will apply when playback stops.</p>
+    {% elif sync_request.status == "expired" %}
+        <p class="ic-error">
+            ❌ The booth never collected this push. It hasn't checked in since {{ sync_request.instance.last_seen_at|default:"it was set up"|date:"M j H:i" }}: it may be off or offline, or its sync agent may be stopped (<code>systemctl --user restart &lt;app&gt;-ic-sync-agent</code> on the booth).
+        </p>
+    {% elif sync_request.status == "pending" %}
+        {% if booth_in_contact %}
+            <p>⟳ Waiting for {{ sync_request.instance.name }} to collect this push (it checks every {{ check_interval }} seconds)…</p>
+        {% else %}
+            <p class="ic-warn">
+                ⚠️ {{ sync_request.instance.name }} hasn't checked in since {{ sync_request.instance.last_seen_at|default:"it was set up"|date:"M j H:i" }}. It may be off or offline, or its sync agent may be stopped. The push runs if it checks in before {{ expires_at|time:"H:i" }}.
+            </p>
+        {% endif %}
+    {% elif sync_request.status == "queued" %}
+        <p>⟳ Queued on {{ sync_request.instance.name }}; it starts when the sync already running there finishes.</p>
     {% else %}
-        <p>⟳ Pushing to {{ sync_request.instance.name }}… ({{ sync_request.status }})</p>
-        {% if sync_request.error %}<p class="ic-warn">{{ sync_request.error }}</p>{% endif %}
+        <p>⟳ {{ sync_request.instance.name }} is syncing…</p>
+    {% endif %}
+    {% if progress_stale %}
+        <p class="ic-warn">
+            No word from the booth since {{ sync_request.progress_at|time:"H:i:s" }}; it may still be syncing. The result appears here when its report arrives.
+        </p>
     {% endif %}
     {% if live %}
         {% sync_phases live %}
@@ -45,4 +60,5 @@
             {% endfor %}
         </ul>
     {% endif %}
+    {% for warning in report.warnings %}<p class="ic-warn">⚠️ {{ warning }}</p>{% endfor %}
 </div>

@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import unittest
+from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
@@ -193,6 +194,68 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
         master.refresh_from_db()
         self.assertIsNone(master.master_released_at)
         self.assertTrue(Path(master.file.path).exists())
+
+    def test_a_failed_ingest_keeps_the_previous_master(self):
+        previous = make_master(self.resource)
+        previous_path = Path(previous.file.path)
+        upload = self.upload_file(self._write(b"a replacement master " * 400))
+        probe = media.ProbeResult(
+            duration_seconds=100.0,
+            width=1920,
+            height=1080,
+            frame_rate=24.0,
+            video_codec="h264",
+            audio_codec="aac",
+            bitrate=10_000_000,
+            color_transfer="",
+            video_start_time=0.0,
+            video_duration=100.0,
+            raw={},
+        )
+        with (
+            mock.patch.object(jobs.media, "probe", return_value=probe),
+            mock.patch.object(jobs.media, "is_faststart", return_value=True),
+            mock.patch.object(jobs, "queue", side_effect=RuntimeError("disk on fire")),
+        ):
+            job = jobs.claim_next()
+            jobs.run(job)
+        self.assertEqual(job.status, MediaJob.Status.FAILED)
+        self.assertTrue(ResourceFile.objects.filter(pk=previous.pk).exists())
+        self.assertTrue(previous_path.exists())
+        # The uploaded bytes are back where a re-run of the job looks for them.
+        row = ICUpload.objects.get(pk=upload["id"])
+        self.assertTrue(row.part_path.exists())
+        self.assertEqual(
+            ResourceFile.objects.filter(
+                resource=self.resource, is_projection_file=True
+            ).count(),
+            1,
+        )
+
+    def test_replacing_a_master_deletes_the_old_bytes_after_commit(self):
+        previous = make_master(self.resource)
+        previous_path = Path(previous.file.path)
+        self.upload_file(self._write(b"a replacement master " * 400))
+        probe = mock.Mock(apply_to=lambda resource_file: None)
+        with (
+            mock.patch.object(jobs.media, "probe", return_value=probe),
+            mock.patch.object(jobs.media, "is_faststart", return_value=True),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            job = jobs.claim_next()
+            jobs.run(job)
+        self.assertEqual(job.status, MediaJob.Status.SUCCEEDED, job.error)
+        self.assertFalse(ResourceFile.objects.filter(pk=previous.pk).exists())
+        self.assertFalse(previous_path.exists())
+        master = ResourceFile.objects.get(
+            resource=self.resource, is_projection_file=True
+        )
+        self.assertTrue(Path(master.file.path).exists())
+
+    def _write(self, data):
+        path = self._ic_tmp / "upload.mp4"
+        path.write_bytes(data)
+        return path
 
     @unittest.skipUnless(FFMPEG_AVAILABLE, "needs ffmpeg and ffprobe")
     def test_a_file_that_is_not_a_video_fails_with_a_message(self):

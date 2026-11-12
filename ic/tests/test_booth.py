@@ -1,9 +1,7 @@
-"""The booth: userless kiosk, read-only middleware, and the signed agent surface."""
+"""The booth: userless kiosk, read-only middleware, and file-addressed media."""
 
 from datetime import timedelta
-import json
 from pathlib import Path
-import uuid
 
 from django.conf import settings
 from django.test import TestCase
@@ -12,11 +10,12 @@ from django.urls import NoReverseMatch
 from django.urls import reverse
 from django.utils import timezone
 
+from core.factories import ResourceFactory
 from ic import booth_state
 from ic.models import ICLocalFile
 from ic.models import ICSyncRun
-from ic.sync.signing import signed_headers
 from ic.testing import ICTempDirsMixin
+from ic.testing import make_master
 from ic.testing import make_program_scenario
 
 BOOTH_MIDDLEWARE = [
@@ -75,7 +74,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
             "stream_file",
             "ic_manage_dashboard",
             "ic_sync_manifest",
-            "ic_agent_sync",
+            "ic_item_media",
         ):
             with self.subTest(name=name), self.assertRaises(NoReverseMatch):
                 reverse(name, args=[1]) if name in (
@@ -83,17 +82,68 @@ class KioskTests(ICTempDirsMixin, TestCase):
                     "stream_file",
                 ) else reverse(name)
 
-    def test_media_is_the_verified_local_master(self):
-        url = reverse("ic_item_media", args=[self.film.pk])
-        self.assertEqual(self.client.get(url).status_code, 404)  # not verified yet
+    def test_media_is_the_verified_local_master_addressed_by_checksum(self):
+        player_data = reverse("ic_item_player_data", args=[self.film.pk])
+        self.assertEqual(self.client.get(player_data).status_code, 404)  # not here yet
         local = mark_local(self.film)
-        response = self.client.get(url, HTTP_RANGE="bytes=0-9")
+        master = self.film.projection_file()
+        media_url = self.client.get(player_data).json()["media_url"]
+        self.assertEqual(
+            media_url, reverse("ic_local_file", args=[master.pk, master.checksum])
+        )
+        response = self.client.get(media_url, HTTP_RANGE="bytes=0-9")
         self.assertEqual(response.status_code, 206)
-        master_bytes = Path(self.film.projection_file().file.path).read_bytes()
+        self.assertIn("immutable", response["Cache-Control"])
+        master_bytes = Path(master.file.path).read_bytes()
         self.assertEqual(b"".join(response.streaming_content), master_bytes[:10])
         local.xxh64 = "0000000000000000"
         local.save()
-        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.get(media_url).status_code, 404)
+
+    def test_a_sync_replacing_the_master_cannot_change_a_playing_film(self):
+        """The output keeps the URL it loaded; that URL always serves the same bytes."""
+        mark_local(self.film)
+        old_url = self.client.get(
+            reverse("ic_item_player_data", args=[self.film.pk])
+        ).json()["media_url"]
+        old_bytes = b"".join(
+            self.client.get(old_url, HTTP_RANGE="bytes=0-99").streaming_content
+        )
+
+        # A sync applies mid-film: the item's resource now has a different master,
+        # which hasn't even finished downloading.
+        resource = self.film.content.resource
+        old_master = self.film.projection_file()
+        old_master.is_projection_file = False
+        old_master.save()
+        new_master = make_master(resource, payload=b"a re-graded master " * 500)
+
+        response = self.client.get(old_url, HTTP_RANGE="bytes=0-99")
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(b"".join(response.streaming_content), old_bytes)
+        # Loading the item again (the next showing) waits for the new master.
+        self.assertEqual(
+            self.client.get(
+                reverse("ic_item_player_data", args=[self.film.pk])
+            ).status_code,
+            404,
+        )
+        mark_local(self.film)
+        self.assertEqual(
+            self.client.get(reverse("ic_item_player_data", args=[self.film.pk])).json()[
+                "media_url"
+            ],
+            reverse("ic_local_file", args=[new_master.pk, new_master.checksum]),
+        )
+
+    def test_unknown_files_are_not_served(self):
+        other = make_master(ResourceFactory())
+        self.assertEqual(
+            self.client.get(
+                reverse("ic_local_file", args=[other.pk, other.checksum])
+            ).status_code,
+            404,
+        )
 
     def test_unplayable_items_are_flagged_on_the_controller(self):
         response = self.client.get(reverse("ic_control", args=[self.program.pk]))
@@ -194,96 +244,6 @@ class BoothViewsOnProductionTests(ICTempDirsMixin, TestCase):
 
         with self.assertRaises(Http404):
             views_booth.control_index(request)
-
-
-SECRET = "agent-secret"
-
-
-@override_settings(
-    IS_IC_INSTANCE=True,
-    ROOT_URLCONF="yvideo.urls_ic_agent",
-    MIDDLEWARE=BOOTH_MIDDLEWARE,
-    IC_AGENT_SECRET=SECRET,
-)
-class AgentTests(ICTempDirsMixin, TestCase):
-    def setUp(self):
-        super().setUp()
-        booth_state.record_agent_heartbeat()
-
-    def trigger(
-        self, request_id=None, secret=SECRET, now=None, trigger="force_push", **options
-    ):
-        path = reverse("ic_agent_sync")
-        body = json.dumps(
-            {
-                "trigger": trigger,
-                "request_id": str(request_id or uuid.uuid4()),
-                "requested_by": "Ada Editor",
-                "options": options,
-            }
-        ).encode()
-        headers = {
-            f"HTTP_{k.upper().replace('-', '_')}": v
-            for k, v in signed_headers(secret, "POST", path, body, now=now).items()
-        }
-        return self.client.post(
-            path, data=body, content_type="application/json", **headers
-        )
-
-    def test_a_signed_trigger_queues_a_run(self):
-        response = self.trigger(apply_during_playback=True)
-        self.assertEqual(response.status_code, 202)
-        run = ICSyncRun.objects.get(pk=response.json()["run_id"])
-        self.assertEqual(run.trigger, ICSyncRun.Trigger.FORCE_PUSH)
-        self.assertEqual(run.requested_by, "Ada Editor")
-        self.assertTrue(run.options["apply_during_playback"])
-
-    def test_replaying_a_request_id_never_creates_a_second_run(self):
-        request_id = uuid.uuid4()
-        first = self.trigger(request_id).json()["run_id"]
-        self.assertEqual(self.trigger(request_id).json()["run_id"], first)
-        self.assertEqual(ICSyncRun.objects.count(), 1)
-
-    def test_queued_event_runs_coalesce(self):
-        self.trigger(trigger="event")
-        self.trigger(trigger="event")
-        self.assertEqual(ICSyncRun.objects.filter(trigger="event").count(), 1)
-
-    def test_bad_or_stale_signatures_are_refused(self):
-        self.assertEqual(self.trigger(secret="wrong").status_code, 403)
-        import time
-
-        self.assertEqual(self.trigger(now=time.time() - 3600).status_code, 403)
-        self.assertEqual(
-            self.client.post(
-                reverse("ic_agent_sync"), data="{}", content_type="application/json"
-            ).status_code,
-            403,
-        )
-        self.assertFalse(ICSyncRun.objects.exists())
-
-    def test_dead_agent_is_reported_immediately(self):
-        booth_state.record_agent_heartbeat(now=0)
-        response = self.trigger()
-        self.assertEqual(response.status_code, 503)
-        self.assertIn("isn't running", response.content.decode())
-
-    def test_progress_and_status_are_signed_reads(self):
-        run_id = self.trigger().json()["run_id"]
-        path = reverse("ic_agent_sync_progress", args=[run_id])
-        self.assertEqual(self.client.get(path).status_code, 403)
-        headers = {
-            f"HTTP_{k.upper().replace('-', '_')}": v
-            for k, v in signed_headers(SECRET, "GET", path).items()
-        }
-        data = self.client.get(path, **headers).json()
-        self.assertEqual(data["status"], "queued")
-        self.assertTrue(data["agent_alive"])
-
-    def test_only_agent_routes_exist(self):
-        for name in ("ic_control_index", "ic_output", "admin:index", "playlists"):
-            with self.subTest(name=name), self.assertRaises(NoReverseMatch):
-                reverse(name)
 
 
 @override_settings(

@@ -112,9 +112,9 @@ def allowed_methods(view, seen=None):
     return None
 
 
-# The booth's urlconfs are walked too: a booth view without a check is as exploitable
+# The booth's urlconf is walked too: a booth view without a check is as exploitable
 # there as a production one would be here.
-URLCONFS = [None, "yvideo.urls_ic", "yvideo.urls_ic_agent"]
+URLCONFS = [None, "yvideo.urls_ic"]
 
 
 @pytest.mark.django_db

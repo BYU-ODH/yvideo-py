@@ -1,9 +1,9 @@
 """IC views on production: management, the preview player, and the sync API."""
 
+from datetime import timedelta
 import json
 from pathlib import Path
 import re
-from unittest import mock
 import uuid
 
 from django.test import TestCase
@@ -20,7 +20,6 @@ from ic.models import ICProgramItem
 from ic.models import ICSyncRequest
 from ic.models import MediaJob
 from ic.sync.bundle import build_bundle
-from ic.sync.push import AgentError
 from ic.testing import ICTempDirsMixin
 from ic.testing import make_ic_editor
 from ic.testing import make_program_scenario
@@ -203,6 +202,7 @@ class PreviewPlayerTests(ICTempDirsMixin, TestCase):
         self.assertEqual(len(data["subtitleTracks"]), 1)
         self.assertTrue(data["subtitleTracks"][0]["default"])
         self.assertEqual(len(data["fingerprint"]), 64)
+        self.assertEqual(data["media_url"], reverse("ic_item_media", args=[film.pk]))
         self.assertTrue(any(a["type"] == "blur" for a in data["annotations"]))
         film.subtitles = ICProgramItem.Subtitles.BURNED_IN
         film.save()
@@ -326,9 +326,89 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
         )
         fixture = self.get("ic_sync_fixture")
         self.assertEqual(fixture["X-IC-Manifest-Hash"], etag.strip('"'))
-        self.assertEqual(
-            self.get("ic_sync_manifest_hash").json()["manifest_hash"], etag.strip('"')
+
+    def test_check_returns_the_manifest_hash_and_pending_pushes(self):
+        digest = self.get("ic_sync_manifest")["ETag"].strip('"')
+        data = self.get("ic_sync_check").json()
+        self.assertEqual(data, {"manifest_hash": digest, "sync_requests": []})
+        self.instance.refresh_from_db()
+        self.assertIsNotNone(self.instance.last_seen_at)
+
+        pushed = ICSyncRequest.objects.create(
+            instance=self.instance,
+            requested_by_name="Ada",
+            options={"full_rehash": True},
         )
+        other = ICInstance(name="laptop")
+        other.issue_token()
+        other.save()
+        ICSyncRequest.objects.create(instance=other)
+        stale = ICSyncRequest.objects.create(instance=self.instance)
+        ICSyncRequest.objects.filter(pk=stale.pk).update(
+            created_at=timezone.now() - ICSyncRequest.PENDING_TTL - timedelta(minutes=1)
+        )
+        offers = self.get("ic_sync_check").json()["sync_requests"]
+        self.assertEqual(
+            offers,
+            [
+                {
+                    "request_id": str(pushed.request_id),
+                    "requested_by": "Ada",
+                    "options": {"full_rehash": True},
+                }
+            ],
+        )
+        stale.refresh_from_db()
+        self.assertEqual(stale.status, ICSyncRequest.Status.EXPIRED)
+
+    def post(self, name, data):
+        return self.client.post(
+            reverse(name),
+            data=json.dumps(data),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.token}",
+        )
+
+    def test_progress_moves_a_push_along_until_the_report_finishes_it(self):
+        pushed = ICSyncRequest.objects.create(instance=self.instance)
+        run_id = str(uuid.uuid4())
+        progress = {
+            "run_id": run_id,
+            "request_id": str(pushed.request_id),
+            "status": "running",
+            "phase": "downloading",
+        }
+        self.assertEqual(self.post("ic_sync_progress", progress).status_code, 200)
+        pushed.refresh_from_db()
+        self.assertEqual(pushed.status, "running")
+        self.assertEqual(str(pushed.booth_run_id), run_id)
+        self.assertEqual(pushed.progress["phase"], "downloading")
+        self.assertIsNotNone(pushed.picked_up_at)
+        # No longer offered once collected.
+        self.assertEqual(self.get("ic_sync_check").json()["sync_requests"], [])
+        # Progress never finalizes a push; the report (with its results) does.
+        self.post("ic_sync_progress", {**progress, "status": "succeeded"})
+        pushed.refresh_from_db()
+        self.assertEqual(pushed.status, "running")
+        self.post(
+            "ic_sync_status",
+            {"request_id": str(pushed.request_id), "status": "succeeded"},
+        )
+        pushed.refresh_from_db()
+        self.assertTrue(pushed.is_final)
+        self.assertIsNotNone(pushed.finished_at)
+
+    def test_another_instances_push_is_untouched(self):
+        other = ICInstance(name="laptop")
+        other.issue_token()
+        other.save()
+        theirs = ICSyncRequest.objects.create(instance=other)
+        self.post(
+            "ic_sync_progress",
+            {"request_id": str(theirs.request_id), "status": "running"},
+        )
+        theirs.refresh_from_db()
+        self.assertEqual(theirs.status, ICSyncRequest.Status.PENDING)
 
     def test_master_download_supports_large_ranges(self):
         master = self.scenario["film_item"].projection_file()
@@ -429,74 +509,80 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
 
 
 class ForcePushTests(ICTempDirsMixin, TestCase):
+    """A push is a request the booth collects; production never connects to the booth."""
+
     def setUp(self):
         super().setUp()
         self.scenario = make_program_scenario()
-        self.instance = ICInstance(name="booth", agent_url="http://booth.test:8443")
+        self.instance = ICInstance(name="booth", last_seen_at=timezone.now())
         self.instance.issue_token()
         self.instance.save()
         self.client.force_login(self.scenario["editor"])
 
     def push(self):
-        with self.settings(IC_INSTANCE_AGENT_SECRETS={"booth": "s3cret"}):
-            return self.client.post(
-                reverse("ic_instance_push", args=[self.instance.pk]),
-                {"full_rehash": "1"},
-            )
+        return self.client.post(
+            reverse("ic_instance_push", args=[self.instance.pk]), {"full_rehash": "1"}
+        )
 
-    def test_push_sends_a_signed_trigger_and_reports_progress(self):
-        run_id = str(uuid.uuid4())
-        with mock.patch("ic.views_manage.send_trigger", return_value=run_id) as sent:
-            response = self.push()
+    def detail(self, sync_request):
+        return self.client.get(
+            reverse("ic_sync_request_detail", args=[sync_request.pk])
+        )
+
+    def test_push_waits_for_the_booth_then_shows_its_progress_and_result(self):
+        response = self.push()
         self.assertEqual(response.status_code, 200)
         sync_request = ICSyncRequest.objects.get()
-        self.assertEqual(str(sync_request.booth_run_id), run_id)
-        self.assertEqual(sent.call_args.kwargs["options"]["full_rehash"], True)
-        self.assertEqual(sent.call_args.kwargs["trigger"], "force_push")
+        self.assertEqual(sync_request.status, ICSyncRequest.Status.PENDING)
+        self.assertEqual(sync_request.options, {"full_rehash": True})
+        self.assertContains(response, "Waiting for booth to collect this push")
+        self.assertContains(response, 'hx-trigger="every 2s"')
+
+        # A second click while it waits shows the same push.
+        self.push()
+        self.assertEqual(ICSyncRequest.objects.count(), 1)
+
+        sync_request.status = "running"
+        sync_request.progress = {
+            "status": "running",
+            "phase": "downloading",
+            "files_done": 1,
+            "files_total": 3,
+        }
+        sync_request.progress_at = timezone.now()
+        sync_request.save()
+        self.assertContains(self.detail(sync_request), "1/3 files")
 
         digest = build_bundle()[2]
-        live = {
-            "status": "succeeded",
-            "phase": "",
-            "report": {"applied_manifest_hash": digest, "programs": []},
-            "error": "",
-        }
-        with (
-            self.settings(IC_INSTANCE_AGENT_SECRETS={"booth": "s3cret"}),
-            mock.patch("ic.views_manage.fetch_run", return_value=live),
-        ):
-            detail = self.client.get(
-                reverse("ic_sync_request_detail", args=[sync_request.pk])
-            )
+        sync_request.status = "succeeded"
+        sync_request.report = {"applied_manifest_hash": digest, "programs": []}
+        sync_request.finished_at = timezone.now()
+        sync_request.save()
+        detail = self.detail(sync_request)
         self.assertContains(detail, "Booth now matches production")
-        sync_request.refresh_from_db()
-        self.assertTrue(sync_request.is_final)
+        self.assertNotContains(detail, "every 2s")
 
-    def test_unreachable_booth_fails_immediately(self):
-        with mock.patch(
-            "ic.views_manage.send_trigger",
-            side_effect=AgentError(
-                "Booth unreachable: connection refused at booth.test:8443."
-            ),
-        ):
-            response = self.push()
-        self.assertContains(response, "connection refused")
-        self.assertEqual(ICSyncRequest.objects.get().status, "unreachable")
+    def test_a_booth_that_isnt_checking_in_is_called_out(self):
+        self.instance.last_seen_at = timezone.now() - timedelta(hours=2)
+        self.instance.save()
+        self.assertContains(self.push(), "hasn't checked in since")
+        sync_request = ICSyncRequest.objects.get()
+        ICSyncRequest.objects.filter(pk=sync_request.pk).update(
+            created_at=timezone.now() - ICSyncRequest.PENDING_TTL - timedelta(minutes=1)
+        )
+        detail = self.detail(sync_request)
+        self.assertContains(detail, "never collected this push")
+        self.assertNotContains(detail, "every 2s")
 
     def test_lost_contact_mid_run(self):
-        with mock.patch("ic.views_manage.send_trigger", return_value=str(uuid.uuid4())):
-            self.push()
+        self.push()
         sync_request = ICSyncRequest.objects.get()
-        with (
-            self.settings(IC_INSTANCE_AGENT_SECRETS={"booth": "s3cret"}),
-            mock.patch(
-                "ic.views_manage.fetch_run", side_effect=AgentError("Booth unreachable")
-            ),
-        ):
-            detail = self.client.get(
-                reverse("ic_sync_request_detail", args=[sync_request.pk])
-            )
-        self.assertContains(detail, "Lost contact with the booth")
+        sync_request.status = "running"
+        sync_request.progress = {"status": "running", "phase": "downloading"}
+        sync_request.progress_at = timezone.now() - timedelta(minutes=2)
+        sync_request.save()
+        detail = self.detail(sync_request)
+        self.assertContains(detail, "No word from the booth since")
         self.assertContains(detail, 'hx-trigger="every 2s"')
 
     def test_non_ic_users_cannot_push(self):
@@ -507,42 +593,6 @@ class ForcePushTests(ICTempDirsMixin, TestCase):
             ).status_code,
             403,
         )
-
-
-class NotifyTests(ICTempDirsMixin, TestCase):
-    def setUp(self):
-        super().setUp()
-        self.scenario = make_program_scenario()
-        self.instance = ICInstance(name="booth", agent_url="http://booth.test:8443")
-        self.instance.issue_token()
-        self.instance.save()
-
-    def test_edits_schedule_one_debounced_notification(self):
-        from core.models import MuteAnnotation
-
-        with self.captureOnCommitCallbacks(execute=True):
-            for annotation in MuteAnnotation.objects.filter(active=True):
-                annotation.edit(end_time=annotation.end_time + 1)
-                annotation = MuteAnnotation.objects.get(prev=annotation)
-                annotation.edit(end_time=annotation.end_time + 1)
-        jobs = MediaJob.objects.filter(kind=MediaJob.Kind.IC_NOTIFY)
-        self.assertEqual(jobs.count(), 1)
-        self.assertGreater(jobs.get().not_before, timezone.now())
-
-    def test_notify_job_triggers_only_when_the_manifest_changed(self):
-        from ic import jobs
-
-        job = MediaJob.objects.create(kind=MediaJob.Kind.IC_NOTIFY)
-        with (
-            self.settings(IC_INSTANCE_AGENT_SECRETS={"booth": "s3cret"}),
-            mock.patch("ic.sync.push.send_trigger") as sent,
-        ):
-            jobs.ic_notify(job)
-            jobs.ic_notify(job)
-        self.assertEqual(sent.call_count, 1)
-        self.assertEqual(sent.call_args.kwargs["trigger"], "event")
-        self.instance.refresh_from_db()
-        self.assertEqual(self.instance.last_notified_manifest_hash, build_bundle()[2])
 
 
 class ScheduledContentDeletionTests(ICTempDirsMixin, TestCase):

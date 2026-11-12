@@ -5,7 +5,7 @@
         <li class="{{ step.css }}">
             {% if step.css == "ic-phase-done" %}✓{% endif %}
             {{ step.label }}
-            {% if step.name == "downloading" and phase == "downloading" %}
+            {% if downloading and step.name == phase %}
                 <span class="ic-muted">{{ files_done }}/{{ files_total }} files · {{ bytes_done|filesize_gb }} of {{ bytes_total|filesize_gb }}</span>
             {% endif %}
         </li>

@@ -1,6 +1,7 @@
 from datetime import timedelta
 from io import StringIO
 from unittest import mock
+import uuid
 
 from django.core.management import CommandError
 from django.core.management import call_command
@@ -30,7 +31,7 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
         forced = ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.FORCE_PULL)
         order = []
 
-        def fake_execute(run):
+        def fake_execute(run, **kwargs):
             order.append(run.trigger)
             run.status = ICSyncRun.Status.SUCCEEDED
             run.save()
@@ -52,6 +53,37 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
         )
 
     @override_settings(IS_IC_INSTANCE=True)
+    def test_the_check_runs_first_and_its_push_runs_before_the_poll(self):
+        order = []
+
+        def fake_check(client):
+            ICSyncRun.objects.create(
+                trigger=ICSyncRun.Trigger.FORCE_PUSH, request_id=uuid.uuid4()
+            )
+
+        def fake_execute(run, **kwargs):
+            order.append(run.trigger)
+            # Runs keep the agent alive and checking through their heartbeat.
+            self.assertTrue(callable(kwargs["heartbeat"]))
+            run.status = ICSyncRun.Status.SUCCEEDED
+            run.save()
+            return run
+
+        with (
+            mock.patch(
+                "ic.management.commands.ic_sync_agent.check_parent",
+                side_effect=fake_check,
+            ) as checked,
+            mock.patch(
+                "ic.management.commands.ic_sync_agent.execute_run",
+                side_effect=fake_execute,
+            ),
+        ):
+            call_command("ic_sync_agent", "--once")
+        checked.assert_called_once()
+        self.assertEqual(order, ["force_push", "poll"])
+
+    @override_settings(IS_IC_INSTANCE=True)
     def test_weekly_rehash_of_only_copies(self):
         ICLocalFile.objects.create(
             kind="projection",
@@ -64,7 +96,7 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
         )
         runs = []
 
-        def fake_execute(run):
+        def fake_execute(run, **kwargs):
             runs.append(run.options)
             run.status = ICSyncRun.Status.SUCCEEDED
             run.save()
@@ -95,7 +127,8 @@ class MediaWorkerCommandTests(ICTempDirsMixin, TestCase):
             kind=MediaJob.Kind.CLEANUP_UPLOADS, status=MediaJob.Status.RUNNING
         )
         later = MediaJob.objects.create(
-            kind=MediaJob.Kind.IC_NOTIFY, not_before=timezone.now() + timedelta(hours=1)
+            kind=MediaJob.Kind.CLEANUP_UPLOADS,
+            not_before=timezone.now() + timedelta(hours=1),
         )
         with mock.patch("os.nice"):
             call_command("process_media_jobs", "--once", stdout=StringIO())

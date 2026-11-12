@@ -117,47 +117,57 @@ def ingest(job):
             f"A file with the same content already exists: {existing.file.name}.",
         )
 
-    with transaction.atomic():
-        previous = ResourceFile.objects.filter(
-            resource=resource, is_projection_file=True
-        ).first()
-        switch_ids = []
-        if previous is not None:
-            switch_ids = list(previous.derivatives.values_list("pk", flat=True))
-            if previous.bytes_on_this_server:
-                previous.file.delete(save=False)
-            previous.delete()
+    name = projection_file_name(resource.pk, checksum, upload.filename)
+    master = ResourceFile(
+        resource=resource,
+        is_projection_file=True,
+        version=f"ic-master-{checksum[:8]}",
+        checksum=checksum,
+        checksum_at=timezone.now(),
+        size_bytes=size,
+        faststart=True,
+        probed_at=timezone.now(),
+        full_video=True,
+    )
+    probe.apply_to(master)
+    master.file.name = name
+    # The new bytes go into place first, under a name that contains their checksum, so
+    # they can't collide with the previous master. The previous master's bytes are only
+    # deleted once the new row has committed: if anything below fails, production still
+    # has the previous master, and the upload's bytes go back to where a re-run finds them.
+    destination = Path(master.file.storage.path(name))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(part, destination)
+    try:
+        with transaction.atomic():
+            previous = ResourceFile.objects.filter(
+                resource=resource, is_projection_file=True
+            ).first()
+            switch_ids = []
+            if previous is not None:
+                switch_ids = list(previous.derivatives.values_list("pk", flat=True))
+                if previous.bytes_on_this_server:
+                    old_name = previous.file.name
+                    transaction.on_commit(lambda: master.file.storage.delete(old_name))
+                # A queryset delete, not ResourceFile.delete(), which would remove the
+                # bytes at once rather than after the commit.
+                ResourceFile.objects.filter(pk=previous.pk).delete()
+            master.save()
 
-        name = projection_file_name(resource.pk, checksum, upload.filename)
-        master = ResourceFile(
-            resource=resource,
-            is_projection_file=True,
-            version=f"ic-master-{checksum[:8]}",
-            checksum=checksum,
-            checksum_at=timezone.now(),
-            size_bytes=size,
-            faststart=True,
-            probed_at=timezone.now(),
-            full_video=True,
-        )
-        probe.apply_to(master)
-        destination = Path(master.file.storage.path(name))
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(part, destination)
-        master.file.name = name
-        master.save()
-
-        upload.status = ICUpload.Status.DONE
-        upload.save(update_fields=["status", "updated_at"])
-        queue(
-            MediaJob.Kind.TRANSCODE,
-            resource_file=master,
-            payload={
-                "master_id": master.pk,
-                "switch_content_file_ids": switch_ids,
-                "switch_content_ids": job.payload.get("switch_content_ids", []),
-            },
-        )
+            upload.status = ICUpload.Status.DONE
+            upload.save(update_fields=["status", "updated_at"])
+            queue(
+                MediaJob.Kind.TRANSCODE,
+                resource_file=master,
+                payload={
+                    "master_id": master.pk,
+                    "switch_content_file_ids": switch_ids,
+                    "switch_content_ids": job.payload.get("switch_content_ids", []),
+                },
+            )
+    except Exception:
+        shutil.move(destination, part)
+        raise
     return f"Created master {master.pk} ({size} bytes)."
 
 
@@ -296,46 +306,8 @@ def release_master(job):
 
 
 # ---------------------------------------------------------------------------
-# Notify booths of changes; clean up abandoned uploads
+# Clean up abandoned uploads
 # ---------------------------------------------------------------------------
-
-
-def ic_notify(job):
-    from .sync.bundle import current_manifest_hash
-    from .sync.push import AgentError
-    from .sync.push import send_trigger
-
-    current = current_manifest_hash()
-    results = []
-    for instance in ICInstance.objects.exclude(agent_url=""):
-        if instance.last_notified_manifest_hash == current:
-            results.append(f"{instance.name}: unchanged")
-            continue
-        try:
-            send_trigger(
-                instance,
-                trigger="event",
-                request_id=uuid.uuid4(),
-                requested_by="production (change notification)",
-                manifest_hash=current,
-            )
-        except AgentError as exc:
-            instance.last_notify_error = str(exc)
-            instance.save(update_fields=["last_notify_error"])
-            results.append(f"{instance.name}: {exc}")
-            continue
-        instance.last_notified_manifest_hash = current
-        instance.last_notified_at = timezone.now()
-        instance.last_notify_error = ""
-        instance.save(
-            update_fields=[
-                "last_notified_manifest_hash",
-                "last_notified_at",
-                "last_notify_error",
-            ]
-        )
-        results.append(f"{instance.name}: notified")
-    return "; ".join(results) or "No pushable instances."
 
 
 def cleanup_uploads(job):
@@ -356,7 +328,6 @@ HANDLERS = {
     MediaJob.Kind.INGEST: ingest,
     MediaJob.Kind.TRANSCODE: transcode,
     MediaJob.Kind.RELEASE_MASTER: release_master,
-    MediaJob.Kind.IC_NOTIFY: ic_notify,
     MediaJob.Kind.CLEANUP_UPLOADS: cleanup_uploads,
 }
 

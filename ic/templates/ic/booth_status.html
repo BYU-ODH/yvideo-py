@@ -17,6 +17,12 @@
             <dd>
                 {{ state.applied_manifest_hash|slice:":12"|default:"none" }}
             </dd>
+            <dt>Production's manifest</dt>
+            <dd>
+                {{ state.parent_manifest_hash|slice:":12"|default:"unknown" }}
+                {% if state.parent_checked_at %}(checked {{ state.parent_checked_at|date:"H:i:s" }}){% endif %}
+                {% if state.parent_check_error %}<span class="ic-status ic-status-warn">{{ state.parent_check_error }}</span>{% endif %}
+            </dd>
             <dt>Sync agent heartbeat</dt>
             <dd>
                 {% if agent_alive %}

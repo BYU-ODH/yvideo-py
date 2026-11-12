@@ -378,20 +378,26 @@ the projector is right.
 
 **What to verify**, between production and the booth:
 
-- [ ] Edit an annotation on production; within about two minutes the booth's badge says it
-      matches production.
+- [ ] Edit an annotation on production; within about a minute the booth's badge goes from
+      *Production has changes the booth doesn't have yet* to *matches production*.
 - [ ] *Sync now* on the booth with nothing changed ends ✅ *Succeeded* (re-verified), not *Up
       to date*; with *Re-check every file* the progress shows the masters being re-hashed.
 - [ ] *Push to booth now* on production shows live phases and ends ✅ *Booth now matches
       production*. Edit something during a push: it ends ✅ with a note that there have been
       changes since.
-- [ ] Push with the booth switched off: ❌ *Booth unreachable* right away. Push with a wrong
-      `IC_AGENT_SECRET`: ❌ *bad signature*. Stop `<app>-ic-sync-agent` and press either button:
-      ❌ *Sync agent isn't running*.
-- [ ] Unplug the booth's network and press *Sync now*: ❌ *Production unreachable*, and the
-      film that is playing is unaffected.
-- [ ] Push during a film without *Apply even while playing*: ⏸ *Waiting for playback*, then
-      ✅ once it stops. With it: applied, and the film playing is not interrupted.
+- [ ] Push with the booth switched off (or `<app>-ic-sync-agent` stopped): within about two
+      minutes the indicator says the booth hasn't checked in, and the push expires after 30
+      minutes. Start the agent before then: it collects the push and the run proceeds.
+      Press *Sync now* with the agent stopped: ❌ *Sync agent isn't running*.
+- [ ] Unplug the booth's network and press *Sync now*: ❌ *Production unreachable*, the badge
+      says *Can't reach production*, and the film that is playing is unaffected.
+- [ ] Push during a film: the sync applies right away and the film keeps playing without a
+      glitch. Replace that film's master on production while it plays on the booth, push, and
+      let it play to the end: the old master plays through; the new one is used the next time
+      the item is loaded.
+- [ ] Add a program for next month with a new master, and edit an annotation of tonight's
+      film in the same minute: tonight's change is on the booth (badge matches) while next
+      month's master is still downloading.
 - [ ] Corrupt a byte of a master on the booth's disk (`printf x | dd of=… bs=1 seek=100
       conv=notrunc`) and *Sync now* with *Re-check every file*: it is downloaded again and
       the run succeeds (or, for a released master, the program shows ❌ *re-upload required*).
@@ -401,16 +407,17 @@ the projector is right.
       released, and its bytes are gone from production's `ic_projection/`.
 
 **Why it cannot be automated.** These depend on two real machines, a real network that can
-be cut, systemd services, the booth's firewall and clocks, and multi-gigabyte files moving
+be cut, systemd services, and multi-gigabyte files moving
 between them. The tests below run the same code against a fake production in one process.
 
 **What is guarded automatically.** `ic/tests/test_sync.py` runs the booth's whole sync
 pipeline against a fake production: downloads, checksum failures, damaged files, code and
-migration mismatches, fingerprint mismatches rolling back, waiting for playback, lost
-released masters, and pruning. `ic/tests/test_booth.py` covers the kiosk's read-only rules,
-*Sync now*, and the agent's signatures, replays and dead-agent errors.
-`ic/tests/test_views.py` covers the sync API, status reports, master release, force push
-(with the booth mocked) and change notifications. `ic/tests/test_media_pipeline.py` runs
+migration mismatches, fingerprint mismatches rolling back, applying rows before later
+programs' masters, retrying partial runs, progress reports, the agent's check (pushes and
+changes), lost released masters, and pruning. `ic/tests/test_booth.py` covers the kiosk's
+read-only rules, *Sync now*, and file-addressed media that a sync can't change mid-film.
+`ic/tests/test_views.py` covers the sync API (check, progress, status reports), master
+release, and force push from request to result. `ic/tests/test_media_pipeline.py` runs
 real ffmpeg for ingest and the SD transcode.
 
 ## Adding to this file

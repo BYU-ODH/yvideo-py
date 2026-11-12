@@ -1,4 +1,7 @@
-"""The booth's HTTP client for production's sync API."""
+"""The booth's HTTP client for production's sync API.
+
+Every connection between the booth and production starts here, on the booth.
+"""
 
 import os
 from pathlib import Path
@@ -10,6 +13,8 @@ import requests
 CHUNK_REQUEST_BYTES = 64 * 1024 * 1024
 READ_BYTES = 1024 * 1024
 TIMEOUT_SECONDS = 30
+CHECK_TIMEOUT_SECONDS = 10
+PROGRESS_TIMEOUT_SECONDS = 5
 # While the output is playing, downloads are capped so disk and network I/O cannot
 # cause stutter on the projector.
 THROTTLED_BYTES_PER_SECOND = 15 * 1024 * 1024
@@ -54,11 +59,12 @@ class ParentClient:
         data = response.json()
         return data, data.get("manifest_hash", "")
 
-    def manifest_hash(self, timeout=2):
-        response = self._get("/ic/sync/manifest-hash/", timeout=timeout)
+    def check(self):
+        """{"manifest_hash": ..., "sync_requests": [...]}: is there anything to do?"""
+        response = self._get("/ic/sync/check/", timeout=CHECK_TIMEOUT_SECONDS)
         if response.status_code != 200:
-            raise ParentError(f"HTTP {response.status_code}")
-        return response.json()["manifest_hash"]
+            raise ParentError(f"Check failed: HTTP {response.status_code}")
+        return response.json()
 
     def fixture(self):
         response = self._get("/ic/sync/fixture/")
@@ -122,14 +128,18 @@ class ParentClient:
                 if received == 0:
                     raise ParentError("Production sent no data.")
 
-    def post_status(self, report):
+    def _post(self, path, data, timeout):
         if not self.base_url:
             raise ParentError("IC_PARENT_URL is not configured on this booth.")
         try:
-            response = self.session.post(
-                self._url("/ic/sync/status/"), json=report, timeout=TIMEOUT_SECONDS
-            )
+            response = self.session.post(self._url(path), json=data, timeout=timeout)
         except requests.RequestException as exc:
             raise ParentError(f"Production unreachable: {exc}") from exc
         if response.status_code != 200:
-            raise ParentError(f"Status report rejected: HTTP {response.status_code}")
+            raise ParentError(f"{path} rejected: HTTP {response.status_code}")
+
+    def post_status(self, report):
+        self._post("/ic/sync/status/", report, TIMEOUT_SECONDS)
+
+    def post_progress(self, progress):
+        self._post("/ic/sync/progress/", progress, PROGRESS_TIMEOUT_SECONDS)

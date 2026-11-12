@@ -77,14 +77,11 @@ class ICInstanceFileInline(admin.TabularInline):
 
 @admin.register(ICInstance)
 class ICInstanceAdmin(admin.ModelAdmin):
-    list_display = ("name", "profile", "agent_url", "last_seen_at")
+    list_display = ("name", "profile", "last_seen_at")
     readonly_fields = (
         "last_seen_at",
         "last_status",
         "last_applied_manifest_hash",
-        "last_notified_manifest_hash",
-        "last_notified_at",
-        "last_notify_error",
         "created_at",
     )
     actions = ["issue_new_token"]
@@ -104,13 +101,6 @@ class ICInstanceAdmin(admin.ModelAdmin):
             f"Sync token for {obj.name} (shown once; put it in the booth's "
             f"secret_settings.IC_SYNC_TOKEN): {raw}",
         )
-        if obj.agent_url and not obj.agent_secret:
-            messages.warning(
-                request,
-                f"{obj.name} has an agent URL but no secret: add it to "
-                f'IC_INSTANCE_AGENT_SECRETS["{obj.name}"] on production and '
-                "IC_AGENT_SECRET on the booth.",
-            )
 
     @admin.action(description="Issue a new sync token (the old one stops working)")
     def issue_new_token(self, request, queryset):

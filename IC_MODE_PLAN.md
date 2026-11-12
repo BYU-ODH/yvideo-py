@@ -19,9 +19,9 @@ Status: **implemented** on branch `246-replace-ic-player-with-ic-mode-on-y-video
 ### Decisions already made
 | Question | Decision |
 |---|---|
-| Transport | Booth and prod can reach each other. Data always flows by **booth download + verification** (§7.1) |
-| Sync triggers | Normally poll + event-triggered pull. **Force push from production and force pull from the booth**, both with a live success indicator (§7.5–7.8) |
-| Booth writes | Booth is read-only: no HTTP request can change mirrored data. The only HTTP writes are requests to start a sync (§8.1) |
+| Transport | **The booth only ever calls production**; nothing connects to the booth. Data always flows by **booth download + verification** (§7.1) |
+| Sync triggers | The booth checks production every 30 s for changes and pushes, plus a 15-minute full poll. **Force push from production and force pull from the booth**, both with a live success indicator (§7.5–7.8) |
+| Booth writes | Booth is read-only: no HTTP request can change mirrored data. The only HTTP write is the operator's "Sync now" (§8.1) |
 | Booth users | Booth is userless: no login, no admin |
 | Displays | Two monitors; the projector mirrors the output monitor |
 | Editing file | **Transcoded from the projection master** |
@@ -60,16 +60,20 @@ IC editors upload projection master (chunked)            ROOT_URLCONF = yvideo.u
   └─ low-priority transcode → SD ResourceFile            local SQLite mirror (IC tables only)
 /ic/manage/: programs, masters, readiness                local projection masters + VTT files
 /ic/ preview (same player, SD file)                      /ic/          (control + "Sync now", operator monitor)
-Sync API: manifest, fixture, files  ◄── booth pulls ──   /ic/output/   (projector monitor)
-Status/results                      ◄── run reports ──   ic_sync_agent (poll 15 min + queued runs)
-Event notify / "Push to booth now"  ── signed trigger ─► agent port (LAN): start run, read progress
+Check: manifest hash + pending pushes ◄── every 30 s ──  /ic/output/   (projector monitor)
+Sync API: manifest, fixture, files    ◄── booth pulls ── ic_sync_agent (check 30 s, poll 15 min, queued runs)
+Progress / status reports             ◄── booth posts ──
+"Push to booth now" = a pending request the booth collects on its next check
 ```
+
+Every connection starts on the booth. The booth needs no inbound ports, and production
+holds no booth credentials.
 
 ### Invariants
 1. The booth never receives annotation JSON, only rows. It renders player JSON with the same code.
 2. Before a synced program counts as playable, the booth's `sha256(canonical player JSON)` for each content must equal production's. Otherwise the import is rolled back and the previous good mirror stays in place.
 3. Every file the booth plays is on local disk and its xxh64 has been verified against production's checksum.
-4. A sync never changes the film that's playing, and by default waits for playback to stop before applying anything (§7.4).
+4. A sync never changes the film that's playing. The output holds the item's player data in memory and streams from a URL that names one verified file, so a sync can apply at any time (§7.4).
 5. Every trigger (poll, event, force pull, force push) runs the same booth-side pipeline. Forcing changes *when* and *how thoroughly* it checks, never *whether* it verifies.
 
 ## 4. Data model (PR 1)
@@ -235,7 +239,7 @@ ffmpeg -i master.mp4 -map 0:v:0 -map 0:a:0? \
 - **Low priority on production** (decision): see §5.4. Run one job at a time with `-threads 2`, so even with maximum-bitrate 4K masters the transcode can't take every core. Expect roughly 0.5–2× real time depending on master resolution and server cores, and show progress in the dashboard by parsing ffmpeg's `-progress pipe:1` output.
 
 ### 5.4 Media job worker
-Add a `MediaJob(kind, status, payload, log, created_at, started_at, finished_at)` table and `manage.py process_media_jobs`. Kinds: `probe`, `faststart`, `transcode`, `cleanup_uploads`, and `ic_notify` (event-triggered booth pulls, §7.5).
+Add a `MediaJob(kind, status, payload, log, created_at, started_at, finished_at)` table and `manage.py process_media_jobs`. Kinds: `probe`, `faststart`, `transcode`, `release_master` (§5.7) and `cleanup_uploads`. (Booths learn about changes by checking production, §7.5, so there's no notify job.)
 
 How to run the worker:
 - **Preferred:** a separate quadlet/systemd user service that runs the same image with a different command. Its lifecycle is independent of gunicorn, so it doesn't extend the legacy-only `gunicorn.conf.py` pattern.
@@ -314,12 +318,13 @@ The pages are built on production first, where they double as the **preview of e
 | `ic:control_index` | `/ic/` | active programs (prod: also upcoming, with readiness) |
 | `ic:control` | `/ic/program/<program_id>/` | operator page |
 | `ic:output` | `/ic/output/` | output shell; items are loaded by message |
-| `ic:item_player_data` | `/ic/item/<item_id>/player-data/` | **GET**, calls `Content.get_player_json()` and adds `fingerprint`; subtitles filtered per `item.subtitles` |
-| `ic:item_media` | `/ic/item/<item_id>/media/` | Range stream via the shared `_file_response()` |
+| `ic:item_player_data` | `/ic/item/<item_id>/player-data/` | **GET**, calls `Content.get_player_json()` and adds `fingerprint` and `media_url`; subtitles filtered per `item.subtitles` |
+| `ic:item_media` | `/ic/item/<item_id>/media/` | Production preview only: Range stream of the SD file via the shared `_file_response()` |
+| `ic:local_file` | `/ic/file/<resource_file_id>/<xxh64>/` | Booth only: Range stream of one verified local master, `Cache-Control: immutable` |
 | `ic:status` | `/ic/status/` | booth: sync log + readiness (read-only) |
 
 - On **production**, the item media is the *derived SD file* (bandwidth-friendly preview), and access requires `is_ic_editor`.
-- On the **booth**, the item media is the *local projection master*. Access requires `ICProgram.is_active()` (or `?rehearse=1` for upcoming programs; see §6.4), and no user.
+- On the **booth**, the item media is the *local projection master*, addressed by its id and checksum (`ic:local_file`). The URL arrives in the player data, so the annotations and the file they're timed against are always fetched as one pair, and the bytes behind it never change (§7.4). Player data requires the program not to have ended (upcoming programs play as rehearsals; see §6.4), and no user.
 - `player_data` becomes GET here (the existing endpoint is POST with CSRF only because it lives in the authenticated app). That keeps the booth GET-only.
 - Add `ic_*` decorators in `core/permissions.py` and register the views in `test_view_permissions.py`. On the booth urlconf, views are exempt with a documented reason ("booth is userless and bound to localhost").
 
@@ -328,7 +333,7 @@ The pages are built on production first, where they double as the **preview of e
 - Styling (§6.6): `core/static/css/ic-output.css` holds the IC brand tokens for the output window, and `core/static/css/dark.css` holds the dark-mode tokens for the controller. The Electron player's CSS and assets are not ported.
 - `core/static/js/ic-output.js`:
   - Constructs `AnnotationPlayer({editorMode:false, subtitleSidebar:false, allowFastPlayback:false, disabledControls:[…all…]})`.
-  - On `loadItem`: `setVideoSource(mediaUrl)`, then `loadData(playerData)`. Captions are rendered as on-screen cues when `item.subtitles == "vtt"`.
+  - On `loadItem`: fetch the player data, `loadData(playerData)`, then `setVideoSource(playerData.media_url)`. Captions are rendered as on-screen cues when `item.subtitles == "vtt"`.
   - Handles `ended` for LOOP/ONCE, and posts state heartbeats.
   - Only uses AnnotationPlayer's public API, the same rule `player-wrapper.js` follows.
 - `core/static/js/ic-control.js` holds the queue state machine (idle → loaded → playing → ended → next), keyboard shortcuts and the UI.
@@ -405,20 +410,23 @@ What patrons see follows **ic.byu.edu**; everything else is Y-video in dark mode
 ## 7. Sync (PRs 6 and 7)
 
 ### 7.1 Transport and triggers
-**All bytes and rows travel one way, by one code path: the booth downloads from production and verifies.** What varies is *what starts* a sync:
+**All bytes and rows travel one way, by one code path: the booth downloads from production and verifies.** And **every connection starts on the booth**: production never connects to it. What varies is *what starts* a sync:
 
 | Trigger | Started by | When | Normal or manual |
 |---|---|---|---|
-| **Poll** | booth sync agent | every 15 min, and at boot | normal (safety net) |
-| **Event** | production, after a relevant change | ~1 min after edits settle (debounced) | normal (fast path) |
+| **Poll** | booth sync agent | every 15 min, and at boot | normal (safety net; retries partial runs) |
+| **Change** (`event`) | booth sync agent's check | within ~30 s of a change on production | normal (fast path) |
 | **Force pull** | operator, "Sync now" on the booth controller | immediately | manual |
-| **Force push** | IC editor, "Push to booth now" on the production dashboard | immediately | manual |
+| **Force push** | IC editor, "Push to booth now" on the production dashboard | when the booth next checks in (≤ 30 s) | manual |
 
-Force push is implemented as **production commanding the booth to run a sync now, then watching it to completion.** Production doesn't write files or rows onto the booth itself. Reasons:
-- **One verification path.** Checksums, fingerprints, code-version checks, rollback and the playback guard live in one place (the booth's sync agent). A second, production-side writer would need all of it duplicated, and a bug in either path would be exactly the kind of annotation corruption this project is meant to remove.
-- **The booth is the only side that knows whether it's playing.** It decides whether applying now is safe (§7.4).
-- **Same success indicator everywhere.** Production shows the booth's own run report, so "success" means the same thing no matter where you clicked.
-- Personal instances (§11), which production can't reach, still work with poll and force pull. The push button is simply hidden for them.
+The booth's agent **checks** production every `IC_CHECK_INTERVAL_SECONDS` (30) with one cheap, token-authenticated GET. The answer is production's current manifest hash (cached for 15 s) and any pushes waiting for this booth (§7.3). A hash the booth hasn't tried yet starts a change run; a waiting push starts a force-push run.
+
+Force push is implemented as **production recording a request that the booth collects, runs, and reports on.** Production doesn't write files or rows onto the booth, and doesn't call the booth at all. Reasons:
+- **One verification path.** Checksums, fingerprints, code-version checks, rollback and the playback rules live in one place (the booth's sync agent). A second, production-side writer would need all of it duplicated, and a bug in either path would be exactly the kind of annotation corruption this project is meant to remove.
+- **The booth is the only side that knows whether it's playing.** It decides how hard to throttle (§7.4).
+- **Same success indicator everywhere.** Production shows the booth's own progress and run report, so "success" means the same thing no matter where you clicked.
+- **No inbound surface on the booth.** An earlier design had production call a signed agent endpoint on the booth's LAN. That took a second web container, a second urlconf, an HMAC secret held on both machines, a firewall rule, synchronized clocks, change-notification signals and a debounced notify job. Polling a cheap endpoint every 30 s gives the same latency with none of it, and failure modes like "bad signature", "booth unreachable" and "clock skew" can no longer happen. A push now starts within one check interval rather than within a second, which is fine for "push this fix before tonight".
+- Personal instances (§11), which production can't reach, work exactly like the booth.
 
 Everything resumes after interruption (HTTP Range downloads into `.part` files), so a forced run picks up partial downloads left by an earlier run.
 
@@ -457,98 +465,99 @@ Everything resumes after interruption (HTTP Range downloads into `.part` files),
   "Canonical" means `json.dumps(get_player_json(include_subtitles=True), sort_keys=True, separators=(",", ":"), ensure_ascii=False)`, encoded as UTF-8. Both sides run identical code, so this is deterministic.
 - **Manifest hash:** sha256 of the canonical manifest minus `generated_at`. It's served as the manifest's `ETag`, so polls with `If-None-Match` get a cheap 304, and it's the single value that tells whether a booth matches production.
 - Endpoints, all bearer-token authenticated (hashed token on an `ICInstance` row, constant-time compare), `@login_not_required`, CSRF-exempt, and listed in the permission-test exemptions with reasons:
+  - `GET /ic/sync/check/`: `{"manifest_hash", "sync_requests": [{request_id, requested_by, options}]}`, the agent's frequent check (§7.3). Also stamps `ICInstance.last_seen_at`, which is how production knows the booth is alive
   - `GET /ic/sync/manifest/` (supports `If-None-Match`)
   - `GET /ic/sync/fixture/`
   - `GET /ic/sync/files/projection/<resource_file_id>/`: Range-capable via `_file_response()` with a larger range cap for this bulk path; 403 unless the file is in the current manifest
   - `GET /ic/sync/files/subtitle/<subtitle_id>/`
+  - `POST /ic/sync/progress/`: live progress of a pushed run, every ~2 s while it runs (§7.7)
   - `POST /ic/sync/status/`: the booth reports run results (§7.3)
-- `ICInstance(name, token_hash, agent_url (blank = pull-only, e.g. personal instances), last_seen_at, last_status JSONField, last_applied_manifest_hash, last_notified_manifest_hash, created_at)`. Superusers manage it in Django admin (issuing a token is an infrastructure task, not an IC editing task). There's one row today.
-- `ICSyncRequest(instance, requested_by, request_id, manifest_hash_at_request, options, booth_run_id, status, report, created_at, finished_at)` records force pushes (§7.7).
+- `ICInstance(name, token_hash, profile, last_seen_at, last_status JSONField, last_applied_manifest_hash, created_at)`. Superusers manage it in Django admin (issuing a token is an infrastructure task, not an IC editing task). There's one row today. The token is the only credential, and it's used only by the booth to call production.
+- `ICSyncRequest(instance, requested_by, request_id, manifest_hash_at_request, options, booth_run_id, status, progress, progress_at, report, created_at, picked_up_at, finished_at)` records force pushes (§7.7). Status: `pending` (waiting for the booth to collect it) → `queued` / `running` (from progress posts) → a final status from the run report, or `expired` if the booth doesn't collect it within 30 minutes.
 
 ### 7.3 Booth sync agent
-A long-running management command, `manage.py ic_sync_agent`, runs as its own systemd user service in the booth image (§8.4). It replaces the earlier timer design, because force requests need to start within seconds.
+A long-running management command, `manage.py ic_sync_agent`, runs as its own systemd user service in the booth image (§8.4). It's the only part of the booth that talks to production.
 
 Agent loop:
-- Every 2 s: pick up queued `ICSyncRun` rows (created by force pull, force push or event triggers) and run them.
+- Every 30 s (`IC_CHECK_INTERVAL_SECONDS`): **check** production (`GET /ic/sync/check/`) and record its manifest hash on `ICBoothState` (for the controller's "production has changes" badge). Then:
+  - For each offered push: create the force-push `ICSyncRun` for its `request_id` (idempotent; a `request_id` the booth already has creates nothing) and post its progress, so production shows it as collected. If that run already finished and production still offers it, the report was lost: send it again.
+  - If production's hash differs from the applied one, no run is queued or running, and no run has tried that hash yet: create a change (`event`) run. A hash that failed is retried by the 15-minute poll, not every 30 s.
+  - If the check fails, record the error (the badge says "Can't reach production") and carry on. Playback never depends on it.
+- Every 2 s: pick up queued `ICSyncRun` rows (forced first) and run them. The check keeps running during a run (from the run's heartbeat), so a push made during a long download is collected straight away.
 - Every 15 min: create and run a `poll` run.
-- Every 10 s: write a heartbeat (timestamp + agent version) so the web side can tell whether the agent is alive.
+- Every 10 s: write a heartbeat (timestamp + agent version) so the kiosk can tell whether the agent is alive.
 - One run at a time, enforced by an `fcntl` lock file (same pattern as `process_legacy_migration_jobs`). Stale `running` rows are marked `failed (agent restarted)` at startup.
 
-Booth-local model, written only by the agent (except creating a `queued` row, §8.1):
+Booth-local model, written only by the agent (except creating a `queued` row for "Sync now", §7.6):
 ```python
 class ICSyncRun(models.Model):
     id = UUIDField(primary_key=True)
     trigger = CharField(choices=["poll", "event", "force_pull", "force_push"])
     requested_by = CharField(blank=True)    # "booth operator" or the production user's name
-    request_id = UUIDField(null=True, unique=True)   # idempotency key from production
-    options = JSONField(default=dict)       # {"full_rehash": bool, "apply_during_playback": bool}
-    status = CharField(choices=["queued", "running", "waiting_for_playback",
-                                "succeeded", "partial", "failed", "up_to_date"])
-    phase = CharField(blank=True)           # contacting / downloading / importing / verifying / reporting
+    request_id = UUIDField(null=True, unique=True)   # the push's id from production
+    options = JSONField(default=dict)       # {"full_rehash": bool}
+    status = CharField(choices=["queued", "running", "succeeded", "partial", "failed", "up_to_date"])
+    phase = CharField(blank=True)           # contacting / downloading / importing / verifying / downloading_upcoming / reporting
     bytes_done = BigIntegerField(default=0); bytes_total = BigIntegerField(default=0)
-    manifest_hash = CharField(blank=True)   # what this run applied
+    manifest_hash = CharField(blank=True)   # what this run fetched
     report = JSONField(default=dict)        # per-program results, errors, free disk
     requested_at / started_at / finished_at
 ```
 
 Steps of a run:
 1. **Manifest.** Fetch `GET /ic/sync/manifest/`.
-   - `poll` and `event` runs send `If-None-Match: <applied manifest hash>`. A 304 ends the run as `up_to_date` within milliseconds.
+   - `poll` and `event` runs send `If-None-Match: <applied manifest hash>`, **but only if the previous run succeeded or was up to date**. A 304 ends the run as `up_to_date` within milliseconds. After a partial or failed run, the next poll fetches the manifest again, so files that failed to download are retried rather than hidden behind a 304.
    - `force_*` runs always fetch and continue, even if nothing changed. A forced run is the way to say "prove the booth matches production right now."
    - If `git_sha` or `migrations` differ from the booth's own, stop with `failed: code_mismatch` and say which side is behind. The booth deploy timer tracks production's branch, so this resolves within minutes of a deploy.
-2. **Files.** Soonest-starting program first. For each manifest file:
+2. **Files needed now.** All subtitle files, plus the masters of programs that have already started. Subtitles always come first because the player JSON embeds their text, so fingerprints (step 3) can't match without them; they're small. For each:
    - Missing, wrong size, or not in `ICLocalFile`: Range-download to `<dest>.part`, resuming from its size; verify xxh64; atomic rename; record in `ICLocalFile(kind, ref_id, path, size, xxh64, verified_at)`.
-   - With `full_rehash` (a force-only option): re-hash every local file even if it was verified before. This catches disk corruption. It takes minutes for large masters, and the progress bar shows it.
+   - With `full_rehash` (a force-only option, plus the weekly re-hash of released masters): re-hash every local file even if it was verified before. This catches disk corruption. It takes minutes for large masters, and the progress bar shows it.
    - Downloads and re-hashing are paced while the output is playing (§7.4).
-3. **Database.** Once all files for at least one program are verified, and §7.4 allows:
+3. **Database.** Applied as soon as step 2's files are verified, **without waiting for masters of later programs**, so a fix to tonight's annotations never waits behind next month's 20 GB master. If a file from step 2 that production can still send failed, the booth keeps its previous rows (and reports why), because applying would make a film that plays today unplayable. Then:
    - Download the fixture and check its sha256.
    - In one `transaction.atomic()`: delete all mirrored-model rows (children first), deserialize, `obj.save()`. Deserialized saves use `raw=True`, which bypasses `ResourceFile.save()` checksum/barcode logic (good). **Check that `stamp_previous_owner_on_annotation_sets` and any other signal handlers respect `raw`.**
    - Rewrite `ResourceFile.file` and `Subtitle.subtitles_file` names to the booth-local paths recorded in `ICLocalFile`.
    - **Verify:** recompute each content's fingerprint and compare with the manifest. On any mismatch, roll back, keep the previous mirror, and fail with the content ids.
-   - `poll`/`event` runs skip this step if the fixture hash equals the one already applied. `force_*` runs always re-import and re-verify.
-4. **Prune** local files no longer referenced by the current manifest *and* not referenced by any program active in the last 3 days. **Released masters** (`available_from_parent: false`) follow the stricter rule in §5.7 (30 days after their last program, with a warning 7 days ahead), because the booth holds the only copy.
-5. **Report.** Finish the `ICSyncRun` row and POST the report to production (`POST /ic/sync/status/`, which includes the `run_id` and `request_id` so production can match it to a push).
+   - `poll`/`event` runs skip the import if the fixture hash equals the one already applied (the manifest hash is still recorded as applied). `force_*` runs always re-import and re-verify.
+   - This step never waits for playback (§7.4).
+4. **Files for later programs.** Masters of programs that haven't started yet, as in step 2. Their rows are already in place; until a master is verified, its items show "not on this booth yet".
+5. **Prune** local files no longer referenced by the current manifest *and* not referenced by any program active in the last 3 days. **Released masters** (`available_from_parent: false`) follow the stricter rule in §5.7 (30 days after their last program, with a warning 7 days ahead), because the booth holds the only copy. The grace period also guarantees that a master replaced mid-showing stays on disk until the film using it has finished (§7.4).
+6. **Report.** Finish the `ICSyncRun` row and POST the report to production (`POST /ic/sync/status/`, which includes the `run_id` and `request_id` so production can match it to a push). Pushed runs have also been posting progress (`POST /ic/sync/progress/`) every ~2 s throughout; after a failed post they pause for 30 s, so an unreachable production can't slow the run.
 
 ### 7.4 Never change the film that's playing
-- The output window's heartbeat reaches the server via a tiny GET (`/ic/heartbeat/?state=playing`). It's stored in a tmpfile timestamp, never the DB.
-- The item currently loaded in the output keeps its media URL and player JSON in memory. **No sync can change a film that's already playing**; new data takes effect the next time an item is loaded.
+- The output fetches an item's player data once, when the item loads, and keeps it in memory. The player data carries the item's **media URL**, so the annotations and the file they're timed against always arrive as one pair.
+- On the booth that URL is `/ic/file/<resource_file_id>/<xxh64>/`. It names one verified file and is served from `ICLocalFile`, not from the mirrored `ResourceFile` rows, so **no import can change the bytes behind it**. A replaced master has a new checksum, so it gets a new URL, and prune's grace period keeps the old file on disk until well after the showing. The response is `Cache-Control: immutable`.
 - Files are written to `.part` and atomically renamed, and a replaced master gets a new checksum-based filename, so a file in use is never modified in place.
-- While playback was active in the last 2 minutes:
-  - Downloads and re-hashing are throttled so disk and network I/O can't cause stutter. This applies to every trigger, forced or not.
-  - The DB swap waits (`status = waiting_for_playback`, shown in the indicators) until playback stops, the program ends, or the operator returns to the program list.
-  - Forced runs offer **"Apply even while playing"** (unchecked by default, with a confirmation). It's safe for the current item because of the in-memory rule above. It exists for "we fixed a mute in the second film of a double feature during the first one."
+- So **a sync can apply at any time**, including mid-film. New data takes effect the next time an item is loaded (the next showing, or "Reopen and resume", which loads the new pair).
+- The only thing playback still changes: while the output has reported "playing" within the last 2 minutes (a tiny GET, `/ic/heartbeat/?state=playing`, stored in a tmpfile, never the DB), downloads and re-hashing are throttled so disk and network I/O can't cause stutter. This applies to every trigger, forced or not.
 
-### 7.5 Event-triggered pulls (production)
-- Signals (`post_save`/`post_delete`) on the mirrored model types call `transaction.on_commit(schedule_ic_notify)`.
-- `schedule_ic_notify` upserts a single pending `MediaJob(kind="ic_notify")` with `not_before = now + 60 s`, pushing it later on each new change. An editing session therefore produces one notification after it settles, not one per annotation drag.
-- The job recomputes the manifest hash (cheap: a few programs). If it differs from `ICInstance.last_notified_manifest_hash`, it sends a signed trigger (§7.7) with `trigger = "event"` to every instance that has an `agent_url`.
-- Notification failures are logged and shown on the dashboard. The 15-minute poll covers them, so a missed notification only delays a sync.
-- Readiness changes that affect sync (a transcode finishing, a master being replaced) also schedule a notify.
+An earlier design addressed media by item (`/ic/item/<id>/media/`, resolved on every range request) and protected the playing film by deferring the DB swap until playback stopped, with an "Apply even while playing" override. That didn't hold: a pause counted as stopped, and the override let the next range request of a playing film resolve to a *different* master (or a 404 if the new one hadn't downloaded). File-addressed URLs make the invariant structural, and they removed the `waiting_for_playback` state and the override.
+
+### 7.5 Change-triggered pulls
+- The agent's 30-second check (§7.3) compares production's manifest hash with the applied one. A hash the booth hasn't tried yet queues one `event` run.
+- Production does nothing special: no signals, no notify job. The manifest hash is cached for 15 s, so the check costs at most one bundle build per 15 s, and an editing session's burst of saves is coalesced naturally. The booth sees a change within about 30–45 s.
+- A missed check (network blip) only delays the next one by 30 s. The 15-minute poll remains as a safety net and retries runs that didn't finish cleanly.
 
 ### 7.6 Force pull from the booth (with indicator)
-- The controller page has a **Sync now** button. Options: "Re-check every file (slow)" → `full_rehash`, and "Apply even while playing" (§7.4).
+- The controller page has a **Sync now** button, with the option "Re-check every file (slow)" → `full_rehash`.
 - `POST /ic/sync/run/` (kiosk port only, CSRF-protected) creates a `queued` `ICSyncRun(trigger="force_pull", requested_by="booth operator")` and returns its id. If a forced run is already queued, the same id is returned instead of a second run. If a poll or event run is in progress, the force run is queued behind it, and the indicator says so.
 - If the agent's heartbeat is older than 30 s, the POST returns an immediate error: **"Sync agent isn't running; restart it with `systemctl --user restart ic-sync-agent`"**. A request nobody will pick up never sits silently in the queue.
 - The indicator polls `GET /ic/sync/run/<id>/` every second with HTMX (§7.8).
 
 ### 7.7 Force push from production (with indicator)
-On `/ic/manage/` each instance with an `agent_url` gets a **Push to booth now** button (IC editors), with the same two options.
+On `/ic/manage/` each instance gets a **Push to booth now** button (IC editors), with the "Re-check every file" option.
 
-1. Production creates `ICSyncRequest(instance, requested_by, request_id=uuid4, manifest_hash_at_request, options)`. Then, with a 5 s timeout, it sends `POST <agent_url>/ic/agent/sync/` with a signed body `{request_id, requested_by, options, manifest_hash}`.
-2. The booth's agent endpoint (§8.1) verifies the signature, creates or returns the `ICSyncRun` for that `request_id`, and answers `202 {run_id}`. Repeating the same `request_id` (a retry, or a replayed request) returns the same run and never creates a second one.
-3. The production page polls its own `GET /ic/manage/sync-requests/<id>/` every 2 s. That view asks the booth (`GET <agent_url>/ic/agent/sync/<run_id>/`, signed, 3 s timeout) for live progress and renders it. Once the run finishes, the final report is stored on `ICSyncRequest`, so the result stays visible after the page is closed.
-4. If the booth becomes unreachable mid-run, the indicator shows "Lost contact with the booth at hh:mm; it may still be syncing." It switches to the final result when the booth's report arrives via `POST /ic/sync/status/` (matched by `request_id`).
+1. Production creates `ICSyncRequest(instance, requested_by, request_id=uuid4, manifest_hash_at_request, options, status="pending")`. A second click while one is pending shows the same request. Production makes no outbound call.
+2. On its next check (≤ 30 s), the booth sees the request in `GET /ic/sync/check/`, creates the force-push `ICSyncRun` for that `request_id`, and posts its progress (`queued`), so production marks it collected. A request stays on offer until production hears about it; the booth ignores a `request_id` it already has, so a lost answer just means it's offered again.
+3. While the run runs, the booth posts `progress_json()` to `POST /ic/sync/progress/` every ~2 s. Progress moves the request through `queued`/`running` but never finalizes it.
+4. The production page polls its own `GET /ic/manage/sync-requests/<id>/` every 2 s and renders what the booth last said. When the run's report arrives (`POST /ic/sync/status/`, matched by `request_id`), the request takes the run's final status and per-program results, and the indicator stops polling. The result stays visible after the page is closed.
 
-Failure is reported immediately and specifically, for example:
-- "Booth unreachable: connection refused at booth.example:8443" (booth off, wrong address, firewall)
-- "Booth rejected the request: bad signature" (secret mismatch between production and booth)
-- "Booth sync agent isn't running" (the booth's agent heartbeat is stale)
+What the indicator says when things go wrong:
+- **Not collected yet, and the booth hasn't checked in for 2 minutes** (4 check intervals; `ICInstance.last_seen_at`): "The booth hasn't checked in since hh:mm. It may be off or offline, or its sync agent may be stopped." The push still runs if the booth checks in within 30 minutes; after that it **expires**, so a stale push doesn't run hours later.
+- **Running, but no progress for 20 s:** "No word from the booth since hh:mm:ss; it may still be syncing." The result appears when the report arrives.
+- The run itself failed: the booth's specific error (`code_mismatch`, `checksum_failed`, production unreachable from the booth, disk full, …).
 
-#### Request signing
-- Shared secret per instance: on production in `secret_settings.IC_INSTANCE_AGENT_SECRETS = {"<instance name>": "..."}`, and on the booth in `secret_settings.IC_AGENT_SECRET`. It's kept out of the DB so a DB dump doesn't leak it, and it's separate from the booth→production bearer token.
-- Headers: `X-IC-Timestamp` and `X-IC-Signature = hex(HMAC-SHA256(secret, f"{timestamp}\n{method}\n{path}\n{sha256(body)}"))`. The booth rejects timestamps more than 60 s off and compares signatures in constant time. `request_id` idempotency makes replays harmless.
-- The agent surface can only *start a sync against the real production* or *read status*. A forged-but-valid request couldn't inject data, because the data always comes from `IC_PARENT_URL` and is verified.
-- The LAN hop is plain HTTP by default (signed, with no secrets in responses). Put TLS in front of the agent port if campus network policy requires it.
+The booth's "Sync now" (§7.6) still answers immediately with "Sync agent isn't running" when the agent's heartbeat is stale, since the kiosk can see the heartbeat file.
 
 ### 7.8 What "success" means, and the indicators
 A run ends in one of:
@@ -557,14 +566,13 @@ A run ends in one of:
 |---|---|
 | ✅ **Succeeded** | Manifest fetched; every file for every syncable program present and xxh64-verified; fixture applied; **every fingerprint equals production's**; report delivered. The indicator shows the applied manifest hash and time. |
 | ✅ **Up to date** | (poll/event only) production returned 304; nothing to do. |
-| ⚠️ **Partial** | Data applied and verified, but some programs aren't playable yet. Each one is listed with its reason, e.g. "Amélie: master still transcoding on production", "Kung Fu Panda: downloading 61%". |
-| ⏸ **Waiting for playback** | Files are ready, and the DB swap is waiting for playback to stop (§7.4). |
+| ⚠️ **Partial** | Some programs aren't playable yet. Each one is listed with its reason, e.g. "Amélie: master still transcoding on production", "Kung Fu Panda: checksum failed". If a master for a program already showing couldn't be fetched, the booth kept its previous rows and says so (§7.3 step 3). The next poll retries. |
 | ❌ **Failed** | Nothing changed on the booth, which keeps playing its previous verified data. The reason is specific: `code_mismatch` (which side is behind), `fingerprint_mismatch` (which contents), `checksum_failed` (which file), production unreachable, disk full (free vs. needed). |
 
 Both force indicators show a phase stepper:
 
 ```txt
-Contacting production ✓ → Downloading 3/5 files · 4.1 of 10.0 GB · ETA 6 min → Importing → Verifying → Reporting
+Contacting production ✓ → Downloading current films 3/5 files · 4.1 of 10.0 GB → Importing → Verifying → Downloading upcoming films → Reporting
 ```
 
 For a push, the production page adds **"Booth now matches production"** or **"Booth matches the state at the time you pushed; 1 change since (12:41, Amélie)"**. It compares the applied manifest hash with production's current one.
@@ -573,17 +581,18 @@ Persistent status, outside of any forced run:
 - **Booth controller badge**, always visible:
   - "Synced ✅ 14:02, matches production"
   - "⚠️ Last sync failed 14:10 (production unreachable); playing from local copy synced 13:50"
-  - "Production has newer changes; syncing…"
+  - "Production has changes the booth doesn't have yet"
+  - "⚠️ Can't reach production since 14:20; playing from the local copy"
 
-  The controller checks production's manifest ETag every minute when online, so it can say whether production has newer changes. Offline, it shows the last-known state without implying anything is wrong with what's on disk.
-- **Production dashboard** (§7.9): last successful sync, last run status, agent heartbeat age, and the event notification status per instance.
+  It reads the manifest hash the agent's check last saw (`ICBoothState.parent_manifest_hash`, §7.3), so it can say whether production has newer changes without the kiosk ever calling production. Offline, it shows the last-known state without implying anything is wrong with what's on disk.
+- **Production dashboard** (§7.9): last successful sync, last run status, and when the booth last checked in (with a warning when it hasn't for 2 minutes).
 
 Audit: every `ICSyncRun` records its trigger and requester, and every `ICSyncRequest` records the production user. Both are listed on the dashboard and on the booth's `/ic/status/` page.
 
 ### 7.9 Readiness dashboard on production
 `/ic/manage/` (IC editors) shows a programs × instance matrix:
 - Production readiness (§4.6)
-- Booth: files verified ✅ · fingerprint matches **current** production fingerprint ✅ · last successful sync · agent alive
+- Booth: files verified ✅ · fingerprint matches **current** production fingerprint ✅ · last successful sync · last check-in
 - **"Changed since last booth sync"**: production fingerprint ≠ booth-reported fingerprint. This catches "I fixed a mute this morning; is it on the booth?" A **Push to booth now** button sits right next to it.
 - Recent sync history per instance: trigger, who, status, duration, applied manifest hash.
 
@@ -592,12 +601,13 @@ Audit: every `ICSyncRun` records its trigger and requester, and every `ICSyncReq
 - Resume a partial download; a corrupt file fails xxh64, is retried, and fails the run with the file named.
 - A fingerprint mismatch rolls back and the previous mirror is intact.
 - `code_mismatch` refuses to import and reports which side is behind.
-- Poll/event with an unchanged manifest → 304 → `up_to_date`. A force run with an unchanged manifest still re-imports and re-verifies. `full_rehash` re-hashes verified files.
-- Playback: throttling for all triggers; DB swap deferred by default; "apply even while playing" swaps without touching the in-memory item.
-- Queueing: force while a poll is running → queued behind it; two force requests → one run; stale agent heartbeat → immediate error.
-- Signing: missing/bad signature, timestamp outside 60 s, and a replayed `request_id` all fail to create a new run. Agent routes don't resolve in the kiosk urlconf, and kiosk routes don't resolve in the agent urlconf.
-- Production push view: booth unreachable → immediate failure; booth vanishes mid-run → "lost contact", later resolved by the status POST.
-- Event debounce: 50 annotation saves within a minute → one notify job → one trigger. An unchanged manifest hash → no trigger.
+- Poll/event with an unchanged manifest → 304 → `up_to_date`. After a partial run, the next poll fetches again and retries the missing files. A force run with an unchanged manifest still re-imports and re-verifies. `full_rehash` re-hashes verified files.
+- Ordering: rows are applied before masters for later programs download; a failed download for a later program still applies the rows; a failed download for a program showing now keeps the previous rows.
+- Media: the booth's media URL names one file and keeps serving the same bytes after an import replaces the item's master; player data carries the URL.
+- Queueing: force while a poll is running → queued behind it; two force requests → one run; stale agent heartbeat → immediate error on "Sync now".
+- Check: a new manifest hash → one event run (not again while queued, not again after failing on that hash); an offered push → one force-push run with a progress post; a re-offered push → no new run, and a lost final report is resent; production unreachable → error recorded, nothing queued.
+- Production push: pending → collected (progress) → final (status report); a booth that hasn't checked in is called out; an uncollected push expires; no progress for 20 s → "no word from the booth".
+- Subtitle checksums are computed once per file version, not on every manifest build.
 - Prune grace period; released masters are never pruned early. A missing released master → `master_lost` → readiness ❌.
 - Master release: not released until both the SD transcode succeeds *and* the booth reports a freshly hashed match; a re-check inside the job blocks a race with a replaced master; the row survives release; re-upload restores the same pk.
 - Token auth for production's sync API: missing, wrong or revoked tokens are rejected.
@@ -605,25 +615,25 @@ Audit: every `ICSyncRun` records its trigger and requester, and every `ICSyncReq
 
 ## 8. Booth instance mode (PR 5)
 
-### 8.1 URL surface: two urlconfs, two containers
-The booth runs the same image in two web roles, each with its own urlconf. That way the surface reachable from the LAN is decided by structure (which routes exist), not by a check someone has to remember. This follows the "structural rather than remembered" principle in `core/permissions.py`.
+### 8.1 URL surface: one urlconf, bound to localhost
+The booth's web container runs the kiosk urlconf only. The surface reachable at all is decided by structure (which routes exist), not by a check someone has to remember. This follows the "structural rather than remembered" principle in `core/permissions.py`.
 
-| Role | Bound to | `ROOT_URLCONF` | Routes |
-|---|---|---|---|
-| **kiosk** (`IC_ROLE=kiosk`) | `127.0.0.1:<port>` only | `yvideo.urls_ic` | control, output, player-data, media, heartbeat, `/ic/status/`, `POST /ic/sync/run/` + `GET /ic/sync/run/<id>/` (force pull, §7.6), static |
-| **agent** (`IC_ROLE=agent`) | booth LAN IP `:<agent port>`, firewalled to production's IP | `yvideo.urls_ic_agent` | `POST /ic/agent/sync/`, `GET /ic/agent/sync/<run_id>/`, `GET /ic/agent/status/`. Nothing else: no static files, no player, no media |
+| Bound to | `ROOT_URLCONF` | Routes |
+|---|---|---|
+| `127.0.0.1:<port>` only | `yvideo.urls_ic` | control, output, player-data, local files, heartbeat, `/ic/status/`, sync badge, `POST /ic/sync/run/` + `GET /ic/sync/run/<id>/` (force pull, §7.6), static |
 
-- Neither urlconf has the admin, auth routes, the editor or the API. Tests assert that representative core names (`video_editor`, `admin:index`, `playlists`, `stream_file`) don't resolve in either, that agent routes don't resolve in the kiosk urlconf, and the reverse.
-- **What "read-only" means on the booth:** no HTTP request can change mirrored data. The only HTTP writes are the two "start a sync" endpoints. Each can only create a queued `ICSyncRun`, and the run can only fetch data from `IC_PARENT_URL` and verify it.
+- The booth has **no inbound network surface**: the kiosk is bound to localhost, and the sync agent only makes outbound requests (§7.1).
+- The urlconf has no admin, auth routes, editor or API. Tests assert that representative core names (`video_editor`, `admin:index`, `playlists`, `stream_file`) and production's IC routes (`ic_manage_dashboard`, `ic_sync_manifest`, `ic_item_media`) don't resolve in it.
+- **What "read-only" means on the booth:** no HTTP request can change mirrored data. The only HTTP write is "Sync now". It can only create a queued `ICSyncRun`, and the run can only fetch data from `IC_PARENT_URL` and verify it.
 
 ### 8.2 Middleware and settings when `IS_IC_INSTANCE`
 - Remove `LoginRequiredMiddleware`, `SpoofUserMiddleware`, `mozilla_django_oidc.middleware.SessionRefresh`.
 - Keep `AuthenticationMiddleware` (so `request.user` is `AnonymousUser` for context processors).
-- Add `ICReadOnlyMiddleware`: rejects every method except GET/HEAD with 405, except the allowlisted sync-start routes for the current role. It's a safety net behind the urlconfs.
-- Kiosk: `POST /ic/sync/run/` keeps Django's CSRF protection (the controller page includes the token). Agent: HMAC signature verification (§7.7) in a decorator, and CSRF-exempt.
+- Add `ICReadOnlyMiddleware`: rejects every method except GET/HEAD with 405, except "Sync now". It's a safety net behind the urlconf.
+- `POST /ic/sync/run/` keeps Django's CSRF protection (the controller page includes the token).
 - Drop `mozilla_django_oidc` from `INSTALLED_APPS` and `AUTHENTICATION_BACKENDS` if that's clean. Otherwise leave them unused.
-- Kiosk `ALLOWED_HOSTS = ["localhost", "127.0.0.1"]`. **Userless works only because nothing off-box can reach the kiosk.** Agent `ALLOWED_HOSTS = [<booth LAN hostname/IP>]`.
-- Booth settings: `IC_ROLE`, `IC_PARENT_URL`, `IC_SYNC_TOKEN`, `IC_AGENT_SECRET`, `IC_POLL_INTERVAL_SECONDS = 900`.
+- `ALLOWED_HOSTS = ["localhost", "127.0.0.1"]`. **Userless works only because nothing off-box can reach the kiosk.**
+- Booth settings: `IC_PARENT_URL`, `IC_SYNC_TOKEN`, `IC_CHECK_INTERVAL_SECONDS = 30`, `IC_POLL_INTERVAL_SECONDS = 900`.
 - `DEBUG = False`. Run `collectstatic` at container start (already in `entrypoint.sh`), so all static assets are local.
 
 ### 8.3 Offline guarantees (decision #1)
@@ -634,17 +644,16 @@ Checklist, enforced by tests where possible:
 - [ ] Projection masters and VTT files are local and verified before the program counts as ready.
 - [ ] Player data comes from the local DB; no request leaves the booth during playback.
 - [ ] Sync failures (DNS, TLS, 5xx, timeouts), for any trigger including force pull and push, are logged and shown in the indicators. They never touch the current mirror or files.
-- [ ] The controller's "production has newer changes" check (§7.8) fails quietly when offline and never blocks the UI.
+- [ ] The controller's "production has newer changes" badge (§7.8) comes from the agent's last check, so the kiosk never calls production, and an offline booth just shows "Can't reach production".
 - [ ] Manual test: unplug the network, reboot the booth, and run a full program.
 
 ### 8.4 Booth OS setup (`deploy/ic/`)
 - Same Podman/quadlet deploy as production (`DEPLOY.md`), with `BRANCH` pinned to production's branch, so git SHAs match (§7.3).
-- Three quadlet units from the same image, all sharing the data and projection volumes (SQLite WAL on one host):
-  - `ic-kiosk-web`: `IC_ROLE=kiosk`, `PublishPort=127.0.0.1:<port>:8000`
-  - `ic-agent-web`: `IC_ROLE=agent`, `PublishPort=<booth LAN IP>:<agent port>:8000`, `WORKERS=1`
+- Two quadlet units from the same image, sharing the data and projection volumes (SQLite WAL on one host):
+  - the main unit (kiosk): `PublishPort=127.0.0.1:<port>:8000`
   - `ic-sync-agent`: runs `manage.py ic_sync_agent` (§7.3), `Restart=always`, with `Nice=10` and `IOSchedulingClass=best-effort` (priority 7) so sync I/O yields to playback
-- Firewall (`ufw`): allow the agent port only from production's IP. Everything else stays closed inbound.
-- Make the entrypoint role-aware: only one unit runs `migrate`, so the three containers don't race. The kiosk unit does it, and the others start `After=` it.
+- Firewall: nothing to open. The booth makes only outbound HTTPS requests to production.
+- Make the entrypoint role-aware: only one unit runs `migrate`, so the containers don't race. The kiosk unit does it, and the agent starts `After=` it.
 - `deploy/ic/ic-kiosk.service.in` (systemd user unit in the booth's graphical session): `google-chrome-stable <flags chosen in the spike, §6.1> --app=http://localhost:<port>/ic/ --start-fullscreen --autoplay-policy=no-user-gesture-required --noerrdialogs --disable-session-crashed-bubble --disable-features=Translate --user-data-dir=$HOME/.config/ic-kiosk`. Plus Ubuntu auto-login for the booth account, and screen blanking, screensaver and notifications disabled (`gsettings` commands in the doc).
 - `deploy/ic/chrome-policy.json` installed to `/etc/opt/chrome/policies/managed/ic.json`: `WindowManagementAllowedForUrls`, `AutoplayAllowlist`, `DefaultNotificationsSetting: 2`, `TranslateEnabled: false`, `PasswordManagerEnabled: false`, `BrowserSignin: 0`, `RestoreOnStartup` pointing at the control URL.
 - Install `intel-media-va-driver-non-free` and `vainfo`. Add a `vainfo` and `chrome://gpu` check to the post-update rehearsal checklist, because VA-API behavior is what a Chrome or driver update is most likely to break.
@@ -677,36 +686,36 @@ Checklist, enforced by tests where possible:
 | 4 | `/ic/` controller (dark mode) + output (IC-branded: tokens, lockup, committed logo, self-hosted OFL fonts chosen with IC), e2e | 0, 1 |
 | 5 | Booth instance mode: `urls_ic`, middleware/settings, offline checks, `deploy/ic/`, `DEPLOY_IC.md` | 4 |
 | 6 | Sync pipeline: bundle, manifest/ETag, production sync API, `ICInstance`, `ic_sync_agent` with poll + `ICSyncRun`, verification, playback guard, status reports, dashboard sync columns | 2, 3, 5 |
-| 7 | Master release (§5.7: `ICInstanceFile`, `release_master` job, destructive-prune rules, weekly re-hash, `master_lost`) and triggers and indicators: force pull (controller "Sync now" + live indicator + persistent badge), agent role/urlconf/container + HMAC signing, force push (`ICSyncRequest`, dashboard button + live indicator), event notify (signals + debounced `ic_notify` job) | 6 |
+| 7 | Master release (§5.7: `ICInstanceFile`, `release_master` job, destructive-prune rules, weekly re-hash, `master_lost`) and triggers and indicators: the agent's 30-second check (change runs, collecting pushes), force pull (controller "Sync now" + live indicator + persistent badge), force push (`ICSyncRequest`, dashboard button + live indicator fed by the booth's progress posts) | 6 |
 | 8 | Legacy importer + parity test | 1 (3 for `--with-video`) |
 | 9 | Parallel run, `MANUAL_TESTING.md` IC section, remove `IC_player/` | all |
 
-The spike (0) can start immediately. After PR 1, PRs 2, 4 and 8 can proceed in parallel, and PR 3 follows PR 2. PR 7 is split from PR 6 so the data path can be reviewed and tested on its own before the trigger surfaces (which add an inbound LAN port) land.
+The spike (0) can start immediately. After PR 1, PRs 2, 4 and 8 can proceed in parallel, and PR 3 follows PR 2. PR 7 is split from PR 6 so the data path can be reviewed and tested on its own before the trigger surfaces land.
 
 ### Rollout
-1. Provision the booth (PR 5), point it at production with its token, set the agent secret on both sides, and open the agent port to production. Confirm a force push and a force pull both show ✅ before the parallel run.
+1. Provision the booth (PR 5) and point it at production with its token. Confirm a force push and a force pull both show ✅ before the parallel run.
 2. **Parallel run for 1–2 weeks:** IC staff prepare programs in Y-video, the booth syncs, and the projectionist rehearses each program on the booth. The Electron player stays installed as a fallback.
 3. Cut over. After one clean month, delete `IC_player/` (Electron app, symlinks, `scripts/`), its npm/eslint references, and `IC_Player.sh`, and update `README.md`.
 
 ### Manual test script (add to `MANUAL_TESTING.md`)
-Upload a master → transcode finishes → edit annotations → readiness ✅ → booth syncs → dashboard shows the booth matching → rehearse → open output on screen 2 → LOOP announcement → advance to film → skip/mute/blur/blank fire → VTT cues are readable on the projector → emergency blank → close the output mid-film and resume → unplug the network mid-film → reboot offline and replay → edit an annotation on prod during playback and confirm the booth throttles and waits, then applies afterwards.
+Upload a master → transcode finishes → edit annotations → readiness ✅ → booth syncs → dashboard shows the booth matching → rehearse → open output on screen 2 → LOOP announcement → advance to film → skip/mute/blur/blank fire → VTT cues are readable on the projector → emergency blank → close the output mid-film and resume → unplug the network mid-film → reboot offline and replay → edit an annotation on prod during playback and confirm the booth throttles its downloads, applies the change without disturbing the film, and the change shows the next time the item loads.
 
 Sync triggers (each must end in the indicator state shown):
-- Edit an annotation on prod, wait ~1 min → event pull → booth badge ✅ "matches production".
+- Edit an annotation on prod, wait ~1 min → change run → booth badge ✅ "matches production".
 - **Force pull** with nothing changed → ✅ Succeeded (re-verified), not "up to date".
 - **Force pull** with "Re-check every file" → progress shows re-hashing → ✅.
 - **Force push** from the dashboard → live phases → ✅ "Booth now matches production".
 - Force push, then edit during the push → ✅ with "1 change since".
-- Force push with the booth powered off → immediate ❌ "Booth unreachable".
-- Force push with a wrong agent secret → ❌ "bad signature".
-- Stop `ic-sync-agent`, then force pull and force push → immediate ❌ "sync agent isn't running".
+- Force push with the booth powered off → after ~2 min ⚠️ "hasn't checked in since …"; power it on within 30 min → the push runs → ✅. Leave it off → ❌ expired.
+- Stop `ic-sync-agent`, then force pull → immediate ❌ "sync agent isn't running"; force push → ⚠️ "hasn't checked in".
 - Force pull with the network unplugged → ❌ "production unreachable"; playback unaffected.
 - Corrupt a byte in a local master, force pull with re-check → the file is re-downloaded → ✅.
-- Force push during a film without "apply while playing" → ⏸ waiting → ✅ after stop. With it → applied, and the current film is uninterrupted.
+- Force push during a film → applied straight away; the current film is uninterrupted, even if the push replaced its master.
+- A new program for next month plus an annotation fix for tonight → tonight's fix is applied before next month's master finishes downloading.
 
 ## 11. Future: personal IC staff instances (decision #7)
 
-The booth design already makes these mostly configuration. A personal instance is an `ICInstance` row plus a token with no `agent_url`. It uses polling and force pull, and it needs no inbound connectivity. Force push and event notifications are hidden or skipped for it, and its agent web container isn't deployed. Two things stand between this and "trivial":
+The booth design already makes these mostly configuration. A personal instance is an `ICInstance` row plus a token. Because every connection starts on the instance (§7.1), it gets the same checks, change runs and force pushes as the booth, with no inbound connectivity. Two things stand between this and "trivial":
 - **Packaging:** Podman + quadlet + systemd is Linux-specific. Something trivial for staff (likely macOS) probably means a single `podman machine`/Docker Desktop compose file, or a small installer script. Revisit once the booth is stable.
 - **Media policy:** personal machines should probably sync the **derived stream file** instead of the master (smaller, and less sensitive if a laptop is lost). Add `ICInstance.profile = booth | preview` to choose which file kind the manifest lists. Only `booth` instances count toward releasing a master (§5.7). The fingerprint guarantees still hold, because annotations are timed against both files identically (§5.3).
 
@@ -725,10 +734,9 @@ The booth design already makes these mostly configuration. A personal instance i
 | Disk space on booth | Prune with a grace period; dashboard shows booth free space (included in the status POST) |
 | Signal handlers firing during raw import | Audit and test (§7.3) |
 | ic.byu.edu redesign drifts from our copy | Branding is limited to the output window, one token file and one lockup partial, so a refresh is a one-file change; re-read the site before PR 4 |
-| New inbound LAN surface on the booth (agent port) | Separate container and urlconf exposing three routes; firewall to production's IP; HMAC + timestamp + idempotent `request_id`; the routes can only start a verified pull from the real production |
-| Sync agent silently dead | Heartbeat; force buttons fail immediately with the restart command; dashboard shows heartbeat age |
-| Event storm from heavy editing | 60 s debounced single notify job; manifest-hash comparison skips no-op changes |
-| Production web worker blocked calling the booth | Short timeouts (5 s trigger, 3 s progress); the final result also arrives via the booth's status POST |
+| Sync agent silently dead | Kiosk heartbeat file: "Sync now" fails immediately with the restart command; production's push indicator and dashboard flag a booth that hasn't checked in for 2 minutes |
+| Load from the booth's 30-second check | One token-authenticated GET; the manifest hash is cached for 15 s and subtitle checksums per file version, so at most one bundle build per 15 s |
+| A sync changing a film mid-showing | File-addressed media URLs paired with the player data; old files kept through prune's grace period (§7.4) |
 
 Open questions: none outstanding. Earlier questions and their answers are in the decisions table (§1).
 
@@ -761,8 +769,8 @@ Where the code differs from the plan above, and why:
   `updated_at` (Django's JSON serializer), which are not part of the player data.
 - **The booth kiosk serves its own static files** (there is no Apache on the booth), from
   `collectstatic`'s output, through a view that only exists in the kiosk urlconf.
-- **One image, four roles**, chosen by `YVIDEO_ROLE` in `deploy/entrypoint.sh`: `web` (site or
-  kiosk; the only role that migrates), `ic-agent-web`, `media-worker`, `ic-sync-agent`.
+- **One image, three roles**, chosen by `YVIDEO_ROLE` in `deploy/entrypoint.sh`: `web` (site or
+  kiosk; the only role that migrates), `media-worker`, `ic-sync-agent`.
   `deploy.sh` passes the commit into the image as `YVIDEO_GIT_SHA`, because the build
   context excludes `.git` and the booth compares versions before applying data.
 - **ffmpeg before 5.1** lacks `-fps_mode`; the transcode falls back to the equivalent
@@ -776,3 +784,19 @@ Where the code differs from the plan above, and why:
   (DEPLOY_IC.md, "Moving off the Electron IC Player").
 - **Local demo:** `manage.py seed_ic_demo` (after `seed_demo_data`) builds an IC playlist and
   a program for today from `demo_media/`.
+- **Outbound-only sync (revised after review).** The first implementation had production
+  call a signed agent endpoint on the booth (an `ic-agent-web` container and urlconf, HMAC
+  secrets on both machines, a firewall rule, change-notification signals and an
+  `ic_notify` job). It was replaced by the booth's 30-second check (§7.1, §7.3, §7.7);
+  migration `ic/0002_outbound_only_sync` drops the agent fields.
+- **File-addressed media (revised after review).** The booth's media URL used to name the
+  item and was resolved on every range request, so a sync applied during a pause (or with
+  "Apply even while playing") could switch a playing film to another file. It now names
+  the file and its checksum (§7.4), and the playback wait and its override are gone.
+- **Subtitles before rows.** `get_player_json()` embeds VTT text, so subtitle files are
+  always fetched before the rows are applied; only masters for later programs wait.
+- **Ingest replaces a master safely.** The new bytes move into place under their own
+  checksum name before the transaction, the old row is removed with a queryset delete
+  (`ResourceFile.delete()` would remove its bytes immediately), and the old bytes are
+  deleted only after the commit. If anything fails, production keeps the previous master
+  and the upload's bytes go back to the `.part` file.

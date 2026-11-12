@@ -155,13 +155,6 @@
                         <input type="checkbox" name="full_rehash" value="1">
                         Re-check every file (slow)
                     </label>
-                    <label>
-                        <input type="checkbox"
-                               name="apply_during_playback"
-                               value="1"
-                               hx-on:change="if (this.checked && !confirm('Apply new data while a film is playing? The film that is playing is not affected; the next item loads the new data.')) this.checked = false;">
-                        Apply even while playing
-                    </label>
                     <button type="submit" class="ic-button">Sync now</button>
                 </form>
                 <div id="ic-sync-run-slot" role="status" aria-live="polite"></div>

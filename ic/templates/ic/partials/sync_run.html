@@ -17,8 +17,6 @@
         <p class="ic-status ic-status-error">
             ❌ Failed: {{ run.error }} Nothing changed; the booth keeps playing its previous verified data.
         </p>
-    {% elif run.status == "waiting_for_playback" %}
-        <p class="ic-status ic-status-warn">⏸ Files are ready; waiting for playback to stop before applying.</p>
     {% elif run.status == "queued" %}
         <p class="ic-status">Queued{% if behind %} behind the sync already running{% endif %}…</p>
     {% else %}

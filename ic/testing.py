@@ -34,7 +34,6 @@ from core.models import projection_file_name
 from .models import ICProgram
 from .models import ICProgramItem
 from .sync.bundle import file_xxh64
-from .sync.notify import reset_pushable_cache
 
 FFMPEG_AVAILABLE = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
@@ -93,7 +92,6 @@ class ICTempDirsMixin:
             MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
         )
         self._ic_middleware.enable()
-        reset_pushable_cache()
         cache.clear()  # the manifest hash is cached between requests
         self.addCleanup(self._ic_cleanup)
 
@@ -101,7 +99,6 @@ class ICTempDirsMixin:
         self._ic_middleware.disable()
         self._ic_settings.disable()
         shutil.rmtree(self._ic_tmp, ignore_errors=True)
-        reset_pushable_cache()
 
 
 def make_ic_editor(**kwargs):

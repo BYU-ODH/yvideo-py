@@ -107,11 +107,8 @@ urlpatterns = [
     ),
     # Booth sync API (bearer token).
     path("sync/manifest/", views_sync_api.manifest, name="ic_sync_manifest"),
-    path(
-        "sync/manifest-hash/",
-        views_sync_api.manifest_hash,
-        name="ic_sync_manifest_hash",
-    ),
+    path("sync/check/", views_sync_api.check, name="ic_sync_check"),
+    path("sync/progress/", views_sync_api.progress, name="ic_sync_progress"),
     path("sync/fixture/", views_sync_api.fixture, name="ic_sync_fixture"),
     path(
         "sync/files/projection/<int:resource_file_id>/",

@@ -97,8 +97,11 @@ async function load({ item, autoplay = false, startAt = 0 }) {
       clips: [],
       subtitles: data.subtitleTracks || [],
     });
+    if (!data.media_url) throw new Error("player data has no media URL");
     video.loop = item.mode === MODE.LOOP;
-    player.setVideoSource(item.media_url);
+    // The URL comes with the annotations it belongs to. On the booth it names one verified
+    // file, so a sync that lands while this item plays can't change what it streams.
+    player.setVideoSource(data.media_url);
     video.addEventListener(
       "loadedmetadata",
       () => {

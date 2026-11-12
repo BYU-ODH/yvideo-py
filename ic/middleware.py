@@ -2,15 +2,15 @@ from django.http import HttpResponseNotAllowed
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
-# The only writes a booth accepts: requests to start a sync. Each can only queue an
+# The only write a booth accepts: the operator's "Sync now". It can only queue an
 # ICSyncRun; the run itself fetches from production and verifies everything.
-SYNC_START_VIEWS = {"ic_sync_run_create", "ic_agent_sync"}
+SYNC_START_VIEWS = {"ic_sync_run_create"}
 
 
 class ICReadOnlyMiddleware:
-    """Safety net behind the booth urlconfs: no route may change mirrored data.
+    """Safety net behind the booth urlconf: no route may change mirrored data.
 
-    The urlconfs already contain only booth routes; this refuses any unsafe method that
+    The urlconf already contains only booth routes; this refuses any unsafe method that
     reaches a view other than the sync-start allowlist, in case one is ever added.
     """
 

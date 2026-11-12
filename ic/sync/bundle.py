@@ -157,6 +157,28 @@ def file_xxh64(path, chunk_size=8 * 1024 * 1024):
     return digest.hexdigest()
 
 
+def cached_file_xxh64(path):
+    """file_xxh64(), remembered per path, size and mtime.
+
+    Every manifest build lists subtitle checksums, and the booth checks for changes
+    every few seconds; the files rarely change, so they are hashed once per version.
+    """
+    from django.core.cache import cache
+
+    stat = os.stat(path)
+    key = (
+        "ic-xxh64:"
+        + hashlib.sha256(
+            f"{path}:{stat.st_size}:{stat.st_mtime_ns}".encode()
+        ).hexdigest()
+    )
+    digest = cache.get(key)
+    if digest is None:
+        digest = file_xxh64(path)
+        cache.set(key, digest, None)
+    return digest
+
+
 def git_sha():
     """The code version, so a booth never applies rows its own schema cannot read."""
     configured = os.environ.get("YVIDEO_GIT_SHA") or getattr(
@@ -362,7 +384,7 @@ class Bundle:
                     ),
                     "name": subtitle.subtitles_file.name,
                     "size": os.path.getsize(path),
-                    "xxh64": file_xxh64(path),
+                    "xxh64": cached_file_xxh64(path),
                     "available_from_parent": True,
                 }
             )
@@ -433,9 +455,9 @@ MANIFEST_HASH_CACHE_SECONDS = 15
 def cached_manifest_hash():
     """The manifest hash, recomputed at most every few seconds.
 
-    For pages that poll (the push indicator asks every 2 s); building the bundle means
-    rendering every scheduled film's player JSON. Decisions that must be exact, such as
-    whether to notify a booth, use current_manifest_hash().
+    For requests that repeat (each booth's check every IC_CHECK_INTERVAL_SECONDS, the
+    push indicator every 2 s); building the bundle means rendering every scheduled
+    film's player JSON. A change shows up at most this many seconds late.
     """
     from django.core.cache import cache
 

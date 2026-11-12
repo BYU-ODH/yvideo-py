@@ -1,4 +1,9 @@
-"""The booth's long-running sync agent (IC_MODE_PLAN.md section 7.3)."""
+"""The booth's long-running sync agent (IC_MODE_PLAN.md section 7.3).
+
+It is the only part of the booth that talks to production, and it only ever calls out:
+a cheap check every IC_CHECK_INTERVAL_SECONDS (changes, pushes from IC editors), a full
+poll every IC_POLL_INTERVAL_SECONDS as a safety net, and the queued runs themselves.
+"""
 
 from datetime import timedelta
 import fcntl
@@ -16,7 +21,9 @@ from ic import booth_state
 from ic.models import ICBoothState
 from ic.models import ICLocalFile
 from ic.models import ICSyncRun
+from ic.sync.agent import check_parent
 from ic.sync.agent import execute_run
+from ic.sync.client import ParentClient
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +61,7 @@ class Command(BaseCommand):
         signal.signal(signal.SIGTERM, self._stop)
         signal.signal(signal.SIGINT, self._stop)
 
-        stale = ICSyncRun.objects.filter(
-            status__in=[ICSyncRun.Status.RUNNING, ICSyncRun.Status.WAITING_FOR_PLAYBACK]
-        ).update(
+        stale = ICSyncRun.objects.filter(status=ICSyncRun.Status.RUNNING).update(
             status=ICSyncRun.Status.FAILED,
             error="The sync agent restarted during this run.",
             finished_at=timezone.now(),
@@ -64,9 +69,11 @@ class Command(BaseCommand):
         if stale:
             logger.warning("Marked %s interrupted sync run(s) failed.", stale)
 
+        self.client = ParentClient()
+        self.last_check = 0.0
         last_poll = 0.0
         while not self.stopping:
-            booth_state.record_agent_heartbeat()
+            self.tick()
             queued = ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED).order_by(
                 "requested_at"
             )
@@ -103,7 +110,7 @@ class Command(BaseCommand):
                 if run.trigger == ICSyncRun.Trigger.POLL:
                     last_poll = time.monotonic()
                 logger.info("Starting sync run %s (%s)", run.pk, run.trigger)
-                execute_run(run)
+                execute_run(run, client=self.client, heartbeat=self.tick)
                 logger.info(
                     "Sync run %s finished: %s %s", run.pk, run.status, run.error
                 )
@@ -111,6 +118,20 @@ class Command(BaseCommand):
             if options.get("once"):
                 break
             time.sleep(QUEUE_POLL_SECONDS)
+
+    def tick(self):
+        """Heartbeat, and the check for changes and pushes when it's due.
+
+        Also called throughout a run, so a push made during a long download is
+        collected (and shown as queued on production) without waiting for it to end.
+        """
+        booth_state.record_agent_heartbeat()
+        if time.monotonic() - self.last_check >= settings.IC_CHECK_INTERVAL_SECONDS:
+            self.last_check = time.monotonic()
+            try:
+                check_parent(self.client)
+            except Exception:  # noqa: BLE001 - the agent loop must keep running
+                logger.exception("Checking production failed")
 
     def _stop(self, signum, frame):
         self.stopping = True

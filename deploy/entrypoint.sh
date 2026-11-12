@@ -11,8 +11,7 @@ THREADS="${THREADS:-2}"
 
 # One image, several roles (see deploy/ic/ and DEPLOY_IC.md). Only the "web"
 # role migrates and collects static files; the others start after it.
-#   web            the site (production) or the booth kiosk (IC_ROLE=kiosk)
-#   ic-agent-web   the booth's signed sync-trigger endpoint (IC_ROLE=agent)
+#   web            the site (production) or the booth kiosk (IS_IC_INSTANCE)
 #   media-worker   production's International Cinema media jobs
 #   ic-sync-agent  the booth's sync agent
 YVIDEO_ROLE="${YVIDEO_ROLE:-web}"
@@ -41,9 +40,6 @@ case "$YVIDEO_ROLE" in
             [ -e "$db_file" ] && chmod 600 "$db_file"
         done
 
-        run_gunicorn
-        ;;
-    ic-agent-web)
         run_gunicorn
         ;;
     media-worker)

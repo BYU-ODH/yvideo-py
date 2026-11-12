@@ -257,10 +257,9 @@ FILE_UPLOAD_TEMP_DIR = _resolve_repo_path(
 #
 # Production runs with IS_IC_INSTANCE False and serves IC editors, the sync API and the
 # preview player. The booth runs the same code with IS_IC_INSTANCE True, as a read-only,
-# userless mirror, in one of two web roles: "kiosk" (the projectionist's pages, bound to
-# localhost) or "agent" (signed sync triggers from production, bound to the booth LAN).
+# userless mirror: the projectionist's kiosk pages, bound to localhost. The booth only
+# ever calls production; nothing connects to the booth.
 IS_IC_INSTANCE = getattr(secret_settings, "IS_IC_INSTANCE", False)
-IC_ROLE = os.environ.get("IC_ROLE") or getattr(secret_settings, "IC_ROLE", "kiosk")
 # Projection masters. Never under MEDIA_ROOT: the web server publishes MEDIA_ROOT (#531).
 IC_PROJECTION_ROOT = _resolve_repo_path(
     os.environ.get("IC_PROJECTION_ROOT")
@@ -269,14 +268,13 @@ IC_PROJECTION_ROOT = _resolve_repo_path(
 # Small runtime state shared between the booth containers: playback and agent
 # heartbeats, and the sync agent's lock file.
 IC_STATE_DIR = _resolve_repo_path(getattr(secret_settings, "IC_STATE_DIR", "var/ic"))
-# Booth: where to pull from, and the credentials for each direction.
+# Booth: where to pull from, and its bearer token.
 IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
 IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
-IC_AGENT_SECRET = getattr(secret_settings, "IC_AGENT_SECRET", "")
+# How often the booth's sync agent asks production whether anything changed or an IC
+# editor pushed (a cheap request), and how often it fetches the full manifest anyway.
+IC_CHECK_INTERVAL_SECONDS = getattr(secret_settings, "IC_CHECK_INTERVAL_SECONDS", 30)
 IC_POLL_INTERVAL_SECONDS = getattr(secret_settings, "IC_POLL_INTERVAL_SECONDS", 900)
-# Production: the HMAC secret shared with each instance that has an agent_url, keyed by
-# ICInstance.name. Kept out of the database so a DB dump does not leak it.
-IC_INSTANCE_AGENT_SECRETS = getattr(secret_settings, "IC_INSTANCE_AGENT_SECRETS", {})
 # What the booth's Chrome has been verified to decode (IC_MODE_PLAN.md section 6.1).
 # HEVC joins the list only once the spike confirms hardware decode; AV1 never will on
 # the booth's Intel UHD 630, which has no AV1 decoder.
@@ -296,7 +294,7 @@ IC_MASTER_PRUNE_WARNING_DAYS = getattr(
 )
 
 if IS_IC_INSTANCE:
-    ROOT_URLCONF = "yvideo.urls_ic_agent" if IC_ROLE == "agent" else "yvideo.urls_ic"
+    ROOT_URLCONF = "yvideo.urls_ic"
     # The booth has no users at all: nothing to log in to, spoof, or refresh.
     MIDDLEWARE = [
         m

@@ -153,7 +153,6 @@ class MediaJob(models.Model):
         INGEST = "ingest", "Ingest uploaded master"
         TRANSCODE = "transcode", "Transcode SD editing file"
         RELEASE_MASTER = "release_master", "Release production's copy of a master"
-        IC_NOTIFY = "ic_notify", "Notify booths of changes"
         CLEANUP_UPLOADS = "cleanup_uploads", "Clean up abandoned uploads"
 
     class Status(models.TextChoices):
@@ -247,12 +246,21 @@ class ICUpload(models.Model):
         return round(100 * self.received_bytes / self.expected_size, 1)
 
 
+# An instance that has missed this many checks in a row counts as out of contact.
+CHECK_IN_GRACE_INTERVALS = 4
+
+
 def hash_token(raw_token):
     return hashlib.sha256(raw_token.encode()).hexdigest()
 
 
 class ICInstance(models.Model):
-    """A Y-video IC instance that mirrors production: today, the one booth."""
+    """A Y-video IC instance that mirrors production: today, the one booth.
+
+    Instances only ever call production (IC_MODE_PLAN.md section 7.1): they check for
+    changes and push requests every IC_CHECK_INTERVAL_SECONDS and report what they did.
+    Production never connects to an instance.
+    """
 
     class Profile(models.TextChoices):
         BOOTH = "booth", "Booth (projection masters)"
@@ -260,13 +268,6 @@ class ICInstance(models.Model):
 
     name = models.CharField(max_length=100, unique=True)
     token_hash = models.CharField(max_length=64, unique=True, editable=False)
-    agent_url = models.URLField(
-        blank=True,
-        help_text=(
-            "Base URL of the instance's sync agent, e.g. http://booth.example:8443. "
-            "Blank for pull-only instances, which cannot be pushed to."
-        ),
-    )
     profile = models.CharField(
         max_length=7, choices=Profile.choices, default=Profile.BOOTH
     )
@@ -275,11 +276,6 @@ class ICInstance(models.Model):
     last_applied_manifest_hash = models.CharField(
         max_length=64, blank=True, editable=False
     )
-    last_notified_manifest_hash = models.CharField(
-        max_length=64, blank=True, editable=False
-    )
-    last_notify_error = models.TextField(blank=True, editable=False)
-    last_notified_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -300,13 +296,14 @@ class ICInstance(models.Model):
             return None
         return cls.objects.filter(token_hash=hash_token(raw_token)).first()
 
-    @property
-    def agent_secret(self):
-        return settings.IC_INSTANCE_AGENT_SECRETS.get(self.name, "")
-
-    @property
-    def can_be_pushed_to(self):
-        return bool(self.agent_url and self.agent_secret)
+    def checked_in_recently(self, now=None):
+        """Whether the instance has called production within a few check intervals."""
+        if self.last_seen_at is None:
+            return False
+        now = now or timezone.now()
+        return now - self.last_seen_at <= timedelta(
+            seconds=settings.IC_CHECK_INTERVAL_SECONDS * CHECK_IN_GRACE_INTERVALS
+        )
 
 
 class ICInstanceFile(models.Model):
@@ -332,7 +329,32 @@ class ICInstanceFile(models.Model):
 
 
 class ICSyncRequest(models.Model):
-    """A force push from production: "booth, sync now", and how it went."""
+    """A force push from production: "booth, sync now", and how it went.
+
+    Production can't reach the booth, so a push is a request the booth collects on its
+    next check (every IC_CHECK_INTERVAL_SECONDS). The booth then posts progress while it
+    runs and its final report when it finishes.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Waiting for the booth to check in"
+        QUEUED = "queued"
+        RUNNING = "running"
+        SUCCEEDED = "succeeded"
+        PARTIAL = "partial"
+        FAILED = "failed"
+        UP_TO_DATE = "up_to_date", "Up to date"
+        EXPIRED = "expired", "Expired (the booth never checked in)"
+
+    FINAL_STATUSES = (
+        Status.SUCCEEDED,
+        Status.PARTIAL,
+        Status.FAILED,
+        Status.UP_TO_DATE,
+        Status.EXPIRED,
+    )
+    # A push the booth hasn't collected by then is dropped rather than run much later.
+    PENDING_TTL = timedelta(minutes=30)
 
     instance = models.ForeignKey(
         ICInstance, on_delete=models.CASCADE, related_name="sync_requests"
@@ -345,20 +367,50 @@ class ICSyncRequest(models.Model):
     manifest_hash_at_request = models.CharField(max_length=64, blank=True)
     options = models.JSONField(default=dict, blank=True)
     booth_run_id = models.UUIDField(null=True, blank=True)
-    status = models.CharField(max_length=24, default="sending")
+    status = models.CharField(
+        max_length=24, choices=Status.choices, default=Status.PENDING
+    )
+    # The booth's latest progress_json() for the run, while it runs.
+    progress = models.JSONField(default=dict, blank=True)
+    progress_at = models.DateTimeField(null=True, blank=True)
     report = models.JSONField(default=dict, blank=True)
     error = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    picked_up_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
 
-    FINAL_STATUSES = ("succeeded", "partial", "failed", "up_to_date", "unreachable")
-
     @property
     def is_final(self):
         return self.status in self.FINAL_STATUSES
+
+    @classmethod
+    def expire_stale(cls, now=None):
+        now = now or timezone.now()
+        return cls.objects.filter(
+            status=cls.Status.PENDING, created_at__lt=now - cls.PENDING_TTL
+        ).update(
+            status=cls.Status.EXPIRED,
+            finished_at=now,
+            error="The booth didn't check in to collect this push.",
+        )
+
+    @classmethod
+    def pending_for(cls, instance):
+        cls.expire_stale()
+        return cls.objects.filter(
+            instance=instance, status=cls.Status.PENDING
+        ).order_by("created_at")
+
+    def offer_json(self):
+        """What the booth needs to start the run."""
+        return {
+            "request_id": str(self.request_id),
+            "requested_by": self.requested_by_name,
+            "options": self.options,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -371,14 +423,14 @@ class ICSyncRun(models.Model):
 
     class Trigger(models.TextChoices):
         POLL = "poll"
-        EVENT = "event"
+        # The booth's frequent check saw a manifest hash it hasn't tried yet.
+        EVENT = "event", "Change on production"
         FORCE_PULL = "force_pull", "Force pull"
         FORCE_PUSH = "force_push", "Force push"
 
     class Status(models.TextChoices):
         QUEUED = "queued"
         RUNNING = "running"
-        WAITING_FOR_PLAYBACK = "waiting_for_playback", "Waiting for playback"
         SUCCEEDED = "succeeded"
         PARTIAL = "partial"
         FAILED = "failed"
@@ -428,6 +480,7 @@ class ICSyncRun(models.Model):
     def progress_json(self):
         return {
             "run_id": str(self.pk),
+            "request_id": str(self.request_id) if self.request_id else None,
             "trigger": self.trigger,
             "requested_by": self.requested_by,
             "status": self.status,
@@ -483,6 +536,17 @@ class ICBoothState(models.Model):
     last_run_error = models.TextField(blank=True)
     last_run_at = models.DateTimeField(null=True, blank=True)
     last_full_rehash_at = models.DateTimeField(null=True, blank=True)
+    # What production's manifest hash was at the agent's last check, so the controller
+    # can say whether production has changes the booth doesn't have yet.
+    parent_manifest_hash = models.CharField(max_length=64, blank=True)
+    parent_checked_at = models.DateTimeField(null=True, blank=True)
+    parent_check_error = models.TextField(blank=True)
+
+    @property
+    def production_has_newer_changes(self):
+        return bool(self.parent_manifest_hash) and (
+            self.parent_manifest_hash != self.applied_manifest_hash
+        )
 
     @classmethod
     def get(cls):

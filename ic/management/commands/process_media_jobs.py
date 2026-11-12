@@ -15,7 +15,7 @@ CLEANUP_INTERVAL_SECONDS = 6 * 3600
 
 
 class Command(BaseCommand):
-    help = "Run International Cinema media jobs (ingest, SD transcode, master release, booth notify)."
+    help = "Run International Cinema media jobs (ingest, SD transcode, master release, upload cleanup)."
 
     def add_arguments(self, parser):
         parser.add_argument(

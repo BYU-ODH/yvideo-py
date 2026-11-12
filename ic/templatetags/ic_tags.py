@@ -2,14 +2,17 @@ from django import template
 
 register = template.Library()
 
+# A run fetches files for programs showing now, applies the rows, and only then fetches
+# films for later programs (ic.sync.agent.execute_run).
 PHASES = [
     ("contacting", "Contacting production"),
-    ("downloading", "Downloading"),
-    ("waiting", "Waiting for playback"),
+    ("downloading", "Downloading current films"),
     ("importing", "Importing"),
     ("verifying", "Verifying"),
+    ("downloading_upcoming", "Downloading upcoming films"),
     ("reporting", "Reporting"),
 ]
+DOWNLOAD_PHASES = {"downloading", "downloading_upcoming"}
 FINAL = {"succeeded", "partial", "failed", "up_to_date"}
 
 
@@ -42,8 +45,6 @@ def sync_phases(run):
     )
     steps = []
     for index, (name, label) in enumerate(PHASES):
-        if name == "waiting" and phase != "waiting":
-            continue
         if index < current:
             css = "ic-phase-done"
         elif index == current:
@@ -54,6 +55,7 @@ def sync_phases(run):
     return {
         "steps": steps,
         "phase": phase,
+        "downloading": phase in DOWNLOAD_PHASES,
         "files_done": get("files_done", 0),
         "files_total": get("files_total", 0),
         "bytes_done": get("bytes_done", 0),
