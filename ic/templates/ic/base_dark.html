@@ -1,0 +1,41 @@
+{% load static %}
+
+<!DOCTYPE html>
+{# Operator pages (booth controller and its production preview): Y-video's UI in dark mode. #}
+{# Nothing here may load from the network: the booth must work offline (IC_MODE_PLAN.md 8.3). #}
+<html lang="en" data-theme="dark">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="dark">
+        <meta name="description"
+              content="International Cinema projection controls for Y-Video.">
+        <title>{% block title %}{{ title|default:"International Cinema" }}{% endblock %}</title>
+        <link rel="stylesheet" href="{% static 'ic/css/dark.css' %}">
+        {% block extra_css %}{% endblock %}
+        <script src="{% static 'js/vendor/htmx.js' %}"></script>
+        <link rel="shortcut icon"
+              type="image/png"
+              href="{% static 'img/favicon.ico' %}">
+    </head>
+    <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        <header class="ic-topbar">
+            <a class="ic-topbar-title" href="{% url 'ic_control_index' %}">International Cinema{% if not booth %} · preview{% endif %}</a>
+            <div class="ic-topbar-actions">
+                {% if booth %}
+                    <div id="ic-sync-badge"
+                         hx-get="{% url 'ic_sync_badge' %}"
+                         hx-trigger="load, every 60s"
+                         hx-swap="innerHTML">
+                        {% include "ic/partials/sync_badge.html" %}
+                    </div>
+                {% else %}
+                    <a class="ic-link" href="{% url 'ic_manage_dashboard' %}">Back to IC management</a>
+                {% endif %}
+            </div>
+        </header>
+        <main class="ic-main">
+            {% block content %}{% endblock %}
+        </main>
+    </body>
+</html>

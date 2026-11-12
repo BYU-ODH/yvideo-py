@@ -58,3 +58,30 @@ LOGOUT_REDIRECT_URL = ""
 OIDC_USE_PKCE = False  # typically True for dev/stage and False for production. check with credential provider
 OIDC_PKCE_CODE_CHALLENGE_METHOD = ""
 OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
+
+# Spool large uploads (International Cinema projection masters) somewhere bind-mounted
+# instead of the container's small /tmp. Relative paths are under the repo root.
+# FILE_UPLOAD_TEMP_DIR = "var/upload_tmp"
+
+# --- International Cinema (#246; see DEPLOY_IC.md) ---------------------------------
+#
+# Production: the HMAC secret shared with each booth that can be pushed to, keyed by
+# the ICInstance name created in the admin. Generate with:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+# IC_INSTANCE_AGENT_SECRETS = {"booth": "<shared secret>"}
+#
+# Where projection masters live. Defaults to <repo>/ic_projection; in containers the
+# quadlet mounts it at /app/ic_projection and sets this through the environment.
+# IC_PROJECTION_ROOT = "ic_projection"
+#
+# What the booth's Chrome is verified to decode (set from the booth spike):
+# IC_BOOTH_VIDEO_CODECS = ["h264"]            # add "hevc" once hardware decode is confirmed
+# IC_BOOTH_VERIFIED_MAX = {"height": 1080, "frame_rate": 30, "bitrate": 40_000_000}
+#
+# Booth only. The booth is a userless, read-only mirror: set DEBUG = False and
+# ALLOWED_HOSTS = ["localhost", "127.0.0.1", "<booth LAN hostname>"].
+# IS_IC_INSTANCE = True
+# IC_PARENT_URL = "https://yvideo.example.edu"
+# IC_SYNC_TOKEN = "<token shown once when the ICInstance was created>"
+# IC_AGENT_SECRET = "<the same secret as production's IC_INSTANCE_AGENT_SECRETS entry>"
+# IC_POLL_INTERVAL_SECONDS = 900

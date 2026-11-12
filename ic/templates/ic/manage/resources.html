@@ -1,0 +1,92 @@
+{% extends "ic/manage/base.html" %}
+
+{% block ic_content %}
+    <header class="video-title">
+        <h2>Films and projection masters</h2>
+    </header>
+    <p class="ic-muted">
+        Films used in International Cinema playlists. Upload each film's projection master (maximum resolution and bitrate); Y-video makes the SD editing file from it, so annotations line up exactly.
+    </p>
+    <p class="ic-muted">
+        Once the booth holds a verified copy, production deletes its copy of the master. Keep the original disc or file until the film's last showing.
+    </p>
+    <table class="ic-manage-table">
+        <thead>
+            <tr>
+                <th scope="col">Film</th>
+                <th scope="col">Projection master</th>
+                <th scope="col">SD editing file</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>{{ row.resource.name }}</td>
+                    <td>
+                        {% if row.master %}
+                            {{ row.master.width }}×{{ row.master.height }} · {{ row.master.video_codec }}
+                            {% if row.master.frame_rate %}· {{ row.master.frame_rate|floatformat:3 }} fps{% endif %}
+                            · {{ row.master.size_bytes|filesizeformat }}
+                            {% if row.master.duration_seconds %}· {{ row.master.duration_seconds|floatformat:0 }}s{% endif %}
+                            <br>
+                            {% if row.master.master_released_at %}
+                                <span class="ic-muted">Released {{ row.master.master_released_at|date:"M j" }}: the booth holds the only copy.</span>
+                            {% elif not row.release_blockers %}
+                                <span class="ic-muted">Release queued.</span>
+                            {% else %}
+                                <span class="ic-muted">Kept on production until: {{ row.release_blockers|join:"; " }}.</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="ic-error">None</span>
+                        {% endif %}
+                        {% for upload in row.uploads %}
+                            <br>
+                            <span class="ic-muted">Upload {{ upload.filename }}: {{ upload.status }} {{ upload.percent }}%</span>
+                            {% if upload.error %}<span class="ic-error">{{ upload.error }}</span>{% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if row.derived %}
+                            {{ row.derived.width }}×{{ row.derived.height }} · {{ row.derived.size_bytes|filesizeformat }}
+                        {% elif row.transcode and row.transcode.is_pending %}
+                            Being made… {% if row.transcode.progress %}{% widthratio row.transcode.progress 1 100 %}%{% endif %}
+                        {% elif row.transcode and row.transcode.status == "failed" %}
+                            <span class="ic-error">Failed: {{ row.transcode.error }}</span>
+                        {% else %}
+                            <span class="ic-muted">–</span>
+                        {% endif %}
+                        {% if row.contents_not_on_sd %}
+                            <br>
+                            <span class="ic-warn">⚠️ {{ row.contents_not_on_sd|length }} IC content(s) still use another file.</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.can_upload %}
+                            <a class="blue-button"
+                               href="{% url 'ic_projection_upload' row.resource.pk %}">
+                                {% if row.master %}
+                                    Replace master
+                                {% else %}
+                                    Upload master
+                                {% endif %}
+                            </a>
+                            {% if row.contents_not_on_sd %}
+                                <form method="post" action="{% url 'ic_resource_use_sd' row.resource.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="white-button-with-border">Use the SD file for IC contents</button>
+                                </form>
+                            {% endif %}
+                        {% else %}
+                            <span class="ic-muted">You don't have access to this resource.</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">No films in IC playlists yet.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

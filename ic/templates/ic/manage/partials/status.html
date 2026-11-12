@@ -1,0 +1,7 @@
+{% if status == "ready" %}
+    <span class="ic-manage-status ic-ok">✅ Ready</span>
+{% elif status == "warning" %}
+    <span class="ic-manage-status ic-warn">⚠️ Ready, with warnings</span>
+{% else %}
+    <span class="ic-manage-status ic-error">❌ Not ready</span>
+{% endif %}

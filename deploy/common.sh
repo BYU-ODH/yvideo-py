@@ -94,6 +94,12 @@ load_deploy_env() {
     BRANCH="${BRANCH:-}"
     WORKERS="${WORKERS:-2}"
     THREADS="${THREADS:-2}"
+    # International Cinema (DEPLOY_IC.md). Production sets IC_MEDIA_WORKER=1; the
+    # booth sets IC_BOOTH=1 and IC_AGENT_BIND.
+    IC_MEDIA_WORKER="${IC_MEDIA_WORKER:-0}"
+    IC_BOOTH="${IC_BOOTH:-0}"
+    IC_AGENT_BIND="${IC_AGENT_BIND:-127.0.0.1:8443}"
+    IC_PROJECTION_ROOT="${IC_PROJECTION_ROOT:-$(repo_root)/ic_projection}"
 
     validate_user_or_app_name "$DEPLOY_USER"
     validate_user_or_app_name "$APP_NAME"
@@ -107,6 +113,29 @@ load_deploy_env() {
     export BRANCH
     export WORKERS
     export THREADS
+    export IC_MEDIA_WORKER
+    export IC_BOOTH
+    export IC_AGENT_BIND
+    export IC_PROJECTION_ROOT
+}
+
+# Extra container units this checkout runs alongside $APP_NAME, one per line.
+ic_unit_names() {
+    if [ "${IC_MEDIA_WORKER:-0}" = "1" ]; then
+        printf '%s\n' "$APP_NAME-media-worker"
+    fi
+    if [ "${IC_BOOTH:-0}" = "1" ]; then
+        printf '%s\n' "$APP_NAME-ic-agent-web" "$APP_NAME-ic-sync-agent"
+    fi
+}
+
+# The IC_ROLE the main container runs: the kiosk on a booth, unused elsewhere.
+ic_main_role() {
+    if [ "${IC_BOOTH:-0}" = "1" ]; then
+        printf 'kiosk'
+    else
+        printf 'none'
+    fi
 }
 
 require_deploy_user_context() {
@@ -149,5 +178,8 @@ render_template() {
         -e "s|@DEPLOY_HOME@|$(escape_sed_replacement "$HOME")|g" \
         -e "s|@WORKERS@|$(escape_sed_replacement "$WORKERS")|g" \
         -e "s|@THREADS@|$(escape_sed_replacement "$THREADS")|g" \
+        -e "s|@IC_PROJECTION_ROOT@|$(escape_sed_replacement "$IC_PROJECTION_ROOT")|g" \
+        -e "s|@IC_AGENT_BIND@|$(escape_sed_replacement "$IC_AGENT_BIND")|g" \
+        -e "s|@IC_MAIN_ROLE@|$(escape_sed_replacement "$(ic_main_role)")|g" \
         "$template" >"$output"
 }

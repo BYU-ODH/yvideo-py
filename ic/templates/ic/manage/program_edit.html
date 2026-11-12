@@ -1,0 +1,106 @@
+{% extends "ic/manage/base.html" %}
+
+{% load static %}
+
+{% block ic_content %}
+    <header class="video-title">
+        <h2>{{ program.name }}</h2>
+        {% include "ic/manage/partials/status.html" with status=status %}
+    </header>
+    <p>
+        <a class="white-button-with-border"
+           href="{% url 'ic_control' program.pk %}">Preview in the player</a>
+    </p>
+    <section class="ic-manage-section" aria-labelledby="ic-items-heading">
+        <h3 id="ic-items-heading">What it shows, in order</h3>
+        {% if rows %}
+            <ol class="ic-items"
+                id="ic-items"
+                data-reorder-url="{% url 'ic_items_reorder' program.pk %}">
+                {% for row in rows %}
+                    <li class="ic-item" draggable="true" data-item-id="{{ row.item.pk }}">
+                        <div class="ic-item-header">
+                            <span class="ic-drag-handle" aria-hidden="true">⠿</span>
+                            <strong>{{ forloop.counter }}. {{ row.item.content.title }}</strong>
+                            <span class="ic-muted">{{ row.item.content.playlist.name }}</span>
+                            {% include "ic/manage/partials/status.html" with status=row.status %}
+
+                            <form method="post"
+                                  action="{% url 'ic_item_move' program.pk row.item.pk %}"
+                                  class="ic-inline-form">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        name="direction"
+                                        value="up"
+                                        class="white-button-with-border"
+                                        aria-label="Move {{ row.item.content.title }} up"
+                                        {% if forloop.first %}disabled{% endif %}>↑</button>
+                                <button type="submit"
+                                        name="direction"
+                                        value="down"
+                                        class="white-button-with-border"
+                                        aria-label="Move {{ row.item.content.title }} down"
+                                        {% if forloop.last %}disabled{% endif %}>↓</button>
+                            </form>
+                        </div>
+                        <form method="post"
+                              action="{% url 'ic_item_update' program.pk row.item.pk %}"
+                              class="ic-item-form">
+                            {% csrf_token %}
+                            {{ row.form.as_p }}
+                            <button type="submit" class="blue-button">Save</button>
+                        </form>
+                        <form method="post"
+                              action="{% url 'ic_item_delete' program.pk row.item.pk %}"
+                              class="ic-inline-form"
+                              onsubmit="return confirm('Remove {{ row.item.content.title|escapejs }} from this program?');">
+                            {% csrf_token %}
+                            <button type="submit" class="red-button">Remove</button>
+                        </form>
+                        {% include "ic/manage/partials/problems.html" with problems=row.problems %}
+                    </li>
+                {% endfor %}
+            </ol>
+        {% else %}
+            <p>Nothing yet. Add an announcement loop and a film below.</p>
+        {% endif %}
+        <form method="post"
+              action="{% url 'ic_item_add' program.pk %}"
+              class="ic-manage-form ic-add-item">
+            {% csrf_token %}
+            <label for="ic-add-content">Add from an IC playlist</label>
+            <select id="ic-add-content" name="content_id" required>
+                <option value="">Choose a video…</option>
+                {% for content in available_contents %}
+                    <option value="{{ content.pk }}">{{ content.playlist.name }} — {{ content.title }}</option>
+                {% endfor %}
+            </select>
+            <label for="ic-add-mode">Playback</label>
+            <select id="ic-add-mode" name="mode">
+                <option value="once">Play once</option>
+                <option value="loop">Loop until advanced (announcements)</option>
+            </select>
+            <button type="submit" class="blue-button">Add</button>
+        </form>
+        {% if not available_contents %}
+            <p class="ic-muted">No IC playlists yet. Mark a playlist as an International Cinema playlist in its settings.</p>
+        {% endif %}
+    </section>
+    <section class="ic-manage-section" aria-labelledby="ic-details-heading">
+        <h3 id="ic-details-heading">Details</h3>
+        <form method="post"
+              action="{% url 'ic_program_update' program.pk %}"
+              class="ic-manage-form">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="blue-button">Save details</button>
+        </form>
+        <form method="post"
+              action="{% url 'ic_program_delete' program.pk %}"
+              onsubmit="return confirm('Delete this program?');">
+            {% csrf_token %}
+            <button type="submit" class="red-button">Delete program</button>
+        </form>
+    </section>
+    <script type="module" src="{% static 'ic/js/program-edit.js' %}"></script>
+{% endblock %}

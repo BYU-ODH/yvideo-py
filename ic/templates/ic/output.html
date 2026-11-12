@@ -1,0 +1,34 @@
+{% load static %}
+
+<!DOCTYPE html>
+{# Patron-facing: everything here is IC-branded and nothing loads from the network. #}
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="International Cinema projection output.">
+        <title>INTERNATIONAL CINEMA</title>
+        <link rel="stylesheet" href="{% static 'ic/fonts/overpass.css' %}">
+        <link rel="stylesheet" href="{% static 'css/AnnotationPlayer.css' %}">
+        <link rel="stylesheet" href="{% static 'ic/css/ic-output.css' %}">
+    </head>
+    <body class="ic-output">
+        <div id="annotation-player-container"
+             class="annotation-player-container ic-hidden"
+             data-editor-mode="false">
+            {# playsinline/disableRemotePlayback for the same reasons as partials/player-wrapper.html. #}
+            <video id="video-player"
+                   preload="auto"
+                   playsinline
+                   webkit-playsinline
+                   disableRemotePlayback>
+            </video>
+        </div>
+        <div id="ic-idle" class="ic-idle ic-visible" aria-hidden="true">
+            {% include "ic/partials/lockup.html" %}
+        </div>
+        <div id="ic-blank" class="ic-blank" hidden></div>
+        <p id="ic-fullscreen-hint" class="ic-fullscreen-hint">Click to fill this screen</p>
+        <script type="module" src="{% static 'ic/js/ic-output.js' %}"></script>
+    </body>
+</html>

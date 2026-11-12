@@ -8,6 +8,7 @@ node_modules/
 demo_media/
 tests/
 tmp/
+ic_projection/
 
 db.sqlite3*
 data/

@@ -1,0 +1,152 @@
+/* The patron-facing output window, branded to match ic.byu.edu.
+   Only the IC tokens below may be used here (core/tests guard it); the logo and fonts
+   are served locally so the booth works offline. */
+
+:root {
+  --ic-black: #000;
+  --ic-white: #fff;
+  --ic-gray-1: #7a7a7a;
+  --ic-gray-2: #595959;
+  --ic-font-wordmark: "Overpass", system-ui, sans-serif;
+  --ic-font-display: "Overpass", system-ui, sans-serif;
+  --ic-cue-size: 4vh;
+}
+
+html,
+body.ic-output {
+  cursor: none;
+
+  overflow: hidden;
+
+  width: 100%;
+  height: 100%;
+  margin: 0;
+
+  color: var(--ic-white);
+
+  background: var(--ic-black);
+}
+
+.ic-output .annotation-player-container {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  background: var(--ic-black);
+}
+
+.ic-output .annotation-player-container.ic-hidden {
+  visibility: hidden;
+}
+
+.ic-output .video-wrapper {
+  width: 100%;
+  height: 100%;
+  background: var(--ic-black);
+}
+
+.ic-output video {
+  pointer-events: none;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+  background: var(--ic-black);
+}
+
+/* No player chrome, focus rings or hover affordances ever reach the projector. */
+.ic-output .annotation-player-container .video-controls,
+.ic-output .annotation-player-container .bezel-icon,
+.ic-output .annotation-player-container .bezel-text {
+  display: none;
+}
+
+.ic-output :focus,
+.ic-output :focus-visible {
+  outline: none;
+}
+
+.ic-output video::cue {
+  font-family: var(--ic-font-display);
+  font-size: var(--ic-cue-size);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ic-white);
+  text-shadow:
+    0 0 0.15em var(--ic-black),
+    0 0 0.3em var(--ic-black);
+
+  background: transparent;
+}
+
+.ic-idle {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  background: var(--ic-black);
+
+  transition: opacity 0.6s ease;
+}
+
+.ic-idle.ic-visible {
+  opacity: 1;
+}
+
+.ic-lockup {
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
+  align-items: center;
+
+  color: var(--ic-white);
+}
+
+.ic-lockup-logo svg {
+  width: auto;
+  height: 12vh;
+}
+
+.ic-lockup-wordmark {
+  font-family: var(--ic-font-wordmark);
+  font-size: 3.2vh;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.ic-blank {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  background: var(--ic-black);
+}
+
+.ic-fullscreen-hint {
+  position: fixed;
+  bottom: 2vh;
+  left: 0;
+
+  width: 100%;
+  margin: 0;
+
+  font-family: var(--ic-font-display);
+  font-size: 1.6vh;
+  color: var(--ic-gray-1);
+  text-align: center;
+}
+
+/* Last, so it wins over any display rule above at equal specificity. */
+[hidden] {
+  display: none;
+}

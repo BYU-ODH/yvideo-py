@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "reversion",  # django-reversion
     "core.apps.CoreConfig",
+    "ic.apps.IcConfig",
 ]
 
 MIDDLEWARE = [
@@ -245,6 +246,68 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
+
+# Uploads larger than FILE_UPLOAD_MAX_MEMORY_SIZE spool here instead of the container's
+# /tmp, which is small and not bind-mounted.
+FILE_UPLOAD_TEMP_DIR = _resolve_repo_path(
+    getattr(secret_settings, "FILE_UPLOAD_TEMP_DIR", None)
+)
+
+# International Cinema (#246). See IC_MODE_PLAN.md.
+#
+# Production runs with IS_IC_INSTANCE False and serves IC editors, the sync API and the
+# preview player. The booth runs the same code with IS_IC_INSTANCE True, as a read-only,
+# userless mirror, in one of two web roles: "kiosk" (the projectionist's pages, bound to
+# localhost) or "agent" (signed sync triggers from production, bound to the booth LAN).
+IS_IC_INSTANCE = getattr(secret_settings, "IS_IC_INSTANCE", False)
+IC_ROLE = os.environ.get("IC_ROLE") or getattr(secret_settings, "IC_ROLE", "kiosk")
+# Projection masters. Never under MEDIA_ROOT: the web server publishes MEDIA_ROOT (#531).
+IC_PROJECTION_ROOT = _resolve_repo_path(
+    os.environ.get("IC_PROJECTION_ROOT")
+    or getattr(secret_settings, "IC_PROJECTION_ROOT", "ic_projection")
+)
+# Small runtime state shared between the booth containers: playback and agent
+# heartbeats, and the sync agent's lock file.
+IC_STATE_DIR = _resolve_repo_path(getattr(secret_settings, "IC_STATE_DIR", "var/ic"))
+# Booth: where to pull from, and the credentials for each direction.
+IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
+IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
+IC_AGENT_SECRET = getattr(secret_settings, "IC_AGENT_SECRET", "")
+IC_POLL_INTERVAL_SECONDS = getattr(secret_settings, "IC_POLL_INTERVAL_SECONDS", 900)
+# Production: the HMAC secret shared with each instance that has an agent_url, keyed by
+# ICInstance.name. Kept out of the database so a DB dump does not leak it.
+IC_INSTANCE_AGENT_SECRETS = getattr(secret_settings, "IC_INSTANCE_AGENT_SECRETS", {})
+# What the booth's Chrome has been verified to decode (IC_MODE_PLAN.md section 6.1).
+# HEVC joins the list only once the spike confirms hardware decode; AV1 never will on
+# the booth's Intel UHD 630, which has no AV1 decoder.
+IC_BOOTH_VIDEO_CODECS = getattr(secret_settings, "IC_BOOTH_VIDEO_CODECS", ["h264"])
+# Largest master the booth has been seen to play smoothly. None means "not measured
+# yet", which suppresses the warning rather than raising it on every film.
+IC_BOOTH_VERIFIED_MAX = getattr(
+    secret_settings,
+    "IC_BOOTH_VERIFIED_MAX",
+    {"height": None, "frame_rate": None, "bitrate": None},
+)
+# Booth pruning. Released masters exist nowhere else, so they are kept much longer.
+IC_FILE_PRUNE_GRACE_DAYS = getattr(secret_settings, "IC_FILE_PRUNE_GRACE_DAYS", 3)
+IC_MASTER_PRUNE_DAYS = getattr(secret_settings, "IC_MASTER_PRUNE_DAYS", 30)
+IC_MASTER_PRUNE_WARNING_DAYS = getattr(
+    secret_settings, "IC_MASTER_PRUNE_WARNING_DAYS", 7
+)
+
+if IS_IC_INSTANCE:
+    ROOT_URLCONF = "yvideo.urls_ic_agent" if IC_ROLE == "agent" else "yvideo.urls_ic"
+    # The booth has no users at all: nothing to log in to, spoof, or refresh.
+    MIDDLEWARE = [
+        m
+        for m in MIDDLEWARE
+        if m
+        not in (
+            "django.contrib.auth.middleware.LoginRequiredMiddleware",
+            "core.middleware.SpoofUserMiddleware",
+            "mozilla_django_oidc.middleware.SessionRefresh",
+        )
+    ] + ["ic.middleware.ICReadOnlyMiddleware"]
 
 # Logging
 # https://docs.djangoproject.com/en/5.1/topics/logging/

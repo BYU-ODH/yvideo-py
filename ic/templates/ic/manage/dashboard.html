@@ -1,0 +1,110 @@
+{% extends "ic/manage/base.html" %}
+
+{% block ic_content %}
+    <header class="video-title">
+        <h2>International Cinema</h2>
+    </header>
+    <section class="ic-manage-section" aria-labelledby="ic-booths-heading">
+        <h3 id="ic-booths-heading">Booth</h3>
+        {% for row in instances %}
+            <div class="ic-manage-card">
+                <h4>{{ row.instance.name }}</h4>
+                <dl class="ic-manage-facts">
+                    <dt>Matches production</dt>
+                    <dd>
+                        {% if row.matches %}
+                            <span class="ic-ok">✅ Yes</span>
+                        {% elif row.instance.last_applied_manifest_hash %}
+                            <span class="ic-warn">⚠️ Production has changes the booth doesn't have yet</span>
+                        {% else %}
+                            <span class="ic-muted">Never synced</span>
+                        {% endif %}
+                    </dd>
+                    <dt>Last contact</dt>
+                    <dd>
+                        {{ row.instance.last_seen_at|default:"never" }}
+                    </dd>
+                    <dt>Last sync</dt>
+                    <dd>
+                        {{ row.status.status|default:"–" }}
+                        {% if row.status.trigger %}({{ row.status.trigger }}){% endif %}
+                        {% if row.status.error %}<span class="ic-error">{{ row.status.error }}</span>{% endif %}
+                    </dd>
+                    {% if row.status.disk %}
+                        <dt>Booth disk free</dt>
+                        <dd>
+                            {{ row.status.disk.free|filesizeformat }} of {{ row.status.disk.total|filesizeformat }}
+                        </dd>
+                    {% endif %}
+                    {% if row.instance.last_notify_error %}
+                        <dt>Change notification</dt>
+                        <dd>
+                            <span class="ic-warn">⚠️ {{ row.instance.last_notify_error }} (the booth's 15-minute poll will catch up)</span>
+                        </dd>
+                    {% endif %}
+                </dl>
+                {% for warning in row.status.warnings %}<p class="ic-warn">⚠️ {{ warning }}</p>{% endfor %}
+                {% if row.instance.can_be_pushed_to %}
+                    <form hx-post="{% url 'ic_instance_push' row.instance.pk %}"
+                          hx-target="#ic-push-result-{{ row.instance.pk }}"
+                          hx-swap="innerHTML"
+                          class="ic-push-form">
+                        <label>
+                            <input type="checkbox" name="full_rehash" value="1">
+                            Re-check every file (slow)
+                        </label>
+                        <label>
+                            <input type="checkbox" name="apply_during_playback" value="1">
+                            Apply even while playing
+                        </label>
+                        <button type="submit" class="blue-button">Push to booth now</button>
+                    </form>
+                    <div id="ic-push-result-{{ row.instance.pk }}"
+                         role="status"
+                         aria-live="polite"></div>
+                {% else %}
+                    <p class="ic-muted">This instance can't be pushed to (no agent URL or agent secret); it syncs on its own schedule.</p>
+                {% endif %}
+                {% if row.recent_requests %}
+                    <details>
+                        <summary>Recent pushes</summary>
+                        <ul>
+                            {% for sync_request in row.recent_requests %}
+                                <li>
+                                    {{ sync_request.created_at|date:"M j H:i" }} by {{ sync_request.requested_by_name }}: {{ sync_request.status }}
+                                    {% if sync_request.error %}— {{ sync_request.error }}{% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                {% endif %}
+            </div>
+        {% empty %}
+            <p class="ic-muted">No booth is configured yet. A superuser adds one under IC instances in the admin.</p>
+        {% endfor %}
+    </section>
+    <section class="ic-manage-section" aria-labelledby="ic-active-heading">
+        <h3 id="ic-active-heading">Showing now</h3>
+        {% include "ic/manage/partials/program_table.html" with rows=active %}
+    </section>
+    <section class="ic-manage-section" aria-labelledby="ic-upcoming-heading">
+        <h3 id="ic-upcoming-heading">Upcoming</h3>
+        {% include "ic/manage/partials/program_table.html" with rows=upcoming %}
+
+        <a class="blue-button" href="{% url 'ic_program_new' %}">+ New program</a>
+    </section>
+    <section class="ic-manage-section" aria-labelledby="ic-jobs-heading">
+        <h3 id="ic-jobs-heading">Media processing</h3>
+        <div hx-get="{% url 'ic_manage_jobs' %}"
+             hx-trigger="every 5s"
+             hx-swap="innerHTML">
+            {% include "ic/manage/partials/jobs.html" %}
+        </div>
+    </section>
+    {% if past %}
+        <section class="ic-manage-section" aria-labelledby="ic-past-heading">
+            <h3 id="ic-past-heading">Recently ended</h3>
+            {% include "ic/manage/partials/program_table.html" with rows=past %}
+        </section>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}
+
+{% load static %}
+
+{% block title %}
+    International Cinema · YVideo
+{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'ic/css/manage.css' %}">
+{% endblock %}
+{% block content %}
+    <div class="main-content ic-manage">
+        <nav class="ic-manage-nav" aria-label="International Cinema">
+            <a href="{% url 'ic_manage_dashboard' %}">Dashboard</a>
+            <a href="{% url 'ic_manage_resources' %}">Films and masters</a>
+            <a href="{% url 'ic_program_new' %}">New program</a>
+            <a href="{% url 'ic_control_index' %}">Preview player</a>
+        </nav>
+        {% block ic_content %}{% endblock %}
+    </div>
+{% endblock %}

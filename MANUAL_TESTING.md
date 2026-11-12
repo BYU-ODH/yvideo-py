@@ -24,6 +24,8 @@ presence, not behaviour, so nobody mistakes one for the other.
 | 6 | [Imported legacy blurs land on their subjects](#6-imported-legacy-blurs-land-on-their-subjects) | **Critical** | Never |
 | 7 | [What YouTube itself draws over an embed](#7-what-youtube-itself-draws-over-an-embed) | **Critical** | Never |
 | 8 | [Adding a person who has never signed in](#8-adding-a-person-who-has-never-signed-in) | Medium | Never |
+| 9 | [International Cinema: a showing in the real booth](#9-international-cinema-a-showing-in-the-real-booth) | **Critical** | Never |
+| 10 | [International Cinema: sync and its indicators against real machines](#10-international-cinema-sync-and-its-indicators-against-real-machines) | **Critical** | Never |
 
 Severity reflects what a silent failure would expose. Blurs exist to cover copyrighted,
 violent, and explicit content, so a blur that does not render — or renders but does not
@@ -331,6 +333,85 @@ in a browser, including a failed lookup surfacing its reason.
 None of it touches the network — deliberately, and the e2e tests use an identifier too long
 to pass `NETID_PATTERN` so that staying off the network does not depend on remembering to.
 So none of it proves a real person can be added, which is what the checklist above is for.
+
+## 9. International Cinema: a showing in the real booth
+
+The booth plays full-resolution masters in Google Chrome on Ubuntu, with the operator's
+controller on one screen and the output on a second screen mirrored to the projector
+(DEPLOY_IC.md). Run this in the booth, with the lights down, before the first showing and
+after any Chrome or graphics-driver update.
+
+**What to verify**, with a program containing a looping announcement and a feature that has
+skips, mutes, blanks, blurs and VTT subtitles:
+
+- [ ] The controller is readable in the dark and doesn't light up the room.
+- [ ] *Open output* puts the output on the projector screen; it fills the screen (after one
+      click on it, at most), with no cursor, controls or browser UI visible to the audience.
+- [ ] Between items the projector shows black, then the IC logo and *INTERNATIONAL CINEMA*.
+- [ ] The announcement loops until **N**; the feature then starts.
+- [ ] Every skip, mute, blank and blur fires on the projector at the right moment, and blurs
+      cover their subjects (see also item 5).
+- [ ] VTT subtitles are legible from the back row; the *Subtitle size* slider changes them.
+- [ ] **B** blacks out the projector immediately, and **B** again restores it; **M** mutes
+      and stays muted through the end of a mute annotation.
+- [ ] `chrome://media-internals` shows a hardware decoder and almost no dropped frames for
+      the whole feature; there is no visible stutter, including while a sync downloads.
+- [ ] Sound comes out of the booth's speakers, at the right level, in sync with the picture.
+- [ ] Close the output window mid-film: the controller says *Output lost* within two
+      seconds; *Reopen and resume* continues from about the same moment.
+- [ ] Unplug the network, reboot the booth, and run the whole program: it plays normally,
+      and the badge says the last sync failed but playback is from the local copy.
+
+**Why it cannot be automated.** Hardware decode, window placement on a second physical
+screen under Wayland/X11, projector legibility and audio routing exist only on the booth's
+own hardware. Headless Chromium has no second screen, no VA-API, no projector and no
+speakers, so a test there would pass whether or not any of this works.
+
+**What is guarded automatically.** `tests/e2e/test_ic_player.py` drives the controller and a
+real output window in Chromium: loading items, looping, advancing, a skip annotation firing,
+VTT tracks loading, emergency blank, and recovery from a closed output.
+`tests/js/ic-protocol.test.js` covers the sequencing rules. `ic/tests/test_views.py` checks
+the controller and output load nothing from the network. None of it proves the picture on
+the projector is right.
+
+## 10. International Cinema: sync and its indicators against real machines
+
+**What to verify**, between production and the booth:
+
+- [ ] Edit an annotation on production; within about two minutes the booth's badge says it
+      matches production.
+- [ ] *Sync now* on the booth with nothing changed ends ✅ *Succeeded* (re-verified), not *Up
+      to date*; with *Re-check every file* the progress shows the masters being re-hashed.
+- [ ] *Push to booth now* on production shows live phases and ends ✅ *Booth now matches
+      production*. Edit something during a push: it ends ✅ with a note that there have been
+      changes since.
+- [ ] Push with the booth switched off: ❌ *Booth unreachable* right away. Push with a wrong
+      `IC_AGENT_SECRET`: ❌ *bad signature*. Stop `<app>-ic-sync-agent` and press either button:
+      ❌ *Sync agent isn't running*.
+- [ ] Unplug the booth's network and press *Sync now*: ❌ *Production unreachable*, and the
+      film that is playing is unaffected.
+- [ ] Push during a film without *Apply even while playing*: ⏸ *Waiting for playback*, then
+      ✅ once it stops. With it: applied, and the film playing is not interrupted.
+- [ ] Corrupt a byte of a master on the booth's disk (`printf x | dd of=… bs=1 seek=100
+      conv=notrunc`) and *Sync now* with *Re-check every file*: it is downloaded again and
+      the run succeeds (or, for a released master, the program shows ❌ *re-upload required*).
+- [ ] Upload a ~10 GB master over the campus network; interrupt it (close the tab) and
+      reopen the page: choosing the same file continues where it stopped.
+- [ ] After the booth verifies a new master, *Films and masters* on production shows it as
+      released, and its bytes are gone from production's `ic_projection/`.
+
+**Why it cannot be automated.** These depend on two real machines, a real network that can
+be cut, systemd services, the booth's firewall and clocks, and multi-gigabyte files moving
+between them. The tests below run the same code against a fake production in one process.
+
+**What is guarded automatically.** `ic/tests/test_sync.py` runs the booth's whole sync
+pipeline against a fake production: downloads, checksum failures, damaged files, code and
+migration mismatches, fingerprint mismatches rolling back, waiting for playback, lost
+released masters, and pruning. `ic/tests/test_booth.py` covers the kiosk's read-only rules,
+*Sync now*, and the agent's signatures, replays and dead-agent errors.
+`ic/tests/test_views.py` covers the sync API, status reports, master release, force push
+(with the booth mocked) and change notifications. `ic/tests/test_media_pipeline.py` runs
+real ffmpeg for ingest and the SD transcode.
 
 ## Adding to this file
 

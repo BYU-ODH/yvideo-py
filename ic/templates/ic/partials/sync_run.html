@@ -1,0 +1,45 @@
+{% load ic_tags %}
+
+{# Live indicator for one booth sync run; polls itself until the run finishes. #}
+<div class="ic-sync-run"
+     id="ic-sync-run"
+     {% if not run.is_final %}hx-get="{% url 'ic_sync_run_detail' run.pk %}" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}
+     data-status="{{ run.status }}"
+     role="status"
+     aria-live="polite">
+    {% if run.status == "succeeded" %}
+        <p class="ic-status ic-status-ok">✅ Succeeded: everything matches production.</p>
+    {% elif run.status == "up_to_date" %}
+        <p class="ic-status ic-status-ok">✅ Up to date.</p>
+    {% elif run.status == "partial" %}
+        <p class="ic-status ic-status-warn">⚠️ Partial: some programs aren't playable yet.</p>
+    {% elif run.status == "failed" %}
+        <p class="ic-status ic-status-error">
+            ❌ Failed: {{ run.error }} Nothing changed; the booth keeps playing its previous verified data.
+        </p>
+    {% elif run.status == "waiting_for_playback" %}
+        <p class="ic-status ic-status-warn">⏸ Files are ready; waiting for playback to stop before applying.</p>
+    {% elif run.status == "queued" %}
+        <p class="ic-status">Queued{% if behind %} behind the sync already running{% endif %}…</p>
+    {% else %}
+        <p class="ic-status">⟳ Syncing…</p>
+    {% endif %}
+    {% sync_phases run %}
+    {% if run.report.programs %}
+        <ul class="ic-run-programs">
+            {% for program in run.report.programs %}
+                <li>
+                    {% if program.ready %}
+                        ✅
+                    {% else %}
+                        ⚠️
+                    {% endif %}
+                    {{ program.name }}
+                    {% for problem in program.problems %}<span class="ic-muted">— {{ problem }}</span>{% endfor %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    {% for warning in run.report.warnings %}<p class="ic-status ic-status-warn">⚠️ {{ warning }}</p>{% endfor %}
+    {% if run.manifest_hash and run.is_final %}<p class="ic-muted">Manifest {{ run.manifest_hash|slice:":12" }}</p>{% endif %}
+</div>

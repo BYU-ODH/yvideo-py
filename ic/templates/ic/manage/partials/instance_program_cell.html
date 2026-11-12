@@ -1,0 +1,14 @@
+{% load ic_tags %}
+
+{% with booth_program=instance_row.programs|get_item:program.pk %}
+    {% if not booth_program %}
+        <span class="ic-muted">Not synced yet</span>
+    {% elif booth_program.ready and instance_row.matches %}
+        <span class="ic-ok">✅ On the booth, matches production</span>
+    {% elif booth_program.ready %}
+        <span class="ic-warn">⚠️ Changed since the last booth sync</span>
+    {% else %}
+        <span class="ic-error">❌ Not playable on the booth</span>
+        {% include "ic/manage/partials/plain_list.html" with values=booth_program.problems %}
+    {% endif %}
+{% endwith %}

@@ -1,0 +1,48 @@
+{% load ic_tags %}
+
+{# Live indicator for a force push; polls production, which asks the booth. #}
+<div class="ic-sync-request"
+     data-status="{{ sync_request.status }}"
+     {% if not sync_request.is_final %}hx-get="{% url 'ic_sync_request_detail' sync_request.pk %}" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML"{% endif %}>
+    {% if sync_request.status == "unreachable" %}
+        <p class="ic-error">❌ {{ sync_request.error }}</p>
+    {% elif sync_request.status == "succeeded" %}
+        <p class="ic-ok">
+            ✅ Booth verified.
+            {% if matches_current %}
+                Booth now matches production.
+            {% elif matches_request %}
+                Booth matches production as of your push; there have been changes since.
+            {% endif %}
+        </p>
+    {% elif sync_request.status == "up_to_date" %}
+        <p class="ic-ok">✅ Booth was already up to date.</p>
+    {% elif sync_request.status == "partial" %}
+        <p class="ic-warn">⚠️ Partial: the booth applied the data, but some programs aren't playable yet.</p>
+    {% elif sync_request.status == "failed" %}
+        <p class="ic-error">❌ {{ sync_request.error }} Nothing changed on the booth.</p>
+    {% elif sync_request.status == "waiting_for_playback" %}
+        <p class="ic-warn">⏸ The booth is playing; files are ready and the data will apply when playback stops.</p>
+    {% else %}
+        <p>⟳ Pushing to {{ sync_request.instance.name }}… ({{ sync_request.status }})</p>
+        {% if sync_request.error %}<p class="ic-warn">{{ sync_request.error }}</p>{% endif %}
+    {% endif %}
+    {% if live %}
+        {% sync_phases live %}
+    {% endif %}
+    {% if report.programs %}
+        <ul>
+            {% for program in report.programs %}
+                <li>
+                    {% if program.ready %}
+                        ✅
+                    {% else %}
+                        ⚠️
+                    {% endif %}
+                    {{ program.name }}
+                    {% for problem in program.problems %}<span class="ic-muted">— {{ problem }}</span>{% endfor %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>

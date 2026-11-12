@@ -1,0 +1,13 @@
+{
+  "WindowManagementAllowedForUrls": ["http://localhost:@HOST_PORT@"],
+  "PopupsAllowedForUrls": ["http://localhost:@HOST_PORT@"],
+  "AutoplayAllowlist": ["http://localhost:@HOST_PORT@"],
+  "FullscreenAllowed": true,
+  "DefaultNotificationsSetting": 2,
+  "TranslateEnabled": false,
+  "PasswordManagerEnabled": false,
+  "BrowserSignin": 0,
+  "MetricsReportingEnabled": false,
+  "RestoreOnStartup": 4,
+  "RestoreOnStartupURLs": ["http://localhost:@HOST_PORT@/ic/"]
+}

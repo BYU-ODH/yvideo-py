@@ -14,6 +14,7 @@ from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
+from django.db.models import ProtectedError
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -340,7 +341,14 @@ def _iter_file(file_path, start=0, length=None, chunk_size=STREAM_CHUNK_BYTES):
             yield chunk
 
 
-def _file_response(request, file_obj):
+def _file_response(request, file_obj, max_range_bytes=None):
+    """Range-capable response for a ResourceFile.
+
+    max_range_bytes caps one 206 response. Browsers want small slices; the IC sync
+    client asks for large explicit ranges and gets a larger cap.
+    """
+    if max_range_bytes is None:
+        max_range_bytes = MAX_RANGE_RESPONSE_BYTES
     file_path = file_obj.file.path
     file_size = os.path.getsize(file_path)
     content_type = _stream_content_type(file_obj, file_path)
@@ -359,7 +367,7 @@ def _file_response(request, file_obj):
             response["Content-Range"] = f"bytes */{file_size}"
             return response
 
-        end = min(end, file_size - 1, start + MAX_RANGE_RESPONSE_BYTES - 1)
+        end = min(end, file_size - 1, start + max_range_bytes - 1)
         length = end - start + 1
         response = StreamingHttpResponse(
             _iter_file(file_path, start, length),
@@ -778,6 +786,9 @@ def update_playlist_settings(request, playlist):
                 playlist.published = False
             else:
                 playlist.published = form.cleaned_data["published"]
+            # Only IC editors see the toggle, so only their submissions carry it.
+            if request.user.is_ic_editor and "is_ic_present" in request.POST:
+                update_is_ic(request, playlist, "is_ic" in request.POST)
             playlist.save()
             messages.success(request, "Playlist settings saved.")
             return render_playlist_info(request, playlist)
@@ -788,6 +799,50 @@ def update_playlist_settings(request, playlist):
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
+
+
+def scheduled_in_ic_programs(error, subject):
+    """409 explaining that International Cinema programs still show this content.
+
+    ICProgramItem protects its Content, so deleting one in a program would otherwise
+    surface as a generic failure.
+    """
+    names = sorted(
+        {
+            str(getattr(obj, "program", obj))
+            for obj in error.protected_objects
+            if hasattr(obj, "program")
+        }
+    )
+    listing = "; ".join(names[:5]) or "an International Cinema program"
+    return HttpResponse(
+        f"{subject} is scheduled in International Cinema programs ({listing}). "
+        "Remove it from those programs first.",
+        status=409,
+        content_type="text/plain",
+    )
+
+
+def update_is_ic(request, playlist, is_ic):
+    """Set Playlist.is_ic, refusing to unset it while its videos are scheduled."""
+    from ic.models import ICProgram
+    from ic.models import ICProgramItem
+
+    if playlist.is_ic and not is_ic:
+        in_use = (
+            ICProgram.syncable()
+            .filter(items__in=ICProgramItem.objects.filter(content__playlist=playlist))
+            .distinct()
+        )
+        if in_use.exists():
+            names = ", ".join(program.name for program in in_use[:5])
+            messages.error(
+                request,
+                "This playlist stays an International Cinema playlist while its videos "
+                f"are in current or upcoming programs: {names}.",
+            )
+            return
+    playlist.is_ic = is_ic
 
 
 GRANTABLE_PLAYLIST_ROLES = (
@@ -1148,6 +1203,8 @@ def delete_playlist(request, playlist):
         playlist.delete()
         messages.success(request, "Playlist deleted.")
         return HttpResponse()
+    except ProtectedError as e:
+        return scheduled_in_ic_programs(e, "This playlist")
     except Exception as e:
         logger.error(
             f"An error occured while deleting the playlist with id: {playlist.pk}. Exception: {e}"
@@ -1169,6 +1226,10 @@ def create_content(request, playlist):
         resource_file = ResourceFile.objects.get(pk=parsed_data["resource_file_id"])
         if not request.user.can_access_resource(resource_file.resource):
             return forbidden("You do not have access to that resource.")
+        if resource_file.is_projection_file:
+            return forbidden(
+                "Projection masters are for the International Cinema booth only."
+            )
         Content.objects.create(
             playlist=playlist,
             title=parsed_data["title"],
@@ -1265,7 +1326,7 @@ def render_create_from_resource_form(request, playlist, resource_id):
 
         context = {
             "playlist_id": playlist.pk,
-            "options": resource.resource_files.all(),
+            "options": resource.resource_files.filter(is_projection_file=False),
         }
         return render(request, "core/partials/create_from_resource_form.html", context)
     except Exception as e:
@@ -1286,6 +1347,8 @@ def delete_content(request, content):
             )
         else:
             return HttpResponse("", status=200)
+    except ProtectedError as e:
+        return scheduled_in_ic_programs(e, "This video")
     except Exception as e:
         logger.error(
             f"An error occured while deleting content with id: {content.pk}. Exception: {e}"

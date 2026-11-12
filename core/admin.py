@@ -884,17 +884,39 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
 
 @admin.register(Playlist)
 class PlaylistAdmin(VersionAdmin):
-    list_display = ("name", "owner", "published", "archived", "created_at")
-    list_filter = ("published", "archived", "created_at")
+    list_display = ("name", "owner", "published", "archived", "is_ic", "created_at")
+    list_filter = ("published", "archived", "is_ic", "created_at")
     search_fields = ("name", "owner__name", "owner__netid", "owner__username")
 
 
 @admin.register(ResourceFile)
 class ResourceFileAdmin(VersionAdmin):
-    list_display = ("file", "resource", "version", "full_video", "created_at")
-    list_filter = ("full_video", "created_at")
+    list_display = (
+        "file",
+        "resource",
+        "version",
+        "full_video",
+        "is_projection_file",
+        "created_at",
+    )
+    list_filter = ("full_video", "is_projection_file", "created_at")
     search_fields = ("file", "version", "resource__name")
-    readonly_fields = ("checksum", "checksum_at")
+    readonly_fields = (
+        "checksum",
+        "checksum_at",
+        "size_bytes",
+        "duration_seconds",
+        "width",
+        "height",
+        "frame_rate",
+        "video_codec",
+        "audio_codec",
+        "bitrate",
+        "color_transfer",
+        "faststart",
+        "probed_at",
+        "master_released_at",
+    )
 
 
 @admin.register(Content)
@@ -943,7 +965,7 @@ class ContentAdmin(VersionAdmin):
                 form.base_fields[
                     "resource_file"
                 ].queryset = ResourceFile.objects.filter(
-                    resource__users=obj.playlist.owner
+                    resource__users=obj.playlist.owner, is_projection_file=False
                 )
             else:
                 # If no playlist or owner, show no files.

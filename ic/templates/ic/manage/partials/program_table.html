@@ -1,0 +1,33 @@
+{% if rows %}
+    <table class="ic-manage-table">
+        <thead>
+            <tr>
+                <th scope="col">Program</th>
+                <th scope="col">Dates</th>
+                <th scope="col">Readiness</th>
+                {% for row in instances %}<th scope="col">{{ row.instance.name }}</th>{% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>
+                        <a href="{% url 'ic_program_edit' row.program.pk %}">{{ row.program.name }}</a>
+                    </td>
+                    <td>{{ row.program.start_date|date:"M j" }} – {{ row.program.end_date|date:"M j, Y" }}</td>
+                    <td>
+                        {% include "ic/manage/partials/status.html" with status=row.status %}
+                        {% include "ic/manage/partials/problems.html" with problems=row.problems %}
+                    </td>
+                    {% for instance_row in instances %}
+                        <td>
+                            {% include "ic/manage/partials/instance_program_cell.html" with program=row.program instance_row=instance_row %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>None.</p>
+{% endif %}

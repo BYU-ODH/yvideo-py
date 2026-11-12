@@ -1,6 +1,6 @@
 # IC Mode: replacing the IC Player with Y-video (#246)
 
-Status: **draft for review**
+Status: **implemented** on branch `246-replace-ic-player-with-ic-mode-on-y-video` (see §14 for where the code differs from this plan). Deployment: [DEPLOY_IC.md](DEPLOY_IC.md).
 
 ## 1. Goals and non-goals
 
@@ -734,3 +734,45 @@ Open questions: none outstanding. Earlier questions and their answers are in the
 
 ## 13. Out of scope, but found while planning
 `deploy/apache-vhost-example.conf` serves `/media/` with `Require all granted`, so uploaded files can be fetched by path without a `ResourceFileKey`. That's tracked in **#531**. This plan doesn't depend on its fix and avoids making it worse by keeping masters in `IC_PROJECTION_ROOT`, outside `MEDIA_ROOT`.
+
+## 14. Implementation notes
+
+Where the code differs from the plan above, and why:
+
+- **A separate `ic` Django app** holds the IC models, views, jobs and sync. Core gained only
+  the shared fields (`ResourceFile.is_projection_file` and probe metadata, `derived_from`,
+  `master_released_at`; `Playlist.is_ic`; `User.is_ic_editor`) and the guards that keep
+  masters out of content.
+- **One storage, routed by name.** `ResourceFile.file` uses `yvideo.storage.ResourceFileStorage`,
+  which stores names under `ic_projection/` in `IC_PROJECTION_ROOT` and everything else in
+  `MEDIA_ROOT`. Masters have the same name on production and the booth, so the booth never
+  rewrites file paths after an import.
+- **Checksums are computed by the ingest job**, not incrementally during the upload: xxhash
+  state can't be saved between requests, and hashing a ~10 GB file in the worker takes
+  seconds. Faststart remuxing happens before hashing, so the checksum always describes the
+  stored bytes.
+- **Booth state** lives in `ICSyncRun`, `ICLocalFile` and a singleton `ICBoothState` (applied
+  manifest and fixture hashes, last success, last full re-hash). Playback and agent
+  heartbeats are small files in `IC_STATE_DIR`, so the kiosk's heartbeat GET never writes
+  the database.
+- **Fingerprints** hash `get_player_json()` after sorting its lists by id, because some of
+  those lists come from querysets without an `ORDER BY`. Any real difference in a field still
+  changes the fingerprint. The fixture loses sub-millisecond precision on `created_at` /
+  `updated_at` (Django's JSON serializer), which are not part of the player data.
+- **The booth kiosk serves its own static files** (there is no Apache on the booth), from
+  `collectstatic`'s output, through a view that only exists in the kiosk urlconf.
+- **One image, four roles**, chosen by `YVIDEO_ROLE` in `deploy/entrypoint.sh`: `web` (site or
+  kiosk; the only role that migrates), `ic-agent-web`, `media-worker`, `ic-sync-agent`.
+  `deploy.sh` passes the commit into the image as `YVIDEO_GIT_SHA`, because the build
+  context excludes `.git` and the booth compares versions before applying data.
+- **ffmpeg before 5.1** lacks `-fps_mode`; the transcode falls back to the equivalent
+  `-vsync passthrough`. The container's Debian ffmpeg is newer.
+- **Fonts:** the output uses Overpass (OFL; already used on ic.byu.edu), self-hosted, for
+  the wordmark, slates and subtitles. Swapping in another OFL face after IC's review means
+  replacing `ic/static/ic/fonts/` and the two `--ic-font-*` tokens in `ic-output.css`.
+- **Personal instances** (§11) are not built. `ICInstance.profile` exists, but the manifest
+  always lists projection masters.
+- **`IC_player/` is still in the tree.** Remove it after the parallel run and cutover
+  (DEPLOY_IC.md, "Moving off the Electron IC Player").
+- **Local demo:** `manage.py seed_ic_demo` (after `seed_demo_data`) builds an IC playlist and
+  a program for today from `demo_media/`.

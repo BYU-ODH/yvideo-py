@@ -26,6 +26,10 @@
         {% endif %}
         <h2>Playlists</h2>
         <a href="{% url 'playlists' %}">Playlists</a>
+        {% if user.is_ic_editor %}
+            <h2>International Cinema</h2>
+            <a href="{% url 'ic_manage_dashboard' %}">International Cinema</a>
+        {% endif %}
         {% if user.is_instructor %}
             <h2>Resources</h2>
             <a href="{% url 'request_resource' %}">Request New Resource</a>

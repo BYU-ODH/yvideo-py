@@ -1,0 +1,127 @@
+/* IC management pages: standard Y-video pages, using core's tokens from style.css. */
+
+.ic-manage {
+  padding: 1rem 2rem;
+}
+
+.ic-manage-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.ic-manage-section {
+  margin: 1.5rem 0;
+}
+
+.ic-manage-card {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--selectable-grey);
+  border-radius: var(--basic-border-radius);
+}
+
+.ic-manage-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.ic-manage-facts dt {
+  color: var(--dark-grey);
+}
+
+.ic-manage-facts dd {
+  margin: 0;
+}
+
+.ic-manage-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ic-manage-table th,
+.ic-manage-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--selectable-grey);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ic-ok {
+  color: var(--green);
+}
+
+.ic-warn {
+  color: var(--warning-orange);
+}
+
+.ic-error {
+  color: var(--red);
+}
+
+.ic-muted {
+  color: var(--dark-grey);
+}
+
+.ic-problems {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.ic-problem-error {
+  color: var(--red);
+}
+
+.ic-problem-warning {
+  color: var(--warning-orange);
+}
+
+.ic-items {
+  padding: 0;
+  list-style: none;
+}
+
+.ic-item {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--selectable-grey);
+  border-radius: var(--basic-border-radius);
+}
+
+.ic-item-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.ic-drag-handle {
+  cursor: grab;
+  color: var(--grey);
+}
+
+.ic-item-form,
+.ic-push-form,
+.ic-manage-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}
+
+.ic-item-form p,
+.ic-manage-form p {
+  margin: 0.25rem 0;
+}
+
+.ic-inline-form {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.ic-add-item {
+  margin-top: 1rem;
+}

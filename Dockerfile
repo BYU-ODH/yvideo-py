@@ -14,12 +14,22 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
+# International Cinema: ffprobe/ffmpeg check, remux and transcode projection masters.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Python dependencies (cached unless pyproject.toml or uv.lock change)
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY . .
+
+# The build context excludes .git, so deploy.sh passes the commit in. A booth refuses
+# to apply production's data unless both run the same commit (ic.sync.agent).
+ARG YVIDEO_GIT_SHA=unknown
+ENV YVIDEO_GIT_SHA=$YVIDEO_GIT_SHA
 
 EXPOSE 8000
 

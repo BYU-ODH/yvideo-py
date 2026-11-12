@@ -1,0 +1,100 @@
+{% extends "ic/base_dark.html" %}
+
+{% load ic_tags %}
+
+{% block content %}
+    <h1>Sync status</h1>
+    <section class="ic-panel">
+        <h2>Now</h2>
+        {% include "ic/partials/sync_badge.html" %}
+
+        <dl class="ic-facts">
+            <dt>Last successful sync</dt>
+            <dd>
+                {{ state.last_success_at|default:"never" }}
+            </dd>
+            <dt>Applied manifest</dt>
+            <dd>
+                {{ state.applied_manifest_hash|slice:":12"|default:"none" }}
+            </dd>
+            <dt>Sync agent heartbeat</dt>
+            <dd>
+                {% if agent_alive %}
+                    alive
+                {% else %}
+                    not running
+                {% endif %}
+            </dd>
+            {% if disk %}
+                <dt>Disk</dt>
+                <dd>
+                    {{ disk.free|filesize_gb }} free of {{ disk.total|filesize_gb }}
+                </dd>
+            {% endif %}
+        </dl>
+    </section>
+    <section class="ic-panel">
+        <h2>Recent syncs</h2>
+        <table class="ic-table">
+            <thead>
+                <tr>
+                    <th scope="col">Requested</th>
+                    <th scope="col">Trigger</th>
+                    <th scope="col">By</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                    <tr>
+                        <td>{{ run.requested_at|date:"M j H:i:s" }}</td>
+                        <td>{{ run.get_trigger_display }}</td>
+                        <td>{{ run.requested_by }}</td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.error }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5">No syncs yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <section class="ic-panel">
+        <h2>Files on this booth</h2>
+        <table class="ic-table">
+            <thead>
+                <tr>
+                    <th scope="col">Kind</th>
+                    <th scope="col">File</th>
+                    <th scope="col">Size</th>
+                    <th scope="col">Verified</th>
+                    <th scope="col">Only copy?</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in local_files %}
+                    <tr>
+                        <td>{{ file.kind }}</td>
+                        <td>{{ file.name }}</td>
+                        <td>{{ file.size|filesize_gb }}</td>
+                        <td>{{ file.verified_at|date:"M j H:i" }}</td>
+                        <td>
+                            {% if file.available_from_parent %}
+                                no
+                            {% else %}
+                                yes, production released its copy
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5">No files yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

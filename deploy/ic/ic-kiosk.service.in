@@ -1,0 +1,26 @@
+# Google Chrome showing the International Cinema controller, in the booth's
+# graphical session. Installed by deploy/ic/install_kiosk.sh (DEPLOY_IC.md).
+#
+# IC_CHROME_FLAGS comes from .env and is whatever the booth spike settled on for
+# hardware decode and output placement (IC_MODE_PLAN.md section 6.1), e.g.
+#   --enable-features=VaapiVideoDecoder,VaapiVideoDecodeLinuxGL --ozone-platform=x11
+[Unit]
+Description=International Cinema kiosk for @APP_NAME@
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/google-chrome-stable @IC_CHROME_FLAGS@ \
+    --user-data-dir=%h/.config/ic-kiosk \
+    --app=http://localhost:@HOST_PORT@/ic/ \
+    --start-fullscreen \
+    --autoplay-policy=no-user-gesture-required \
+    --noerrdialogs \
+    --disable-session-crashed-bubble \
+    --disable-features=Translate \
+    --no-first-run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

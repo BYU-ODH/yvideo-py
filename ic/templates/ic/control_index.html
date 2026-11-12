@@ -1,0 +1,35 @@
+{% extends "ic/base_dark.html" %}
+
+{% block content %}
+    <h1>Programs</h1>
+    {% if not booth %}
+        <p class="ic-muted">
+            Preview of the booth's controller, playing the SD editing files. The booth plays the projection masters.
+        </p>
+    {% endif %}
+    {% if rows %}
+        <ul class="ic-program-list">
+            {% for row in rows %}
+                <li class="ic-program-row">
+                    <a class="ic-program-link" href="{% url 'ic_control' row.program.pk %}">
+                        <span class="ic-program-name">{{ row.program.name }}</span>
+                        <span class="ic-muted">{{ row.program.start_date|date:"M j" }} – {{ row.program.end_date|date:"M j, Y" }}</span>
+                    </a>
+                    {% if row.active %}
+                        <span class="ic-tag">Showing now</span>
+                    {% else %}
+                        <span class="ic-tag ic-tag-muted">Upcoming · rehearsal only</span>
+                    {% endif %}
+                    {% include "ic/partials/status_label.html" with status=row.status %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No programs are showing or coming up.</p>
+    {% endif %}
+    {% if booth %}
+        <p>
+            <a class="ic-link" href="{% url 'ic_booth_status' %}">Sync status and history</a>
+        </p>
+    {% endif %}
+{% endblock %}
