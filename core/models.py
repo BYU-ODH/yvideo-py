@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import re
-from sqlite3.dbapi2 import IntegrityError
 
 from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
@@ -12,6 +11,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
+from django.db import IntegrityError
 from django.db import models
 from django.db import transaction
 from django.utils import timezone
