@@ -7,6 +7,7 @@ import re
 from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -618,10 +619,13 @@ class AnnotationSet(models.Model):
         """If the set has no other users, delete it immediately. If there is a named new_owner,
         transfer ownership to that user. Otherwise, choose the first user that is also using
         this set sorted by whether they are an admin (non-admins appear sooner) and then by
-        primary key
+        primary key. Returns a result dictionary with keys "deleted and reassigned"each pointing
+        to boolean values that describe the outcome. Errors including unauthorized request are
+        handled by exceptions (PermissionDenied, and the generic Exception)
         """
+        result = {"deleted": False, "reassigned": False}
         if not self.can_be_administered_by(user):
-            return False
+            raise PermissionDenied
 
         try:
             with transaction.atomic():
@@ -646,18 +650,20 @@ class AnnotationSet(models.Model):
                 # handle deletion/reassignment
                 if self.owner is None:
                     self.delete()
+                    result["deleted"] = True
                 else:
                     self.save(update_fields=["owner", "updated_at"])
                     self.contents.filter(playlist__owner_id=user.id).update(
                         annotation_set=None
                     )
+                    result["reassigned"] = True
 
         except Exception as e:
             logger.error(
                 f"An error occurred while attempting to delete an annotation set or reassign its owner. Exception: {e}"
             )
-            return False
-        return True
+            raise
+        return result
 
     @classmethod
     def create_for_content(

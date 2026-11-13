@@ -6,6 +6,7 @@ from os.path import splitext
 from urllib.parse import quote
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
@@ -1082,10 +1083,7 @@ def delete_annotation_set(request, annotation_set):
     if not annotation_set.can_be_administered_by(request.user):
         return forbidden("Only the owner or an admin can remove an annotation set.")
     try:
-        try:
-            body = json.loads(request.body) if request.body else {}
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            return HttpResponseBadRequest("Invalid JSON.")
+        body = json.loads(request.body) if request.body else {}
         if not isinstance(body, dict):
             return HttpResponseBadRequest("Expected a JSON object.")
 
@@ -1096,32 +1094,57 @@ def delete_annotation_set(request, annotation_set):
                 new_owner_id, (int, str)
             ):
                 return HttpResponseBadRequest("Invalid new owner ID.")
-            try:
-                new_owner = (
-                    User.objects.filter(
-                        pk=new_owner_id,
-                        playlists_owned__contents__annotation_set=annotation_set,
-                    )
-                    .exclude(pk=annotation_set.owner_id)
-                    .distinct()
-                    .first()
+            new_owner = (
+                User.objects.filter(
+                    pk=new_owner_id,
+                    playlists_owned__contents__annotation_set=annotation_set,
                 )
-            except ValueError:
-                return HttpResponseBadRequest("Invalid new owner ID.")
+                .exclude(pk=annotation_set.owner_id)
+                .distinct()
+                .first()
+            )
             if new_owner is None:
                 return HttpResponseBadRequest("Choose a playlist owner using this set.")
 
-        if not annotation_set.delete_or_reassign_ownership(
+        deletion_result = annotation_set.delete_or_reassign_ownership(
             request.user, new_owner=new_owner
-        ):
-            return HttpResponseServerError()
-        messages.success(
-            request,
-            f'The Annotation set "{annotation_set.name}" was deleted.',
         )
+        if deletion_result["deleted"]:
+            messages.success(
+                request, f'The annotation set "{annotation_set.name}" was deleted.'
+            )
+        elif deletion_result["reassigned"]:
+            messages.success(request, "The annotation set was reassigned.")
+            return HttpResponseServerError()
         return HttpResponse()
+
+    except PermissionDenied:
+        messages.error(
+            request,
+            "You do not have permission to delete or reassign the annotation set",
+        )
+        return HttpResponse(status=403)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("Failed to delete annotation set: request body was malformed.")
+        messages.error(
+            request,
+            "Failed to delete annotation set because the request was malformed. Please refresh the page and try again.",
+        )
+        return HttpResponseBadRequest()
+    except ValueError:
+        messages.error(
+            request,
+            "Could not reassign the annotation set. Please refresh the page and try again.",
+        )
+        return HttpResponseBadRequest(
+            "Failed to delete annotation set: invalid new owner."
+        )
     except Exception:
         logger.exception("Failed to delete annotation set")
+        messages.error(
+            request,
+            "An error occurred while attempting to delete or reassign the annotation set",
+        )
         return HttpResponseServerError()
 
 
