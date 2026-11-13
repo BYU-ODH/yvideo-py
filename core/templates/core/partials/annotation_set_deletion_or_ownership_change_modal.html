@@ -1,0 +1,52 @@
+{% load static %}
+
+<dialog id="annotation-set-deletion-modal" class="dark-mode">
+    <div id="annotation-set-settings-compact"
+         class="column-flex"
+         data-annotation-set-id="{{ annotation_set.id }}"
+         data-annotation-set-name="{{ annotation_set.name }}">
+        <button class="close-dialog-button"
+                command="close"
+                commandfor="annotation-set-deletion-modal"
+                aria-label="Close delete annotation set modal">X</button>
+        <h2>Delete Annotation set</h2>
+        <div class="column-flex">
+            {% if annotation_set_owner_candidates|length > 1 %}
+                <p class="annotation-set-editors-note">
+                    Other users have assigned this annotation set to one or more of their videos. If you wish to name
+                    a new owner of this annotation set, you may select them below.
+                </p>
+                <label for="annotation-set-new-owner">Reassign ownership to (optional):</label>
+                <select id="annotation-set-new-owner" name="new_owner_id">
+                    <option value="">Choose automatically</option>
+                    {% for candidate in annotation_set_owner_candidates %}
+                        <option value="{{ candidate.pk }}">{{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})</option>
+                    {% endfor %}
+                </select>
+            {% elif annotation_set_owner_candidates|length == 1 %}
+                <p class="annotation-set-editors-note">
+                    {{ annotation_set_owner_candidates.get_full_name|default:annotation_set_owner_candidates.username }} ({{ annotation_set_owner_candidates.username }})
+                    will become the new owner of this annotation set.
+                </p>
+            {% else %}
+                <p class="annotation-set-editors-note">
+                    All annotations will be deleted and are not recoverable. This change
+                    won't affect anyone else because you are the only one using this set.
+                </p>
+            {% endif %}
+            <p class="annotation-set-editors-note">
+                After this operation has completed, all of your videos that use this set will not have an assigned annotation set.
+            </p>
+            <div>
+                <button id="annotation-set-delete"
+                        class="red-button"
+                        aria-label="Remove the {{ annotation_set.name }} annotation set">Delete this set</button>
+                <button type="button"
+                        class="cancel-button"
+                        command="close"
+                        commandfor="annotation-set-deletion-modal"
+                        aria-label="Cancel annotation set deletion">Cancel</button>
+            </div>
+        </div>
+    </div>
+</dialog>

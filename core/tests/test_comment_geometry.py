@@ -76,10 +76,16 @@ class CommentGeometryMigrationTests(TransactionTestCase):
             .apps.get_model("core", "CommentAnnotation")
         )
 
+    def _restore_schema(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
     def setUp(self):
-        self.addCleanup(self._migrate, AFTER)
-        self._migrate(BEFORE)
+        self.addCleanup(self._restore_schema)
+        # Factories use current models, so create their rows before rolling back
+        # fields that those models no longer supply (such as previous_owner).
         self.track = TrackFactory()
+        self._migrate(BEFORE)
 
     def test_corners_become_x_y_width(self):
         old_comment = self._historical_comment_model(BEFORE)
@@ -104,8 +110,9 @@ class CommentGeometryMigrationTests(TransactionTestCase):
 
         self._migrate(AFTER)
 
+        migrated_comment = self._historical_comment_model(AFTER)
         geometry = {
-            name: CommentAnnotation.objects.values_list("x", "y", "width").get(pk=pk)
+            name: migrated_comment.objects.values_list("x", "y", "width").get(pk=pk)
             for name, pk in pks.items()
         }
         self.assertEqual(
@@ -121,8 +128,9 @@ class CommentGeometryMigrationTests(TransactionTestCase):
 
     def test_unapplying_restores_the_right_edge(self):
         self._migrate(AFTER)
-        comment = CommentAnnotation.objects.create(
-            track=self.track, x=10.0, y=20.0, width=30.0
+        migrated_comment = self._historical_comment_model(AFTER)
+        comment = migrated_comment.objects.create(
+            track_id=self.track.pk, x=10.0, y=20.0, width=30.0
         )
 
         self._migrate(BEFORE)

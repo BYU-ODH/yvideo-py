@@ -1179,7 +1179,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/annotation_set_options/import_from_file.html",
     "core/partials/modals/annotation_set_options/use_existing_set.html",
     "core/partials/annotation_set_selector.html",
-    "core/partials/annotation_set_retirement_modal.html",
+    "core/partials/annotation_set_deletion_or_ownership_change_modal.html",
     "core/partials/blur_anchor_points.html",
     "core/partials/modals/save_failed_help.html",
     "core/partials/save_status.html",
