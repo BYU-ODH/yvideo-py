@@ -1,7 +1,7 @@
 """The booth's long-running sync agent.
 
 It is the only part of the booth that talks to production, and it only ever calls out:
-a cheap check every IC_CHECK_INTERVAL_SECONDS (`check_parent` decides whether a run is
+a cheap check every CHECK_INTERVAL_SECONDS (`check_parent` decides whether a run is
 due), and the queued runs themselves.
 """
 
@@ -16,7 +16,8 @@ from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.utils import timezone
 
-from ic import booth_state
+from ic.models import CHECK_INTERVAL_SECONDS
+from ic.models import ICBoothState
 from ic.models import ICSyncRun
 from ic.sync.agent import check_parent
 from ic.sync.agent import execute_run
@@ -42,7 +43,8 @@ class Command(BaseCommand):
             raise CommandError(
                 "ic_sync_agent runs only on an IC instance (IS_IC_INSTANCE = True)."
             )
-        lock_path = Path(settings.IC_STATE_DIR) / "agent.lock"
+        # One agent per booth, even if someone also runs it by hand.
+        lock_path = Path(settings.IC_PROJECTION_ROOT) / ".ic-sync-agent.lock"
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         lock_file = open(lock_path, "w")  # noqa: SIM115 - held for the process lifetime
         try:
@@ -63,7 +65,7 @@ class Command(BaseCommand):
             logger.warning("Marked %s interrupted sync run(s) failed.", stale)
         # Sync once at startup: the agent usually restarts because the booth just
         # deployed, which is when a run refused for a code mismatch can succeed. When
-        # nothing changed, this costs one manifest request answered with a 304.
+        # nothing changed, the run only re-reads the manifest.
         if not ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED).exists():
             ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
 
@@ -96,8 +98,8 @@ class Command(BaseCommand):
         Also called throughout a run, which keeps production's "last contact" fresh
         during a long download; check_parent queues nothing while a run is active.
         """
-        booth_state.record_agent_heartbeat()
-        if time.monotonic() - self.last_check >= settings.IC_CHECK_INTERVAL_SECONDS:
+        ICBoothState.record_agent_heartbeat()
+        if time.monotonic() - self.last_check >= CHECK_INTERVAL_SECONDS:
             self.last_check = time.monotonic()
             try:
                 check_parent(self.client)

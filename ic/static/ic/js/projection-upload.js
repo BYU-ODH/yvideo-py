@@ -69,12 +69,7 @@ async function waitForProcessing(upload) {
       setStatus(`The master was not accepted: ${data.error}`, "error");
       return;
     }
-    const job = data.job;
-    setStatus(
-      job && job.status === "running"
-        ? "Checking the file (ffprobe, faststart, checksum)…"
-        : "Waiting for the media worker…",
-    );
+    setStatus(data.job_status === "running" ? "Checking the file (ffprobe, checksum)…" : "Waiting for the media worker…");
     await new Promise((resolve) => window.setTimeout(resolve, POLL_MS));
   }
 }

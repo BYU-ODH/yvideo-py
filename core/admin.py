@@ -925,7 +925,7 @@ class ResourceFileAdmin(VersionAdmin):
     search_fields = ("file", "version", "resource__name")
     readonly_fields = (
         # Masters and their SD files come only from the IC media pipeline
-        # (/ic/manage/), which probes, remuxes and transcodes them.
+        # (/ic/manage/), which probes and transcodes them.
         "is_projection_file",
         "derived_from",
         "checksum",
@@ -936,11 +936,7 @@ class ResourceFileAdmin(VersionAdmin):
         "height",
         "frame_rate",
         "video_codec",
-        "audio_codec",
-        "bitrate",
         "color_transfer",
-        "faststart",
-        "probed_at",
         "master_released_at",
     )
 

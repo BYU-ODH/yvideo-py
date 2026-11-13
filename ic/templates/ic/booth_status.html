@@ -1,7 +1,5 @@
 {% extends "ic/base_dark.html" %}
 
-{% load ic_tags %}
-
 {% block content %}
     <h1>Sync status</h1>
     <section class="ic-panel">
@@ -11,7 +9,7 @@
         <dl class="ic-facts">
             <dt>Last successful sync</dt>
             <dd>
-                {{ state.last_success_at|default:"never" }}
+                {{ last_success.finished_at|default:"never" }}
             </dd>
             <dt>Applied manifest</dt>
             <dd>
@@ -21,11 +19,11 @@
             <dd>
                 {{ state.parent_manifest_hash|slice:":12"|default:"unknown" }}
                 {% if state.parent_checked_at %}(checked {{ state.parent_checked_at|date:"H:i:s" }}){% endif %}
-                {% if state.parent_check_error %}<span class="ic-status ic-status-warn">{{ state.parent_check_error }}</span>{% endif %}
+                {% if state.parent_check_error %}<span class="ic-status ic-warn">{{ state.parent_check_error }}</span>{% endif %}
             </dd>
             <dt>Sync agent heartbeat</dt>
             <dd>
-                {% if agent_alive %}
+                {% if state.agent_alive %}
                     alive
                 {% else %}
                     not running
@@ -34,7 +32,7 @@
             {% if disk %}
                 <dt>Disk</dt>
                 <dd>
-                    {{ disk.free|filesize_gb }} free of {{ disk.total|filesize_gb }}
+                    {{ disk.free|filesizeformat }} free of {{ disk.total|filesizeformat }}
                 </dd>
             {% endif %}
         </dl>
@@ -86,7 +84,7 @@
                     <tr>
                         <td>{{ file.kind }}</td>
                         <td>{{ file.name }}</td>
-                        <td>{{ file.size|filesize_gb }}</td>
+                        <td>{{ file.size|filesizeformat }}</td>
                         <td>{{ file.verified_at|date:"M j H:i" }}</td>
                         <td>
                             {% if file.available_from_parent %}

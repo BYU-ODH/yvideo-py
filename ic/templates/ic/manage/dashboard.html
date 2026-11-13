@@ -9,7 +9,7 @@
         {% for row in instances %}
             <div class="ic-manage-card">
                 <h4>{{ row.instance.name }}</h4>
-                <dl class="ic-manage-facts">
+                <dl class="ic-facts">
                     <dt>Matches production</dt>
                     <dd>
                         {% if row.matches %}
@@ -61,9 +61,11 @@
     </section>
     <section class="ic-manage-section" aria-labelledby="ic-jobs-heading">
         <h3 id="ic-jobs-heading">Media processing</h3>
-        <div hx-get="{% url 'ic_manage_jobs' %}"
+        <div id="ic-jobs"
+             hx-get="{% url 'ic_manage_dashboard' %}"
+             hx-select="#ic-jobs"
              hx-trigger="every 5s"
-             hx-swap="innerHTML">
+             hx-swap="outerHTML">
             {% include "ic/manage/partials/jobs.html" %}
         </div>
     </section>

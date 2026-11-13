@@ -5,7 +5,7 @@
         <h2>New program</h2>
     </header>
     <form method="post"
-          action="{% url 'ic_program_create' %}"
+          action="{% url 'ic_program_new' %}"
           class="ic-manage-form">
         {% csrf_token %}
         {{ form.as_p }}

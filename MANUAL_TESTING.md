@@ -368,11 +368,9 @@ own hardware. Headless Chromium has no second screen, no VA-API, no projector an
 speakers, so a test there would pass whether or not any of this works.
 
 **What is guarded automatically.** `tests/e2e/test_ic_player.py` drives the controller and a
-real output window in Chromium: loading items, looping, advancing, a skip annotation firing,
-VTT tracks loading, emergency blank, and recovery from a closed output.
-`tests/js/ic-protocol.test.js` covers the sequencing rules. `ic/tests/test_views.py` checks
-the controller and output load nothing from the network. None of it proves the picture on
-the projector is right.
+real output window in Chromium: looping, advancing, a skip firing, VTT tracks, emergency
+blank, recovery from a closed output, and *Open output* or a controller reload leaving a
+playing film alone. None of it proves the picture on the projector is right.
 
 ## 10. International Cinema: sync and its indicators against real machines
 
@@ -380,53 +378,33 @@ the projector is right.
 
 - [ ] Edit an annotation on production; within about a minute the booth's badge goes from
       *Production has changes the booth doesn't have yet* to *matches production*.
-- [ ] *Sync now* on the booth with nothing changed ends ✅ *Succeeded* (re-verified), not *Up
-      to date*. The controller offers no way to re-hash every file.
 - [ ] Stop `<app>-ic-sync-agent`: within about two minutes production's dashboard says the
-      booth hasn't checked in recently. Press *Sync now* with the agent stopped: ❌ *Sync
-      agent isn't running*. Start it again: it syncs at once.
-- [ ] Merge a commit during `IC_PLAYBACK_HOURS`: the booth doesn't redeploy (its syncs report
-      `code_mismatch` meanwhile) and does at the first deploy-timer poll after them.
+      booth hasn't checked in recently, and *Sync now* says ❌ *Sync agent isn't running*.
+      Start it again: it syncs at once.
+- [ ] Merge a commit during `IC_PLAYBACK_HOURS`: the booth doesn't redeploy until the first
+      deploy-timer poll after them.
 - [ ] Unplug the booth's network and press *Sync now*: ❌ *Production unreachable*, the badge
       says *Can't reach production*, and the film that is playing is unaffected.
-- [ ] *Sync now* during a film: the sync applies right away and the film keeps playing
-      without a glitch. Replace that film's master on production while it plays on the booth,
-      *Sync now*, and let it play to the end: the old master plays through; the new one is used the next time
-      the item is loaded.
-- [ ] Add a program for next month with a new master, and edit an annotation of tonight's
-      film in the same minute: tonight's change is on the booth (badge matches) while next
-      month's master is still downloading.
+- [ ] Replace a film's master on production while it plays on the booth and press *Sync
+      now*: the old master plays through without a glitch; the new one is used the next
+      time the item is loaded.
 - [ ] Corrupt a byte of a master on the booth's disk (`printf x | dd of=… bs=1 seek=100
       conv=notrunc`) and queue a re-hash outside a showing (DEPLOY_IC.md, *Operating*): it
-      is downloaded again and the run succeeds (or, for a released master, the program shows
-      ❌ *re-upload required*). While it runs, a film plays without stutter.
-- [ ] As a superuser, add a resource in the admin and click *Upload IC projection master* on
-      its page; after the upload, *Films and masters* lists it with its SD file, and a new
-      IC content can be created from the `ic-sd-…` file.
-- [ ] On a program page, change one item's subtitles and another's mode without pressing
-      anything: both stick after a reload, and the readiness badges update at once.
-- [ ] With a program open on the booth's controller, change that program on production:
-      after the next sync the controller offers *Reload*, and reloading mid-film keeps the
-      output playing.
-- [ ] Upload a ~10 GB master over the campus network; interrupt it (close the tab) and
-      reopen the page: choosing the same file continues where it stopped.
-- [ ] After the booth verifies a new master, *Films and masters* on production shows it as
-      released, and its bytes are gone from production's `ic_projection/`.
+      is downloaded again (or, for a released master, the program shows ❌ *re-upload
+      required*). A film playing meanwhile doesn't stutter.
+- [ ] Upload a ~10 GB master over the campus network; close the tab partway and reopen the
+      page: choosing the same file continues where it stopped. After the booth verifies it,
+      *Films and masters* shows it as released and its bytes are gone from production.
 
 **Why it cannot be automated.** These depend on two real machines, a real network that can
-be cut, systemd services, and multi-gigabyte files moving
-between them. The tests below run the same code against a fake production in one process.
+be cut, systemd services, and multi-gigabyte files moving between them.
 
-**What is guarded automatically.** `ic/tests/test_sync.py` runs the booth's whole sync
-pipeline against a fake production: downloads, checksum failures, damaged files, code and
-migration mismatches, fingerprint mismatches rolling back, applying rows before later
-programs' masters, the agent's check (when a run is due, retries, the weekly re-hash),
-lost and damaged released masters, and pruning. `ic/tests/test_booth.py` covers the kiosk's
-read-only rules, *Sync now*, and file-addressed media that a sync can't change mid-film.
-`ic/tests/test_views.py` covers the sync API (check, status reports), master release,
-that production offers no way to push, the admin's upload link, *Find a film*, and
-saving item settings as they change. `ic/tests/test_media_pipeline.py` runs
-real ffmpeg for ingest and the SD transcode.
+**What is guarded automatically.** `ic/tests/test_sync.py` runs the booth's sync pipeline
+against a fake production (and the real HTTP client against a live server): checksum
+failures, damaged and lost files, migration and fingerprint mismatches, rows applying
+before later programs' masters, when a run is due, and pruning. `ic/tests/test_booth.py`
+covers the kiosk and file-addressed media; `ic/tests/test_media_pipeline.py` runs real
+ffmpeg for ingest, replacement and the SD transcode.
 
 ## Adding to this file
 

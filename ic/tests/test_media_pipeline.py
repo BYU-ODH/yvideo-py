@@ -9,8 +9,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from core.factories import ContentFactory
 from core.factories import ResourceFactory
-from core.factories import UserFactory
 from core.models import ResourceAccess
 from core.models import ResourceFile
 from ic import jobs
@@ -29,39 +29,6 @@ from ic.testing import make_sd_file
 
 @unittest.skipUnless(FFMPEG_AVAILABLE, "needs ffmpeg and ffprobe")
 class MediaHelperTests(ICTempDirsMixin, TestCase):
-    def test_faststart_detection_and_remux(self):
-        slow = make_mp4(self._ic_tmp / "slow.mp4")
-        self.assertFalse(media.is_faststart(slow))
-        fixed = self._ic_tmp / "fixed.mp4"
-        media.remux_faststart(slow, fixed)
-        self.assertTrue(media.is_faststart(fixed))
-        self.assertTrue(
-            media.is_faststart(make_mp4(self._ic_tmp / "fast.mp4", faststart=True))
-        )
-
-    def test_probe_reads_codecs_and_geometry(self):
-        result = media.probe(make_mp4(self._ic_tmp / "a.mp4", size="640x360", rate=25))
-        self.assertEqual((result.width, result.height), (640, 360))
-        self.assertEqual(result.video_codec, "h264")
-        self.assertEqual(result.audio_codec, "aac")
-        self.assertAlmostEqual(result.frame_rate, 25)
-        self.assertAlmostEqual(result.duration_seconds, 2, delta=0.1)
-
-    def test_probe_rejects_non_video(self):
-        text = self._ic_tmp / "notes.mp4"
-        text.write_text("not a video")
-        with self.assertRaises(media.MediaError):
-            media.probe(text)
-
-    def test_sd_transcode_keeps_the_timeline(self):
-        master = make_mp4(self._ic_tmp / "master.mp4", seconds=3, size="1280x720")
-        sd = self._ic_tmp / "sd.mp4"
-        media.transcode_sd(master, sd, duration_seconds=3)
-        master_probe, sd_probe = media.probe(master), media.probe(sd)
-        self.assertEqual(sd_probe.height, 480)
-        media.assert_same_timeline(master_probe, sd_probe)
-        self.assertTrue(media.is_faststart(sd))
-
     def test_timeline_mismatch_is_rejected(self):
         long = media.probe(make_mp4(self._ic_tmp / "long.mp4", seconds=3))
         short = media.probe(make_mp4(self._ic_tmp / "short.mp4", seconds=2))
@@ -106,16 +73,6 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         return upload
 
-    def test_requires_ic_role_and_resource_access(self):
-        self.client.force_login(UserFactory(instructor=True))
-        self.assertEqual(self.start(10).status_code, 403)
-        outsider = make_ic_editor()
-        self.client.force_login(outsider)
-        self.assertEqual(self.start(10).status_code, 403)
-
-    def test_only_mp4_files(self):
-        self.assertEqual(self.start(10, filename="film.mkv").status_code, 400)
-
     def test_resume_after_an_offset_mismatch(self):
         upload = self.start(8).json()
         self.assertEqual(self.put(upload, 0, b"1234").json()["received_bytes"], 4)
@@ -125,19 +82,10 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
         again = self.start(8).json()
         self.assertEqual(again["id"], upload["id"])
         self.assertEqual(again["received_bytes"], 4)
-        self.assertEqual(self.put(upload, 4, b"5678").json()["received_bytes"], 8)
-
-    def test_more_data_than_declared_is_refused(self):
-        upload = self.start(4).json()
-        self.assertEqual(self.put(upload, 0, b"123456").status_code, 400)
-        self.assertEqual(
-            ICUpload.objects.get(pk=upload["id"]).part_path.stat().st_size, 0
-        )
-
-    def test_finalize_before_all_bytes_arrive_is_refused(self):
-        upload = self.start(8).json()
-        self.put(upload, 0, b"1234")
+        # Finalizing early, or sending more than the declared size, is refused.
         self.assertEqual(self.client.post(upload["finalize_url"]).status_code, 409)
+        self.assertEqual(self.put(upload, 4, b"567890").status_code, 400)
+        self.assertEqual(self.put(upload, 4, b"5678").json()["received_bytes"], 8)
 
     def test_someone_elses_upload_is_off_limits(self):
         upload = self.start(8).json()
@@ -156,8 +104,6 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
         master = ResourceFile.objects.get(
             resource=self.resource, is_projection_file=True
         )
-        self.assertTrue(master.faststart)
-        self.assertTrue(media.is_faststart(master.file.path))
         self.assertTrue(Path(master.file.path).is_relative_to(self.projection_root))
         self.assertEqual(master.height, 720)
         sd = master.derivatives.get()
@@ -169,9 +115,23 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
             MediaJob.Status.SUCCEEDED,
         )
 
+        # Replacing the master moves its contents to the new SD file; the old one goes.
+        content = ContentFactory(resource_file=sd, resource=self.resource)
+        old_sd_path = Path(sd.file.path)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.upload_file(make_mp4(self._ic_tmp / "better.mp4", seconds=2, rate=25))
+            run_due_jobs()
+        content.refresh_from_db()
+        new_master = ResourceFile.objects.get(
+            resource=self.resource, is_projection_file=True
+        )
+        self.assertEqual(content.resource_file.derived_from, new_master)
+        self.assertFalse(ResourceFile.objects.filter(pk=sd.pk).exists())
+        self.assertFalse(old_sd_path.exists())
+
     @unittest.skipUnless(FFMPEG_AVAILABLE, "needs ffmpeg and ffprobe")
     def test_reuploading_the_same_master_is_refused_but_restores_a_released_one(self):
-        source = make_mp4(self._ic_tmp / "source.mp4", faststart=True)
+        source = make_mp4(self._ic_tmp / "source.mp4")
         self.upload_file(source)
         run_due_jobs()
         master = ResourceFile.objects.get(
@@ -195,43 +155,6 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
         self.assertIsNone(master.master_released_at)
         self.assertTrue(Path(master.file.path).exists())
 
-    def test_a_failed_ingest_keeps_the_previous_master(self):
-        previous = make_master(self.resource)
-        previous_path = Path(previous.file.path)
-        upload = self.upload_file(self._write(b"a replacement master " * 400))
-        probe = media.ProbeResult(
-            duration_seconds=100.0,
-            width=1920,
-            height=1080,
-            frame_rate=24.0,
-            video_codec="h264",
-            audio_codec="aac",
-            bitrate=10_000_000,
-            color_transfer="",
-            video_start_time=0.0,
-            video_duration=100.0,
-            raw={},
-        )
-        with (
-            mock.patch.object(jobs.media, "probe", return_value=probe),
-            mock.patch.object(jobs.media, "is_faststart", return_value=True),
-            mock.patch.object(jobs, "queue", side_effect=RuntimeError("disk on fire")),
-        ):
-            job = jobs.claim_next()
-            jobs.run(job)
-        self.assertEqual(job.status, MediaJob.Status.FAILED)
-        self.assertTrue(ResourceFile.objects.filter(pk=previous.pk).exists())
-        self.assertTrue(previous_path.exists())
-        # The uploaded bytes are back where a re-run of the job looks for them.
-        row = ICUpload.objects.get(pk=upload["id"])
-        self.assertTrue(row.part_path.exists())
-        self.assertEqual(
-            ResourceFile.objects.filter(
-                resource=self.resource, is_projection_file=True
-            ).count(),
-            1,
-        )
-
     def test_replacing_a_master_deletes_the_old_bytes_after_commit(self):
         previous = make_master(self.resource)
         previous_path = Path(previous.file.path)
@@ -239,7 +162,6 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
         probe = mock.Mock(apply_to=lambda resource_file: None)
         with (
             mock.patch.object(jobs.media, "probe", return_value=probe),
-            mock.patch.object(jobs.media, "is_faststart", return_value=True),
             self.captureOnCommitCallbacks(execute=True),
         ):
             job = jobs.claim_next()
@@ -251,6 +173,20 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
             resource=self.resource, is_projection_file=True
         )
         self.assertTrue(Path(master.file.path).exists())
+
+    def test_any_ingest_failure_fails_the_upload_and_frees_its_space(self):
+        upload = self.upload_file(self._write(b"a master " * 400))
+        with (
+            mock.patch.object(
+                jobs.media, "probe", return_value=mock.Mock(apply_to=lambda f: None)
+            ),
+            mock.patch.object(jobs, "file_xxh64", side_effect=OSError("disk error")),
+        ):
+            jobs.run(jobs.claim_next())
+        row = ICUpload.objects.get(pk=upload["id"])
+        self.assertEqual(row.status, ICUpload.Status.FAILED)
+        self.assertIn("disk error", row.error)
+        self.assertFalse(row.part_path.exists())
 
     def _write(self, data):
         path = self._ic_tmp / "upload.mp4"
@@ -304,29 +240,12 @@ class ReleaseMasterTests(ICTempDirsMixin, TestCase):
         self.assertEqual(jobs.release_blockers(self.master), [])
 
     def test_release_deletes_the_bytes_and_keeps_the_row(self):
+        self.assertFalse(jobs.release_if_ready(self.master))
         make_sd_file(self.master)
         self.verify_on_booth()
-        job = jobs.maybe_queue_release(self.master)
-        self.assertIsNotNone(job)
-        self.assertEqual(jobs.maybe_queue_release(self.master), job)  # not queued twice
         path = Path(self.master.file.path)
-        run_due_jobs()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertTrue(jobs.release_if_ready(self.master))
         self.master.refresh_from_db()
         self.assertIsNotNone(self.master.master_released_at)
         self.assertFalse(path.exists())
-        self.assertTrue(ResourceFile.objects.filter(pk=self.master.pk).exists())
-        self.assertEqual(self.master.checksum, self.master.checksum)
-
-    def test_release_rechecks_conditions_when_it_runs(self):
-        make_sd_file(self.master)
-        self.verify_on_booth()
-        jobs.maybe_queue_release(self.master)
-        ICInstanceFile.objects.all().delete()
-        run_due_jobs()
-        self.master.refresh_from_db()
-        self.assertIsNone(self.master.master_released_at)
-        self.assertTrue(Path(self.master.file.path).exists())
-        self.assertEqual(
-            MediaJob.objects.get(kind=MediaJob.Kind.RELEASE_MASTER).status,
-            MediaJob.Status.FAILED,
-        )

@@ -1,18 +1,46 @@
 // The operator's control window. It never decodes video: it drives the output window over a
 // BroadcastChannel and shows the state the output reports back.
 
-import {
-  CHANNEL_NAME,
-  CMD,
-  EVENT,
-  SEEK_STEP_SECONDS,
-  afterEnded,
-  clampSeek,
-  firstPlayableIndex,
-  formatClock,
-  nextPlayableIndex,
-  outputLost,
-} from "./ic-protocol.js";
+// Messages: control → output "load", "play", "pause", "seek", "blank", "mute", "subtitles",
+// "cueSize", "idle", "ping"; output → control "hello", "state", "ended", "error".
+const CHANNEL_NAME = "ic-player";
+const OUTPUT_LOST_MS = 2000;
+const SEEK_STEP_SECONDS = 5;
+
+function nextPlayableIndex(items, index, direction = 1) {
+  let candidate = index + direction;
+  while (candidate >= 0 && candidate < items.length) {
+    if (items[candidate].playable !== false) return candidate;
+    candidate += direction;
+  }
+  return null;
+}
+
+// What happens when an item finishes. Loop items never end (the output loops the
+// video), so an "ended" for one is treated as a loop restart.
+function afterEnded(items, index) {
+  const item = items[index];
+  if (!item) return { action: "idle", nextIndex: null };
+  if (item.mode === "loop") return { action: "loop", nextIndex: index };
+  const nextIndex = nextPlayableIndex(items, index, 1);
+  if (item.auto_advance && nextIndex !== null) return { action: "advance", nextIndex };
+  return { action: "idle", nextIndex };
+}
+
+function clampSeek(time, duration) {
+  if (!Number.isFinite(time) || time < 0) return 0;
+  if (Number.isFinite(duration) && duration > 0) return Math.min(time, Math.max(0, duration - 0.05));
+  return time;
+}
+
+function formatClock(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00:00";
+  const whole = Math.floor(seconds);
+  const h = Math.floor(whole / 3600);
+  const m = Math.floor((whole % 3600) / 60);
+  const s = whole % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 const LOST_CHECK_MS = 500;
 
@@ -57,6 +85,9 @@ const state = {
   muted: false,
   subtitlesOn: true,
   scrubbing: false,
+  // False until the first state report: a reloaded controller adopts the output's
+  // blank/mute/subtitle settings instead of resetting them.
+  synced: false,
 };
 
 let outputWindow = null;
@@ -81,7 +112,14 @@ async function otherScreen() {
   }
 }
 
-async function openOutput() {
+async function openOutput({ reopen = false } = {}) {
+  // window.open() on a live "ic-output" window would reload it and stop the film. Only
+  // "Reopen" (the output stopped answering) may replace it.
+  if (state.connected && !reopen) {
+    outputWindow?.focus();
+    showMessage("The output is already open.");
+    return;
+  }
   const screen = await otherScreen();
   const features = screen
     ? `popup,left=${screen.availLeft},top=${screen.availTop},width=${screen.availWidth},height=${screen.availHeight}`
@@ -114,7 +152,7 @@ function loadItem(index, { autoplay = false, startAt = 0 } = {}) {
   }
   state.index = index;
   ui.ready.hidden = true;
-  send(CMD.LOAD, { item, autoplay, startAt });
+  send("load", { item, autoplay, startAt });
   render();
 }
 
@@ -123,7 +161,7 @@ function handleEnded() {
   if (decision.action === "advance") {
     loadItem(decision.nextIndex, { autoplay: true });
   } else if (decision.action === "idle") {
-    send(CMD.IDLE);
+    send("idle");
     ui.ready.hidden = decision.nextIndex === null;
     if (decision.nextIndex !== null) {
       ui.ready.textContent = `Ready: ${items[decision.nextIndex].title} (press N)`;
@@ -133,28 +171,36 @@ function handleEnded() {
 
 channel.addEventListener("message", (event) => {
   const message = event.data || {};
-  if (message.type === EVENT.STATE) {
+  if (message.type === "state") {
     state.output = message.state;
     state.lastStateAt = Date.now();
     state.connected = true;
     ui.lost.hidden = true;
+    if (!state.synced) {
+      state.synced = true;
+      state.blanked = message.state.blanked;
+      state.muted = message.state.muted;
+      state.subtitlesOn = message.state.subtitlesOn;
+    }
     // Re-attach after this page reloads while the output keeps playing.
     if (state.index === null && message.state.itemId !== null) {
       const index = items.findIndex((item) => item.id === message.state.itemId);
       if (index !== -1) state.index = index;
     }
     if (!state.scrubbing) render();
-  } else if (message.type === EVENT.HELLO) {
+  } else if (message.type === "hello") {
     state.connected = true;
     state.lastStateAt = Date.now();
-    // Reassert operator settings in a (re)opened output.
-    send(CMD.BLANK, { on: state.blanked });
-    send(CMD.MUTE, { on: state.muted });
-    send(CMD.SUBTITLES, { on: state.subtitlesOn });
-    send(CMD.CUE_SIZE, { value: ui.cueSize.value });
-  } else if (message.type === EVENT.ENDED) {
+    // Reassert operator settings in a reopened output. Before the first state report
+    // the output's own settings win (see state.synced).
+    if (!state.synced) return;
+    send("blank", { on: state.blanked });
+    send("mute", { on: state.muted });
+    send("subtitles", { on: state.subtitlesOn });
+    send("cueSize", { value: ui.cueSize.value });
+  } else if (message.type === "ended") {
     if (message.itemId === items[state.index]?.id) handleEnded();
-  } else if (message.type === EVENT.ERROR) {
+  } else if (message.type === "error") {
     showMessage(message.message, "error");
   }
 });
@@ -201,7 +247,7 @@ function render() {
 
 function togglePlay() {
   if (state.index === null) {
-    const first = firstPlayableIndex(items);
+    const first = nextPlayableIndex(items, -1);
     if (first !== null) loadItem(first, { autoplay: true });
     return;
   }
@@ -209,7 +255,7 @@ function togglePlay() {
     loadItem(state.index, { autoplay: true });
     return;
   }
-  send(isPlaying() ? CMD.PAUSE : CMD.PLAY);
+  send(isPlaying() ? "pause" : "play");
 }
 
 function step(direction) {
@@ -220,39 +266,39 @@ function step(direction) {
 
 function seekBy(delta) {
   if (!state.output) return;
-  send(CMD.SEEK, { time: clampSeek(state.output.time + delta, state.output.duration) });
+  send("seek", { time: clampSeek(state.output.time + delta, state.output.duration) });
 }
 
 function toggleBlank() {
   state.blanked = !state.blanked;
-  send(CMD.BLANK, { on: state.blanked });
+  send("blank", { on: state.blanked });
   render();
 }
 
 function toggleMute() {
   state.muted = !state.muted;
-  send(CMD.MUTE, { on: state.muted });
+  send("mute", { on: state.muted });
   render();
 }
 
 function toggleSubtitles() {
   state.subtitlesOn = !state.subtitlesOn;
-  send(CMD.SUBTITLES, { on: state.subtitlesOn });
+  send("subtitles", { on: state.subtitlesOn });
   render();
 }
 
-ui.openOutput.addEventListener("click", openOutput);
+ui.openOutput.addEventListener("click", () => openOutput());
 ui.reopen.addEventListener("click", async () => {
   const resumeAt = state.output?.time || 0;
   const wasPlaying = isPlaying();
-  await openOutput();
+  await openOutput({ reopen: true });
   ui.lost.hidden = true;
   const resume = () => {
     if (state.index !== null) loadItem(state.index, { autoplay: wasPlaying, startAt: resumeAt });
     channel.removeEventListener("message", onHello);
   };
   const onHello = (event) => {
-    if (event.data?.type === EVENT.HELLO) resume();
+    if (event.data?.type === "hello") resume();
   };
   channel.addEventListener("message", onHello);
 });
@@ -266,7 +312,7 @@ ui.mute.addEventListener("click", toggleMute);
 ui.subtitles.addEventListener("click", toggleSubtitles);
 ui.cueSize.addEventListener("input", () => {
   localStorage.setItem("icCueSize", ui.cueSize.value);
-  send(CMD.CUE_SIZE, { value: ui.cueSize.value });
+  send("cueSize", { value: ui.cueSize.value });
 });
 ui.cueSize.value = localStorage.getItem("icCueSize") || ui.cueSize.value;
 ui.scrubber.addEventListener("input", () => {
@@ -275,7 +321,7 @@ ui.scrubber.addEventListener("input", () => {
 });
 ui.scrubber.addEventListener("change", () => {
   state.scrubbing = false;
-  send(CMD.SEEK, { time: Number(ui.scrubber.value) });
+  send("seek", { time: Number(ui.scrubber.value) });
 });
 ui.queue.forEach((button) => {
   button.addEventListener("click", () => loadItem(Number(button.dataset.icLoad)));
@@ -288,7 +334,7 @@ const KEYS = {
   b: toggleBlank,
   m: toggleMute,
   s: toggleSubtitles,
-  o: openOutput,
+  o: () => openOutput(),
   ArrowLeft: () => seekBy(-SEEK_STEP_SECONDS),
   ArrowRight: () => seekBy(SEEK_STEP_SECONDS),
 };
@@ -310,7 +356,7 @@ window.addEventListener("beforeunload", (event) => {
 });
 
 setInterval(() => {
-  const lost = outputLost(state.lastStateAt, Date.now(), state.connected);
+  const lost = state.connected && Date.now() - state.lastStateAt > OUTPUT_LOST_MS;
   if (lost) {
     state.connected = false;
     ui.lost.hidden = false;
@@ -331,6 +377,6 @@ if (data.booth) {
 }
 
 // An output that is already open (e.g. this page was reloaded) answers the ping.
-send(CMD.PING);
+send("ping");
 render();
 window.icControl = { state, items, loadItem, send };

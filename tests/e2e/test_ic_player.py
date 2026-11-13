@@ -107,3 +107,30 @@ def test_controller_notices_a_lost_output_and_can_resume(
         timeout=8000,
     )
     expect(page.locator("#ic-output-lost")).to_be_hidden(timeout=5000)
+
+
+def test_open_output_and_reloading_the_controller_leave_a_film_alone(
+    logged_in_page, live_server, ic_program
+):
+    page = logged_in_page
+    page.goto(f"{live_server.url}/ic/program/{ic_program['program'].pk}/")
+    output = open_output(page)
+    page.locator("[data-ic-load='1']").click()
+    page.locator("#ic-play-pause").click()
+    output.wait_for_function(
+        "() => !document.getElementById('video-player').paused", timeout=8000
+    )
+    page.keyboard.press("m")
+    expect(page.locator("#ic-mute")).to_have_attribute("aria-pressed", "true")
+
+    # "Open output" while a film plays must not reload the projector window.
+    output.evaluate("() => { window.stillTheSamePage = true; }")
+    page.locator("#ic-open-output").click()
+    page.wait_for_timeout(500)
+    assert output.evaluate("() => window.stillTheSamePage") is True
+
+    # Reloading the controller adopts the output's settings instead of resetting them.
+    page.reload()
+    expect(page.locator("#ic-mute")).to_have_attribute("aria-pressed", "true")
+    assert output.evaluate("() => document.getElementById('video-player').muted")
+    assert output.evaluate("() => window.stillTheSamePage") is True

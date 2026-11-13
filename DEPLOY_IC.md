@@ -17,8 +17,8 @@ production holds no booth credentials. Sync is pull-only: the booth's sync agent
 production every 30 seconds for changes, pulls them, and reports back what it did.
 Production can't make the booth sync.
 
-Both machines must run the same commit: a booth refuses production's data when the code
-versions differ (it reports `code_mismatch` until it updates). Pin the booth's `.env`
+Both machines must run the same database schema: a booth refuses production's data when
+their migrations differ (it reports `code_mismatch` until it updates). Pin the booth's `.env`
 `BRANCH` to production's branch. The booth's deploy timer polls GitHub like production's,
 but not during `IC_PLAYBACK_HOURS` (default `12-24`, noon to midnight), so a code update
 never restarts the kiosk during a showing; it catches up at the first poll after those
@@ -42,7 +42,6 @@ In `yvideo/secret_settings.py`:
 ```python
 FILE_UPLOAD_TEMP_DIR = "var/upload_tmp"
 IC_BOOTH_VIDEO_CODECS = ["h264"]  # from the booth spike; add "hevc" only if verified
-IC_BOOTH_VERIFIED_MAX = {"height": 1080, "frame_rate": 30, "bitrate": 40_000_000}
 ```
 
 Plan disk space for masters: about 10 GB each, rarely over 20 GB, plus about 1.2× that
@@ -57,7 +56,7 @@ systemctl --user restart <app>.service <app>-media-worker.service
 ```
 
 From then on the deploy timer rebuilds and restarts both. The image now includes
-ffmpeg, and `deploy.sh` stamps it with the commit (`YVIDEO_GIT_SHA`).
+ffmpeg.
 
 The media worker runs at the lowest CPU and I/O priority (`Nice=19`,
 `IOSchedulingClass=idle`, `CPUWeight=10`), and ffmpeg is limited to two threads, so a
@@ -114,9 +113,8 @@ With the largest real master IC expects:
    that plus `--ozone-platform=x11`; and an "Ubuntu on Xorg" login.
 2. **Output placement.** With the same flags, open a program and press *Open output*:
    the output should land on screen 2 and go fullscreen (or after one click on it).
-3. Record what worked: the flags in `.env` `IC_CHROME_FLAGS`; the highest resolution,
-   frame rate and bitrate that played smoothly in production's `IC_BOOTH_VERIFIED_MAX`;
-   and `"hevc"` in `IC_BOOTH_VIDEO_CODECS` only if HEVC decoded in hardware. The UHD 630
+3. Record what worked: the flags in `.env` `IC_CHROME_FLAGS`, and `"hevc"` in
+   production's `IC_BOOTH_VIDEO_CODECS` only if HEVC decoded in hardware. The UHD 630
    has no AV1 decoder, so AV1 masters are always refused.
 
 ### 3. Settings
@@ -173,25 +171,20 @@ controller; it shows live progress and ends in one of:
 | Result | Meaning |
 |---|---|
 | ✅ Succeeded | Every file is present and checksum-verified, and every film's player data matches production exactly. |
-| ✅ Up to date | Nothing changed (scheduled and change-triggered syncs only; forced syncs always re-verify). |
 | ⚠️ Partial | Some programs aren't playable yet; each one says why. If a master for a program that is showing now couldn't be fetched, the booth keeps its previous data until it can. |
 | ❌ Failed | Nothing changed on the booth, which keeps playing its last verified data. The message says why. |
 
 ## Operating
 
-- **What syncs.** Programs that are showing or upcoming (and yesterday's). A sync fetches
-  the masters for programs already showing and all VTT files, then applies the data, then
-  fetches masters for later programs, so a fix for tonight never waits behind next
-  month's film. Downloads are always rate-capped (about 11 minutes per 10 GB) so they
-  can't disturb playback.
-- **When.** Within about 30 seconds of a change on production (the agent's check), when
-  the projectionist presses *Sync now*, and when the agent starts. A sync that didn't
-  finish cleanly is retried 15 minutes later (at once if production changes meanwhile).
-  Production's IC dashboard shows whether the booth matches, its last contact and its
-  last sync, but can't start one.
-- **Never mid-film.** A sync can apply at any time, even during a showing: the film that
-  is playing keeps the annotations it loaded and streams from a URL that names one
-  verified file, which no sync can change. New data takes effect when the next item loads.
+- **What and when.** Programs that are showing or upcoming (and yesterday's), within
+  about 30 seconds of a change on production, when the projectionist presses *Sync now*,
+  and when the agent starts. A sync that didn't finish cleanly is retried 15 minutes later.
+  Masters for programs already showing come first, then the data, then masters for later
+  programs, so a fix for tonight never waits behind next month's film. Downloads are
+  rate-capped (about 11 minutes per 10 GB) so they can't disturb playback.
+- **Never mid-film.** A sync can apply during a showing: the playing film keeps the
+  annotations it loaded and a URL naming one verified file. New data takes effect when the
+  next item loads.
 - **Only copies.** After the booth verifies a master and its SD file exists, production
   deletes its copy (*Films and masters* says so). The booth keeps such files until 30 days
   after their last program, warns 7 days ahead, and re-hashes them weekly in the morning,
@@ -212,14 +205,13 @@ controller; it shows live progress and ends in one of:
 | Dashboard says *the booth hasn't checked in recently* | Booth off, offline, or its sync agent is stopped; check `systemctl --user status <app>-ic-sync-agent` on the booth. |
 | Booth badge: *Can't reach production* | Network, DNS or TLS between the booth and production, or a wrong `IC_PARENT_URL`/`IC_SYNC_TOKEN` (the *Sync status* page shows the error). Playback is unaffected. |
 | *Sync agent isn't running* | `systemctl --user restart <app>-ic-sync-agent`. |
-| `code_mismatch` | One side hasn't deployed the latest commit yet. Production catches up within minutes; the booth waits until `IC_PLAYBACK_HOURS` end. To update the booth now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
+| `code_mismatch` | One side hasn't deployed the latest migrations yet. Production catches up within minutes; the booth waits until `IC_PLAYBACK_HOURS` end. To update the booth now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
 | `fingerprint_mismatch` | The booth computed different player data from production's rows; the booth kept its previous data. Report it: this is the corruption the design exists to prevent. |
 | Output not fullscreen | Click the output window once; if it opens on the wrong screen, revisit the spike's flags. |
-| Stutter at high bitrate | Check `chrome://media-internals` for a hardware decoder; lower `IC_BOOTH_VERIFIED_MAX` so oversized masters are flagged. |
+| Stutter at high bitrate | Check `chrome://media-internals` for a hardware decoder; re-encode the master at a lower bitrate. |
 
 ## Moving off the Electron IC Player
 
-1. Run the booth in parallel with the Electron player for a week or two; rehearse each
-   program on the booth.
-2. After a clean month, remove `IC_player/` (and its entry in
-   `core/tests/test_js_constant_parity.py`).
+This PR removes the Electron IC Player (`IC_player/`; it remains in git history). Set up
+each film in Y-video, upload its master, and rehearse every program on the booth before
+its first showing.

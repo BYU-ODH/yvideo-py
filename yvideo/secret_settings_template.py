@@ -74,11 +74,9 @@ OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
 #
 # What the booth's Chrome is verified to decode (set from the booth spike):
 # IC_BOOTH_VIDEO_CODECS = ["h264"]            # add "hevc" once hardware decode is confirmed
-# IC_BOOTH_VERIFIED_MAX = {"height": 1080, "frame_rate": 30, "bitrate": 40_000_000}
 #
 # Booth only. The booth is a userless, read-only mirror: set DEBUG = False and
 # ALLOWED_HOSTS = ["localhost", "127.0.0.1"].
 # IS_IC_INSTANCE = True
 # IC_PARENT_URL = "https://yvideo.example.edu"
 # IC_SYNC_TOKEN = "<token shown once when the ICInstance was created>"
-# IC_CHECK_INTERVAL_SECONDS = 30   # how often the booth asks "has anything changed?"

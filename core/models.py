@@ -586,12 +586,8 @@ class ResourceFile(models.Model):
     height = models.PositiveIntegerField(null=True, blank=True, editable=False)
     frame_rate = models.FloatField(null=True, blank=True, editable=False)
     video_codec = models.CharField(max_length=32, blank=True, editable=False)
-    audio_codec = models.CharField(max_length=32, blank=True, editable=False)
-    bitrate = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
     color_transfer = models.CharField(max_length=32, blank=True, editable=False)
     size_bytes = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
-    faststart = models.BooleanField(null=True, blank=True, editable=False)
-    probed_at = models.DateTimeField(null=True, blank=True, editable=False)
     derived_from = models.ForeignKey(
         "self",
         null=True,

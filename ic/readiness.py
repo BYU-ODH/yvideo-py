@@ -16,22 +16,10 @@ class Problem:
     severity: str
     code: str
     message: str
-    item_id: int | None = None
 
     @property
     def is_error(self):
         return self.severity == ERROR
-
-
-def _media_job_state(master):
-    from .models import MediaJob
-
-    latest = (
-        MediaJob.objects.filter(kind=MediaJob.Kind.TRANSCODE, resource_file=master)
-        .order_by("-created_at")
-        .first()
-    )
-    return latest
 
 
 def _verified_on_a_booth(master):
@@ -45,34 +33,15 @@ def _verified_on_a_booth(master):
     )
 
 
-def master_problems(master, item_id=None):
+def master_problems(master):
     problems = []
 
     def add(severity, code, message):
-        problems.append(Problem(severity, code, message, item_id))
+        problems.append(Problem(severity, code, message))
 
-    if master.probed_at is None:
-        add(
-            ERROR,
-            "not_probed",
-            "The projection master has not been checked by ffprobe yet.",
-        )
-        return problems
-    if master.faststart is False:
-        add(
-            ERROR,
-            "not_faststart",
-            "The projection master is not faststart; re-upload it.",
-        )
     codec = (master.video_codec or "").lower()
     allowed = [c.lower() for c in settings.IC_BOOTH_VIDEO_CODECS]
-    if codec == "av1":
-        add(
-            ERROR,
-            "codec",
-            "AV1 masters can't be decoded by the booth's graphics (Intel UHD 630).",
-        )
-    elif codec not in allowed:
+    if codec not in allowed:
         add(
             ERROR,
             "codec",
@@ -85,32 +54,6 @@ def master_problems(master, item_id=None):
             "hdr",
             "HDR master: Chrome on Linux won't tone-map it for the projector, so it will "
             "look washed out. Prefer an SDR master.",
-        )
-    verified = settings.IC_BOOTH_VERIFIED_MAX
-    over = []
-    if verified.get("height") and master.height and master.height > verified["height"]:
-        over.append(f"{master.height}p > {verified['height']}p")
-    if (
-        verified.get("frame_rate")
-        and master.frame_rate
-        and master.frame_rate > verified["frame_rate"] + 0.01
-    ):
-        over.append(f"{master.frame_rate:.3g} fps > {verified['frame_rate']} fps")
-    if (
-        verified.get("bitrate")
-        and master.bitrate
-        and master.bitrate > verified["bitrate"]
-    ):
-        over.append(
-            f"{master.bitrate / 1e6:.1f} Mbps > {verified['bitrate'] / 1e6:.1f} Mbps"
-        )
-    if over:
-        add(
-            WARNING,
-            "above_verified",
-            "Bigger than the booth has been verified to play smoothly ("
-            + ", ".join(over)
-            + "); rehearse on the booth before opening night.",
         )
     if (
         not settings.IS_IC_INSTANCE
@@ -129,7 +72,7 @@ def item_problems(item):
     problems = []
 
     def add(severity, code, message):
-        problems.append(Problem(severity, code, message, item.pk))
+        problems.append(Problem(severity, code, message))
 
     content = item.content
     if content.is_url_only() or not content.resource_id:
@@ -150,9 +93,13 @@ def item_problems(item):
     if master is None:
         add(ERROR, "no_master", "No projection master has been uploaded for this film.")
     else:
-        problems.extend(master_problems(master, item.pk))
+        problems.extend(master_problems(master))
         if not settings.IS_IC_INSTANCE:
-            job = _media_job_state(master)
+            job = (
+                master.media_jobs.filter(kind="transcode")
+                .order_by("-created_at")
+                .first()
+            )
             derived_exists = master.derivatives.exists()
             if job is not None and job.is_pending:
                 add(

@@ -6,13 +6,13 @@
   --dark-bg: #121314;
   --dark-surface: #1c1e20;
   --dark-surface-raised: #26292c;
-  --dark-border: #3a3e42;
+  --ic-border: #3a3e42;
   --dark-text: #e6e6e6;
-  --dark-text-muted: #a4a9ad;
+  --ic-muted: #a4a9ad;
   --dark-focus: #8cc8ff;
-  --dark-ok: #7fc48a;
-  --dark-warn: #e3b55b;
-  --dark-error: #f08a80;
+  --ic-ok: #7fc48a;
+  --ic-warn: #e3b55b;
+  --ic-error: #f08a80;
   --dark-primary: #3b85a1;
   --dark-primary-text: #fff;
   --dark-blank: #b3261e;
@@ -67,7 +67,7 @@ h2 {
   justify-content: space-between;
 
   padding: 0.6rem 1rem;
-  border-bottom: 1px solid var(--dark-border);
+  border-bottom: 1px solid var(--ic-border);
 
   background: var(--dark-surface);
 }
@@ -90,14 +90,10 @@ h2 {
   padding: 1rem;
 }
 
-.ic-muted {
-  color: var(--dark-text-muted);
-}
-
 .ic-panel {
   margin-bottom: 1rem;
   padding: 1rem;
-  border: 1px solid var(--dark-border);
+  border: 1px solid var(--ic-border);
   border-radius: var(--radius);
 
   background: var(--dark-surface);
@@ -108,7 +104,7 @@ h2 {
 
   min-height: 2.5rem;
   padding: 0.45rem 0.9rem;
-  border: 1px solid var(--dark-border);
+  border: 1px solid var(--ic-border);
   border-radius: var(--radius);
 
   font: inherit;
@@ -118,7 +114,7 @@ h2 {
 }
 
 .ic-button:hover {
-  border-color: var(--dark-text-muted);
+  border-color: var(--ic-muted);
 }
 
 .ic-button:disabled,
@@ -151,54 +147,11 @@ h2 {
 }
 
 .ic-button-blank[aria-pressed="true"] {
-  outline: 4px solid var(--dark-warn);
-}
-
-.ic-status {
-  margin: 0.25rem 0;
-}
-
-.ic-status-ok {
-  color: var(--dark-ok);
-}
-
-.ic-status-warn {
-  color: var(--dark-warn);
-}
-
-.ic-status-error {
-  color: var(--dark-error);
-}
-
-.ic-badge {
-  padding: 0.2rem 0.6rem;
-  border: 1px solid var(--dark-border);
-  border-radius: 999px;
-  font-size: 0.9rem;
-}
-
-.ic-badge-ok {
-  color: var(--dark-ok);
-}
-
-.ic-badge-warn,
-.ic-badge-busy {
-  color: var(--dark-warn);
-}
-
-.ic-badge-error {
-  color: var(--dark-error);
+  outline: 4px solid var(--ic-warn);
 }
 
 .ic-tag {
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.85rem;
   background: var(--dark-surface-raised);
-}
-
-.ic-tag-muted {
-  color: var(--dark-text-muted);
 }
 
 .ic-program-list,
@@ -217,7 +170,7 @@ h2 {
 
   margin-bottom: 0.5rem;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--dark-border);
+  border: 1px solid var(--ic-border);
   border-radius: var(--radius);
 
   background: var(--dark-surface);
@@ -249,7 +202,7 @@ h2 {
 }
 
 .ic-output-controls p[data-connected="true"] {
-  color: var(--dark-ok);
+  color: var(--ic-ok);
 }
 
 .ic-alert {
@@ -257,13 +210,13 @@ h2 {
   gap: 1rem;
   align-items: center;
 
-  border-color: var(--dark-error);
+  border-color: var(--ic-error);
 
-  color: var(--dark-error);
+  color: var(--ic-error);
 }
 
 .ic-message[data-kind="error"] {
-  color: var(--dark-error);
+  color: var(--ic-error);
 }
 
 .ic-control-grid {
@@ -290,7 +243,7 @@ h2 {
 
   width: 100%;
   padding: 0.6rem 0.8rem;
-  border: 1px solid var(--dark-border);
+  border: 1px solid var(--ic-border);
   border-radius: var(--radius);
 
   font: inherit;
@@ -311,19 +264,6 @@ h2 {
 
 .ic-queue-title {
   font-weight: 600;
-}
-
-.ic-problem {
-  margin: 0.25rem 0 0;
-  font-size: 0.9rem;
-}
-
-.ic-problem-error {
-  color: var(--dark-error);
-}
-
-.ic-problem-warning {
-  color: var(--dark-warn);
 }
 
 .ic-now-title {
@@ -356,21 +296,18 @@ h2 {
   align-items: center;
 }
 
-.ic-annotations,
-.ic-facts {
+.ic-annotations {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 0.25rem 1rem;
   margin: 0.75rem 0 0;
 }
 
-.ic-annotations dt,
-.ic-facts dt {
-  color: var(--dark-text-muted);
+.ic-annotations dt {
+  color: var(--ic-muted);
 }
 
-.ic-annotations dd,
-.ic-facts dd {
+.ic-annotations dd {
   margin: 0;
 }
 
@@ -379,46 +316,6 @@ h2 {
   flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
-}
-
-.ic-phases {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-
-  margin: 0.5rem 0;
-  padding: 0;
-
-  list-style: none;
-}
-
-.ic-phase-done {
-  color: var(--dark-ok);
-}
-
-.ic-phase-current {
-  font-weight: 600;
-  color: var(--dark-text);
-}
-
-.ic-phase-todo {
-  color: var(--dark-text-muted);
-}
-
-.ic-phases-failed .ic-phase-current {
-  color: var(--dark-error);
-}
-
-.ic-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.ic-table th,
-.ic-table td {
-  padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--dark-border);
-  text-align: left;
 }
 
 .ic-visually-hidden {

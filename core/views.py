@@ -786,11 +786,12 @@ def update_playlist_settings(request, playlist):
                 playlist.published = False
             else:
                 playlist.published = form.cleaned_data["published"]
-            # Only IC editors see the toggle, so only their submissions carry it.
-            if request.user.is_ic_editor and "is_ic_present" in request.POST:
-                update_is_ic(request, playlist, "is_ic" in request.POST)
+            refused = request.user.is_ic_editor and not update_is_ic(
+                request, playlist, form.cleaned_data["is_ic"]
+            )
             playlist.save()
-            messages.success(request, "Playlist settings saved.")
+            if not refused:
+                messages.success(request, "Playlist settings saved.")
             return render_playlist_info(request, playlist)
         except Exception as e:
             logger.error(
@@ -824,7 +825,10 @@ def scheduled_in_ic_programs(error, subject):
 
 
 def update_is_ic(request, playlist, is_ic):
-    """Set Playlist.is_ic, refusing to unset it while its videos are scheduled."""
+    """Set Playlist.is_ic, refusing to unset it while its videos are scheduled.
+
+    Returns False (with an error message) when it refused.
+    """
     from ic.models import ICProgram
     from ic.models import ICProgramItem
 
@@ -841,8 +845,9 @@ def update_is_ic(request, playlist, is_ic):
                 "This playlist stays an International Cinema playlist while its videos "
                 f"are in current or upcoming programs: {names}.",
             )
-            return
+            return False
     playlist.is_ic = is_ic
+    return True
 
 
 GRANTABLE_PLAYLIST_ROLES = (

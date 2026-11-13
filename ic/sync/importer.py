@@ -1,7 +1,5 @@
 """Replace the booth's mirror with production's rows, verifying before committing."""
 
-import json
-
 from django.core import serializers
 from django.db import connection
 from django.db import transaction
@@ -22,12 +20,6 @@ class FingerprintMismatch(Exception):
         )
 
 
-def clear_mirror():
-    """Delete every mirrored row, children first."""
-    for model in reversed(mirrored_model_classes()):
-        model._base_manager.all().delete()
-
-
 def apply_fixture(fixture_bytes, fingerprints):
     """Load the fixture in one transaction and roll back unless every fingerprint matches.
 
@@ -37,7 +29,9 @@ def apply_fixture(fixture_bytes, fingerprints):
     models = mirrored_model_classes()
     with transaction.atomic():
         with connection.constraint_checks_disabled():
-            clear_mirror()
+            # Delete every mirrored row, children first.
+            for model in reversed(models):
+                model._base_manager.all().delete()
             for deserialized in serializers.deserialize("json", fixture_bytes):
                 deserialized.save()
         connection.check_constraints(table_names=[m._meta.db_table for m in models])
@@ -51,4 +45,3 @@ def apply_fixture(fixture_bytes, fingerprints):
                 mismatched.append(int(content_id))
         if mismatched:
             raise FingerprintMismatch(mismatched)
-    return len(json.loads(fixture_bytes))

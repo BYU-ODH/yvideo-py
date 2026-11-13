@@ -3,8 +3,7 @@
 Production-side tables: ICProgram, ICProgramItem, ICUpload, MediaJob, ICInstance,
 ICInstanceFile. ICProgram and ICProgramItem are also mirrored to the booth.
 
-Booth-local tables (written only by the booth's sync agent, never mirrored): ICSyncRun,
-ICLocalFile, ICBoothState.
+Booth-local tables (never mirrored): ICSyncRun, ICLocalFile, ICBoothState.
 """
 
 from datetime import timedelta
@@ -19,6 +18,9 @@ from django.utils import timezone
 from core.models import Content
 from core.models import Resource
 from core.models import ResourceFile
+
+# A program stays on the booth, and playable, through the night after its last day.
+LATE_SHOW_GRACE = timedelta(days=1)
 
 
 class ICProgram(models.Model):
@@ -53,7 +55,12 @@ class ICProgram(models.Model):
     def syncable(cls, on=None):
         """Active and upcoming programs, plus yesterday's, so a late show is not pulled."""
         on = on or timezone.localdate()
-        return cls.objects.filter(end_date__gte=on - timedelta(days=1))
+        return cls.objects.filter(end_date__gte=on - LATE_SHOW_GRACE)
+
+    def is_syncable(self, on=None):
+        """The same rule as syncable(): what the booth holds and will play."""
+        on = on or timezone.localdate()
+        return self.end_date >= on - LATE_SHOW_GRACE
 
     def is_active(self, on=None):
         on = on or timezone.localdate()
@@ -146,7 +153,6 @@ class MediaJob(models.Model):
     class Kind(models.TextChoices):
         INGEST = "ingest", "Ingest uploaded master"
         TRANSCODE = "transcode", "Transcode SD editing file"
-        RELEASE_MASTER = "release_master", "Release production's copy of a master"
 
     class Status(models.TextChoices):
         QUEUED = "queued"
@@ -196,7 +202,6 @@ class ICUpload(models.Model):
         PROCESSING = "processing"
         DONE = "done"
         FAILED = "failed"
-        ABANDONED = "abandoned"
 
     id = models.UUIDField(primary_key=True, default=default_upload_id, editable=False)
     resource = models.ForeignKey(
@@ -210,7 +215,6 @@ class ICUpload(models.Model):
     )
     filename = models.CharField(max_length=255)
     expected_size = models.PositiveBigIntegerField()
-    received_bytes = models.PositiveBigIntegerField(default=0)
     status = models.CharField(
         max_length=10, choices=Status.choices, default=Status.UPLOADING
     )
@@ -232,12 +236,16 @@ class ICUpload(models.Model):
         return settings.IC_PROJECTION_ROOT / ".incoming" / f"{self.pk}.part"
 
     @property
-    def percent(self):
-        if not self.expected_size:
+    def received_bytes(self):
+        """What has arrived so far: the .part file is the record."""
+        try:
+            return self.part_path.stat().st_size
+        except FileNotFoundError:
             return 0
-        return round(100 * self.received_bytes / self.expected_size, 1)
 
 
+# How often a booth asks production whether anything changed (a cheap request).
+CHECK_INTERVAL_SECONDS = 30
 # An instance that has missed this many checks in a row counts as out of contact.
 CHECK_IN_GRACE_INTERVALS = 4
 
@@ -250,7 +258,7 @@ class ICInstance(models.Model):
     """A Y-video IC instance that mirrors production: today, the one booth.
 
     Sync is pull-only: instances check for changes every
-    IC_CHECK_INTERVAL_SECONDS and report what they did. Production never connects to an
+    CHECK_INTERVAL_SECONDS and report what they did. Production never connects to an
     instance and can't make one sync.
     """
 
@@ -287,7 +295,7 @@ class ICInstance(models.Model):
             return False
         now = now or timezone.now()
         return now - self.last_seen_at <= timedelta(
-            seconds=settings.IC_CHECK_INTERVAL_SECONDS * CHECK_IN_GRACE_INTERVALS
+            seconds=CHECK_INTERVAL_SECONDS * CHECK_IN_GRACE_INTERVALS
         )
 
 
@@ -333,14 +341,8 @@ class ICSyncRun(models.Model):
         SUCCEEDED = "succeeded"
         PARTIAL = "partial"
         FAILED = "failed"
-        UP_TO_DATE = "up_to_date", "Up to date"
 
-    FINAL_STATUSES = (
-        Status.SUCCEEDED,
-        Status.PARTIAL,
-        Status.FAILED,
-        Status.UP_TO_DATE,
-    )
+    FINAL_STATUSES = (Status.SUCCEEDED, Status.PARTIAL, Status.FAILED)
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     trigger = models.CharField(max_length=10, choices=Trigger.choices)
@@ -350,11 +352,10 @@ class ICSyncRun(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.QUEUED
     )
-    phase = models.CharField(max_length=20, blank=True)
+    # What the run is doing now, for the operator ("Downloading", "Importing", ...).
+    phase = models.CharField(max_length=40, blank=True)
     bytes_done = models.BigIntegerField(default=0)
     bytes_total = models.BigIntegerField(default=0)
-    files_done = models.IntegerField(default=0)
-    files_total = models.IntegerField(default=0)
     manifest_hash = models.CharField(max_length=64, blank=True)
     report = models.JSONField(default=dict, blank=True)
     error = models.TextField(blank=True)
@@ -376,25 +377,13 @@ class ICSyncRun(models.Model):
     def is_final(self):
         return self.status in self.FINAL_STATUSES
 
-    def progress_json(self):
-        return {
-            "run_id": str(self.pk),
-            "trigger": self.trigger,
-            "status": self.status,
-            "phase": self.phase,
-            "bytes_done": self.bytes_done,
-            "bytes_total": self.bytes_total,
-            "files_done": self.files_done,
-            "files_total": self.files_total,
-            "manifest_hash": self.manifest_hash,
-            "report": self.report,
-            "error": self.error,
-            "requested_at": self.requested_at.isoformat()
-            if self.requested_at
-            else None,
-            "started_at": self.started_at.isoformat() if self.started_at else None,
-            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
-        }
+    @classmethod
+    def latest_finished(cls, **filters):
+        return (
+            cls.objects.filter(finished_at__isnull=False, **filters)
+            .order_by("-finished_at")
+            .first()
+        )
 
 
 class ICLocalFile(models.Model):
@@ -421,22 +410,23 @@ class ICLocalFile(models.Model):
         return f"{self.kind}:{self.ref_id} {self.name}"
 
 
+# The kiosk counts the sync agent as running if it beat its heartbeat this recently.
+AGENT_ALIVE_SECONDS = 30
+
+
 class ICBoothState(models.Model):
-    """Singleton: what the booth last applied, for indicators and skip-if-unchanged."""
+    """Singleton: what the booth last applied, what production last said, and whether
+    the sync agent is running."""
 
     applied_manifest_hash = models.CharField(max_length=64, blank=True)
     applied_fixture_sha256 = models.CharField(max_length=64, blank=True)
     applied_at = models.DateTimeField(null=True, blank=True)
-    last_success_at = models.DateTimeField(null=True, blank=True)
-    last_run_status = models.CharField(max_length=20, blank=True)
-    last_run_error = models.TextField(blank=True)
-    last_run_at = models.DateTimeField(null=True, blank=True)
-    last_full_rehash_at = models.DateTimeField(null=True, blank=True)
     # What production's manifest hash was at the agent's last check, so the controller
     # can say whether production has changes the booth doesn't have yet.
     parent_manifest_hash = models.CharField(max_length=64, blank=True)
     parent_checked_at = models.DateTimeField(null=True, blank=True)
     parent_check_error = models.TextField(blank=True)
+    agent_seen_at = models.DateTimeField(null=True, blank=True)
 
     @property
     def production_has_newer_changes(self):
@@ -444,7 +434,18 @@ class ICBoothState(models.Model):
             self.parent_manifest_hash != self.applied_manifest_hash
         )
 
+    @property
+    def agent_alive(self):
+        return self.agent_seen_at is not None and (
+            timezone.now() - self.agent_seen_at
+            <= timedelta(seconds=AGENT_ALIVE_SECONDS)
+        )
+
     @classmethod
     def get(cls):
         state, _ = cls.objects.get_or_create(pk=1)
         return state
+
+    @classmethod
+    def record_agent_heartbeat(cls):
+        cls.objects.update_or_create(pk=1, defaults={"agent_seen_at": timezone.now()})

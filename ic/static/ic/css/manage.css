@@ -1,6 +1,12 @@
 /* IC management pages: standard Y-video pages, using core's tokens from style.css. */
 
 .ic-manage {
+  --ic-ok: var(--green);
+  --ic-warn: var(--warning-orange);
+  --ic-error: var(--red);
+  --ic-muted: var(--dark-grey);
+  --ic-border: var(--selectable-grey);
+
   padding: 1rem 2rem;
 }
 
@@ -18,65 +24,8 @@
 .ic-manage-card {
   margin-bottom: 1rem;
   padding: 1rem;
-  border: 1px solid var(--selectable-grey);
+  border: 1px solid var(--ic-border);
   border-radius: var(--basic-border-radius);
-}
-
-.ic-manage-facts {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.25rem 1rem;
-}
-
-.ic-manage-facts dt {
-  color: var(--dark-grey);
-}
-
-.ic-manage-facts dd {
-  margin: 0;
-}
-
-.ic-manage-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.ic-manage-table th,
-.ic-manage-table td {
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--selectable-grey);
-  text-align: left;
-  vertical-align: top;
-}
-
-.ic-ok {
-  color: var(--green);
-}
-
-.ic-warn {
-  color: var(--warning-orange);
-}
-
-.ic-error {
-  color: var(--red);
-}
-
-.ic-muted {
-  color: var(--dark-grey);
-}
-
-.ic-problems {
-  margin: 0.25rem 0 0;
-  padding-left: 1.2rem;
-  font-size: 0.9rem;
-}
-
-.ic-problem-error {
-  color: var(--red);
-}
-
-.ic-problem-warning {
-  color: var(--warning-orange);
 }
 
 .ic-items {
@@ -87,7 +36,7 @@
 .ic-item {
   margin-bottom: 0.75rem;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--selectable-grey);
+  border: 1px solid var(--ic-border);
   border-radius: var(--basic-border-radius);
 }
 

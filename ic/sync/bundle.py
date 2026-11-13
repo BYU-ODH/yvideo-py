@@ -9,10 +9,8 @@ identical before anything becomes playable.
 import hashlib
 import json
 import os
-import subprocess
 import time
 
-from django.conf import settings
 from django.core import serializers
 from django.utils import timezone
 import xxhash
@@ -34,8 +32,6 @@ from core.models import SkipAnnotation
 from core.models import Subtitle
 from core.models import Track
 from core.models import User
-
-FORMAT_VERSION = 1
 
 ANNOTATION_CLASSES = [
     SkipAnnotation,
@@ -150,63 +146,25 @@ def manifest_hash(manifest):
     return hashlib.sha256(_canonical(without_time).encode("utf-8")).hexdigest()
 
 
-def file_xxh64(path, chunk_size=8 * 1024 * 1024, max_bytes_per_second=None):
+def file_xxh64(
+    path, chunk_size=8 * 1024 * 1024, max_bytes_per_second=None, on_bytes=None
+):
     """xxh64 of a file. max_bytes_per_second caps the read rate (the booth hashes from
-    the disk the projector is playing from)."""
+    the disk the projector is playing from); on_bytes is called after each chunk."""
     digest = xxhash.xxh64()
     started = time.monotonic()
     read = 0
     with open(path, "rb") as handle:
         for chunk in iter(lambda: handle.read(chunk_size), b""):
             digest.update(chunk)
+            if on_bytes:
+                on_bytes(len(chunk))
             if max_bytes_per_second:
                 read += len(chunk)
                 ahead = read / max_bytes_per_second - (time.monotonic() - started)
                 if ahead > 0:
                     time.sleep(ahead)
     return digest.hexdigest()
-
-
-def cached_file_xxh64(path):
-    """file_xxh64(), remembered per path, size and mtime.
-
-    Every manifest build lists subtitle checksums, and the booth checks for changes
-    every few seconds; the files rarely change, so they are hashed once per version.
-    """
-    from django.core.cache import cache
-
-    stat = os.stat(path)
-    key = (
-        "ic-xxh64:"
-        + hashlib.sha256(
-            f"{path}:{stat.st_size}:{stat.st_mtime_ns}".encode()
-        ).hexdigest()
-    )
-    digest = cache.get(key)
-    if digest is None:
-        digest = file_xxh64(path)
-        cache.set(key, digest, None)
-    return digest
-
-
-def git_sha():
-    """The code version, so a booth never applies rows its own schema cannot read."""
-    configured = os.environ.get("YVIDEO_GIT_SHA") or getattr(
-        settings, "YVIDEO_GIT_SHA", ""
-    )
-    if configured:
-        return configured
-    try:
-        return subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=settings.BASE_DIR,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return "unknown"
 
 
 def migration_leaves():
@@ -394,7 +352,7 @@ class Bundle:
                     ),
                     "name": subtitle.subtitles_file.name,
                     "size": os.path.getsize(path),
-                    "xxh64": cached_file_xxh64(path),
+                    "xxh64": file_xxh64(path),
                     "available_from_parent": True,
                 }
             )
@@ -416,28 +374,15 @@ class Bundle:
     def manifest(self, fixture_bytes=None):
         fixture_bytes = fixture_bytes if fixture_bytes is not None else self.fixture()
         return {
-            "format": FORMAT_VERSION,
             "generated_at": timezone.now().isoformat(),
-            "git_sha": git_sha(),
             "migrations": migration_leaves(),
-            "fixture": {
-                "sha256": hashlib.sha256(fixture_bytes).hexdigest(),
-                "size": len(fixture_bytes),
-            },
+            "fixture": {"sha256": hashlib.sha256(fixture_bytes).hexdigest()},
             "files": self.files(),
             "fingerprints": self.fingerprints(),
             "programs": [
                 {
                     "id": program.pk,
                     "name": program.name,
-                    "start_date": program.start_date.isoformat(),
-                    "end_date": program.end_date.isoformat(),
-                    "item_ids": [
-                        i.pk for i in self.items if i.program_id == program.pk
-                    ],
-                    "content_ids": [
-                        i.content_id for i in self.items if i.program_id == program.pk
-                    ],
                     "resource_ids": self.program_resource_ids(program),
                     "production_problems": self.production_problems(program),
                 }
@@ -454,10 +399,6 @@ def build_bundle(on=None):
     return manifest, fixture_bytes, manifest_hash(manifest)
 
 
-def current_manifest_hash(on=None):
-    return build_bundle(on)[2]
-
-
 MANIFEST_HASH_CACHE_KEY = "ic_manifest_hash"
 MANIFEST_HASH_CACHE_SECONDS = 15
 
@@ -465,7 +406,7 @@ MANIFEST_HASH_CACHE_SECONDS = 15
 def cached_manifest_hash():
     """The manifest hash, recomputed at most every few seconds.
 
-    For requests that repeat (each booth's check every IC_CHECK_INTERVAL_SECONDS, and
+    For requests that repeat (each booth's check every CHECK_INTERVAL_SECONDS, and
     the IC dashboard); building the bundle means rendering every scheduled film's
     player JSON. A change shows up at most this many seconds late.
     """
@@ -473,6 +414,6 @@ def cached_manifest_hash():
 
     digest = cache.get(MANIFEST_HASH_CACHE_KEY)
     if digest is None:
-        digest = current_manifest_hash()
+        digest = build_bundle()[2]
         cache.set(MANIFEST_HASH_CACHE_KEY, digest, MANIFEST_HASH_CACHE_SECONDS)
     return digest

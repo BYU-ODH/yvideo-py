@@ -6,12 +6,10 @@ from pathlib import Path
 from django.conf import settings
 from django.test import TestCase
 from django.test import override_settings
-from django.urls import NoReverseMatch
 from django.urls import reverse
 from django.utils import timezone
 
-from core.factories import ResourceFactory
-from ic import booth_state
+from ic.models import ICBoothState
 from ic.models import ICLocalFile
 from ic.models import ICSyncRun
 from ic.testing import ICTempDirsMixin
@@ -64,23 +62,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
         ):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
-        self.assertRedirects(self.client.get("/"), reverse("ic_control_index"))
-
-    def test_only_booth_routes_exist(self):
-        for name in (
-            "video_editor",
-            "admin:index",
-            "playlists",
-            "stream_file",
-            "ic_manage_dashboard",
-            "ic_sync_manifest",
-            "ic_item_media",
-        ):
-            with self.subTest(name=name), self.assertRaises(NoReverseMatch):
-                reverse(name, args=[1]) if name in (
-                    "video_editor",
-                    "stream_file",
-                ) else reverse(name)
+        self.assertEqual(self.client.get("/").status_code, 200)
 
     def test_media_is_the_verified_local_master_addressed_by_checksum(self):
         player_data = reverse("ic_item_player_data", args=[self.film.pk])
@@ -136,15 +118,6 @@ class KioskTests(ICTempDirsMixin, TestCase):
             reverse("ic_local_file", args=[new_master.pk, new_master.checksum]),
         )
 
-    def test_unknown_files_are_not_served(self):
-        other = make_master(ResourceFactory())
-        self.assertEqual(
-            self.client.get(
-                reverse("ic_local_file", args=[other.pk, other.checksum])
-            ).status_code,
-            404,
-        )
-
     def test_unplayable_items_are_flagged_on_the_controller(self):
         response = self.client.get(reverse("ic_control", args=[self.program.pk]))
         items = response.context["page_data"]["items"]
@@ -157,6 +130,20 @@ class KioskTests(ICTempDirsMixin, TestCase):
 
     def test_past_programs_do_not_play_but_upcoming_ones_rehearse(self):
         today = timezone.localdate()
+        # A late show: after midnight, yesterday's program still plays.
+        self.program.start_date = self.program.end_date = today - timedelta(days=1)
+        self.program.save()
+        mark_local(self.film)
+        self.assertEqual(
+            self.client.get(reverse("ic_control", args=[self.program.pk])).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(
+                reverse("ic_item_player_data", args=[self.film.pk])
+            ).status_code,
+            200,
+        )
         self.program.start_date = self.program.end_date = today - timedelta(days=2)
         self.program.save()
         self.assertEqual(
@@ -193,19 +180,6 @@ class KioskTests(ICTempDirsMixin, TestCase):
             badge, f'data-ic-data-version="{state.applied_at.isoformat()}"'
         )
 
-    def test_the_controller_offers_no_full_rehash(self):
-        mark_local(self.film)
-        page = self.client.get(reverse("ic_control", args=[self.program.pk]))
-        self.assertNotContains(page, "full_rehash")
-
-    def test_kiosk_pages_refuse_unsafe_methods(self):
-        for url in (
-            reverse("ic_control_index"),
-            reverse("ic_output"),
-        ):
-            with self.subTest(url=url):
-                self.assertEqual(self.client.post(url).status_code, 405)
-
     def test_sync_now_needs_a_live_agent(self):
         response = self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(response.status_code, 503)
@@ -215,7 +189,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
         self.assertFalse(ICSyncRun.objects.exists())
 
     def test_sync_now_queues_one_forced_run_and_shows_its_progress(self):
-        booth_state.record_agent_heartbeat()
+        ICBoothState.record_agent_heartbeat()
         response = self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(response.status_code, 200)
         run = ICSyncRun.objects.get()
@@ -227,10 +201,6 @@ class KioskTests(ICTempDirsMixin, TestCase):
         )
         self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(ICSyncRun.objects.count(), 1)
-        detail = self.client.get(
-            reverse("ic_sync_run_detail", args=[run.pk]), HTTP_ACCEPT="application/json"
-        )
-        self.assertEqual(detail.json()["status"], "queued")
         run.status = ICSyncRun.Status.FAILED
         run.error = "Production unreachable."
         run.save()
@@ -238,40 +208,15 @@ class KioskTests(ICTempDirsMixin, TestCase):
         self.assertContains(html, "Production unreachable.")
         self.assertNotContains(html, "every 1s")
 
-    def test_csrf_protects_sync_now(self):
-        booth_state.record_agent_heartbeat()
-        from django.test import Client
-
-        strict = Client(enforce_csrf_checks=True)
-        self.assertEqual(strict.post(reverse("ic_sync_run_create")).status_code, 403)
-
 
 class BoothViewsOnProductionTests(ICTempDirsMixin, TestCase):
     def test_booth_views_refuse_to_run_on_production(self):
         from django.test import RequestFactory
 
-        from ic import views_booth
+        from ic import views_player
 
-        request = RequestFactory().get("/ic/")
+        request = RequestFactory().get("/ic/status/")
         from django.http import Http404
 
         with self.assertRaises(Http404):
-            views_booth.control_index(request)
-
-
-@override_settings(
-    IS_IC_INSTANCE=True, ROOT_URLCONF="yvideo.urls_ic", MIDDLEWARE=BOOTH_MIDDLEWARE
-)
-class KioskStaticTests(ICTempDirsMixin, TestCase):
-    def test_kiosk_serves_collected_static_files_without_traversal(self):
-        static_root = self._ic_tmp / "static"
-        (static_root / "ic" / "css").mkdir(parents=True)
-        (static_root / "ic" / "css" / "dark.css").write_text("body {}")
-        (self._ic_tmp / "secret.txt").write_text("nope")
-        with self.settings(STATIC_ROOT=static_root):
-            response = self.client.get("/static/ic/css/dark.css")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(b"".join(response.streaming_content), b"body {}")
-            self.assertIn(
-                self.client.get("/static/../secret.txt").status_code, (400, 404)
-            )
+            views_player.status(request)

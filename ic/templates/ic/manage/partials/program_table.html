@@ -1,5 +1,5 @@
 {% if rows %}
-    <table class="ic-manage-table">
+    <table class="ic-table">
         <thead>
             <tr>
                 <th scope="col">Program</th>
@@ -16,12 +16,23 @@
                     </td>
                     <td>{{ row.program.start_date|date:"M j" }} – {{ row.program.end_date|date:"M j, Y" }}</td>
                     <td>
-                        {% include "ic/manage/partials/status.html" with status=row.status %}
-                        {% include "ic/manage/partials/problems.html" with problems=row.problems %}
+                        {% include "ic/partials/status_label.html" with status=row.status %}
+                        {% include "ic/partials/problems.html" with problems=row.problems %}
                     </td>
-                    {% for instance_row in instances %}
+                    {% for booth in row.booths %}
                         <td>
-                            {% include "ic/manage/partials/instance_program_cell.html" with program=row.program instance_row=instance_row %}
+                            {% if booth.state == "not_synced" %}
+                                <span class="ic-muted">Not synced yet</span>
+                            {% elif booth.state == "matches" %}
+                                <span class="ic-ok">✅ On the booth, matches production</span>
+                            {% elif booth.state == "changed" %}
+                                <span class="ic-warn">⚠️ Changed since the last booth sync</span>
+                            {% else %}
+                                <span class="ic-error">❌ Not playable on the booth</span>
+                                <ul class="ic-problems">
+                                    {% for problem in booth.problems %}<li>{{ problem }}</li>{% endfor %}
+                                </ul>
+                            {% endif %}
                         </td>
                     {% endfor %}
                 </tr>

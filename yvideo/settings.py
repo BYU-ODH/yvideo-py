@@ -265,32 +265,12 @@ IC_PROJECTION_ROOT = _resolve_repo_path(
     os.environ.get("IC_PROJECTION_ROOT")
     or getattr(secret_settings, "IC_PROJECTION_ROOT", "ic_projection")
 )
-# Small runtime state shared between the booth containers: the sync agent's heartbeat
-# and lock file.
-IC_STATE_DIR = _resolve_repo_path(getattr(secret_settings, "IC_STATE_DIR", "var/ic"))
 # Booth: where to pull from, and its bearer token.
 IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
 IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
-# How often the booth's sync agent asks production whether anything changed (a cheap
-# request). Sync is pull-only; production can't make the booth sync.
-IC_CHECK_INTERVAL_SECONDS = getattr(secret_settings, "IC_CHECK_INTERVAL_SECONDS", 30)
-# What the booth's Chrome has been verified to decode.
-# HEVC joins the list only once the spike confirms hardware decode; AV1 never will on
-# the booth's Intel UHD 630, which has no AV1 decoder.
+# What the booth's Chrome has been verified to decode. HEVC joins the list only once the
+# spike confirms hardware decode; AV1 never will on the booth's Intel UHD 630.
 IC_BOOTH_VIDEO_CODECS = getattr(secret_settings, "IC_BOOTH_VIDEO_CODECS", ["h264"])
-# Largest master the booth has been seen to play smoothly. None means "not measured
-# yet", which suppresses the warning rather than raising it on every film.
-IC_BOOTH_VERIFIED_MAX = getattr(
-    secret_settings,
-    "IC_BOOTH_VERIFIED_MAX",
-    {"height": None, "frame_rate": None, "bitrate": None},
-)
-# Booth pruning. Released masters exist nowhere else, so they are kept much longer.
-IC_FILE_PRUNE_GRACE_DAYS = getattr(secret_settings, "IC_FILE_PRUNE_GRACE_DAYS", 3)
-IC_MASTER_PRUNE_DAYS = getattr(secret_settings, "IC_MASTER_PRUNE_DAYS", 30)
-IC_MASTER_PRUNE_WARNING_DAYS = getattr(
-    secret_settings, "IC_MASTER_PRUNE_WARNING_DAYS", 7
-)
 
 if IS_IC_INSTANCE:
     ROOT_URLCONF = "yvideo.urls_ic"

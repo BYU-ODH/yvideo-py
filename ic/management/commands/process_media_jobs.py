@@ -1,5 +1,4 @@
 import logging
-import os
 import signal
 import time
 
@@ -25,13 +24,6 @@ class Command(BaseCommand):
         self.stopping = False
         signal.signal(signal.SIGTERM, self._stop)
         signal.signal(signal.SIGINT, self._stop)
-        try:
-            # Low CPU priority for the whole worker, including in-process hashing; the
-            # ffmpeg children are additionally started under nice/ionice (ic.media).
-            os.nice(19)
-        except (AttributeError, OSError):
-            pass
-
         recovered = jobs.recover_interrupted_jobs()
         if recovered:
             logger.warning(
@@ -42,9 +34,9 @@ class Command(BaseCommand):
         while not self.stopping:
             if time.monotonic() - last_cleanup > CLEANUP_INTERVAL_SECONDS:
                 last_cleanup = time.monotonic()
-                abandoned = jobs.cleanup_uploads()
-                if abandoned:
-                    logger.info("Abandoned %s idle upload(s).", abandoned)
+                deleted = jobs.cleanup_uploads()
+                if deleted:
+                    logger.info("Deleted %s idle upload(s).", deleted)
 
             job = jobs.claim_next()
             if job is None:

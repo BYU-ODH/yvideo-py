@@ -18,16 +18,7 @@
             </div>
             <div class="playlist-form-group">{{ form.archived.as_field_group }}</div>
             {% if user.is_ic_editor %}
-                <div class="playlist-form-group">
-                    <label for="id_is_ic">International Cinema playlist:</label>
-                    <input type="checkbox"
-                           id="id_is_ic"
-                           name="is_ic"
-                           aria-describedby="id_is_ic_help"
-                           {% if playlist.is_ic %}checked{% endif %}>
-                    <span id="id_is_ic_help" class="helptext">Its videos can be scheduled in IC programs.</span>
-                    <input type="hidden" name="is_ic_present" value="1">
-                </div>
+                <div class="playlist-form-group">{{ form.is_ic.as_field_group }}</div>
             {% endif %}
             <div class="row-flex">
                 <button id="playlist-settings-submit" class="blue-button" type="submit">Submit</button>

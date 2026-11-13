@@ -2,30 +2,28 @@
 {# data-ic-data-version tells an open controller that newer program data was applied. #}
 <span hidden data-ic-data-version="{{ data_version }}"></span>
 {% if latest and latest.status == "running" %}
-    <span class="ic-badge ic-badge-busy" role="status">⟳ Syncing…</span>
-{% elif state.last_run_status == "failed" %}
-    <span class="ic-badge ic-badge-warn"
-          role="status"
-          title="{{ state.last_run_error }}">
-        ⚠️ Last sync failed {{ state.last_run_at|date:"H:i" }}
-        {% if state.last_success_at %}· playing from local copy synced {{ state.last_success_at|date:"M j H:i" }}{% endif %}
+    <span class="ic-badge ic-warn" role="status">⟳ Syncing…</span>
+{% elif last_run.status == "failed" %}
+    <span class="ic-badge ic-warn" role="status" title="{{ last_run.error }}">
+        ⚠️ Last sync failed {{ last_run.finished_at|date:"H:i" }}
+        {% if last_success %}· playing from local copy synced {{ last_success.finished_at|date:"M j H:i" }}{% endif %}
     </span>
 {% elif state.production_has_newer_changes %}
-    <span class="ic-badge ic-badge-busy" role="status">⟳ Production has changes the booth doesn't have yet</span>
-{% elif state.last_success_at %}
-    <span class="ic-badge ic-badge-ok" role="status">
-        ✅ Synced {{ state.last_success_at|date:"M j H:i" }}{% if state.parent_checked_at and not parent_unreachable %}, matches production{% endif %}
+    <span class="ic-badge ic-warn" role="status">⟳ Production has changes the booth doesn't have yet</span>
+{% elif last_success %}
+    <span class="ic-badge ic-ok" role="status">
+        ✅ Synced {{ last_success.finished_at|date:"M j H:i" }}{% if state.parent_checked_at and not parent_unreachable %}, matches production{% endif %}
     </span>
 {% else %}
-    <span class="ic-badge ic-badge-warn" role="status">⚠️ Never synced</span>
+    <span class="ic-badge ic-warn" role="status">⚠️ Never synced</span>
 {% endif %}
 {% if parent_unreachable %}
-    <span class="ic-badge ic-badge-warn"
+    <span class="ic-badge ic-warn"
           role="status"
           title="{{ state.parent_check_error }}">
         ⚠️ Can't reach production{% if state.parent_checked_at %} since {{ state.parent_checked_at|date:"H:i" }}{% endif %}; playing from the local copy
     </span>
 {% endif %}
-{% if not agent_alive %}
-    <span class="ic-badge ic-badge-error" role="status">❌ Sync agent not running</span>
+{% if not state.agent_alive %}
+    <span class="ic-badge ic-error" role="status">❌ Sync agent not running</span>
 {% endif %}

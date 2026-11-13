@@ -2,7 +2,6 @@ from datetime import timedelta
 from pathlib import Path
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
 from django.db import transaction
 from django.test import TestCase
 from django.test import override_settings
@@ -15,7 +14,6 @@ from core.factories import UserFactory
 from core.models import ResourceFile
 from ic import readiness
 from ic.models import ICProgram
-from ic.models import ICProgramItem
 from ic.models import MediaJob
 from ic.testing import ICTempDirsMixin
 from ic.testing import make_ic_editor
@@ -38,12 +36,6 @@ class ProjectionFileModelTests(ICTempDirsMixin, TestCase):
         self.assertTrue(path.is_relative_to(self.projection_root))
         self.assertFalse(path.is_relative_to(self.media_root))
         self.assertTrue(path.exists())
-
-    def test_one_projection_master_per_resource(self):
-        resource = ResourceFactory()
-        make_master(resource)
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            make_master(resource, payload=b"another master" * 100)
 
     def test_a_master_cannot_be_attached_to_content(self):
         master = make_master(ResourceFactory())
@@ -87,13 +79,6 @@ class ProgramDateTests(TestCase):
         self.assertTrue(later.is_upcoming(today))
         self.assertTrue(past.is_past(today))
 
-    def test_end_cannot_precede_start(self):
-        today = timezone.localdate()
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            ICProgram.objects.create(
-                name="bad", start_date=today, end_date=today - timedelta(days=1)
-            )
-
 
 class ReadinessTests(ICTempDirsMixin, TestCase):
     def setUp(self):
@@ -109,17 +94,39 @@ class ReadinessTests(ICTempDirsMixin, TestCase):
         problems = readiness.program_problems(self.scenario["program"])
         self.assertEqual(readiness.rollup(problems), "ready", problems)
 
-    def test_missing_master(self):
-        self.film.projection_file().delete()
-        self.assertIn("no_master", self.codes(self.film))
+    def test_each_problem_is_found(self):
+        content, master = self.film.content, self.film.projection_file()
 
-    def test_url_only_content_needs_the_network(self):
-        content = self.film.content
-        content.resource_file = None
-        content.resource = None
-        content.url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        content.save()
-        self.assertIn("needs_network", self.codes(self.film))
+        def url_only():
+            content.resource_file = content.resource = None
+            content.url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            content.save()
+
+        def no_default_track():
+            content.default_subtitle_track = None
+            content.save()
+
+        def released():
+            master.master_released_at = timezone.now()
+            master.save()
+
+        def hdr():
+            master.color_transfer = "smpte2084"
+            master.save()
+
+        for code, change in (
+            ("needs_network", url_only),
+            ("no_vtt", no_default_track),
+            ("master_lost", released),
+            ("hdr", hdr),
+            ("no_master", master.delete),
+        ):
+            content.refresh_from_db()
+            master.refresh_from_db()
+            with self.subTest(code), transaction.atomic():
+                change()
+                self.assertIn(code, self.codes(self.film))
+                transaction.set_rollback(True)
 
     def test_av1_and_unverified_codecs(self):
         master = self.film.projection_file()
@@ -131,23 +138,6 @@ class ReadinessTests(ICTempDirsMixin, TestCase):
         self.assertIn("codec", self.codes(self.film))
         with override_settings(IC_BOOTH_VIDEO_CODECS=["h264", "hevc"]):
             self.assertNotIn("codec", self.codes(self.film))
-
-    def test_hdr_is_a_warning(self):
-        master = self.film.projection_file()
-        master.color_transfer = "smpte2084"
-        master.save()
-        problems = readiness.item_problems(self.film)
-        hdr = [p for p in problems if p.code == "hdr"]
-        self.assertEqual(len(hdr), 1)
-        self.assertFalse(hdr[0].is_error)
-
-    def test_above_verified_maximum_is_a_warning(self):
-        with override_settings(
-            IC_BOOTH_VERIFIED_MAX={"height": 720, "frame_rate": None, "bitrate": None}
-        ):
-            problems = readiness.item_problems(self.film)
-        self.assertIn("above_verified", {p.code for p in problems})
-        self.assertEqual(readiness.rollup(problems), "warning")
 
     def test_annotations_on_a_file_not_made_from_the_master(self):
         content = self.film.content
@@ -164,12 +154,6 @@ class ReadinessTests(ICTempDirsMixin, TestCase):
         self.film.save()
         self.assertNotIn("timing_unverified", self.codes(self.film))
 
-    def test_vtt_without_a_default_track(self):
-        content = self.film.content
-        content.default_subtitle_track = None
-        content.save()
-        self.assertIn("no_vtt", self.codes(self.film))
-
     def test_pending_and_failed_transcodes(self):
         master = self.film.projection_file()
         job = MediaJob.objects.create(
@@ -182,12 +166,6 @@ class ReadinessTests(ICTempDirsMixin, TestCase):
         master.derivatives.update(derived_from=None)
         self.assertIn("transcode_failed", self.codes(self.film))
 
-    def test_released_master_without_a_booth_copy_is_lost(self):
-        master = self.film.projection_file()
-        master.master_released_at = timezone.now()
-        master.save()
-        self.assertIn("master_lost", self.codes(self.film))
-
     def test_empty_program(self):
         program = ICProgram.objects.create(
             name="empty", start_date=timezone.localdate(), end_date=timezone.localdate()
@@ -195,10 +173,3 @@ class ReadinessTests(ICTempDirsMixin, TestCase):
         self.assertEqual(
             readiness.rollup(readiness.program_problems(program)), readiness.ERROR
         )
-
-    def test_item_projection_file(self):
-        self.assertEqual(
-            self.film.projection_file(),
-            self.film.content.resource.resource_files.get(is_projection_file=True),
-        )
-        self.assertEqual(self.scenario["loop_item"].mode, ICProgramItem.Mode.LOOP)

@@ -4,17 +4,22 @@
 // Like player-wrapper.js, this file only uses AnnotationPlayer's public API.
 
 import { AnnotationPlayer } from "../../js/AnnotationPlayer.js";
-import {
-  CHANNEL_NAME,
-  CMD,
-  EVENT,
-  MODE,
-  STATE_INTERVAL_MS,
-  annotationsAt,
-  clampSeek,
-  describeAnnotation,
-  nextAnnotationAfter,
-} from "./ic-protocol.js";
+
+// Messages: see ic-control.js.
+const CHANNEL_NAME = "ic-player";
+const STATE_INTERVAL_MS = 250;
+
+function clampSeek(time, duration) {
+  if (!Number.isFinite(time) || time < 0) return 0;
+  if (Number.isFinite(duration) && duration > 0) return Math.min(time, Math.max(0, duration - 0.05));
+  return time;
+}
+
+function describeAnnotation(annotation) {
+  const type = annotation.type === "screenBlur" ? "blur" : annotation.type;
+  const label = annotation.label || annotation.name || "";
+  return label ? `${type}: ${label}` : type;
+}
 
 const IDLE_LOCKUP_DELAY_MS = 1000;
 const ALL_CONTROLS = [
@@ -98,7 +103,7 @@ async function load({ item, autoplay = false, startAt = 0 }) {
       subtitles: data.subtitleTracks || [],
     });
     if (!data.media_url) throw new Error("player data has no media URL");
-    video.loop = item.mode === MODE.LOOP;
+    video.loop = item.mode === "loop";
     // The URL comes with the annotations it belongs to. On the booth it names one verified
     // file, so a sync that lands while this item plays can't change what it streams.
     player.setVideoSource(data.media_url);
@@ -113,7 +118,7 @@ async function load({ item, autoplay = false, startAt = 0 }) {
     );
   } catch (error) {
     state.error = String(error);
-    post(EVENT.ERROR, { itemId: item.id, message: state.error });
+    post("error", { itemId: item.id, message: state.error });
   }
 }
 
@@ -139,25 +144,25 @@ video.addEventListener("volumechange", () => {
 });
 
 const handlers = {
-  [CMD.LOAD]: load,
-  [CMD.PLAY]: play,
-  [CMD.PAUSE]: () => player.pause(),
-  [CMD.SEEK]: ({ time }) => player.setCurrentTime(clampSeek(time, video.duration)),
-  [CMD.BLANK]: ({ on }) => setBlank(on),
-  [CMD.MUTE]: ({ on }) => setMute(on),
-  [CMD.SUBTITLES]: ({ on }) => {
+  load: load,
+  play: play,
+  pause: () => player.pause(),
+  seek: ({ time }) => player.setCurrentTime(clampSeek(time, video.duration)),
+  blank: ({ on }) => setBlank(on),
+  mute: ({ on }) => setMute(on),
+  subtitles: ({ on }) => {
     state.subtitlesOn = Boolean(on);
     applySubtitleVisibility();
   },
-  [CMD.CUE_SIZE]: ({ value }) => {
+  cueSize: ({ value }) => {
     document.documentElement.style.setProperty("--ic-cue-size", `${Number(value) || 4}vh`);
   },
-  [CMD.IDLE]: () => {
+  idle: () => {
     video.pause();
     state.item = null;
     showIdle(true);
   },
-  [CMD.PING]: () => post(EVENT.HELLO),
+  ping: () => post("hello"),
 };
 
 channel.addEventListener("message", (event) => {
@@ -172,18 +177,21 @@ video.addEventListener("play", () => {
   hint.hidden = true;
 });
 video.addEventListener("ended", () => {
-  post(EVENT.ENDED, { itemId: state.item?.id });
+  post("ended", { itemId: state.item?.id });
   showIdle();
 });
 video.addEventListener("error", () => {
   if (!state.item) return;
   state.error = `The video could not be played (${video.error?.message || "media error"}).`;
-  post(EVENT.ERROR, { itemId: state.item.id, message: state.error });
+  post("error", { itemId: state.item.id, message: state.error });
 });
 
 function snapshot() {
   const time = video.currentTime || 0;
-  const next = nextAnnotationAfter(state.annotations, time);
+  const annotations = state.annotations || [];
+  const next = annotations
+    .filter((a) => a.start > time)
+    .reduce((soonest, a) => (soonest && soonest.start <= a.start ? soonest : a), null);
   return {
     itemId: state.item?.id ?? null,
     time,
@@ -197,12 +205,12 @@ function snapshot() {
     readyState: video.readyState,
     fullscreen: Boolean(document.fullscreenElement),
     error: state.error,
-    active: annotationsAt(state.annotations, time).map(describeAnnotation),
+    active: annotations.filter((a) => a.start <= time && time < a.end).map(describeAnnotation),
     next: next ? { at: next.start, label: describeAnnotation(next) } : null,
   };
 }
 
-setInterval(() => post(EVENT.STATE, { state: snapshot() }), STATE_INTERVAL_MS);
+setInterval(() => post("state", { state: snapshot() }), STATE_INTERVAL_MS);
 
 // Fullscreen needs a user gesture inside this window. The control window tries to place
 // this window on the projector screen; one click here (or any key) fills it.
@@ -221,4 +229,4 @@ setTimeout(() => {
 }, 8000);
 
 showIdle(true);
-post(EVENT.HELLO);
+post("hello");

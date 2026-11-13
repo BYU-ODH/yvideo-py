@@ -1,6 +1,5 @@
 """Test helpers for International Cinema (outside tests/ so the test-naming hook ignores it)."""
 
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -11,6 +10,7 @@ from django.core.cache import cache
 from django.test import modify_settings
 from django.test import override_settings
 from django.utils import timezone
+import xxhash
 
 from core.factories import AnnotationSetFactory
 from core.factories import BlankAnnotationFactory
@@ -33,7 +33,6 @@ from core.models import projection_file_name
 
 from .models import ICProgram
 from .models import ICProgramItem
-from .sync.bundle import file_xxh64
 
 FFMPEG_AVAILABLE = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
@@ -71,20 +70,18 @@ def make_mp4(path, seconds=2, faststart=False, size="320x240", rate=24):
 
 
 class ICTempDirsMixin:
-    """Each test gets its own MEDIA_ROOT, IC_PROJECTION_ROOT and IC_STATE_DIR."""
+    """Each test gets its own MEDIA_ROOT and IC_PROJECTION_ROOT."""
 
     def setUp(self):
         super().setUp()
         self._ic_tmp = Path(tempfile.mkdtemp(prefix="ic-test-"))
         self.media_root = self._ic_tmp / "media"
         self.projection_root = self._ic_tmp / "projection"
-        self.state_dir = self._ic_tmp / "state"
-        for directory in (self.media_root, self.projection_root, self.state_dir):
+        for directory in (self.media_root, self.projection_root):
             directory.mkdir()
         self._ic_settings = override_settings(
             MEDIA_ROOT=self.media_root,
             IC_PROJECTION_ROOT=self.projection_root,
-            IC_STATE_DIR=self.state_dir,
         )
         self._ic_settings.enable()
         # force_login sessions carry no OIDC token expiry, which SessionRefresh redirects.
@@ -110,52 +107,39 @@ def make_ic_editor(**kwargs):
 def make_master(resource, payload=None, **fields):
     """A projection master with real bytes on disk (not a playable video)."""
     payload = payload or f"master bytes for {resource.pk} ".encode() * 1000
-    checksum_holder = ResourceFile(resource=resource)
-    handle, temp_name = tempfile.mkstemp()
-    os.close(handle)
-    temp = Path(temp_name)
-    temp.write_bytes(payload)
-    checksum = file_xxh64(temp)
-    name = projection_file_name(resource.pk, checksum)
-    destination = Path(checksum_holder.file.storage.path(name))
+    checksum = xxhash.xxh64(payload).hexdigest()
+    master = ResourceFile(resource=resource)
+    master.file.name = projection_file_name(resource.pk, checksum)
+    destination = Path(master.file.path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(temp, destination)
+    destination.write_bytes(payload)
     defaults = {
         "version": f"ic-master-{checksum[:8]}",
         "video_codec": "h264",
-        "audio_codec": "aac",
         "width": 1920,
         "height": 1080,
         "frame_rate": 24.0,
         "duration_seconds": 100.0,
-        "bitrate": 10_000_000,
-        "faststart": True,
-        "probed_at": timezone.now(),
     }
     defaults.update(fields)
-    master = ResourceFile(
-        resource=resource,
-        is_projection_file=True,
-        checksum=checksum,
-        checksum_at=timezone.now(),
-        size_bytes=len(payload),
-        **defaults,
-    )
-    master.file.name = name
+    for field, value in defaults.items():
+        setattr(master, field, value)
+    master.is_projection_file = True
+    master.checksum = checksum
+    master.checksum_at = timezone.now()
+    master.size_bytes = len(payload)
     master.save()
     return master
 
 
-def make_sd_file(master):
-    payload = f"sd bytes for {master.pk}".encode()
+def make_sd_file(master, payload=None):
+    payload = payload or f"sd bytes for {master.pk}".encode()
     sd = ResourceFile(
         resource=master.resource,
         version=f"ic-sd-{master.checksum[:8]}",
         derived_from=master,
         width=854,
         height=480,
-        probed_at=timezone.now(),
-        faststart=True,
         size_bytes=len(payload),
     )
     relative = f"{master.resource.name}/ic-sd-{master.checksum[:8]}.mp4"

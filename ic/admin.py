@@ -1,7 +1,7 @@
 """Django admin for International Cinema (production; the booth has no admin).
 
-IC editors work in /ic/manage/. The admin is for superusers: support, debugging, and
-issuing instance tokens, which is an infrastructure task rather than an IC one.
+IC editors work in /ic/manage/, which also shows media jobs and uploads. The admin is
+for superusers: a program's revision history, and issuing instance tokens.
 """
 
 from django.contrib import admin
@@ -12,8 +12,6 @@ from .models import ICInstance
 from .models import ICInstanceFile
 from .models import ICProgram
 from .models import ICProgramItem
-from .models import ICUpload
-from .models import MediaJob
 
 
 class ICProgramItemInline(admin.TabularInline):
@@ -29,42 +27,6 @@ class ICProgramAdmin(VersionAdmin):
     list_filter = ("start_date",)
     search_fields = ("name",)
     inlines = [ICProgramItemInline]
-
-
-@admin.register(ICProgramItem)
-class ICProgramItemAdmin(VersionAdmin):
-    list_display = ("program", "position", "content", "mode", "subtitles")
-    list_filter = ("mode", "subtitles")
-    autocomplete_fields = ("content",)
-
-
-@admin.register(MediaJob)
-class MediaJobAdmin(admin.ModelAdmin):
-    list_display = (
-        "kind",
-        "status",
-        "resource_file",
-        "progress",
-        "created_at",
-        "finished_at",
-    )
-    list_filter = ("kind", "status")
-    readonly_fields = [f.name for f in MediaJob._meta.fields]
-
-
-@admin.register(ICUpload)
-class ICUploadAdmin(admin.ModelAdmin):
-    list_display = (
-        "filename",
-        "resource",
-        "owner",
-        "status",
-        "received_bytes",
-        "expected_size",
-        "updated_at",
-    )
-    list_filter = ("status",)
-    readonly_fields = [f.name for f in ICUpload._meta.fields]
 
 
 class ICInstanceFileInline(admin.TabularInline):

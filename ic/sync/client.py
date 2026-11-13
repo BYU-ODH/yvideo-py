@@ -28,35 +28,32 @@ class ParentClient:
         self.base_url = (
             base_url if base_url is not None else settings.IC_PARENT_URL
         ).rstrip("/")
-        self.token = token if token is not None else settings.IC_SYNC_TOKEN
         self.session = session or requests.Session()
-        self.session.headers["Authorization"] = f"Bearer {self.token}"
+        self.session.headers["Authorization"] = (
+            f"Bearer {token if token is not None else settings.IC_SYNC_TOKEN}"
+        )
 
-    def _url(self, path):
-        return f"{self.base_url}{path}"
-
-    def _get(self, path, **kwargs):
+    def _request(self, method, path, **kwargs):
         if not self.base_url:
             raise ParentError("IC_PARENT_URL is not configured on this booth.")
         kwargs.setdefault("timeout", TIMEOUT_SECONDS)
         try:
-            response = self.session.get(self._url(path), **kwargs)
+            response = self.session.request(method, self.base_url + path, **kwargs)
         except requests.RequestException as exc:
             raise ParentError(f"Production unreachable: {exc}") from exc
         if response.status_code == 401:
             raise ParentError("Production rejected this booth's sync token.")
         return response
 
-    def manifest(self, if_none_match=None):
-        """(manifest or None when unchanged, manifest_hash)."""
-        headers = {"If-None-Match": f'"{if_none_match}"'} if if_none_match else {}
-        response = self._get("/ic/sync/manifest/", headers=headers)
-        if response.status_code == 304:
-            return None, if_none_match
+    def _get(self, path, **kwargs):
+        return self._request("GET", path, **kwargs)
+
+    def manifest(self):
+        """Production's manifest, with its "manifest_hash"."""
+        response = self._get("/ic/sync/manifest/")
         if response.status_code != 200:
             raise ParentError(f"Manifest request failed: HTTP {response.status_code}")
-        data = response.json()
-        return data, data.get("manifest_hash", "")
+        return response.json()
 
     def check(self):
         """{"manifest_hash": ...}: has production changed?"""
@@ -71,17 +68,15 @@ class ParentClient:
             raise ParentError(f"Fixture request failed: HTTP {response.status_code}")
         return response.content
 
-    def file_path(self, entry):
-        if entry["kind"] == "projection":
-            return f"/ic/sync/files/projection/{entry['resource_file_id']}/"
-        return f"/ic/sync/files/subtitle/{entry['subtitle_id']}/"
-
     def download(self, entry, part_path, *, on_bytes=None):
         """Download (resuming) into part_path until it reaches entry['size'] bytes."""
         part_path = Path(part_path)
         part_path.parent.mkdir(parents=True, exist_ok=True)
         expected = entry["size"]
-        path = self.file_path(entry)
+        if entry["kind"] == "projection":
+            path = f"/ic/sync/files/projection/{entry['resource_file_id']}/"
+        else:
+            path = f"/ic/sync/files/subtitle/{entry['subtitle_id']}/"
         if entry["kind"] != "projection" or not expected:
             response = self._get(path)
             if response.status_code != 200:
@@ -126,15 +121,7 @@ class ParentClient:
                 if received == 0:
                     raise ParentError("Production sent no data.")
 
-    def _post(self, path, data, timeout):
-        if not self.base_url:
-            raise ParentError("IC_PARENT_URL is not configured on this booth.")
-        try:
-            response = self.session.post(self._url(path), json=data, timeout=timeout)
-        except requests.RequestException as exc:
-            raise ParentError(f"Production unreachable: {exc}") from exc
-        if response.status_code != 200:
-            raise ParentError(f"{path} rejected: HTTP {response.status_code}")
-
     def post_status(self, report):
-        self._post("/ic/sync/status/", report, TIMEOUT_SECONDS)
+        response = self._request("POST", "/ic/sync/status/", json=report)
+        if response.status_code != 200:
+            raise ParentError(f"Status report rejected: HTTP {response.status_code}")

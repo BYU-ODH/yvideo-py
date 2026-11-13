@@ -11,6 +11,7 @@
         <meta name="description"
               content="International Cinema projection controls for Y-Video.">
         <title>{% block title %}{{ title|default:"International Cinema" }}{% endblock %}</title>
+        <link rel="stylesheet" href="{% static 'ic/css/common.css' %}">
         <link rel="stylesheet" href="{% static 'ic/css/dark.css' %}">
         {% block extra_css %}{% endblock %}
         <script src="{% static 'js/vendor/htmx.js' %}"></script>

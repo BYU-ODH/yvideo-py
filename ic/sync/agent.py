@@ -23,12 +23,10 @@ from django.utils import timezone
 from core.models import ResourceFile
 from core.models import Subtitle
 
-from .. import booth_state
 from ..models import ICBoothState
 from ..models import ICLocalFile
 from ..models import ICSyncRun
 from .bundle import file_xxh64
-from .bundle import git_sha
 from .bundle import migration_leaves
 from .client import MAX_BYTES_PER_SECOND
 from .client import ParentClient
@@ -47,11 +45,11 @@ WEEKLY_REHASH = timedelta(days=7)
 REHASH_HOURS = range(3, 11)
 # Headroom kept free on the booth disk beyond what a download needs.
 DISK_HEADROOM_BYTES = 1024**3
-
-
-def _verify_hash(path, expected):
-    """Hash a local file at the download rate cap, so verifying can't starve playback."""
-    return file_xxh64(path, max_bytes_per_second=MAX_BYTES_PER_SECOND) == expected
+# How long a local file production no longer lists is kept. Released masters exist
+# nowhere else, so they are kept much longer, with a warning before they go.
+FILE_PRUNE_GRACE = timedelta(days=3)
+MASTER_PRUNE_AFTER = timedelta(days=30)
+MASTER_PRUNE_WARNING = timedelta(days=7)
 
 
 class RunFailed(Exception):
@@ -82,6 +80,14 @@ def _sort_key(entry):
     )
 
 
+def disk_usage():
+    try:
+        usage = shutil.disk_usage(settings.IC_PROJECTION_ROOT)
+    except OSError:
+        return None
+    return {"free": usage.free, "total": usage.total}
+
+
 class RunContext:
     def __init__(self, run, client, heartbeat):
         self.run = run
@@ -90,6 +96,7 @@ class RunContext:
         self._last_save = 0.0
 
     def save(self, force=False, **fields):
+        """Save the run's progress (at most every second) and beat the heartbeat."""
         for key, value in fields.items():
             setattr(self.run, key, value)
         now = time.monotonic()
@@ -102,59 +109,55 @@ class RunContext:
         self.run.bytes_done += count
         self.save()
 
+    def verify(self, path, expected, *, count_bytes):
+        """Hash a local file at the download rate cap, so verifying can't starve playback.
 
-def _check_code_version(manifest):
-    local_sha = git_sha()
-    local_migrations = migration_leaves()
-    remote_migrations = manifest.get("migrations", {})
-    if remote_migrations != local_migrations:
-        behind = []
-        for app in sorted(set(remote_migrations) | set(local_migrations)):
-            remote, local = (
-                remote_migrations.get(app, ""),
-                local_migrations.get(app, ""),
+        Progress and the heartbeat keep moving meanwhile: a 10 GB master takes about
+        ten minutes.
+        """
+        on_bytes = self.add_bytes if count_bytes else lambda _: self.save()
+        digest = file_xxh64(
+            path, max_bytes_per_second=MAX_BYTES_PER_SECOND, on_bytes=on_bytes
+        )
+        return digest == expected
+
+
+def _check_migrations(manifest):
+    """Refuse rows this booth's schema can't hold (or that production's can't make)."""
+    remote = manifest.get("migrations", {})
+    local = migration_leaves()
+    if remote == local:
+        return
+    behind = []
+    for app in sorted(set(remote) | set(local)):
+        theirs, ours = remote.get(app, ""), local.get(app, "")
+        if theirs != ours:
+            side = "booth" if theirs > ours else "production"
+            behind.append(
+                f"{app}: production {theirs or '-'}, booth {ours or '-'} ({side} is behind)"
             )
-            if remote != local:
-                side = "booth" if remote > local else "production"
-                behind.append(
-                    f"{app}: production {remote or '-'}, booth {local or '-'} ({side} is behind)"
-                )
-        raise RunFailed(
-            "code_mismatch",
-            "Code version mismatch; "
-            + "; ".join(behind)
-            + ". Wait for the deploy to finish.",
-        )
-    remote_sha = manifest.get("git_sha", "")
-    if remote_sha and local_sha not in ("unknown", "") and remote_sha != local_sha:
-        raise RunFailed(
-            "code_mismatch",
-            f"Code version mismatch: production is at {remote_sha[:10]}, the booth at "
-            f"{local_sha[:10]}. The booth updates its code outside playback hours.",
-        )
+    raise RunFailed(
+        "code_mismatch",
+        "Code version mismatch; "
+        + "; ".join(behind)
+        + ". Wait for the deploy to finish.",
+    )
 
 
 def _plan_files(ctx, manifest, *, full_rehash):
     """Split the manifest's files into ones already verified here and ones to hash or fetch.
 
     Returns (results for the verified ones, [(entry, path, on_disk), ...] for the rest),
-    soonest-needed first, and refuses the run if the disk can't hold the downloads.
+    soonest-needed first.
     """
-    entries = sorted(manifest.get("files", []), key=_sort_key)
     results = {}
     todo = []
-    for entry in entries:
+    for entry in sorted(manifest.get("files", []), key=_sort_key):
         path = _storage_path(entry)
         local = ICLocalFile.objects.filter(
             kind=entry["kind"], ref_id=_ref_id(entry)
         ).first()
         on_disk = path.exists() and path.stat().st_size == entry["size"]
-        trusted = (
-            local is not None
-            and local.xxh64 == entry["xxh64"]
-            and on_disk
-            and not full_rehash
-        )
         if local is not None:
             available = entry.get("available_from_parent", True)
             last_end = _date_or_none(entry.get("last_program_end"))
@@ -165,83 +168,78 @@ def _plan_files(ctx, manifest, *, full_rehash):
                 local.available_from_parent = available
                 local.last_program_end = last_end
                 local.save(update_fields=["available_from_parent", "last_program_end"])
-        if trusted:
+        if (
+            local is not None
+            and local.xxh64 == entry["xxh64"]
+            and on_disk
+            and not full_rehash
+        ):
             results[(entry["kind"], _ref_id(entry))] = {
                 "ok": True,
                 "hashed_this_run": False,
             }
         else:
             todo.append((entry, path, on_disk))
-
-    needed = sum(entry["size"] for entry, _, on_disk in todo if not on_disk)
-    ctx.save(
-        force=True,
-        files_total=len(entries),
-        files_done=len(entries) - len(todo),
-        bytes_total=sum(entry["size"] for entry, _, _ in todo),
-        bytes_done=0,
-    )
-    if needed:
-        root = Path(settings.IC_PROJECTION_ROOT)
-        root.mkdir(parents=True, exist_ok=True)
-        free = shutil.disk_usage(root).free
-        if free < needed + DISK_HEADROOM_BYTES:
-            raise RunFailed(
-                "disk_full",
-                f"Not enough disk space on the booth: {free / 1e9:.1f} GB free, "
-                f"{(needed + DISK_HEADROOM_BYTES) / 1e9:.1f} GB needed.",
-            )
+    ctx.save(force=True, bytes_total=sum(e["size"] for e, _, _ in todo), bytes_done=0)
     return results, todo
+
+
+def _room_for(entry, part):
+    """Whether the disk can hold the rest of this download, plus some headroom.
+
+    Checked per file, so a film that doesn't fit only fails itself: tonight's rows and
+    smaller files still arrive.
+    """
+    part.parent.mkdir(parents=True, exist_ok=True)
+    have = part.stat().st_size if part.exists() else 0
+    free = shutil.disk_usage(part.parent).free
+    return free >= entry["size"] - have + DISK_HEADROOM_BYTES
 
 
 def _date_or_none(value):
     return date.fromisoformat(value) if value else None
 
 
+def _fetch_file(ctx, entry, path, on_disk):
+    """Hash, or download and verify, one planned file. Returns its result."""
+    if on_disk:
+        if ctx.verify(path, entry["xxh64"], count_bytes=True):
+            return {"ok": True}
+        # These bytes are damaged: they must never count as verified again, even if
+        # they can't be replaced now.
+        ICLocalFile.objects.filter(kind=entry["kind"], ref_id=_ref_id(entry)).delete()
+    if not entry.get("available_from_parent", True):
+        return {
+            "ok": False,
+            "lost": True,
+            "error": f"{entry['name']} is missing or damaged here and production released its copy; re-upload the master.",
+        }
+    part = path.with_name(path.name + ".part")
+    if not _room_for(entry, part):
+        return {
+            "ok": False,
+            "error": f"Not enough disk space on the booth for {entry['name']}.",
+        }
+    try:
+        ctx.client.download(entry, part, on_bytes=ctx.add_bytes)
+    except ParentError as exc:
+        return {"ok": False, "error": str(exc)}
+    if not ctx.verify(part, entry["xxh64"], count_bytes=False):
+        part.unlink(missing_ok=True)
+        return {
+            "ok": False,
+            "error": f"Checksum failed for {entry['name']}; the next sync will download it again.",
+        }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(part, path)
+    return {"ok": True}
+
+
 def _fetch_files(ctx, todo):
-    """Hash, or download and verify, each planned file. Returns per-file results."""
     results = {}
     for entry, path, on_disk in todo:
-        key = (entry["kind"], _ref_id(entry))
-        ok = False
-        if on_disk:
-            ok = _verify_hash(path, entry["xxh64"])
-            ctx.add_bytes(entry["size"])
-            if not ok:
-                # These bytes are damaged: they must never count as verified again, even
-                # if they can't be replaced now.
-                ICLocalFile.objects.filter(
-                    kind=entry["kind"], ref_id=_ref_id(entry)
-                ).delete()
-        if not ok:
-            if not entry.get("available_from_parent", True):
-                results[key] = {
-                    "ok": False,
-                    "lost": True,
-                    "error": f"{entry['name']} is missing or damaged here and production released its copy; re-upload the master.",
-                }
-                ctx.save(files_done=ctx.run.files_done + 1)
-                continue
-            part = path.with_name(path.name + ".part")
-            for attempt in range(2):
-                try:
-                    ctx.client.download(entry, part, on_bytes=ctx.add_bytes)
-                except ParentError as exc:
-                    results[key] = {"ok": False, "error": str(exc)}
-                    break
-                if _verify_hash(part, entry["xxh64"]):
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    os.replace(part, path)
-                    ok = True
-                    break
-                part.unlink(missing_ok=True)
-                if attempt == 1:
-                    results[key] = {
-                        "ok": False,
-                        "error": f"Checksum failed for {entry['name']} twice; the booth kept its previous data.",
-                        "code": "checksum_failed",
-                    }
-        if ok:
+        result = _fetch_file(ctx, entry, path, on_disk)
+        if result["ok"]:
             ICLocalFile.objects.update_or_create(
                 kind=entry["kind"],
                 ref_id=_ref_id(entry),
@@ -254,8 +252,8 @@ def _fetch_files(ctx, todo):
                     "last_program_end": _date_or_none(entry.get("last_program_end")),
                 },
             )
-            results[key] = {"ok": True, "hashed_this_run": True}
-        ctx.save(files_done=ctx.run.files_done + 1)
+            result["hashed_this_run"] = True
+        results[(entry["kind"], _ref_id(entry))] = result
     return results
 
 
@@ -311,14 +309,14 @@ def _apply_database(ctx, manifest, manifest_digest):
     state = ICBoothState.get()
     fixture_sha = manifest["fixture"]["sha256"]
     if ctx.run.is_forced or fixture_sha != state.applied_fixture_sha256:
-        ctx.save(force=True, phase="importing")
+        ctx.save(force=True, phase="Importing")
         fixture_bytes = ctx.client.fixture()
         if hashlib.sha256(fixture_bytes).hexdigest() != fixture_sha:
             raise RunFailed(
                 "changed_during_sync",
                 "Production changed while the booth was syncing; the next sync will pick it up.",
             )
-        ctx.save(force=True, phase="verifying")
+        ctx.save(force=True, phase="Verifying")
         try:
             apply_fixture(fixture_bytes, manifest.get("fingerprints", {}))
         except FingerprintMismatch as exc:
@@ -332,11 +330,7 @@ def _apply_database(ctx, manifest, manifest_digest):
     state.applied_fixture_sha256 = fixture_sha
     state.applied_at = timezone.now()
     state.save(
-        update_fields=[
-            "applied_manifest_hash",
-            "applied_fixture_sha256",
-            "applied_at",
-        ]
+        update_fields=["applied_manifest_hash", "applied_fixture_sha256", "applied_at"]
     )
     return outcome
 
@@ -349,190 +343,125 @@ def prune(manifest, today=None):
     for local in ICLocalFile.objects.all():
         if (local.kind, local.ref_id) in listed:
             if not local.available_from_parent and local.last_program_end:
-                delete_on = local.last_program_end + timedelta(
-                    days=settings.IC_MASTER_PRUNE_DAYS
-                )
-                if delete_on - today <= timedelta(
-                    days=settings.IC_MASTER_PRUNE_WARNING_DAYS
-                ):
+                delete_on = local.last_program_end + MASTER_PRUNE_AFTER
+                if delete_on - today <= MASTER_PRUNE_WARNING:
                     warnings.append(
                         f"The booth will delete its only copy of {local.name} on {delete_on}; "
                         "re-upload will be needed to show it again."
                     )
             continue
-        if local.available_from_parent:
-            grace = timedelta(days=settings.IC_FILE_PRUNE_GRACE_DAYS)
-        else:
-            grace = timedelta(days=settings.IC_MASTER_PRUNE_DAYS)
+        grace = FILE_PRUNE_GRACE if local.available_from_parent else MASTER_PRUNE_AFTER
         reference = local.last_program_end or local.verified_at.date()
         if today - reference < grace:
             continue
-        path = _storage_path({"kind": local.kind, "name": local.name})
-        path.unlink(missing_ok=True)
+        _storage_path({"kind": local.kind, "name": local.name}).unlink(missing_ok=True)
         removed.append(local.name)
         local.delete()
     return removed, warnings
 
 
-def _if_none_match(run, state):
-    """The manifest hash to send with If-None-Match, or None to always fetch.
-
-    Forced runs always fetch. So does any run after one that didn't finish cleanly, so
-    files a partial run couldn't download are retried by the next poll.
-    """
-    if run.is_forced or run.full_rehash:
-        return None
-    if state.last_run_status not in (
-        ICSyncRun.Status.SUCCEEDED,
-        ICSyncRun.Status.UP_TO_DATE,
-    ):
-        return None
-    return state.applied_manifest_hash or None
-
-
 def execute_run(run, client=None, heartbeat=None):
     client = client or ParentClient()
-    heartbeat = heartbeat or (lambda: booth_state.record_agent_heartbeat())
-    ctx = RunContext(run, client, heartbeat)
+    ctx = RunContext(run, client, heartbeat or ICBoothState.record_agent_heartbeat)
     ctx.save(
         force=True,
         status=ICSyncRun.Status.RUNNING,
         started_at=timezone.now(),
-        phase="contacting",
+        phase="Contacting production",
     )
-    state = ICBoothState.get()
     report = {"run_id": str(run.pk), "trigger": run.trigger}
     file_results = {}
     try:
-        manifest, digest = client.manifest(if_none_match=_if_none_match(run, state))
-        if manifest is None:
-            ctx.save(
-                force=True,
-                status=ICSyncRun.Status.UP_TO_DATE,
-                manifest_hash=digest or "",
+        manifest = client.manifest()
+        digest = manifest.get("manifest_hash", "")
+        ctx.save(force=True, manifest_hash=digest)
+        _check_migrations(manifest)
+        ctx.save(force=True, phase="Downloading")
+        file_results, todo = _plan_files(ctx, manifest, full_rehash=run.full_rehash)
+        # Masters for programs already showing (and all subtitles) come first, then the
+        # rows, then masters for later programs: a fix to tonight's annotations must
+        # not wait behind next month's 20 GB master.
+        today = timezone.localdate()
+        first = [t for t in todo if _needed_before_rows(t[0], today)]
+        upcoming = [t for t in todo if not _needed_before_rows(t[0], today)]
+        file_results.update(_fetch_files(ctx, first))
+        # Swapping in rows that point at a file the booth couldn't fetch would make a
+        # film that plays today unplayable. Keep the previous rows until a later run
+        # fetches it, unless production can't send it anyway (a lost master).
+        blocking = [
+            entry["name"]
+            for entry, _, _ in first
+            if not file_results[(entry["kind"], _ref_id(entry))]["ok"]
+            and entry.get("available_from_parent", True)
+        ]
+        warnings = []
+        if blocking:
+            database = "kept_previous"
+            warnings.append(
+                "The booth kept its previous data because these files aren't "
+                "verified yet: " + ", ".join(blocking) + ". The next sync will "
+                "try again."
             )
         else:
-            ctx.save(force=True, manifest_hash=digest)
-            _check_code_version(manifest)
-            ctx.save(force=True, phase="downloading")
-            file_results, todo = _plan_files(ctx, manifest, full_rehash=run.full_rehash)
-            # Masters for programs already showing (and all subtitles) come first, then
-            # the rows, then masters for later programs: a fix to tonight's annotations
-            # must not wait behind next month's 20 GB master.
-            today = timezone.localdate()
-            first = [t for t in todo if _needed_before_rows(t[0], today)]
-            upcoming = [t for t in todo if not _needed_before_rows(t[0], today)]
-            file_results.update(_fetch_files(ctx, first))
-            # Swapping in rows that point at a file the booth couldn't fetch would make
-            # a film that plays today unplayable. Keep the previous rows until a later
-            # run fetches it, unless production can't send it anyway (a lost master).
-            blocking = [
-                entry["name"]
-                for entry, _, _ in first
-                if not file_results[(entry["kind"], _ref_id(entry))].get("ok")
-                and entry.get("available_from_parent", True)
-            ]
-            warnings = []
-            if blocking:
-                database = "kept_previous"
-                warnings.append(
-                    "The booth kept its previous data because these files aren't "
-                    "verified yet: " + ", ".join(blocking) + ". The next sync will "
-                    "try again."
-                )
-            else:
-                database = _apply_database(ctx, manifest, digest)
-            if upcoming:
-                ctx.save(force=True, phase="downloading_upcoming")
-                file_results.update(_fetch_files(ctx, upcoming))
-            programs = _program_results(manifest, file_results)
-            ctx.save(force=True, phase="reporting")
-            removed, prune_warnings = prune(manifest)
-            report.update(
-                {
-                    "programs": programs,
-                    "database": database,
-                    "pruned": removed,
-                    "warnings": warnings + prune_warnings,
-                }
-            )
-            all_ready = all(p["ready"] for p in programs) and database != (
-                "kept_previous"
-            )
-            ctx.save(
-                force=True,
-                status=ICSyncRun.Status.SUCCEEDED
-                if all_ready
-                else ICSyncRun.Status.PARTIAL,
-            )
+            database = _apply_database(ctx, manifest, digest)
+        if upcoming:
+            ctx.save(force=True, phase="Downloading upcoming films")
+            file_results.update(_fetch_files(ctx, upcoming))
+        programs = _program_results(manifest, file_results)
+        removed, prune_warnings = prune(manifest)
+        report.update(
+            {
+                "programs": programs,
+                "database": database,
+                "pruned": removed,
+                "warnings": warnings + prune_warnings,
+            }
+        )
+        all_ready = database != "kept_previous" and all(p["ready"] for p in programs)
+        run.status = (
+            ICSyncRun.Status.SUCCEEDED if all_ready else ICSyncRun.Status.PARTIAL
+        )
     except RunFailed as exc:
         report["code"] = exc.code
-        ctx.save(force=True, status=ICSyncRun.Status.FAILED, error=str(exc))
+        run.status, run.error = ICSyncRun.Status.FAILED, str(exc)
     except ParentError as exc:
         report["code"] = "unreachable"
-        ctx.save(force=True, status=ICSyncRun.Status.FAILED, error=str(exc))
+        run.status, run.error = ICSyncRun.Status.FAILED, str(exc)
     except Exception as exc:  # noqa: BLE001 - a run must always finish with a status
         logger.exception("Sync run %s failed", run.pk)
         report["code"] = "error"
-        ctx.save(
-            force=True, status=ICSyncRun.Status.FAILED, error=f"Unexpected error: {exc}"
-        )
+        run.status, run.error = ICSyncRun.Status.FAILED, f"Unexpected error: {exc}"
 
-    state = ICBoothState.get()
     report.update(
         {
             "status": run.status,
             "error": run.error,
-            "applied_manifest_hash": state.applied_manifest_hash,
+            "applied_manifest_hash": ICBoothState.get().applied_manifest_hash,
             "verified_files": [
                 {
-                    "kind": kind,
-                    "resource_file_id": ref_id,
+                    "kind": local.kind,
+                    "resource_file_id": local.ref_id,
                     "xxh64": local.xxh64,
                     "verified_at": local.verified_at.isoformat(),
                     "hashed_this_run": bool(
-                        file_results.get((kind, ref_id), {}).get("hashed_this_run")
+                        file_results.get((local.kind, local.ref_id), {}).get(
+                            "hashed_this_run"
+                        )
                     ),
                 }
                 for local in ICLocalFile.objects.filter(
                     kind=ICLocalFile.Kind.PROJECTION
                 )
-                for kind, ref_id in [(local.kind, local.ref_id)]
             ],
             "lost_files": [
                 {"kind": kind, "resource_file_id": ref_id}
                 for (kind, ref_id), result in file_results.items()
                 if result.get("lost") and kind == "projection"
             ],
-            "disk": _disk(),
+            "disk": disk_usage(),
         }
     )
-    run.report = report
-    run.finished_at = timezone.now()
-    run.phase = ""
-    run.save()
-
-    state.last_run_status = run.status
-    state.last_run_error = run.error
-    state.last_run_at = run.finished_at
-    if run.status in (ICSyncRun.Status.SUCCEEDED, ICSyncRun.Status.UP_TO_DATE):
-        state.last_success_at = run.finished_at
-    if run.full_rehash and run.status in (
-        ICSyncRun.Status.SUCCEEDED,
-        ICSyncRun.Status.PARTIAL,
-    ):
-        state.last_full_rehash_at = run.finished_at
-    # Only the fields this function owns: the agent's check updates parent_* meanwhile.
-    state.save(
-        update_fields=[
-            "last_run_status",
-            "last_run_error",
-            "last_run_at",
-            "last_success_at",
-            "last_full_rehash_at",
-        ]
-    )
-
+    ctx.save(force=True, report=report, finished_at=timezone.now(), phase="")
     try:
         client.post_status(report)
     except ParentError as exc:
@@ -541,20 +470,21 @@ def execute_run(run, client=None, heartbeat=None):
     return run
 
 
-def _rehash_due(state, now):
+def _rehash_due(now):
     """The weekly re-hash of the only copies of released masters."""
+    last = ICSyncRun.latest_finished(
+        full_rehash=True,
+        status__in=[ICSyncRun.Status.SUCCEEDED, ICSyncRun.Status.PARTIAL],
+    )
     return (
         timezone.localtime(now).hour in REHASH_HOURS
-        and (
-            state.last_full_rehash_at is None
-            or now - state.last_full_rehash_at >= WEEKLY_REHASH
-        )
+        and (last is None or now - last.finished_at >= WEEKLY_REHASH)
         and ICLocalFile.objects.filter(available_from_parent=False).exists()
     )
 
 
 def check_parent(client=None, now=None):
-    """The agent's frequent, cheap check (every IC_CHECK_INTERVAL_SECONDS).
+    """The agent's frequent, cheap check (every CHECK_INTERVAL_SECONDS).
 
     Asks production for its manifest hash and queues a run when one is due:
 
@@ -568,12 +498,11 @@ def check_parent(client=None, now=None):
     now = now or timezone.now()
     state = ICBoothState.get()
     try:
-        data = client.check()
+        parent_hash = str(client.check().get("manifest_hash") or "")[:64]
     except ParentError as exc:
         state.parent_check_error = str(exc)
         state.save(update_fields=["parent_check_error"])
         return None
-    parent_hash = str(data.get("manifest_hash") or "")[:64]
     state.parent_manifest_hash = parent_hash
     state.parent_checked_at = now
     state.parent_check_error = ""
@@ -589,10 +518,9 @@ def check_parent(client=None, now=None):
         status__in=[ICSyncRun.Status.QUEUED, ICSyncRun.Status.RUNNING]
     ).exists():
         return None
-    last = ICSyncRun.objects.exclude(finished_at=None).order_by("-finished_at").first()
+    last = ICSyncRun.latest_finished()
     behind = parent_hash != state.applied_manifest_hash or (
-        last is not None
-        and last.status not in (ICSyncRun.Status.SUCCEEDED, ICSyncRun.Status.UP_TO_DATE)
+        last is not None and last.status != ICSyncRun.Status.SUCCEEDED
     )
     if behind and (
         last is None
@@ -602,16 +530,8 @@ def check_parent(client=None, now=None):
         or now - last.finished_at >= RETRY_AFTER
     ):
         return ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
-    if _rehash_due(state, now):
+    if _rehash_due(now):
         return ICSyncRun.objects.create(
             trigger=ICSyncRun.Trigger.AUTO, full_rehash=True
         )
     return None
-
-
-def _disk():
-    try:
-        usage = shutil.disk_usage(settings.IC_PROJECTION_ROOT)
-    except OSError:
-        return None
-    return {"free": usage.free, "total": usage.total}

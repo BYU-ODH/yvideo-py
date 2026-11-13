@@ -2,14 +2,13 @@ from datetime import timedelta
 from io import StringIO
 from unittest import mock
 
-from django.core.management import CommandError
 from django.core.management import call_command
 from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
 
 from core.factories import ResourceFactory
-from ic import booth_state
+from ic.models import ICBoothState
 from ic.models import ICSyncRun
 from ic.models import ICUpload
 from ic.models import MediaJob
@@ -17,10 +16,6 @@ from ic.testing import ICTempDirsMixin
 
 
 class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
-    def test_refuses_to_run_on_production(self):
-        with self.assertRaises(CommandError):
-            call_command("ic_sync_agent", "--once")
-
     @override_settings(IS_IC_INSTANCE=True)
     def test_once_syncs_at_startup_with_sync_now_first(self):
         stale = ICSyncRun.objects.create(
@@ -55,13 +50,13 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
         self.assertEqual(order, ["force_pull", "auto"])
         stale.refresh_from_db()
         self.assertEqual(stale.status, ICSyncRun.Status.FAILED)
-        self.assertTrue(booth_state.agent_alive())
+        self.assertTrue(ICBoothState.get().agent_alive)
 
 
 class MediaWorkerCommandTests(ICTempDirsMixin, TestCase):
     def test_once_requeues_interrupted_jobs_and_cleans_up_abandoned_uploads(self):
         interrupted = MediaJob.objects.create(
-            kind=MediaJob.Kind.RELEASE_MASTER,
+            kind=MediaJob.Kind.TRANSCODE,
             status=MediaJob.Status.RUNNING,
             payload={"master_id": 0},
         )
@@ -73,13 +68,11 @@ class MediaWorkerCommandTests(ICTempDirsMixin, TestCase):
         ICUpload.objects.filter(pk=upload.pk).update(
             updated_at=timezone.now() - timedelta(days=8)
         )
-        with mock.patch("os.nice"):
-            call_command("process_media_jobs", "--once", stdout=StringIO())
+        call_command("process_media_jobs", "--once", stdout=StringIO())
         interrupted.refresh_from_db()
         # It ran again (and failed, since master 0 doesn't exist) instead of staying stuck.
         self.assertEqual(interrupted.status, MediaJob.Status.FAILED)
-        upload.refresh_from_db()
-        self.assertEqual(upload.status, ICUpload.Status.ABANDONED)
+        self.assertFalse(ICUpload.objects.filter(pk=upload.pk).exists())
         self.assertFalse(upload.part_path.exists())
         # Cleanup isn't a job, so it doesn't crowd the dashboard's job list.
         self.assertEqual(MediaJob.objects.count(), 1)

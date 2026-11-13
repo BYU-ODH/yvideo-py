@@ -1,14 +1,13 @@
-/* The patron-facing output window, branded to match ic.byu.edu.
-   Only the IC tokens below may be used here (core/tests guard it); the logo and fonts
-   are served locally so the booth works offline. */
+/* The patron-facing output window, branded to match ic.byu.edu's monochrome palette.
+   It loads nothing from the network: the booth works offline, and uses the system's
+   sans-serif font. */
 
 :root {
   --ic-black: #000;
   --ic-white: #fff;
   --ic-gray-1: #7a7a7a;
   --ic-gray-2: #595959;
-  --ic-font-wordmark: "Overpass", system-ui, sans-serif;
-  --ic-font-display: "Overpass", system-ui, sans-serif;
+  --ic-font: system-ui, sans-serif;
   --ic-cue-size: 4vh;
 }
 
@@ -74,7 +73,7 @@ body.ic-output {
 }
 
 .ic-output video::cue {
-  font-family: var(--ic-font-display);
+  font-family: var(--ic-font);
   font-size: var(--ic-cue-size);
   font-weight: 600;
   line-height: 1.25;
@@ -119,7 +118,7 @@ body.ic-output {
 }
 
 .ic-lockup-wordmark {
-  font-family: var(--ic-font-wordmark);
+  font-family: var(--ic-font);
   font-size: 3.2vh;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -140,7 +139,7 @@ body.ic-output {
   width: 100%;
   margin: 0;
 
-  font-family: var(--ic-font-display);
+  font-family: var(--ic-font);
   font-size: 1.6vh;
   color: var(--ic-gray-1);
   text-align: center;

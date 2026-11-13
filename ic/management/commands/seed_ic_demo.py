@@ -8,7 +8,6 @@ birds annotations, and schedules a program for today. Re-running replaces it.
 
 from datetime import timedelta
 from pathlib import Path
-import shutil
 import struct
 
 from django.conf import settings
@@ -22,12 +21,11 @@ from core.models import Content
 from core.models import Playlist
 from core.models import Resource
 from core.models import ResourceAccess
-from core.models import ResourceFile
 from core.models import User
-from core.models import projection_file_name
 from ic.models import ICProgram
 from ic.models import ICProgramItem
-from ic.sync.bundle import file_xxh64
+from ic.testing import make_master
+from ic.testing import make_sd_file
 
 PLAYLIST_NAME = "International Cinema (demo)"
 PROGRAM_NAME = "IC demo program"
@@ -98,55 +96,17 @@ class Command(BaseCommand):
     def _film(self, admin, playlist, title, source):
         resource = Resource.objects.create(name=title, requester_username="devadmin")
         ResourceAccess.objects.create(user=admin, resource=resource)
-
         # seed_demo_data already registered these videos, and checksums are unique, so
-        # each copy gets a trailing MP4 "free" box (ignored by players) to make its bytes,
-        # and therefore its checksum, its own.
-        master = ResourceFile(
-            resource=resource,
-            is_projection_file=True,
-            version="ic-master-demo",
-            video_codec="h264",
-            faststart=True,
-            probed_at=timezone.now(),
-        )
-        staged = Path(settings.MEDIA_ROOT) / ".ic-demo-master.mp4"
-        _copy_with_free_box(source, staged, b"ic-demo-master")
-        checksum = file_xxh64(staged)
-        name = projection_file_name(resource.pk, checksum)
-        destination = Path(master.file.storage.path(name))
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(staged, destination)
-        master.file.name = name
-        master.checksum = checksum
-        master.checksum_at = timezone.now()
-        master.size_bytes = destination.stat().st_size
-        master.save()
-
-        # No real transcode in the demo: the SD file is the same video, linked as derived
-        # from the master so readiness sees the editing file on the master's timeline.
-        sd_name = f"{resource.name}/ic-sd-demo.mp4"
-        sd_path = Path(settings.MEDIA_ROOT) / sd_name
-        sd_path.parent.mkdir(parents=True, exist_ok=True)
-        _copy_with_free_box(source, sd_path, b"ic-demo-sd")
-        sd = ResourceFile(
-            resource=resource,
-            version="ic-sd-demo",
-            derived_from=master,
-            checksum=file_xxh64(sd_path),
-            checksum_at=timezone.now(),
-            size_bytes=sd_path.stat().st_size,
-            faststart=True,
-            probed_at=timezone.now(),
-        )
-        sd.file.name = sd_name
-        sd.save()
+        # each copy gets a trailing MP4 "free" box (ignored by players) to make its
+        # bytes, and therefore its checksum, its own. No real transcode in the demo: the
+        # SD file is the same video, linked as derived from the master.
+        video = source.read_bytes()
+        master = make_master(resource, payload=video + _free_box(b"ic-demo-master"))
+        sd = make_sd_file(master, payload=video + _free_box(b"ic-demo-sd"))
         return Content.objects.create(
             title=title, playlist=playlist, resource_file=sd, published=True
         )
 
 
-def _copy_with_free_box(source, destination, payload):
-    shutil.copyfile(source, destination)
-    with open(destination, "ab") as handle:
-        handle.write(struct.pack(">I4s", 8 + len(payload), b"free") + payload)
+def _free_box(payload):
+    return struct.pack(">I4s", 8 + len(payload), b"free") + payload

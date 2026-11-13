@@ -41,7 +41,7 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 # Views that render on GET and write on POST -- the standard Django form pattern. The
 # write still only happens on the POST branch, so CSRF protection covers it.
-FORM_VIEWS = {"request_resource"}
+FORM_VIEWS = {"request_resource", "ic_program_new", "ic_program_edit"}
 
 
 def iter_url_patterns(resolver=None, prefix=""):

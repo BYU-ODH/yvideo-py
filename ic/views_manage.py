@@ -30,6 +30,7 @@ from .forms import ICProgramForm
 from .forms import ICProgramItemForm
 from .jobs import queue
 from .jobs import release_blockers
+from .models import CHECK_INTERVAL_SECONDS
 from .models import ICInstance
 from .models import ICProgram
 from .models import ICProgramItem
@@ -42,8 +43,8 @@ from .sync.bundle import cached_manifest_hash
 
 logger = logging.getLogger(__name__)
 
-# Free space an upload needs: the .part itself, a possible faststart remux, and the SD file.
-UPLOAD_SPACE_FACTOR = 2.2
+# Free space an upload needs: the .part itself, plus headroom for the SD file.
+UPLOAD_SPACE_FACTOR = 1.2
 # The upload page slices files into chunks of this size; each is one PUT.
 UPLOAD_CHUNK_BYTES = 16 * 1024 * 1024
 
@@ -63,30 +64,44 @@ def _record(request, comment):
     reversion.set_comment(comment)
 
 
-def _program_row(program):
+def _booth_cell(instance_row, program):
+    """How one booth reported this program in its last sync."""
+    reported = next(
+        (
+            p
+            for p in instance_row["status"].get("programs", [])
+            if p.get("id") == program.pk
+        ),
+        None,
+    )
+    if reported is None:
+        return {"state": "not_synced"}
+    if not reported.get("ready"):
+        return {"state": "not_playable", "problems": reported.get("problems", [])}
+    return {"state": "matches" if instance_row["matches"] else "changed"}
+
+
+def _program_row(program, instances):
     problems = readiness.program_problems(program)
     return {
         "program": program,
         "problems": problems,
         "status": readiness.rollup(problems),
+        "booths": [_booth_cell(row, program) for row in instances],
     }
 
 
 def _instance_rows(current_hash):
-    rows = []
-    for instance in ICInstance.objects.order_by("name"):
-        status = instance.last_status or {}
-        rows.append(
-            {
-                "instance": instance,
-                "status": status,
-                "matches": bool(current_hash)
-                and instance.last_applied_manifest_hash == current_hash,
-                "programs": {p.get("id"): p for p in status.get("programs", [])},
-                "in_contact": instance.checked_in_recently(),
-            }
-        )
-    return rows
+    return [
+        {
+            "instance": instance,
+            "status": instance.last_status or {},
+            "matches": bool(current_hash)
+            and instance.last_applied_manifest_hash == current_hash,
+            "in_contact": instance.checked_in_recently(),
+        }
+        for instance in ICInstance.objects.order_by("name")
+    ]
 
 
 @require_GET
@@ -105,24 +120,18 @@ def dashboard(request):
         "ic/manage/dashboard.html",
         {
             "breadcrumbs": ic_trail(),
-            "active": [_program_row(p) for p in programs if p.is_active(today)],
-            "upcoming": [_program_row(p) for p in programs if p.is_upcoming(today)],
-            "past": [_program_row(p) for p in programs if p.is_past(today)],
+            "active": [
+                _program_row(p, instances) for p in programs if p.is_active(today)
+            ],
+            "upcoming": [
+                _program_row(p, instances) for p in programs if p.is_upcoming(today)
+            ],
+            "past": [_program_row(p, instances) for p in programs if p.is_past(today)],
             "instances": instances,
             "current_hash": current_hash,
-            "check_interval": settings.IC_CHECK_INTERVAL_SECONDS,
+            "check_interval": CHECK_INTERVAL_SECONDS,
             "jobs": MediaJob.objects.order_by("-created_at")[:10],
         },
-    )
-
-
-@require_GET
-@ic_editor_required
-def jobs_partial(request):
-    return render(
-        request,
-        "ic/manage/partials/jobs.html",
-        {"jobs": MediaJob.objects.order_by("-created_at")[:10]},
     )
 
 
@@ -131,28 +140,19 @@ def jobs_partial(request):
 # ---------------------------------------------------------------------------
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 @ic_editor_required
 def program_new(request):
     today = timezone.localdate()
-    form = ICProgramForm(initial={"start_date": today, "end_date": today})
-    return render(
-        request,
-        "ic/manage/program_new.html",
-        {"form": form, "breadcrumbs": ic_trail(("New program", None))},
+    form = ICProgramForm(
+        request.POST or None, initial={"start_date": today, "end_date": today}
     )
-
-
-@require_POST
-@ic_editor_required
-def program_create(request):
-    form = ICProgramForm(request.POST)
     if not form.is_valid():
         return render(
             request,
             "ic/manage/program_new.html",
             {"form": form, "breadcrumbs": ic_trail(("New program", None))},
-            status=400,
+            status=400 if form.is_bound else 200,
         )
     with transaction.atomic(), reversion.create_revision():
         program = form.save()
@@ -194,26 +194,17 @@ def _program_edit_context(program, form=None):
     }
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 @ic_editor_required
 def program_edit(request, program_id):
     program = get_object_or_404(ICProgram, pk=program_id)
-    return render(
-        request, "ic/manage/program_edit.html", _program_edit_context(program)
-    )
-
-
-@require_POST
-@ic_editor_required
-def program_update(request, program_id):
-    program = get_object_or_404(ICProgram, pk=program_id)
-    form = ICProgramForm(request.POST, instance=program)
+    form = ICProgramForm(request.POST or None, instance=program)
     if not form.is_valid():
         return render(
             request,
             "ic/manage/program_edit.html",
             _program_edit_context(program, form),
-            status=400,
+            status=400 if form.is_bound else 200,
         )
     with transaction.atomic(), reversion.create_revision():
         form.save()
@@ -274,32 +265,16 @@ def item_update(request, program_id, item_id):
     program = get_object_or_404(ICProgram, pk=program_id)
     item = _program_item(program, item_id)
     form = ICProgramItemForm(request.POST, instance=item, prefix=f"item-{item.pk}")
-    if not form.is_valid():
-        return HttpResponseBadRequest("Invalid item settings.")
-    with transaction.atomic(), reversion.create_revision():
-        form.save()
-        _record(request, "Updated IC program item")
-    if not request.headers.get("HX-Request"):
-        # Without JavaScript the item form has its own Save button.
-        messages.success(request, f'Saved "{item.content.title}".')
-        return redirect("ic_program_edit", program.pk)
-    # The program page saves each item as soon as a setting changes, and swaps in its
-    # row with fresh readiness, so no edit waits behind a Save button.
-    items = list(program.ordered_items())
-    index = next(i for i, each in enumerate(items) if each.pk == item.pk)
-    return render(
-        request,
-        "ic/manage/partials/program_item.html",
-        {
-            "program": program,
-            "row": _item_row(items[index]),
-            "number": index + 1,
-            "first": index == 0,
-            "last": index == len(items) - 1,
-            "saved": True,
-            "program_status": readiness.rollup(readiness.program_problems(program)),
-        },
-    )
+    if form.is_valid():
+        with transaction.atomic(), reversion.create_revision():
+            form.save()
+            _record(request, "Updated IC program item")
+    else:
+        messages.error(request, f'Could not save "{item.content.title}".')
+    # The program page posts here as soon as a setting changes (htmx follows the
+    # redirect and swaps in the program with fresh readiness); without JavaScript the
+    # item form has a Save button.
+    return redirect("ic_program_edit", program.pk)
 
 
 @require_POST
@@ -456,15 +431,7 @@ def _upload_json(upload):
         "received_bytes": upload.received_bytes,
         "status": upload.status,
         "error": upload.error,
-        "job": (
-            {
-                "status": upload.job.status,
-                "progress": upload.job.progress,
-                "error": upload.job.error,
-            }
-            if upload.job_id
-            else None
-        ),
+        "job_status": upload.job.status if upload.job_id else None,
         "chunk_url": reverse("ic_upload_chunk", args=[upload.pk]),
         "finalize_url": reverse("ic_upload_finalize", args=[upload.pk]),
         "status_url": reverse("ic_upload_status", args=[upload.pk]),
@@ -494,8 +461,6 @@ def upload_create(request, resource):
         status=ICUpload.Status.UPLOADING,
     ).first()
     if existing is not None and existing.part_path.exists():
-        existing.received_bytes = existing.part_path.stat().st_size
-        existing.save(update_fields=["received_bytes", "updated_at"])
         return JsonResponse(_upload_json(existing))
 
     root = settings.IC_PROJECTION_ROOT
@@ -520,8 +485,6 @@ def upload_create(request, resource):
 @require_GET
 @ic_upload_owner_required
 def upload_status(request, upload):
-    if upload.status == ICUpload.Status.UPLOADING and upload.part_path.exists():
-        upload.received_bytes = upload.part_path.stat().st_size
     return JsonResponse(_upload_json(upload))
 
 
@@ -555,9 +518,9 @@ def upload_chunk(request, upload):
                 )
             handle.write(chunk)
             written += len(chunk)
-    upload.received_bytes = current + written
-    upload.save(update_fields=["received_bytes", "updated_at"])
-    return JsonResponse({"received_bytes": upload.received_bytes})
+    # Touch updated_at: idle uploads are cleaned up after a week.
+    upload.save(update_fields=["updated_at"])
+    return JsonResponse({"received_bytes": current + written})
 
 
 @require_POST
@@ -574,8 +537,7 @@ def upload_finalize(request, upload):
             },
             status=409,
         )
-    upload.received_bytes = size
     upload.status = ICUpload.Status.PROCESSING
     upload.job = queue(MediaJob.Kind.INGEST, payload={"upload_id": str(upload.pk)})
-    upload.save(update_fields=["received_bytes", "status", "job", "updated_at"])
+    upload.save(update_fields=["status", "job", "updated_at"])
     return JsonResponse(_upload_json(upload))

@@ -1,5 +1,3 @@
-{% load ic_tags %}
-
 {# Live indicator for one booth sync run; polls itself until the run finishes. #}
 <div class="ic-sync-run"
      id="ic-sync-run"
@@ -8,21 +6,21 @@
      role="status"
      aria-live="polite">
     {% if run.status == "succeeded" %}
-        <p class="ic-status ic-status-ok">✅ Succeeded: everything matches production.</p>
-    {% elif run.status == "up_to_date" %}
-        <p class="ic-status ic-status-ok">✅ Up to date.</p>
+        <p class="ic-status ic-ok">✅ Succeeded: everything matches production.</p>
     {% elif run.status == "partial" %}
-        <p class="ic-status ic-status-warn">⚠️ Partial: some programs aren't playable yet.</p>
+        <p class="ic-status ic-warn">⚠️ Partial: some programs aren't playable yet.</p>
     {% elif run.status == "failed" %}
-        <p class="ic-status ic-status-error">
+        <p class="ic-status ic-error">
             ❌ Failed: {{ run.error }} Nothing changed; the booth keeps playing its previous verified data.
         </p>
     {% elif run.status == "queued" %}
         <p class="ic-status">Queued{% if behind %} behind the sync already running{% endif %}…</p>
     {% else %}
-        <p class="ic-status">⟳ Syncing…</p>
+        <p class="ic-status">
+            ⟳ {{ run.phase|default:"Syncing" }}…
+            {% if run.bytes_total %}{{ run.bytes_done|filesizeformat }} of {{ run.bytes_total|filesizeformat }}{% endif %}
+        </p>
     {% endif %}
-    {% sync_phases run %}
     {% if run.report.programs %}
         <ul class="ic-run-programs">
             {% for program in run.report.programs %}
@@ -38,6 +36,6 @@
             {% endfor %}
         </ul>
     {% endif %}
-    {% for warning in run.report.warnings %}<p class="ic-status ic-status-warn">⚠️ {{ warning }}</p>{% endfor %}
+    {% for warning in run.report.warnings %}<p class="ic-status ic-warn">⚠️ {{ warning }}</p>{% endfor %}
     {% if run.manifest_hash and run.is_final %}<p class="ic-muted">Manifest {{ run.manifest_hash|slice:":12" }}</p>{% endif %}
 </div>

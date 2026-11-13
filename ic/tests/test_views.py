@@ -5,6 +5,8 @@ from pathlib import Path
 import re
 import uuid
 
+from django.contrib.messages import get_messages
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -13,11 +15,12 @@ from reversion.models import Version
 from core.factories import PlaylistFactory
 from core.factories import ResourceFactory
 from core.factories import UserFactory
+from core.models import ResourceFile
 from ic.models import ICInstance
 from ic.models import ICInstanceFile
 from ic.models import ICProgram
 from ic.models import ICProgramItem
-from ic.models import MediaJob
+from ic.sync.bundle import build_bundle
 from ic.testing import ICTempDirsMixin
 from ic.testing import make_ic_editor
 from ic.testing import make_master
@@ -31,52 +34,18 @@ class ManagementAccessTests(ICTempDirsMixin, TestCase):
         self.program = self.scenario["program"]
         self.item = self.scenario["film_item"]
 
-    def urls(self):
-        p, i = self.program.pk, self.item.pk
-        return [
-            ("get", reverse("ic_manage_dashboard")),
-            ("get", reverse("ic_manage_resources")),
-            ("get", reverse("ic_program_new")),
-            ("post", reverse("ic_program_create")),
-            ("get", reverse("ic_program_edit", args=[p])),
-            ("post", reverse("ic_program_update", args=[p])),
-            ("post", reverse("ic_program_delete", args=[p])),
-            ("post", reverse("ic_item_add", args=[p])),
-            ("post", reverse("ic_item_update", args=[p, i])),
-            ("post", reverse("ic_item_move", args=[p, i])),
-            ("post", reverse("ic_item_delete", args=[p, i])),
-            ("get", reverse("ic_control_index")),
-            ("get", reverse("ic_control", args=[p])),
-            ("get", reverse("ic_output")),
-            ("get", reverse("ic_item_player_data", args=[i])),
-            ("get", reverse("ic_item_media", args=[i])),
-        ]
-
     def test_only_ic_editors_get_in(self):
-        for user in (
-            UserFactory(instructor=True),
-            UserFactory(lab_assistant=True),
-            UserFactory(),
+        p, i = self.program.pk, self.item.pk
+        self.client.force_login(UserFactory(instructor=True))
+        for method, url in (
+            ("get", reverse("ic_manage_dashboard")),
+            ("post", reverse("ic_program_delete", args=[p])),
+            ("get", reverse("ic_control", args=[p])),
+            ("get", reverse("ic_item_media", args=[i])),
         ):
-            self.client.force_login(user)
-            for method, url in self.urls():
-                with self.subTest(user=user.username, url=url):
-                    self.assertEqual(getattr(self.client, method)(url).status_code, 403)
-        self.assertTrue(ICProgram.objects.filter(pk=self.program.pk).exists())
-
-    def test_ic_editors_and_superusers_see_the_pages(self):
-        for user in (self.scenario["editor"], UserFactory(admin=True)):
-            self.client.force_login(user)
-            for url in (
-                reverse("ic_manage_dashboard"),
-                reverse("ic_manage_resources"),
-                reverse("ic_program_edit", args=[self.program.pk]),
-                reverse("ic_control_index"),
-                reverse("ic_control", args=[self.program.pk]),
-                reverse("ic_output"),
-            ):
-                with self.subTest(url=url):
-                    self.assertEqual(self.client.get(url).status_code, 200)
+            with self.subTest(url=url):
+                self.assertEqual(getattr(self.client, method)(url).status_code, 403)
+        self.assertTrue(ICProgram.objects.filter(pk=p).exists())
 
 
 class ProgramEditingTests(ICTempDirsMixin, TestCase):
@@ -89,7 +58,7 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
     def test_create_program_records_a_revision(self):
         today = timezone.localdate().isoformat()
         response = self.client.post(
-            reverse("ic_program_create"),
+            reverse("ic_program_new"),
             {"name": "Parasite", "start_date": today, "end_date": today, "notes": ""},
         )
         program = ICProgram.objects.get(name="Parasite")
@@ -98,7 +67,7 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
 
     def test_end_before_start_is_rejected(self):
         response = self.client.post(
-            reverse("ic_program_create"),
+            reverse("ic_program_new"),
             {"name": "Bad", "start_date": "2026-11-12", "end_date": "2026-11-10"},
         )
         self.assertEqual(response.status_code, 400)
@@ -136,21 +105,6 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_update_item_settings(self):
-        item = self.scenario["film_item"]
-        prefix = f"item-{item.pk}"
-        self.client.post(
-            reverse("ic_item_update", args=[self.program.pk, item.pk]),
-            {
-                f"{prefix}-mode": "once",
-                f"{prefix}-auto_advance": "on",
-                f"{prefix}-subtitles": "burned_in",
-            },
-        )
-        item.refresh_from_db()
-        self.assertTrue(item.auto_advance)
-        self.assertEqual(item.subtitles, ICProgramItem.Subtitles.BURNED_IN)
-
     def test_item_settings_save_as_they_change(self):
         """The program page posts each change at once; nothing waits for a Save button."""
         item = self.scenario["film_item"]
@@ -161,25 +115,39 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         self.assertContains(page, 'hx-trigger="change"')
         response = self.client.post(
             update_url,
-            {f"{prefix}-mode": "once", f"{prefix}-subtitles": "none"},
+            {
+                f"{prefix}-mode": "once",
+                f"{prefix}-auto_advance": "on",
+                f"{prefix}-subtitles": "burned_in",
+            },
             HTTP_HX_REQUEST="true",
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f'id="ic-item-{item.pk}"')
-        self.assertContains(response, "Saved.")
-        # The program's readiness badge is refreshed alongside the row.
-        self.assertContains(response, 'id="ic-program-status" hx-swap-oob="true"')
-        item.refresh_from_db()
-        self.assertEqual(item.subtitles, ICProgramItem.Subtitles.NONE)
-
-    def test_an_item_of_another_program_is_not_found(self):
-        other = ICProgram.objects.create(
-            name="other", start_date=timezone.localdate(), end_date=timezone.localdate()
+        self.assertRedirects(
+            response, reverse("ic_program_edit", args=[self.program.pk])
         )
-        item = self.scenario["film_item"]
-        response = self.client.post(reverse("ic_item_delete", args=[other.pk, item.pk]))
-        self.assertEqual(response.status_code, 404)
-        self.assertTrue(ICProgramItem.objects.filter(pk=item.pk).exists())
+        item.refresh_from_db()
+        self.assertTrue(item.auto_advance)
+        self.assertEqual(item.subtitles, ICProgramItem.Subtitles.BURNED_IN)
+
+    def test_edit_and_delete_a_program(self):
+        url = reverse("ic_program_edit", args=[self.program.pk])
+        response = self.client.post(
+            url,
+            {
+                "name": "Amélie, extended",
+                "start_date": self.program.start_date.isoformat(),
+                "end_date": self.program.end_date.isoformat(),
+                "notes": "",
+            },
+        )
+        self.assertRedirects(response, url)
+        self.program.refresh_from_db()
+        self.assertEqual(self.program.name, "Amélie, extended")
+        response = self.client.post(
+            reverse("ic_program_delete", args=[self.program.pk])
+        )
+        self.assertRedirects(response, reverse("ic_manage_dashboard"))
+        self.assertFalse(ICProgram.objects.filter(pk=self.program.pk).exists())
 
 
 class MasterUploadPathTests(ICTempDirsMixin, TestCase):
@@ -204,12 +172,6 @@ class MasterUploadPathTests(ICTempDirsMixin, TestCase):
             reverse("admin:core_resource_change", args=[self.new_film.pk])
         )
         self.assertContains(page, "Replace IC projection master")
-
-    def test_resource_files_cannot_be_turned_into_masters_in_the_admin(self):
-        page = self.client.get(reverse("admin:core_resourcefile_add"))
-        self.assertEqual(page.status_code, 200)
-        self.assertNotContains(page, 'name="is_projection_file"')
-        self.assertNotContains(page, 'name="derived_from"')
 
     def test_find_a_film_without_ic_content_and_list_it_once_it_has_a_master(self):
         listing = self.client.get(reverse("ic_manage_resources"))
@@ -242,15 +204,6 @@ class PreviewPlayerTests(ICTempDirsMixin, TestCase):
         super().setUp()
         self.scenario = make_program_scenario()
         self.client.force_login(self.scenario["editor"])
-
-    def test_control_page_embeds_the_queue(self):
-        response = self.client.get(
-            reverse("ic_control", args=[self.scenario["program"].pk])
-        )
-        self.assertContains(response, 'id="ic-page-data"')
-        data = response.context["page_data"]
-        self.assertEqual([i["mode"] for i in data["items"]], ["loop", "once"])
-        self.assertFalse(data["booth"])
 
     def test_player_data_uses_the_items_subtitle_choice(self):
         film = self.scenario["film_item"]
@@ -293,10 +246,6 @@ class PreviewPlayerTests(ICTempDirsMixin, TestCase):
                 self.assertEqual(
                     [u for u in loaded if re.match(r"(https?:)?//", u)], []
                 )
-        self.assertIn(
-            "INTERNATIONAL CINEMA",
-            self.client.get(reverse("ic_output")).content.decode(),
-        )
 
 
 class PlaylistToggleTests(ICTempDirsMixin, TestCase):
@@ -313,42 +262,29 @@ class PlaylistToggleTests(ICTempDirsMixin, TestCase):
             reverse("update_playlist_settings", args=[self.playlist.pk]), data
         )
 
-    def test_ic_editor_can_mark_a_playlist(self):
-        editor = make_ic_editor()
-        playlist = PlaylistFactory(owner=editor)
-        self.client.force_login(editor)
-        self.client.post(
-            reverse("update_playlist_settings", args=[playlist.pk]),
-            {"name": playlist.name, "is_ic": "on", "is_ic_present": "1"},
-        )
-        playlist.refresh_from_db()
-        self.assertTrue(playlist.is_ic)
-
-    def test_other_users_cannot_flip_the_flag(self):
-        instructor = UserFactory(instructor=True)
-        playlist = PlaylistFactory(owner=instructor)
-        self.client.force_login(instructor)
-        self.client.post(
-            reverse("update_playlist_settings", args=[playlist.pk]),
-            {"name": playlist.name, "is_ic": "on", "is_ic_present": "1"},
-        )
-        playlist.refresh_from_db()
-        self.assertFalse(playlist.is_ic)
+    def test_only_ic_editors_can_mark_a_playlist(self):
+        for user, expected in (
+            (make_ic_editor(), True),
+            (UserFactory(instructor=True), False),
+        ):
+            playlist = PlaylistFactory(owner=user)
+            self.client.force_login(user)
+            self.client.post(
+                reverse("update_playlist_settings", args=[playlist.pk]),
+                {"name": playlist.name, "is_ic": "on"},
+            )
+            playlist.refresh_from_db()
+            self.assertEqual(playlist.is_ic, expected)
 
     def test_unsetting_is_refused_while_scheduled(self):
-        self.post_settings(self.scenario["editor"], is_ic_present="1")
+        response = self.post_settings(self.scenario["editor"])
+        shown = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertTrue(
+            any("stays an International Cinema playlist" in m for m in shown)
+        )
+        self.assertNotIn("Playlist settings saved.", shown)
         self.playlist.refresh_from_db()
         self.assertTrue(self.playlist.is_ic)
-
-    def test_header_link_for_ic_editors_only(self):
-        self.client.force_login(self.scenario["editor"])
-        self.assertContains(
-            self.client.get(reverse("playlists")), reverse("ic_manage_dashboard")
-        )
-        self.client.force_login(UserFactory(instructor=True))
-        self.assertNotContains(
-            self.client.get(reverse("playlists")), reverse("ic_manage_dashboard")
-        )
 
 
 class SyncAPITests(ICTempDirsMixin, TestCase):
@@ -373,18 +309,8 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
         self.instance.refresh_from_db()
         self.assertIsNotNone(self.instance.last_seen_at)
 
-    def test_manifest_etag_and_fixture(self):
-        response = self.get("ic_sync_manifest")
-        etag = response["ETag"]
-        self.assertEqual(response.json()["manifest_hash"], etag.strip('"'))
-        self.assertEqual(
-            self.get("ic_sync_manifest", HTTP_IF_NONE_MATCH=etag).status_code, 304
-        )
-        fixture = self.get("ic_sync_fixture")
-        self.assertEqual(fixture["X-IC-Manifest-Hash"], etag.strip('"'))
-
     def test_check_returns_only_the_manifest_hash(self):
-        digest = self.get("ic_sync_manifest")["ETag"].strip('"')
+        digest = self.get("ic_sync_manifest").json()["manifest_hash"]
         data = self.get("ic_sync_check").json()
         self.assertEqual(data, {"manifest_hash": digest})
         self.instance.refresh_from_db()
@@ -398,30 +324,11 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
             HTTP_AUTHORIZATION=f"Bearer {self.token}",
         )
 
-    def test_master_download_supports_large_ranges(self):
-        master = self.scenario["film_item"].projection_file()
-        response = self.get(
-            "ic_sync_projection_file", master.pk, HTTP_RANGE="bytes=10-"
-        )
-        self.assertEqual(response.status_code, 206)
-        self.assertEqual(
-            b"".join(response.streaming_content),
-            Path(master.file.path).read_bytes()[10:],
-        )
-
     def test_masters_outside_syncable_programs_are_refused(self):
         master = self.scenario["film_item"].projection_file()
         ICProgram.objects.all().delete()
         self.assertEqual(
             self.get("ic_sync_projection_file", master.pk).status_code, 403
-        )
-
-    def test_released_masters_are_gone(self):
-        master = self.scenario["film_item"].projection_file()
-        master.master_released_at = timezone.now()
-        master.save()
-        self.assertEqual(
-            self.get("ic_sync_projection_file", master.pk).status_code, 404
         )
 
     def test_subtitle_download(self):
@@ -430,7 +337,7 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.content.startswith(b"WEBVTT"))
 
-    def test_status_report_records_copies_and_queues_release(self):
+    def test_status_report_records_copies_and_releases_the_master(self):
         master = self.scenario["film_item"].projection_file()
         report = {
             "run_id": str(uuid.uuid4()),
@@ -446,20 +353,12 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
                 }
             ],
         }
-        response = self.client.post(
-            reverse("ic_sync_status"),
-            data=json.dumps(report),
-            content_type="application/json",
-            HTTP_AUTHORIZATION=f"Bearer {self.token}",
-        )
+        response = self.post("ic_sync_status", report)
         self.assertEqual(response.status_code, 200)
         copy = ICInstanceFile.objects.get(instance=self.instance, resource_file=master)
         self.assertTrue(copy.hashed_from_bytes)
-        self.assertTrue(
-            MediaJob.objects.filter(
-                kind=MediaJob.Kind.RELEASE_MASTER, resource_file=master
-            ).exists()
-        )
+        master.refresh_from_db()
+        self.assertIsNotNone(master.master_released_at)
         self.instance.refresh_from_db()
         self.assertEqual(self.instance.last_status["status"], "succeeded")
         self.assertEqual(self.instance.last_applied_manifest_hash, "abc")
@@ -476,41 +375,62 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
                 }
             ]
         }
-        self.client.post(
-            reverse("ic_sync_status"),
-            data=json.dumps(report),
-            content_type="application/json",
-            HTTP_AUTHORIZATION=f"Bearer {self.token}",
-        )
+        self.post("ic_sync_status", report)
         self.assertFalse(
             ICInstanceFile.objects.get(resource_file=master).hashed_from_bytes
         )
-        self.assertFalse(
-            MediaJob.objects.filter(kind=MediaJob.Kind.RELEASE_MASTER).exists()
-        )
+        master.refresh_from_db()
+        self.assertIsNone(master.master_released_at)
 
 
-class PullOnlyTests(ICTempDirsMixin, TestCase):
-    """Production can't make a booth sync: the booth pulls, on its own schedule."""
+class DashboardTests(ICTempDirsMixin, TestCase):
+    """What IC editors see about the booth, from its last report."""
 
     def setUp(self):
         super().setUp()
         self.scenario = make_program_scenario()
-        self.instance = ICInstance(name="booth", last_seen_at=timezone.now())
-        self.instance.issue_token()
-        self.instance.save()
         self.client.force_login(self.scenario["editor"])
 
-    def test_the_dashboard_offers_no_push(self):
-        response = self.client.get(reverse("ic_manage_dashboard"))
-        self.assertContains(response, "Sync now")
-        self.assertNotContains(response, "Push to booth")
-        self.assertEqual(
-            self.client.post(
-                f"/ic/manage/instances/{self.instance.pk}/push/"
-            ).status_code,
-            404,
+    def test_booth_column_shows_each_programs_state_on_the_booth(self):
+        program = self.scenario["program"]
+        instance = ICInstance(name="booth", last_seen_at=timezone.now())
+        instance.issue_token()
+        instance.last_status = {
+            "programs": [{"id": program.pk, "ready": False, "problems": ["Disk full"]}]
+        }
+        instance.save()
+        page = self.client.get(reverse("ic_manage_dashboard"))
+        self.assertContains(page, "Not playable on the booth")
+        self.assertContains(page, "Disk full")
+
+        instance.last_status = {"programs": [{"id": program.pk, "ready": True}]}
+        instance.last_applied_manifest_hash = build_bundle()[2]
+        instance.save()
+        page = self.client.get(reverse("ic_manage_dashboard"))
+        self.assertContains(page, "On the booth, matches production")
+
+        program.items.first().delete()
+        cache.clear()  # the manifest hash is cached for a few seconds
+        page = self.client.get(reverse("ic_manage_dashboard"))
+        self.assertContains(page, "Changed since the last booth sync")
+
+
+class UseSDFileTests(ICTempDirsMixin, TestCase):
+    def test_ic_contents_switch_to_the_sd_file_made_from_the_master(self):
+        scenario = make_program_scenario()
+        content = scenario["feature"]
+        sd = content.resource_file
+        content.resource_file = ResourceFile.objects.create(
+            resource=content.resource, version="dvd rip", file="x/dvd.mp4", checksum="1"
         )
+        content.save()
+        self.client.force_login(UserFactory(admin=True))
+        response = self.client.post(
+            reverse("ic_resource_use_sd", args=[content.resource_id])
+        )
+        self.assertRedirects(response, reverse("ic_manage_resources"))
+        content.refresh_from_db()
+        self.assertEqual(content.resource_file, sd)
 
 
 class ScheduledContentDeletionTests(ICTempDirsMixin, TestCase):

@@ -1,11 +1,10 @@
 """Production's sync API, called by booths with their bearer token.
 
 Sync is pull-only. Besides fetching data, a booth checks in every
-IC_CHECK_INTERVAL_SECONDS (`check`), which is how it learns about changes, and reports
+CHECK_INTERVAL_SECONDS (`check`), which is how it learns about changes, and reports
 each run's outcome (`status`).
 """
 
-from datetime import datetime
 from functools import wraps
 import json
 
@@ -26,7 +25,7 @@ from core.models import ResourceFile
 from core.models import Subtitle
 from core.views import _file_response
 
-from .jobs import maybe_queue_release
+from .jobs import release_if_ready
 from .models import ICInstance
 from .models import ICInstanceFile
 from .models import ICProgramItem
@@ -74,12 +73,7 @@ def _syncable_resource_ids():
 def manifest(request):
     manifest_data, _, digest = build_bundle()
     cache.set(MANIFEST_HASH_CACHE_KEY, digest, MANIFEST_HASH_CACHE_SECONDS)
-    etag = f'"{digest}"'
-    if request.headers.get("If-None-Match") == etag:
-        response = HttpResponse(status=304)
-    else:
-        response = JsonResponse({**manifest_data, "manifest_hash": digest})
-    response["ETag"] = etag
+    response = JsonResponse({**manifest_data, "manifest_hash": digest})
     response["Cache-Control"] = "no-store"
     return response
 
@@ -94,9 +88,8 @@ def check(request):
 @require_GET
 @sync_token_required
 def fixture(request):
-    _, fixture_bytes, digest = build_bundle()
+    _, fixture_bytes, _ = build_bundle()
     response = HttpResponse(fixture_bytes, content_type="application/json")
-    response["X-IC-Manifest-Hash"] = digest
     response["Cache-Control"] = "no-store"
     return response
 
@@ -127,16 +120,6 @@ def subtitle_file(request, subtitle_id):
     with subtitle.subtitles_file.open("rb") as handle:
         data = handle.read()
     return HttpResponse(data, content_type="text/vtt; charset=utf-8")
-
-
-def _parse_time(value):
-    if not value:
-        return timezone.now()
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return timezone.now()
-    return parsed if timezone.is_aware(parsed) else timezone.make_aware(parsed)
 
 
 @require_POST
@@ -170,10 +153,10 @@ def status(request):
             copy, _ = ICInstanceFile.objects.get_or_create(
                 instance=instance,
                 resource_file=master,
-                defaults={"xxh64": entry.get("xxh64", ""), "verified_at": now},
+                defaults={"verified_at": now},
             )
             copy.xxh64 = entry.get("xxh64", "")
-            copy.verified_at = _parse_time(entry.get("verified_at"))
+            copy.verified_at = now
             # Once a fresh hash has been reported it stays true until a mismatch.
             copy.hashed_from_bytes = (
                 copy.hashed_from_bytes or bool(entry.get("hashed_this_run"))
@@ -187,5 +170,5 @@ def status(request):
             ).delete()
 
     for master in release_candidates:
-        maybe_queue_release(master)
+        release_if_ready(master)
     return JsonResponse({"ok": True})

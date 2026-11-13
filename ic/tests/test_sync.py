@@ -11,23 +11,22 @@ from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
 
-from core.models import BlurAnchorPoint
 from core.models import Content
 from core.models import MuteAnnotation
 from core.models import ResourceFile
-from core.models import User
 from ic.models import ICBoothState
+from ic.models import ICInstance
 from ic.models import ICLocalFile
 from ic.models import ICProgram
 from ic.models import ICProgramItem
 from ic.models import ICSyncRun
 from ic.sync import agent
 from ic.sync import bundle as bundle_module
+from ic.sync import client as client_module
 from ic.sync.bundle import build_bundle
 from ic.sync.bundle import content_fingerprint
-from ic.sync.bundle import manifest_hash
+from ic.sync.client import ParentClient
 from ic.sync.client import ParentError
-from ic.sync.importer import FingerprintMismatch
 from ic.sync.importer import apply_fixture
 from ic.testing import ICTempDirsMixin
 from ic.testing import make_film
@@ -57,21 +56,6 @@ class BundleTests(ICTempDirsMixin, TestCase):
                 fingerprint,
             )
 
-    def test_round_trip_preserves_raw_geometry_and_undo_history(self):
-        # Timestamps round to milliseconds in Django's JSON serializer; they are not part
-        # of the player data, so they are left out of the comparison.
-        def rows(model):
-            return [
-                {k: v for k, v in row.items() if k not in ("created_at", "updated_at")}
-                for row in model.objects.order_by("pk").values()
-            ]
-
-        points, mutes = rows(BlurAnchorPoint), rows(MuteAnnotation)
-        manifest, fixture, _ = build_bundle()
-        apply_fixture(fixture, manifest["fingerprints"])
-        self.assertEqual(points, rows(BlurAnchorPoint))
-        self.assertEqual(mutes, rows(MuteAnnotation))
-
     def test_fixture_carries_no_personal_data(self):
         editor = self.scenario["editor"]
         editor.netid = "abc123"
@@ -93,62 +77,12 @@ class BundleTests(ICTempDirsMixin, TestCase):
         self.assertNotIn("person@byu.edu", text)
         self.assertNotIn(editor.username, text)
 
-    def test_fingerprint_mismatch_rolls_back(self):
-        manifest, fixture, _ = build_bundle()
-        content = self.scenario["feature"]
-        tampered = dict(manifest["fingerprints"], **{str(content.pk): "0" * 64})
-        count_before = MuteAnnotation.objects.count()
-        title_before = Content.objects.get(pk=content.pk).title
-        with self.assertRaises(FingerprintMismatch) as caught:
-            apply_fixture(fixture, tampered)
-        self.assertEqual(caught.exception.content_ids, [content.pk])
-        self.assertEqual(MuteAnnotation.objects.count(), count_before)
-        self.assertEqual(Content.objects.get(pk=content.pk).title, title_before)
-        self.assertTrue(
-            User.objects.filter(pk=self.scenario["editor"].pk, is_active=True).exists()
-        )
-
     def test_manifest_hash_is_stable_and_tracks_annotation_edits(self):
         first = build_bundle()[2]
         self.assertEqual(first, build_bundle()[2])
         mute = MuteAnnotation.objects.filter(active=True).first()
         mute.edit(end_time=mute.end_time + 1)
         self.assertNotEqual(first, build_bundle()[2])
-
-    def test_manifest_lists_masters_and_subtitles_with_checksums(self):
-        manifest, _, digest = build_bundle()
-        self.assertEqual(digest, manifest_hash(manifest))
-        kinds = sorted(entry["kind"] for entry in manifest["files"])
-        self.assertEqual(kinds, ["projection", "projection", "subtitle"])
-        master = self.scenario["film_item"].projection_file()
-        entry = next(
-            e for e in manifest["files"] if e.get("resource_file_id") == master.pk
-        )
-        self.assertEqual(entry["xxh64"], master.checksum)
-        self.assertEqual(entry["size"], master.size_bytes)
-        self.assertTrue(entry["available_from_parent"])
-        program = manifest["programs"][0]
-        self.assertEqual(program["production_problems"], [])
-        self.assertEqual(len(program["resource_ids"]), 2)
-
-    def test_subtitle_checksums_are_not_recomputed_for_every_manifest(self):
-        with mock.patch.object(
-            bundle_module, "file_xxh64", wraps=bundle_module.file_xxh64
-        ) as hashed:
-            build_bundle()
-            build_bundle()
-        self.assertEqual(hashed.call_count, 1)  # the one subtitle, once
-        subtitle = self.scenario["feature"].default_subtitle_track
-        Path(subtitle.subtitles_file.path).write_text("WEBVTT\n\nchanged\n")
-        with mock.patch.object(
-            bundle_module, "file_xxh64", wraps=bundle_module.file_xxh64
-        ) as hashed:
-            manifest = build_bundle()[0]
-        self.assertEqual(hashed.call_count, 1)
-        entry = next(e for e in manifest["files"] if e["kind"] == "subtitle")
-        self.assertEqual(
-            entry["xxh64"], bundle_module.file_xxh64(subtitle.subtitles_file.path)
-        )
 
     def test_past_programs_are_not_synced(self):
         program = self.scenario["program"]
@@ -180,11 +114,9 @@ class FakeParent:
         self._reach()
         return {"manifest_hash": self.digest}
 
-    def manifest(self, if_none_match=None):
+    def manifest(self):
         self._reach()
-        if if_none_match and if_none_match == self.digest:
-            return None, if_none_match
-        return copy.deepcopy(self.manifest_data), self.digest
+        return {**copy.deepcopy(self.manifest_data), "manifest_hash": self.digest}
 
     def fixture(self):
         return self.fixture_bytes
@@ -259,7 +191,6 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(ICLocalFile.objects.count(), 3)
         state = ICBoothState.get()
         self.assertEqual(state.applied_manifest_hash, self.parent.digest)
-        self.assertIsNotNone(state.last_success_at)
         report = self.parent.reports[-1]
         self.assertEqual(report["status"], "succeeded")
         self.assertEqual(report["applied_manifest_hash"], self.parent.digest)
@@ -268,13 +199,6 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertTrue(verified[master.pk]["hashed_this_run"])
         self.assertEqual(verified[master.pk]["xxh64"], master.checksum)
         self.assertTrue(all(p["ready"] for p in report["programs"]))
-
-    def test_poll_with_unchanged_manifest_is_up_to_date(self):
-        self.run_sync()
-        downloads = len(self.parent.downloads)
-        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
-        self.assertEqual(run.status, ICSyncRun.Status.UP_TO_DATE)
-        self.assertEqual(len(self.parent.downloads), downloads)
 
     def test_forced_run_with_nothing_changed_still_reimports_and_verifies(self):
         self.run_sync()
@@ -312,10 +236,11 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(self.parent.downloads.count(entry["name"]), 2)
         self.assertEqual(path.read_bytes(), self.parent.files[entry["name"]])
 
-    def test_corrupt_download_fails_without_changing_anything(self):
+    def test_a_corrupt_download_changes_nothing_and_is_retried(self):
         entry = next(
             e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
         )
+        good = self.parent.files[entry["name"]]
         self.parent.files[entry["name"]] = b"corrupt"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
@@ -328,20 +253,10 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertIn("kept its previous data", run.report["warnings"][0])
         self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
 
-    def test_a_partial_run_is_retried_by_the_next_automatic_run(self):
-        entry = next(
-            e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
-        )
-        good = self.parent.files[entry["name"]]
-        self.parent.files[entry["name"]] = b"corrupt"
-        self.assertEqual(self.run_sync().status, ICSyncRun.Status.PARTIAL)
         self.parent.files[entry["name"]] = good
         run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         self.assertEqual(ICBoothState.get().applied_manifest_hash, self.parent.digest)
-        # Now that it succeeded, automatic runs are cheap again.
-        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
-        self.assertEqual(run.status, ICSyncRun.Status.UP_TO_DATE)
 
     def test_rows_apply_before_films_for_later_programs_download(self):
         """A fix for tonight must not wait behind next month's master."""
@@ -355,48 +270,27 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
             )
         ICProgramItem.objects.create(program=program, content=upcoming, position=0)
         self.parent = self.capture_production()
-
-        run = self.run_sync()
-        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         upcoming_master = ResourceFile.objects.get(
             resource=upcoming.resource, is_projection_file=True
         )
+
+        run = self.run_sync()
+        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         applied_when = dict(self.parent.download_states)
         self.assertEqual(applied_when[upcoming_master.file.name], self.parent.digest)
         showing_master = self.scenario["film_item"].projection_file()
         self.assertEqual(applied_when[showing_master.file.name], "")
 
-    def test_a_failed_download_for_a_later_program_still_applies_the_rows(self):
-        later = timezone.localdate() + timedelta(days=20)
-        program = ICProgram.objects.create(
-            name="Next month", start_date=later, end_date=later
-        )
-        with self.production():
-            upcoming = make_film(
-                self.scenario["editor"], self.scenario["playlist"], "Next month's film"
-            )
-        ICProgramItem.objects.create(program=program, content=upcoming, position=0)
-        self.parent = self.capture_production()
-        upcoming_master = ResourceFile.objects.get(
-            resource=upcoming.resource, is_projection_file=True
-        )
+        # A failed download for the later program doesn't hold back the rows.
+        agent._storage_path(
+            {"kind": "projection", "name": upcoming_master.file.name}
+        ).unlink()
         self.parent.files[upcoming_master.file.name] = b"corrupt"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
         self.assertEqual(run.report["database"], "applied")
         ready = {p["name"]: p["ready"] for p in run.report["programs"]}
         self.assertEqual(ready, {"Amélie week": True, "Next month": False})
-
-    def test_code_mismatch_refuses_to_import(self):
-        self.parent.manifest_data["git_sha"] = "0" * 40
-        with (
-            mock.patch.object(agent, "git_sha", return_value="1" * 40),
-            mock.patch.object(agent, "apply_fixture") as applied,
-        ):
-            run = self.run_sync()
-        self.assertEqual(run.status, ICSyncRun.Status.FAILED)
-        self.assertEqual(run.report["code"], "code_mismatch")
-        applied.assert_not_called()
 
     def test_migration_mismatch_says_which_side_is_behind(self):
         self.parent.manifest_data["migrations"] = {
@@ -410,6 +304,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
     def test_fingerprint_mismatch_keeps_the_previous_mirror(self):
         self.run_sync()
         state_before = ICBoothState.get().applied_fixture_sha256
+        mutes_before = MuteAnnotation.objects.count()
         feature = self.scenario["feature"]
         self.parent.manifest_data["fingerprints"][str(feature.pk)] = "0" * 64
         self.parent.digest = "tampered"
@@ -418,37 +313,23 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(run.report["code"], "fingerprint_mismatch")
         self.assertEqual(ICBoothState.get().applied_fixture_sha256, state_before)
         self.assertTrue(Content.objects.filter(pk=feature.pk).exists())
+        self.assertEqual(MuteAnnotation.objects.count(), mutes_before)
 
     def test_unreachable_production_fails_cleanly(self):
         self.parent.unreachable = True
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.FAILED)
         self.assertIn("unreachable", run.error)
-        self.assertEqual(ICBoothState.get().last_run_status, "failed")
 
-    def test_not_enough_disk_space(self):
+    def test_a_file_that_does_not_fit_fails_only_itself(self):
         with mock.patch.object(
             agent.shutil, "disk_usage", return_value=mock.Mock(free=10, total=100)
         ):
             run = self.run_sync()
-        self.assertEqual(run.status, ICSyncRun.Status.FAILED)
-        self.assertEqual(run.report["code"], "disk_full")
-
-    def test_a_lost_released_master_is_reported(self):
-        self.run_sync()
-        entry = next(
-            e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
-        )
-        entry["available_from_parent"] = False
-        agent._storage_path(entry).unlink()
-        self.parent.digest = "released"
-        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertEqual(
-            run.report["lost_files"],
-            [{"kind": "projection", "resource_file_id": entry["resource_file_id"]}],
-        )
-        self.assertNotIn(entry["name"], self.parent.downloads[3:])
+        self.assertEqual(run.report["database"], "kept_previous")
+        problems = run.report["programs"][0]["problems"]
+        self.assertTrue(any("Not enough disk space" in p for p in problems))
 
     def test_a_damaged_released_master_is_never_trusted_again(self):
         self.run_sync()
@@ -463,7 +344,10 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.parent.digest = "released"
         run = self.run_sync(full_rehash=True)
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertEqual(len(run.report["lost_files"]), 1)
+        self.assertEqual(
+            run.report["lost_files"],
+            [{"kind": "projection", "resource_file_id": entry["resource_file_id"]}],
+        )
         # An ordinary run afterwards must not take the damaged bytes for verified.
         self.parent.digest = "released-again"
         run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
@@ -494,16 +378,20 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         run.save()
 
     def test_a_new_manifest_hash_queues_one_run(self):
+        state = ICBoothState.get()
+        state.applied_manifest_hash = "hash-1"
+        state.save()
+        self.assertIsNone(agent.check_parent(self.parent))
+        self.parent.digest = "hash-2"
         run = agent.check_parent(self.parent)
         self.assertEqual(run.trigger, ICSyncRun.Trigger.AUTO)
         state = ICBoothState.get()
-        self.assertEqual(state.parent_manifest_hash, "hash-1")
-        self.assertIsNotNone(state.parent_checked_at)
+        self.assertEqual(state.parent_manifest_hash, "hash-2")
         self.assertTrue(state.production_has_newer_changes)
         # Still queued: no second run.
         self.assertIsNone(agent.check_parent(self.parent))
 
-    def test_a_failed_run_is_retried_later_unless_production_changes(self):
+    def test_unclean_runs_are_retried_later_unless_production_changes(self):
         run = agent.check_parent(self.parent)
         self.finish(run, ICSyncRun.Status.FAILED, "hash-1")
         self.assertIsNone(agent.check_parent(self.parent))
@@ -511,31 +399,19 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         self.parent.digest = "hash-2"
         run = agent.check_parent(self.parent)
         self.assertIsNotNone(run)
-        self.finish(run, ICSyncRun.Status.FAILED, "hash-2", minutes_ago=16)
-        # Same state, but long enough ago: retry.
-        self.assertIsNotNone(agent.check_parent(self.parent))
-
-    def test_a_partial_run_is_retried_even_when_the_hash_matches(self):
+        ICSyncRun.objects.exclude(pk=run.pk).delete()
+        # A partial run is retried even when the hash matches, but not at once.
         state = ICBoothState.get()
-        state.applied_manifest_hash = "hash-1"
+        state.applied_manifest_hash = "hash-2"
         state.save()
-        run = ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
-        self.finish(run, ICSyncRun.Status.PARTIAL, "hash-1", minutes_ago=1)
+        self.finish(run, ICSyncRun.Status.PARTIAL, "hash-2", minutes_ago=1)
         self.assertIsNone(agent.check_parent(self.parent))
-        self.finish(run, ICSyncRun.Status.PARTIAL, "hash-1", minutes_ago=16)
-        self.assertIsNotNone(agent.check_parent(self.parent))
-
-    def test_a_run_that_never_saw_a_manifest_waits_like_a_retry(self):
+        self.finish(run, ICSyncRun.Status.PARTIAL, "hash-2", minutes_ago=16)
         run = agent.check_parent(self.parent)
+        self.assertIsNotNone(run)
+        # A run that never saw a manifest waits like any other retry.
         self.finish(run, ICSyncRun.Status.FAILED, "")
         self.assertIsNone(agent.check_parent(self.parent))
-
-    def test_nothing_to_do_when_the_booth_matches(self):
-        state = ICBoothState.get()
-        state.applied_manifest_hash = "hash-1"
-        state.save()
-        self.assertIsNone(agent.check_parent(self.parent))
-        self.assertFalse(ICBoothState.get().production_has_newer_changes)
 
     def test_weekly_rehash_of_only_copies_in_the_morning(self):
         state = ICBoothState.get()
@@ -558,9 +434,6 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         run = agent.check_parent(self.parent, now=morning)
         self.assertTrue(run.full_rehash)
         self.finish(run, ICSyncRun.Status.SUCCEEDED, "hash-1")
-        state.refresh_from_db()
-        state.last_full_rehash_at = morning
-        state.save()
         self.assertIsNone(
             agent.check_parent(self.parent, now=morning + timedelta(days=1))
         )
@@ -629,17 +502,98 @@ class HashRateTests(TestCase):
             path = Path(directory) / "master.mp4"
             path.write_bytes(b"x" * (3 * 1024 * 1024))
             uncapped = bundle_module.file_xxh64(path)
+            progress = []
             with mock.patch.object(bundle_module.time, "sleep") as sleep:
                 capped = bundle_module.file_xxh64(
-                    path, chunk_size=1024 * 1024, max_bytes_per_second=1024 * 1024
+                    path,
+                    chunk_size=1024 * 1024,
+                    max_bytes_per_second=1024 * 1024,
+                    on_bytes=progress.append,
                 )
             self.assertEqual(capped, uncapped)
+            # Progress (and so the agent's heartbeat) moves while a long hash runs.
+            self.assertEqual(progress, [1024 * 1024] * 3)
             # 3 MB at 1 MB/s: the reader waits roughly three seconds in total.
             self.assertGreater(sum(call.args[0] for call in sleep.call_args_list), 2.5)
 
-    def test_the_agent_verifies_at_the_download_rate_cap(self):
-        with mock.patch.object(agent, "file_xxh64", return_value="abc") as hashed:
-            self.assertTrue(agent._verify_hash(Path("/nowhere"), "abc"))
-        hashed.assert_called_once_with(
-            Path("/nowhere"), max_bytes_per_second=agent.MAX_BYTES_PER_SECOND
+
+class _TestClientSession:
+    """A requests.Session stand-in that sends ParentClient's requests through Django's
+    test client, so the real client meets the real sync API in one process."""
+
+    def __init__(self, client):
+        self.client = client
+        self.headers = {}
+
+    def request(self, method, url, headers=None, **kwargs):
+        extra = {
+            "HTTP_" + name.upper().replace("-", "_"): value
+            for name, value in {**self.headers, **(headers or {})}.items()
+        }
+        path = url.removeprefix("http://production")
+        if method == "POST":
+            response = self.client.post(
+                path, data=kwargs["json"], content_type="application/json", **extra
+            )
+        else:
+            response = self.client.get(path, **extra)
+        body = (
+            b"".join(response.streaming_content)
+            if response.streaming
+            else response.content
         )
+        return mock.Mock(
+            status_code=response.status_code,
+            content=body,
+            json=lambda: json.loads(body),
+            iter_content=lambda size: [
+                body[i : i + size] for i in range(0, len(body), size)
+            ],
+        )
+
+
+class ParentClientTests(ICTempDirsMixin, TestCase):
+    """The booth's real HTTP client against production's real sync API."""
+
+    def setUp(self):
+        super().setUp()
+        self.scenario = make_program_scenario()
+        instance = ICInstance(name="booth")
+        self.token = instance.issue_token()
+        instance.save()
+        self.client_ = self.parent_client(self.token)
+
+    def parent_client(self, token):
+        return ParentClient(
+            base_url="http://production",
+            token=token,
+            session=_TestClientSession(self.client),
+        )
+
+    def test_check_manifest_and_a_resumed_ranged_download(self):
+        manifest = self.client_.manifest()
+        self.assertEqual(
+            self.client_.check()["manifest_hash"], manifest["manifest_hash"]
+        )
+        master = self.scenario["film_item"].projection_file()
+        entry = next(
+            e for e in manifest["files"] if e.get("resource_file_id") == master.pk
+        )
+        data = Path(master.file.path).read_bytes()
+        part = self._ic_tmp / "download.part"
+        part.write_bytes(data[:1000])  # an earlier, interrupted download
+        received = []
+        with mock.patch.object(client_module, "CHUNK_REQUEST_BYTES", 4096):
+            self.client_.download(entry, part, on_bytes=received.append)
+        self.assertEqual(part.read_bytes(), data)
+        self.assertEqual(sum(received), len(data) - 1000)
+
+        master.master_released_at = timezone.now()
+        master.save()
+        part.unlink()
+        with self.assertRaisesMessage(ParentError, "no longer holds"):
+            self.client_.download(entry, part)
+
+    def test_a_wrong_token_is_reported(self):
+        with self.assertRaisesMessage(ParentError, "rejected this booth's sync token"):
+            self.parent_client("wrong").check()

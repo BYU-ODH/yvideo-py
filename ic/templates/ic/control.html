@@ -13,7 +13,7 @@
                 <h1 id="ic-program-name">{{ program.name }}</h1>
                 <p class="ic-muted">{{ program.start_date|date:"M j" }} – {{ program.end_date|date:"M j, Y" }}</p>
                 {% if rehearsal %}
-                    <p class="ic-status ic-status-warn">Rehearsal: this program hasn't started yet.</p>
+                    <p class="ic-status ic-warn">Rehearsal: this program hasn't started yet.</p>
                 {% endif %}
                 {% if not booth %}
                     <p class="ic-muted">Preview: plays the SD editing files. The booth plays the projection masters.</p>
@@ -64,16 +64,7 @@
                                     {% endif %}
                                 </span>
                             </button>
-                            {% for problem in item.problems %}
-                                <p class="ic-problem ic-problem-{{ problem.severity }}">
-                                    {% if problem.severity == "error" %}
-                                        ❌
-                                    {% else %}
-                                        ⚠️
-                                    {% endif %}
-                                    {{ problem.message }}
-                                </p>
-                            {% endfor %}
+                            {% include "ic/partials/problems.html" with problems=item.problems %}
                         </li>
                     {% empty %}
                         <li>This program has nothing in it.</li>
@@ -84,7 +75,7 @@
                 <h2 id="ic-now-heading">Now</h2>
                 <p class="ic-now-title" id="ic-now-title">Nothing loaded</p>
                 <p class="ic-muted" id="ic-now-mode"></p>
-                <p id="ic-ready-next" class="ic-status ic-status-ok" hidden></p>
+                <p id="ic-ready-next" class="ic-status ic-ok" hidden></p>
                 <div class="ic-clock">
                     <span id="ic-time">0:00:00</span> / <span id="ic-duration">–:––:––</span>
                 </div>

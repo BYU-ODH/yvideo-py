@@ -33,7 +33,7 @@
             Films with a projection master or used in an IC playlist. To upload a master for a new film, find it by title.
         {% endif %}
     </p>
-    <table class="ic-manage-table">
+    <table class="ic-table">
         <thead>
             <tr>
                 <th scope="col">Film</th>
@@ -65,7 +65,7 @@
                         {% endif %}
                         {% for upload in row.uploads %}
                             <br>
-                            <span class="ic-muted">Upload {{ upload.filename }}: {{ upload.status }} {{ upload.percent }}%</span>
+                            <span class="ic-muted">Upload {{ upload.filename }}: {{ upload.status }}, {{ upload.received_bytes|filesizeformat }} of {{ upload.expected_size|filesizeformat }}</span>
                             {% if upload.error %}<span class="ic-error">{{ upload.error }}</span>{% endif %}
                         {% endfor %}
                     </td>
