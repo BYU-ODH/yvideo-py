@@ -154,9 +154,6 @@ class KioskTests(ICTempDirsMixin, TestCase):
             "page_data"
         ]["items"]
         self.assertEqual([i["playable"] for i in items], [False, True])
-        self.assertEqual(
-            response.context["page_data"]["heartbeat_url"], reverse("ic_heartbeat")
-        )
 
     def test_past_programs_do_not_play_but_upcoming_ones_rehearse(self):
         today = timezone.localdate()
@@ -177,17 +174,9 @@ class KioskTests(ICTempDirsMixin, TestCase):
         response = self.client.get(reverse("ic_control", args=[self.program.pk]))
         self.assertTrue(response.context["rehearsal"])
 
-    def test_heartbeat_records_playback_without_a_database_write(self):
-        with self.assertNumQueries(0):
-            self.client.get(reverse("ic_heartbeat") + "?state=playing")
-        self.assertTrue(booth_state.playback_active())
-        self.client.get(reverse("ic_heartbeat") + "?state=idle")
-        self.assertFalse(booth_state.playback_active())
-
     def test_unsafe_methods_are_refused_except_sync_now(self):
         for url in (
             reverse("ic_control_index"),
-            reverse("ic_heartbeat"),
             reverse("ic_output"),
         ):
             with self.subTest(url=url):
@@ -214,6 +203,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
         )
         self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(ICSyncRun.objects.count(), 1)
+        self.assertTrue(ICSyncRun.objects.get().options["full_rehash"])
         detail = self.client.get(
             reverse("ic_sync_run_detail", args=[run.pk]), HTTP_ACCEPT="application/json"
         )

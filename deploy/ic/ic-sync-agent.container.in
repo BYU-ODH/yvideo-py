@@ -1,5 +1,5 @@
-# The booth's sync agent: polls production, runs queued force/event syncs,
-# verifies, and applies. Installed when .env sets IC_BOOTH=1.
+# The booth's sync agent: checks production for changes, runs syncs (automatic or
+# "Sync now"), verifies, and applies. Installed when .env sets IC_BOOTH=1.
 [Unit]
 Description=International Cinema sync agent for @APP_NAME@
 After=@APP_NAME@.service
@@ -21,7 +21,7 @@ Pull=never
 SecurityLabelDisable=true
 
 [Service]
-# Sync I/O yields to playback; downloads are also throttled while a film plays.
+# Sync I/O yields to playback; downloads are also always rate-capped.
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7

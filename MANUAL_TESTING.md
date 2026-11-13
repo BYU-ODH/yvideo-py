@@ -382,18 +382,16 @@ the projector is right.
       *Production has changes the booth doesn't have yet* to *matches production*.
 - [ ] *Sync now* on the booth with nothing changed ends ✅ *Succeeded* (re-verified), not *Up
       to date*; with *Re-check every file* the progress shows the masters being re-hashed.
-- [ ] *Push to booth now* on production shows live phases and ends ✅ *Booth now matches
-      production*. Edit something during a push: it ends ✅ with a note that there have been
-      changes since.
-- [ ] Push with the booth switched off (or `<app>-ic-sync-agent` stopped): within about two
-      minutes the indicator says the booth hasn't checked in, and the push expires after 30
-      minutes. Start the agent before then: it collects the push and the run proceeds.
-      Press *Sync now* with the agent stopped: ❌ *Sync agent isn't running*.
+- [ ] Stop `<app>-ic-sync-agent`: within about two minutes production's dashboard says the
+      booth hasn't checked in recently. Press *Sync now* with the agent stopped: ❌ *Sync
+      agent isn't running*. Start it again: it syncs at once.
+- [ ] Merge a commit during `IC_PLAYBACK_HOURS`: the booth doesn't redeploy (its syncs report
+      `code_mismatch` meanwhile) and does at the first deploy-timer poll after them.
 - [ ] Unplug the booth's network and press *Sync now*: ❌ *Production unreachable*, the badge
       says *Can't reach production*, and the film that is playing is unaffected.
-- [ ] Push during a film: the sync applies right away and the film keeps playing without a
-      glitch. Replace that film's master on production while it plays on the booth, push, and
-      let it play to the end: the old master plays through; the new one is used the next time
+- [ ] *Sync now* during a film: the sync applies right away and the film keeps playing
+      without a glitch. Replace that film's master on production while it plays on the booth,
+      *Sync now*, and let it play to the end: the old master plays through; the new one is used the next time
       the item is loaded.
 - [ ] Add a program for next month with a new master, and edit an annotation of tonight's
       film in the same minute: tonight's change is on the booth (badge matches) while next
@@ -413,11 +411,11 @@ between them. The tests below run the same code against a fake production in one
 **What is guarded automatically.** `ic/tests/test_sync.py` runs the booth's whole sync
 pipeline against a fake production: downloads, checksum failures, damaged files, code and
 migration mismatches, fingerprint mismatches rolling back, applying rows before later
-programs' masters, retrying partial runs, progress reports, the agent's check (pushes and
-changes), lost released masters, and pruning. `ic/tests/test_booth.py` covers the kiosk's
+programs' masters, the agent's check (when a run is due, retries, the weekly re-hash),
+lost and damaged released masters, and pruning. `ic/tests/test_booth.py` covers the kiosk's
 read-only rules, *Sync now*, and file-addressed media that a sync can't change mid-film.
-`ic/tests/test_views.py` covers the sync API (check, progress, status reports), master
-release, and force push from request to result. `ic/tests/test_media_pipeline.py` runs
+`ic/tests/test_views.py` covers the sync API (check, status reports), master release,
+and that production offers no way to push. `ic/tests/test_media_pipeline.py` runs
 real ffmpeg for ingest and the SD transcode.
 
 ## Adding to this file

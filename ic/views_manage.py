@@ -33,16 +33,13 @@ from .jobs import release_blockers
 from .models import ICInstance
 from .models import ICProgram
 from .models import ICProgramItem
-from .models import ICSyncRequest
 from .models import ICUpload
 from .models import MediaJob
 from .permissions import ic_editor_required
 from .permissions import ic_program_write_required
 from .permissions import ic_resource_upload_required
-from .permissions import ic_sync_request_read_required
 from .permissions import ic_upload_owner_required
 from .sync.bundle import cached_manifest_hash
-from .sync.bundle import current_manifest_hash
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +85,6 @@ def _instance_rows(current_hash):
                 and instance.last_applied_manifest_hash == current_hash,
                 "programs": {p.get("id"): p for p in status.get("programs", [])},
                 "in_contact": instance.checked_in_recently(),
-                "recent_requests": instance.sync_requests.all()[:5],
             }
         )
     return rows
@@ -558,90 +554,3 @@ def upload_finalize(request, upload):
     upload.job = queue(MediaJob.Kind.INGEST, payload={"upload_id": str(upload.pk)})
     upload.save(update_fields=["received_bytes", "status", "job", "updated_at"])
     return JsonResponse(_upload_json(upload))
-
-
-# ---------------------------------------------------------------------------
-# Force push
-#
-# Production never connects to the booth. A push is an ICSyncRequest that the booth
-# collects on its next check (every IC_CHECK_INTERVAL_SECONDS); the booth then posts its
-# progress and final report here, and this indicator shows what it last said.
-# ---------------------------------------------------------------------------
-
-# A running push with no progress report for this long has probably lost contact.
-PROGRESS_STALE = timedelta(seconds=20)
-
-
-def _bool(request, name):
-    return request.POST.get(name) in ("1", "true", "on", "yes")
-
-
-@require_POST
-@ic_editor_required
-def instance_push(request, instance_id):
-    instance = get_object_or_404(ICInstance, pk=instance_id)
-    ICSyncRequest.expire_stale()
-    # One waiting push is enough: a second click shows the first one's indicator.
-    sync_request = ICSyncRequest.objects.filter(
-        instance=instance, status=ICSyncRequest.Status.PENDING
-    ).first()
-    if sync_request is None:
-        try:
-            manifest_digest = current_manifest_hash()
-        except Exception:  # noqa: BLE001 - the push still works; "matches" can't be shown
-            logger.exception("Could not compute the IC manifest hash")
-            manifest_digest = ""
-        user = getattr(request, "original_user", request.user)
-        sync_request = ICSyncRequest.objects.create(
-            instance=instance,
-            requested_by=user,
-            requested_by_name=user.get_full_name() or user.username,
-            manifest_hash_at_request=manifest_digest,
-            options={"full_rehash": _bool(request, "full_rehash")},
-        )
-    return render(
-        request,
-        "ic/manage/partials/sync_request.html",
-        _sync_request_context(sync_request),
-    )
-
-
-def _sync_request_context(sync_request):
-    report = sync_request.report or {}
-    try:
-        current = cached_manifest_hash()
-    except Exception:  # noqa: BLE001
-        current = ""
-    applied = (
-        report.get("applied_manifest_hash")
-        or sync_request.instance.last_applied_manifest_hash
-    )
-    now = timezone.now()
-    return {
-        "sync_request": sync_request,
-        "live": None if sync_request.is_final else (sync_request.progress or None),
-        "report": report,
-        "booth_in_contact": sync_request.instance.checked_in_recently(now),
-        "check_interval": settings.IC_CHECK_INTERVAL_SECONDS,
-        "expires_at": sync_request.created_at + ICSyncRequest.PENDING_TTL,
-        "progress_stale": (
-            not sync_request.is_final
-            and sync_request.progress_at is not None
-            and now - sync_request.progress_at > PROGRESS_STALE
-        ),
-        "matches_current": bool(applied) and applied == current,
-        "matches_request": bool(applied)
-        and applied == sync_request.manifest_hash_at_request,
-    }
-
-
-@require_GET
-@ic_sync_request_read_required
-def sync_request_detail(request, sync_request):
-    if ICSyncRequest.expire_stale():
-        sync_request.refresh_from_db()
-    return render(
-        request,
-        "ic/manage/partials/sync_request.html",
-        _sync_request_context(sync_request),
-    )

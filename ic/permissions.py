@@ -14,7 +14,6 @@ from core.permissions import forbidden
 
 from .models import ICProgram
 from .models import ICProgramItem
-from .models import ICSyncRequest
 from .models import ICUpload
 
 
@@ -75,18 +74,4 @@ def ic_upload_owner_required(view_func):
         return view_func(request, upload, *args, **kwargs)
 
     _wrapped.permission_check = "ic_upload_owner"
-    return _wrapped
-
-
-def ic_sync_request_read_required(view_func):
-    @wraps(view_func)
-    def _wrapped(request, sync_request_id, *args, **kwargs):
-        sync_request = get_object_or_404(
-            ICSyncRequest.objects.select_related("instance"), pk=sync_request_id
-        )
-        if not request.user.is_ic_editor:
-            return forbidden("Only International Cinema editors can do that.")
-        return view_func(request, sync_request, *args, **kwargs)
-
-    _wrapped.permission_check = "ic_sync_request_read"
     return _wrapped

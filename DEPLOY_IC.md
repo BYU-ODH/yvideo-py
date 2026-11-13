@@ -14,12 +14,17 @@ PRODUCTION                                          BOOTH (Ubuntu + Google Chrom
 ```
 
 Every connection goes from the booth to production; the booth needs no inbound ports and
-production holds no booth credentials. The booth's sync agent checks production every
-30 seconds (for changes, and for pushes from IC editors) and reports back what it did.
+production holds no booth credentials. Sync is pull-only: the booth's sync agent checks
+production every 30 seconds for changes, pulls them, and reports back what it did.
+Production can't make the booth sync.
 
 Both machines must run the same commit: a booth refuses production's data when the code
-versions differ (it reports `code_mismatch` until its deploy timer catches up). Pin the
-booth's `.env` `BRANCH` to production's branch.
+versions differ (it reports `code_mismatch` until it updates). Pin the booth's `.env`
+`BRANCH` to production's branch. The booth's deploy timer polls GitHub like production's,
+but not during `IC_PLAYBACK_HOURS` (default `12-24`, noon to midnight), so a code update
+never restarts the kiosk during a showing; it catches up at the first poll after those
+hours. Changes are rare and a redeploy takes about a minute; if the controller ever looks
+stale after one, reload the page.
 
 ## Production
 
@@ -123,6 +128,9 @@ The booth's hardware and Chrome decide two things nothing else can test
 IC_BOOTH=1
 IC_CHROME_FLAGS="<flags from the spike>"
 BRANCH=<production's branch>
+# Hours (local, start-end) when the deploy timer leaves the booth alone. Cover every
+# showtime, including matinees; 0-0 turns the guard off.
+IC_PLAYBACK_HOURS=12-24
 ```
 
 `yvideo/secret_settings.py`:
@@ -160,10 +168,8 @@ userless is safe only because nothing off the booth can reach it.
 
 ### 5. First sync
 
-The agent syncs within 30 seconds of starting. To watch one, press **Sync now** on the
-booth's controller, or **Push to booth now** on production's IC dashboard (the booth
-collects a push on its next check, within 30 seconds). Both show live progress and end
-in one of:
+The agent syncs as soon as it starts. To watch one, press **Sync now** on the booth's
+controller; it shows live progress and ends in one of:
 
 | Result | Meaning |
 |---|---|
@@ -177,9 +183,13 @@ in one of:
 - **What syncs.** Programs that are showing or upcoming (and yesterday's). A sync fetches
   the masters for programs already showing and all VTT files, then applies the data, then
   fetches masters for later programs, so a fix for tonight never waits behind next
-  month's film. Downloads are throttled while a film plays.
+  month's film. Downloads are always rate-capped (about 11 minutes per 10 GB) so they
+  can't disturb playback.
 - **When.** Within about 30 seconds of a change on production (the agent's check), when
-  someone presses *Sync now* or *Push to booth now*, and every 15 minutes regardless.
+  the projectionist presses *Sync now*, and when the agent starts. A sync that didn't
+  finish cleanly is retried 15 minutes later (at once if production changes meanwhile).
+  Production's IC dashboard shows whether the booth matches, its last contact and its
+  last sync, but can't start one.
 - **Never mid-film.** A sync can apply at any time, even during a showing: the film that
   is playing keeps the annotations it loaded and streams from a URL that names one
   verified file, which no sync can change. New data takes effect when the next item loads.
@@ -197,10 +207,10 @@ in one of:
 
 | Symptom | Likely cause |
 |---|---|
-| Push says *the booth hasn't checked in since …* | Booth off, offline, or its sync agent is stopped; check `systemctl --user status <app>-ic-sync-agent` on the booth. A push the booth doesn't collect within 30 minutes expires. |
+| Dashboard says *the booth hasn't checked in recently* | Booth off, offline, or its sync agent is stopped; check `systemctl --user status <app>-ic-sync-agent` on the booth. |
 | Booth badge: *Can't reach production* | Network, DNS or TLS between the booth and production, or a wrong `IC_PARENT_URL`/`IC_SYNC_TOKEN` (the *Sync status* page shows the error). Playback is unaffected. |
 | *Sync agent isn't running* | `systemctl --user restart <app>-ic-sync-agent`. |
-| `code_mismatch` | One side hasn't deployed the latest commit yet; it resolves within minutes. |
+| `code_mismatch` | One side hasn't deployed the latest commit yet. Production catches up within minutes; the booth waits until `IC_PLAYBACK_HOURS` end. To update the booth now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
 | `fingerprint_mismatch` | The booth computed different player data from production's rows; the booth kept its previous data. Report it: this is the corruption the design exists to prevent. |
 | Output not fullscreen | Click the output window once; if it opens on the wrong screen, revisit the spike's flags. |
 | Stutter at high bitrate | Check `chrome://media-internals` for a hardware decoder; lower `IC_BOOTH_VERIFIED_MAX` so oversized masters are flagged. |

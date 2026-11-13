@@ -18,7 +18,6 @@ urlpatterns = [
         views_booth.local_file,
         name="ic_local_file",
     ),
-    path("heartbeat/", views_booth.heartbeat, name="ic_heartbeat"),
     path("status/", views_booth.status, name="ic_booth_status"),
     path("sync/badge/", views_booth.sync_badge, name="ic_sync_badge"),
     path("sync/run/", views_booth.sync_run_create, name="ic_sync_run_create"),

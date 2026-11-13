@@ -1,5 +1,5 @@
 # International Cinema media jobs on production: ingest, SD transcode, master
-# release, booth notifications. Installed when .env sets IC_MEDIA_WORKER=1.
+# release, upload cleanup. Installed when .env sets IC_MEDIA_WORKER=1.
 [Unit]
 Description=International Cinema media worker for @APP_NAME@
 After=@APP_NAME@.service

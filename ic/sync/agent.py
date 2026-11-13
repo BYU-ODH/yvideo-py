@@ -4,8 +4,8 @@ Every trigger runs this same pipeline. Forcing changes when it runs and how thor
 it checks (always re-import and re-verify, optionally re-hash every file), never whether
 it verifies.
 
-The booth only ever calls production: `check_parent` is the agent's frequent check for
-changes and pushes, and pushed runs post their progress back.
+Sync is pull-only: `check_parent` is the agent's frequent check, and the one place that
+decides when a run is due. Production can't start a run.
 """
 
 from datetime import date
@@ -16,7 +16,6 @@ import os
 from pathlib import Path
 import shutil
 import time
-import uuid
 
 from django.conf import settings
 from django.utils import timezone
@@ -38,10 +37,13 @@ from .importer import apply_fixture
 
 logger = logging.getLogger(__name__)
 
-# Pushed runs tell production how they're doing this often; after a failed post they
-# stop trying for a while so an unreachable production can't slow the run down.
-PROGRESS_POST_SECONDS = 2
-PROGRESS_BACKOFF_SECONDS = 30
+# A run that didn't end cleanly is retried this long after it finished, unless
+# production's manifest has changed since (then at once).
+RETRY_AFTER = timedelta(minutes=15)
+# Released masters exist only on the booth; re-hash them weekly, in the morning, well
+# away from showtimes.
+WEEKLY_REHASH = timedelta(days=7)
+REHASH_HOURS = range(3, 11)
 # Headroom kept free on the booth disk beyond what a download needs.
 DISK_HEADROOM_BYTES = 1024**3
 
@@ -80,8 +82,6 @@ class RunContext:
         self.client = client
         self.heartbeat = heartbeat
         self._last_save = 0.0
-        self._last_progress = 0.0
-        self._progress_paused_until = 0.0
 
     def save(self, force=False, **fields):
         for key, value in fields.items():
@@ -91,26 +91,10 @@ class RunContext:
             self._last_save = now
             self.run.save()
             self.heartbeat()
-            self.report_progress(force=force)
 
     def add_bytes(self, count):
         self.run.bytes_done += count
         self.save()
-
-    def report_progress(self, force=False):
-        """A pushed run's live progress, for the IC editor watching on production."""
-        if not self.run.request_id:
-            return
-        now = time.monotonic()
-        if now < self._progress_paused_until:
-            return
-        if not force and now - self._last_progress < PROGRESS_POST_SECONDS:
-            return
-        self._last_progress = now
-        try:
-            self.client.post_progress(self.run.progress_json())
-        except ParentError:
-            self._progress_paused_until = now + PROGRESS_BACKOFF_SECONDS
 
 
 def _check_code_version(manifest):
@@ -140,7 +124,7 @@ def _check_code_version(manifest):
         raise RunFailed(
             "code_mismatch",
             f"Code version mismatch: production is at {remote_sha[:10]}, the booth at "
-            f"{local_sha[:10]}. The booth deploy timer will catch up within minutes.",
+            f"{local_sha[:10]}. The booth updates its code outside playback hours.",
         )
 
 
@@ -166,10 +150,15 @@ def _plan_files(ctx, manifest, *, full_rehash):
             and not full_rehash
         )
         if local is not None:
-            local.available_from_parent = entry.get("available_from_parent", True)
-            if entry.get("last_program_end"):
-                local.last_program_end = date.fromisoformat(entry["last_program_end"])
-            local.save()
+            available = entry.get("available_from_parent", True)
+            last_end = _date_or_none(entry.get("last_program_end"))
+            if (local.available_from_parent, local.last_program_end) != (
+                available,
+                last_end,
+            ):
+                local.available_from_parent = available
+                local.last_program_end = last_end
+                local.save(update_fields=["available_from_parent", "last_program_end"])
         if trusted:
             results[(entry["kind"], _ref_id(entry))] = {
                 "ok": True,
@@ -199,6 +188,10 @@ def _plan_files(ctx, manifest, *, full_rehash):
     return results, todo
 
 
+def _date_or_none(value):
+    return date.fromisoformat(value) if value else None
+
+
 def _fetch_files(ctx, todo):
     """Hash, or download and verify, each planned file. Returns per-file results."""
     results = {}
@@ -208,6 +201,12 @@ def _fetch_files(ctx, todo):
         if on_disk:
             ok = file_xxh64(path) == entry["xxh64"]
             ctx.add_bytes(entry["size"])
+            if not ok:
+                # These bytes are damaged: they must never count as verified again, even
+                # if they can't be replaced now.
+                ICLocalFile.objects.filter(
+                    kind=entry["kind"], ref_id=_ref_id(entry)
+                ).delete()
         if not ok:
             if not entry.get("available_from_parent", True):
                 results[key] = {
@@ -220,12 +219,7 @@ def _fetch_files(ctx, todo):
             part = path.with_name(path.name + ".part")
             for attempt in range(2):
                 try:
-                    ctx.client.download(
-                        entry,
-                        part,
-                        on_bytes=ctx.add_bytes,
-                        throttled=booth_state.playback_active,
-                    )
+                    ctx.client.download(entry, part, on_bytes=ctx.add_bytes)
                 except ParentError as exc:
                     results[key] = {"ok": False, "error": str(exc)}
                     break
@@ -251,11 +245,7 @@ def _fetch_files(ctx, todo):
                     "xxh64": entry["xxh64"],
                     "verified_at": timezone.now(),
                     "available_from_parent": entry.get("available_from_parent", True),
-                    "last_program_end": (
-                        date.fromisoformat(entry["last_program_end"])
-                        if entry.get("last_program_end")
-                        else None
-                    ),
+                    "last_program_end": _date_or_none(entry.get("last_program_end")),
                 },
             )
             results[key] = {"ok": True, "hashed_this_run": True}
@@ -407,11 +397,7 @@ def execute_run(run, client=None, heartbeat=None):
         phase="contacting",
     )
     state = ICBoothState.get()
-    report = {
-        "run_id": str(run.pk),
-        "request_id": str(run.request_id) if run.request_id else None,
-        "trigger": run.trigger,
-    }
+    report = {"run_id": str(run.pk), "trigger": run.trigger}
     file_results = {}
     try:
         manifest, digest = client.manifest(if_none_match=_if_none_match(run, state))
@@ -457,16 +443,6 @@ def execute_run(run, client=None, heartbeat=None):
             if upcoming:
                 ctx.save(force=True, phase="downloading_upcoming")
                 file_results.update(_fetch_files(ctx, upcoming))
-            if database == "kept_previous" and not any(
-                r.get("ok") for r in file_results.values()
-            ):
-                checksum_errors = [
-                    r["error"]
-                    for r in file_results.values()
-                    if r.get("code") == "checksum_failed"
-                ]
-                if checksum_errors:
-                    raise RunFailed("checksum_failed", checksum_errors[0])
             programs = _program_results(manifest, file_results)
             ctx.save(force=True, phase="reporting")
             removed, prune_warnings = prune(manifest)
@@ -563,23 +539,41 @@ def execute_run(run, client=None, heartbeat=None):
     return run
 
 
-def check_parent(client=None):
+def _rehash_due(state, now):
+    """The weekly re-hash of the only copies of released masters."""
+    return (
+        timezone.localtime(now).hour in REHASH_HOURS
+        and (
+            state.last_full_rehash_at is None
+            or now - state.last_full_rehash_at >= WEEKLY_REHASH
+        )
+        and ICLocalFile.objects.filter(available_from_parent=False).exists()
+    )
+
+
+def check_parent(client=None, now=None):
     """The agent's frequent, cheap check (every IC_CHECK_INTERVAL_SECONDS).
 
-    Asks production for its manifest hash and for pushes waiting to be collected, and
-    queues runs for them: a force-push run per push, and an event run when production's
-    manifest hash is one the booth hasn't tried yet. Returns the runs it queued.
+    Asks production for its manifest hash and queues a run when one is due:
+
+    - production has changes the booth hasn't tried yet: at once;
+    - the booth is behind or the last run didn't end cleanly: RETRY_AFTER later;
+    - otherwise, the weekly re-hash of released masters, in the morning.
+
+    Returns the queued run, or None.
     """
     client = client or ParentClient()
+    now = now or timezone.now()
     state = ICBoothState.get()
     try:
         data = client.check()
     except ParentError as exc:
         state.parent_check_error = str(exc)
         state.save(update_fields=["parent_check_error"])
-        return []
-    state.parent_manifest_hash = str(data.get("manifest_hash") or "")[:64]
-    state.parent_checked_at = timezone.now()
+        return None
+    parent_hash = str(data.get("manifest_hash") or "")[:64]
+    state.parent_manifest_hash = parent_hash
+    state.parent_checked_at = now
     state.parent_check_error = ""
     state.save(
         update_fields=[
@@ -589,49 +583,28 @@ def check_parent(client=None):
         ]
     )
 
-    queued = []
-    for offer in data.get("sync_requests") or []:
-        try:
-            request_id = uuid.UUID(str(offer["request_id"]))
-        except (KeyError, TypeError, ValueError):
-            continue
-        options = offer.get("options") or {}
-        run, created = ICSyncRun.objects.get_or_create(
-            request_id=request_id,
-            defaults={
-                "trigger": ICSyncRun.Trigger.FORCE_PUSH,
-                "requested_by": str(offer.get("requested_by", ""))[:255],
-                "options": {"full_rehash": bool(options.get("full_rehash"))},
-            },
-        )
-        if created:
-            queued.append(run)
-        # Production keeps offering a push until it hears about it: say it's queued, or
-        # resend the final report if this run already finished and the report was lost.
-        try:
-            if run.is_final and run.report:
-                client.post_status(run.report)
-            else:
-                client.post_progress(run.progress_json())
-        except ParentError:
-            pass
-
-    parent_hash = state.parent_manifest_hash
-    if (
-        parent_hash
-        and parent_hash != state.applied_manifest_hash
-        and not ICSyncRun.objects.filter(
-            status__in=[ICSyncRun.Status.QUEUED, ICSyncRun.Status.RUNNING]
-        ).exists()
-        and not ICSyncRun.objects.filter(manifest_hash=parent_hash).exists()
+    if ICSyncRun.objects.filter(
+        status__in=[ICSyncRun.Status.QUEUED, ICSyncRun.Status.RUNNING]
+    ).exists():
+        return None
+    last = ICSyncRun.objects.exclude(finished_at=None).order_by("-finished_at").first()
+    behind = parent_hash != state.applied_manifest_hash or (
+        last is not None
+        and last.status not in (ICSyncRun.Status.SUCCEEDED, ICSyncRun.Status.UP_TO_DATE)
+    )
+    if behind and (
+        last is None
+        # A run that failed before it saw a manifest waits like any other retry, so a
+        # broken production endpoint isn't asked again every check.
+        or (last.manifest_hash and parent_hash != last.manifest_hash)
+        or now - last.finished_at >= RETRY_AFTER
     ):
-        queued.append(
-            ICSyncRun.objects.create(
-                trigger=ICSyncRun.Trigger.EVENT,
-                requested_by="production (changed)",
-            )
+        return ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
+    if _rehash_due(state, now):
+        return ICSyncRun.objects.create(
+            trigger=ICSyncRun.Trigger.AUTO, options={"full_rehash": True}
         )
-    return queued
+    return None
 
 
 def _disk():

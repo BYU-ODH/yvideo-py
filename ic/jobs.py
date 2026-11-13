@@ -41,11 +41,12 @@ def queue(kind, *, resource_file=None, payload=None, not_before=None):
     )
 
 
-def _set_progress(job, fraction, _last=[0.0]):  # noqa: B006 - deliberate per-process throttle
+def _set_progress(job, fraction):
+    """Record a running job's progress, at most every 2 seconds."""
     now = time.monotonic()
-    if now - _last[0] < 2 and fraction < 1:
+    if now - getattr(job, "_progress_saved_at", 0.0) < 2 and fraction < 1:
         return
-    _last[0] = now
+    job._progress_saved_at = now
     MediaJob.objects.filter(pk=job.pk).update(progress=round(fraction, 4))
 
 
@@ -261,7 +262,7 @@ def release_blockers(master):
         return ["already released"]
     if not master.derivatives.filter(derived_from=master).exists():
         blockers.append("the SD transcode has not finished")
-    booths = list(ICInstance.objects.filter(profile=ICInstance.Profile.BOOTH))
+    booths = list(ICInstance.objects.all())
     if not booths:
         blockers.append("no booth is configured")
     for booth in booths:

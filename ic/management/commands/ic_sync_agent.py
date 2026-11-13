@@ -1,11 +1,10 @@
 """The booth's long-running sync agent (IC_MODE_PLAN.md section 7.3).
 
 It is the only part of the booth that talks to production, and it only ever calls out:
-a cheap check every IC_CHECK_INTERVAL_SECONDS (changes, pushes from IC editors), a full
-poll every IC_POLL_INTERVAL_SECONDS as a safety net, and the queued runs themselves.
+a cheap check every IC_CHECK_INTERVAL_SECONDS (`check_parent` decides whether a run is
+due), and the queued runs themselves.
 """
 
-from datetime import timedelta
 import fcntl
 import logging
 from pathlib import Path
@@ -18,8 +17,6 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 
 from ic import booth_state
-from ic.models import ICBoothState
-from ic.models import ICLocalFile
 from ic.models import ICSyncRun
 from ic.sync.agent import check_parent
 from ic.sync.agent import execute_run
@@ -28,10 +25,6 @@ from ic.sync.client import ParentClient
 logger = logging.getLogger(__name__)
 
 QUEUE_POLL_SECONDS = 2
-WEEKLY_REHASH = timedelta(days=7)
-# Re-hashing the only copies of released masters reads tens of GB; do it in the morning,
-# well away from evening showtimes.
-REHASH_HOURS = range(3, 11)
 
 
 class Command(BaseCommand):
@@ -41,7 +34,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--once",
             action="store_true",
-            help="Run one poll (and any queued runs), then exit.",
+            help="Check production once, run anything queued, then exit.",
         )
 
     def handle(self, *args, **options):
@@ -68,47 +61,27 @@ class Command(BaseCommand):
         )
         if stale:
             logger.warning("Marked %s interrupted sync run(s) failed.", stale)
+        # Sync once at startup: the agent usually restarts because the booth just
+        # deployed, which is when a run refused for a code mismatch can succeed. When
+        # nothing changed, this costs one manifest request answered with a 304.
+        if not ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED).exists():
+            ICSyncRun.objects.create(
+                trigger=ICSyncRun.Trigger.AUTO, requested_by="agent start"
+            )
 
         self.client = ParentClient()
         self.last_check = 0.0
-        last_poll = 0.0
         while not self.stopping:
             self.tick()
-            queued = ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED).order_by(
-                "requested_at"
-            )
-            # Forced runs go first: someone is watching their indicator.
+            queued = ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED)
+            # "Sync now" goes first: someone at the booth is watching its indicator.
             run = (
-                queued.filter(
-                    trigger__in=[
-                        ICSyncRun.Trigger.FORCE_PULL,
-                        ICSyncRun.Trigger.FORCE_PUSH,
-                    ]
-                ).first()
-                or queued.first()
+                queued.filter(trigger=ICSyncRun.Trigger.FORCE_PULL)
+                .order_by("requested_at")
+                .first()
+                or queued.order_by("requested_at").first()
             )
-            if (
-                run is None
-                and time.monotonic() - last_poll >= settings.IC_POLL_INTERVAL_SECONDS
-            ):
-                run_options = {}
-                last_rehash = ICBoothState.get().last_full_rehash_at
-                if (
-                    (
-                        last_rehash is None
-                        or timezone.now() - last_rehash >= WEEKLY_REHASH
-                    )
-                    and timezone.localtime().hour in REHASH_HOURS
-                    and not booth_state.playback_active()
-                    and ICLocalFile.objects.filter(available_from_parent=False).exists()
-                ):
-                    run_options["full_rehash"] = True
-                run = ICSyncRun.objects.create(
-                    trigger=ICSyncRun.Trigger.POLL, options=run_options
-                )
             if run is not None:
-                if run.trigger == ICSyncRun.Trigger.POLL:
-                    last_poll = time.monotonic()
                 logger.info("Starting sync run %s (%s)", run.pk, run.trigger)
                 execute_run(run, client=self.client, heartbeat=self.tick)
                 logger.info(
@@ -122,8 +95,8 @@ class Command(BaseCommand):
     def tick(self):
         """Heartbeat, and the check for changes and pushes when it's due.
 
-        Also called throughout a run, so a push made during a long download is
-        collected (and shown as queued on production) without waiting for it to end.
+        Also called throughout a run, which keeps production's "last contact" fresh
+        during a long download; check_parent queues nothing while a run is active.
         """
         booth_state.record_agent_heartbeat()
         if time.monotonic() - self.last_check >= settings.IC_CHECK_INTERVAL_SECONDS:

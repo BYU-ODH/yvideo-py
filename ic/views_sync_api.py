@@ -1,14 +1,13 @@
 """Production's sync API, called by booths with their bearer token (section 7.2).
 
-Booths only ever call production. Besides fetching data, a booth checks in every
-IC_CHECK_INTERVAL_SECONDS (`check`), which is how it learns about changes and about
-pushes from IC editors, and it reports what it is doing (`progress`, `status`).
+Sync is pull-only. Besides fetching data, a booth checks in every
+IC_CHECK_INTERVAL_SECONDS (`check`), which is how it learns about changes, and reports
+each run's outcome (`status`).
 """
 
 from datetime import datetime
 from functools import wraps
 import json
-import uuid
 
 from django.contrib.auth.decorators import login_not_required
 from django.core.cache import cache
@@ -31,7 +30,6 @@ from .jobs import maybe_queue_release
 from .models import ICInstance
 from .models import ICInstanceFile
 from .models import ICProgramItem
-from .models import ICSyncRequest
 from .sync.bundle import MANIFEST_HASH_CACHE_KEY
 from .sync.bundle import MANIFEST_HASH_CACHE_SECONDS
 from .sync.bundle import build_bundle
@@ -89,60 +87,8 @@ def manifest(request):
 @require_GET
 @sync_token_required
 def check(request):
-    """The booth's frequent check: production's manifest hash, and pushes to collect.
-
-    A push stays on offer until the booth reports progress for it, so a check whose
-    answer is lost just means the next check offers it again; the booth ignores a
-    request_id it already has.
-    """
-    return JsonResponse(
-        {
-            "manifest_hash": cached_manifest_hash(),
-            "sync_requests": [
-                sync_request.offer_json()
-                for sync_request in ICSyncRequest.pending_for(request.ic_instance)
-            ],
-        }
-    )
-
-
-def _sync_request_for(instance, request_id):
-    if not request_id:
-        return None
-    try:
-        request_uuid = uuid.UUID(str(request_id))
-    except ValueError:
-        return None
-    return ICSyncRequest.objects.filter(
-        request_id=request_uuid, instance=instance
-    ).first()
-
-
-@require_POST
-@sync_token_required
-def progress(request):
-    """Live progress of a pushed run, posted by the booth every few seconds."""
-    try:
-        data = json.loads(request.body or b"{}")
-    except ValueError:
-        return HttpResponseBadRequest("Expected JSON progress.")
-    sync_request = _sync_request_for(request.ic_instance, data.get("request_id"))
-    if sync_request is None or sync_request.is_final:
-        return JsonResponse({"ok": True})
-    now = timezone.now()
-    sync_request.progress = data
-    sync_request.progress_at = now
-    sync_request.picked_up_at = sync_request.picked_up_at or now
-    sync_request.booth_run_id = data.get("run_id") or sync_request.booth_run_id
-    # The final status arrives with the run's report (`status`), which also carries the
-    # per-program results the indicator shows.
-    if data.get("status") in (
-        ICSyncRequest.Status.QUEUED,
-        ICSyncRequest.Status.RUNNING,
-    ):
-        sync_request.status = data["status"]
-    sync_request.save()
-    return JsonResponse({"ok": True})
+    """The booth's frequent check: has production changed since it last synced?"""
+    return JsonResponse({"manifest_hash": cached_manifest_hash()})
 
 
 @require_GET
@@ -240,18 +186,6 @@ def status(request):
                 instance=instance, resource_file_id=entry.get("resource_file_id")
             ).delete()
 
-        sync_request = _sync_request_for(instance, report.get("request_id"))
-        if sync_request is not None:
-            sync_request.status = report.get("status", sync_request.status)
-            sync_request.report = report
-            sync_request.booth_run_id = (
-                report.get("run_id") or sync_request.booth_run_id
-            )
-            sync_request.error = report.get("error", "")
-            sync_request.picked_up_at = sync_request.picked_up_at or now
-            if sync_request.is_final:
-                sync_request.finished_at = sync_request.finished_at or now
-            sync_request.save()
     for master in release_candidates:
         maybe_queue_release(master)
     return JsonResponse({"ok": True})

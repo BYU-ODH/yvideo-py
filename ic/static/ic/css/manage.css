@@ -104,7 +104,6 @@
 }
 
 .ic-item-form,
-.ic-push-form,
 .ic-manage-form {
   display: flex;
   flex-wrap: wrap;

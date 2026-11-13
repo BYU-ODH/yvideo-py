@@ -1,7 +1,7 @@
-"""Tiny files the booth's containers share: playback and sync-agent heartbeats.
+"""The sync agent's heartbeat, a tiny file the booth's containers share.
 
-Kept out of the database on purpose: the kiosk is read-only, and a heartbeat GET every
-few seconds should not be a write.
+Kept out of the database on purpose: the agent writes it every second or so, and the
+kiosk (which is read-only) only reads it.
 """
 
 import json
@@ -11,10 +11,8 @@ import time
 
 from django.conf import settings
 
-PLAYBACK_FILE = "playback.json"
 AGENT_FILE = "agent.json"
 
-PLAYBACK_ACTIVE_SECONDS = 120
 AGENT_ALIVE_SECONDS = 30
 
 
@@ -36,21 +34,6 @@ def _read(name):
         return json.loads((_dir() / name).read_text())
     except (OSError, ValueError):
         return None
-
-
-def record_playback(state, now=None):
-    _write(
-        PLAYBACK_FILE, {"state": state, "at": now if now is not None else time.time()}
-    )
-
-
-def playback_active(now=None, within=PLAYBACK_ACTIVE_SECONDS):
-    """Whether the output was playing recently enough that syncs must tread lightly."""
-    data = _read(PLAYBACK_FILE)
-    if not data:
-        return False
-    now = now if now is not None else time.time()
-    return data.get("state") == "playing" and now - data.get("at", 0) <= within
 
 
 def record_agent_heartbeat(now=None, **extra):

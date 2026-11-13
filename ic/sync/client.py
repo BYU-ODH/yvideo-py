@@ -14,10 +14,9 @@ CHUNK_REQUEST_BYTES = 64 * 1024 * 1024
 READ_BYTES = 1024 * 1024
 TIMEOUT_SECONDS = 30
 CHECK_TIMEOUT_SECONDS = 10
-PROGRESS_TIMEOUT_SECONDS = 5
-# While the output is playing, downloads are capped so disk and network I/O cannot
-# cause stutter on the projector.
-THROTTLED_BYTES_PER_SECOND = 15 * 1024 * 1024
+# Downloads are always capped (a 10 GB master takes about 11 minutes), so disk and
+# network I/O can't cause stutter on the projector whenever a sync happens to run.
+MAX_BYTES_PER_SECOND = 15 * 1024 * 1024
 
 
 class ParentError(Exception):
@@ -60,7 +59,7 @@ class ParentClient:
         return data, data.get("manifest_hash", "")
 
     def check(self):
-        """{"manifest_hash": ..., "sync_requests": [...]}: is there anything to do?"""
+        """{"manifest_hash": ...}: has production changed?"""
         response = self._get("/ic/sync/check/", timeout=CHECK_TIMEOUT_SECONDS)
         if response.status_code != 200:
             raise ParentError(f"Check failed: HTTP {response.status_code}")
@@ -77,7 +76,7 @@ class ParentClient:
             return f"/ic/sync/files/projection/{entry['resource_file_id']}/"
         return f"/ic/sync/files/subtitle/{entry['subtitle_id']}/"
 
-    def download(self, entry, part_path, *, on_bytes=None, throttled=lambda: False):
+    def download(self, entry, part_path, *, on_bytes=None):
         """Download (resuming) into part_path until it reaches entry['size'] bytes."""
         part_path = Path(part_path)
         part_path.parent.mkdir(parents=True, exist_ok=True)
@@ -116,11 +115,10 @@ class ParentClient:
                         offset += len(chunk)
                         if on_bytes:
                             on_bytes(len(chunk))
-                        if throttled():
-                            minimum = received / THROTTLED_BYTES_PER_SECOND
-                            elapsed = time.monotonic() - started
-                            if elapsed < minimum:
-                                time.sleep(minimum - elapsed)
+                        minimum = received / MAX_BYTES_PER_SECOND
+                        elapsed = time.monotonic() - started
+                        if elapsed < minimum:
+                            time.sleep(minimum - elapsed)
                 except requests.RequestException as exc:
                     raise ParentError(f"Download interrupted: {exc}") from exc
                 handle.flush()
@@ -140,6 +138,3 @@ class ParentClient:
 
     def post_status(self, report):
         self._post("/ic/sync/status/", report, TIMEOUT_SECONDS)
-
-    def post_progress(self, progress):
-        self._post("/ic/sync/progress/", progress, PROGRESS_TIMEOUT_SECONDS)

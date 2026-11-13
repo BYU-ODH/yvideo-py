@@ -41,33 +41,9 @@
                     {% endif %}
                 </dl>
                 {% for warning in row.status.warnings %}<p class="ic-warn">⚠️ {{ warning }}</p>{% endfor %}
-                <form hx-post="{% url 'ic_instance_push' row.instance.pk %}"
-                      hx-target="#ic-push-result-{{ row.instance.pk }}"
-                      hx-swap="innerHTML"
-                      class="ic-push-form">
-                    <label>
-                        <input type="checkbox" name="full_rehash" value="1">
-                        Re-check every file (slow)
-                    </label>
-                    <button type="submit" class="blue-button">Push to booth now</button>
-                </form>
-                <p class="ic-muted">The booth checks for changes and pushes every {{ check_interval }} seconds.</p>
-                <div id="ic-push-result-{{ row.instance.pk }}"
-                     role="status"
-                     aria-live="polite"></div>
-                {% if row.recent_requests %}
-                    <details>
-                        <summary>Recent pushes</summary>
-                        <ul>
-                            {% for sync_request in row.recent_requests %}
-                                <li>
-                                    {{ sync_request.created_at|date:"M j H:i" }} by {{ sync_request.requested_by_name }}: {{ sync_request.status }}
-                                    {% if sync_request.error %}— {{ sync_request.error }}{% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </details>
-                {% endif %}
+                <p class="ic-muted">
+                    The booth checks for changes every {{ check_interval }} seconds and pulls them itself. To sync at once, the projectionist presses <strong>Sync now</strong> on the booth.
+                </p>
             </div>
         {% empty %}
             <p class="ic-muted">No booth is configured yet. A superuser adds one under IC instances in the admin.</p>

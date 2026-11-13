@@ -65,7 +65,8 @@ OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
 
 # --- International Cinema (#246; see DEPLOY_IC.md) ---------------------------------
 #
-# The booth only ever calls production; production needs no booth credentials.
+# Sync is pull-only: the booth calls production, never the reverse, and production
+# needs no booth credentials.
 #
 # Where projection masters live. Defaults to <repo>/ic_projection; in containers the
 # quadlet mounts it at /app/ic_projection and sets this through the environment.
@@ -80,5 +81,4 @@ OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
 # IS_IC_INSTANCE = True
 # IC_PARENT_URL = "https://yvideo.example.edu"
 # IC_SYNC_TOKEN = "<token shown once when the ICInstance was created>"
-# IC_CHECK_INTERVAL_SECONDS = 30   # cheap "anything new / any push?" check
-# IC_POLL_INTERVAL_SECONDS = 900   # full manifest fetch, as a safety net
+# IC_CHECK_INTERVAL_SECONDS = 30   # how often the booth asks "has anything changed?"

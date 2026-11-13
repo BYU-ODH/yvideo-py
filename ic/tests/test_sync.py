@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import tempfile
 from unittest import mock
-import uuid
 
 from django.test import TestCase
 from django.test import override_settings
@@ -169,10 +168,8 @@ class FakeParent:
         self.digest = digest
         self.files = files
         self.reports = []
-        self.progress = []
         self.downloads = []
         self.download_states = []
-        self.sync_requests = []
         self.unreachable = False
 
     def _reach(self):
@@ -181,7 +178,7 @@ class FakeParent:
 
     def check(self):
         self._reach()
-        return {"manifest_hash": self.digest, "sync_requests": self.sync_requests}
+        return {"manifest_hash": self.digest}
 
     def manifest(self, if_none_match=None):
         self._reach()
@@ -192,7 +189,7 @@ class FakeParent:
     def fixture(self):
         return self.fixture_bytes
 
-    def download(self, entry, part_path, *, on_bytes=None, throttled=lambda: False):
+    def download(self, entry, part_path, *, on_bytes=None):
         self.downloads.append(entry["name"])
         self.download_states.append(
             (entry["name"], ICBoothState.get().applied_manifest_hash)
@@ -206,10 +203,6 @@ class FakeParent:
     def post_status(self, report):
         self._reach()
         self.reports.append(report)
-
-    def post_progress(self, progress):
-        self._reach()
-        self.progress.append(progress)
 
 
 class AgentRunTests(ICTempDirsMixin, TestCase):
@@ -246,12 +239,8 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
             }
         return FakeParent(manifest, fixture, digest, files)
 
-    def run_sync(
-        self, trigger=ICSyncRun.Trigger.FORCE_PULL, request_id=None, **options
-    ):
-        run = ICSyncRun.objects.create(
-            trigger=trigger, options=options, request_id=request_id
-        )
+    def run_sync(self, trigger=ICSyncRun.Trigger.FORCE_PULL, **options):
+        run = ICSyncRun.objects.create(trigger=trigger, options=options)
         return agent.execute_run(run, client=self.parent, heartbeat=lambda: None)
 
     def test_forced_run_downloads_verifies_and_applies(self):
@@ -283,7 +272,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
     def test_poll_with_unchanged_manifest_is_up_to_date(self):
         self.run_sync()
         downloads = len(self.parent.downloads)
-        run = self.run_sync(trigger=ICSyncRun.Trigger.POLL)
+        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.UP_TO_DATE)
         self.assertEqual(len(self.parent.downloads), downloads)
 
@@ -305,7 +294,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.run_sync()
         self.parent.digest = "changed-files-only"
         with mock.patch.object(agent, "apply_fixture") as applied:
-            run = self.run_sync(trigger=ICSyncRun.Trigger.EVENT)
+            run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         applied.assert_not_called()
 
@@ -339,7 +328,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertIn("kept its previous data", run.report["warnings"][0])
         self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
 
-    def test_a_partial_run_is_retried_by_the_next_poll(self):
+    def test_a_partial_run_is_retried_by_the_next_automatic_run(self):
         entry = next(
             e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
         )
@@ -347,11 +336,11 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.parent.files[entry["name"]] = b"corrupt"
         self.assertEqual(self.run_sync().status, ICSyncRun.Status.PARTIAL)
         self.parent.files[entry["name"]] = good
-        run = self.run_sync(trigger=ICSyncRun.Trigger.POLL)
+        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         self.assertEqual(ICBoothState.get().applied_manifest_hash, self.parent.digest)
-        # Now that it succeeded, polls are cheap again.
-        run = self.run_sync(trigger=ICSyncRun.Trigger.POLL)
+        # Now that it succeeded, automatic runs are cheap again.
+        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.UP_TO_DATE)
 
     def test_rows_apply_before_films_for_later_programs_download(self):
@@ -397,21 +386,6 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(run.report["database"], "applied")
         ready = {p["name"]: p["ready"] for p in run.report["programs"]}
         self.assertEqual(ready, {"Amélie week": True, "Next month": False})
-
-    def test_a_pushed_run_reports_progress_to_production(self):
-        request_id = uuid.uuid4()
-        run = self.run_sync(trigger=ICSyncRun.Trigger.FORCE_PUSH, request_id=request_id)
-        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
-        self.assertTrue(self.parent.progress)
-        self.assertTrue(
-            all(p["request_id"] == str(request_id) for p in self.parent.progress)
-        )
-        self.assertIn("downloading", {p["phase"] for p in self.parent.progress})
-        self.assertEqual(self.parent.reports[-1]["request_id"], str(request_id))
-
-    def test_runs_nobody_pushed_post_no_progress(self):
-        self.run_sync()
-        self.assertEqual(self.parent.progress, [])
 
     def test_code_mismatch_refuses_to_import(self):
         self.parent.manifest_data["git_sha"] = "0" * 40
@@ -468,7 +442,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         entry["available_from_parent"] = False
         agent._storage_path(entry).unlink()
         self.parent.digest = "released"
-        run = self.run_sync(trigger=ICSyncRun.Trigger.EVENT)
+        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
         self.assertEqual(
             run.report["lost_files"],
@@ -476,70 +450,124 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         )
         self.assertNotIn(entry["name"], self.parent.downloads[3:])
 
+    def test_a_damaged_released_master_is_never_trusted_again(self):
+        self.run_sync()
+        entry = next(
+            e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
+        )
+        entry["available_from_parent"] = False
+        path = agent._storage_path(entry)
+        data = bytearray(path.read_bytes())
+        data[0] ^= 0xFF
+        path.write_bytes(bytes(data))
+        self.parent.digest = "released"
+        run = self.run_sync(full_rehash=True)
+        self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
+        self.assertEqual(len(run.report["lost_files"]), 1)
+        # An ordinary run afterwards must not take the damaged bytes for verified.
+        self.parent.digest = "released-again"
+        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
+        self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
+        self.assertEqual(len(run.report["lost_files"]), 1)
+        self.assertFalse(
+            ICLocalFile.objects.filter(
+                kind="projection", ref_id=entry["resource_file_id"]
+            ).exists()
+        )
+        self.assertNotIn(
+            entry["resource_file_id"],
+            [f["resource_file_id"] for f in run.report["verified_files"]],
+        )
+
 
 class CheckParentTests(ICTempDirsMixin, TestCase):
-    """The agent's frequent check: the booth calls production, never the reverse."""
+    """The agent's frequent check, the one place that decides when a run is due."""
 
     def setUp(self):
         super().setUp()
         self.parent = FakeParent({}, b"", "hash-1", {})
 
-    def test_a_new_manifest_hash_queues_one_event_run(self):
-        queued = agent.check_parent(self.parent)
-        self.assertEqual([r.trigger for r in queued], [ICSyncRun.Trigger.EVENT])
+    def finish(self, run, status, manifest_hash, minutes_ago=0):
+        run.status = status
+        run.manifest_hash = manifest_hash
+        run.finished_at = timezone.now() - timedelta(minutes=minutes_ago)
+        run.save()
+
+    def test_a_new_manifest_hash_queues_one_run(self):
+        run = agent.check_parent(self.parent)
+        self.assertEqual(run.trigger, ICSyncRun.Trigger.AUTO)
         state = ICBoothState.get()
         self.assertEqual(state.parent_manifest_hash, "hash-1")
         self.assertIsNotNone(state.parent_checked_at)
         self.assertTrue(state.production_has_newer_changes)
         # Still queued: no second run.
-        self.assertEqual(agent.check_parent(self.parent), [])
-        # Tried and failed: the 15-minute poll retries, not every check.
-        ICSyncRun.objects.update(status=ICSyncRun.Status.FAILED, manifest_hash="hash-1")
-        self.assertEqual(agent.check_parent(self.parent), [])
-        # Production moved on: try the new state.
+        self.assertIsNone(agent.check_parent(self.parent))
+
+    def test_a_failed_run_is_retried_later_unless_production_changes(self):
+        run = agent.check_parent(self.parent)
+        self.finish(run, ICSyncRun.Status.FAILED, "hash-1")
+        self.assertIsNone(agent.check_parent(self.parent))
+        # Production moved on: try the new state at once.
         self.parent.digest = "hash-2"
-        self.assertEqual(len(agent.check_parent(self.parent)), 1)
+        run = agent.check_parent(self.parent)
+        self.assertIsNotNone(run)
+        self.finish(run, ICSyncRun.Status.FAILED, "hash-2", minutes_ago=16)
+        # Same state, but long enough ago: retry.
+        self.assertIsNotNone(agent.check_parent(self.parent))
+
+    def test_a_partial_run_is_retried_even_when_the_hash_matches(self):
+        state = ICBoothState.get()
+        state.applied_manifest_hash = "hash-1"
+        state.save()
+        run = ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
+        self.finish(run, ICSyncRun.Status.PARTIAL, "hash-1", minutes_ago=1)
+        self.assertIsNone(agent.check_parent(self.parent))
+        self.finish(run, ICSyncRun.Status.PARTIAL, "hash-1", minutes_ago=16)
+        self.assertIsNotNone(agent.check_parent(self.parent))
+
+    def test_a_run_that_never_saw_a_manifest_waits_like_a_retry(self):
+        run = agent.check_parent(self.parent)
+        self.finish(run, ICSyncRun.Status.FAILED, "")
+        self.assertIsNone(agent.check_parent(self.parent))
 
     def test_nothing_to_do_when_the_booth_matches(self):
         state = ICBoothState.get()
         state.applied_manifest_hash = "hash-1"
         state.save()
-        self.assertEqual(agent.check_parent(self.parent), [])
+        self.assertIsNone(agent.check_parent(self.parent))
         self.assertFalse(ICBoothState.get().production_has_newer_changes)
 
-    def test_a_push_becomes_one_forced_run_and_production_hears_it_was_collected(self):
+    def test_weekly_rehash_of_only_copies_in_the_morning(self):
         state = ICBoothState.get()
         state.applied_manifest_hash = "hash-1"
         state.save()
-        request_id = str(uuid.uuid4())
-        self.parent.sync_requests = [
-            {
-                "request_id": request_id,
-                "requested_by": "Ada",
-                "options": {"full_rehash": True, "something_else": True},
-            }
-        ]
-        (run,) = agent.check_parent(self.parent)
-        self.assertEqual(run.trigger, ICSyncRun.Trigger.FORCE_PUSH)
-        self.assertEqual(str(run.request_id), request_id)
-        self.assertEqual(run.requested_by, "Ada")
+        morning = timezone.localtime().replace(hour=4)
+        evening = timezone.localtime().replace(hour=20)
+        # Nothing released: nothing to re-hash.
+        self.assertIsNone(agent.check_parent(self.parent, now=morning))
+        ICLocalFile.objects.create(
+            kind=ICLocalFile.Kind.PROJECTION,
+            ref_id=1,
+            name="ic/1/master.mp4",
+            size=1,
+            xxh64="0",
+            verified_at=timezone.now(),
+            available_from_parent=False,
+        )
+        self.assertIsNone(agent.check_parent(self.parent, now=evening))
+        run = agent.check_parent(self.parent, now=morning)
         self.assertEqual(run.options, {"full_rehash": True})
-        self.assertEqual(self.parent.progress[-1]["status"], "queued")
-
-        # Offered again (production hadn't heard yet): same run, nothing new.
-        self.assertEqual(agent.check_parent(self.parent), [])
-        self.assertEqual(ICSyncRun.objects.count(), 1)
-
-        # Finished, but its report was lost: the next offer resends it.
-        run.status = ICSyncRun.Status.SUCCEEDED
-        run.report = {"request_id": request_id, "status": "succeeded"}
-        run.save()
-        agent.check_parent(self.parent)
-        self.assertEqual(self.parent.reports[-1]["status"], "succeeded")
+        self.finish(run, ICSyncRun.Status.SUCCEEDED, "hash-1")
+        state.refresh_from_db()
+        state.last_full_rehash_at = morning
+        state.save()
+        self.assertIsNone(
+            agent.check_parent(self.parent, now=morning + timedelta(days=1))
+        )
 
     def test_unreachable_production_is_recorded_and_queues_nothing(self):
         self.parent.unreachable = True
-        self.assertEqual(agent.check_parent(self.parent), [])
+        self.assertIsNone(agent.check_parent(self.parent))
         self.assertIn("unreachable", ICBoothState.get().parent_check_error)
         self.parent.unreachable = False
         agent.check_parent(self.parent)

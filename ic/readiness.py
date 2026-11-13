@@ -35,14 +35,13 @@ def _media_job_state(master):
 
 
 def _verified_on_a_booth(master):
-    from .models import ICInstance
     from .models import ICInstanceFile
 
     return any(
         copy.matches()
-        for copy in ICInstanceFile.objects.filter(
-            resource_file=master, instance__profile=ICInstance.Profile.BOOTH
-        ).select_related("resource_file")
+        for copy in ICInstanceFile.objects.filter(resource_file=master).select_related(
+            "resource_file"
+        )
     )
 
 

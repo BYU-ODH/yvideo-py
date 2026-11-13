@@ -265,16 +265,15 @@ IC_PROJECTION_ROOT = _resolve_repo_path(
     os.environ.get("IC_PROJECTION_ROOT")
     or getattr(secret_settings, "IC_PROJECTION_ROOT", "ic_projection")
 )
-# Small runtime state shared between the booth containers: playback and agent
-# heartbeats, and the sync agent's lock file.
+# Small runtime state shared between the booth containers: the sync agent's heartbeat
+# and lock file.
 IC_STATE_DIR = _resolve_repo_path(getattr(secret_settings, "IC_STATE_DIR", "var/ic"))
 # Booth: where to pull from, and its bearer token.
 IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
 IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
-# How often the booth's sync agent asks production whether anything changed or an IC
-# editor pushed (a cheap request), and how often it fetches the full manifest anyway.
+# How often the booth's sync agent asks production whether anything changed (a cheap
+# request). Sync is pull-only; production can't make the booth sync.
 IC_CHECK_INTERVAL_SECONDS = getattr(secret_settings, "IC_CHECK_INTERVAL_SECONDS", 30)
-IC_POLL_INTERVAL_SECONDS = getattr(secret_settings, "IC_POLL_INTERVAL_SECONDS", 900)
 # What the booth's Chrome has been verified to decode (IC_MODE_PLAN.md section 6.1).
 # HEVC joins the list only once the spike confirms hardware decode; AV1 never will on
 # the booth's Intel UHD 630, which has no AV1 decoder.

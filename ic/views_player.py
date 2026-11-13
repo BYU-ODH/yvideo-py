@@ -9,7 +9,6 @@ the preview is exactly what the booth shows apart from the video file.
 from django.http import Http404
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.urls import NoReverseMatch
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
@@ -22,13 +21,6 @@ from .permissions import ic_editor_required
 from .permissions import ic_item_preview_required
 from .permissions import ic_program_write_required
 from .sync.bundle import content_fingerprint
-
-
-def _url_or_none(name, *args):
-    try:
-        return reverse(name, args=args)
-    except NoReverseMatch:
-        return None
 
 
 def item_json(item, *, playable=True, problems=()):
@@ -64,7 +56,6 @@ def control_context(request, program, *, items, booth):
             },
             "items": items,
             "output_url": reverse("ic_output"),
-            "heartbeat_url": _url_or_none("ic_heartbeat"),
             "booth": booth,
         },
         "booth": booth,

@@ -12,7 +12,6 @@ from .models import ICInstance
 from .models import ICInstanceFile
 from .models import ICProgram
 from .models import ICProgramItem
-from .models import ICSyncRequest
 from .models import ICUpload
 from .models import MediaJob
 
@@ -77,7 +76,7 @@ class ICInstanceFileInline(admin.TabularInline):
 
 @admin.register(ICInstance)
 class ICInstanceAdmin(admin.ModelAdmin):
-    list_display = ("name", "profile", "last_seen_at")
+    list_display = ("name", "last_seen_at")
     readonly_fields = (
         "last_seen_at",
         "last_status",
@@ -108,16 +107,3 @@ class ICInstanceAdmin(admin.ModelAdmin):
             raw = instance.issue_token()
             instance.save(update_fields=["token_hash"])
             self._show_token(request, instance, raw)
-
-
-@admin.register(ICSyncRequest)
-class ICSyncRequestAdmin(admin.ModelAdmin):
-    list_display = (
-        "instance",
-        "requested_by_name",
-        "status",
-        "created_at",
-        "finished_at",
-    )
-    list_filter = ("status", "instance")
-    readonly_fields = [f.name for f in ICSyncRequest._meta.fields]

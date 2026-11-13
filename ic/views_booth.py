@@ -202,14 +202,6 @@ def local_file(request, resource_file_id, xxh64):
     return response
 
 
-@require_GET
-@booth_view
-def heartbeat(request):
-    state = request.GET.get("state", "idle")
-    booth_state.record_playback("playing" if state == "playing" else "idle")
-    return HttpResponse(status=204)
-
-
 def _disk_free():
     try:
         usage = shutil.disk_usage(settings.IC_PROJECTION_ROOT)
@@ -254,11 +246,11 @@ def sync_run_create(request):
         return HttpResponse(
             booth_state.AGENT_DOWN_MESSAGE, status=503, content_type="text/plain"
         )
-    options = {"full_rehash": _bool_option(request, "full_rehash")}
+    full_rehash = _bool_option(request, "full_rehash")
+    # A second press while one is still queued joins it (asking for more, not less).
     run = (
         ICSyncRun.objects.filter(
-            status=ICSyncRun.Status.QUEUED,
-            trigger__in=[ICSyncRun.Trigger.FORCE_PULL, ICSyncRun.Trigger.FORCE_PUSH],
+            status=ICSyncRun.Status.QUEUED, trigger=ICSyncRun.Trigger.FORCE_PULL
         )
         .order_by("requested_at")
         .first()
@@ -267,8 +259,11 @@ def sync_run_create(request):
         run = ICSyncRun.objects.create(
             trigger=ICSyncRun.Trigger.FORCE_PULL,
             requested_by="booth operator",
-            options=options,
+            options={"full_rehash": full_rehash},
         )
+    elif full_rehash and not run.options.get("full_rehash"):
+        run.options = {**run.options, "full_rehash": True}
+        run.save(update_fields=["options"])
     return render(request, "ic/partials/sync_run.html", {"run": run, "booth": True})
 
 

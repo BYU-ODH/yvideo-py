@@ -1,7 +1,6 @@
 from datetime import timedelta
 from io import StringIO
 from unittest import mock
-import uuid
 
 from django.core.management import CommandError
 from django.core.management import call_command
@@ -10,8 +9,6 @@ from django.test import override_settings
 from django.utils import timezone
 
 from ic import booth_state
-from ic.models import ICBoothState
-from ic.models import ICLocalFile
 from ic.models import ICSyncRun
 from ic.models import MediaJob
 from ic.testing import ICTempDirsMixin
@@ -23,43 +20,14 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
             call_command("ic_sync_agent", "--once")
 
     @override_settings(IS_IC_INSTANCE=True)
-    def test_once_runs_queued_forced_runs_first_then_a_poll(self):
+    def test_once_syncs_at_startup_with_sync_now_first(self):
         stale = ICSyncRun.objects.create(
-            trigger=ICSyncRun.Trigger.POLL, status=ICSyncRun.Status.RUNNING
+            trigger=ICSyncRun.Trigger.AUTO, status=ICSyncRun.Status.RUNNING
         )
-        event = ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.EVENT)
-        forced = ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.FORCE_PULL)
-        order = []
-
-        def fake_execute(run, **kwargs):
-            order.append(run.trigger)
-            run.status = ICSyncRun.Status.SUCCEEDED
-            run.save()
-            return run
-
-        with mock.patch(
-            "ic.management.commands.ic_sync_agent.execute_run", side_effect=fake_execute
-        ):
-            call_command("ic_sync_agent", "--once")
-        self.assertEqual(order, ["force_pull", "event", "poll"])
-        stale.refresh_from_db()
-        self.assertEqual(stale.status, ICSyncRun.Status.FAILED)
-        self.assertTrue(booth_state.agent_alive())
-        self.assertTrue(
-            ICSyncRun.objects.filter(pk=forced.pk, status="succeeded").exists()
-        )
-        self.assertTrue(
-            ICSyncRun.objects.filter(pk=event.pk, status="succeeded").exists()
-        )
-
-    @override_settings(IS_IC_INSTANCE=True)
-    def test_the_check_runs_first_and_its_push_runs_before_the_poll(self):
         order = []
 
         def fake_check(client):
-            ICSyncRun.objects.create(
-                trigger=ICSyncRun.Trigger.FORCE_PUSH, request_id=uuid.uuid4()
-            )
+            ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.FORCE_PULL)
 
         def fake_execute(run, **kwargs):
             order.append(run.trigger)
@@ -81,44 +49,11 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
         ):
             call_command("ic_sync_agent", "--once")
         checked.assert_called_once()
-        self.assertEqual(order, ["force_push", "poll"])
-
-    @override_settings(IS_IC_INSTANCE=True)
-    def test_weekly_rehash_of_only_copies(self):
-        ICLocalFile.objects.create(
-            kind="projection",
-            ref_id=1,
-            name="ic_projection/1/a.mp4",
-            size=1,
-            xxh64="0",
-            verified_at=timezone.now(),
-            available_from_parent=False,
-        )
-        runs = []
-
-        def fake_execute(run, **kwargs):
-            runs.append(run.options)
-            run.status = ICSyncRun.Status.SUCCEEDED
-            run.save()
-            return run
-
-        morning = timezone.localtime().replace(hour=5)
-        with (
-            mock.patch(
-                "ic.management.commands.ic_sync_agent.execute_run",
-                side_effect=fake_execute,
-            ),
-            mock.patch(
-                "ic.management.commands.ic_sync_agent.timezone.localtime",
-                return_value=morning,
-            ),
-        ):
-            call_command("ic_sync_agent", "--once")
-            state = ICBoothState.get()
-            state.last_full_rehash_at = timezone.now()
-            state.save()
-            call_command("ic_sync_agent", "--once")
-        self.assertEqual(runs, [{"full_rehash": True}, {}])
+        # The startup run was queued first, but "Sync now" jumps ahead of it.
+        self.assertEqual(order, ["force_pull", "auto"])
+        stale.refresh_from_db()
+        self.assertEqual(stale.status, ICSyncRun.Status.FAILED)
+        self.assertTrue(booth_state.agent_alive())
 
 
 class MediaWorkerCommandTests(ICTempDirsMixin, TestCase):

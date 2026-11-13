@@ -1,7 +1,7 @@
 """International Cinema (#246): programs, the media pipeline, and booth sync.
 
 Production-side tables: ICProgram, ICProgramItem, ICUpload, MediaJob, ICInstance,
-ICInstanceFile, ICSyncRequest. ICProgram and ICProgramItem are also mirrored to the booth.
+ICInstanceFile. ICProgram and ICProgramItem are also mirrored to the booth.
 
 Booth-local tables (written only by the booth's sync agent, never mirrored): ICSyncRun,
 ICLocalFile, ICBoothState.
@@ -257,20 +257,13 @@ def hash_token(raw_token):
 class ICInstance(models.Model):
     """A Y-video IC instance that mirrors production: today, the one booth.
 
-    Instances only ever call production (IC_MODE_PLAN.md section 7.1): they check for
-    changes and push requests every IC_CHECK_INTERVAL_SECONDS and report what they did.
-    Production never connects to an instance.
+    Sync is pull-only (IC_MODE_PLAN.md section 7.1): instances check for changes every
+    IC_CHECK_INTERVAL_SECONDS and report what they did. Production never connects to an
+    instance and can't make one sync.
     """
-
-    class Profile(models.TextChoices):
-        BOOTH = "booth", "Booth (projection masters)"
-        PREVIEW = "preview", "Preview (SD files only)"
 
     name = models.CharField(max_length=100, unique=True)
     token_hash = models.CharField(max_length=64, unique=True, editable=False)
-    profile = models.CharField(
-        max_length=7, choices=Profile.choices, default=Profile.BOOTH
-    )
     last_seen_at = models.DateTimeField(null=True, blank=True, editable=False)
     last_status = models.JSONField(default=dict, blank=True, editable=False)
     last_applied_manifest_hash = models.CharField(
@@ -328,91 +321,6 @@ class ICInstanceFile(models.Model):
         return self.xxh64 == self.resource_file.checksum
 
 
-class ICSyncRequest(models.Model):
-    """A force push from production: "booth, sync now", and how it went.
-
-    Production can't reach the booth, so a push is a request the booth collects on its
-    next check (every IC_CHECK_INTERVAL_SECONDS). The booth then posts progress while it
-    runs and its final report when it finishes.
-    """
-
-    class Status(models.TextChoices):
-        PENDING = "pending", "Waiting for the booth to check in"
-        QUEUED = "queued"
-        RUNNING = "running"
-        SUCCEEDED = "succeeded"
-        PARTIAL = "partial"
-        FAILED = "failed"
-        UP_TO_DATE = "up_to_date", "Up to date"
-        EXPIRED = "expired", "Expired (the booth never checked in)"
-
-    FINAL_STATUSES = (
-        Status.SUCCEEDED,
-        Status.PARTIAL,
-        Status.FAILED,
-        Status.UP_TO_DATE,
-        Status.EXPIRED,
-    )
-    # A push the booth hasn't collected by then is dropped rather than run much later.
-    PENDING_TTL = timedelta(minutes=30)
-
-    instance = models.ForeignKey(
-        ICInstance, on_delete=models.CASCADE, related_name="sync_requests"
-    )
-    requested_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+"
-    )
-    requested_by_name = models.CharField(max_length=255, blank=True)
-    request_id = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
-    manifest_hash_at_request = models.CharField(max_length=64, blank=True)
-    options = models.JSONField(default=dict, blank=True)
-    booth_run_id = models.UUIDField(null=True, blank=True)
-    status = models.CharField(
-        max_length=24, choices=Status.choices, default=Status.PENDING
-    )
-    # The booth's latest progress_json() for the run, while it runs.
-    progress = models.JSONField(default=dict, blank=True)
-    progress_at = models.DateTimeField(null=True, blank=True)
-    report = models.JSONField(default=dict, blank=True)
-    error = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    picked_up_at = models.DateTimeField(null=True, blank=True)
-    finished_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    @property
-    def is_final(self):
-        return self.status in self.FINAL_STATUSES
-
-    @classmethod
-    def expire_stale(cls, now=None):
-        now = now or timezone.now()
-        return cls.objects.filter(
-            status=cls.Status.PENDING, created_at__lt=now - cls.PENDING_TTL
-        ).update(
-            status=cls.Status.EXPIRED,
-            finished_at=now,
-            error="The booth didn't check in to collect this push.",
-        )
-
-    @classmethod
-    def pending_for(cls, instance):
-        cls.expire_stale()
-        return cls.objects.filter(
-            instance=instance, status=cls.Status.PENDING
-        ).order_by("created_at")
-
-    def offer_json(self):
-        """What the booth needs to start the run."""
-        return {
-            "request_id": str(self.request_id),
-            "requested_by": self.requested_by_name,
-            "options": self.options,
-        }
-
-
 # ---------------------------------------------------------------------------
 # Booth-local tables
 # ---------------------------------------------------------------------------
@@ -422,11 +330,10 @@ class ICSyncRun(models.Model):
     """One sync on the booth, whatever started it."""
 
     class Trigger(models.TextChoices):
-        POLL = "poll"
-        # The booth's frequent check saw a manifest hash it hasn't tried yet.
-        EVENT = "event", "Change on production"
-        FORCE_PULL = "force_pull", "Force pull"
-        FORCE_PUSH = "force_push", "Force push"
+        # The agent's check found something to do: a change on production, a retry, or
+        # the weekly re-hash.
+        AUTO = "auto", "Automatic"
+        FORCE_PULL = "force_pull", "Sync now"
 
     class Status(models.TextChoices):
         QUEUED = "queued"
@@ -446,7 +353,6 @@ class ICSyncRun(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     trigger = models.CharField(max_length=10, choices=Trigger.choices)
     requested_by = models.CharField(max_length=255, blank=True)
-    request_id = models.UUIDField(null=True, blank=True, unique=True)
     options = models.JSONField(default=dict, blank=True)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.QUEUED
@@ -471,7 +377,7 @@ class ICSyncRun(models.Model):
 
     @property
     def is_forced(self):
-        return self.trigger in (self.Trigger.FORCE_PULL, self.Trigger.FORCE_PUSH)
+        return self.trigger == self.Trigger.FORCE_PULL
 
     @property
     def is_final(self):
@@ -480,7 +386,6 @@ class ICSyncRun(models.Model):
     def progress_json(self):
         return {
             "run_id": str(self.pk),
-            "request_id": str(self.request_id) if self.request_id else None,
             "trigger": self.trigger,
             "requested_by": self.requested_by,
             "status": self.status,

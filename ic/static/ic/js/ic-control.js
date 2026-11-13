@@ -14,7 +14,6 @@ import {
   outputLost,
 } from "./ic-protocol.js";
 
-const HEARTBEAT_MS = 30_000;
 const LOST_CHECK_MS = 500;
 
 const data = JSON.parse(document.getElementById("ic-page-data").textContent);
@@ -58,7 +57,6 @@ const state = {
   muted: false,
   subtitlesOn: true,
   scrubbing: false,
-  lastHeartbeat: null,
 };
 
 let outputWindow = null;
@@ -165,14 +163,6 @@ function isPlaying() {
   return Boolean(state.output && state.output.itemId !== null && !state.output.paused);
 }
 
-function heartbeat(force = false) {
-  if (!data.heartbeat_url) return;
-  const playing = isPlaying() ? "playing" : "idle";
-  if (!force && playing === state.lastHeartbeat) return;
-  state.lastHeartbeat = playing;
-  fetch(`${data.heartbeat_url}?state=${playing}`, { cache: "no-store" }).catch(() => {});
-}
-
 function render() {
   const output = state.output;
   const item = items[state.index];
@@ -207,7 +197,6 @@ function render() {
       : "Output connected (not fullscreen: click the output once)"
     : "Output not open";
   ui.outputStatus.dataset.connected = String(state.connected);
-  heartbeat();
 }
 
 function togglePlay() {
@@ -329,7 +318,6 @@ setInterval(() => {
     render();
   }
 }, LOST_CHECK_MS);
-setInterval(() => heartbeat(true), HEARTBEAT_MS);
 
 // An output that is already open (e.g. this page was reloaded) answers the ping.
 send(CMD.PING);
