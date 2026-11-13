@@ -49,8 +49,14 @@
         });
     </script>
     <script>
-      window.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('yvideo-beta-banner').showPopover();
-      });
+        const timeKey = "lastYvideoBetaBannerShowTime";
+        const lastBannerShowTime = Number(localStorage.getItem(timeKey));
+
+        if (lastBannerShowTime == 0 || Date.now() - lastBannerShowTime > (60*1000)) {
+          window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('yvideo-beta-banner').showPopover();
+            localStorage.setItem(timeKey, Date.now().toString());
+          });
+        }
     </script>
 {% endblock %}
