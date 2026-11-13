@@ -615,6 +615,23 @@ class AnnotationSet(models.Model):
         """Admin and owner are the only users that have full control over an annotation set"""
         return user.is_superuser or self.owner_id == user.pk
 
+    def ownership_candidates(self, exclude_user=None):
+        """Returns all users using this annotation set. Populate exclude_user to
+        remove the current annotation set owner (or some other user) from the list
+        of results."""
+        users = (
+            User.objects.filter(
+                playlists_owned__contents__annotation_set=self,
+            )
+            .order_by("is_superuser", "pk")
+            .distinct()
+        )
+
+        if exclude_user is not None:
+            users = users.exclude(pk=exclude_user.id)
+
+        return users
+
     def delete_or_reassign_ownership(self, user, new_owner=None):
         """If the set has no other users, delete it immediately. If there is a named new_owner,
         transfer ownership to that user. Otherwise, choose the first user that is also using
@@ -630,12 +647,7 @@ class AnnotationSet(models.Model):
         try:
             with transaction.atomic():
                 # allows for admin user to become the owner, but only if there is not a non-admin user.
-                users_using_this_set_other_than_owner = list(
-                    User.objects.filter(playlists_owned__contents__annotation_set=self)
-                    .exclude(pk=user.id)
-                    .order_by("is_superuser", "pk")
-                    .distinct()
-                )
+                users_using_this_set_other_than_owner = self.ownership_candidates(user)
 
                 # determine who should be the new owner
                 if new_owner and new_owner in users_using_this_set_other_than_owner:

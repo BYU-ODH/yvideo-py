@@ -253,16 +253,13 @@ def video_editor(request, content):
             "annotation_set": annotation_set,
             "can_edit": can_edit,
             "can_administer_annotation_set": can_administer_annotation_set,
-            "annotation_set_owner_candidates": (
-                User.objects.filter(
-                    playlists_owned__contents__annotation_set=annotation_set,
-                )
-                .exclude(pk=annotation_set.owner_id)
-                .order_by("is_superuser", "pk")
-                .distinct()
-                if can_administer_annotation_set
-                else []
-            ),
+            # can_administer_annotation_set is False if the annotation set is None, so we don't need to do an extra check
+            # to see if the annotation set is none before accessing ownership_candidates
+            "annotation_set_owner_candidates": annotation_set.ownership_candidates(
+                annotation_set.owner
+            )
+            if can_administer_annotation_set
+            else [],
             "annotation_groups": annotation_groups,
             "tracks": tracks,
             "subtitle_options": subtitle_options,
@@ -1090,21 +1087,7 @@ def delete_annotation_set(request, annotation_set):
         new_owner = None
         new_owner_id = body.get("new_owner_id")
         if new_owner_id is not None:
-            if isinstance(new_owner_id, bool) or not isinstance(
-                new_owner_id, (int, str)
-            ):
-                return HttpResponseBadRequest("Invalid new owner ID.")
-            new_owner = (
-                User.objects.filter(
-                    pk=new_owner_id,
-                    playlists_owned__contents__annotation_set=annotation_set,
-                )
-                .exclude(pk=annotation_set.owner_id)
-                .distinct()
-                .first()
-            )
-            if new_owner is None:
-                return HttpResponseBadRequest("Choose a playlist owner using this set.")
+            new_owner = User.objects.get(pk=new_owner_id)
 
         deletion_result = annotation_set.delete_or_reassign_ownership(
             request.user, new_owner=new_owner
@@ -1124,21 +1107,19 @@ def delete_annotation_set(request, annotation_set):
             "You do not have permission to delete or reassign the annotation set",
         )
         return HttpResponse(status=403)
+    except User.DoesNotExist:
+        messages.error(
+            request,
+            "The user you have attempted to reassigned the annotation set to doesn't exist.",
+        )
+        return HttpResponseBadRequest()
     except (json.JSONDecodeError, UnicodeDecodeError):
         logger.exception("Failed to delete annotation set: request body was malformed.")
         messages.error(
             request,
-            "Failed to delete annotation set because the request was malformed. Please refresh the page and try again.",
+            "Failed to delete annotation set because the request was malformed.",
         )
         return HttpResponseBadRequest()
-    except ValueError:
-        messages.error(
-            request,
-            "Could not reassign the annotation set. Please refresh the page and try again.",
-        )
-        return HttpResponseBadRequest(
-            "Failed to delete annotation set: invalid new owner."
-        )
     except Exception:
         logger.exception("Failed to delete annotation set")
         messages.error(
