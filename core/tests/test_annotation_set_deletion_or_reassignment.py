@@ -65,3 +65,30 @@ class AnnotationSetDeletionOrReassignmentTests(TestCase):
             with self.subTest(content_id=content.pk):
                 content.refresh_from_db()
                 self.assertEqual(content.annotation_set_id, self.annotation_set.pk)
+
+    def test_renames_transferred_set_when_new_owner_has_same_name_and_resource(self):
+        new_owner = UserFactory(instructor=True)
+        new_owner_content = self._content_using_set(new_owner)
+        original_name = self.annotation_set.name
+        existing_set = AnnotationSetFactory(
+            owner=new_owner,
+            resource=self.annotation_set.resource,
+            name=original_name,
+        )
+
+        result = self.annotation_set.delete_or_reassign_ownership(
+            self.owner, new_owner=new_owner
+        )
+
+        self.assertEqual(result, {"deleted": False, "reassigned": True})
+        self.annotation_set.refresh_from_db()
+        self.assertEqual(self.annotation_set.owner, new_owner)
+        self.assertEqual(self.annotation_set.resource_id, existing_set.resource_id)
+        existing_set.refresh_from_db()
+        self.assertNotEqual(self.annotation_set.name, existing_set.name)
+        self.assertEqual(existing_set.name, original_name)
+        self.assertEqual(existing_set.owner, new_owner)
+        self.owner_content.refresh_from_db()
+        self.assertIsNone(self.owner_content.annotation_set_id)
+        new_owner_content.refresh_from_db()
+        self.assertEqual(new_owner_content.annotation_set_id, self.annotation_set.pk)
