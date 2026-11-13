@@ -615,11 +615,12 @@ class AnnotationSet(models.Model):
         return user.is_superuser or self.owner_id == user.pk
 
     def delete_or_reassign_ownership(self, user, new_owner=None):
-        """If the set has no other users, delete it immediately. If there is 1 other user or a named new_owner,
-        transfer ownership to that user. If there is more than one other user and no named owner, choose an
-        owner by ???
+        """If the set has no other users, delete it immediately. If there is a named new_owner,
+        transfer ownership to that user. Otherwise, choose the first user that is also using
+        this set sorted by whether they are an admin (non-admins appear sooner) and then by
+        primary key
         """
-        if user.id != self.owner_id:
+        if not self.can_be_administered_by(user):
             return False
 
         try:
