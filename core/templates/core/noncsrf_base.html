@@ -25,6 +25,7 @@
               href="{% static 'img/favicon.ico' %}">
     </head>
     <body>
+        {% block siteBanner %}{% endblock %}
         <header class="site-header">
             {% block headerContent %}
                 {% include "core/partials/header.html" %}
