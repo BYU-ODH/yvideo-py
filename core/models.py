@@ -658,10 +658,7 @@ class AnnotationSet(models.Model):
                     )
                     result["reassigned"] = True
 
-        except Exception as e:
-            logger.error(
-                f"An error occurred while attempting to delete an annotation set or reassign its owner. Exception: {e}"
-            )
+        except Exception:
             raise
         return result
 
