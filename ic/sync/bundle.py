@@ -1,9 +1,9 @@
-"""What production sends a booth: a manifest, a fixture of rows, and a list of files.
+"""What production sends a booth: one manifest holding the rows and the list of files.
 
 The booth never receives annotation JSON. It receives the rows behind it, with their
 original primary keys, and renders player JSON with the same code production uses.
-Fingerprints (sha256 of the canonical player JSON) let it prove the result is
-identical before anything becomes playable.
+Fingerprints (sha256 of the player JSON) let it prove the result is identical before
+anything becomes playable.
 """
 
 import hashlib
@@ -12,7 +12,6 @@ import os
 import time
 
 from django.core import serializers
-from django.utils import timezone
 import xxhash
 
 from core.models import AnnotationSet
@@ -32,6 +31,8 @@ from core.models import SkipAnnotation
 from core.models import Subtitle
 from core.models import Track
 from core.models import User
+from ic.models import ICProgram
+from ic.models import ICProgramItem
 
 ANNOTATION_CLASSES = [
     SkipAnnotation,
@@ -43,36 +44,22 @@ ANNOTATION_CLASSES = [
     Clip,
 ]
 
-
-def mirrored_model_classes():
-    """Every model whose rows the booth mirrors, parents before children."""
-    from ic.models import ICProgram
-    from ic.models import ICProgramItem
-
-    return [
-        Language,
-        User,
-        Resource,
-        ResourceFile,
-        Playlist,
-        Subtitle,
-        AnnotationSet,
-        Track,
-        *ANNOTATION_CLASSES,
-        BlurAnchorPoint,
-        Content,
-        ICProgram,
-        ICProgramItem,
-    ]
-
-
-def _concrete_field_names(model):
-    """Fields to serialize: everything but many-to-many, which the booth has no rows for."""
-    return [
-        field.name
-        for field in model._meta.concrete_fields
-        if not field.primary_key and not field.many_to_many
-    ]
+# Every model whose rows the booth mirrors, parents before children.
+MIRRORED_MODELS = [
+    Language,
+    User,
+    Resource,
+    ResourceFile,
+    Playlist,
+    Subtitle,
+    AnnotationSet,
+    Track,
+    *ANNOTATION_CLASSES,
+    BlurAnchorPoint,
+    Content,
+    ICProgram,
+    ICProgramItem,
+]
 
 
 def _user_stub(user):
@@ -100,50 +87,30 @@ USER_STUB_FIELDS = (
 )
 
 
+def _serialize(model, objects):
+    if model is User:
+        fields = USER_STUB_FIELDS
+    else:
+        # Everything but many-to-many, which the booth has no rows for.
+        fields = [
+            f.name
+            for f in model._meta.concrete_fields
+            if not f.primary_key and not f.many_to_many
+        ]
+    return json.loads(serializers.serialize("json", objects, fields=fields))
+
+
 def _canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def _canonical_player_json(player_json):
-    """Order-insensitive form of get_player_json() for fingerprinting.
-
-    The lists come from querysets without an ORDER BY on some paths, so two databases
-    holding identical rows could list them differently. Sorting by id here keeps the
-    fingerprint about content: a real difference in any field still changes it.
-    """
-
-    def by_id(items):
-        return sorted(
-            items,
-            key=lambda item: (str(item.get("class_type", "")), item.get("id") or 0),
-        )
-
-    normalized = dict(player_json)
-    for key in ("annotations", "clips", "tracks", "subtitleTracks"):
-        if key in normalized:
-            normalized[key] = by_id(normalized[key])
-    for annotation in normalized.get("annotations", []):
-        for key in ("positions", "blur_anchor_points"):
-            if isinstance(annotation.get(key), list):
-                annotation[key] = sorted(
-                    annotation[key],
-                    key=lambda point: (point.get("time", 0), point.get("id") or 0),
-                )
-    return normalized
-
-
 def content_fingerprint(content):
     player_json = content.get_player_json(include_subtitles=True)
-    return hashlib.sha256(
-        _canonical(_canonical_player_json(player_json)).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(_canonical(player_json).encode("utf-8")).hexdigest()
 
 
 def manifest_hash(manifest):
-    without_time = {
-        key: value for key, value in manifest.items() if key != "generated_at"
-    }
-    return hashlib.sha256(_canonical(without_time).encode("utf-8")).hexdigest()
+    return hashlib.sha256(_canonical(manifest).encode("utf-8")).hexdigest()
 
 
 def file_xxh64(
@@ -184,135 +151,107 @@ class Bundle:
     """The rows and files for every syncable program, computed once per request."""
 
     def __init__(self, on=None):
-        from ic.models import ICProgram
-        from ic.models import ICProgramItem
-
-        self.programs = list(ICProgram.syncable(on).order_by("pk"))
-        self.items = list(
-            ICProgramItem.objects.filter(program__in=self.programs).order_by("pk")
+        programs = list(ICProgram.syncable(on).order_by("pk"))
+        items = list(ICProgramItem.objects.filter(program__in=programs).order_by("pk"))
+        contents = list(
+            Content.objects.filter(pk__in={i.content_id for i in items}).order_by("pk")
         )
-        content_ids = {item.content_id for item in self.items}
-        self.contents = list(Content.objects.filter(pk__in=content_ids).order_by("pk"))
-        self.playlists = list(
-            Playlist.objects.filter(
-                pk__in={c.playlist_id for c in self.contents if c.playlist_id}
-            ).order_by("pk")
-        )
-        resource_ids = {c.resource_id for c in self.contents if c.resource_id}
-        self.resources = list(
-            Resource.objects.filter(pk__in=resource_ids).order_by("pk")
-        )
+        playlists = Playlist.objects.filter(
+            pk__in={c.playlist_id for c in contents if c.playlist_id}
+        ).order_by("pk")
+        resource_ids = {c.resource_id for c in contents if c.resource_id}
         self.masters = list(
             ResourceFile.objects.filter(
                 resource_id__in=resource_ids, is_projection_file=True
             ).order_by("pk")
         )
-        resource_file_ids = {
-            c.resource_file_id for c in self.contents if c.resource_file_id
-        }
-        resource_file_ids |= {m.pk for m in self.masters}
-        content_files = ResourceFile.objects.filter(pk__in=resource_file_ids)
-        resource_file_ids |= {
-            f.derived_from_id for f in content_files if f.derived_from_id
-        }
-        self.resource_files = list(
-            ResourceFile.objects.filter(pk__in=resource_file_ids).order_by("pk")
+        file_ids = {c.resource_file_id for c in contents if c.resource_file_id}
+        file_ids |= {m.pk for m in self.masters}
+        file_ids |= set(
+            ResourceFile.objects.filter(
+                pk__in=file_ids, derived_from__isnull=False
+            ).values_list("derived_from_id", flat=True)
         )
-        self.annotation_sets = list(
+        annotation_sets = list(
             AnnotationSet.objects.filter(
-                pk__in={
-                    c.annotation_set_id for c in self.contents if c.annotation_set_id
-                }
+                pk__in={c.annotation_set_id for c in contents if c.annotation_set_id}
             ).order_by("pk")
         )
-        self.tracks = list(
-            Track.objects.filter(annotation_set__in=self.annotation_sets).order_by("pk")
+        tracks = list(
+            Track.objects.filter(annotation_set__in=annotation_sets).order_by("pk")
         )
-        self.annotations = {
-            model: list(model.objects.filter(track__in=self.tracks).order_by("pk"))
+        annotations = {
+            model: list(model.objects.filter(track__in=tracks).order_by("pk"))
             for model in ANNOTATION_CLASSES
         }
-        self.blur_anchor_points = list(
-            BlurAnchorPoint.objects.filter(
-                blur_annotation__in=self.annotations[BlurAnnotation]
-            ).order_by("pk")
-        )
         self.subtitles = list(
             Subtitle.objects.filter(resource_id__in=resource_ids).order_by("pk")
         )
-        owner_ids = {p.owner_id for p in self.playlists}
-        owner_ids |= {s.owner_id for s in self.annotation_sets if s.owner_id}
+        owner_ids = {p.owner_id for p in playlists}
+        owner_ids |= {s.owner_id for s in annotation_sets if s.owner_id}
         owner_ids |= {s.owner_id for s in self.subtitles if s.owner_id}
-        self.users = [
-            _user_stub(user)
-            for user in User.objects.filter(pk__in=owner_ids).order_by("pk")
-        ]
-        self.languages = list(Language.objects.order_by("pk"))
-
-    def _serialize(self, model, objects):
-        if model is User:
-            fields = USER_STUB_FIELDS
-        else:
-            fields = _concrete_field_names(model)
-        return json.loads(serializers.serialize("json", objects, fields=fields))
+        self.programs, self.items, self.contents = programs, items, contents
+        self.rows = {
+            Language: Language.objects.order_by("pk"),
+            User: [
+                _user_stub(u)
+                for u in User.objects.filter(pk__in=owner_ids).order_by("pk")
+            ],
+            Resource: Resource.objects.filter(pk__in=resource_ids).order_by("pk"),
+            ResourceFile: ResourceFile.objects.filter(pk__in=file_ids).order_by("pk"),
+            Playlist: playlists,
+            Subtitle: self.subtitles,
+            AnnotationSet: annotation_sets,
+            Track: tracks,
+            **annotations,
+            BlurAnchorPoint: BlurAnchorPoint.objects.filter(
+                blur_annotation__in=annotations[BlurAnnotation]
+            ).order_by("pk"),
+            Content: contents,
+            ICProgram: programs,
+            ICProgramItem: items,
+        }
 
     def fixture(self):
-        """JSON list of serialized rows, in load order."""
-        from ic.models import ICProgram
-        from ic.models import ICProgramItem
+        """Serialized rows, in load order."""
+        return [
+            row
+            for model in MIRRORED_MODELS
+            for row in _serialize(model, self.rows[model])
+        ]
 
-        rows_by_model = {
-            Language: self.languages,
-            User: self.users,
-            Resource: self.resources,
-            ResourceFile: self.resource_files,
-            Playlist: self.playlists,
-            Subtitle: self.subtitles,
-            AnnotationSet: self.annotation_sets,
-            Track: self.tracks,
-            **self.annotations,
-            BlurAnchorPoint: self.blur_anchor_points,
-            Content: self.contents,
-            ICProgram: self.programs,
-            ICProgramItem: self.items,
-        }
-        rows = []
-        for model in mirrored_model_classes():
-            rows.extend(self._serialize(model, rows_by_model[model]))
-        return _canonical(rows).encode("utf-8")
-
-    def _program_dates_by_resource(self):
-        first_start, last_end = {}, {}
-        programs = {p.pk: p for p in self.programs}
+    def _resource_ids_by_program(self):
         contents = {c.pk: c for c in self.contents}
+        by_program = {}
         for item in self.items:
-            program = programs[item.program_id]
             resource_id = contents[item.content_id].resource_id
-            if not resource_id:
-                continue
-            start = first_start.get(resource_id)
-            first_start[resource_id] = (
-                min(start, program.start_date) if start else program.start_date
-            )
-            end = last_end.get(resource_id)
-            last_end[resource_id] = (
-                max(end, program.end_date) if end else program.end_date
-            )
-        return first_start, last_end
-
-    def program_resource_ids(self, program):
-        contents = {c.pk: c for c in self.contents}
-        return sorted(
-            {
-                contents[i.content_id].resource_id
-                for i in self.items
-                if i.program_id == program.pk and contents[i.content_id].resource_id
-            }
-        )
+            if resource_id:
+                by_program.setdefault(item.program_id, set()).add(resource_id)
+        return by_program
 
     def files(self):
+        """Every file the booth needs, with the dates of the programs that use it."""
+        programs = {p.pk: p for p in self.programs}
+        first_start, last_end = {}, {}
+        for program_id, resource_ids in self._resource_ids_by_program().items():
+            program = programs[program_id]
+            for rid in resource_ids:
+                first_start[rid] = min(
+                    first_start.get(rid, program.start_date), program.start_date
+                )
+                last_end[rid] = max(
+                    last_end.get(rid, program.end_date), program.end_date
+                )
+
+        def dates(resource_id):
+            start, end = first_start.get(resource_id), last_end.get(resource_id)
+            return {
+                "resource_id": resource_id,
+                "first_program_start": start.isoformat() if start else None,
+                "last_program_end": end.isoformat() if end else None,
+            }
+
         entries = []
-        first_start, last_end = self._program_dates_by_resource()
         for master in self.masters:
             available = (
                 master.master_released_at is None and master.bytes_on_this_server
@@ -321,21 +260,11 @@ class Bundle:
                 {
                     "kind": "projection",
                     "resource_file_id": master.pk,
-                    "resource_id": master.resource_id,
-                    "first_program_start": (
-                        first_start[master.resource_id].isoformat()
-                        if master.resource_id in first_start
-                        else None
-                    ),
+                    **dates(master.resource_id),
                     "name": master.file.name,
                     "size": master.size_bytes or (master.file.size if available else 0),
                     "xxh64": master.checksum,
                     "available_from_parent": bool(available),
-                    "last_program_end": (
-                        last_end[master.resource_id].isoformat()
-                        if master.resource_id in last_end
-                        else None
-                    ),
                 }
             )
         for subtitle in self.subtitles:
@@ -344,12 +273,7 @@ class Bundle:
                 {
                     "kind": "subtitle",
                     "subtitle_id": subtitle.pk,
-                    "resource_id": subtitle.resource_id,
-                    "first_program_start": (
-                        first_start[subtitle.resource_id].isoformat()
-                        if subtitle.resource_id in first_start
-                        else None
-                    ),
+                    **dates(subtitle.resource_id),
                     "name": subtitle.subtitles_file.name,
                     "size": os.path.getsize(path),
                     "xxh64": file_xxh64(path),
@@ -358,33 +282,23 @@ class Bundle:
             )
         return entries
 
-    def production_problems(self, program):
-        """Errors that keep a program from being ready, whatever the booth does."""
+    def manifest(self):
         from ic.readiness import program_problems
 
-        return [
-            problem.message for problem in program_problems(program) if problem.is_error
-        ]
-
-    def fingerprints(self):
+        resource_ids = self._resource_ids_by_program()
         return {
-            str(content.pk): content_fingerprint(content) for content in self.contents
-        }
-
-    def manifest(self, fixture_bytes=None):
-        fixture_bytes = fixture_bytes if fixture_bytes is not None else self.fixture()
-        return {
-            "generated_at": timezone.now().isoformat(),
             "migrations": migration_leaves(),
-            "fixture": {"sha256": hashlib.sha256(fixture_bytes).hexdigest()},
+            "fixture": self.fixture(),
             "files": self.files(),
-            "fingerprints": self.fingerprints(),
+            "fingerprints": {str(c.pk): content_fingerprint(c) for c in self.contents},
             "programs": [
                 {
                     "id": program.pk,
                     "name": program.name,
-                    "resource_ids": self.program_resource_ids(program),
-                    "production_problems": self.production_problems(program),
+                    "resource_ids": sorted(resource_ids.get(program.pk, ())),
+                    "production_problems": [
+                        p.message for p in program_problems(program) if p.is_error
+                    ],
                 }
                 for program in self.programs
             ],
@@ -392,11 +306,9 @@ class Bundle:
 
 
 def build_bundle(on=None):
-    """(manifest, fixture bytes, manifest hash) for the current syncable programs."""
-    bundle = Bundle(on)
-    fixture_bytes = bundle.fixture()
-    manifest = bundle.manifest(fixture_bytes)
-    return manifest, fixture_bytes, manifest_hash(manifest)
+    """(manifest, manifest hash) for the current syncable programs."""
+    manifest = Bundle(on).manifest()
+    return manifest, manifest_hash(manifest)
 
 
 MANIFEST_HASH_CACHE_KEY = "ic_manifest_hash"
@@ -414,6 +326,6 @@ def cached_manifest_hash():
 
     digest = cache.get(MANIFEST_HASH_CACHE_KEY)
     if digest is None:
-        digest = build_bundle()[2]
+        digest = build_bundle()[1]
         cache.set(MANIFEST_HASH_CACHE_KEY, digest, MANIFEST_HASH_CACHE_SECONDS)
     return digest

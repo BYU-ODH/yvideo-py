@@ -16,8 +16,7 @@ from core.models import ResourceFile
 from core.models import projection_file_name
 
 from . import media
-from .models import ICInstance
-from .models import ICInstanceFile
+from .models import ICBoothReport
 from .models import ICUpload
 from .models import MediaJob
 from .sync.bundle import file_xxh64
@@ -29,12 +28,6 @@ ABANDONED_UPLOAD_AGE = timedelta(days=7)
 
 class JobFailed(Exception):
     """A job that cannot succeed; the message is shown to IC editors."""
-
-
-def queue(kind, *, resource_file=None, payload=None):
-    return MediaJob.objects.create(
-        kind=kind, resource_file=resource_file, payload=payload or {}
-    )
 
 
 def _set_progress(job, fraction):
@@ -108,8 +101,8 @@ def _ingest(upload):
             upload.status = ICUpload.Status.DONE
             upload.save(update_fields=["status", "updated_at"])
             if not existing.derivatives.exists():
-                queue(
-                    MediaJob.Kind.TRANSCODE,
+                MediaJob.objects.create(
+                    kind=MediaJob.Kind.TRANSCODE,
                     resource_file=existing,
                     payload={"master_id": existing.pk},
                 )
@@ -145,8 +138,8 @@ def _ingest(upload):
         master.save()
         upload.status = ICUpload.Status.DONE
         upload.save(update_fields=["status", "updated_at"])
-        queue(
-            MediaJob.Kind.TRANSCODE,
+        MediaJob.objects.create(
+            kind=MediaJob.Kind.TRANSCODE,
             resource_file=master,
             payload={"master_id": master.pk, "replaces_file_ids": replaced_ids},
         )
@@ -241,17 +234,10 @@ def release_blockers(master):
         return ["not a projection master"]
     if master.master_released_at:
         return ["already released"]
-    if not master.derivatives.filter(derived_from=master).exists():
+    if not master.derivatives.exists():
         blockers.append("the SD transcode has not finished")
-    booths = list(ICInstance.objects.all())
-    if not booths:
-        blockers.append("no booth is configured")
-    for booth in booths:
-        copy = ICInstanceFile.objects.filter(
-            instance=booth, resource_file=master
-        ).first()
-        if copy is None or not copy.hashed_from_bytes or not copy.matches():
-            blockers.append(f"{booth.name} has not verified its copy yet")
+    if not ICBoothReport.get().holds_verified_copy(master):
+        blockers.append("the booth has not verified its copy yet")
     return blockers
 
 
@@ -300,17 +286,13 @@ HANDLERS = {
 
 
 def claim_next():
-    """Atomically claim the oldest queued job, or None."""
-    for candidate in MediaJob.objects.filter(status=MediaJob.Status.QUEUED).order_by(
-        "created_at", "id"
-    )[:5]:
-        claimed = MediaJob.objects.filter(
-            pk=candidate.pk, status=MediaJob.Status.QUEUED
-        ).update(status=MediaJob.Status.RUNNING, started_at=timezone.now())
-        if claimed:
-            candidate.refresh_from_db()
-            return candidate
-    return None
+    """Claim the oldest queued job, or None. One media worker runs per server."""
+    job = MediaJob.objects.filter(status=MediaJob.Status.QUEUED).first()
+    if job is not None:
+        job.status = MediaJob.Status.RUNNING
+        job.started_at = timezone.now()
+        job.save(update_fields=["status", "started_at"])
+    return job
 
 
 def run(job):

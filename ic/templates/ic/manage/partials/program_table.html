@@ -5,7 +5,7 @@
                 <th scope="col">Program</th>
                 <th scope="col">Dates</th>
                 <th scope="col">Readiness</th>
-                {% for row in instances %}<th scope="col">{{ row.instance.name }}</th>{% endfor %}
+                <th scope="col">Booth</th>
             </tr>
         </thead>
         <tbody>
@@ -19,8 +19,8 @@
                         {% include "ic/partials/status_label.html" with status=row.status %}
                         {% include "ic/partials/problems.html" with problems=row.problems %}
                     </td>
-                    {% for booth in row.booths %}
-                        <td>
+                    <td>
+                        {% with booth=row.booth %}
                             {% if booth.state == "not_synced" %}
                                 <span class="ic-muted">Not synced yet</span>
                             {% elif booth.state == "matches" %}
@@ -33,8 +33,8 @@
                                     {% for problem in booth.problems %}<li>{{ problem }}</li>{% endfor %}
                                 </ul>
                             {% endif %}
-                        </td>
-                    {% endfor %}
+                        {% endwith %}
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>

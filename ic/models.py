@@ -1,14 +1,12 @@
 """International Cinema (#246): programs, the media pipeline, and booth sync.
 
-Production-side tables: ICProgram, ICProgramItem, ICUpload, MediaJob, ICInstance,
-ICInstanceFile. ICProgram and ICProgramItem are also mirrored to the booth.
+Production-side tables: ICProgram, ICProgramItem, ICUpload, MediaJob, ICBoothReport.
+ICProgram and ICProgramItem are also mirrored to the booth.
 
 Booth-local tables (never mirrored): ICSyncRun, ICLocalFile, ICBoothState.
 """
 
 from datetime import timedelta
-import hashlib
-import secrets
 import uuid
 
 from django.conf import settings
@@ -40,16 +38,12 @@ class ICProgram(models.Model):
             models.CheckConstraint(
                 condition=models.Q(end_date__gte=models.F("start_date")),
                 name="ic_program_end_on_or_after_start",
+                violation_error_message="The program can't end before it starts.",
             )
         ]
 
     def __str__(self):
         return f"{self.name} ({self.start_date} – {self.end_date})"
-
-    @classmethod
-    def active(cls, on=None):
-        on = on or timezone.localdate()
-        return cls.objects.filter(start_date__lte=on, end_date__gte=on)
 
     @classmethod
     def syncable(cls, on=None):
@@ -190,10 +184,6 @@ class MediaJob(models.Model):
         return self.status in (self.Status.QUEUED, self.Status.RUNNING)
 
 
-def default_upload_id():
-    return uuid.uuid4()
-
-
 class ICUpload(models.Model):
     """A chunked, resumable upload of a projection master."""
 
@@ -203,7 +193,7 @@ class ICUpload(models.Model):
         DONE = "done"
         FAILED = "failed"
 
-    id = models.UUIDField(primary_key=True, default=default_upload_id, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="ic_uploads"
     )
@@ -219,9 +209,6 @@ class ICUpload(models.Model):
         max_length=10, choices=Status.choices, default=Status.UPLOADING
     )
     error = models.TextField(blank=True)
-    job = models.ForeignKey(
-        MediaJob, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -250,47 +237,32 @@ CHECK_INTERVAL_SECONDS = 30
 CHECK_IN_GRACE_INTERVALS = 4
 
 
-def hash_token(raw_token):
-    return hashlib.sha256(raw_token.encode()).hexdigest()
+class ICBoothReport(models.Model):
+    """Singleton on production: when the booth last called, and its last run report.
 
-
-class ICInstance(models.Model):
-    """A Y-video IC instance that mirrors production: today, the one booth.
-
-    Sync is pull-only: instances check for changes every
-    CHECK_INTERVAL_SECONDS and report what they did. Production never connects to an
-    instance and can't make one sync.
+    There is one booth. It authenticates with settings.IC_SYNC_TOKEN, checks for changes
+    every CHECK_INTERVAL_SECONDS, and reports each run's outcome, including every
+    projection master it holds a verified copy of. Production never connects to it.
     """
 
-    name = models.CharField(max_length=100, unique=True)
-    token_hash = models.CharField(max_length=64, unique=True, editable=False)
-    last_seen_at = models.DateTimeField(null=True, blank=True, editable=False)
-    last_status = models.JSONField(default=dict, blank=True, editable=False)
-    last_applied_manifest_hash = models.CharField(
-        max_length=64, blank=True, editable=False
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "IC instance"
-
-    def __str__(self):
-        return self.name
-
-    def issue_token(self):
-        """Set a new token and return it. Only its hash is stored."""
-        raw = secrets.token_urlsafe(32)
-        self.token_hash = hash_token(raw)
-        return raw
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    report = models.JSONField(default=dict, blank=True)
 
     @classmethod
-    def for_token(cls, raw_token):
-        if not raw_token:
-            return None
-        return cls.objects.filter(token_hash=hash_token(raw_token)).first()
+    def get(cls):
+        """The booth's record (unsaved and empty if it has never called)."""
+        return cls.objects.filter(pk=1).first() or cls(pk=1)
+
+    @classmethod
+    def seen(cls):
+        cls.objects.update_or_create(pk=1, defaults={"last_seen_at": timezone.now()})
+
+    @property
+    def applied_manifest_hash(self):
+        return self.report.get("applied_manifest_hash", "")
 
     def checked_in_recently(self, now=None):
-        """Whether the instance has called production within a few check intervals."""
+        """Whether the booth has called production within a few check intervals."""
         if self.last_seen_at is None:
             return False
         now = now or timezone.now()
@@ -298,27 +270,16 @@ class ICInstance(models.Model):
             seconds=CHECK_INTERVAL_SECONDS * CHECK_IN_GRACE_INTERVALS
         )
 
+    def holds_verified_copy(self, master):
+        """Whether the booth's last report lists a copy of master with its checksum.
 
-class ICInstanceFile(models.Model):
-    """An instance's report that it holds a verified copy of a file."""
-
-    instance = models.ForeignKey(
-        ICInstance, on_delete=models.CASCADE, related_name="files"
-    )
-    resource_file = models.ForeignKey(
-        ResourceFile, on_delete=models.CASCADE, related_name="ic_instance_copies"
-    )
-    xxh64 = models.CharField(max_length=16)
-    verified_at = models.DateTimeField()
-    # True when the booth hashed the downloaded bytes in the reporting run, rather than
-    # repeating an earlier verification. Releasing a master requires one such report.
-    hashed_from_bytes = models.BooleanField(default=False)
-
-    class Meta:
-        unique_together = ("instance", "resource_file")
-
-    def matches(self):
-        return self.xxh64 == self.resource_file.checksum
+        The booth records a file only after hashing its bytes and finding a match, and
+        drops the record when a re-hash fails.
+        """
+        return any(
+            f.get("resource_file_id") == master.pk and f.get("xxh64") == master.checksum
+            for f in self.report.get("verified_files", [])
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -370,10 +331,6 @@ class ICSyncRun(models.Model):
         return f"{self.trigger} {self.status} {self.requested_at:%Y-%m-%d %H:%M}"
 
     @property
-    def is_forced(self):
-        return self.trigger == self.Trigger.FORCE_PULL
-
-    @property
     def is_final(self):
         return self.status in self.FINAL_STATUSES
 
@@ -419,7 +376,6 @@ class ICBoothState(models.Model):
     the sync agent is running."""
 
     applied_manifest_hash = models.CharField(max_length=64, blank=True)
-    applied_fixture_sha256 = models.CharField(max_length=64, blank=True)
     applied_at = models.DateTimeField(null=True, blank=True)
     # What production's manifest hash was at the agent's last check, so the controller
     # can say whether production has changes the booth doesn't have yet.

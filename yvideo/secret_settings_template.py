@@ -59,14 +59,13 @@ OIDC_USE_PKCE = False  # typically True for dev/stage and False for production. 
 OIDC_PKCE_CODE_CHALLENGE_METHOD = ""
 OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
 
-# Spool large uploads (International Cinema projection masters) somewhere bind-mounted
-# instead of the container's small /tmp. Relative paths are under the repo root.
-# FILE_UPLOAD_TEMP_DIR = "var/upload_tmp"
-
 # --- International Cinema (#246; see DEPLOY_IC.md) ---------------------------------
 #
-# Sync is pull-only: the booth calls production, never the reverse, and production
-# needs no booth credentials.
+# Sync is pull-only: the booth calls production, never the reverse.
+#
+# Both production and the booth: the booth's sync token, the same long random value on
+# each (e.g. `python -c "import secrets; print(secrets.token_urlsafe(32))"`).
+# IC_SYNC_TOKEN = "<shared secret>"
 #
 # Where projection masters live. Defaults to <repo>/ic_projection; in containers the
 # quadlet mounts it at /app/ic_projection and sets this through the environment.
@@ -79,4 +78,3 @@ OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 43200
 # ALLOWED_HOSTS = ["localhost", "127.0.0.1"].
 # IS_IC_INSTANCE = True
 # IC_PARENT_URL = "https://yvideo.example.edu"
-# IC_SYNC_TOKEN = "<token shown once when the ICInstance was created>"

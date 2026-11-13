@@ -58,7 +58,6 @@ const state = {
   blanked: false,
   muted: false,
   subtitlesOn: true,
-  error: null,
 };
 let idleTimer = null;
 
@@ -88,7 +87,6 @@ function applySubtitleVisibility() {
 
 async function load({ item, autoplay = false, startAt = 0 }) {
   state.item = item;
-  state.error = null;
   showIdle(true);
   video.pause();
   try {
@@ -110,6 +108,7 @@ async function load({ item, autoplay = false, startAt = 0 }) {
     video.addEventListener(
       "loadedmetadata",
       () => {
+        if (state.item !== item) return; // a newer load superseded this one
         if (startAt > 0) player.setCurrentTime(clampSeek(startAt, video.duration));
         applySubtitleVisibility();
         if (autoplay) play();
@@ -117,8 +116,7 @@ async function load({ item, autoplay = false, startAt = 0 }) {
       { once: true },
     );
   } catch (error) {
-    state.error = String(error);
-    post("error", { itemId: item.id, message: state.error });
+    post("error", { itemId: item.id, message: String(error) });
   }
 }
 
@@ -182,8 +180,8 @@ video.addEventListener("ended", () => {
 });
 video.addEventListener("error", () => {
   if (!state.item) return;
-  state.error = `The video could not be played (${video.error?.message || "media error"}).`;
-  post("error", { itemId: state.item.id, message: state.error });
+  const message = `The video could not be played (${video.error?.message || "media error"}).`;
+  post("error", { itemId: state.item.id, message });
 });
 
 function snapshot() {
@@ -197,14 +195,11 @@ function snapshot() {
     time,
     duration: Number.isFinite(video.duration) ? video.duration : null,
     paused: video.paused,
-    ended: video.ended,
     blanked: state.blanked,
     muted: state.muted,
     subtitlesOn: state.subtitlesOn,
     hasSubtitles: video.textTracks.length > 0,
-    readyState: video.readyState,
     fullscreen: Boolean(document.fullscreenElement),
-    error: state.error,
     active: annotations.filter((a) => a.start <= time && time < a.end).map(describeAnnotation),
     next: next ? { at: next.start, label: describeAnnotation(next) } : null,
   };

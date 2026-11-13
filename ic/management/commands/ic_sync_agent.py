@@ -5,9 +5,7 @@ a cheap check every CHECK_INTERVAL_SECONDS (`check_parent` decides whether a run
 due), and the queued runs themselves.
 """
 
-import fcntl
 import logging
-from pathlib import Path
 import signal
 import time
 
@@ -43,15 +41,6 @@ class Command(BaseCommand):
             raise CommandError(
                 "ic_sync_agent runs only on an IC instance (IS_IC_INSTANCE = True)."
             )
-        # One agent per booth, even if someone also runs it by hand.
-        lock_path = Path(settings.IC_PROJECTION_ROOT) / ".ic-sync-agent.lock"
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_file = open(lock_path, "w")  # noqa: SIM115 - held for the process lifetime
-        try:
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
-            raise CommandError("Another ic_sync_agent is already running.") from exc
-
         self.stopping = False
         signal.signal(signal.SIGTERM, self._stop)
         signal.signal(signal.SIGINT, self._stop)
@@ -73,13 +62,10 @@ class Command(BaseCommand):
         self.last_check = 0.0
         while not self.stopping:
             self.tick()
-            queued = ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED)
-            # "Sync now" goes first: someone at the booth is watching its indicator.
             run = (
-                queued.filter(trigger=ICSyncRun.Trigger.FORCE_PULL)
+                ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED)
                 .order_by("requested_at")
                 .first()
-                or queued.order_by("requested_at").first()
             )
             if run is not None:
                 logger.info("Starting sync run %s (%s)", run.pk, run.trigger)

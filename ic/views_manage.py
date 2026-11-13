@@ -28,10 +28,9 @@ from core.models import Resource
 from . import readiness
 from .forms import ICProgramForm
 from .forms import ICProgramItemForm
-from .jobs import queue
 from .jobs import release_blockers
 from .models import CHECK_INTERVAL_SECONDS
-from .models import ICInstance
+from .models import ICBoothReport
 from .models import ICProgram
 from .models import ICProgramItem
 from .models import ICUpload
@@ -64,44 +63,27 @@ def _record(request, comment):
     reversion.set_comment(comment)
 
 
-def _booth_cell(instance_row, program):
-    """How one booth reported this program in its last sync."""
+def _booth_cell(booth, matches, program):
+    """How the booth reported this program in its last sync."""
     reported = next(
-        (
-            p
-            for p in instance_row["status"].get("programs", [])
-            if p.get("id") == program.pk
-        ),
+        (p for p in booth.report.get("programs", []) if p.get("id") == program.pk),
         None,
     )
     if reported is None:
         return {"state": "not_synced"}
     if not reported.get("ready"):
         return {"state": "not_playable", "problems": reported.get("problems", [])}
-    return {"state": "matches" if instance_row["matches"] else "changed"}
+    return {"state": "matches" if matches else "changed"}
 
 
-def _program_row(program, instances):
+def _program_row(program, booth_cell):
     problems = readiness.program_problems(program)
     return {
         "program": program,
         "problems": problems,
         "status": readiness.rollup(problems),
-        "booths": [_booth_cell(row, program) for row in instances],
+        "booth": booth_cell,
     }
-
-
-def _instance_rows(current_hash):
-    return [
-        {
-            "instance": instance,
-            "status": instance.last_status or {},
-            "matches": bool(current_hash)
-            and instance.last_applied_manifest_hash == current_hash,
-            "in_contact": instance.checked_in_recently(),
-        }
-        for instance in ICInstance.objects.order_by("name")
-    ]
 
 
 @require_GET
@@ -114,21 +96,23 @@ def dashboard(request):
     except Exception:  # noqa: BLE001 - the dashboard must render even if a file is unreadable
         logger.exception("Could not compute the IC manifest hash")
         current_hash = ""
-    instances = _instance_rows(current_hash)
+    booth = ICBoothReport.get()
+    matches = bool(current_hash) and booth.applied_manifest_hash == current_hash
+
+    def rows(programs):
+        return [_program_row(p, _booth_cell(booth, matches, p)) for p in programs]
+
     return render(
         request,
         "ic/manage/dashboard.html",
         {
             "breadcrumbs": ic_trail(),
-            "active": [
-                _program_row(p, instances) for p in programs if p.is_active(today)
-            ],
-            "upcoming": [
-                _program_row(p, instances) for p in programs if p.is_upcoming(today)
-            ],
-            "past": [_program_row(p, instances) for p in programs if p.is_past(today)],
-            "instances": instances,
-            "current_hash": current_hash,
+            "active": rows(p for p in programs if p.is_active(today)),
+            "upcoming": rows(p for p in programs if p.is_upcoming(today)),
+            "past": rows(p for p in programs if p.is_past(today)),
+            "booth": booth,
+            "matches": matches,
+            "in_contact": booth.checked_in_recently(),
             "check_interval": CHECK_INTERVAL_SECONDS,
             "jobs": MediaJob.objects.order_by("-created_at")[:10],
         },
@@ -264,13 +248,12 @@ def item_add(request, program_id):
 def item_update(request, program_id, item_id):
     program = get_object_or_404(ICProgram, pk=program_id)
     item = _program_item(program, item_id)
+    # Every field is a choice or a checkbox, so an invalid post is a forged one.
     form = ICProgramItemForm(request.POST, instance=item, prefix=f"item-{item.pk}")
     if form.is_valid():
         with transaction.atomic(), reversion.create_revision():
             form.save()
             _record(request, "Updated IC program item")
-    else:
-        messages.error(request, f'Could not save "{item.content.title}".')
     # The program page posts here as soon as a setting changes (htmx follows the
     # redirect and swaps in the program with fresh readiness); without JavaScript the
     # item form has a Save button.
@@ -430,11 +413,8 @@ def _upload_json(upload):
         "expected_size": upload.expected_size,
         "received_bytes": upload.received_bytes,
         "status": upload.status,
-        "error": upload.error,
-        "job_status": upload.job.status if upload.job_id else None,
         "chunk_url": reverse("ic_upload_chunk", args=[upload.pk]),
         "finalize_url": reverse("ic_upload_finalize", args=[upload.pk]),
-        "status_url": reverse("ic_upload_status", args=[upload.pk]),
     }
 
 
@@ -480,12 +460,6 @@ def upload_create(request, resource):
     upload.part_path.parent.mkdir(parents=True, exist_ok=True)
     upload.part_path.touch()
     return JsonResponse(_upload_json(upload), status=201)
-
-
-@require_GET
-@ic_upload_owner_required
-def upload_status(request, upload):
-    return JsonResponse(_upload_json(upload))
 
 
 @require_http_methods(["PUT"])
@@ -538,6 +512,14 @@ def upload_finalize(request, upload):
             status=409,
         )
     upload.status = ICUpload.Status.PROCESSING
-    upload.job = queue(MediaJob.Kind.INGEST, payload={"upload_id": str(upload.pk)})
-    upload.save(update_fields=["status", "job", "updated_at"])
+    upload.save(update_fields=["status", "updated_at"])
+    MediaJob.objects.create(
+        kind=MediaJob.Kind.INGEST, payload={"upload_id": str(upload.pk)}
+    )
+    # The upload page goes to the films page, which shows the check's outcome.
+    messages.success(
+        request,
+        f"{upload.filename} received. The media worker is checking it; if it is "
+        "accepted, the SD editing file is made from it next.",
+    )
     return JsonResponse(_upload_json(upload))

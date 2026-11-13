@@ -5,6 +5,7 @@ container runs at idle CPU and I/O priority, which ffmpeg inherits.
 """
 
 from dataclasses import dataclass
+from fractions import Fraction
 import functools
 import json
 import os
@@ -50,18 +51,10 @@ class ProbeResult:
 
 
 def _parse_rate(rate):
-    if not rate or rate in ("0/0", "0"):
-        return None
-    if "/" in rate:
-        numerator, denominator = rate.split("/", 1)
-        try:
-            denominator = float(denominator)
-            return float(numerator) / denominator if denominator else None
-        except ValueError:
-            return None
+    """ffprobe's frame rate ("24000/1001", "0/0", ...) as a float, or None."""
     try:
-        return float(rate)
-    except ValueError:
+        return float(Fraction(rate)) or None
+    except (TypeError, ValueError, ZeroDivisionError):
         return None
 
 

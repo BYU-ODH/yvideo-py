@@ -21,13 +21,6 @@
   margin: 1.5rem 0;
 }
 
-.ic-manage-card {
-  margin-bottom: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--ic-border);
-  border-radius: var(--basic-border-radius);
-}
-
 .ic-items {
   padding: 0;
   list-style: none;

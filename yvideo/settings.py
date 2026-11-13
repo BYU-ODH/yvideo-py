@@ -247,12 +247,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
 
-# Uploads larger than FILE_UPLOAD_MAX_MEMORY_SIZE spool here instead of the container's
-# /tmp, which is small and not bind-mounted.
-FILE_UPLOAD_TEMP_DIR = _resolve_repo_path(
-    getattr(secret_settings, "FILE_UPLOAD_TEMP_DIR", None)
-)
-
 # International Cinema (#246).
 #
 # Production runs with IS_IC_INSTANCE False and serves IC editors, the sync API and the
@@ -265,9 +259,11 @@ IC_PROJECTION_ROOT = _resolve_repo_path(
     os.environ.get("IC_PROJECTION_ROOT")
     or getattr(secret_settings, "IC_PROJECTION_ROOT", "ic_projection")
 )
-# Booth: where to pull from, and its bearer token.
-IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
+# The booth's bearer token for the sync API, the same value on production and the booth.
+# Empty on production means no booth can sync.
 IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
+# Booth: where to pull from.
+IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
 # What the booth's Chrome has been verified to decode. HEVC joins the list only once the
 # spike confirms hardware decode; AV1 never will on the booth's Intel UHD 630.
 IC_BOOTH_VIDEO_CODECS = getattr(secret_settings, "IC_BOOTH_VIDEO_CODECS", ["h264"])

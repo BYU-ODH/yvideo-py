@@ -6,8 +6,8 @@ from django.db import transaction
 
 from core.models import Content
 
+from .bundle import MIRRORED_MODELS
 from .bundle import content_fingerprint
-from .bundle import mirrored_model_classes
 
 
 class FingerprintMismatch(Exception):
@@ -20,21 +20,22 @@ class FingerprintMismatch(Exception):
         )
 
 
-def apply_fixture(fixture_bytes, fingerprints):
+def apply_fixture(rows, fingerprints):
     """Load the fixture in one transaction and roll back unless every fingerprint matches.
 
     Deserialized saves run with raw=True, so model save() overrides (checksums, barcode
     generation, geometry clamping) do not touch production's values on the way in.
     """
-    models = mirrored_model_classes()
     with transaction.atomic():
         with connection.constraint_checks_disabled():
             # Delete every mirrored row, children first.
-            for model in reversed(models):
+            for model in reversed(MIRRORED_MODELS):
                 model._base_manager.all().delete()
-            for deserialized in serializers.deserialize("json", fixture_bytes):
+            for deserialized in serializers.deserialize("python", rows):
                 deserialized.save()
-        connection.check_constraints(table_names=[m._meta.db_table for m in models])
+        connection.check_constraints(
+            table_names=[m._meta.db_table for m in MIRRORED_MODELS]
+        )
 
         mismatched = []
         for content_id, expected in sorted(

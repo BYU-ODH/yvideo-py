@@ -89,11 +89,6 @@ urlpatterns = [
         name="ic_upload_create",
     ),
     path(
-        "manage/uploads/<uuid:upload_id>/",
-        views_manage.upload_status,
-        name="ic_upload_status",
-    ),
-    path(
         "manage/uploads/<uuid:upload_id>/chunk/",
         views_manage.upload_chunk,
         name="ic_upload_chunk",
@@ -106,7 +101,6 @@ urlpatterns = [
     # Booth sync API (bearer token).
     path("sync/manifest/", views_sync_api.manifest, name="ic_sync_manifest"),
     path("sync/check/", views_sync_api.check, name="ic_sync_check"),
-    path("sync/fixture/", views_sync_api.fixture, name="ic_sync_fixture"),
     path(
         "sync/files/projection/<int:resource_file_id>/",
         views_sync_api.projection_file,

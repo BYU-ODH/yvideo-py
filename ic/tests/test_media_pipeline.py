@@ -15,8 +15,7 @@ from core.models import ResourceAccess
 from core.models import ResourceFile
 from ic import jobs
 from ic import media
-from ic.models import ICInstance
-from ic.models import ICInstanceFile
+from ic.models import ICBoothReport
 from ic.models import ICUpload
 from ic.models import MediaJob
 from ic.testing import FFMPEG_AVAILABLE
@@ -209,31 +208,33 @@ class ReleaseMasterTests(ICTempDirsMixin, TestCase):
     def setUp(self):
         super().setUp()
         self.master = make_master(ResourceFactory())
-        self.booth = ICInstance(name="booth")
-        self.booth.issue_token()
-        self.booth.save()
 
-    def verify_on_booth(self, hashed=True, checksum=None):
-        ICInstanceFile.objects.update_or_create(
-            instance=self.booth,
-            resource_file=self.master,
+    def verify_on_booth(self, checksum=None):
+        """The booth's run report listing its verified copy of the master."""
+        ICBoothReport.objects.update_or_create(
+            pk=1,
             defaults={
-                "xxh64": checksum or self.master.checksum,
-                "verified_at": timezone.now(),
-                "hashed_from_bytes": hashed,
+                "report": {
+                    "verified_files": [
+                        {
+                            "kind": "projection",
+                            "resource_file_id": self.master.pk,
+                            "xxh64": checksum or self.master.checksum,
+                        }
+                    ]
+                }
             },
         )
 
-    def test_blockers_until_sd_exists_and_the_booth_hashed_its_copy(self):
+    def test_blockers_until_sd_exists_and_the_booth_verified_its_copy(self):
         self.assertIn(
             "the SD transcode has not finished", jobs.release_blockers(self.master)
         )
         make_sd_file(self.master)
         self.assertIn(
-            "booth has not verified its copy yet", jobs.release_blockers(self.master)
+            "the booth has not verified its copy yet",
+            jobs.release_blockers(self.master),
         )
-        self.verify_on_booth(hashed=False)
-        self.assertTrue(jobs.release_blockers(self.master))
         self.verify_on_booth(checksum="ffffffffffffffff")
         self.assertTrue(jobs.release_blockers(self.master))
         self.verify_on_booth()

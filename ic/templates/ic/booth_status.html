@@ -6,36 +6,9 @@
         <h2>Now</h2>
         {% include "ic/partials/sync_badge.html" %}
 
-        <dl class="ic-facts">
-            <dt>Last successful sync</dt>
-            <dd>
-                {{ last_success.finished_at|default:"never" }}
-            </dd>
-            <dt>Applied manifest</dt>
-            <dd>
-                {{ state.applied_manifest_hash|slice:":12"|default:"none" }}
-            </dd>
-            <dt>Production's manifest</dt>
-            <dd>
-                {{ state.parent_manifest_hash|slice:":12"|default:"unknown" }}
-                {% if state.parent_checked_at %}(checked {{ state.parent_checked_at|date:"H:i:s" }}){% endif %}
-                {% if state.parent_check_error %}<span class="ic-status ic-warn">{{ state.parent_check_error }}</span>{% endif %}
-            </dd>
-            <dt>Sync agent heartbeat</dt>
-            <dd>
-                {% if state.agent_alive %}
-                    alive
-                {% else %}
-                    not running
-                {% endif %}
-            </dd>
-            {% if disk %}
-                <dt>Disk</dt>
-                <dd>
-                    {{ disk.free|filesizeformat }} free of {{ disk.total|filesizeformat }}
-                </dd>
-            {% endif %}
-        </dl>
+        {% if disk %}
+            <p>Disk: {{ disk.free|filesizeformat }} free of {{ disk.total|filesizeformat }}</p>
+        {% endif %}
     </section>
     <section class="ic-panel">
         <h2>Recent syncs</h2>

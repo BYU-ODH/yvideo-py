@@ -17,7 +17,7 @@ from ic.testing import ICTempDirsMixin
 
 class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
     @override_settings(IS_IC_INSTANCE=True)
-    def test_once_syncs_at_startup_with_sync_now_first(self):
+    def test_once_syncs_at_startup_then_runs_what_the_check_queued(self):
         stale = ICSyncRun.objects.create(
             trigger=ICSyncRun.Trigger.AUTO, status=ICSyncRun.Status.RUNNING
         )
@@ -46,8 +46,8 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
         ):
             call_command("ic_sync_agent", "--once")
         checked.assert_called_once()
-        # The startup run was queued first, but "Sync now" jumps ahead of it.
-        self.assertEqual(order, ["force_pull", "auto"])
+        # The startup run, then the one the check queued, oldest first.
+        self.assertEqual(order, ["auto", "force_pull"])
         stale.refresh_from_db()
         self.assertEqual(stale.status, ICSyncRun.Status.FAILED)
         self.assertTrue(ICBoothState.get().agent_alive)

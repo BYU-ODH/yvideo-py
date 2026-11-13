@@ -55,9 +55,7 @@
                             <br>
                             {% if row.master.master_released_at %}
                                 <span class="ic-muted">Released {{ row.master.master_released_at|date:"M j" }}: the booth holds the only copy.</span>
-                            {% elif not row.release_blockers %}
-                                <span class="ic-muted">Release queued.</span>
-                            {% else %}
+                            {% elif row.release_blockers %}
                                 <span class="ic-muted">Kept on production until: {{ row.release_blockers|join:"; " }}.</span>
                             {% endif %}
                         {% else %}

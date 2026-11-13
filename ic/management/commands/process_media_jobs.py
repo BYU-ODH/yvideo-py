@@ -9,16 +9,16 @@ from ic import jobs
 logger = logging.getLogger(__name__)
 
 CLEANUP_INTERVAL_SECONDS = 6 * 3600
+IDLE_SLEEP_SECONDS = 2
 
 
 class Command(BaseCommand):
-    help = "Run International Cinema media jobs (ingest, SD transcode, master release, upload cleanup)."
+    help = "Run International Cinema media jobs (ingest, SD transcode, upload cleanup)."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--once", action="store_true", help="Run due jobs, then exit."
         )
-        parser.add_argument("--sleep-seconds", type=float, default=2.0)
 
     def handle(self, *args, **options):
         self.stopping = False
@@ -42,7 +42,7 @@ class Command(BaseCommand):
             if job is None:
                 if options["once"]:
                     break
-                time.sleep(options["sleep_seconds"])
+                time.sleep(IDLE_SLEEP_SECONDS)
                 continue
             logger.info("Running media job %s", job)
             jobs.run(job)

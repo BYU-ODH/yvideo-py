@@ -856,7 +856,9 @@ class AnnotationSet(models.Model):
         """
         Get all tracks as they are
         """
-        return sorted(self.tracks.all(), key=lambda track: track.stack_position)
+        return sorted(
+            self.tracks.order_by("pk"), key=lambda track: track.stack_position
+        )
 
     def get_highest_stack_position(self):
         track_with_highest_position_value = (
@@ -869,7 +871,7 @@ class AnnotationSet(models.Model):
         Get all currently active annotations across all tracks.
         """
         annotations = []
-        for track in list(self.tracks.all()):
+        for track in self.tracks.order_by("pk"):
             annotations.extend(track.get_active_annotations())
         return sorted(annotations, key=lambda a: a.start_time)
 
@@ -910,7 +912,9 @@ class Track(models.Model):
             CommentAnnotation,
             Clip,
         ]:
-            annotations.extend(model_class.objects.filter(track=self, active=True))
+            annotations.extend(
+                model_class.objects.filter(track=self, active=True).order_by("pk")
+            )
         return sorted(annotations, key=lambda a: a.start_time)
 
     def is_final_stack_position(self):
@@ -1084,7 +1088,7 @@ class Content(models.Model):
         resource = self.get_resource()
         if not resource:
             return []
-        sub_objs = Subtitle.objects.filter(resource=resource)
+        sub_objs = Subtitle.objects.filter(resource=resource).order_by("pk")
         default_id = self.default_subtitle_track_id
         subtitles = []
         for sub in sub_objs:

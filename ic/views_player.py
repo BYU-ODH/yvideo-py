@@ -335,11 +335,4 @@ def sync_run_create(request):
 @booth_view
 def sync_run_detail(request, run_id):
     run = get_object_or_404(ICSyncRun, pk=run_id)
-    behind = (
-        ICSyncRun.objects.filter(
-            status=ICSyncRun.Status.RUNNING, requested_at__lt=run.requested_at
-        ).first()
-        if run.status == ICSyncRun.Status.QUEUED
-        else None
-    )
-    return _render(request, "ic/partials/sync_run.html", {"run": run, "behind": behind})
+    return _render(request, "ic/partials/sync_run.html", {"run": run})

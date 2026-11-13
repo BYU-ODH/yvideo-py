@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
+from .models import ICBoothReport
+
 ERROR = "error"
 WARNING = "warning"
 
@@ -20,17 +22,6 @@ class Problem:
     @property
     def is_error(self):
         return self.severity == ERROR
-
-
-def _verified_on_a_booth(master):
-    from .models import ICInstanceFile
-
-    return any(
-        copy.matches()
-        for copy in ICInstanceFile.objects.filter(resource_file=master).select_related(
-            "resource_file"
-        )
-    )
 
 
 def master_problems(master):
@@ -58,12 +49,12 @@ def master_problems(master):
     if (
         not settings.IS_IC_INSTANCE
         and master.master_released_at
-        and not _verified_on_a_booth(master)
+        and not ICBoothReport.get().holds_verified_copy(master)
     ):
         add(
             ERROR,
             "master_lost",
-            "Production released this master and no booth reports a verified copy; re-upload it.",
+            "Production released this master and the booth no longer reports a verified copy; re-upload it.",
         )
     return problems
 

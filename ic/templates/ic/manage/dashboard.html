@@ -6,48 +6,47 @@
     </header>
     <section class="ic-manage-section" aria-labelledby="ic-booths-heading">
         <h3 id="ic-booths-heading">Booth</h3>
-        {% for row in instances %}
-            <div class="ic-manage-card">
-                <h4>{{ row.instance.name }}</h4>
-                <dl class="ic-facts">
-                    <dt>Matches production</dt>
-                    <dd>
-                        {% if row.matches %}
-                            <span class="ic-ok">✅ Yes</span>
-                        {% elif row.instance.last_applied_manifest_hash %}
-                            <span class="ic-warn">⚠️ Production has changes the booth doesn't have yet</span>
-                        {% else %}
-                            <span class="ic-muted">Never synced</span>
-                        {% endif %}
-                    </dd>
-                    <dt>Last contact</dt>
-                    <dd>
-                        {{ row.instance.last_seen_at|default:"never" }}
-                        {% if row.instance.last_seen_at and not row.in_contact %}
-                            <span class="ic-warn">⚠️ The booth hasn't checked in recently: it may be off or offline, or its sync agent may be stopped.</span>
-                        {% endif %}
-                    </dd>
-                    <dt>Last sync</dt>
-                    <dd>
-                        {{ row.status.status|default:"–" }}
-                        {% if row.status.trigger %}({{ row.status.trigger }}){% endif %}
-                        {% if row.status.error %}<span class="ic-error">{{ row.status.error }}</span>{% endif %}
-                    </dd>
-                    {% if row.status.disk %}
-                        <dt>Booth disk free</dt>
-                        <dd>
-                            {{ row.status.disk.free|filesizeformat }} of {{ row.status.disk.total|filesizeformat }}
-                        </dd>
+        {% if booth.last_seen_at %}
+            <dl class="ic-facts">
+                <dt>Matches production</dt>
+                <dd>
+                    {% if matches %}
+                        <span class="ic-ok">✅ Yes</span>
+                    {% elif booth.applied_manifest_hash %}
+                        <span class="ic-warn">⚠️ Production has changes the booth doesn't have yet</span>
+                    {% else %}
+                        <span class="ic-muted">Never synced</span>
                     {% endif %}
-                </dl>
-                {% for warning in row.status.warnings %}<p class="ic-warn">⚠️ {{ warning }}</p>{% endfor %}
-                <p class="ic-muted">
-                    The booth checks for changes every {{ check_interval }} seconds and pulls them itself. To sync at once, the projectionist presses <strong>Sync now</strong> on the booth.
-                </p>
-            </div>
-        {% empty %}
-            <p class="ic-muted">No booth is configured yet. A superuser adds one under IC instances in the admin.</p>
-        {% endfor %}
+                </dd>
+                <dt>Last contact</dt>
+                <dd>
+                    {{ booth.last_seen_at }}
+                    {% if not in_contact %}
+                        <span class="ic-warn">⚠️ The booth hasn't checked in recently: it may be off or offline, or its sync agent may be stopped.</span>
+                    {% endif %}
+                </dd>
+                <dt>Last sync</dt>
+                <dd>
+                    {{ booth.report.status|default:"–" }}
+                    {% if booth.report.trigger %}({{ booth.report.trigger }}){% endif %}
+                    {% if booth.report.error %}<span class="ic-error">{{ booth.report.error }}</span>{% endif %}
+                </dd>
+                {% if booth.report.disk %}
+                    <dt>Booth disk free</dt>
+                    <dd>
+                        {{ booth.report.disk.free|filesizeformat }} of {{ booth.report.disk.total|filesizeformat }}
+                    </dd>
+                {% endif %}
+            </dl>
+            {% for warning in booth.report.warnings %}<p class="ic-warn">⚠️ {{ warning }}</p>{% endfor %}
+            <p class="ic-muted">
+                The booth checks for changes every {{ check_interval }} seconds and pulls them itself. To sync at once, the projectionist presses <strong>Sync now</strong> on the booth.
+            </p>
+        {% else %}
+            <p class="ic-muted">
+                The booth hasn't contacted production yet. Set the same <code>IC_SYNC_TOKEN</code> on both (see DEPLOY_IC.md).
+            </p>
+        {% endif %}
     </section>
     <section class="ic-manage-section" aria-labelledby="ic-active-heading">
         <h3 id="ic-active-heading">Showing now</h3>

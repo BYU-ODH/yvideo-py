@@ -14,15 +14,14 @@ from django.utils import timezone
 from core.models import Content
 from core.models import MuteAnnotation
 from core.models import ResourceFile
+import core.views
 from ic.models import ICBoothState
-from ic.models import ICInstance
 from ic.models import ICLocalFile
 from ic.models import ICProgram
 from ic.models import ICProgramItem
 from ic.models import ICSyncRun
 from ic.sync import agent
 from ic.sync import bundle as bundle_module
-from ic.sync import client as client_module
 from ic.sync.bundle import build_bundle
 from ic.sync.bundle import content_fingerprint
 from ic.sync.client import ParentClient
@@ -43,8 +42,8 @@ class BundleTests(ICTempDirsMixin, TestCase):
             c.pk: c.get_player_json(include_subtitles=True)
             for c in Content.objects.all()
         }
-        manifest, fixture, _ = build_bundle()
-        apply_fixture(fixture, manifest["fingerprints"])
+        manifest, _ = build_bundle()
+        apply_fixture(manifest["fixture"], manifest["fingerprints"])
         after = {
             c.pk: c.get_player_json(include_subtitles=True)
             for c in Content.objects.all()
@@ -61,8 +60,7 @@ class BundleTests(ICTempDirsMixin, TestCase):
         editor.netid = "abc123"
         editor.email = "person@byu.edu"
         editor.save()
-        _, fixture, _ = build_bundle()
-        rows = json.loads(fixture)
+        rows = build_bundle()[0]["fixture"]
         users = [row for row in rows if row["model"] == "core.user"]
         self.assertTrue(users)
         for row in users:
@@ -72,33 +70,32 @@ class BundleTests(ICTempDirsMixin, TestCase):
             self.assertTrue(fields["username"].startswith("ic-mirror-"))
             self.assertFalse(fields["is_active"])
             self.assertEqual(fields["password"], "!")
-        text = fixture.decode()
+        text = json.dumps(rows, ensure_ascii=False)
         self.assertNotIn("abc123", text)
         self.assertNotIn("person@byu.edu", text)
         self.assertNotIn(editor.username, text)
 
     def test_manifest_hash_is_stable_and_tracks_annotation_edits(self):
-        first = build_bundle()[2]
-        self.assertEqual(first, build_bundle()[2])
+        first = build_bundle()[1]
+        self.assertEqual(first, build_bundle()[1])
         mute = MuteAnnotation.objects.filter(active=True).first()
         mute.edit(end_time=mute.end_time + 1)
-        self.assertNotEqual(first, build_bundle()[2])
+        self.assertNotEqual(first, build_bundle()[1])
 
     def test_past_programs_are_not_synced(self):
         program = self.scenario["program"]
         program.start_date = program.end_date = timezone.localdate() - timedelta(days=5)
         program.save()
-        manifest, _, _ = build_bundle()
+        manifest, _ = build_bundle()
         self.assertEqual(manifest["programs"], [])
         self.assertEqual(manifest["files"], [])
 
 
 class FakeParent:
-    """Stands in for production: serves a captured manifest, fixture and file bytes."""
+    """Stands in for production: serves a captured manifest and file bytes."""
 
-    def __init__(self, manifest, fixture, digest, files):
+    def __init__(self, manifest, digest, files):
         self.manifest_data = manifest
-        self.fixture_bytes = fixture
         self.digest = digest
         self.files = files
         self.reports = []
@@ -117,9 +114,6 @@ class FakeParent:
     def manifest(self):
         self._reach()
         return {**copy.deepcopy(self.manifest_data), "manifest_hash": self.digest}
-
-    def fixture(self):
-        return self.fixture_bytes
 
     def download(self, entry, part_path, *, on_bytes=None):
         self.downloads.append(entry["name"])
@@ -164,18 +158,18 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
     def capture_production(self):
         """A FakeParent serving production's current bundle and file bytes."""
         with self.production():
-            manifest, fixture, digest = build_bundle()
+            manifest, digest = build_bundle()
             files = {
                 entry["name"]: Path(agent._storage_path(entry)).read_bytes()
                 for entry in manifest["files"]
             }
-        return FakeParent(manifest, fixture, digest, files)
+        return FakeParent(manifest, digest, files)
 
     def run_sync(self, trigger=ICSyncRun.Trigger.FORCE_PULL, full_rehash=False):
         run = ICSyncRun.objects.create(trigger=trigger, full_rehash=full_rehash)
         return agent.execute_run(run, client=self.parent, heartbeat=lambda: None)
 
-    def test_forced_run_downloads_verifies_and_applies(self):
+    def test_a_run_downloads_verifies_and_applies(self):
         run = self.run_sync()
         self.assertEqual(
             run.status, ICSyncRun.Status.SUCCEEDED, run.error or run.report
@@ -196,31 +190,19 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(report["applied_manifest_hash"], self.parent.digest)
         verified = {f["resource_file_id"]: f for f in report["verified_files"]}
         master = self.scenario["film_item"].projection_file()
-        self.assertTrue(verified[master.pk]["hashed_this_run"])
         self.assertEqual(verified[master.pk]["xxh64"], master.checksum)
         self.assertTrue(all(p["ready"] for p in report["programs"]))
 
-    def test_forced_run_with_nothing_changed_still_reimports_and_verifies(self):
+    def test_a_run_with_nothing_changed_reimports_but_fetches_nothing(self):
         self.run_sync()
         with mock.patch.object(
             agent, "apply_fixture", wraps=agent.apply_fixture
         ) as applied:
-            run = self.run_sync()
+            run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED)
         applied.assert_called_once()
-        self.assertEqual(
-            len(self.parent.downloads), 3
-        )  # trusted files are not fetched again
-        report = self.parent.reports[-1]
-        self.assertFalse(any(f["hashed_this_run"] for f in report["verified_files"]))
-
-    def test_event_run_skips_the_import_when_the_fixture_is_unchanged(self):
-        self.run_sync()
-        self.parent.digest = "changed-files-only"
-        with mock.patch.object(agent, "apply_fixture") as applied:
-            run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
-        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
-        applied.assert_not_called()
+        # Verified files are trusted, not fetched again.
+        self.assertEqual(len(self.parent.downloads), 3)
 
     def test_full_rehash_detects_and_repairs_a_damaged_file(self):
         self.run_sync()
@@ -303,7 +285,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
 
     def test_fingerprint_mismatch_keeps_the_previous_mirror(self):
         self.run_sync()
-        state_before = ICBoothState.get().applied_fixture_sha256
+        applied_before = ICBoothState.get().applied_manifest_hash
         mutes_before = MuteAnnotation.objects.count()
         feature = self.scenario["feature"]
         self.parent.manifest_data["fingerprints"][str(feature.pk)] = "0" * 64
@@ -311,7 +293,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.FAILED)
         self.assertEqual(run.report["code"], "fingerprint_mismatch")
-        self.assertEqual(ICBoothState.get().applied_fixture_sha256, state_before)
+        self.assertEqual(ICBoothState.get().applied_manifest_hash, applied_before)
         self.assertTrue(Content.objects.filter(pk=feature.pk).exists())
         self.assertEqual(MuteAnnotation.objects.count(), mutes_before)
 
@@ -369,7 +351,7 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
 
     def setUp(self):
         super().setUp()
-        self.parent = FakeParent({}, b"", "hash-1", {})
+        self.parent = FakeParent({}, "hash-1", {})
 
     def finish(self, run, status, manifest_hash, minutes_ago=0):
         run.status = status
@@ -552,16 +534,14 @@ class _TestClientSession:
         )
 
 
+@override_settings(IC_SYNC_TOKEN="booth-token")
 class ParentClientTests(ICTempDirsMixin, TestCase):
     """The booth's real HTTP client against production's real sync API."""
 
     def setUp(self):
         super().setUp()
         self.scenario = make_program_scenario()
-        instance = ICInstance(name="booth")
-        self.token = instance.issue_token()
-        instance.save()
-        self.client_ = self.parent_client(self.token)
+        self.client_ = self.parent_client("booth-token")
 
     def parent_client(self, token):
         return ParentClient(
@@ -583,7 +563,8 @@ class ParentClientTests(ICTempDirsMixin, TestCase):
         part = self._ic_tmp / "download.part"
         part.write_bytes(data[:1000])  # an earlier, interrupted download
         received = []
-        with mock.patch.object(client_module, "CHUNK_REQUEST_BYTES", 4096):
+        # Production answers each request with a slice; the client carries on from it.
+        with mock.patch.object(core.views, "MAX_RANGE_RESPONSE_BYTES", 4096):
             self.client_.download(entry, part, on_bytes=received.append)
         self.assertEqual(part.read_bytes(), data)
         self.assertEqual(sum(received), len(data) - 1000)

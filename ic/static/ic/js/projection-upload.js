@@ -12,7 +12,6 @@ const statusLine = document.getElementById("ic-upload-status");
 const chunkBytes = Number(root.dataset.chunkBytes);
 const RETRY_DELAY_MS = 3000;
 const MAX_RETRIES = 20;
-const POLL_MS = 2000;
 
 let uploading = false;
 
@@ -56,29 +55,11 @@ async function sendChunk(upload, file, offset) {
   return (await response.json()).received_bytes;
 }
 
-async function waitForProcessing(upload) {
-  for (;;) {
-    const response = await fetch(upload.status_url, { headers: { Accept: "application/json" } });
-    const data = await response.json();
-    if (data.status === "done") {
-      setStatus("Done. The SD editing file is being made from the master now.", "ok");
-      window.setTimeout(() => (window.location.href = root.dataset.doneUrl), 2500);
-      return;
-    }
-    if (data.status === "failed") {
-      setStatus(`The master was not accepted: ${data.error}`, "error");
-      return;
-    }
-    setStatus(data.job_status === "running" ? "Checking the file (ffprobe, checksum)…" : "Waiting for the media worker…");
-    await new Promise((resolve) => window.setTimeout(resolve, POLL_MS));
-  }
-}
-
 async function run(file) {
   uploading = true;
   startButton.disabled = true;
   progress.hidden = false;
-  let upload = await createUpload(file);
+  const upload = await createUpload(file);
   let offset = upload.received_bytes;
   let retries = 0;
   const started = performance.now();
@@ -103,10 +84,10 @@ async function run(file) {
     );
   }
   const response = await fetch(upload.finalize_url, { method: "POST", headers: headers() });
-  upload = await response.json();
-  if (!response.ok) throw new Error(upload.error || "The server did not accept the upload.");
+  if (!response.ok) throw new Error((await response.json()).error || "The server did not accept the upload.");
   uploading = false;
-  await waitForProcessing(upload);
+  // The films page shows whether the media worker accepted the master.
+  window.location.href = root.dataset.doneUrl;
 }
 
 input.addEventListener("change", () => {

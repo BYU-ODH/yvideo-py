@@ -40,7 +40,7 @@ IC_PROJECTION_ROOT=/srv/yvideo-prod/ic_projection
 In `yvideo/secret_settings.py`:
 
 ```python
-FILE_UPLOAD_TEMP_DIR = "var/upload_tmp"
+IC_SYNC_TOKEN = "<shared secret>"  # the booth sets the same value (step 3)
 IC_BOOTH_VIDEO_CODECS = ["h264"]  # from the booth spike; add "hevc" only if verified
 ```
 
@@ -66,19 +66,19 @@ transcode does not slow the site. Check that `CPUWeight` took effect:
 systemctl --user show -p CPUWeight <app>-media-worker.service
 ```
 
-### 3. Register the booth
+### 3. Booth token and IC staff
 
-1. In the Django admin, add an **IC instance** named `booth`.
-   Saving shows the booth's **sync token once**; copy it.
+1. Generate the booth's sync token once and put it in `IC_SYNC_TOKEN` on production and
+   on the booth:
+   `python -c "import secrets; print(secrets.token_urlsafe(32))"`. To rotate it, change
+   both and restart both.
 2. Add IC staff to the **IC Editors** group (Admin → Users). They then see
    *International Cinema* in the sidebar.
 
-To rotate the token, use the admin action *Issue a new sync token*.
-
 ### Apache
 
-Masters upload in 16 MB `PUT`s to `/ic/manage/uploads/…/chunk/`, and booths download in
-up to 256 MB ranges from `/ic/sync/files/…`. The example vhost needs no changes; if you
+Masters upload in 16 MB `PUT`s to `/ic/manage/uploads/…/chunk/`, and the booth downloads
+in 8 MB ranges (the site's usual cap) from `/ic/sync/files/…`. The example vhost needs no changes; if you
 set `LimitRequestBody`, keep it above 16 MB for `/ic/`.
 
 ## Booth
@@ -137,7 +137,7 @@ DEBUG = False
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 IS_IC_INSTANCE = True
 IC_PARENT_URL = "https://<production host>"
-IC_SYNC_TOKEN = "<token from production's admin>"
+IC_SYNC_TOKEN = "<the same value as production's>"
 ```
 
 The booth has no OIDC, no admin and no users; the OIDC and API settings can stay empty.

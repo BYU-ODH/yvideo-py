@@ -1,8 +1,8 @@
 """One booth sync run, whatever started it.
 
-Every trigger runs this same pipeline. Forcing changes when it runs and how thoroughly
-it checks (always re-import and re-verify; the weekly run re-hashes every file), never
-whether it verifies.
+Every trigger runs this same pipeline: fetch the manifest, verify files, import and
+verify the rows. The weekly run also re-hashes every file instead of trusting earlier
+verification.
 
 Sync is pull-only: `check_parent` is the agent's frequent check, and the one place that
 decides when a run is due. Production can't start a run.
@@ -10,7 +10,6 @@ decides when a run is due. Production can't start a run.
 
 from datetime import date
 from datetime import timedelta
-import hashlib
 import logging
 import os
 from pathlib import Path
@@ -74,10 +73,7 @@ def _ref_id(entry):
 
 
 def _sort_key(entry):
-    return (
-        entry.get("first_program_start") or "9999-12-31",
-        entry["kind"] != "subtitle",
-    )
+    return entry.get("first_program_start") or "9999-12-31"
 
 
 def disk_usage():
@@ -174,10 +170,7 @@ def _plan_files(ctx, manifest, *, full_rehash):
             and on_disk
             and not full_rehash
         ):
-            results[(entry["kind"], _ref_id(entry))] = {
-                "ok": True,
-                "hashed_this_run": False,
-            }
+            results[(entry["kind"], _ref_id(entry))] = {"ok": True}
         else:
             todo.append((entry, path, on_disk))
     ctx.save(force=True, bytes_total=sum(e["size"] for e, _, _ in todo), bytes_done=0)
@@ -252,22 +245,28 @@ def _fetch_files(ctx, todo):
                     "last_program_end": _date_or_none(entry.get("last_program_end")),
                 },
             )
-            result["hashed_this_run"] = True
         results[(entry["kind"], _ref_id(entry))] = result
     return results
 
 
-def _needed_before_rows(entry, today):
-    """Whether a file must be verified before production's rows are applied.
-
-    Subtitle files always are: the player JSON embeds their text, so the fingerprints
-    can't match without them (and they are small). Masters are needed first only for
-    programs that have already started; masters for later programs come afterwards.
-    """
-    if entry["kind"] != "projection":
-        return True
+def _showing_master(entry, today):
+    """A master for a program that has already started: rows wait for it."""
     start = entry.get("first_program_start")
-    return bool(start) and date.fromisoformat(start) <= today
+    return (
+        entry["kind"] == "projection"
+        and bool(start)
+        and date.fromisoformat(start) <= today
+    )
+
+
+def _unfetched(planned, file_results):
+    """Names of planned files that failed but production could still send."""
+    return [
+        entry["name"]
+        for entry, _, _ in planned
+        if not file_results[(entry["kind"], _ref_id(entry))]["ok"]
+        and entry.get("available_from_parent", True)
+    ]
 
 
 def _program_results(manifest, file_results):
@@ -306,33 +305,15 @@ def _apply_database(ctx, manifest, manifest_digest):
     in memory and streams from a URL naming one verified file (`ic_local_file`), whose
     bytes no import can change. New data takes effect when the next item loads.
     """
+    ctx.save(force=True, phase="Importing")
+    try:
+        apply_fixture(manifest["fixture"], manifest.get("fingerprints", {}))
+    except FingerprintMismatch as exc:
+        raise RunFailed("fingerprint_mismatch", str(exc)) from exc
     state = ICBoothState.get()
-    fixture_sha = manifest["fixture"]["sha256"]
-    if ctx.run.is_forced or fixture_sha != state.applied_fixture_sha256:
-        ctx.save(force=True, phase="Importing")
-        fixture_bytes = ctx.client.fixture()
-        if hashlib.sha256(fixture_bytes).hexdigest() != fixture_sha:
-            raise RunFailed(
-                "changed_during_sync",
-                "Production changed while the booth was syncing; the next sync will pick it up.",
-            )
-        ctx.save(force=True, phase="Verifying")
-        try:
-            apply_fixture(fixture_bytes, manifest.get("fingerprints", {}))
-        except FingerprintMismatch as exc:
-            raise RunFailed("fingerprint_mismatch", str(exc)) from exc
-        outcome = "applied"
-    else:
-        outcome = "unchanged"
-    # Even when the rows are unchanged (only files moved), this manifest is now the one
-    # the booth matches.
     state.applied_manifest_hash = manifest_digest
-    state.applied_fixture_sha256 = fixture_sha
     state.applied_at = timezone.now()
-    state.save(
-        update_fields=["applied_manifest_hash", "applied_fixture_sha256", "applied_at"]
-    )
-    return outcome
+    state.save(update_fields=["applied_manifest_hash", "applied_at"])
 
 
 def prune(manifest, today=None):
@@ -378,22 +359,24 @@ def execute_run(run, client=None, heartbeat=None):
         _check_migrations(manifest)
         ctx.save(force=True, phase="Downloading")
         file_results, todo = _plan_files(ctx, manifest, full_rehash=run.full_rehash)
-        # Masters for programs already showing (and all subtitles) come first, then the
-        # rows, then masters for later programs: a fix to tonight's annotations must
-        # not wait behind next month's 20 GB master.
+        # Masters for programs already showing come first, then subtitles and the rows,
+        # then masters for later programs: a fix to tonight's annotations must not wait
+        # behind next month's 20 GB master.
         today = timezone.localdate()
-        first = [t for t in todo if _needed_before_rows(t[0], today)]
-        upcoming = [t for t in todo if not _needed_before_rows(t[0], today)]
-        file_results.update(_fetch_files(ctx, first))
+        showing = [t for t in todo if _showing_master(t[0], today)]
+        subtitles = [t for t in todo if t[0]["kind"] == "subtitle"]
+        upcoming = [t for t in todo if t not in showing and t not in subtitles]
+        file_results.update(_fetch_files(ctx, showing))
         # Swapping in rows that point at a file the booth couldn't fetch would make a
-        # film that plays today unplayable. Keep the previous rows until a later run
-        # fetches it, unless production can't send it anyway (a lost master).
-        blocking = [
-            entry["name"]
-            for entry, _, _ in first
-            if not file_results[(entry["kind"], _ref_id(entry))]["ok"]
-            and entry.get("available_from_parent", True)
-        ]
+        # film that plays today unplayable. Keep the previous rows (and their subtitle
+        # files) until a later run fetches it, unless production can't send it anyway
+        # (a lost master).
+        blocking = _unfetched(showing, file_results)
+        if not blocking:
+            # The player JSON embeds subtitle text, so subtitles must be in place before
+            # the fingerprints are checked.
+            file_results.update(_fetch_files(ctx, subtitles))
+            blocking = _unfetched(subtitles, file_results)
         warnings = []
         if blocking:
             database = "kept_previous"
@@ -403,7 +386,8 @@ def execute_run(run, client=None, heartbeat=None):
                 "try again."
             )
         else:
-            database = _apply_database(ctx, manifest, digest)
+            _apply_database(ctx, manifest, digest)
+            database = "applied"
         if upcoming:
             ctx.save(force=True, phase="Downloading upcoming films")
             file_results.update(_fetch_files(ctx, upcoming))
@@ -442,12 +426,6 @@ def execute_run(run, client=None, heartbeat=None):
                     "kind": local.kind,
                     "resource_file_id": local.ref_id,
                     "xxh64": local.xxh64,
-                    "verified_at": local.verified_at.isoformat(),
-                    "hashed_this_run": bool(
-                        file_results.get((local.kind, local.ref_id), {}).get(
-                            "hashed_this_run"
-                        )
-                    ),
                 }
                 for local in ICLocalFile.objects.filter(
                     kind=ICLocalFile.Kind.PROJECTION

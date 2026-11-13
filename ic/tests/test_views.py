@@ -5,9 +5,9 @@ from pathlib import Path
 import re
 import uuid
 
-from django.contrib.messages import get_messages
 from django.core.cache import cache
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from reversion.models import Version
@@ -16,8 +16,7 @@ from core.factories import PlaylistFactory
 from core.factories import ResourceFactory
 from core.factories import UserFactory
 from core.models import ResourceFile
-from ic.models import ICInstance
-from ic.models import ICInstanceFile
+from ic.models import ICBoothReport
 from ic.models import ICProgram
 from ic.models import ICProgramItem
 from ic.sync.bundle import build_bundle
@@ -70,7 +69,9 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
             reverse("ic_program_new"),
             {"name": "Bad", "start_date": "2026-11-12", "end_date": "2026-11-10"},
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response, "The program can&#x27;t end before it starts.", status_code=400
+        )
         self.assertFalse(ICProgram.objects.filter(name="Bad").exists())
 
     def test_add_move_and_remove_items(self):
@@ -159,20 +160,6 @@ class MasterUploadPathTests(ICTempDirsMixin, TestCase):
         self.client.force_login(self.admin)
         self.new_film = ResourceFactory(name="Tokyo Story")
 
-    def test_the_resource_admin_page_links_to_the_master_upload(self):
-        page = self.client.get(
-            reverse("admin:core_resource_change", args=[self.new_film.pk])
-        )
-        self.assertContains(
-            page, reverse("ic_projection_upload", args=[self.new_film.pk])
-        )
-        self.assertContains(page, "Upload IC projection master")
-        make_master(self.new_film)
-        page = self.client.get(
-            reverse("admin:core_resource_change", args=[self.new_film.pk])
-        )
-        self.assertContains(page, "Replace IC projection master")
-
     def test_find_a_film_without_ic_content_and_list_it_once_it_has_a_master(self):
         listing = self.client.get(reverse("ic_manage_resources"))
         self.assertNotContains(listing, "Tokyo Story")
@@ -254,14 +241,6 @@ class PlaylistToggleTests(ICTempDirsMixin, TestCase):
         self.scenario = make_program_scenario()
         self.playlist = self.scenario["playlist"]
 
-    def post_settings(self, user, **extra):
-        self.client.force_login(user)
-        data = {"name": self.playlist.name, "published": "", "archived": ""}
-        data.update(extra)
-        return self.client.post(
-            reverse("update_playlist_settings", args=[self.playlist.pk]), data
-        )
-
     def test_only_ic_editors_can_mark_a_playlist(self):
         for user, expected in (
             (make_ic_editor(), True),
@@ -276,24 +255,14 @@ class PlaylistToggleTests(ICTempDirsMixin, TestCase):
             playlist.refresh_from_db()
             self.assertEqual(playlist.is_ic, expected)
 
-    def test_unsetting_is_refused_while_scheduled(self):
-        response = self.post_settings(self.scenario["editor"])
-        shown = [str(m) for m in get_messages(response.wsgi_request)]
-        self.assertTrue(
-            any("stays an International Cinema playlist" in m for m in shown)
-        )
-        self.assertNotIn("Playlist settings saved.", shown)
-        self.playlist.refresh_from_db()
-        self.assertTrue(self.playlist.is_ic)
 
-
+@override_settings(IC_SYNC_TOKEN="booth-token")
 class SyncAPITests(ICTempDirsMixin, TestCase):
+    token = "booth-token"
+
     def setUp(self):
         super().setUp()
         self.scenario = make_program_scenario()
-        self.instance = ICInstance(name="booth")
-        self.token = self.instance.issue_token()
-        self.instance.save()
 
     def get(self, name, *args, token=None, **headers):
         return self.client.get(
@@ -305,16 +274,14 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
     def test_token_required(self):
         self.assertEqual(self.client.get(reverse("ic_sync_manifest")).status_code, 401)
         self.assertEqual(self.get("ic_sync_manifest", token="wrong").status_code, 401)
+        self.assertIsNone(ICBoothReport.get().last_seen_at)
         self.assertEqual(self.get("ic_sync_manifest").status_code, 200)
-        self.instance.refresh_from_db()
-        self.assertIsNotNone(self.instance.last_seen_at)
+        self.assertIsNotNone(ICBoothReport.get().last_seen_at)
 
     def test_check_returns_only_the_manifest_hash(self):
         digest = self.get("ic_sync_manifest").json()["manifest_hash"]
         data = self.get("ic_sync_check").json()
         self.assertEqual(data, {"manifest_hash": digest})
-        self.instance.refresh_from_db()
-        self.assertIsNotNone(self.instance.last_seen_at)
 
     def post(self, name, data):
         return self.client.post(
@@ -337,48 +304,32 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.content.startswith(b"WEBVTT"))
 
-    def test_status_report_records_copies_and_releases_the_master(self):
+    def report(self, xxh64):
         master = self.scenario["film_item"].projection_file()
-        report = {
+        return master, {
             "run_id": str(uuid.uuid4()),
             "status": "succeeded",
             "applied_manifest_hash": "abc",
             "verified_files": [
-                {
-                    "kind": "projection",
-                    "resource_file_id": master.pk,
-                    "xxh64": master.checksum,
-                    "verified_at": timezone.now().isoformat(),
-                    "hashed_this_run": True,
-                }
+                {"kind": "projection", "resource_file_id": master.pk, "xxh64": xxh64}
             ],
         }
+
+    def test_status_report_is_kept_and_releases_the_master(self):
+        master, report = self.report(
+            self.scenario["film_item"].projection_file().checksum
+        )
         response = self.post("ic_sync_status", report)
         self.assertEqual(response.status_code, 200)
-        copy = ICInstanceFile.objects.get(instance=self.instance, resource_file=master)
-        self.assertTrue(copy.hashed_from_bytes)
         master.refresh_from_db()
         self.assertIsNotNone(master.master_released_at)
-        self.instance.refresh_from_db()
-        self.assertEqual(self.instance.last_status["status"], "succeeded")
-        self.assertEqual(self.instance.last_applied_manifest_hash, "abc")
+        booth = ICBoothReport.get()
+        self.assertEqual(booth.report["status"], "succeeded")
+        self.assertEqual(booth.applied_manifest_hash, "abc")
 
-    def test_a_mismatched_report_never_counts_as_hashed(self):
-        master = self.scenario["film_item"].projection_file()
-        report = {
-            "verified_files": [
-                {
-                    "kind": "projection",
-                    "resource_file_id": master.pk,
-                    "xxh64": "bad",
-                    "hashed_this_run": True,
-                }
-            ]
-        }
+    def test_a_copy_with_another_checksum_never_releases_the_master(self):
+        master, report = self.report("bad")
         self.post("ic_sync_status", report)
-        self.assertFalse(
-            ICInstanceFile.objects.get(resource_file=master).hashed_from_bytes
-        )
         master.refresh_from_db()
         self.assertIsNone(master.master_released_at)
 
@@ -393,19 +344,24 @@ class DashboardTests(ICTempDirsMixin, TestCase):
 
     def test_booth_column_shows_each_programs_state_on_the_booth(self):
         program = self.scenario["program"]
-        instance = ICInstance(name="booth", last_seen_at=timezone.now())
-        instance.issue_token()
-        instance.last_status = {
-            "programs": [{"id": program.pk, "ready": False, "problems": ["Disk full"]}]
-        }
-        instance.save()
+        booth = ICBoothReport.objects.create(
+            pk=1,
+            last_seen_at=timezone.now(),
+            report={
+                "programs": [
+                    {"id": program.pk, "ready": False, "problems": ["Disk full"]}
+                ]
+            },
+        )
         page = self.client.get(reverse("ic_manage_dashboard"))
         self.assertContains(page, "Not playable on the booth")
         self.assertContains(page, "Disk full")
 
-        instance.last_status = {"programs": [{"id": program.pk, "ready": True}]}
-        instance.last_applied_manifest_hash = build_bundle()[2]
-        instance.save()
+        booth.report = {
+            "programs": [{"id": program.pk, "ready": True}],
+            "applied_manifest_hash": build_bundle()[1],
+        }
+        booth.save()
         page = self.client.get(reverse("ic_manage_dashboard"))
         self.assertContains(page, "On the booth, matches production")
 
@@ -444,7 +400,7 @@ class ScheduledContentDeletionTests(ICTempDirsMixin, TestCase):
         response = self.client.delete(reverse("delete_content", args=[feature.pk]))
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response["Content-Type"], "text/plain")
-        self.assertIn("Amélie week", response.content.decode())
+        self.assertIn("International Cinema program", response.content.decode())
         response = self.client.delete(
             reverse("delete_playlist", args=[self.scenario["playlist"].pk])
         )

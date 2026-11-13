@@ -73,7 +73,7 @@ class ProgramDateTests(TestCase):
             start_date=today + timedelta(days=4),
             end_date=today + timedelta(days=6),
         )
-        self.assertEqual(list(ICProgram.active(today)), [now])
+        self.assertTrue(now.is_active(today))
         self.assertEqual(set(ICProgram.syncable(today)), {yesterday, now, later})
         self.assertNotIn(past, ICProgram.syncable(today))
         self.assertTrue(later.is_upcoming(today))

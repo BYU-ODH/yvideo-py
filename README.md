@@ -76,9 +76,11 @@ projection masters under `/ic/manage/`, and a booth computer runs Y-video as a r
 mirror that plays from its own disk. See [DEPLOY_IC.md](DEPLOY_IC.md) for setting up
 production and the booth.
 
-To try it locally after `seed_demo_data`, run `uv run manage.py seed_ic_demo`, sign in as
-`devadmin`, and open `/ic/manage/` (the preview player is at `/ic/`). The media worker runs
-with `uv run manage.py process_media_jobs` (it needs `ffmpeg` and `ffprobe` on `PATH`).
+To try it locally, sign in as `devadmin`, mark a playlist as an International Cinema
+playlist in its settings, upload a master for one of its films under
+`/ic/manage/resources/`, and run the media worker with
+`uv run manage.py process_media_jobs` (it needs `ffmpeg` and `ffprobe` on `PATH`). Then
+build a program at `/ic/manage/`; the preview player is at `/ic/`.
 
 ### Running the Development Server
 

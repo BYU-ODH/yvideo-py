@@ -14,7 +14,7 @@
             ❌ Failed: {{ run.error }} Nothing changed; the booth keeps playing its previous verified data.
         </p>
     {% elif run.status == "queued" %}
-        <p class="ic-status">Queued{% if behind %} behind the sync already running{% endif %}…</p>
+        <p class="ic-status">Queued…</p>
     {% else %}
         <p class="ic-status">
             ⟳ {{ run.phase|default:"Syncing" }}…

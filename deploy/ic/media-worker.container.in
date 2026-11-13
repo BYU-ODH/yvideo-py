@@ -1,5 +1,5 @@
-# International Cinema media jobs on production: ingest, SD transcode, master
-# release, upload cleanup. Installed when .env sets IC_MEDIA_WORKER=1.
+# International Cinema media jobs on production: ingest, SD transcode, upload
+# cleanup. Installed when .env sets IC_MEDIA_WORKER=1.
 [Unit]
 Description=International Cinema media worker for @APP_NAME@
 After=@APP_NAME@.service
@@ -21,9 +21,8 @@ Pull=never
 SecurityLabelDisable=true
 
 [Service]
-# Transcodes run at low CPU and I/O priority so the site stays responsive.
-# ffmpeg is additionally started under
-# nice/ionice and limited to two threads inside the container.
+# Transcodes run at low CPU and I/O priority so the site stays responsive; ffmpeg
+# inherits these and is limited to two threads.
 Nice=19
 IOSchedulingClass=idle
 CPUWeight=10

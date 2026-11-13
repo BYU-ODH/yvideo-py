@@ -10,7 +10,6 @@ import time
 from django.conf import settings
 import requests
 
-CHUNK_REQUEST_BYTES = 64 * 1024 * 1024
 READ_BYTES = 1024 * 1024
 TIMEOUT_SECONDS = 30
 CHECK_TIMEOUT_SECONDS = 10
@@ -49,7 +48,7 @@ class ParentClient:
         return self._request("GET", path, **kwargs)
 
     def manifest(self):
-        """Production's manifest, with its "manifest_hash"."""
+        """Production's manifest (rows, files, fingerprints), with its "manifest_hash"."""
         response = self._get("/ic/sync/manifest/")
         if response.status_code != 200:
             raise ParentError(f"Manifest request failed: HTTP {response.status_code}")
@@ -62,14 +61,12 @@ class ParentClient:
             raise ParentError(f"Check failed: HTTP {response.status_code}")
         return response.json()
 
-    def fixture(self):
-        response = self._get("/ic/sync/fixture/")
-        if response.status_code != 200:
-            raise ParentError(f"Fixture request failed: HTTP {response.status_code}")
-        return response.content
-
     def download(self, entry, part_path, *, on_bytes=None):
-        """Download (resuming) into part_path until it reaches entry['size'] bytes."""
+        """Download (resuming) into part_path until it reaches entry['size'] bytes.
+
+        Each request asks for the rest of the file; production answers with a slice
+        (core's range cap), and the loop continues from wherever it stopped.
+        """
         part_path = Path(part_path)
         part_path.parent.mkdir(parents=True, exist_ok=True)
         expected = entry["size"]
@@ -91,9 +88,8 @@ class ParentClient:
             offset = 0
         with open(part_path, "ab") as handle:
             while offset < expected:
-                end = min(expected, offset + CHUNK_REQUEST_BYTES) - 1
                 response = self._get(
-                    path, headers={"Range": f"bytes={offset}-{end}"}, stream=True
+                    path, headers={"Range": f"bytes={offset}-"}, stream=True
                 )
                 if response.status_code == 404:
                     raise ParentError("Production no longer holds this file.")
