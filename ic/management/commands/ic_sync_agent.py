@@ -59,7 +59,7 @@ class Command(BaseCommand):
             ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
 
         self.client = ParentClient()
-        self.last_check = 0.0
+        self.last_check = None  # check at once (time.monotonic() counts from boot)
         while not self.stopping:
             self.tick()
             run = (
@@ -85,7 +85,10 @@ class Command(BaseCommand):
         during a long download; check_parent queues nothing while a run is active.
         """
         ICBoothState.record_agent_heartbeat()
-        if time.monotonic() - self.last_check >= CHECK_INTERVAL_SECONDS:
+        if (
+            self.last_check is None
+            or time.monotonic() - self.last_check >= CHECK_INTERVAL_SECONDS
+        ):
             self.last_check = time.monotonic()
             try:
                 check_parent(self.client)

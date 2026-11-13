@@ -14,6 +14,10 @@ from ic.models import ICUpload
 from ic.models import MediaJob
 from ic.testing import ICTempDirsMixin
 
+# time.monotonic() counts from boot. CI runners are minutes old, so run as if the
+# machine had just booted: periodic work must still happen on the first pass.
+JUST_BOOTED = mock.patch("time.monotonic", return_value=600.0)
+
 
 class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
     @override_settings(IS_IC_INSTANCE=True)
@@ -43,6 +47,7 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
                 "ic.management.commands.ic_sync_agent.execute_run",
                 side_effect=fake_execute,
             ),
+            JUST_BOOTED,
         ):
             call_command("ic_sync_agent", "--once")
         checked.assert_called_once()
@@ -68,7 +73,8 @@ class MediaWorkerCommandTests(ICTempDirsMixin, TestCase):
         ICUpload.objects.filter(pk=upload.pk).update(
             updated_at=timezone.now() - timedelta(days=8)
         )
-        call_command("process_media_jobs", "--once", stdout=StringIO())
+        with JUST_BOOTED:
+            call_command("process_media_jobs", "--once", stdout=StringIO())
         interrupted.refresh_from_db()
         # It ran again (and failed, since master 0 doesn't exist) instead of staying stuck.
         self.assertEqual(interrupted.status, MediaJob.Status.FAILED)

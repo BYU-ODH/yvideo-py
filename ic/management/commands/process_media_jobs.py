@@ -30,9 +30,14 @@ class Command(BaseCommand):
                 "Re-queued %s media job(s) interrupted by a restart.", recovered
             )
 
-        last_cleanup = 0.0
+        # time.monotonic() counts from boot, so a sentinel (not 0.0) makes the first
+        # pass clean up even on a machine booted less than an interval ago.
+        last_cleanup = None
         while not self.stopping:
-            if time.monotonic() - last_cleanup > CLEANUP_INTERVAL_SECONDS:
+            if (
+                last_cleanup is None
+                or time.monotonic() - last_cleanup > CLEANUP_INTERVAL_SECONDS
+            ):
                 last_cleanup = time.monotonic()
                 deleted = jobs.cleanup_uploads()
                 if deleted:
