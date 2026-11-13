@@ -1,8 +1,10 @@
+from datetime import datetime
 from datetime import timedelta
 import json
 import logging
 import os
 import re
+from sqlite3.dbapi2 import IntegrityError
 
 from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
@@ -664,7 +666,13 @@ class AnnotationSet(models.Model):
                     self.delete()
                     result["deleted"] = True
                 else:
-                    self.save(update_fields=["owner", "updated_at"])
+                    try:
+                        self.save(update_fields=["owner", "updated_at"])
+                    except IntegrityError:
+                        # if there is somehow another integrity error at this point, we will let
+                        # the outer try except block raise the exception higher.
+                        self.name = f"{self.name} (transfered by {user.username} on {datetime.now()}"
+                        self.save(update_fields=["name", "owner", "updated_at"])
                     self.contents.filter(playlist__owner_id=user.id).update(
                         annotation_set=None
                     )
