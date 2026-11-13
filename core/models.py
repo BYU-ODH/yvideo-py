@@ -669,7 +669,8 @@ class AnnotationSet(models.Model):
                 else:
                     try:
                         self.owner = new_owner_candidate
-                        self.save(update_fields=["owner", "updated_at"])
+                        with transaction.atomic():
+                            self.save(update_fields=["owner", "updated_at"])
                     except IntegrityError:
                         # if there is somehow another integrity error at this point, we will let
                         # the outer try except block raise the exception higher.
