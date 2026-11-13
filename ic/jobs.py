@@ -104,10 +104,7 @@ def ingest(job):
                 queue(
                     MediaJob.Kind.TRANSCODE,
                     resource_file=existing,
-                    payload={
-                        "master_id": existing.pk,
-                        "switch_content_ids": job.payload.get("switch_content_ids", []),
-                    },
+                    payload={"master_id": existing.pk},
                 )
             return f"Restored released master {existing.pk}."
         _fail_upload(
@@ -160,7 +157,6 @@ def ingest(job):
                 payload={
                     "master_id": master.pk,
                     "switch_content_file_ids": switch_ids,
-                    "switch_content_ids": job.payload.get("switch_content_ids", []),
                 },
             )
     except Exception:
@@ -229,16 +225,10 @@ def transcode(job):
         derived_probe.apply_to(derived)
         derived.save()
 
-        # Contents that used the replaced master's SD file, or (legacy import) whose
-        # annotations were timed against this very master, move to the new SD file.
+        # Contents that used the replaced master's SD file move to the new SD file.
         switch_ids = job.payload.get("switch_content_file_ids") or []
         if switch_ids:
             Content.objects.filter(resource_file_id__in=switch_ids).update(
-                resource_file=derived
-            )
-        content_ids = job.payload.get("switch_content_ids") or []
-        if content_ids:
-            Content.objects.filter(pk__in=content_ids, resource=master.resource).update(
                 resource_file=derived
             )
     maybe_queue_release(master)

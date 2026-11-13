@@ -219,12 +219,7 @@ controller; it shows live progress and ends in one of:
 
 ## Moving off the Electron IC Player
 
-1. Import existing films:
-   `bash deploy/manage.sh import_ic_legacy /path/to/films --mapping mapping.csv --with-video`.
-   The mapping CSV has `icf,content_id` rows (contents in IC playlists). `--with-video`
-   ingests each film's `.ic/` video as its master, which is exactly what the legacy
-   annotations were timed against; use `--dry-run` first.
-2. Run the booth in parallel with the Electron player for a week or two; rehearse each
+1. Run the booth in parallel with the Electron player for a week or two; rehearse each
    program on the booth.
-3. After a clean month, remove `IC_player/` (and its entry in
+2. After a clean month, remove `IC_player/` (and its entry in
    `core/tests/test_js_constant_parity.py`).
