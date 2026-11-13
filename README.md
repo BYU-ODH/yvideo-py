@@ -73,8 +73,8 @@ See [DEPLOY.md](DEPLOY.md) for production deployment with Podman Quadlets and Ap
 
 The `ic` app runs International Cinema's showings: IC editors manage programs and
 projection masters under `/ic/manage/`, and a booth computer runs Y-video as a read-only
-mirror that plays from its own disk. See [IC_MODE_PLAN.md](IC_MODE_PLAN.md) for the design
-and [DEPLOY_IC.md](DEPLOY_IC.md) for setting up production and the booth.
+mirror that plays from its own disk. See [DEPLOY_IC.md](DEPLOY_IC.md) for setting up
+production and the booth.
 
 To try it locally after `seed_demo_data`, run `uv run manage.py seed_ic_demo`, sign in as
 `devadmin`, and open `/ic/manage/` (the preview player is at `/ic/`). The media worker runs

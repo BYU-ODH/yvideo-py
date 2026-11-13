@@ -246,7 +246,7 @@ def transcode(job):
 
 
 # ---------------------------------------------------------------------------
-# Release: delete production's copy once the booth holds a verified one (section 5.7)
+# Release: delete production's copy once the booth holds a verified one
 # ---------------------------------------------------------------------------
 
 

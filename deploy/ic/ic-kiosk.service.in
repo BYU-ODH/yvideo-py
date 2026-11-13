@@ -2,7 +2,7 @@
 # graphical session. Installed by deploy/ic/install_kiosk.sh (DEPLOY_IC.md).
 #
 # IC_CHROME_FLAGS comes from .env and is whatever the booth spike settled on for
-# hardware decode and output placement (IC_MODE_PLAN.md section 6.1), e.g.
+# hardware decode and output placement, e.g.
 #   --enable-features=VaapiVideoDecoder,VaapiVideoDecodeLinuxGL --ozone-platform=x11
 [Unit]
 Description=International Cinema kiosk for @APP_NAME@

@@ -1,4 +1,4 @@
-"""Production's sync API, called by booths with their bearer token (section 7.2).
+"""Production's sync API, called by booths with their bearer token.
 
 Sync is pull-only. Besides fetching data, a booth checks in every
 IC_CHECK_INTERVAL_SECONDS (`check`), which is how it learns about changes, and reports

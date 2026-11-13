@@ -249,7 +249,7 @@ def hash_token(raw_token):
 class ICInstance(models.Model):
     """A Y-video IC instance that mirrors production: today, the one booth.
 
-    Sync is pull-only (IC_MODE_PLAN.md section 7.1): instances check for changes every
+    Sync is pull-only: instances check for changes every
     IC_CHECK_INTERVAL_SECONDS and report what they did. Production never connects to an
     instance and can't make one sync.
     """

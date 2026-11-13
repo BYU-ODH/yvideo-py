@@ -1,4 +1,4 @@
-"""The booth's long-running sync agent (IC_MODE_PLAN.md section 7.3).
+"""The booth's long-running sync agent.
 
 It is the only part of the booth that talks to production, and it only ever calls out:
 a cheap check every IC_CHECK_INTERVAL_SECONDS (`check_parent` decides whether a run is

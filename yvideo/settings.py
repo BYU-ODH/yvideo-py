@@ -253,7 +253,7 @@ FILE_UPLOAD_TEMP_DIR = _resolve_repo_path(
     getattr(secret_settings, "FILE_UPLOAD_TEMP_DIR", None)
 )
 
-# International Cinema (#246). See IC_MODE_PLAN.md.
+# International Cinema (#246).
 #
 # Production runs with IS_IC_INSTANCE False and serves IC editors, the sync API and the
 # preview player. The booth runs the same code with IS_IC_INSTANCE True, as a read-only,
@@ -274,7 +274,7 @@ IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
 # How often the booth's sync agent asks production whether anything changed (a cheap
 # request). Sync is pull-only; production can't make the booth sync.
 IC_CHECK_INTERVAL_SECONDS = getattr(secret_settings, "IC_CHECK_INTERVAL_SECONDS", 30)
-# What the booth's Chrome has been verified to decode (IC_MODE_PLAN.md section 6.1).
+# What the booth's Chrome has been verified to decode.
 # HEVC joins the list only once the spike confirms hardware decode; AV1 never will on
 # the booth's Intel UHD 630, which has no AV1 decoder.
 IC_BOOTH_VIDEO_CODECS = getattr(secret_settings, "IC_BOOTH_VIDEO_CODECS", ["h264"])

@@ -3,8 +3,7 @@
 International Cinema shows films from a booth computer running its own copy of Y-video.
 Production is where IC editors prepare everything; the booth is a userless, read-only
 mirror that plays from its own disk, so a network outage cannot affect a showing.
-The design is in [IC_MODE_PLAN.md](IC_MODE_PLAN.md); general deployment is in
-[DEPLOY.md](DEPLOY.md), which this file builds on.
+General deployment is in [DEPLOY.md](DEPLOY.md), which this file builds on.
 
 ```txt
 PRODUCTION                                          BOOTH (Ubuntu + Google Chrome)
@@ -105,8 +104,8 @@ set `LimitRequestBody`, keep it above 16 MB for `/ic/`.
 
 ### 2. The spike: do this before the first showing
 
-The booth's hardware and Chrome decide two things nothing else can test
-(IC_MODE_PLAN.md section 6.1). With the largest real master IC expects:
+The booth's hardware and Chrome decide two things nothing else can test.
+With the largest real master IC expects:
 
 1. **Hardware decode.** Play it and check `chrome://gpu` (Video Decode: Hardware
    accelerated) and `chrome://media-internals` (the decoder is a VA-API one, not

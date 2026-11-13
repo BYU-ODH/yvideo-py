@@ -1,4 +1,4 @@
-"""IC management on production (IC_MODE_PLAN.md section 4.7): standard Y-video pages."""
+"""IC management on production: standard Y-video pages."""
 
 from datetime import timedelta
 import json

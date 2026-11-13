@@ -1,4 +1,4 @@
-"""The IC controller driving a separate output window (IC_MODE_PLAN.md section 6)."""
+"""The IC controller driving a separate output window."""
 
 from playwright.sync_api import expect
 import pytest

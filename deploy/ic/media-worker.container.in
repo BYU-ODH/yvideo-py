@@ -21,8 +21,8 @@ Pull=never
 SecurityLabelDisable=true
 
 [Service]
-# Transcodes run at low CPU and I/O priority so the site stays responsive
-# (IC_MODE_PLAN.md section 5.4). ffmpeg is additionally started under
+# Transcodes run at low CPU and I/O priority so the site stays responsive.
+# ffmpeg is additionally started under
 # nice/ionice and limited to two threads inside the container.
 Nice=19
 IOSchedulingClass=idle

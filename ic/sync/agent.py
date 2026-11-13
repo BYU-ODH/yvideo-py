@@ -1,4 +1,4 @@
-"""One booth sync run, whatever started it (IC_MODE_PLAN.md sections 7.3-7.4, 7.8).
+"""One booth sync run, whatever started it.
 
 Every trigger runs this same pipeline. Forcing changes when it runs and how thoroughly
 it checks (always re-import and re-verify; the weekly run re-hashes every file), never

@@ -1,4 +1,4 @@
-// Chunked, resumable upload of a projection master (IC_MODE_PLAN.md section 5.1).
+// Chunked, resumable upload of a projection master.
 // Each chunk is one PUT, so no single request is long enough to hit a proxy timeout,
 // and an interrupted upload resumes from the server's byte count.
 

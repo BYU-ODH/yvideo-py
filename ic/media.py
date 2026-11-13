@@ -16,7 +16,7 @@ import subprocess
 FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
 FFPROBE = os.environ.get("FFPROBE", "ffprobe")
 
-# SD editing/stream copy (IC_MODE_PLAN.md section 5.3): 480 lines, about 1-1.5 Mbps.
+# SD editing/stream copy: 480 lines, about 1-1.5 Mbps.
 SD_HEIGHT = 480
 SD_THREADS = 2
 

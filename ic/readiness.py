@@ -1,4 +1,4 @@
-"""Whether a program is ready to show (IC_MODE_PLAN.md section 4.6).
+"""Whether a program is ready to show.
 
 Errors block "ready"; warnings are shown but do not.
 """
