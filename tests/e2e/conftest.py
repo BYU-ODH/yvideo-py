@@ -24,6 +24,11 @@ READY_TIMEOUT_MS = 10_000
 DRAIN_TIMEOUT_MS = 5_000
 DRAIN_POLL_MS = 50
 DRAIN_QUIET_CHECKS = 4
+# True while the editor holds an edit back to save it later (e.g. the item form's debounce). No
+# request is in flight then, but one is coming, so the drain must not call the page quiet yet.
+# Must match WAITING_TEXT in core/static/js/save-status.js.
+_SAVE_PENDING = """() => Array.from(document.querySelectorAll('.save-status-text'))
+    .some((el) => el.textContent === 'Waiting to autosave...')"""
 
 # window.videoPlayer and the video's duration load via two independent async paths with no ordering
 # guarantee between them, so waiting on duration alone races window.videoPlayer.loadData, which
@@ -226,11 +231,13 @@ def _drain_requests(page, in_flight):
     The DB is flushed right after this fixture tears down, and a request the server is still
     handling (such as the player refetching its data after a save) holds a table lock that makes
     the flush fail. Waits for a quiet stretch rather than an empty moment, because one response
-    often triggers the next request only after its body has been parsed.
+    often triggers the next request only after its body has been parsed. An editor save that is
+    still being debounced has sent nothing yet, so it counts as busy too.
     """
     quiet_checks = 0
     for _ in range(DRAIN_TIMEOUT_MS // DRAIN_POLL_MS):
-        quiet_checks = 0 if in_flight else quiet_checks + 1
+        busy = bool(in_flight) or page.evaluate(_SAVE_PENDING)
+        quiet_checks = 0 if busy else quiet_checks + 1
         if quiet_checks >= DRAIN_QUIET_CHECKS:
             return
         page.wait_for_timeout(DRAIN_POLL_MS)

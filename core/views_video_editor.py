@@ -1775,6 +1775,7 @@ def update_subtitle_content(request, subtitle):
                 raise ValidationError(
                     f"Cue {index + 1}: {' '.join(exception.messages)}"
                 ) from exception
+            new_cue.sent_index = index
             cues_list.append(new_cue)
 
         cues_list.sort(key=lambda cue: cue.start_time)
