@@ -1098,7 +1098,6 @@ def delete_annotation_set(request, annotation_set):
             )
         elif deletion_result["reassigned"]:
             messages.success(request, "The annotation set was reassigned.")
-            return HttpResponseServerError()
         return HttpResponse()
 
     except PermissionDenied:
