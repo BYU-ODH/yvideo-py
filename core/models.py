@@ -652,21 +652,23 @@ class AnnotationSet(models.Model):
                 users_using_this_set_other_than_owner = self.ownership_candidates(user)
 
                 # determine who should be the new owner
-                if new_owner and new_owner in users_using_this_set_other_than_owner:
-                    self.owner = new_owner
-                else:
-                    self.owner = (
+                new_owner_candidate = (
+                    new_owner
+                    if new_owner in users_using_this_set_other_than_owner
+                    else (
                         users_using_this_set_other_than_owner[0]
                         if users_using_this_set_other_than_owner
                         else None
                     )
+                )
 
                 # handle deletion/reassignment
-                if self.owner is None:
+                if new_owner_candidate is None:
                     self.delete()
                     result["deleted"] = True
                 else:
                     try:
+                        self.owner = new_owner_candidate
                         self.save(update_fields=["owner", "updated_at"])
                     except IntegrityError:
                         # if there is somehow another integrity error at this point, we will let
