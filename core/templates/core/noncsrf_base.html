@@ -26,6 +26,7 @@
     </head>
     <body>
         <header class="site-header">
+            {% block siteBanner %}{% endblock %}
             {% block headerContent %}
                 {% include "core/partials/header.html" %}
             {% endblock %}
