@@ -29,6 +29,12 @@
             <button type="button" id="ic-reopen-output" class="ic-button">Reopen and resume</button>
         </div>
         <p id="ic-message" class="ic-message" role="status" hidden></p>
+        {% if booth %}
+            <div id="ic-stale" class="ic-panel ic-alert" role="status" hidden>
+                <span>The booth received new program data from production. Reload this page between films to see it; the output keeps playing.</span>
+                <button type="button" id="ic-reload" class="ic-button">Reload</button>
+            </div>
+        {% endif %}
         <div class="ic-control-grid">
             <section class="ic-panel" aria-labelledby="ic-queue-heading">
                 <h2 id="ic-queue-heading">Queue</h2>
@@ -151,10 +157,6 @@
                       hx-on:htmx:response-error="document.getElementById('ic-sync-run-slot').textContent = '❌ ' + event.detail.xhr.responseText"
                       hx-swap="innerHTML"
                       class="ic-sync-form">
-                    <label>
-                        <input type="checkbox" name="full_rehash" value="1">
-                        Re-check every file (slow)
-                    </label>
                     <button type="submit" class="ic-button">Sync now</button>
                 </form>
                 <div id="ic-sync-run-slot" role="status" aria-live="polite"></div>

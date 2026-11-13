@@ -65,9 +65,7 @@ class Command(BaseCommand):
         # deployed, which is when a run refused for a code mismatch can succeed. When
         # nothing changed, this costs one manifest request answered with a 304.
         if not ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED).exists():
-            ICSyncRun.objects.create(
-                trigger=ICSyncRun.Trigger.AUTO, requested_by="agent start"
-            )
+            ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
 
         self.client = ParentClient()
         self.last_check = 0.0
@@ -93,7 +91,7 @@ class Command(BaseCommand):
             time.sleep(QUEUE_POLL_SECONDS)
 
     def tick(self):
-        """Heartbeat, and the check for changes and pushes when it's due.
+        """Heartbeat, and the check for changes when it's due.
 
         Also called throughout a run, which keeps production's "last contact" fresh
         during a long download; check_parent queues nothing while a run is active.

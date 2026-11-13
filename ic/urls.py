@@ -45,11 +45,6 @@ urlpatterns = [
         name="ic_item_add",
     ),
     path(
-        "manage/programs/<int:program_id>/items/reorder/",
-        views_manage.items_reorder,
-        name="ic_items_reorder",
-    ),
-    path(
         "manage/programs/<int:program_id>/items/<int:item_id>/update/",
         views_manage.item_update,
         name="ic_item_update",

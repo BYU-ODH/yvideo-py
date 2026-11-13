@@ -87,11 +87,16 @@ def booth_item_problems(item):
     return problems
 
 
+def _data_version(state):
+    return state.applied_at.isoformat() if state.applied_at else ""
+
+
 def _sync_summary():
     state = ICBoothState.get()
     latest = ICSyncRun.objects.order_by("-requested_at").first()
     return {
         "state": state,
+        "data_version": _data_version(state),
         "latest": latest,
         "agent_alive": booth_state.agent_alive(),
         # The agent's last check failed. Playback never depends on production.
@@ -145,6 +150,9 @@ def control(request, program_id):
         )
     context = control_context(request, program, items=items, booth=True)
     context.update(_sync_summary())
+    # When the sync badge reports a newer apply, the controller asks for a reload: its
+    # queue was built from the data applied before.
+    context["page_data"]["data_version"] = _data_version(context["state"])
     context["rehearsal"] = program.is_upcoming()
     return render(request, "ic/control.html", context)
 
@@ -234,10 +242,6 @@ def sync_badge(request):
     return render(request, "ic/partials/sync_badge.html", _sync_summary())
 
 
-def _bool_option(request, name):
-    return request.POST.get(name) in ("1", "true", "on", "yes")
-
-
 @require_POST
 @booth_view
 def sync_run_create(request):
@@ -246,24 +250,14 @@ def sync_run_create(request):
         return HttpResponse(
             booth_state.AGENT_DOWN_MESSAGE, status=503, content_type="text/plain"
         )
-    full_rehash = _bool_option(request, "full_rehash")
-    # A second press while one is still queued joins it (asking for more, not less).
+    # A second press while one is still queued joins it.
     run = (
         ICSyncRun.objects.filter(
             status=ICSyncRun.Status.QUEUED, trigger=ICSyncRun.Trigger.FORCE_PULL
         )
         .order_by("requested_at")
         .first()
-    )
-    if run is None:
-        run = ICSyncRun.objects.create(
-            trigger=ICSyncRun.Trigger.FORCE_PULL,
-            requested_by="booth operator",
-            options={"full_rehash": full_rehash},
-        )
-    elif full_rehash and not run.options.get("full_rehash"):
-        run.options = {**run.options, "full_rehash": True}
-        run.save(update_fields=["options"])
+    ) or ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.FORCE_PULL)
     return render(request, "ic/partials/sync_run.html", {"run": run, "booth": True})
 
 

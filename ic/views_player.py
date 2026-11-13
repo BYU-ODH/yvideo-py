@@ -8,6 +8,7 @@ the preview is exactly what the booth shows apart from the video file.
 
 from django.http import Http404
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
@@ -17,9 +18,8 @@ from core.views import _file_response
 
 from . import readiness
 from .models import ICProgram
+from .models import ICProgramItem
 from .permissions import ic_editor_required
-from .permissions import ic_item_preview_required
-from .permissions import ic_program_write_required
 from .sync.bundle import content_fingerprint
 
 
@@ -121,8 +121,9 @@ def control_index(request):
 
 
 @require_GET
-@ic_program_write_required
-def control(request, program):
+@ic_editor_required
+def control(request, program_id):
+    program = get_object_or_404(ICProgram, pk=program_id)
     items = []
     for item in program.ordered_items():
         problems = readiness.item_problems(item)
@@ -139,16 +140,18 @@ def output(request):
 
 
 @require_GET
-@ic_item_preview_required
-def item_player_data(request, item):
+@ic_editor_required
+def item_player_data(request, item_id):
+    item = get_object_or_404(ICProgramItem, pk=item_id)
     return JsonResponse(
         player_data_for_item(item, reverse("ic_item_media", args=[item.pk]))
     )
 
 
 @require_GET
-@ic_item_preview_required
-def item_media(request, item):
+@ic_editor_required
+def item_media(request, item_id):
+    item = get_object_or_404(ICProgramItem, pk=item_id)
     """The preview streams the SD editing file, never the master."""
     resource_file = item.content.resource_file
     if resource_file is None or not resource_file.bytes_on_this_server:

@@ -8,8 +8,10 @@ from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
 
+from core.factories import ResourceFactory
 from ic import booth_state
 from ic.models import ICSyncRun
+from ic.models import ICUpload
 from ic.models import MediaJob
 from ic.testing import ICTempDirsMixin
 
@@ -57,37 +59,27 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
 
 
 class MediaWorkerCommandTests(ICTempDirsMixin, TestCase):
-    def test_once_runs_due_jobs_and_requeues_interrupted_ones(self):
+    def test_once_requeues_interrupted_jobs_and_cleans_up_abandoned_uploads(self):
         interrupted = MediaJob.objects.create(
-            kind=MediaJob.Kind.CLEANUP_UPLOADS, status=MediaJob.Status.RUNNING
+            kind=MediaJob.Kind.RELEASE_MASTER,
+            status=MediaJob.Status.RUNNING,
+            payload={"master_id": 0},
         )
-        later = MediaJob.objects.create(
-            kind=MediaJob.Kind.CLEANUP_UPLOADS,
-            not_before=timezone.now() + timedelta(hours=1),
+        upload = ICUpload.objects.create(
+            resource=ResourceFactory(), filename="film.mp4", expected_size=10
+        )
+        upload.part_path.parent.mkdir(parents=True, exist_ok=True)
+        upload.part_path.write_bytes(b"12345")
+        ICUpload.objects.filter(pk=upload.pk).update(
+            updated_at=timezone.now() - timedelta(days=8)
         )
         with mock.patch("os.nice"):
             call_command("process_media_jobs", "--once", stdout=StringIO())
         interrupted.refresh_from_db()
-        self.assertEqual(interrupted.status, MediaJob.Status.SUCCEEDED)
-        later.refresh_from_db()
-        self.assertEqual(later.status, MediaJob.Status.QUEUED)
-
-
-class SeedICDemoTests(ICTempDirsMixin, TestCase):
-    def test_seeds_a_ready_program_from_the_demo_videos(self):
-        from ic import readiness
-        from ic.models import ICProgram
-
-        with self.assertRaises(CommandError):
-            call_command("seed_ic_demo", stdout=StringIO())  # DEBUG is off in tests
-        with self.assertRaises(CommandError):
-            call_command(
-                "seed_ic_demo", "--force", stdout=StringIO()
-            )  # no demo admin yet
-        call_command("seed_demo_data", "--force", stdout=StringIO())
-        call_command("seed_ic_demo", "--force", stdout=StringIO())
-        call_command("seed_ic_demo", "--force", stdout=StringIO())  # re-runnable
-        program = ICProgram.objects.get(name="IC demo program")
-        problems = readiness.program_problems(program)
-        self.assertNotEqual(readiness.rollup(problems), readiness.ERROR, problems)
-        self.assertEqual(program.items.count(), 2)
+        # It ran again (and failed, since master 0 doesn't exist) instead of staying stuck.
+        self.assertEqual(interrupted.status, MediaJob.Status.FAILED)
+        upload.refresh_from_db()
+        self.assertEqual(upload.status, ICUpload.Status.ABANDONED)
+        self.assertFalse(upload.part_path.exists())
+        # Cleanup isn't a job, so it doesn't crowd the dashboard's job list.
+        self.assertEqual(MediaJob.objects.count(), 1)

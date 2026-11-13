@@ -2,6 +2,13 @@
 
 Status: **implemented** on branch `246-replace-ic-player-with-ic-mode-on-y-video` (see §14 for where the code differs from this plan). Deployment: [DEPLOY_IC.md](DEPLOY_IC.md).
 
+> **Settled design decisions: not open for redesign.**
+>
+> 1. **The booth receives database rows, not player JSON.** Production ships the rows behind each scheduled film (a Django fixture with original primary keys). The booth renders player JSON from them with its own copy of `Content.get_player_json()`, and checks the result against production's fingerprints before anything becomes playable (§3 invariants 1–2, §7.2–7.3). Sending pre-rendered player JSON was proposed in review and declined. Consequence we accept: the booth and production must share the database schema (the manifest's migration check, §7.3 step 1), and the booth mirrors the core tables those rows live in.
+> 2. **Production deletes its copy of each master once the booth holds a verified copy.** As soon as the SD transcode has succeeded and the booth has reported a copy whose bytes it hashed and found equal to production's checksum, production deletes the master's bytes and keeps the row (§5.7). Keeping masters on production was proposed in review and declined. Consequences we accept: the booth's copy is the only one, so the booth re-hashes released masters weekly, reports `master_lost`, prunes them only 30 days after their last program with a 7-day warning, and IC keeps the original disc or file until the last showing; re-uploading the same file restores a lost master.
+>
+> Reviews and changes should work within these two decisions.
+
 ## 1. Goals and non-goals
 
 ### Goals
@@ -30,7 +37,8 @@ Status: **implemented** on branch `246-replace-ic-player-with-ic-mode-on-y-video
 | Booth count | One. Personal instances only if deployment is trivial |
 | Booth platform | Ubuntu (Wayland session) + latest Google Chrome on a Dell with **Intel UHD Graphics 630** (Comet Lake, `i915`) (§6.1) |
 | File specs | Projection master = maximum available resolution/bitrate (no cap); streaming/editing copy = SD |
-| Master retention | **Production deletes its copy of a master as soon as the SD transcode is complete and the booth's copy is downloaded and checksum-verified.** The booth then holds the only copy (§5.7) |
+| Sync payload | **Database rows (a fixture with original PKs) plus per-content fingerprints, not player JSON.** The booth renders player JSON itself and must match production's fingerprints (§7.2–7.3). Settled; see the note at the top |
+| Master retention | **Production deletes its copy of a master as soon as the SD transcode is complete and the booth's copy is downloaded and checksum-verified.** The booth then holds the only copy (§5.7). Settled; see the note at the top |
 | Upload access | IC editors upload masters only for resources they can access (`can_access_resource`) |
 | Fonts | **Open/free fonts only** (e.g. Google Fonts, self-hosted) |
 | Transcoding | Runs on the production server at low CPU and I/O priority |
@@ -179,19 +187,20 @@ IC editors aren't superusers, so IC management lives in the app under `/ic/manag
 | Page | What it does |
 |---|---|
 | `/ic/manage/` | Dashboard: programs (active, upcoming, past) × readiness × booth sync state (§7.8); media job queue with progress |
-| `/ic/manage/programs/new/`, `/ic/manage/programs/<id>/` | Program CRUD: name, dates, notes; items added from a picker of contents in IC playlists the editor can see; drag to reorder (reuse the drag pattern from track `update_stack_positions`); per-item mode, auto-advance, subtitles, `timing_verified`; live readiness panel; "Preview" opens the production `/ic/program/<id>/` |
-| `/ic/manage/resources/` | Resources used by IC contents and those the editor can access, each with: projection master status (none / uploading / processing / ready / failed), probe summary (resolution, codec, bitrate, duration, size), derived SD file status, and "switch IC contents to the derived file" |
+| `/ic/manage/programs/new/`, `/ic/manage/programs/<id>/` | Program CRUD: name, dates, notes; items added from a picker of contents in IC playlists the editor can see; ↑/↓ buttons to reorder; per-item mode, auto-advance, subtitles, `timing_verified`, **each saved as soon as it changes** (HTMX `hx-post` on `change`; the row comes back with fresh readiness, so no edit waits behind a Save button); live readiness panel; "Preview" opens the production `/ic/program/<id>/` |
+| `/ic/manage/resources/` (*Films and masters*) | Resources that have a master or are used by IC contents, plus **Find a film**: a title search over all resources, so a master can be uploaded before any IC content exists. Each row: projection master status (none / uploading / processing / ready / failed), probe summary (resolution, codec, bitrate, duration, size), derived SD file status, and "switch IC contents to the derived file" |
 | `/ic/manage/resources/<id>/projection-upload/` | Chunked upload (§5.1) |
 
-- Permission decorators in `core/permissions.py`:
-  - `ic_editor_required` (role)
-  - `ic_program_write_required` (object: `ICProgram.can_be_edited_by(user)` → `user.is_ic_editor`)
-  - `ic_projection_upload_required` (object: resource; `is_ic_editor` and `can_access_resource`)
+- Permission decorators (`ic/permissions.py`):
+  - `ic_editor_required` (role). Every IC editor may manage every program, so program and preview views use only this and look the program up themselves.
+  - `ic_resource_upload_required` (object: resource; `is_ic_editor` and `can_access_resource`)
+  - `ic_upload_owner_required` (object: an upload in progress; its owner, still with resource access)
 
   Register all of them with `test_view_permissions.py`.
 - History: register `ICProgram`/`ICProgramItem` with `django-reversion` and wrap the manage views in `reversion.create_revision()` so program changes are attributable. Spoofing works as elsewhere, and the spoof log records the real user.
 - Header: add an "International Cinema" entry for `is_ic_editor` users (plain Y-video styling, §6.6).
-- Django admin still registers the IC models (read/write for superusers, for support and debugging), plus `is_ic` in `PlaylistAdmin` and `is_projection_file`/probe fields in `ResourceFileAdmin`.
+- Django admin still registers the IC models (read/write for superusers, for support and debugging), plus `is_ic` in `PlaylistAdmin`. In `ResourceFileAdmin`, `is_projection_file`, `derived_from` and the probe fields are **read-only**: masters and their SD files come only from the IC media pipeline, never from a single admin upload that would skip probing and transcoding.
+- **The admin's way in:** each resource's admin page has an *Upload IC projection master* (or *Replace…*) link to `/ic/manage/resources/<id>/projection-upload/`. A Y-video admin adds the film as a resource, follows the link, and uploads; the SD file is made automatically, and IC content is then created from that `ic-sd-…` file.
 
 ### 4.8 Tests
 - Constraints, the `active()`/`syncable()` boundaries (use `timezone.localdate()`), each readiness rule, and the projection-file exclusion from content forms.
@@ -238,7 +247,7 @@ ffmpeg -i master.mp4 -map 0:v:0 -map 0:a:0? \
 - **Low priority on production** (decision): see §5.4. Run one job at a time with `-threads 2`, so even with maximum-bitrate 4K masters the transcode can't take every core. Expect roughly 0.5–2× real time depending on master resolution and server cores, and show progress in the dashboard by parsing ffmpeg's `-progress pipe:1` output.
 
 ### 5.4 Media job worker
-Add a `MediaJob(kind, status, payload, log, created_at, started_at, finished_at)` table and `manage.py process_media_jobs`. Kinds: `probe`, `faststart`, `transcode`, `release_master` (§5.7) and `cleanup_uploads`. (Booths learn about changes by checking production, §7.5, so there's no notify job.)
+Add a `MediaJob(kind, status, payload, log, created_at, started_at, finished_at)` table and `manage.py process_media_jobs`. Kinds: `ingest` (probe, faststart remux, hash), `transcode` and `release_master` (§5.7). The worker also abandons uploads idle for 7 days every few hours, by calling `cleanup_uploads()` directly: it isn't a job, so it never crowds the dashboard's job list. (Booths learn about changes by checking production, §7.5, so there's no notify job.)
 
 How to run the worker:
 - **Preferred:** a separate quadlet/systemd user service that runs the same image with a different command. Its lifecycle is independent of gunicorn, so it doesn't extend the legacy-only `gunicorn.conf.py` pattern.
@@ -487,8 +496,7 @@ Booth-local model, written only by the agent (except creating a `queued` row for
 class ICSyncRun(models.Model):
     id = UUIDField(primary_key=True)
     trigger = CharField(choices=["auto", "force_pull"])
-    requested_by = CharField(blank=True)    # "booth operator", "agent start", or blank
-    options = JSONField(default=dict)       # {"full_rehash": bool}
+    full_rehash = BooleanField(default=False)  # only the weekly re-hash of released masters
     status = CharField(choices=["queued", "running", "succeeded", "partial", "failed", "up_to_date"])
     phase = CharField(blank=True)           # contacting / downloading / importing / verifying / downloading_upcoming / reporting
     bytes_done = BigIntegerField(default=0); bytes_total = BigIntegerField(default=0)
@@ -504,8 +512,8 @@ Steps of a run:
    - If `git_sha` or `migrations` differ from the booth's own, stop with `failed: code_mismatch` and say which side is behind. The booth deploy timer tracks production's branch outside `IC_PLAYBACK_HOURS`, so this resolves within minutes of a daytime deploy, or after the evening's showings.
 2. **Files needed now.** All subtitle files, plus the masters of programs that have already started. Subtitles always come first because the player JSON embeds their text, so fingerprints (step 3) can't match without them; they're small. For each:
    - Missing, wrong size, or not in `ICLocalFile`: Range-download to `<dest>.part`, resuming from its size; verify xxh64; atomic rename; record in `ICLocalFile(kind, ref_id, path, size, xxh64, verified_at)`.
-   - With `full_rehash` (a "Sync now" option, plus the weekly re-hash of released masters): re-hash every local file even if it was verified before. This catches disk corruption. A file that fails is removed from `ICLocalFile` at once, so it never counts as verified (or playable) again, even if it can't be replaced. It takes minutes for large masters, and the progress bar shows it.
-   - Downloads are always rate-capped (15 MB/s, about 11 minutes per 10 GB), so a sync can't cause stutter whenever it runs.
+   - With `full_rehash` (the weekly morning re-hash of released masters; never offered on the controller): re-hash every local file even if it was verified before. This catches disk corruption. A file that fails is removed from `ICLocalFile` at once, so it never counts as verified (or playable) again, even if it can't be replaced. Ops can queue one by hand outside showings (DEPLOY_IC.md, *Operating*).
+   - Downloads **and hashing** are always rate-capped (15 MB/s, about 11 minutes per 10 GB), so neither can cause stutter on the disk the projector plays from.
 3. **Database.** Applied as soon as step 2's files are verified, **without waiting for masters of later programs**, so a fix to tonight's annotations never waits behind next month's 20 GB master. If a file from step 2 that production can still send failed, the booth keeps its previous rows (and reports why), because applying would make a film that plays today unplayable. Then:
    - Download the fixture and check its sha256.
    - In one `transaction.atomic()`: delete all mirrored-model rows (children first), deserialize, `obj.save()`. Deserialized saves use `raw=True`, which bypasses `ResourceFile.save()` checksum/barcode logic (good). **Check that `stamp_previous_owner_on_annotation_sets` and any other signal handlers respect `raw`.**
@@ -533,8 +541,8 @@ An earlier design addressed media by item (`/ic/item/<id>/media/`, resolved on e
 - A missed check (network blip) only delays the next one by 30 s. Runs that didn't finish cleanly are retried 15 minutes later by the same rule.
 
 ### 7.6 Force pull from the booth (with indicator)
-- The controller page has a **Sync now** button, with the option "Re-check every file (slow)" → `full_rehash`.
-- `POST /ic/sync/run/` (kiosk port only, CSRF-protected) creates a `queued` `ICSyncRun(trigger="force_pull", requested_by="booth operator")` and returns its id. If a "Sync now" run is already queued, the same id is returned instead of a second run (with `full_rehash` added if this press asked for it). If an automatic run is in progress, the force run is queued behind it, and the indicator says so.
+- The controller page has a **Sync now** button. It never re-hashes everything: that is the weekly morning run's job, and on the show controller it would compete with playback.
+- `POST /ic/sync/run/` (kiosk port only, CSRF-protected) creates a `queued` `ICSyncRun(trigger="force_pull")` and returns its id. If a "Sync now" run is already queued, the same id is returned instead of a second run. If an automatic run is in progress, the force run is queued behind it, and the indicator says so.
 - If the agent's heartbeat is older than 30 s, the POST returns an immediate error: **"Sync agent isn't running; restart it with `systemctl --user restart ic-sync-agent`"**. A request nobody will pick up never sits silently in the queue.
 - The indicator polls `GET /ic/sync/run/<id>/` every second with HTMX (§7.8).
 
@@ -607,11 +615,11 @@ The booth's web container runs the kiosk urlconf only. The surface reachable at 
 ### 8.2 Middleware and settings when `IS_IC_INSTANCE`
 - Remove `LoginRequiredMiddleware`, `SpoofUserMiddleware`, `mozilla_django_oidc.middleware.SessionRefresh`.
 - Keep `AuthenticationMiddleware` (so `request.user` is `AnonymousUser` for context processors).
-- Add `ICReadOnlyMiddleware`: rejects every method except GET/HEAD with 405, except "Sync now". It's a safety net behind the urlconf.
+- No extra read-only middleware: the booth urlconf has one POST route ("Sync now"), every other view is `require_GET`, and `test_view_permissions.py` walks the booth urlconf to keep it that way.
 - `POST /ic/sync/run/` keeps Django's CSRF protection (the controller page includes the token).
 - Drop `mozilla_django_oidc` from `INSTALLED_APPS` and `AUTHENTICATION_BACKENDS` if that's clean. Otherwise leave them unused.
 - `ALLOWED_HOSTS = ["localhost", "127.0.0.1"]`. **Userless works only because nothing off-box can reach the kiosk.**
-- Booth settings: `IC_PARENT_URL`, `IC_SYNC_TOKEN`, `IC_CHECK_INTERVAL_SECONDS = 30`, `IC_POLL_INTERVAL_SECONDS = 900`.
+- Booth settings: `IC_PARENT_URL`, `IC_SYNC_TOKEN`, `IC_CHECK_INTERVAL_SECONDS = 30`.
 - `DEBUG = False`. Run `collectstatic` at container start (already in `entrypoint.sh`), so all static assets are local.
 
 ### 8.3 Offline guarantees (decision #1)
@@ -681,12 +689,11 @@ Upload a master → transcode finishes → edit annotations → readiness ✅ �
 Sync triggers (each must end in the indicator state shown):
 - Edit an annotation on prod, wait ~1 min → change run → booth badge ✅ "matches production".
 - **Force pull** with nothing changed → ✅ Succeeded (re-verified), not "up to date".
-- **Force pull** with "Re-check every file" → progress shows re-hashing → ✅.
 - Booth powered off → after ~2 min production's dashboard shows ⚠️ "hasn't checked in recently"; power it on → it syncs at once → dashboard ✅ matches.
 - Stop `ic-sync-agent`, then force pull → immediate ❌ "sync agent isn't running".
 - Merge a commit during `IC_PLAYBACK_HOURS` → the booth doesn't redeploy until they end.
 - Force pull with the network unplugged → ❌ "production unreachable"; playback unaffected.
-- Corrupt a byte in a local master, force pull with re-check → the file is re-downloaded → ✅.
+- Corrupt a byte in a local master, queue a re-hash outside a showing → the file is re-downloaded → ✅.
 - An annotation fix (or a replaced master) synced during a film → applied straight away; the current film is uninterrupted.
 - A new program for next month plus an annotation fix for tonight → tonight's fix is applied before next month's master finishes downloading.
 
@@ -763,14 +770,23 @@ Where the code differs from the plan above, and why:
 - **Outbound-only sync (revised after review).** The first implementation had production
   call a signed agent endpoint on the booth (an `ic-agent-web` container and urlconf, HMAC
   secrets on both machines, a firewall rule, change-notification signals and an
-  `ic_notify` job). It was replaced by the booth's 30-second check (§7.1, §7.3);
-  migration `ic/0002_outbound_only_sync` drops the agent fields.
+  `ic_notify` job). It was replaced by the booth's 30-second check (§7.1, §7.3).
 - **Pull-only sync (revised after the second review).** Push-to-booth briefly survived as
   `ICSyncRequest`, a request the booth collected and reported progress on. It duplicated
   the run lifecycle on production and could stay "running" forever when a report was lost.
   It was removed along with the 15-minute poll (the check's retry rule covers it), the
-  playback heartbeat (downloads are always capped) and `ICInstance.profile`; see migration
-  `ic/0003_pull_only_sync`. The booth's deploy timer skips `IC_PLAYBACK_HOURS`.
+  playback heartbeat (downloads are always capped) and `ICInstance.profile`. The booth's
+  deploy timer skips `IC_PLAYBACK_HOURS`.
+- **One IC migration.** The design changes above were squashed into `ic/0001_initial`
+  before merge; no migration describes models that never shipped.
+- **Third review.** Admins upload masters from a link on the resource's admin page, and
+  *Films and masters* finds any film by title (§4.7); the admin can't mark a resource file
+  as a master. The controller lost its "Re-check every file" option and booth hashing is
+  rate-capped (§7.3, §7.6). The booth controller offers a reload when newer program data
+  has been applied. Program item settings save as they change; drag-to-reorder,
+  `ICReadOnlyMiddleware`, object-permission decorators that only checked the role, the
+  `cleanup_uploads` job kind and unused fields (`MediaJob.not_before`,
+  `ICSyncRun.requested_by`/`options`, `ICBoothState.applied_manifest`) were removed.
 - **File-addressed media (revised after review).** The booth's media URL used to name the
   item and was resolved on every range request, so a sync applied during a pause (or with
   "Apply even while playing") could switch a playing film to another file. It now names

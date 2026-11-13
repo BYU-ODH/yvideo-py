@@ -1,7 +1,7 @@
 """Permission decorators for International Cinema views, in core.permissions' style.
 
-Each resolves the object named in the URL, checks one predicate, and hands the object to
-the view, and records `permission_check` for the URL-registry test.
+Each checks one predicate and records `permission_check` for the URL-registry test.
+Programs need only the IC role; uploads also need access to the resource.
 """
 
 from functools import wraps
@@ -9,16 +9,13 @@ from functools import wraps
 from django.shortcuts import get_object_or_404
 
 from core.models import Resource
-from core.permissions import _object_permission_required
 from core.permissions import forbidden
 
-from .models import ICProgram
-from .models import ICProgramItem
 from .models import ICUpload
 
 
 def ic_editor_required(view_func):
-    """For IC views with no single object: dashboards, lists, creating programs."""
+    """Every IC editor may manage every program, so IC views need only the role."""
 
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
@@ -28,14 +25,6 @@ def ic_editor_required(view_func):
 
     _wrapped.permission_check = "ic_editor"
     return _wrapped
-
-
-ic_program_write_required = _object_permission_required(
-    ICProgram, "program_id", "can_be_edited_by", "ic_program_write"
-)
-ic_item_preview_required = _object_permission_required(
-    ICProgramItem, "item_id", "can_be_previewed_by", "ic_item_preview"
-)
 
 
 def ic_resource_upload_required(view_func):

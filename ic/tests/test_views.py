@@ -11,6 +11,7 @@ from django.utils import timezone
 from reversion.models import Version
 
 from core.factories import PlaylistFactory
+from core.factories import ResourceFactory
 from core.factories import UserFactory
 from ic.models import ICInstance
 from ic.models import ICInstanceFile
@@ -19,6 +20,7 @@ from ic.models import ICProgramItem
 from ic.models import MediaJob
 from ic.testing import ICTempDirsMixin
 from ic.testing import make_ic_editor
+from ic.testing import make_master
 from ic.testing import make_program_scenario
 
 
@@ -43,7 +45,6 @@ class ManagementAccessTests(ICTempDirsMixin, TestCase):
             ("post", reverse("ic_item_update", args=[p, i])),
             ("post", reverse("ic_item_move", args=[p, i])),
             ("post", reverse("ic_item_delete", args=[p, i])),
-            ("post", reverse("ic_items_reorder", args=[p])),
             ("get", reverse("ic_control_index")),
             ("get", reverse("ic_control", args=[p])),
             ("get", reverse("ic_output")),
@@ -103,30 +104,13 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(ICProgram.objects.filter(name="Bad").exists())
 
-    def test_add_reorder_move_and_remove_items(self):
+    def test_add_move_and_remove_items(self):
         extra = self.scenario["feature"]
         self.client.post(
             reverse("ic_item_add", args=[self.program.pk]),
             {"content_id": extra.pk, "mode": "once"},
         )
-        items = list(self.program.items.order_by("position"))
-        self.assertEqual(len(items), 3)
-        reversed_ids = [i.pk for i in reversed(items)]
-        response = self.client.post(
-            reverse("ic_items_reorder", args=[self.program.pk]),
-            data=json.dumps({"item_ids": reversed_ids}),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 204)
-        self.assertEqual(
-            [i.pk for i in self.program.items.order_by("position")], reversed_ids
-        )
-        bad = self.client.post(
-            reverse("ic_items_reorder", args=[self.program.pk]),
-            data=json.dumps({"item_ids": reversed_ids[:2]}),
-            content_type="application/json",
-        )
-        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(self.program.items.count(), 3)
         first = self.program.items.order_by("position").first()
         self.client.post(
             reverse("ic_item_move", args=[self.program.pk, first.pk]),
@@ -167,6 +151,27 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         self.assertTrue(item.auto_advance)
         self.assertEqual(item.subtitles, ICProgramItem.Subtitles.BURNED_IN)
 
+    def test_item_settings_save_as_they_change(self):
+        """The program page posts each change at once; nothing waits for a Save button."""
+        item = self.scenario["film_item"]
+        prefix = f"item-{item.pk}"
+        page = self.client.get(reverse("ic_program_edit", args=[self.program.pk]))
+        update_url = reverse("ic_item_update", args=[self.program.pk, item.pk])
+        self.assertContains(page, f'hx-post="{update_url}"')
+        self.assertContains(page, 'hx-trigger="change"')
+        response = self.client.post(
+            update_url,
+            {f"{prefix}-mode": "once", f"{prefix}-subtitles": "none"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'id="ic-item-{item.pk}"')
+        self.assertContains(response, "Saved.")
+        # The program's readiness badge is refreshed alongside the row.
+        self.assertContains(response, 'id="ic-program-status" hx-swap-oob="true"')
+        item.refresh_from_db()
+        self.assertEqual(item.subtitles, ICProgramItem.Subtitles.NONE)
+
     def test_an_item_of_another_program_is_not_found(self):
         other = ICProgram.objects.create(
             name="other", start_date=timezone.localdate(), end_date=timezone.localdate()
@@ -175,6 +180,61 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         response = self.client.post(reverse("ic_item_delete", args=[other.pk, item.pk]))
         self.assertEqual(response.status_code, 404)
         self.assertTrue(ICProgramItem.objects.filter(pk=item.pk).exists())
+
+
+class MasterUploadPathTests(ICTempDirsMixin, TestCase):
+    """A master can be uploaded before any IC content uses the film."""
+
+    def setUp(self):
+        super().setUp()
+        self.admin = UserFactory(admin=True)
+        self.client.force_login(self.admin)
+        self.new_film = ResourceFactory(name="Tokyo Story")
+
+    def test_the_resource_admin_page_links_to_the_master_upload(self):
+        page = self.client.get(
+            reverse("admin:core_resource_change", args=[self.new_film.pk])
+        )
+        self.assertContains(
+            page, reverse("ic_projection_upload", args=[self.new_film.pk])
+        )
+        self.assertContains(page, "Upload IC projection master")
+        make_master(self.new_film)
+        page = self.client.get(
+            reverse("admin:core_resource_change", args=[self.new_film.pk])
+        )
+        self.assertContains(page, "Replace IC projection master")
+
+    def test_resource_files_cannot_be_turned_into_masters_in_the_admin(self):
+        page = self.client.get(reverse("admin:core_resourcefile_add"))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'name="is_projection_file"')
+        self.assertNotContains(page, 'name="derived_from"')
+
+    def test_find_a_film_without_ic_content_and_list_it_once_it_has_a_master(self):
+        listing = self.client.get(reverse("ic_manage_resources"))
+        self.assertNotContains(listing, "Tokyo Story")
+        found = self.client.get(reverse("ic_manage_resources"), {"q": "tokyo"})
+        self.assertContains(found, "Tokyo Story")
+        self.assertContains(
+            found, reverse("ic_projection_upload", args=[self.new_film.pk])
+        )
+        make_master(self.new_film)
+        listing = self.client.get(reverse("ic_manage_resources"))
+        self.assertContains(listing, "Tokyo Story")
+
+    def test_an_ic_editor_without_access_cannot_upload(self):
+        editor = make_ic_editor()
+        self.client.force_login(editor)
+        found = self.client.get(reverse("ic_manage_resources"), {"q": "tokyo"})
+        self.assertContains(found, "Tokyo Story")
+        self.assertContains(found, "You don't have access to this resource.")
+        self.assertEqual(
+            self.client.get(
+                reverse("ic_projection_upload", args=[self.new_film.pk])
+            ).status_code,
+            403,
+        )
 
 
 class PreviewPlayerTests(ICTempDirsMixin, TestCase):

@@ -4,10 +4,8 @@ import signal
 import time
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from ic import jobs
-from ic.models import MediaJob
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +42,11 @@ class Command(BaseCommand):
         while not self.stopping:
             if time.monotonic() - last_cleanup > CLEANUP_INTERVAL_SECONDS:
                 last_cleanup = time.monotonic()
-                if not MediaJob.objects.filter(
-                    kind=MediaJob.Kind.CLEANUP_UPLOADS, status=MediaJob.Status.QUEUED
-                ).exists():
-                    jobs.queue(MediaJob.Kind.CLEANUP_UPLOADS)
+                abandoned = jobs.cleanup_uploads()
+                if abandoned:
+                    logger.info("Abandoned %s idle upload(s).", abandoned)
 
-            job = jobs.claim_next(timezone.now())
+            job = jobs.claim_next()
             if job is None:
                 if options["once"]:
                     break

@@ -239,8 +239,8 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
             }
         return FakeParent(manifest, fixture, digest, files)
 
-    def run_sync(self, trigger=ICSyncRun.Trigger.FORCE_PULL, **options):
-        run = ICSyncRun.objects.create(trigger=trigger, options=options)
+    def run_sync(self, trigger=ICSyncRun.Trigger.FORCE_PULL, full_rehash=False):
+        run = ICSyncRun.objects.create(trigger=trigger, full_rehash=full_rehash)
         return agent.execute_run(run, client=self.parent, heartbeat=lambda: None)
 
     def test_forced_run_downloads_verifies_and_applies(self):
@@ -556,7 +556,7 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         )
         self.assertIsNone(agent.check_parent(self.parent, now=evening))
         run = agent.check_parent(self.parent, now=morning)
-        self.assertEqual(run.options, {"full_rehash": True})
+        self.assertTrue(run.full_rehash)
         self.finish(run, ICSyncRun.Status.SUCCEEDED, "hash-1")
         state.refresh_from_db()
         state.last_full_rehash_at = morning
@@ -619,3 +619,27 @@ class PruneTests(ICTempDirsMixin, TestCase):
         _, warnings = agent.prune(listed, today=today + timedelta(days=15))
         self.assertEqual(len(warnings), 1)
         self.assertIn("only copy", warnings[0])
+
+
+class HashRateTests(TestCase):
+    """The booth hashes from the disk the projector plays from, so hashing is capped."""
+
+    def test_capped_hashing_sleeps_to_hold_the_rate_and_gives_the_same_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "master.mp4"
+            path.write_bytes(b"x" * (3 * 1024 * 1024))
+            uncapped = bundle_module.file_xxh64(path)
+            with mock.patch.object(bundle_module.time, "sleep") as sleep:
+                capped = bundle_module.file_xxh64(
+                    path, chunk_size=1024 * 1024, max_bytes_per_second=1024 * 1024
+                )
+            self.assertEqual(capped, uncapped)
+            # 3 MB at 1 MB/s: the reader waits roughly three seconds in total.
+            self.assertGreater(sum(call.args[0] for call in sleep.call_args_list), 2.5)
+
+    def test_the_agent_verifies_at_the_download_rate_cap(self):
+        with mock.patch.object(agent, "file_xxh64", return_value="abc") as hashed:
+            self.assertTrue(agent._verify_hash(Path("/nowhere"), "abc"))
+        hashed.assert_called_once_with(
+            Path("/nowhere"), max_bytes_per_second=agent.MAX_BYTES_PER_SECOND
+        )

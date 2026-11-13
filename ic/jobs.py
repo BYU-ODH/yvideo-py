@@ -32,12 +32,9 @@ class JobFailed(Exception):
     """A job that cannot succeed; the message is shown to IC editors."""
 
 
-def queue(kind, *, resource_file=None, payload=None, not_before=None):
+def queue(kind, *, resource_file=None, payload=None):
     return MediaJob.objects.create(
-        kind=kind,
-        resource_file=resource_file,
-        payload=payload or {},
-        not_before=not_before or timezone.now(),
+        kind=kind, resource_file=resource_file, payload=payload or {}
     )
 
 
@@ -311,8 +308,13 @@ def release_master(job):
 # ---------------------------------------------------------------------------
 
 
-def cleanup_uploads(job):
-    cutoff = timezone.now() - ABANDONED_UPLOAD_AGE
+def cleanup_uploads(now=None):
+    """Mark uploads idle for a week abandoned and delete their partial data.
+
+    Called by the media worker every few hours. Not a MediaJob: it isn't something an
+    IC editor asked for, so it stays out of the dashboard's job list.
+    """
+    cutoff = (now or timezone.now()) - ABANDONED_UPLOAD_AGE
     stale = ICUpload.objects.filter(
         status=ICUpload.Status.UPLOADING, updated_at__lt=cutoff
     )
@@ -322,23 +324,21 @@ def cleanup_uploads(job):
         upload.status = ICUpload.Status.ABANDONED
         upload.save(update_fields=["status", "updated_at"])
         count += 1
-    return f"Abandoned {count} upload(s)."
+    return count
 
 
 HANDLERS = {
     MediaJob.Kind.INGEST: ingest,
     MediaJob.Kind.TRANSCODE: transcode,
     MediaJob.Kind.RELEASE_MASTER: release_master,
-    MediaJob.Kind.CLEANUP_UPLOADS: cleanup_uploads,
 }
 
 
-def claim_next(now=None):
-    """Atomically claim the next due job, or None."""
-    now = now or timezone.now()
-    for candidate in MediaJob.objects.filter(
-        status=MediaJob.Status.QUEUED, not_before__lte=now
-    ).order_by("not_before", "id")[:5]:
+def claim_next():
+    """Atomically claim the oldest queued job, or None."""
+    for candidate in MediaJob.objects.filter(status=MediaJob.Status.QUEUED).order_by(
+        "created_at", "id"
+    )[:5]:
         claimed = MediaJob.objects.filter(
             pk=candidate.pk, status=MediaJob.Status.QUEUED
         ).update(status=MediaJob.Status.RUNNING, started_at=timezone.now())

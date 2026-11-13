@@ -703,9 +703,31 @@ class ResourceAdmin(VersionAdmin):
     )
     list_filter = ("media_type", "copyrighted", "physical_copy_exists", "created_at")
     search_fields = ("name", "name_disambiguator", "imdb_id")
+    readonly_fields = ("ic_projection_master",)
 
     class Media:
         js = ("js/admin_call_number.js",)
+
+    @admin.display(description="IC projection master")
+    def ic_projection_master(self, obj):
+        """The way into the chunked master upload, which probes and transcodes the file.
+
+        Masters are never added as ordinary resource files here: a single admin upload
+        of a ~10 GB file is fragile, and it would skip the IC media pipeline.
+        """
+        if obj is None or obj.pk is None:
+            return "Save the resource first, then upload its master."
+        master = obj.resource_files.filter(is_projection_file=True).first()
+        url = reverse("ic_projection_upload", args=[obj.pk])
+        if master is None:
+            return format_html('<a href="{}">Upload IC projection master</a>', url)
+        return format_html(
+            '{}×{} {} · <a href="{}">Replace IC projection master</a>',
+            master.width or "?",
+            master.height or "?",
+            master.video_codec,
+            url,
+        )
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -902,6 +924,10 @@ class ResourceFileAdmin(VersionAdmin):
     list_filter = ("full_video", "is_projection_file", "created_at")
     search_fields = ("file", "version", "resource__name")
     readonly_fields = (
+        # Masters and their SD files come only from the IC media pipeline
+        # (/ic/manage/), which probes, remuxes and transcodes them.
+        "is_projection_file",
+        "derived_from",
         "checksum",
         "checksum_at",
         "size_bytes",

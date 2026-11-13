@@ -319,6 +319,17 @@ setInterval(() => {
   }
 }, LOST_CHECK_MS);
 
+// The booth's sync badge refreshes itself; when it reports data applied after this page
+// was built, the queue may be out of date.
+if (data.booth) {
+  const stale = el("ic-stale");
+  el("ic-reload").addEventListener("click", () => window.location.reload());
+  document.body.addEventListener("htmx:afterSwap", () => {
+    const marker = document.querySelector("[data-ic-data-version]");
+    if (marker && marker.dataset.icDataVersion !== data.data_version) stale.hidden = false;
+  });
+}
+
 // An output that is already open (e.g. this page was reloaded) answers the ping.
 send(CMD.PING);
 render();

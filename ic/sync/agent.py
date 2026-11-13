@@ -1,8 +1,8 @@
 """One booth sync run, whatever started it (IC_MODE_PLAN.md sections 7.3-7.4, 7.8).
 
 Every trigger runs this same pipeline. Forcing changes when it runs and how thoroughly
-it checks (always re-import and re-verify, optionally re-hash every file), never whether
-it verifies.
+it checks (always re-import and re-verify; the weekly run re-hashes every file), never
+whether it verifies.
 
 Sync is pull-only: `check_parent` is the agent's frequent check, and the one place that
 decides when a run is due. Production can't start a run.
@@ -30,6 +30,7 @@ from ..models import ICSyncRun
 from .bundle import file_xxh64
 from .bundle import git_sha
 from .bundle import migration_leaves
+from .client import MAX_BYTES_PER_SECOND
 from .client import ParentClient
 from .client import ParentError
 from .importer import FingerprintMismatch
@@ -46,6 +47,11 @@ WEEKLY_REHASH = timedelta(days=7)
 REHASH_HOURS = range(3, 11)
 # Headroom kept free on the booth disk beyond what a download needs.
 DISK_HEADROOM_BYTES = 1024**3
+
+
+def _verify_hash(path, expected):
+    """Hash a local file at the download rate cap, so verifying can't starve playback."""
+    return file_xxh64(path, max_bytes_per_second=MAX_BYTES_PER_SECOND) == expected
 
 
 class RunFailed(Exception):
@@ -199,7 +205,7 @@ def _fetch_files(ctx, todo):
         key = (entry["kind"], _ref_id(entry))
         ok = False
         if on_disk:
-            ok = file_xxh64(path) == entry["xxh64"]
+            ok = _verify_hash(path, entry["xxh64"])
             ctx.add_bytes(entry["size"])
             if not ok:
                 # These bytes are damaged: they must never count as verified again, even
@@ -223,7 +229,7 @@ def _fetch_files(ctx, todo):
                 except ParentError as exc:
                     results[key] = {"ok": False, "error": str(exc)}
                     break
-                if file_xxh64(part) == entry["xxh64"]:
+                if _verify_hash(part, entry["xxh64"]):
                     path.parent.mkdir(parents=True, exist_ok=True)
                     os.replace(part, path)
                     ok = True
@@ -324,13 +330,11 @@ def _apply_database(ctx, manifest, manifest_digest):
     # the booth matches.
     state.applied_manifest_hash = manifest_digest
     state.applied_fixture_sha256 = fixture_sha
-    state.applied_manifest = manifest
     state.applied_at = timezone.now()
     state.save(
         update_fields=[
             "applied_manifest_hash",
             "applied_fixture_sha256",
-            "applied_manifest",
             "applied_at",
         ]
     )
@@ -376,7 +380,7 @@ def _if_none_match(run, state):
     Forced runs always fetch. So does any run after one that didn't finish cleanly, so
     files a partial run couldn't download are retried by the next poll.
     """
-    if run.is_forced or run.options.get("full_rehash"):
+    if run.is_forced or run.full_rehash:
         return None
     if state.last_run_status not in (
         ICSyncRun.Status.SUCCEEDED,
@@ -411,9 +415,7 @@ def execute_run(run, client=None, heartbeat=None):
             ctx.save(force=True, manifest_hash=digest)
             _check_code_version(manifest)
             ctx.save(force=True, phase="downloading")
-            file_results, todo = _plan_files(
-                ctx, manifest, full_rehash=run.options.get("full_rehash", False)
-            )
+            file_results, todo = _plan_files(ctx, manifest, full_rehash=run.full_rehash)
             # Masters for programs already showing (and all subtitles) come first, then
             # the rows, then masters for later programs: a fix to tonight's annotations
             # must not wait behind next month's 20 GB master.
@@ -515,7 +517,7 @@ def execute_run(run, client=None, heartbeat=None):
     state.last_run_at = run.finished_at
     if run.status in (ICSyncRun.Status.SUCCEEDED, ICSyncRun.Status.UP_TO_DATE):
         state.last_success_at = run.finished_at
-    if run.options.get("full_rehash") and run.status in (
+    if run.full_rehash and run.status in (
         ICSyncRun.Status.SUCCEEDED,
         ICSyncRun.Status.PARTIAL,
     ):
@@ -602,7 +604,7 @@ def check_parent(client=None, now=None):
         return ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
     if _rehash_due(state, now):
         return ICSyncRun.objects.create(
-            trigger=ICSyncRun.Trigger.AUTO, options={"full_rehash": True}
+            trigger=ICSyncRun.Trigger.AUTO, full_rehash=True
         )
     return None
 

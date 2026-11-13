@@ -1,4 +1,4 @@
-"""The booth: userless kiosk, read-only middleware, and file-addressed media."""
+"""The booth: userless, read-only kiosk and file-addressed media."""
 
 from datetime import timedelta
 from pathlib import Path
@@ -27,7 +27,7 @@ BOOTH_MIDDLEWARE = [
         "core.middleware.SpoofUserMiddleware",
         "mozilla_django_oidc.middleware.SessionRefresh",
     )
-] + ["ic.middleware.ICReadOnlyMiddleware"]
+]
 
 
 def mark_local(item):
@@ -174,7 +174,31 @@ class KioskTests(ICTempDirsMixin, TestCase):
         response = self.client.get(reverse("ic_control", args=[self.program.pk]))
         self.assertTrue(response.context["rehearsal"])
 
-    def test_unsafe_methods_are_refused_except_sync_now(self):
+    def test_the_controller_learns_when_newer_data_was_applied(self):
+        from ic.models import ICBoothState
+
+        mark_local(self.film)
+        state = ICBoothState.get()
+        state.applied_at = timezone.now() - timedelta(hours=1)
+        state.save()
+        page = self.client.get(reverse("ic_control", args=[self.program.pk]))
+        version = state.applied_at.isoformat()
+        self.assertEqual(page.context["page_data"]["data_version"], version)
+        self.assertContains(page, f'data-ic-data-version="{version}"')
+        self.assertContains(page, 'id="ic-stale"')
+        state.applied_at = timezone.now()
+        state.save()
+        badge = self.client.get(reverse("ic_sync_badge"))
+        self.assertContains(
+            badge, f'data-ic-data-version="{state.applied_at.isoformat()}"'
+        )
+
+    def test_the_controller_offers_no_full_rehash(self):
+        mark_local(self.film)
+        page = self.client.get(reverse("ic_control", args=[self.program.pk]))
+        self.assertNotContains(page, "full_rehash")
+
+    def test_kiosk_pages_refuse_unsafe_methods(self):
         for url in (
             reverse("ic_control_index"),
             reverse("ic_output"),
@@ -192,18 +216,17 @@ class KioskTests(ICTempDirsMixin, TestCase):
 
     def test_sync_now_queues_one_forced_run_and_shows_its_progress(self):
         booth_state.record_agent_heartbeat()
-        response = self.client.post(reverse("ic_sync_run_create"), {"full_rehash": "1"})
+        response = self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(response.status_code, 200)
         run = ICSyncRun.objects.get()
         self.assertEqual(run.trigger, ICSyncRun.Trigger.FORCE_PULL)
-        self.assertEqual(run.requested_by, "booth operator")
-        self.assertTrue(run.options["full_rehash"])
+        # The operator can't start a full re-hash: it would compete with playback.
+        self.assertFalse(run.full_rehash)
         self.assertContains(
             response, f'hx-get="{reverse("ic_sync_run_detail", args=[run.pk])}"'
         )
         self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(ICSyncRun.objects.count(), 1)
-        self.assertTrue(ICSyncRun.objects.get().options["full_rehash"])
         detail = self.client.get(
             reverse("ic_sync_run_detail", args=[run.pk]), HTTP_ACCEPT="application/json"
         )

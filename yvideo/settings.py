@@ -304,7 +304,7 @@ if IS_IC_INSTANCE:
             "core.middleware.SpoofUserMiddleware",
             "mozilla_django_oidc.middleware.SessionRefresh",
         )
-    ] + ["ic.middleware.ICReadOnlyMiddleware"]
+    ]
 
 # Logging
 # https://docs.djangoproject.com/en/5.1/topics/logging/

@@ -67,9 +67,6 @@ class ICProgram(models.Model):
         on = on or timezone.localdate()
         return self.end_date < on
 
-    def can_be_edited_by(self, user):
-        return user.is_ic_editor
-
     def ordered_items(self):
         return self.items.select_related(
             "content",
@@ -137,9 +134,6 @@ class ICProgramItem(models.Model):
             resource_id=self.content.resource_id, is_projection_file=True
         ).first()
 
-    def can_be_previewed_by(self, user):
-        return user.is_ic_editor
-
     def subtitle_track(self):
         if self.subtitles != self.Subtitles.VTT:
             return None
@@ -153,7 +147,6 @@ class MediaJob(models.Model):
         INGEST = "ingest", "Ingest uploaded master"
         TRANSCODE = "transcode", "Transcode SD editing file"
         RELEASE_MASTER = "release_master", "Release production's copy of a master"
-        CLEANUP_UPLOADS = "cleanup_uploads", "Clean up abandoned uploads"
 
     class Status(models.TextChoices):
         QUEUED = "queued"
@@ -176,13 +169,12 @@ class MediaJob(models.Model):
     progress = models.FloatField(null=True, blank=True)
     log = models.TextField(blank=True)
     error = models.TextField(blank=True)
-    not_before = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ["not_before", "id"]
+        ordering = ["created_at", "id"]
 
     def __str__(self):
         return f"{self.get_kind_display()} [{self.status}] #{self.pk}"
@@ -352,8 +344,9 @@ class ICSyncRun(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     trigger = models.CharField(max_length=10, choices=Trigger.choices)
-    requested_by = models.CharField(max_length=255, blank=True)
-    options = models.JSONField(default=dict, blank=True)
+    # Hash every file on disk instead of trusting earlier verification. Only the
+    # agent's weekly morning re-hash of released masters sets this.
+    full_rehash = models.BooleanField(default=False)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.QUEUED
     )
@@ -387,7 +380,6 @@ class ICSyncRun(models.Model):
         return {
             "run_id": str(self.pk),
             "trigger": self.trigger,
-            "requested_by": self.requested_by,
             "status": self.status,
             "phase": self.phase,
             "bytes_done": self.bytes_done,
@@ -435,7 +427,6 @@ class ICBoothState(models.Model):
     applied_manifest_hash = models.CharField(max_length=64, blank=True)
     applied_fixture_sha256 = models.CharField(max_length=64, blank=True)
     applied_at = models.DateTimeField(null=True, blank=True)
-    applied_manifest = models.JSONField(default=dict, blank=True)
     last_success_at = models.DateTimeField(null=True, blank=True)
     last_run_status = models.CharField(max_length=20, blank=True)
     last_run_error = models.TextField(blank=True)

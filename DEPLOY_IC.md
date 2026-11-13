@@ -70,7 +70,7 @@ systemctl --user show -p CPUWeight <app>-media-worker.service
 
 ### 3. Register the booth
 
-1. In the Django admin, add an **IC instance** named `booth` with profile *Booth*.
+1. In the Django admin, add an **IC instance** named `booth`.
    Saving shows the booth's **sync token once**; copy it.
 2. Add IC staff to the **IC Editors** group (Admin → Users). They then see
    *International Cinema* in the sidebar.
@@ -195,7 +195,10 @@ controller; it shows live progress and ends in one of:
   verified file, which no sync can change. New data takes effect when the next item loads.
 - **Only copies.** After the booth verifies a master and its SD file exists, production
   deletes its copy (*Films and masters* says so). The booth keeps such files until 30 days
-  after their last program, warns 7 days ahead, and re-hashes them weekly in the morning.
+  after their last program, warns 7 days ahead, and re-hashes them weekly in the morning,
+  rate-capped like downloads. To re-hash now (e.g. after a disk scare; never during a
+  showing), run on the booth:
+  `bash deploy/manage.sh shell -c 'from ic.models import ICSyncRun; ICSyncRun.objects.create(trigger="auto", full_rehash=True)'`.
   Keep the original disc or file until the film's last showing; if the booth loses one,
   its programs show ❌ *re-upload required*, and uploading the same file again restores it.
 - **Logs.**

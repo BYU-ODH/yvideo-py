@@ -46,7 +46,6 @@
                 <tr>
                     <th scope="col">Requested</th>
                     <th scope="col">Trigger</th>
-                    <th scope="col">By</th>
                     <th scope="col">Status</th>
                     <th scope="col">Details</th>
                 </tr>
@@ -55,14 +54,16 @@
                 {% for run in runs %}
                     <tr>
                         <td>{{ run.requested_at|date:"M j H:i:s" }}</td>
-                        <td>{{ run.get_trigger_display }}</td>
-                        <td>{{ run.requested_by }}</td>
+                        <td>
+                            {{ run.get_trigger_display }}
+                            {% if run.full_rehash %}· weekly re-hash{% endif %}
+                        </td>
                         <td>{{ run.get_status_display }}</td>
                         <td>{{ run.error }}</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="5">No syncs yet.</td>
+                        <td colspan="4">No syncs yet.</td>
                     </tr>
                 {% endfor %}
             </tbody>

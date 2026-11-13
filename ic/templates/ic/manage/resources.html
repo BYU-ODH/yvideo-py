@@ -5,10 +5,33 @@
         <h2>Films and projection masters</h2>
     </header>
     <p class="ic-muted">
-        Films used in International Cinema playlists. Upload each film's projection master (maximum resolution and bitrate); Y-video makes the SD editing file from it, so annotations line up exactly.
+        Upload each film's projection master (maximum resolution and bitrate). Y-video makes the SD editing file from it; add the film to an IC playlist using that file (its version starts with <code>ic-sd-</code>), so annotations line up exactly with what the booth projects.
     </p>
     <p class="ic-muted">
         Once the booth holds a verified copy, production deletes its copy of the master. Keep the original disc or file until the film's last showing.
+    </p>
+    <form method="get"
+          action="{% url 'ic_manage_resources' %}"
+          class="ic-manage-form"
+          role="search">
+        <label for="ic-resource-search">Find a film</label>
+        <input id="ic-resource-search"
+               type="search"
+               name="q"
+               value="{{ query }}"
+               placeholder="Title"
+               aria-describedby="ic-resource-search-help">
+        <button type="submit" class="blue-button">Search</button>
+        {% if query %}
+            <a href="{% url 'ic_manage_resources' %}">Show IC films</a>
+        {% endif %}
+    </form>
+    <p id="ic-resource-search-help" class="ic-muted">
+        {% if query %}
+            Every film whose title matches “{{ query }}”.
+        {% else %}
+            Films with a projection master or used in an IC playlist. To upload a master for a new film, find it by title.
+        {% endif %}
     </p>
     <table class="ic-manage-table">
         <thead>
@@ -84,7 +107,13 @@
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="4">No films in IC playlists yet.</td>
+                    <td colspan="4">
+                        {% if query %}
+                            No films match “{{ query }}”. A Y-video administrator adds films (resources) in the admin.
+                        {% else %}
+                            No IC films yet. Find a film by title to upload its master.
+                        {% endif %}
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>

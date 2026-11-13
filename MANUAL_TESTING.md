@@ -381,7 +381,7 @@ the projector is right.
 - [ ] Edit an annotation on production; within about a minute the booth's badge goes from
       *Production has changes the booth doesn't have yet* to *matches production*.
 - [ ] *Sync now* on the booth with nothing changed ends ✅ *Succeeded* (re-verified), not *Up
-      to date*; with *Re-check every file* the progress shows the masters being re-hashed.
+      to date*. The controller offers no way to re-hash every file.
 - [ ] Stop `<app>-ic-sync-agent`: within about two minutes production's dashboard says the
       booth hasn't checked in recently. Press *Sync now* with the agent stopped: ❌ *Sync
       agent isn't running*. Start it again: it syncs at once.
@@ -397,8 +397,17 @@ the projector is right.
       film in the same minute: tonight's change is on the booth (badge matches) while next
       month's master is still downloading.
 - [ ] Corrupt a byte of a master on the booth's disk (`printf x | dd of=… bs=1 seek=100
-      conv=notrunc`) and *Sync now* with *Re-check every file*: it is downloaded again and
-      the run succeeds (or, for a released master, the program shows ❌ *re-upload required*).
+      conv=notrunc`) and queue a re-hash outside a showing (DEPLOY_IC.md, *Operating*): it
+      is downloaded again and the run succeeds (or, for a released master, the program shows
+      ❌ *re-upload required*). While it runs, a film plays without stutter.
+- [ ] As a superuser, add a resource in the admin and click *Upload IC projection master* on
+      its page; after the upload, *Films and masters* lists it with its SD file, and a new
+      IC content can be created from the `ic-sd-…` file.
+- [ ] On a program page, change one item's subtitles and another's mode without pressing
+      anything: both stick after a reload, and the readiness badges update at once.
+- [ ] With a program open on the booth's controller, change that program on production:
+      after the next sync the controller offers *Reload*, and reloading mid-film keeps the
+      output playing.
 - [ ] Upload a ~10 GB master over the campus network; interrupt it (close the tab) and
       reopen the page: choosing the same file continues where it stopped.
 - [ ] After the booth verifies a new master, *Films and masters* on production shows it as
@@ -415,7 +424,8 @@ programs' masters, the agent's check (when a run is due, retries, the weekly re-
 lost and damaged released masters, and pruning. `ic/tests/test_booth.py` covers the kiosk's
 read-only rules, *Sync now*, and file-addressed media that a sync can't change mid-film.
 `ic/tests/test_views.py` covers the sync API (check, status reports), master release,
-and that production offers no way to push. `ic/tests/test_media_pipeline.py` runs
+that production offers no way to push, the admin's upload link, *Find a film*, and
+saving item settings as they change. `ic/tests/test_media_pipeline.py` runs
 real ffmpeg for ingest and the SD transcode.
 
 ## Adding to this file

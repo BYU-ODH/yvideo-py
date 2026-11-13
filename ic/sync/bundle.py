@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import subprocess
+import time
 
 from django.conf import settings
 from django.core import serializers
@@ -149,11 +150,20 @@ def manifest_hash(manifest):
     return hashlib.sha256(_canonical(without_time).encode("utf-8")).hexdigest()
 
 
-def file_xxh64(path, chunk_size=8 * 1024 * 1024):
+def file_xxh64(path, chunk_size=8 * 1024 * 1024, max_bytes_per_second=None):
+    """xxh64 of a file. max_bytes_per_second caps the read rate (the booth hashes from
+    the disk the projector is playing from)."""
     digest = xxhash.xxh64()
+    started = time.monotonic()
+    read = 0
     with open(path, "rb") as handle:
         for chunk in iter(lambda: handle.read(chunk_size), b""):
             digest.update(chunk)
+            if max_bytes_per_second:
+                read += len(chunk)
+                ahead = read / max_bytes_per_second - (time.monotonic() - started)
+                if ahead > 0:
+                    time.sleep(ahead)
     return digest.hexdigest()
 
 
@@ -455,9 +465,9 @@ MANIFEST_HASH_CACHE_SECONDS = 15
 def cached_manifest_hash():
     """The manifest hash, recomputed at most every few seconds.
 
-    For requests that repeat (each booth's check every IC_CHECK_INTERVAL_SECONDS, the
-    push indicator every 2 s); building the bundle means rendering every scheduled
-    film's player JSON. A change shows up at most this many seconds late.
+    For requests that repeat (each booth's check every IC_CHECK_INTERVAL_SECONDS, and
+    the IC dashboard); building the bundle means rendering every scheduled film's
+    player JSON. A change shows up at most this many seconds late.
     """
     from django.core.cache import cache
 

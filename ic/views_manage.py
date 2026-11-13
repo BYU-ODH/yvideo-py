@@ -36,7 +36,6 @@ from .models import ICProgramItem
 from .models import ICUpload
 from .models import MediaJob
 from .permissions import ic_editor_required
-from .permissions import ic_program_write_required
 from .permissions import ic_resource_upload_required
 from .permissions import ic_upload_owner_required
 from .sync.bundle import cached_manifest_hash
@@ -172,19 +171,18 @@ def _available_contents():
     )
 
 
+def _item_row(item, form=None):
+    problems = readiness.item_problems(item)
+    return {
+        "item": item,
+        "form": form or ICProgramItemForm(instance=item, prefix=f"item-{item.pk}"),
+        "problems": problems,
+        "status": readiness.rollup(problems),
+    }
+
+
 def _program_edit_context(program, form=None):
-    items = list(program.ordered_items())
-    rows = []
-    for item in items:
-        problems = readiness.item_problems(item)
-        rows.append(
-            {
-                "item": item,
-                "form": ICProgramItemForm(instance=item, prefix=f"item-{item.pk}"),
-                "problems": problems,
-                "status": readiness.rollup(problems),
-            }
-        )
+    rows = [_item_row(item) for item in program.ordered_items()]
     problems = readiness.program_problems(program)
     return {
         "program": program,
@@ -197,16 +195,18 @@ def _program_edit_context(program, form=None):
 
 
 @require_GET
-@ic_program_write_required
-def program_edit(request, program):
+@ic_editor_required
+def program_edit(request, program_id):
+    program = get_object_or_404(ICProgram, pk=program_id)
     return render(
         request, "ic/manage/program_edit.html", _program_edit_context(program)
     )
 
 
 @require_POST
-@ic_program_write_required
-def program_update(request, program):
+@ic_editor_required
+def program_update(request, program_id):
+    program = get_object_or_404(ICProgram, pk=program_id)
     form = ICProgramForm(request.POST, instance=program)
     if not form.is_valid():
         return render(
@@ -223,8 +223,9 @@ def program_update(request, program):
 
 
 @require_POST
-@ic_program_write_required
-def program_delete(request, program):
+@ic_editor_required
+def program_delete(request, program_id):
+    program = get_object_or_404(ICProgram, pk=program_id)
     name = program.name
     with transaction.atomic(), reversion.create_revision():
         program.delete()
@@ -238,8 +239,9 @@ def _program_item(program, item_id):
 
 
 @require_POST
-@ic_program_write_required
-def item_add(request, program):
+@ic_editor_required
+def item_add(request, program_id):
+    program = get_object_or_404(ICProgram, pk=program_id)
     content = get_object_or_404(
         Content.objects.filter(playlist__is_ic=True), pk=request.POST.get("content_id")
     )
@@ -267,8 +269,9 @@ def item_add(request, program):
 
 
 @require_POST
-@ic_program_write_required
-def item_update(request, program, item_id):
+@ic_editor_required
+def item_update(request, program_id, item_id):
+    program = get_object_or_404(ICProgram, pk=program_id)
     item = _program_item(program, item_id)
     form = ICProgramItemForm(request.POST, instance=item, prefix=f"item-{item.pk}")
     if not form.is_valid():
@@ -276,13 +279,33 @@ def item_update(request, program, item_id):
     with transaction.atomic(), reversion.create_revision():
         form.save()
         _record(request, "Updated IC program item")
-    messages.success(request, f'Saved "{item.content.title}".')
-    return redirect("ic_program_edit", program.pk)
+    if not request.headers.get("HX-Request"):
+        # Without JavaScript the item form has its own Save button.
+        messages.success(request, f'Saved "{item.content.title}".')
+        return redirect("ic_program_edit", program.pk)
+    # The program page saves each item as soon as a setting changes, and swaps in its
+    # row with fresh readiness, so no edit waits behind a Save button.
+    items = list(program.ordered_items())
+    index = next(i for i, each in enumerate(items) if each.pk == item.pk)
+    return render(
+        request,
+        "ic/manage/partials/program_item.html",
+        {
+            "program": program,
+            "row": _item_row(items[index]),
+            "number": index + 1,
+            "first": index == 0,
+            "last": index == len(items) - 1,
+            "saved": True,
+            "program_status": readiness.rollup(readiness.program_problems(program)),
+        },
+    )
 
 
 @require_POST
-@ic_program_write_required
-def item_delete(request, program, item_id):
+@ic_editor_required
+def item_delete(request, program_id, item_id):
+    program = get_object_or_404(ICProgram, pk=program_id)
     item = _program_item(program, item_id)
     with transaction.atomic(), reversion.create_revision():
         item.delete()
@@ -292,28 +315,10 @@ def item_delete(request, program, item_id):
 
 
 @require_POST
-@ic_program_write_required
-def items_reorder(request, program):
-    try:
-        item_ids = [int(i) for i in json.loads(request.body)["item_ids"]]
-    except (ValueError, KeyError, TypeError):
-        return HttpResponseBadRequest('Expected {"item_ids": [...]}.')
-    existing = set(program.items.values_list("pk", flat=True))
-    if set(item_ids) != existing or len(item_ids) != len(existing):
-        return HttpResponseBadRequest("The item list doesn't match the program.")
-    with transaction.atomic(), reversion.create_revision():
-        for position, item_id in enumerate(item_ids):
-            ICProgramItem.objects.filter(pk=item_id, program=program).update(
-                position=position
-            )
-        _record(request, "Reordered IC program items")
-    return HttpResponse(status=204)
-
-
-@require_POST
-@ic_program_write_required
-def item_move(request, program, item_id):
-    """Keyboard-friendly reorder: move one item up or down."""
+@ic_editor_required
+def item_move(request, program_id, item_id):
+    """Reorder: move one item up or down."""
+    program = get_object_or_404(ICProgram, pk=program_id)
     item = _program_item(program, item_id)
     items = list(program.items.order_by("position", "id"))
     index = items.index(item)
@@ -333,11 +338,28 @@ def item_move(request, program, item_id):
 # ---------------------------------------------------------------------------
 
 
-def _resource_rows(user):
+# How many search results "Find a film" shows.
+RESOURCE_SEARCH_LIMIT = 25
+
+
+def _ic_resources():
+    """Films IC already works with: those with a master or used by an IC content."""
     ic_resource_ids = Content.objects.filter(playlist__is_ic=True).values_list(
         "resource_id", flat=True
     )
-    resources = Resource.objects.filter(Q(pk__in=ic_resource_ids)).order_by("name")
+    return Resource.objects.filter(
+        Q(pk__in=ic_resource_ids) | Q(resource_files__is_projection_file=True)
+    ).distinct()
+
+
+def _search_resources(query):
+    """Any film by name, so a master can be uploaded before any content uses it."""
+    return Resource.objects.filter(
+        Q(name__icontains=query) | Q(name_disambiguator__icontains=query)
+    ).order_by("name")[:RESOURCE_SEARCH_LIMIT]
+
+
+def _resource_rows(user, resources):
     rows = []
     for resource in resources:
         master = resource.resource_files.filter(is_projection_file=True).first()
@@ -373,11 +395,14 @@ def _resource_rows(user):
 @require_GET
 @ic_editor_required
 def resources(request):
+    query = request.GET.get("q", "").strip()
+    resources = _search_resources(query) if query else _ic_resources().order_by("name")
     return render(
         request,
         "ic/manage/resources.html",
         {
-            "rows": _resource_rows(request.user),
+            "rows": _resource_rows(request.user, resources),
+            "query": query,
             "breadcrumbs": ic_trail(("Films and masters", None)),
         },
     )

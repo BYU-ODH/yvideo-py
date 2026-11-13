@@ -98,11 +98,6 @@
   align-items: center;
 }
 
-.ic-drag-handle {
-  cursor: grab;
-  color: var(--grey);
-}
-
 .ic-item-form,
 .ic-manage-form {
   display: flex;
