@@ -192,6 +192,16 @@ def make_film(editor, playlist, title, *, with_annotations=True, with_subtitles=
     return content
 
 
+def apply_bundle():
+    """Put production's current bundle on the booth, as a sync would (one test DB)."""
+    from ic.models import ICBoothState
+    from ic.sync.bundle import build_bundle
+
+    state = ICBoothState.get()
+    state.bundle, state.applied_manifest_hash = build_bundle()
+    state.save()
+
+
 def make_program_scenario(on=None):
     """An active program: a looping announcement and a feature with full annotations."""
     on = on or timezone.localdate()

@@ -48,7 +48,7 @@ class ParentClient:
         return self._request("GET", path, **kwargs)
 
     def manifest(self):
-        """Production's manifest (rows, files, fingerprints), with its "manifest_hash"."""
+        """Production's bundle (ic.sync.bundle), with its "manifest_hash"."""
         response = self._get("/ic/sync/manifest/")
         if response.status_code != 200:
             raise ParentError(f"Manifest request failed: HTTP {response.status_code}")

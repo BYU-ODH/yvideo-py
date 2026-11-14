@@ -11,8 +11,11 @@ from django.utils import timezone
 
 from ic.models import ICBoothState
 from ic.models import ICLocalFile
+from ic.models import ICProgram
 from ic.models import ICSyncRun
+from ic.sync.bundle import build_bundle
 from ic.testing import ICTempDirsMixin
+from ic.testing import apply_bundle
 from ic.testing import make_master
 from ic.testing import make_program_scenario
 
@@ -48,9 +51,12 @@ class KioskTests(ICTempDirsMixin, TestCase):
         self.scenario = make_program_scenario()
         self.film = self.scenario["film_item"]
         self.program = self.scenario["program"]
+        apply_bundle()
 
-    def test_pages_work_without_any_user(self):
+    def test_pages_work_without_any_user_or_program_rows(self):
         mark_local(self.film)
+        # The booth plays its bundle; it has no program rows of its own.
+        ICProgram.objects.all().delete()
         for url in (
             reverse("ic_control_index"),
             reverse("ic_control", args=[self.program.pk]),
@@ -98,6 +104,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
         old_master.is_projection_file = False
         old_master.save()
         new_master = make_master(resource, payload=b"a re-graded master " * 500)
+        apply_bundle()
 
         response = self.client.get(old_url, HTTP_RANGE="bytes=0-99")
         self.assertEqual(response.status_code, 206)
@@ -132,6 +139,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
         # A late show: after midnight, yesterday's program still plays.
         self.program.start_date = self.program.end_date = today - timedelta(days=1)
         self.program.save()
+        apply_bundle()
         mark_local(self.film)
         self.assertEqual(
             self.client.get(reverse("ic_control", args=[self.program.pk])).status_code,
@@ -143,8 +151,13 @@ class KioskTests(ICTempDirsMixin, TestCase):
             ).status_code,
             200,
         )
+        # A bundle from before production dropped the program still holds it.
         self.program.start_date = self.program.end_date = today - timedelta(days=2)
         self.program.save()
+        bundle, _ = build_bundle(on=today - timedelta(days=2))
+        state = ICBoothState.get()
+        state.bundle = bundle
+        state.save()
         self.assertEqual(
             self.client.get(reverse("ic_control", args=[self.program.pk])).status_code,
             404,
@@ -157,6 +170,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
         )
         self.program.start_date = self.program.end_date = today + timedelta(days=2)
         self.program.save()
+        apply_bundle()
         response = self.client.get(reverse("ic_control", args=[self.program.pk]))
         self.assertTrue(response.context["rehearsal"])
 

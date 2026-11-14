@@ -6,6 +6,7 @@ the local projection master, plus its sync status views. The preview is exactly 
 the booth shows apart from the video file.
 """
 
+from datetime import date
 from functools import wraps
 
 from django.conf import settings
@@ -15,7 +16,6 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.urls import reverse
-from django.utils import timezone
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
@@ -31,6 +31,8 @@ from .models import ICProgramItem
 from .models import ICSyncRun
 from .permissions import ic_editor_required
 from .sync.agent import disk_usage
+from .sync.bundle import player_data
+from .sync.bundle import program_entry
 
 
 def player_view(view_func):
@@ -64,84 +66,84 @@ def _render(request, template, context):
     return render(request, template, {"booth": settings.IS_IC_INSTANCE, **context})
 
 
-def _master_on_disk(item):
-    """On the booth: the item's master, if a verified copy is on this disk."""
-    master = item.projection_file()
-    if master is None:
-        return None
-    local = ICLocalFile.objects.filter(resource_file_id=master.pk).first()
-    if local is None or local.xxh64 != master.checksum:
-        return None
-    if not master.file.storage.exists(master.file.name):
-        return None
-    return master
+def _program(entry):
+    """A bundle program as an unsaved ICProgram, so its dates and helpers work."""
+    program = ICProgram(
+        id=entry["id"],
+        name=entry["name"],
+        start_date=date.fromisoformat(entry["start_date"]),
+        end_date=date.fromisoformat(entry["end_date"]),
+    )
+    program.entries = entry["items"]
+    return program
 
 
-def item_problems(item):
+def _booth_programs(bundle):
+    # The bundle can be days old if production is unreachable, so ended programs drop
+    # out here, not only on production.
+    programs = [_program(entry) for entry in bundle.get("programs", [])]
+    return [program for program in programs if program.is_syncable()]
+
+
+def _programs():
+    """What the player offers: production's syncable programs, or the booth's bundle's."""
+    if settings.IS_IC_INSTANCE:
+        return _booth_programs(ICBoothState.get().bundle)
+    return [_program(program_entry(p)) for p in ICProgram.syncable()]
+
+
+def _get_program(program_id):
     if not settings.IS_IC_INSTANCE:
-        return readiness.item_problems(item)
-    problems = [
-        p
-        for p in readiness.item_problems(item)
-        # Production-side concerns the booth cannot act on.
-        if p.code not in ("timing_unverified", "not_ic_playlist")
-    ]
-    if _master_on_disk(item) is None:
-        problems.insert(
-            0,
-            readiness.Problem(
-                readiness.ERROR,
-                "not_on_booth",
-                "The projection master isn't on this booth yet (see Sync status).",
-            ),
-        )
+        # The preview shows any program, past ones included.
+        return _program(program_entry(get_object_or_404(ICProgram, pk=program_id)))
+    program = next((p for p in _programs() if p.pk == program_id), None)
+    if program is None:
+        raise Http404("This program isn't on the booth, or it has ended.")
+    return program
+
+
+def _local_master(entry):
+    """On the booth: the verified copy of the item's master on this disk, or None."""
+    master = entry["master"]
+    local = master and (
+        ICLocalFile.objects.filter(
+            resource_file_id=master["resource_file_id"], xxh64=master["xxh64"]
+        ).first()
+    )
+    if local and ResourceFile(file=local.name).file.storage.exists(local.name):
+        return local
+    return None
+
+
+NOT_ON_BOOTH = readiness.Problem(
+    readiness.ERROR,
+    "not_on_booth",
+    "The projection master isn't on this booth yet (see Sync status).",
+)
+# Without a master on the booth, or the network on production, there is nothing to play.
+UNPLAYABLE = {"not_on_booth", "needs_network"}
+
+
+def _item_problems(entry):
+    problems = [readiness.Problem(**p) for p in entry["problems"]]
+    if settings.IS_IC_INSTANCE and _local_master(entry) is None:
+        problems.insert(0, NOT_ON_BOOTH)
     return problems
 
 
-def _is_playable(item, problems):
-    if settings.IS_IC_INSTANCE:
-        return not any(p.code == "not_on_booth" for p in problems)
-    return bool(item.content.resource_file_id)
-
-
-def item_json(item, problems):
-    content = item.content
+def item_json(entry):
+    problems = _item_problems(entry)
     return {
-        "id": item.pk,
-        "title": content.title,
-        "mode": item.mode,
-        "auto_advance": item.auto_advance,
-        "subtitles": item.subtitles,
+        "id": entry["id"],
+        "title": entry["title"],
+        "mode": entry["mode"],
+        "auto_advance": entry["auto_advance"],
+        "subtitles": entry["subtitles"],
         # The media URL comes with the player data, so the annotations and the file
         # they're timed against are always fetched as one pair.
-        "player_data_url": reverse("ic_item_player_data", args=[item.pk]),
-        "playable": _is_playable(item, problems),
+        "player_data_url": reverse("ic_item_player_data", args=[entry["id"]]),
+        "playable": not any(p.code in UNPLAYABLE for p in problems),
         "problems": [{"severity": p.severity, "message": p.message} for p in problems],
-    }
-
-
-def player_data_for_item(item, media_url):
-    """The AnnotationPlayer payload for one item, subtitles chosen by the item's setting.
-
-    media_url is the video to play with these annotations. The output keeps both for as
-    long as the item is loaded, so nothing a sync does can change a film mid-showing.
-    """
-    content = item.content
-    player_json = content.get_player_json(include_subtitles=True)
-    subtitle_tracks = []
-    if item.subtitles == item.Subtitles.VTT and content.default_subtitle_track_id:
-        subtitle_tracks = [
-            {**track, "default": True}
-            for track in player_json["subtitleTracks"]
-            if track["id"] == content.default_subtitle_track_id
-        ]
-    return {
-        "item_id": item.pk,
-        "title": content.title,
-        "mode": item.mode,
-        "annotations": player_json["annotations"],
-        "subtitleTracks": subtitle_tracks,
-        "media_url": media_url,
     }
 
 
@@ -170,19 +172,18 @@ def _sync_summary():
 @require_GET
 @player_view
 def control_index(request):
-    today = timezone.localdate()
     rows = []
     # Yesterday's program counts as showing until the end of the night (late shows).
-    for program in ICProgram.syncable(today):
-        items = list(program.ordered_items())
-        problems = [p for item in items for p in item_problems(item)]
+    for program in _programs():
+        problems = [p for entry in program.entries for p in _item_problems(entry)]
         rows.append(
             {
                 "program": program,
-                "status": readiness.rollup(
-                    problems if items else readiness.program_problems(program)
-                ),
-                "active": not program.is_upcoming(today),
+                # A program with nothing in it isn't ready.
+                "status": readiness.rollup(problems)
+                if program.entries
+                else readiness.ERROR,
+                "active": not program.is_upcoming(),
             }
         )
     context = {"rows": rows, "title": "International Cinema"}
@@ -194,11 +195,9 @@ def control_index(request):
 @require_GET
 @player_view
 def control(request, program_id):
-    program = get_object_or_404(ICProgram, pk=program_id)
+    program = _get_program(program_id)
     booth = settings.IS_IC_INSTANCE
-    if booth and not program.is_syncable():
-        raise Http404("This program has ended.")
-    items = [item_json(item, item_problems(item)) for item in program.ordered_items()]
+    items = [item_json(entry) for entry in program.entries]
     page_data = {
         "program": {"id": program.pk, "name": program.name},
         "items": items,
@@ -224,19 +223,31 @@ def output(request):
 @require_GET
 @player_view
 def item_player_data(request, item_id):
-    item = get_object_or_404(
-        ICProgramItem.objects.select_related("program", "content"), pk=item_id
-    )
+    """The item's player data and the media to play it with, as one pair.
+
+    The output keeps both for as long as the item is loaded, so nothing a sync does can
+    change a film mid-showing.
+    """
     if not settings.IS_IC_INSTANCE:
+        item = get_object_or_404(ICProgramItem, pk=item_id)
         media_url = reverse("ic_item_media", args=[item.pk])
-    else:
-        if not item.program.is_syncable():
-            raise Http404("This program has ended.")
-        master = _master_on_disk(item)
-        if master is None:
-            raise Http404("The projection master isn't on this booth.")
-        media_url = reverse("ic_local_file", args=[master.pk, master.checksum])
-    return JsonResponse(player_data_for_item(item, media_url))
+        return JsonResponse({**player_data(item), "media_url": media_url})
+    # One read of the bundle, so the player data and the master come from the same sync.
+    bundle = ICBoothState.get().bundle
+    entry = next(
+        (
+            entry
+            for program in _booth_programs(bundle)
+            for entry in program.entries
+            if entry["id"] == item_id
+        ),
+        None,
+    )
+    local = entry and _local_master(entry)
+    if not local:
+        raise Http404("This item isn't playable on this booth.")
+    media_url = reverse("ic_local_file", args=[local.resource_file_id, local.xxh64])
+    return JsonResponse({**bundle["player_data"][str(item_id)], "media_url": media_url})
 
 
 @require_GET

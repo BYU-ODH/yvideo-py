@@ -17,9 +17,11 @@ production holds no booth credentials. Sync is pull-only: the booth's sync agent
 production every 30 seconds for changes, pulls them, and reports back what it did.
 Production can't make the booth sync.
 
-Both machines must run the same database schema: a booth refuses production's data when
-their migrations differ (it reports `code_mismatch` until it updates). Pin the booth's `.env`
-`BRANCH` to production's branch. The booth's deploy timer polls GitHub like production's,
+The booth plays player data that production renders, so the two machines needn't run the
+same code or schema. The one coupling is the player data's format number
+(`BUNDLE_FORMAT`): when it changes, the booth keeps its previous data (`format_mismatch`)
+until it updates too. Pin the booth's `.env` `BRANCH` to production's branch. The booth's
+deploy timer polls GitHub like production's,
 but not during `IC_PLAYBACK_HOURS` (default `12-24`, noon to midnight), so a code update
 never restarts the kiosk during a showing; it catches up at the first poll after those
 hours. Changes are rare and a redeploy takes about a minute; if the controller ever looks
@@ -170,7 +172,7 @@ controller; it shows live progress and ends in one of:
 
 | Result | Meaning |
 |---|---|
-| ✅ Succeeded | The booth applied production's rows and every master production can send is present and checksum-verified; every film's player data matches production exactly. A lost master (released by production, then damaged on the booth) is listed as a warning: only a re-upload fixes it. |
+| ✅ Succeeded | The booth applied production's current data, and every master production can send is present and checksum-verified. A lost master (released by production, then damaged on the booth) is listed as a warning: only a re-upload fixes it. |
 | ⚠️ Partial | Some masters didn't arrive; each one says why, and the agent retries 15 minutes later. If a master for a program that is showing now couldn't be fetched, the booth keeps its previous data until it can. |
 | ❌ Failed | Nothing changed on the booth, which keeps playing its last verified data. The message says why. |
 
@@ -205,8 +207,7 @@ controller; it shows live progress and ends in one of:
 | Dashboard says *the booth hasn't checked in recently* | Booth off, offline, or its sync agent is stopped; check `systemctl --user status <app>-ic-sync-agent` on the booth. |
 | Booth badge: *Can't reach production* | Network, DNS or TLS between the booth and production, or a wrong `IC_PARENT_URL`/`IC_SYNC_TOKEN` (the *Sync status* page shows the error). Playback is unaffected. |
 | *Sync agent isn't running* | `systemctl --user restart <app>-ic-sync-agent`. |
-| `code_mismatch` | One side hasn't deployed the latest migrations yet. Production catches up within minutes; the booth waits until `IC_PLAYBACK_HOURS` end. To update the booth now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
-| `fingerprint_mismatch` | The booth computed different player data from production's rows; the booth kept its previous data. Report it: this is the corruption the design exists to prevent. |
+| `format_mismatch` | Production deployed a new player data format that the booth's player doesn't have yet; the booth keeps playing its previous data. It updates after `IC_PLAYBACK_HOURS` end; to update it now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
 | Output not fullscreen | Click the output window once; if it opens on the wrong screen, revisit the spike's flags. |
 | Stutter at high bitrate | Check `chrome://media-internals` for a hardware decoder; re-encode the master at a lower bitrate. |
 

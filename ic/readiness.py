@@ -1,4 +1,5 @@
-"""Whether a program is ready to show.
+"""Whether a program is ready to show. Runs on production; the booth gets the
+problems that concern it in its bundle (ic.sync.bundle).
 
 Errors block "ready"; warnings are shown but do not.
 """
@@ -46,22 +47,21 @@ def master_problems(master):
             "HDR master: Chrome on Linux won't tone-map it for the projector, so it will "
             "look washed out. Prefer an SDR master.",
         )
-    if not settings.IS_IC_INSTANCE:
-        booth = ICBoothReport.get()
-        if booth.holds_verified_copy(master):
-            pass
-        elif master.master_released_at:
-            add(
-                ERROR,
-                "master_lost",
-                "Production released this master and the booth no longer reports a verified copy; re-upload it.",
-            )
-        elif booth.report:
-            add(
-                WARNING,
-                "not_on_booth",
-                "The booth doesn't have a verified copy of this master yet.",
-            )
+    booth = ICBoothReport.get()
+    if booth.holds_verified_copy(master):
+        pass
+    elif master.master_released_at:
+        add(
+            ERROR,
+            "master_lost",
+            "Production released this master and the booth no longer reports a verified copy; re-upload it.",
+        )
+    elif booth.report:
+        add(
+            WARNING,
+            "not_on_booth",
+            "The booth doesn't have a verified copy of this master yet.",
+        )
     return problems
 
 
@@ -91,29 +91,20 @@ def item_problems(item):
         add(ERROR, "no_master", "No projection master has been uploaded for this film.")
     else:
         problems.extend(master_problems(master))
-        if not settings.IS_IC_INSTANCE:
-            job = (
-                master.media_jobs.filter(kind="transcode")
-                .order_by("-created_at")
-                .first()
+        job = master.media_jobs.filter(kind="transcode").order_by("-created_at").first()
+        derived_exists = master.derivatives.exists()
+        if job is not None and job.is_pending:
+            add(
+                ERROR,
+                "transcode_pending",
+                "The SD editing file is still being made from the master.",
             )
-            derived_exists = master.derivatives.exists()
-            if job is not None and job.is_pending:
-                add(
-                    ERROR,
-                    "transcode_pending",
-                    "The SD editing file is still being made from the master.",
-                )
-            elif (
-                job is not None
-                and job.status == job.Status.FAILED
-                and not derived_exists
-            ):
-                add(
-                    ERROR,
-                    "transcode_failed",
-                    f"Making the SD editing file failed: {job.error}",
-                )
+        elif job is not None and job.status == job.Status.FAILED and not derived_exists:
+            add(
+                ERROR,
+                "transcode_failed",
+                f"Making the SD editing file failed: {job.error}",
+            )
         uses_derivative = bool(content.resource_file_id) and (
             content.resource_file.derived_from_id == master.pk
         )

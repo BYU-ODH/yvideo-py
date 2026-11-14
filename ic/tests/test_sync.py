@@ -11,7 +11,6 @@ from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
 
-from core.models import Content
 from core.models import MuteAnnotation
 from core.models import ResourceFile
 import core.views
@@ -23,10 +22,8 @@ from ic.models import ICSyncRun
 from ic.sync import agent
 from ic.sync import bundle as bundle_module
 from ic.sync.bundle import build_bundle
-from ic.sync.bundle import content_fingerprint
 from ic.sync.client import ParentClient
 from ic.sync.client import ParentError
-from ic.sync.importer import apply_fixture
 from ic.testing import ICTempDirsMixin
 from ic.testing import make_film
 from ic.testing import make_program_scenario
@@ -37,56 +34,50 @@ class BundleTests(ICTempDirsMixin, TestCase):
         super().setUp()
         self.scenario = make_program_scenario()
 
-    def test_round_trip_reproduces_identical_player_json(self):
-        before = {
-            c.pk: c.get_player_json(include_subtitles=True)
-            for c in Content.objects.all()
-        }
-        manifest, _ = build_bundle()
-        apply_fixture(
-            manifest["fixture"], manifest["fingerprints"], manifest["subtitles"]
+    def test_the_bundle_carries_what_the_booth_plays(self):
+        film = self.scenario["film_item"]
+        # Readiness the projectionist can't act on stays on production.
+        film.timing_verified = False
+        film.content.resource_file.derived_from = None
+        film.content.resource_file.save()
+        film.save()
+        bundle, _ = build_bundle()
+        self.assertEqual(bundle["format"], bundle_module.BUNDLE_FORMAT)
+        self.assertEqual(
+            bundle["player_data"][str(film.pk)], bundle_module.player_data(film)
         )
-        after = {
-            c.pk: c.get_player_json(include_subtitles=True)
-            for c in Content.objects.all()
-        }
-        self.assertEqual(before, after)
-        for content_id, fingerprint in manifest["fingerprints"].items():
-            self.assertEqual(
-                content_fingerprint(Content.objects.get(pk=int(content_id))),
-                fingerprint,
-            )
+        self.assertEqual(len(bundle["player_data"][str(film.pk)]["subtitleTracks"]), 1)
+        (program,) = bundle["programs"]
+        entry = next(e for e in program["items"] if e["id"] == film.pk)
+        master = film.projection_file()
+        self.assertEqual(
+            entry["master"],
+            {"resource_file_id": master.pk, "xxh64": master.checksum},
+        )
+        self.assertEqual(entry["problems"], [])
+        self.assertEqual(
+            [f["resource_file_id"] for f in bundle["files"]],
+            sorted(i.projection_file().pk for i in (film, self.scenario["loop_item"])),
+        )
 
-    def test_a_missing_subtitle_file_syncs_as_the_player_shows_it(self):
-        """Production's player renders an unreadable VTT as ""; the sync must not fail."""
-        subtitle = self.scenario["feature"].default_subtitle_track
+    def test_a_missing_subtitle_file_doesnt_stop_the_bundle(self):
+        """Production's player renders an unreadable VTT as "", and so does the bundle."""
+        film = self.scenario["film_item"]
+        subtitle = film.content.default_subtitle_track
         Path(subtitle.subtitles_file.path).unlink()
-        manifest, _ = build_bundle()
-        self.assertIsNone(manifest["subtitles"][str(subtitle.pk)])
-        apply_fixture(
-            manifest["fixture"], manifest["fingerprints"], manifest["subtitles"]
+        bundle, _ = build_bundle()
+        self.assertEqual(
+            bundle["player_data"][str(film.pk)]["subtitleTracks"][0]["vtt"], ""
         )
-        self.assertFalse(Path(subtitle.subtitles_file.path).exists())
 
-    def test_fixture_carries_no_personal_data(self):
+    def test_the_bundle_carries_no_personal_data(self):
         editor = self.scenario["editor"]
         editor.netid = "abc123"
         editor.email = "person@byu.edu"
         editor.save()
-        rows = build_bundle()[0]["fixture"]
-        users = [row for row in rows if row["model"] == "core.user"]
-        self.assertTrue(users)
-        for row in users:
-            fields = row["fields"]
-            self.assertNotIn("email", fields)
-            self.assertNotIn("netid", fields)
-            self.assertTrue(fields["username"].startswith("ic-mirror-"))
-            self.assertFalse(fields["is_active"])
-            self.assertEqual(fields["password"], "!")
-        text = json.dumps(rows, ensure_ascii=False)
-        self.assertNotIn("abc123", text)
-        self.assertNotIn("person@byu.edu", text)
-        self.assertNotIn(editor.username, text)
+        text = json.dumps(build_bundle()[0], ensure_ascii=False)
+        for value in ("abc123", "person@byu.edu", editor.username):
+            self.assertNotIn(value, text)
 
     def test_manifest_hash_is_stable_and_tracks_annotation_edits(self):
         first = build_bundle()[1]
@@ -192,13 +183,11 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
             self.assertTrue(path.is_relative_to(self.booth_projection))
             self.assertTrue(path.exists())
         self.assertEqual(ICLocalFile.objects.count(), 2)
-        subtitle = self.scenario["feature"].default_subtitle_track
-        self.assertTrue(
-            Path(subtitle.subtitles_file.path).is_relative_to(self.booth_media)
-        )
-        self.assertTrue(Path(subtitle.subtitles_file.path).exists())
         state = ICBoothState.get()
         self.assertEqual(state.applied_manifest_hash, self.parent.digest)
+        self.assertEqual(
+            state.bundle["player_data"], self.parent.manifest_data["player_data"]
+        )
         report = self.parent.reports[-1]
         self.assertEqual(report["status"], "succeeded")
         self.assertEqual(report["applied_manifest_hash"], self.parent.digest)
@@ -218,14 +207,10 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.report)
         self.assertIsNone(agent.check_parent(self.parent))
 
-    def test_a_run_with_nothing_changed_reimports_but_fetches_nothing(self):
+    def test_a_run_with_nothing_changed_fetches_nothing(self):
         self.run_sync()
-        with mock.patch.object(
-            agent, "apply_fixture", wraps=agent.apply_fixture
-        ) as applied:
-            run = self.run_sync()
+        run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED)
-        applied.assert_called_once()
         # Verified files are trusted, not fetched again.
         self.assertEqual(len(self.parent.downloads), 2)
 
@@ -249,8 +234,8 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
         self.assertFalse(agent._storage_path(entry["name"]).exists())
         self.assertIn("Checksum failed", run.report["failed_files"][0]["error"])
-        # The program is showing today, so its rows wait for its files.
-        self.assertEqual(run.report["database"], "kept_previous")
+        # The program is showing today, so its bundle waits for its master.
+        self.assertFalse(run.report["applied"])
         self.assertIn("kept its previous data", run.report["warnings"][0])
         self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
 
@@ -259,7 +244,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         self.assertEqual(ICBoothState.get().applied_manifest_hash, self.parent.digest)
 
-    def test_rows_apply_before_films_for_later_programs_download(self):
+    def test_the_bundle_applies_before_films_for_later_programs_download(self):
         """A fix for tonight must not wait behind next month's master."""
         later = timezone.localdate() + timedelta(days=20)
         program = ICProgram.objects.create(
@@ -282,47 +267,26 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         showing_master = self.scenario["film_item"].projection_file()
         self.assertEqual(applied_when[showing_master.file.name], "")
 
-        # A failed download for the later program doesn't hold back the rows.
+        # A failed download for the later program doesn't hold back the bundle.
         agent._storage_path(upcoming_master.file.name).unlink()
         self.parent.files[upcoming_master.file.name] = b"corrupt"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertEqual(run.report["database"], "applied")
+        self.assertTrue(run.report["applied"])
         self.assertEqual(
             [f["name"] for f in run.report["failed_files"]],
             [upcoming_master.file.name],
         )
 
-    def test_a_migration_mismatch_refuses_the_rows(self):
-        self.parent.manifest_data["migrations"] = {
-            **self.parent.manifest_data["migrations"],
-            "ic": "9999_future",
-        }
-        run = self.run_sync()
-        self.assertEqual(run.status, ICSyncRun.Status.FAILED)
-        self.assertIn("9999_future", run.error)
-        self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
-
-    def test_fingerprint_mismatch_keeps_the_previous_mirror(self):
+    def test_a_newer_player_data_format_keeps_the_previous_bundle(self):
         self.run_sync()
         applied_before = ICBoothState.get().applied_manifest_hash
-        mutes_before = MuteAnnotation.objects.count()
-        feature = self.scenario["feature"]
-        subtitle = feature.default_subtitle_track
-        subtitle_before = Path(subtitle.subtitles_file.path).read_bytes()
-        self.parent.manifest_data["subtitles"][str(subtitle.pk)] = "WEBVTT\n\nchanged"
-        self.parent.manifest_data["fingerprints"][str(feature.pk)] = "0" * 64
-        self.parent.digest = "tampered"
+        self.parent.manifest_data["format"] = bundle_module.BUNDLE_FORMAT + 1
+        self.parent.digest = "newer"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.FAILED)
-        self.assertEqual(run.report["code"], "fingerprint_mismatch")
+        self.assertEqual(run.report["code"], "format_mismatch")
         self.assertEqual(ICBoothState.get().applied_manifest_hash, applied_before)
-        self.assertTrue(Content.objects.filter(pk=feature.pk).exists())
-        self.assertEqual(MuteAnnotation.objects.count(), mutes_before)
-        # The kept rows still render the subtitles they were verified with.
-        self.assertEqual(
-            Path(subtitle.subtitles_file.path).read_bytes(), subtitle_before
-        )
 
     def test_unreachable_production_fails_cleanly(self):
         self.parent.unreachable = True
@@ -336,7 +300,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         ):
             run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertEqual(run.report["database"], "kept_previous")
+        self.assertFalse(run.report["applied"])
         errors = [f["error"] for f in run.report["failed_files"]]
         self.assertTrue(any("Not enough disk space" in e for e in errors))
 

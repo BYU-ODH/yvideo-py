@@ -1,7 +1,7 @@
 """One booth sync run, whatever started it.
 
-Every run follows this same pipeline: fetch the manifest, verify files, import and
-verify the rows. The weekly run also re-hashes every file instead of trusting earlier
+Every run follows this same pipeline: fetch the bundle, verify the masters, and apply
+the bundle. The weekly run also re-hashes every file instead of trusting earlier
 verification.
 
 Sync is pull-only: `check_parent` is the agent's frequent check, and the one place that
@@ -24,13 +24,11 @@ from core.models import ResourceFile
 from ..models import ICBoothState
 from ..models import ICLocalFile
 from ..models import ICSyncRun
+from .bundle import BUNDLE_FORMAT
 from .bundle import file_xxh64
-from .bundle import migration_leaves
 from .client import MAX_BYTES_PER_SECOND
 from .client import ParentClient
 from .client import ParentError
-from .importer import FingerprintMismatch
-from .importer import apply_fixture
 
 logger = logging.getLogger(__name__)
 
@@ -107,15 +105,13 @@ class RunContext:
         return digest == expected
 
 
-def _check_migrations(manifest):
-    """Refuse rows this booth's schema can't hold (or that production's can't make)."""
-    remote = manifest.get("migrations", {})
-    local = migration_leaves()
-    if remote != local:
+def _check_format(manifest):
+    """Refuse player data this booth's AnnotationPlayer.js might not understand."""
+    if manifest.get("format") != BUNDLE_FORMAT:
         raise RunFailed(
-            "code_mismatch",
-            f"Code version mismatch (production {remote}, booth {local}); "
-            "wait for the deploy to finish.",
+            "format_mismatch",
+            f"Production sends player data format {manifest.get('format')}; this "
+            f"booth plays format {BUNDLE_FORMAT}. Wait for the booth's deploy.",
         )
 
 
@@ -159,7 +155,7 @@ def _plan_files(ctx, manifest, *, full_rehash):
 def _room_for(entry, part):
     """Whether the disk can hold the rest of this download, plus some headroom.
 
-    Checked per file, so a film that doesn't fit only fails itself: tonight's rows and
+    Checked per file, so a film that doesn't fit only fails itself: tonight's bundle and
     smaller files still arrive.
     """
     part.parent.mkdir(parents=True, exist_ok=True)
@@ -229,7 +225,7 @@ def _fetch_files(ctx, todo):
 
 
 def _showing_master(entry, today):
-    """A master for a program that has already started: rows wait for it."""
+    """A master for a program that has already started: the bundle waits for it."""
     start = entry.get("first_program_start")
     return bool(start) and date.fromisoformat(start) <= today
 
@@ -244,26 +240,18 @@ def _unfetched(planned, file_results):
     ]
 
 
-def _apply_database(ctx, manifest, manifest_digest):
-    """Replace the mirror with production's rows, verified by fingerprint.
+def _apply(manifest, manifest_digest):
+    """Make the bundle the one the booth plays.
 
     This never touches the film that's playing: the output holds its item's player data
     in memory and streams from a URL naming one verified file (`ic_local_file`), whose
-    bytes no import can change. New data takes effect when the next item loads.
+    bytes no sync can change. New data takes effect when the next item loads.
     """
-    ctx.save(force=True, phase="Importing")
-    try:
-        apply_fixture(
-            manifest["fixture"],
-            manifest.get("fingerprints", {}),
-            manifest.get("subtitles", {}),
-        )
-    except FingerprintMismatch as exc:
-        raise RunFailed("fingerprint_mismatch", str(exc)) from exc
     state = ICBoothState.get()
+    state.bundle = manifest
     state.applied_manifest_hash = manifest_digest
     state.applied_at = timezone.now()
-    state.save(update_fields=["applied_manifest_hash", "applied_at"])
+    state.save(update_fields=["bundle", "applied_manifest_hash", "applied_at"])
 
 
 def prune(manifest, today=None):
@@ -305,31 +293,30 @@ def execute_run(run, client=None, heartbeat=None):
         manifest = client.manifest()
         digest = manifest.get("manifest_hash", "")
         ctx.save(force=True, manifest_hash=digest)
-        _check_migrations(manifest)
+        _check_format(manifest)
         ctx.save(force=True, phase="Downloading")
         file_results, todo = _plan_files(ctx, manifest, full_rehash=run.full_rehash)
-        # Masters for programs already showing come first, then the rows (with their
-        # subtitles), then masters for later programs: a fix to tonight's annotations
-        # must not wait behind next month's 20 GB master.
+        # Masters for programs already showing come first, then the bundle, then masters
+        # for later programs: a fix to tonight's annotations must not wait behind next
+        # month's 20 GB master.
         today = timezone.localdate()
         showing = [t for t in todo if _showing_master(t[0], today)]
         upcoming = [t for t in todo if t not in showing]
         file_results.update(_fetch_files(ctx, showing))
-        # Swapping in rows that point at a master the booth couldn't fetch would make a
-        # film that plays today unplayable. Keep the previous rows until a later run
+        # Applying a bundle that points at a master the booth couldn't fetch would make a
+        # film that plays today unplayable. Keep the previous bundle until a later run
         # fetches it, unless production can't send it anyway (a lost master).
         blocking = _unfetched(showing, file_results)
         warnings = []
+        applied = not blocking
         if blocking:
-            database = "kept_previous"
             warnings.append(
                 "The booth kept its previous data because these files aren't "
                 "verified yet: " + ", ".join(blocking) + ". The next sync will "
                 "try again."
             )
         else:
-            _apply_database(ctx, manifest, digest)
-            database = "applied"
+            _apply(manifest, digest)
         if upcoming:
             ctx.save(force=True, phase="Downloading upcoming films")
             file_results.update(_fetch_files(ctx, upcoming))
@@ -337,7 +324,7 @@ def execute_run(run, client=None, heartbeat=None):
         failures = [r for r in file_results.values() if not r["ok"]]
         report.update(
             {
-                "database": database,
+                "applied": applied,
                 "failed_files": [
                     {"name": r["name"], "error": r["error"]} for r in failures
                 ],
@@ -345,10 +332,10 @@ def execute_run(run, client=None, heartbeat=None):
                 "warnings": warnings + prune_warnings,
             }
         )
-        # Partial means a later run could do better: rows kept, or a file production
+        # Partial means a later run could do better: bundle kept, or a file production
         # can still send didn't arrive. A lost master is reported, but only a
         # re-upload (which changes the manifest) can fix it, so it doesn't count.
-        retryable = database != "applied" or any(not r.get("lost") for r in failures)
+        retryable = not applied or any(not r.get("lost") for r in failures)
         run.status = (
             ICSyncRun.Status.PARTIAL if retryable else ICSyncRun.Status.SUCCEEDED
         )

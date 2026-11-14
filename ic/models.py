@@ -1,9 +1,9 @@
 """International Cinema (#246): programs, the media pipeline, and booth sync.
 
 Production-side tables: ICProgram, ICProgramItem, ICUpload, MediaJob, ICBoothReport.
-ICProgram and ICProgramItem are also mirrored to the booth.
 
-Booth-local tables (never mirrored): ICSyncRun, ICLocalFile, ICBoothState.
+Booth-side tables: ICSyncRun, ICLocalFile, ICBoothState (which holds the bundle the
+booth plays, ic.sync.bundle). The booth has no program rows.
 """
 
 from datetime import timedelta
@@ -357,6 +357,8 @@ class ICBoothState(models.Model):
     """Singleton: what the booth last applied, what production last said, and whether
     the sync agent is running."""
 
+    # The bundle the booth plays (ic.sync.bundle.build_bundle), replaced whole by a sync.
+    bundle = models.JSONField(default=dict, blank=True)
     applied_manifest_hash = models.CharField(max_length=64, blank=True)
     applied_at = models.DateTimeField(null=True, blank=True)
     # What production's manifest hash was at the agent's last check, so the controller

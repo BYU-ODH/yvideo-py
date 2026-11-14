@@ -94,7 +94,7 @@ def _ingest(upload):
         if existing.bytes_on_this_server:
             raise JobFailed("This master is already uploaded for this resource.")
         # Re-upload of a released master: restore the same row, so the booth's
-        # records, fingerprints and derivative links all stay valid.
+        # copy, its media URL and derivative links all stay valid.
         with transaction.atomic():
             existing.master_released_at = None
             existing.save(update_fields=["master_released_at", "updated_at"])

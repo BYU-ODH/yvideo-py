@@ -401,7 +401,7 @@ be cut, systemd services, and multi-gigabyte files moving between them.
 
 **What is guarded automatically.** `ic/tests/test_sync.py` runs the booth's sync pipeline
 against a fake production (and the real HTTP client against a live server): checksum
-failures, damaged and lost files, migration and fingerprint mismatches, rows applying
+failures, damaged and lost files, a player data format mismatch, the bundle applying
 before later programs' masters, when a run is due, and pruning. `ic/tests/test_booth.py`
 covers the kiosk and file-addressed media; `ic/tests/test_media_pipeline.py` runs real
 ffmpeg for ingest, replacement and the SD transcode.
