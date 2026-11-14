@@ -213,16 +213,7 @@ class ReleaseMasterTests(ICTempDirsMixin, TestCase):
         """The booth's run report listing its verified copy of the master."""
         ICBoothReport.objects.update_or_create(
             pk=1,
-            defaults={
-                "report": {
-                    "verified_files": [
-                        {
-                            "resource_file_id": self.master.pk,
-                            "xxh64": checksum or self.master.checksum,
-                        }
-                    ]
-                }
-            },
+            defaults={"report": {"verified": [checksum or self.master.checksum]}},
         )
 
     def test_blockers_until_sd_exists_and_the_booth_verified_its_copy(self):

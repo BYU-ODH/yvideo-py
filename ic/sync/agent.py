@@ -11,6 +11,7 @@ decides when a run is due. Production can't start a run.
 from datetime import date
 from datetime import timedelta
 import logging
+from operator import itemgetter
 import os
 from pathlib import Path
 import shutil
@@ -18,6 +19,7 @@ import time
 
 from django.conf import settings
 from django.utils import timezone
+import xxhash
 
 from core.models import ResourceFile
 
@@ -46,21 +48,17 @@ DISK_HEADROOM_BYTES = 1024**3
 FILE_PRUNE_GRACE = timedelta(days=3)
 MASTER_PRUNE_AFTER = timedelta(days=30)
 MASTER_PRUNE_WARNING = timedelta(days=7)
+# The booth's run history is kept this long.
+RUN_HISTORY = timedelta(days=90)
 
 
 class RunFailed(Exception):
-    def __init__(self, code, message):
-        self.code = code
-        super().__init__(message)
+    """A run that can't proceed; the message is shown to the projectionist."""
 
 
 def _storage_path(name):
     """Where a master lives locally: the same name it has on production."""
     return Path(ResourceFile().file.storage.path(name))
-
-
-def _sort_key(entry):
-    return entry.get("first_program_start") or "9999-12-31"
 
 
 def disk_usage():
@@ -92,24 +90,24 @@ class RunContext:
         self.run.bytes_done += count
         self.save()
 
-    def verify(self, path, expected, *, count_bytes):
-        """Hash a local file at the download rate cap, so verifying can't starve playback.
+    def hash(self, path, digest=None):
+        """Hash a local file at the download rate cap, so hashing can't starve playback.
 
         Progress and the heartbeat keep moving meanwhile: a 10 GB master takes about
         ten minutes.
         """
-        on_bytes = self.add_bytes if count_bytes else lambda _: self.save()
-        digest = file_xxh64(
-            path, max_bytes_per_second=MAX_BYTES_PER_SECOND, on_bytes=on_bytes
+        return file_xxh64(
+            path,
+            max_bytes_per_second=MAX_BYTES_PER_SECOND,
+            on_bytes=self.add_bytes,
+            digest=digest,
         )
-        return digest == expected
 
 
 def _check_format(manifest):
     """Refuse player data this booth's AnnotationPlayer.js might not understand."""
     if manifest.get("format") != BUNDLE_FORMAT:
         raise RunFailed(
-            "format_mismatch",
             f"Production sends player data format {manifest.get('format')}; this "
             f"booth plays format {BUNDLE_FORMAT}. Wait for the booth's deploy.",
         )
@@ -123,32 +121,20 @@ def _plan_files(ctx, manifest, *, full_rehash):
     """
     results = {}
     todo = []
-    for entry in sorted(manifest.get("files", []), key=_sort_key):
+    for entry in sorted(manifest["files"], key=itemgetter("first_program_start")):
         path = _storage_path(entry["name"])
-        local = ICLocalFile.objects.filter(
-            resource_file_id=entry["resource_file_id"]
-        ).first()
         on_disk = path.exists() and path.stat().st_size == entry["size"]
-        if local is not None:
-            available = entry.get("available_from_parent", True)
-            last_end = _date_or_none(entry.get("last_program_end"))
-            if (local.available_from_parent, local.last_program_end) != (
-                available,
-                last_end,
-            ):
-                local.available_from_parent = available
-                local.last_program_end = last_end
-                local.save(update_fields=["available_from_parent", "last_program_end"])
-        if (
-            local is not None
-            and local.xxh64 == entry["xxh64"]
-            and on_disk
-            and not full_rehash
-        ):
-            results[entry["resource_file_id"]] = {"ok": True}
+        # Keep what production says about a verified file current, for prune.
+        verified = ICLocalFile.objects.filter(xxh64=entry["xxh64"]).update(
+            available_from_parent=entry["available_from_parent"],
+            last_program_end=date.fromisoformat(entry["last_program_end"]),
+        )
+        if verified and on_disk and not full_rehash:
+            results[entry["xxh64"]] = {"ok": True}
         else:
             todo.append((entry, path, on_disk))
-    ctx.save(force=True, bytes_total=sum(e["size"] for e, _, _ in todo), bytes_done=0)
+    total = sum(entry["size"] for entry, _, _ in todo)
+    ctx.save(force=True, bytes_total=total, bytes_done=0)
     return results, todo
 
 
@@ -164,19 +150,14 @@ def _room_for(entry, part):
     return free >= entry["size"] - have + DISK_HEADROOM_BYTES
 
 
-def _date_or_none(value):
-    return date.fromisoformat(value) if value else None
-
-
 def _fetch_file(ctx, entry, path, on_disk):
     """Hash, or download and verify, one planned file. Returns its result."""
-    if on_disk:
-        if ctx.verify(path, entry["xxh64"], count_bytes=True):
-            return {"ok": True}
-        # These bytes are damaged: they must never count as verified again, even if
-        # they can't be replaced now.
-        ICLocalFile.objects.filter(resource_file_id=entry["resource_file_id"]).delete()
-    if not entry.get("available_from_parent", True):
+    if on_disk and ctx.hash(path) == entry["xxh64"]:
+        return {"ok": True}
+    # Missing, truncated or damaged: these bytes aren't verified, and must never be
+    # reported as verified again, even if they can't be replaced now.
+    ICLocalFile.objects.filter(xxh64=entry["xxh64"]).delete()
+    if not entry["available_from_parent"]:
         return {
             "ok": False,
             "lost": True,
@@ -188,11 +169,21 @@ def _fetch_file(ctx, entry, path, on_disk):
             "ok": False,
             "error": f"Not enough disk space on the booth for {entry['name']}.",
         }
+    # The bytes are hashed as they arrive (after what an interrupted run left), so a
+    # download needs no second pass over the file to verify it.
+    digest = xxhash.xxh64()
+    if part.exists():
+        ctx.hash(part, digest)
+
+    def received(chunk):
+        digest.update(chunk)
+        ctx.add_bytes(len(chunk))
+
     try:
-        ctx.client.download(entry, part, on_bytes=ctx.add_bytes)
+        ctx.client.download(entry, part, on_chunk=received)
     except ParentError as exc:
         return {"ok": False, "error": f"Couldn't download {entry['name']}: {exc}"}
-    if not ctx.verify(part, entry["xxh64"], count_bytes=False):
+    if digest.hexdigest() != entry["xxh64"]:
         part.unlink(missing_ok=True)
         return {
             "ok": False,
@@ -210,24 +201,22 @@ def _fetch_files(ctx, todo):
         result["name"] = entry["name"]
         if result["ok"]:
             ICLocalFile.objects.update_or_create(
-                resource_file_id=entry["resource_file_id"],
+                xxh64=entry["xxh64"],
                 defaults={
                     "name": entry["name"],
                     "size": entry["size"],
-                    "xxh64": entry["xxh64"],
                     "verified_at": timezone.now(),
-                    "available_from_parent": entry.get("available_from_parent", True),
-                    "last_program_end": _date_or_none(entry.get("last_program_end")),
+                    "available_from_parent": entry["available_from_parent"],
+                    "last_program_end": date.fromisoformat(entry["last_program_end"]),
                 },
             )
-        results[entry["resource_file_id"]] = result
+        results[entry["xxh64"]] = result
     return results
 
 
 def _showing_master(entry, today):
     """A master for a program that has already started: the bundle waits for it."""
-    start = entry.get("first_program_start")
-    return bool(start) and date.fromisoformat(start) <= today
+    return date.fromisoformat(entry["first_program_start"]) <= today
 
 
 def _unfetched(planned, file_results):
@@ -235,12 +224,11 @@ def _unfetched(planned, file_results):
     return [
         entry["name"]
         for entry, _, _ in planned
-        if not file_results[entry["resource_file_id"]]["ok"]
-        and entry.get("available_from_parent", True)
+        if not file_results[entry["xxh64"]]["ok"] and entry["available_from_parent"]
     ]
 
 
-def _apply(manifest, manifest_digest):
+def _apply(manifest):
     """Make the bundle the one the booth plays.
 
     This never touches the film that's playing: the output holds its item's player data
@@ -249,33 +237,34 @@ def _apply(manifest, manifest_digest):
     """
     state = ICBoothState.get()
     state.bundle = manifest
-    state.applied_manifest_hash = manifest_digest
     state.applied_at = timezone.now()
-    state.save(update_fields=["bundle", "applied_manifest_hash", "applied_at"])
+    state.save(update_fields=["bundle", "applied_at"])
 
 
 def prune(manifest, today=None):
-    """Delete local files production no longer lists, with longer grace for released masters."""
+    """Delete local files production no longer lists, after a grace period.
+
+    Released masters exist nowhere else, so they're kept much longer, with a warning
+    in each run's report during the last days before they go.
+    """
     today = today or timezone.localdate()
-    listed = {e["resource_file_id"] for e in manifest.get("files", [])}
+    listed = [entry["xxh64"] for entry in manifest["files"]]
     removed, warnings = [], []
-    for local in ICLocalFile.objects.all():
-        if local.resource_file_id in listed:
-            if not local.available_from_parent and local.last_program_end:
-                delete_on = local.last_program_end + MASTER_PRUNE_AFTER
-                if delete_on - today <= MASTER_PRUNE_WARNING:
-                    warnings.append(
-                        f"The booth will delete its only copy of {local.name} on {delete_on}; "
-                        "re-upload will be needed to show it again."
-                    )
-            continue
-        grace = FILE_PRUNE_GRACE if local.available_from_parent else MASTER_PRUNE_AFTER
-        reference = local.last_program_end or local.verified_at.date()
-        if today - reference < grace:
-            continue
-        _storage_path(local.name).unlink(missing_ok=True)
-        removed.append(local.name)
-        local.delete()
+    for local in ICLocalFile.objects.exclude(xxh64__in=listed):
+        only_copy = not local.available_from_parent
+        delete_on = local.last_program_end + (
+            MASTER_PRUNE_AFTER if only_copy else FILE_PRUNE_GRACE
+        )
+        if today >= delete_on:
+            _storage_path(local.name).unlink(missing_ok=True)
+            removed.append(local.name)
+            local.delete()
+        elif only_copy and delete_on - today <= MASTER_PRUNE_WARNING:
+            warnings.append(
+                f"The booth will delete its only copy of {local.name} on {delete_on}; "
+                "re-upload will be needed to show it again."
+            )
+    ICSyncRun.objects.filter(finished_at__lt=timezone.now() - RUN_HISTORY).delete()
     return removed, warnings
 
 
@@ -288,11 +277,10 @@ def execute_run(run, client=None, heartbeat=None):
         started_at=timezone.now(),
         phase="Contacting production",
     )
-    report = {"run_id": str(run.pk)}
+    report = {}
     try:
         manifest = client.manifest()
-        digest = manifest.get("manifest_hash", "")
-        ctx.save(force=True, manifest_hash=digest)
+        ctx.save(force=True, manifest_hash=manifest["manifest_hash"])
         _check_format(manifest)
         ctx.save(force=True, phase="Downloading")
         file_results, todo = _plan_files(ctx, manifest, full_rehash=run.full_rehash)
@@ -316,19 +304,17 @@ def execute_run(run, client=None, heartbeat=None):
                 "try again."
             )
         else:
-            _apply(manifest, digest)
+            _apply(manifest)
         if upcoming:
             ctx.save(force=True, phase="Downloading upcoming films")
             file_results.update(_fetch_files(ctx, upcoming))
-        removed, prune_warnings = prune(manifest)
+        _, prune_warnings = prune(manifest)
         failures = [r for r in file_results.values() if not r["ok"]]
         report.update(
             {
-                "applied": applied,
                 "failed_files": [
                     {"name": r["name"], "error": r["error"]} for r in failures
                 ],
-                "pruned": removed,
                 "warnings": warnings + prune_warnings,
             }
         )
@@ -339,15 +325,10 @@ def execute_run(run, client=None, heartbeat=None):
         run.status = (
             ICSyncRun.Status.PARTIAL if retryable else ICSyncRun.Status.SUCCEEDED
         )
-    except RunFailed as exc:
-        report["code"] = exc.code
-        run.status, run.error = ICSyncRun.Status.FAILED, str(exc)
-    except ParentError as exc:
-        report["code"] = "unreachable"
+    except (RunFailed, ParentError) as exc:
         run.status, run.error = ICSyncRun.Status.FAILED, str(exc)
     except Exception as exc:  # noqa: BLE001 - a run must always finish with a status
         logger.exception("Sync run %s failed", run.pk)
-        report["code"] = "error"
         run.status, run.error = ICSyncRun.Status.FAILED, f"Unexpected error: {exc}"
 
     report.update(
@@ -355,10 +336,7 @@ def execute_run(run, client=None, heartbeat=None):
             "status": run.status,
             "error": run.error,
             "applied_manifest_hash": ICBoothState.get().applied_manifest_hash,
-            "verified_files": [
-                {"resource_file_id": local.resource_file_id, "xxh64": local.xxh64}
-                for local in ICLocalFile.objects.all()
-            ],
+            "verified": list(ICLocalFile.objects.values_list("xxh64", flat=True)),
             "disk": disk_usage(),
         }
     )
@@ -390,8 +368,10 @@ def check_parent(client=None, now=None):
     Asks production for its manifest hash and queues a run when one is due:
 
     - production has changes the booth hasn't tried yet: at once;
-    - the booth is behind or the last run didn't end cleanly: RETRY_AFTER later;
-    - otherwise, the weekly re-hash of released masters, in the morning.
+    - after a run that didn't end cleanly, nothing else for RETRY_AFTER, whatever
+      kind of run it was;
+    - then a run if the booth is behind, or else the weekly re-hash of released
+      masters, in the morning.
 
     Returns the queued run, or None.
     """
@@ -399,7 +379,7 @@ def check_parent(client=None, now=None):
     now = now or timezone.now()
     state = ICBoothState.get()
     try:
-        parent_hash = str(client.check().get("manifest_hash") or "")[:64]
+        parent_hash = client.check()["manifest_hash"]
     except ParentError as exc:
         state.parent_check_error = str(exc)
         state.save(update_fields=["parent_check_error"])
@@ -420,16 +400,16 @@ def check_parent(client=None, now=None):
     ).exists():
         return None
     last = ICSyncRun.latest_finished()
-    behind = parent_hash != state.applied_manifest_hash or (
-        last is not None and last.status != ICSyncRun.Status.SUCCEEDED
+    unclean = last is not None and last.status != ICSyncRun.Status.SUCCEEDED
+    # A run that failed before it saw a manifest waits like any other retry, so a
+    # broken production endpoint isn't asked again every check.
+    production_moved_on = last is not None and last.manifest_hash not in (
+        "",
+        parent_hash,
     )
-    if behind and (
-        last is None
-        # A run that failed before it saw a manifest waits like any other retry, so a
-        # broken production endpoint isn't asked again every check.
-        or (last.manifest_hash and parent_hash != last.manifest_hash)
-        or now - last.finished_at >= RETRY_AFTER
-    ):
+    if unclean and not production_moved_on and now - last.finished_at < RETRY_AFTER:
+        return None
+    if unclean or parent_hash != state.applied_manifest_hash:
         return ICSyncRun.objects.create()
     if _rehash_due(now):
         return ICSyncRun.objects.create(full_rehash=True)

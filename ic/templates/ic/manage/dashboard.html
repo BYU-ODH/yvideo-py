@@ -61,10 +61,7 @@
     <section class="ic-manage-section" aria-labelledby="ic-jobs-heading">
         <h3 id="ic-jobs-heading">Media processing</h3>
         <div id="ic-jobs"
-             hx-get="{% url 'ic_manage_dashboard' %}"
-             hx-select="#ic-jobs"
-             hx-trigger="every 5s"
-             hx-swap="outerHTML">
+             {% if jobs_pending %}hx-get="{% url 'ic_manage_dashboard' %}" hx-select="#ic-jobs" hx-trigger="every 5s" hx-swap="outerHTML"{% endif %}>
             {% include "ic/manage/partials/jobs.html" %}
         </div>
     </section>

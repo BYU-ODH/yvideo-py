@@ -61,20 +61,18 @@ class ParentClient:
             raise ParentError(f"Check failed: HTTP {response.status_code}")
         return response.json()
 
-    def download(self, entry, part_path, *, on_bytes=None):
+    def download(self, entry, part_path, *, on_chunk=None):
         """Download (resuming) into part_path until it reaches entry['size'] bytes.
 
         Each request asks for the rest of the file; production answers with a slice
-        (core's range cap), and the loop continues from wherever it stopped.
+        (core's range cap), and the loop continues from wherever it stopped. on_chunk
+        is called with each chunk written.
         """
         part_path = Path(part_path)
         part_path.parent.mkdir(parents=True, exist_ok=True)
         expected = entry["size"]
-        path = f"/ic/sync/files/projection/{entry['resource_file_id']}/"
+        path = f"/ic/sync/files/projection/{entry['xxh64']}/"
         offset = part_path.stat().st_size if part_path.exists() else 0
-        if offset > expected:
-            part_path.unlink()
-            offset = 0
         with open(part_path, "ab") as handle:
             while offset < expected:
                 response = self._get(
@@ -93,8 +91,8 @@ class ParentClient:
                         handle.write(chunk)
                         received += len(chunk)
                         offset += len(chunk)
-                        if on_bytes:
-                            on_bytes(len(chunk))
+                        if on_chunk:
+                            on_chunk(chunk)
                         minimum = received / MAX_BYTES_PER_SECOND
                         elapsed = time.monotonic() - started
                         if elapsed < minimum:

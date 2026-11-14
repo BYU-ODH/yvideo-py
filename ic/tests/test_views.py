@@ -3,9 +3,7 @@
 import json
 from pathlib import Path
 import re
-import uuid
 
-from django.core.cache import cache
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
@@ -295,16 +293,15 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
         master = self.scenario["film_item"].projection_file()
         ICProgram.objects.all().delete()
         self.assertEqual(
-            self.get("ic_sync_projection_file", master.pk).status_code, 403
+            self.get("ic_sync_projection_file", master.checksum).status_code, 403
         )
 
     def report(self, xxh64):
         master = self.scenario["film_item"].projection_file()
         return master, {
-            "run_id": str(uuid.uuid4()),
             "status": "succeeded",
             "applied_manifest_hash": "abc",
-            "verified_files": [{"resource_file_id": master.pk, "xxh64": xxh64}],
+            "verified": [xxh64],
         }
 
     def test_status_report_is_kept_and_releases_the_master(self):
@@ -347,9 +344,7 @@ class DashboardTests(ICTempDirsMixin, TestCase):
 
         booth.report = {
             "applied_manifest_hash": build_bundle()[1],
-            "verified_files": [
-                {"resource_file_id": m.pk, "xxh64": m.checksum} for m in masters
-            ],
+            "verified": [m.checksum for m in masters],
         }
         booth.save()
         page = self.client.get(reverse("ic_manage_dashboard"))
@@ -358,7 +353,6 @@ class DashboardTests(ICTempDirsMixin, TestCase):
 
         program = self.scenario["program"]
         program.items.first().delete()
-        cache.clear()  # the manifest hash is cached for a few seconds
         page = self.client.get(reverse("ic_manage_dashboard"))
         self.assertContains(page, "Production has changes the booth")
 

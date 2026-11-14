@@ -21,7 +21,7 @@ player_urlpatterns = [
 booth_urlpatterns = [
     *player_urlpatterns,
     path(
-        "file/<int:resource_file_id>/<str:xxh64>/",
+        "file/<str:xxh64>/",
         views_player.local_file,
         name="ic_local_file",
     ),
@@ -102,7 +102,7 @@ urlpatterns = [
     path("sync/manifest/", views_sync_api.manifest, name="ic_sync_manifest"),
     path("sync/check/", views_sync_api.check, name="ic_sync_check"),
     path(
-        "sync/files/projection/<int:resource_file_id>/",
+        "sync/files/projection/<str:xxh64>/",
         views_sync_api.projection_file,
         name="ic_sync_projection_file",
     ),

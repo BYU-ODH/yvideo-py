@@ -64,7 +64,15 @@
                                     {% endif %}
                                 </span>
                             </button>
-                            {% include "ic/partials/problems.html" with problems=item.problems %}
+                            {% if not item.playable %}
+                                <p class="ic-status ic-error">
+                                    {% if booth %}
+                                        ❌ The projection master isn't on this booth yet (see Sync status).
+                                    {% else %}
+                                        ❌ No SD editing file to preview.
+                                    {% endif %}
+                                </p>
+                            {% endif %}
                         </li>
                     {% empty %}
                         <li>This program has nothing in it.</li>

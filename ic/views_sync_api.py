@@ -11,7 +11,6 @@ import secrets
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
-from django.core.cache import cache
 from django.http import Http404
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
@@ -29,10 +28,7 @@ from .jobs import release_if_ready
 from .models import ICBoothReport
 from .models import ICProgram
 from .models import ICProgramItem
-from .sync.bundle import MANIFEST_HASH_CACHE_KEY
-from .sync.bundle import MANIFEST_HASH_CACHE_SECONDS
 from .sync.bundle import build_bundle
-from .sync.bundle import cached_manifest_hash
 
 
 def sync_token_required(view_func):
@@ -65,7 +61,6 @@ def _syncable_resource_ids():
 @sync_token_required
 def manifest(request):
     manifest_data, digest = build_bundle()
-    cache.set(MANIFEST_HASH_CACHE_KEY, digest, MANIFEST_HASH_CACHE_SECONDS)
     response = JsonResponse({**manifest_data, "manifest_hash": digest})
     response["Cache-Control"] = "no-store"
     return response
@@ -80,15 +75,13 @@ def check(request):
     run report) is all "last contact" needs: no write per downloaded slice.
     """
     ICBoothReport.seen()
-    return JsonResponse({"manifest_hash": cached_manifest_hash()})
+    return JsonResponse({"manifest_hash": build_bundle()[1]})
 
 
 @require_GET
 @sync_token_required
-def projection_file(request, resource_file_id):
-    master = get_object_or_404(
-        ResourceFile, pk=resource_file_id, is_projection_file=True
-    )
+def projection_file(request, xxh64):
+    master = get_object_or_404(ResourceFile, checksum=xxh64, is_projection_file=True)
     if master.resource_id not in _syncable_resource_ids():
         return HttpResponse(
             "This master isn't part of any syncable program.", status=403
@@ -101,10 +94,10 @@ def projection_file(request, resource_file_id):
 @require_POST
 @sync_token_required
 def status(request):
-    """The booth's run report: applied state, verified files, and the run's outcome.
+    """The booth's run report: applied state, verified masters, and the run's outcome.
 
-    Production keeps the latest report; a master is released once it lists a copy whose
-    checksum matches (see jobs.release_blockers).
+    Production keeps the latest report; a master is released once its checksum is in the
+    report's "verified" list (see jobs.release_blockers).
     """
     try:
         report = json.loads(request.body or b"{}")
@@ -116,7 +109,7 @@ def status(request):
     for master in ResourceFile.objects.filter(
         is_projection_file=True,
         master_released_at__isnull=True,
-        pk__in=[f.get("resource_file_id") for f in report.get("verified_files", [])],
+        checksum__in=report.get("verified", []),
     ):
         release_if_ready(master)
     return JsonResponse({"ok": True})

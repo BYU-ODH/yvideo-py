@@ -23,7 +23,6 @@ from core.models import ResourceFile
 from core.permissions import forbidden
 from core.views import _file_response
 
-from . import readiness
 from .models import ICBoothState
 from .models import ICLocalFile
 from .models import ICProgram
@@ -31,6 +30,7 @@ from .models import ICProgramItem
 from .models import ICSyncRun
 from .permissions import ic_editor_required
 from .sync.agent import disk_usage
+from .sync.bundle import manifest_hash
 from .sync.bundle import player_data
 from .sync.bundle import program_entry
 
@@ -104,35 +104,28 @@ def _get_program(program_id):
 
 def _local_master(entry):
     """On the booth: the verified copy of the item's master on this disk, or None."""
-    master = entry["master"]
-    local = master and (
-        ICLocalFile.objects.filter(
-            resource_file_id=master["resource_file_id"], xxh64=master["xxh64"]
-        ).first()
+    local = (
+        entry["master"] and ICLocalFile.objects.filter(xxh64=entry["master"]).first()
     )
     if local and ResourceFile(file=local.name).file.storage.exists(local.name):
         return local
     return None
 
 
-NOT_ON_BOOTH = readiness.Problem(
-    readiness.ERROR,
-    "not_on_booth",
-    "The projection master isn't on this booth yet (see Sync status).",
-)
-# Without a master on the booth, or the network on production, there is nothing to play.
-UNPLAYABLE = {"not_on_booth", "needs_network"}
+def _playable(entry):
+    """The booth plays only verified local masters; the preview needs an SD file.
 
-
-def _item_problems(entry):
-    problems = [readiness.Problem(**p) for p in entry["problems"]]
-    if settings.IS_IC_INSTANCE and _local_master(entry) is None:
-        problems.insert(0, NOT_ON_BOOTH)
-    return problems
+    Readiness (codecs, subtitles, timing, ...) is for IC editors on production; the
+    booth's controller shows only whether each item can play.
+    """
+    if settings.IS_IC_INSTANCE:
+        return _local_master(entry) is not None
+    return ICProgramItem.objects.filter(
+        pk=entry["id"], content__resource_file__isnull=False
+    ).exists()
 
 
 def item_json(entry):
-    problems = _item_problems(entry)
     return {
         "id": entry["id"],
         "title": entry["title"],
@@ -142,13 +135,17 @@ def item_json(entry):
         # The media URL comes with the player data, so the annotations and the file
         # they're timed against are always fetched as one pair.
         "player_data_url": reverse("ic_item_player_data", args=[entry["id"]]),
-        "playable": not any(p.code in UNPLAYABLE for p in problems),
-        "problems": [{"severity": p.severity, "message": p.message} for p in problems],
+        "playable": _playable(entry),
     }
 
 
 def _data_version(state):
-    return state.applied_at.isoformat() if state.applied_at else ""
+    """What the controller page is built from: when it changes, the page is stale.
+
+    Only the programs count. Player data is fetched fresh for every item, and a run
+    that changes nothing, or only which masters production still holds, isn't news.
+    """
+    return manifest_hash(state.bundle.get("programs", []))
 
 
 def _sync_summary():
@@ -159,7 +156,6 @@ def _sync_summary():
         "data_version": _data_version(state),
         "latest": ICSyncRun.objects.order_by("-requested_at").first(),
         "last_run": ICSyncRun.latest_finished(),
-        "last_success": ICSyncRun.latest_finished(status=ICSyncRun.Status.SUCCEEDED),
         "parent_unreachable": bool(state.parent_check_error),
     }
 
@@ -175,14 +171,12 @@ def control_index(request):
     rows = []
     # Yesterday's program counts as showing until the end of the night (late shows).
     for program in _programs():
-        problems = [p for entry in program.entries for p in _item_problems(entry)]
+        # A program with nothing in it isn't ready.
+        ready = bool(program.entries) and all(map(_playable, program.entries))
         rows.append(
             {
                 "program": program,
-                # A program with nothing in it isn't ready.
-                "status": readiness.rollup(problems)
-                if program.entries
-                else readiness.ERROR,
+                "status": "ready" if ready else "error",
                 "active": not program.is_upcoming(),
             }
         )
@@ -246,7 +240,7 @@ def item_player_data(request, item_id):
     local = entry and _local_master(entry)
     if not local:
         raise Http404("This item isn't playable on this booth.")
-    media_url = reverse("ic_local_file", args=[local.resource_file_id, local.xxh64])
+    media_url = reverse("ic_local_file", args=[local.xxh64])
     return JsonResponse({**bundle["player_data"][str(item_id)], "media_url": media_url})
 
 
@@ -268,18 +262,14 @@ def item_media(request, item_id):
 
 @require_GET
 @booth_view
-def local_file(request, resource_file_id, xxh64):
-    """One verified projection master, addressed by id and checksum.
+def local_file(request, xxh64):
+    """One verified projection master, addressed by its checksum.
 
     The bytes behind a URL never change: a replaced master has a new checksum and so a
     new URL, and its predecessor stays on disk through prune's grace period. That is why
     a sync can apply at any time without touching the film that's playing.
     """
-    local = get_object_or_404(
-        ICLocalFile,
-        resource_file_id=resource_file_id,
-        xxh64=xxh64,
-    )
+    local = get_object_or_404(ICLocalFile, xxh64=xxh64)
     # Resolved through ResourceFile's storage, which keeps masters outside MEDIA_ROOT.
     file_obj = ResourceFile(file=local.name)
     if not file_obj.file.storage.exists(local.name):
@@ -298,7 +288,7 @@ def status(request):
         {
             "title": "Sync status",
             "runs": ICSyncRun.objects.order_by("-requested_at")[:25],
-            "local_files": ICLocalFile.objects.order_by("resource_file_id"),
+            "local_files": ICLocalFile.objects.order_by("name"),
             "disk": disk_usage(),
             **_sync_summary(),
         },

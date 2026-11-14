@@ -10,7 +10,7 @@ const SEEK_STEP_SECONDS = 5;
 function nextPlayableIndex(items, index, direction = 1) {
   let candidate = index + direction;
   while (candidate >= 0 && candidate < items.length) {
-    if (items[candidate].playable !== false) return candidate;
+    if (items[candidate].playable) return candidate;
     candidate += direction;
   }
   return null;
@@ -95,13 +95,13 @@ async function otherScreen() {
   }
 }
 
-async function openOutput({ reopen = false } = {}) {
-  // window.open() on a live "ic-output" window would reload it and stop the film. Only
-  // "Reopen" (the output stopped answering) may replace it.
-  if (state.connected && !reopen) {
+async function openOutput() {
+  // window.open() on a live "ic-output" window would reload it and stop the film. Once
+  // the output stops answering (the "Reopen" banner), it may be replaced.
+  if (state.connected) {
     outputWindow?.focus();
     showMessage("The output is already open.");
-    return;
+    return false;
   }
   const screen = await otherScreen();
   const features = screen
@@ -110,7 +110,7 @@ async function openOutput({ reopen = false } = {}) {
   outputWindow = window.open(data.output_url, "ic-output", features);
   if (!outputWindow) {
     showMessage("The browser blocked the output window. Allow pop-ups for this page.", "error");
-    return;
+    return false;
   }
   showMessage(
     screen
@@ -124,13 +124,14 @@ async function openOutput({ reopen = false } = {}) {
         .catch(() => {});
     }
   });
+  return true;
 }
 
 function loadItem(index, { autoplay = false, startAt = 0 } = {}) {
   const item = items[index];
   if (!item) return;
-  if (item.playable === false) {
-    showMessage(`"${item.title}" can't be played yet: ${item.problems.map((p) => p.message).join(" ")}`, "error");
+  if (!item.playable) {
+    showMessage(`"${item.title}" can't be played: its file isn't here yet.`, "error");
     return;
   }
   state.index = index;
@@ -277,14 +278,12 @@ ui.openOutput.addEventListener("click", () => openOutput());
 ui.reopen.addEventListener("click", async () => {
   const resumeAt = state.output?.time || 0;
   const wasPlaying = isPlaying();
-  await openOutput({ reopen: true });
+  if (!(await openOutput())) return;
   ui.lost.hidden = true;
-  const resume = () => {
-    if (state.index !== null) loadItem(state.index, { autoplay: wasPlaying, startAt: resumeAt });
-    channel.removeEventListener("message", onHello);
-  };
   const onHello = (event) => {
-    if (event.data?.type === "hello") resume();
+    if (event.data?.type !== "hello") return;
+    channel.removeEventListener("message", onHello);
+    if (state.index !== null) loadItem(state.index, { autoplay: wasPlaying, startAt: resumeAt });
   };
   channel.addEventListener("message", onHello);
 });

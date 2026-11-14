@@ -53,8 +53,8 @@ class Command(BaseCommand):
         if stale:
             logger.warning("Marked %s interrupted sync run(s) failed.", stale)
         # Sync once at startup: the agent usually restarts because the booth just
-        # deployed, which is when a run refused for a code mismatch can succeed. When
-        # nothing changed, the run only re-reads the manifest.
+        # deployed, which is when a run refused for a player data format mismatch can
+        # succeed. When nothing changed, the run only re-reads the manifest.
         if not ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED).exists():
             ICSyncRun.objects.create()
 

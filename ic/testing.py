@@ -197,8 +197,9 @@ def apply_bundle():
     from ic.models import ICBoothState
     from ic.sync.bundle import build_bundle
 
+    bundle, digest = build_bundle()
     state = ICBoothState.get()
-    state.bundle, state.applied_manifest_hash = build_bundle()
+    state.bundle = {**bundle, "manifest_hash": digest}
     state.save()
 
 

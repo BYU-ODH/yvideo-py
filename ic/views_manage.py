@@ -2,7 +2,6 @@
 
 from datetime import timedelta
 import json
-import logging
 import shutil
 
 from django.conf import settings
@@ -38,9 +37,7 @@ from .models import MediaJob
 from .permissions import ic_editor_required
 from .permissions import ic_resource_upload_required
 from .permissions import ic_upload_owner_required
-from .sync.bundle import cached_manifest_hash
-
-logger = logging.getLogger(__name__)
+from .sync.bundle import build_bundle
 
 # Free space an upload needs: the .part itself, plus headroom for the SD file.
 UPLOAD_SPACE_FACTOR = 1.2
@@ -77,13 +74,8 @@ def _program_row(program):
 def dashboard(request):
     today = timezone.localdate()
     programs = list(ICProgram.objects.filter(end_date__gte=today - timedelta(days=30)))
-    try:
-        current_hash = cached_manifest_hash()
-    except Exception:  # noqa: BLE001 - the dashboard must render even if a file is unreadable
-        logger.exception("Could not compute the IC manifest hash")
-        current_hash = ""
     booth = ICBoothReport.get()
-    matches = bool(current_hash) and booth.applied_manifest_hash == current_hash
+    jobs = MediaJob.objects.order_by("-created_at")[:10]
 
     def rows(programs):
         return [_program_row(p) for p in programs]
@@ -97,10 +89,12 @@ def dashboard(request):
             "upcoming": rows(p for p in programs if p.is_upcoming(today)),
             "past": rows(p for p in programs if p.is_past(today)),
             "booth": booth,
-            "matches": matches,
+            "matches": booth.applied_manifest_hash == build_bundle()[1],
             "in_contact": booth.checked_in_recently(),
             "check_interval": CHECK_INTERVAL_SECONDS,
-            "jobs": MediaJob.objects.order_by("-created_at")[:10],
+            "jobs": jobs,
+            # The job list refreshes itself only while there's progress to show.
+            "jobs_pending": any(job.is_pending for job in jobs),
         },
     )
 

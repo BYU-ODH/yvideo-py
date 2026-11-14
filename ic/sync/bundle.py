@@ -5,29 +5,17 @@ Content.get_player_json() on production, plus what the controller shows and the
 masters to fetch. The booth never renders player data itself.
 """
 
-from dataclasses import asdict
 import hashlib
 import json
 import time
 
 import xxhash
 
-from ic import readiness
 from ic.models import ICProgram
 
 # Bump when the player data's shape changes, so a booth whose AnnotationPlayer.js
 # predates it keeps its previous bundle until it's redeployed.
 BUNDLE_FORMAT = 1
-
-# Readiness the projectionist can't act on, or that the booth decides for itself.
-PRODUCTION_ONLY = {
-    "not_ic_playlist",
-    "timing_unverified",
-    "transcode_pending",
-    "transcode_failed",
-    "master_lost",
-    "not_on_booth",
-}
 
 
 def manifest_hash(bundle):
@@ -38,11 +26,16 @@ def manifest_hash(bundle):
 
 
 def file_xxh64(
-    path, chunk_size=8 * 1024 * 1024, max_bytes_per_second=None, on_bytes=None
+    path,
+    chunk_size=8 * 1024 * 1024,
+    max_bytes_per_second=None,
+    on_bytes=None,
+    digest=None,
 ):
     """xxh64 of a file. max_bytes_per_second caps the read rate (the booth hashes from
-    the disk the projector is playing from); on_bytes is called after each chunk."""
-    digest = xxhash.xxh64()
+    the disk the projector is playing from); on_bytes is called after each chunk.
+    Pass `digest` to continue an xxh64 already fed with earlier bytes."""
+    digest = xxhash.xxh64() if digest is None else digest
     started = time.monotonic()
     read = 0
     with open(path, "rb") as handle:
@@ -75,27 +68,19 @@ def player_data(item):
     }
 
 
-def program_entry(program):
-    """A program as the controller shows it, with each item's booth-relevant problems."""
-    items = []
-    for item in program.ordered_items():
-        master = item.projection_file()
-        items.append(
-            {
-                "id": item.pk,
-                "title": item.content.title,
-                "mode": item.mode,
-                "auto_advance": item.auto_advance,
-                "subtitles": item.subtitles,
-                "master": master
-                and {"resource_file_id": master.pk, "xxh64": master.checksum},
-                "problems": [
-                    asdict(p)
-                    for p in readiness.item_problems(item)
-                    if p.code not in PRODUCTION_ONLY
-                ],
-            }
-        )
+def _item_entry(item, master):
+    return {
+        "id": item.pk,
+        "title": item.content.title,
+        "mode": item.mode,
+        "auto_advance": item.auto_advance,
+        "subtitles": item.subtitles,
+        # A master's checksum is its identity on the booth.
+        "master": master and master.checksum,
+    }
+
+
+def _program_entry(program, items):
     return {
         "id": program.pk,
         "name": program.name,
@@ -105,58 +90,51 @@ def program_entry(program):
     }
 
 
+def program_entry(program):
+    """A program as the controller shows it: each item, and the master it plays."""
+    return _program_entry(
+        program,
+        [_item_entry(i, i.projection_file()) for i in program.ordered_items()],
+    )
+
+
 def build_bundle(on=None):
     """(bundle, its hash) for the current syncable programs."""
-    programs = list(ICProgram.syncable(on).order_by("pk"))
-    players, masters = {}, {}
-    for program in programs:
+    entries, players = [], {}
+    # Each master, with the first and last day any syncable program shows it.
+    spans = {}
+    for program in ICProgram.syncable(on).order_by("pk"):
+        items = []
         for item in program.ordered_items():
-            players[str(item.pk)] = player_data(item)
             master = item.projection_file()
+            items.append(_item_entry(item, master))
+            players[str(item.pk)] = player_data(item)
             if master is None:
                 continue
-            first, last = masters.get(master.pk, (master, None, None))[1:]
-            masters[master.pk] = (
-                master,
-                min(first or program.start_date, program.start_date),
-                max(last or program.end_date, program.end_date),
+            _, first, last = spans.get(
+                master.checksum, (master, program.start_date, program.end_date)
             )
+            spans[master.checksum] = (
+                master,
+                min(first, program.start_date),
+                max(last, program.end_date),
+            )
+        entries.append(_program_entry(program, items))
     bundle = {
         "format": BUNDLE_FORMAT,
-        "programs": [program_entry(p) for p in programs],
+        "programs": entries,
         "player_data": players,
         "files": [
             {
-                "resource_file_id": master.pk,
-                "first_program_start": first.isoformat(),
-                "last_program_end": last.isoformat(),
+                "xxh64": master.checksum,
                 "name": master.file.name,
                 "size": master.size_bytes,
-                "xxh64": master.checksum,
+                "first_program_start": first.isoformat(),
+                "last_program_end": last.isoformat(),
                 "available_from_parent": master.master_released_at is None
                 and master.bytes_on_this_server,
             }
-            for master, first, last in (masters[pk] for pk in sorted(masters))
+            for master, first, last in (spans[key] for key in sorted(spans))
         ],
     }
     return bundle, manifest_hash(bundle)
-
-
-MANIFEST_HASH_CACHE_KEY = "ic_manifest_hash"
-MANIFEST_HASH_CACHE_SECONDS = 15
-
-
-def cached_manifest_hash():
-    """The manifest hash, recomputed at most every few seconds.
-
-    For requests that repeat (each booth's check every CHECK_INTERVAL_SECONDS, and
-    the IC dashboard); building the bundle means rendering every scheduled film's
-    player JSON. A change shows up at most this many seconds late.
-    """
-    from django.core.cache import cache
-
-    digest = cache.get(MANIFEST_HASH_CACHE_KEY)
-    if digest is None:
-        digest = build_bundle()[1]
-        cache.set(MANIFEST_HASH_CACHE_KEY, digest, MANIFEST_HASH_CACHE_SECONDS)
-    return digest

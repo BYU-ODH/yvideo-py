@@ -19,8 +19,8 @@ Production can't make the booth sync.
 
 The booth plays player data that production renders, so the two machines needn't run the
 same code or schema. The one coupling is the player data's format number
-(`BUNDLE_FORMAT`): when it changes, the booth keeps its previous data (`format_mismatch`)
-until it updates too. Pin the booth's `.env` `BRANCH` to production's branch. The booth's
+(`BUNDLE_FORMAT`): when it changes, the booth keeps its previous data (its runs fail
+with a format mismatch) until it updates too. Pin the booth's `.env` `BRANCH` to production's branch. The booth's
 deploy timer polls GitHub like production's,
 but not during `IC_PLAYBACK_HOURS` (default `12-24`, noon to midnight), so a code update
 never restarts the kiosk during a showing; it catches up at the first poll after those
@@ -189,7 +189,7 @@ controller; it shows live progress and ends in one of:
   next item loads.
 - **Only copies.** After the booth verifies a master and its SD file exists, production
   deletes its copy (*Films and masters* says so). The booth keeps such files until 30 days
-  after their last program, warns 7 days ahead, and re-hashes them weekly in the morning,
+  after their last program, warns in the last 7 days, and re-hashes them weekly in the morning,
   rate-capped like downloads. To re-hash now (e.g. after a disk scare; never during a
   showing), run on the booth:
   `bash deploy/manage.sh shell -c 'from ic.models import ICSyncRun; ICSyncRun.objects.create(full_rehash=True)'`.
@@ -207,7 +207,7 @@ controller; it shows live progress and ends in one of:
 | Dashboard says *the booth hasn't checked in recently* | Booth off, offline, or its sync agent is stopped; check `systemctl --user status <app>-ic-sync-agent` on the booth. |
 | Booth badge: *Can't reach production* | Network, DNS or TLS between the booth and production, or a wrong `IC_PARENT_URL`/`IC_SYNC_TOKEN` (the *Sync status* page shows the error). Playback is unaffected. |
 | *Sync agent isn't running* | `systemctl --user restart <app>-ic-sync-agent`. |
-| `format_mismatch` | Production deployed a new player data format that the booth's player doesn't have yet; the booth keeps playing its previous data. It updates after `IC_PLAYBACK_HOURS` end; to update it now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
+| Sync fails: *Production sends player data format …* | Production deployed a new player data format that the booth's player doesn't have yet; the booth keeps playing its previous data. It updates after `IC_PLAYBACK_HOURS` end; to update it now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
 | Output not fullscreen | Click the output window once; if it opens on the wrong screen, revisit the spike's flags. |
 | Stutter at high bitrate | Check `chrome://media-internals` for a hardware decoder; re-encode the master at a lower bitrate. |
 

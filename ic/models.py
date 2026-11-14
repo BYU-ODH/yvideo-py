@@ -271,10 +271,7 @@ class ICBoothReport(models.Model):
         The booth records a file only after hashing its bytes and finding a match, and
         drops the record when a re-hash fails.
         """
-        return any(
-            f.get("resource_file_id") == master.pk and f.get("xxh64") == master.checksum
-            for f in self.report.get("verified_files", [])
-        )
+        return master.checksum in self.report.get("verified", ())
 
 
 # ---------------------------------------------------------------------------
@@ -333,20 +330,22 @@ class ICSyncRun(models.Model):
 
 
 class ICLocalFile(models.Model):
-    """A projection master the booth holds and has verified against production's checksum."""
+    """Verified bytes of one projection master on this disk, at `name`.
 
-    # Not a foreign key: the mirrored ResourceFile rows are replaced on every import.
-    resource_file_id = models.BigIntegerField(unique=True)
+    A row exists only while the file is there and its bytes hashed to `xxh64`, the
+    master's checksum, which is also its identity everywhere in sync.
+    """
+
+    xxh64 = models.CharField(max_length=16, unique=True)
     name = models.CharField(max_length=255)
     size = models.BigIntegerField()
-    xxh64 = models.CharField(max_length=16)
     verified_at = models.DateTimeField()
     # Released masters exist nowhere else, which changes how they may be pruned.
     available_from_parent = models.BooleanField(default=True)
-    last_program_end = models.DateField(null=True, blank=True)
+    last_program_end = models.DateField()
 
     def __str__(self):
-        return f"{self.resource_file_id} {self.name}"
+        return self.name
 
 
 # The kiosk counts the sync agent as running if it beat its heartbeat this recently.
@@ -357,9 +356,9 @@ class ICBoothState(models.Model):
     """Singleton: what the booth last applied, what production last said, and whether
     the sync agent is running."""
 
-    # The bundle the booth plays (ic.sync.bundle.build_bundle), replaced whole by a sync.
+    # The bundle the booth plays (ic.sync.bundle.build_bundle) with its "manifest_hash",
+    # replaced whole by a sync.
     bundle = models.JSONField(default=dict, blank=True)
-    applied_manifest_hash = models.CharField(max_length=64, blank=True)
     applied_at = models.DateTimeField(null=True, blank=True)
     # What production's manifest hash was at the agent's last check, so the controller
     # can say whether production has changes the booth doesn't have yet.
@@ -367,6 +366,10 @@ class ICBoothState(models.Model):
     parent_checked_at = models.DateTimeField(null=True, blank=True)
     parent_check_error = models.TextField(blank=True)
     agent_seen_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def applied_manifest_hash(self):
+        return self.bundle.get("manifest_hash", "")
 
     @property
     def production_has_newer_changes(self):

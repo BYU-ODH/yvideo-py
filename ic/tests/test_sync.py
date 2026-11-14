@@ -36,11 +36,6 @@ class BundleTests(ICTempDirsMixin, TestCase):
 
     def test_the_bundle_carries_what_the_booth_plays(self):
         film = self.scenario["film_item"]
-        # Readiness the projectionist can't act on stays on production.
-        film.timing_verified = False
-        film.content.resource_file.derived_from = None
-        film.content.resource_file.save()
-        film.save()
         bundle, _ = build_bundle()
         self.assertEqual(bundle["format"], bundle_module.BUNDLE_FORMAT)
         self.assertEqual(
@@ -50,14 +45,14 @@ class BundleTests(ICTempDirsMixin, TestCase):
         (program,) = bundle["programs"]
         entry = next(e for e in program["items"] if e["id"] == film.pk)
         master = film.projection_file()
+        self.assertEqual(entry["master"], master.checksum)
+        # Readiness is for IC editors on production; the booth only plays.
+        self.assertNotIn("problems", entry)
         self.assertEqual(
-            entry["master"],
-            {"resource_file_id": master.pk, "xxh64": master.checksum},
-        )
-        self.assertEqual(entry["problems"], [])
-        self.assertEqual(
-            [f["resource_file_id"] for f in bundle["files"]],
-            sorted(i.projection_file().pk for i in (film, self.scenario["loop_item"])),
+            [f["xxh64"] for f in bundle["files"]],
+            sorted(
+                i.projection_file().checksum for i in (film, self.scenario["loop_item"])
+            ),
         )
 
     def test_a_missing_subtitle_file_doesnt_stop_the_bundle(self):
@@ -118,7 +113,7 @@ class FakeParent:
         self._reach()
         return {**copy.deepcopy(self.manifest_data), "manifest_hash": self.digest}
 
-    def download(self, entry, part_path, *, on_bytes=None):
+    def download(self, entry, part_path, *, on_chunk=None):
         self.downloads.append(entry["name"])
         self.download_states.append(
             (entry["name"], ICBoothState.get().applied_manifest_hash)
@@ -126,8 +121,8 @@ class FakeParent:
         data = self.files[entry["name"]]
         Path(part_path).parent.mkdir(parents=True, exist_ok=True)
         Path(part_path).write_bytes(data)
-        if on_bytes:
-            on_bytes(len(data))
+        if on_chunk:
+            on_chunk(data)
 
     def post_status(self, report):
         self._reach()
@@ -191,9 +186,8 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         report = self.parent.reports[-1]
         self.assertEqual(report["status"], "succeeded")
         self.assertEqual(report["applied_manifest_hash"], self.parent.digest)
-        verified = {f["resource_file_id"]: f for f in report["verified_files"]}
         master = self.scenario["film_item"].projection_file()
-        self.assertEqual(verified[master.pk]["xxh64"], master.checksum)
+        self.assertIn(master.checksum, report["verified"])
         self.assertEqual(report["failed_files"], [])
 
     def test_production_side_problems_dont_make_a_run_partial(self):
@@ -235,7 +229,6 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertFalse(agent._storage_path(entry["name"]).exists())
         self.assertIn("Checksum failed", run.report["failed_files"][0]["error"])
         # The program is showing today, so its bundle waits for its master.
-        self.assertFalse(run.report["applied"])
         self.assertIn("kept its previous data", run.report["warnings"][0])
         self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
 
@@ -272,7 +265,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.parent.files[upcoming_master.file.name] = b"corrupt"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertTrue(run.report["applied"])
+        self.assertEqual(ICBoothState.get().applied_manifest_hash, self.parent.digest)
         self.assertEqual(
             [f["name"] for f in run.report["failed_files"]],
             [upcoming_master.file.name],
@@ -285,7 +278,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.parent.digest = "newer"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.FAILED)
-        self.assertEqual(run.report["code"], "format_mismatch")
+        self.assertIn("player data format", run.error)
         self.assertEqual(ICBoothState.get().applied_manifest_hash, applied_before)
 
     def test_unreachable_production_fails_cleanly(self):
@@ -300,7 +293,7 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         ):
             run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertFalse(run.report["applied"])
+        self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
         errors = [f["error"] for f in run.report["failed_files"]]
         self.assertTrue(any("Not enough disk space" in e for e in errors))
 
@@ -321,15 +314,43 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.parent.digest = "released-again"
         run = self.run_sync()
         self.assertEqual(len(run.report["failed_files"]), 1)
-        self.assertFalse(
-            ICLocalFile.objects.filter(
-                resource_file_id=entry["resource_file_id"]
-            ).exists()
+        self.assertFalse(ICLocalFile.objects.filter(xxh64=entry["xxh64"]).exists())
+        self.assertNotIn(entry["xxh64"], run.report["verified"])
+
+    def test_a_missing_released_master_is_no_longer_reported_verified(self):
+        """Production flags master_lost only if the booth stops listing the copy."""
+        self.run_sync()
+        entry = self.parent.manifest_data["files"][0]
+        for each in self.parent.manifest_data["files"]:
+            each["available_from_parent"] = False
+        agent._storage_path(entry["name"]).unlink()
+        self.parent.digest = "released"
+        run = self.run_sync()
+        self.assertIn("re-upload the master", run.report["failed_files"][0]["error"])
+        self.assertNotIn(entry["xxh64"], run.report["verified"])
+
+    def test_a_resumed_download_is_verified_without_a_second_pass(self):
+        entry = self.parent.manifest_data["files"][0]
+        data = self.parent.files[entry["name"]]
+        part = agent._storage_path(entry["name"]).with_name(
+            agent._storage_path(entry["name"]).name + ".part"
         )
-        self.assertNotIn(
-            entry["resource_file_id"],
-            [f["resource_file_id"] for f in run.report["verified_files"]],
-        )
+        part.parent.mkdir(parents=True, exist_ok=True)
+        part.write_bytes(data[:100])
+        parent = self.parent
+
+        def resume(entry, part_path, *, on_chunk=None):
+            parent.downloads.append(entry["name"])
+            have = Path(part_path).stat().st_size if Path(part_path).exists() else 0
+            rest = parent.files[entry["name"]][have:]
+            with open(part_path, "ab") as handle:
+                handle.write(rest)
+            on_chunk(rest)
+
+        with mock.patch.object(self.parent, "download", resume):
+            run = self.run_sync()
+        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.report)
+        self.assertEqual(agent._storage_path(entry["name"]).read_bytes(), data)
 
 
 class CheckParentTests(ICTempDirsMixin, TestCase):
@@ -347,7 +368,7 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
 
     def test_a_new_manifest_hash_queues_one_run(self):
         state = ICBoothState.get()
-        state.applied_manifest_hash = "hash-1"
+        state.bundle = {"manifest_hash": "hash-1"}
         state.save()
         self.assertIsNone(agent.check_parent(self.parent))
         self.parent.digest = "hash-2"
@@ -370,7 +391,7 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         ICSyncRun.objects.exclude(pk=run.pk).delete()
         # A partial run is retried even when the hash matches, but not at once.
         state = ICBoothState.get()
-        state.applied_manifest_hash = "hash-2"
+        state.bundle = {"manifest_hash": "hash-2"}
         state.save()
         self.finish(run, ICSyncRun.Status.PARTIAL, "hash-2", minutes_ago=1)
         self.assertIsNone(agent.check_parent(self.parent))
@@ -383,19 +404,19 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
 
     def test_weekly_rehash_of_only_copies_in_the_morning(self):
         state = ICBoothState.get()
-        state.applied_manifest_hash = "hash-1"
+        state.bundle = {"manifest_hash": "hash-1"}
         state.save()
         morning = timezone.localtime().replace(hour=4)
         evening = timezone.localtime().replace(hour=20)
         # Nothing released: nothing to re-hash.
         self.assertIsNone(agent.check_parent(self.parent, now=morning))
         ICLocalFile.objects.create(
-            resource_file_id=1,
+            xxh64="0",
             name="ic/1/master.mp4",
             size=1,
-            xxh64="0",
             verified_at=timezone.now(),
             available_from_parent=False,
+            last_program_end=timezone.localdate(),
         )
         self.assertIsNone(agent.check_parent(self.parent, now=evening))
         run = agent.check_parent(self.parent, now=morning)
@@ -404,6 +425,31 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         self.assertIsNone(
             agent.check_parent(self.parent, now=morning + timedelta(days=1))
         )
+
+    def test_a_failing_rehash_backs_off_like_any_other_run(self):
+        """Not a new full re-hash every check while production can't be synced."""
+        state = ICBoothState.get()
+        state.bundle = {"manifest_hash": "hash-1"}
+        state.save()
+        ICLocalFile.objects.create(
+            xxh64="0",
+            name="ic/1/master.mp4",
+            size=1,
+            verified_at=timezone.now(),
+            available_from_parent=False,
+            last_program_end=timezone.localdate(),
+        )
+        morning = timezone.localtime().replace(hour=4, minute=0)
+        run = agent.check_parent(self.parent, now=morning)
+        self.assertTrue(run.full_rehash)
+        # It failed before it saw a manifest (e.g. HTTP 500).
+        run.status, run.finished_at = ICSyncRun.Status.FAILED, morning
+        run.save()
+        for seconds in (30, 60, 600):
+            later = morning + timedelta(seconds=seconds)
+            self.assertIsNone(agent.check_parent(self.parent, now=later))
+        later = morning + agent.RETRY_AFTER
+        self.assertIsNotNone(agent.check_parent(self.parent, now=later))
 
     def test_unreachable_production_is_recorded_and_queues_nothing(self):
         self.parent.unreachable = True
@@ -415,26 +461,25 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
 
 
 class PruneTests(ICTempDirsMixin, TestCase):
-    def make_local(self, name, *, available=True, last_end=None, verified_days_ago=0):
+    def make_local(self, name, *, last_end, available=True):
         path = Path(ResourceFile().file.storage.path(name))
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"x")
         return ICLocalFile.objects.create(
-            resource_file_id=ICLocalFile.objects.count() + 1,
+            xxh64=name,
             name=name,
             size=1,
-            xxh64="0",
-            verified_at=timezone.now() - timedelta(days=verified_days_ago),
+            verified_at=timezone.now(),
             available_from_parent=available,
             last_program_end=last_end,
         ), path
 
     def test_unlisted_files_go_after_the_grace_period(self):
         today = timezone.localdate()
-        recent, recent_path = self.make_local(
+        _, recent_path = self.make_local(
             "ic_projection/1/a.mp4", last_end=today - timedelta(days=1)
         )
-        old, old_path = self.make_local(
+        _, old_path = self.make_local(
             "ic_projection/2/b.mp4", last_end=today - timedelta(days=10)
         )
         removed, _ = agent.prune({"files": []}, today=today)
@@ -442,20 +487,45 @@ class PruneTests(ICTempDirsMixin, TestCase):
         self.assertTrue(recent_path.exists())
         self.assertFalse(old_path.exists())
 
-    def test_released_masters_are_kept_much_longer_and_warned_about(self):
+    def test_listed_files_are_kept(self):
         today = timezone.localdate()
-        only_copy, path = self.make_local(
-            "ic_projection/3/c.mp4",
-            available=False,
-            last_end=today - timedelta(days=10),
+        local, path = self.make_local(
+            "ic_projection/1/a.mp4", last_end=today - timedelta(days=10)
         )
-        removed, _ = agent.prune({"files": []}, today=today)
+        removed, _ = agent.prune({"files": [{"xxh64": local.xxh64}]}, today=today)
         self.assertEqual(removed, [])
         self.assertTrue(path.exists())
-        listed = {"files": [{"resource_file_id": only_copy.resource_file_id}]}
-        _, warnings = agent.prune(listed, today=today + timedelta(days=15))
+
+    def test_released_masters_are_kept_much_longer_and_warned_about(self):
+        """The warning comes in the week before deletion, once the master is unlisted,
+        which is the only time a realistic manifest lets it be due."""
+        end = timezone.localdate()
+        _, path = self.make_local(
+            "ic_projection/3/c.mp4", available=False, last_end=end
+        )
+        delete_on = end + agent.MASTER_PRUNE_AFTER
+        removed, warnings = agent.prune({"files": []}, today=end + timedelta(days=10))
+        self.assertEqual((removed, warnings), ([], []))
+        removed, warnings = agent.prune(
+            {"files": []}, today=delete_on - timedelta(days=3)
+        )
+        self.assertEqual(removed, [])
         self.assertEqual(len(warnings), 1)
-        self.assertIn("only copy", warnings[0])
+        self.assertIn(f"only copy of ic_projection/3/c.mp4 on {delete_on}", warnings[0])
+        removed, _ = agent.prune({"files": []}, today=delete_on)
+        self.assertEqual(removed, ["ic_projection/3/c.mp4"])
+        self.assertFalse(path.exists())
+
+    def test_old_run_history_goes(self):
+        old = ICSyncRun.objects.create(status=ICSyncRun.Status.SUCCEEDED)
+        ICSyncRun.objects.filter(pk=old.pk).update(
+            finished_at=timezone.now() - agent.RUN_HISTORY - timedelta(days=1)
+        )
+        recent = ICSyncRun.objects.create(
+            status=ICSyncRun.Status.SUCCEEDED, finished_at=timezone.now()
+        )
+        agent.prune({"files": []})
+        self.assertEqual(list(ICSyncRun.objects.all()), [recent])
 
 
 class HashRateTests(TestCase):
@@ -538,18 +608,16 @@ class ParentClientTests(ICTempDirsMixin, TestCase):
             self.client_.check()["manifest_hash"], manifest["manifest_hash"]
         )
         master = self.scenario["film_item"].projection_file()
-        entry = next(
-            e for e in manifest["files"] if e.get("resource_file_id") == master.pk
-        )
+        entry = next(e for e in manifest["files"] if e["xxh64"] == master.checksum)
         data = Path(master.file.path).read_bytes()
         part = self._ic_tmp / "download.part"
         part.write_bytes(data[:1000])  # an earlier, interrupted download
         received = []
         # Production answers each request with a slice; the client carries on from it.
         with mock.patch.object(core.views, "MAX_RANGE_RESPONSE_BYTES", 4096):
-            self.client_.download(entry, part, on_bytes=received.append)
+            self.client_.download(entry, part, on_chunk=received.append)
         self.assertEqual(part.read_bytes(), data)
-        self.assertEqual(sum(received), len(data) - 1000)
+        self.assertEqual(b"".join(received), data[1000:])
 
         master.master_released_at = timezone.now()
         master.save()

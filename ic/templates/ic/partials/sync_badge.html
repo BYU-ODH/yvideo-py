@@ -6,13 +6,13 @@
 {% elif last_run.status == "failed" %}
     <span class="ic-badge ic-warn" role="status" title="{{ last_run.error }}">
         ⚠️ Last sync failed {{ last_run.finished_at|date:"H:i" }}
-        {% if last_success %}· playing from local copy synced {{ last_success.finished_at|date:"M j H:i" }}{% endif %}
+        {% if state.applied_at %}· playing from data applied {{ state.applied_at|date:"M j H:i" }}{% endif %}
     </span>
 {% elif state.production_has_newer_changes %}
     <span class="ic-badge ic-warn" role="status">⟳ Production has changes the booth doesn't have yet</span>
-{% elif last_success %}
+{% elif state.applied_at %}
     <span class="ic-badge ic-ok" role="status">
-        ✅ Synced {{ last_success.finished_at|date:"M j H:i" }}{% if state.parent_checked_at and not parent_unreachable %}, matches production{% endif %}
+        ✅ Data from production applied {{ state.applied_at|date:"M j H:i" }}{% if state.parent_checked_at and not parent_unreachable %}, matches production{% endif %}
     </span>
 {% else %}
     <span class="ic-badge ic-warn" role="status">⚠️ Never synced</span>

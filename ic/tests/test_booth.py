@@ -34,11 +34,11 @@ BOOTH_MIDDLEWARE = [
 def mark_local(item):
     master = item.projection_file()
     return ICLocalFile.objects.create(
-        resource_file_id=master.pk,
+        xxh64=master.checksum,
         name=master.file.name,
         size=master.size_bytes,
-        xxh64=master.checksum,
         verified_at=timezone.now(),
+        last_program_end=timezone.localdate(),
     )
 
 
@@ -75,16 +75,13 @@ class KioskTests(ICTempDirsMixin, TestCase):
         local = mark_local(self.film)
         master = self.film.projection_file()
         media_url = self.client.get(player_data).json()["media_url"]
-        self.assertEqual(
-            media_url, reverse("ic_local_file", args=[master.pk, master.checksum])
-        )
+        self.assertEqual(media_url, reverse("ic_local_file", args=[master.checksum]))
         response = self.client.get(media_url, HTTP_RANGE="bytes=0-9")
         self.assertEqual(response.status_code, 206)
         self.assertIn("immutable", response["Cache-Control"])
         master_bytes = Path(master.file.path).read_bytes()
         self.assertEqual(b"".join(response.streaming_content), master_bytes[:10])
-        local.xxh64 = "0000000000000000"
-        local.save()
+        local.delete()
         self.assertEqual(self.client.get(media_url).status_code, 404)
 
     def test_a_sync_replacing_the_master_cannot_change_a_playing_film(self):
@@ -121,7 +118,7 @@ class KioskTests(ICTempDirsMixin, TestCase):
             self.client.get(reverse("ic_item_player_data", args=[self.film.pk])).json()[
                 "media_url"
             ],
-            reverse("ic_local_file", args=[new_master.pk, new_master.checksum]),
+            reverse("ic_local_file", args=[new_master.checksum]),
         )
 
     def test_unplayable_items_are_flagged_on_the_controller(self):
@@ -174,24 +171,44 @@ class KioskTests(ICTempDirsMixin, TestCase):
         response = self.client.get(reverse("ic_control", args=[self.program.pk]))
         self.assertTrue(response.context["rehearsal"])
 
-    def test_the_controller_learns_when_newer_data_was_applied(self):
-        from ic.models import ICBoothState
-
+    def test_the_controller_learns_when_its_programs_change(self):
+        """Only a change to the programs it was built from makes the page stale: not a
+        run that changed nothing, nor a change to which masters production holds."""
         mark_local(self.film)
-        state = ICBoothState.get()
-        state.applied_at = timezone.now() - timedelta(hours=1)
-        state.save()
         page = self.client.get(reverse("ic_control", args=[self.program.pk]))
-        version = state.applied_at.isoformat()
-        self.assertEqual(page.context["page_data"]["data_version"], version)
+        version = page.context["page_data"]["data_version"]
         self.assertContains(page, f'data-ic-data-version="{version}"')
         self.assertContains(page, 'id="ic-stale"')
+
+        def badge_version():
+            badge = self.client.get(reverse("ic_sync_badge")).content.decode()
+            return badge.split('data-ic-data-version="')[1].split('"')[0]
+
+        state = ICBoothState.get()
         state.applied_at = timezone.now()
+        for entry in state.bundle["files"]:
+            entry["available_from_parent"] = False
         state.save()
-        badge = self.client.get(reverse("ic_sync_badge"))
-        self.assertContains(
-            badge, f'data-ic-data-version="{state.applied_at.isoformat()}"'
+        self.assertEqual(badge_version(), version)
+
+        self.film.title = "Renamed"
+        self.film.mode = self.film.Mode.LOOP
+        self.film.save()
+        apply_bundle()
+        self.assertNotEqual(badge_version(), version)
+
+    def test_the_badge_reports_applied_data_even_when_runs_are_partial(self):
+        """A film for next month that doesn't fit isn't "never synced"."""
+        state = ICBoothState.get()
+        state.applied_at = timezone.now()
+        state.parent_manifest_hash = state.applied_manifest_hash
+        state.save()
+        ICSyncRun.objects.create(
+            status=ICSyncRun.Status.PARTIAL, finished_at=timezone.now()
         )
+        badge = self.client.get(reverse("ic_sync_badge"))
+        self.assertNotContains(badge, "Never synced")
+        self.assertContains(badge, "Data from production applied")
 
     def test_sync_now_needs_a_live_agent(self):
         response = self.client.post(reverse("ic_sync_run_create"))
