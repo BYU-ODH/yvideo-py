@@ -7,7 +7,6 @@ container runs at idle CPU and I/O priority, which ffmpeg inherits.
 from dataclasses import asdict
 from dataclasses import dataclass
 from fractions import Fraction
-import functools
 import json
 import os
 from pathlib import Path
@@ -116,24 +115,6 @@ def probe(path):
     )
 
 
-@functools.cache
-def _passthrough_timestamps_args():
-    """Keep every frame's timestamp: -fps_mode on ffmpeg >= 5.1, -vsync before that
-    (developer machines may still have ffmpeg 4)."""
-    try:
-        help_text = subprocess.run(
-            [FFMPEG, "-hide_banner", "-h", "long"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        ).stdout
-    except (OSError, subprocess.SubprocessError):
-        help_text = ""
-    if "-fps_mode" in help_text:
-        return ["-fps_mode", "passthrough"]
-    return ["-vsync", "passthrough"]
-
-
 def sd_transcode_command(source, destination):
     return [
         FFMPEG,
@@ -151,7 +132,9 @@ def sd_transcode_command(source, destination):
         "0:a:0?",
         "-vf",
         f"scale=-2:'min({SD_HEIGHT},ih)',setsar=1",
-        *_passthrough_timestamps_args(),
+        # Keep every frame's timestamp, so the SD file shares the master's timeline.
+        "-fps_mode",
+        "passthrough",
         "-c:v",
         "libx264",
         "-preset",
