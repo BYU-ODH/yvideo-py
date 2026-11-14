@@ -23,7 +23,6 @@ from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 
 from core.models import ResourceFile
-from core.models import Subtitle
 from core.views import _file_response
 
 from .jobs import release_if_ready
@@ -48,7 +47,6 @@ def sync_token_required(view_func):
                 status=401,
                 content_type="text/plain",
             )
-        ICBoothReport.seen()
         return view_func(request, *args, **kwargs)
 
     _wrapped.permission_check = "ic_sync_token: settings.IC_SYNC_TOKEN bearer token"
@@ -76,7 +74,12 @@ def manifest(request):
 @require_GET
 @sync_token_required
 def check(request):
-    """The booth's frequent check: has production changed since it last synced?"""
+    """The booth's frequent check: has production changed since it last synced?
+
+    The agent checks every CHECK_INTERVAL_SECONDS, during runs too, so this (and the
+    run report) is all "last contact" needs: no write per downloaded slice.
+    """
+    ICBoothReport.seen()
     return JsonResponse({"manifest_hash": cached_manifest_hash()})
 
 
@@ -93,19 +96,6 @@ def projection_file(request, resource_file_id):
     if master.master_released_at or not master.bytes_on_this_server:
         raise Http404("Production no longer holds this master.")
     return _file_response(request, master)
-
-
-@require_GET
-@sync_token_required
-def subtitle_file(request, subtitle_id):
-    subtitle = get_object_or_404(Subtitle, pk=subtitle_id)
-    if subtitle.resource_id not in _syncable_resource_ids():
-        return HttpResponse(
-            "This subtitle isn't part of any syncable program.", status=403
-        )
-    with subtitle.subtitles_file.open("rb") as handle:
-        data = handle.read()
-    return HttpResponse(data, content_type="text/vtt; charset=utf-8")
 
 
 @require_POST

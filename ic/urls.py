@@ -106,10 +106,5 @@ urlpatterns = [
         views_sync_api.projection_file,
         name="ic_sync_projection_file",
     ),
-    path(
-        "sync/files/subtitle/<int:subtitle_id>/",
-        views_sync_api.subtitle_file,
-        name="ic_sync_subtitle_file",
-    ),
     path("sync/status/", views_sync_api.status, name="ic_sync_status"),
 ]

@@ -70,18 +70,7 @@ class ParentClient:
         part_path = Path(part_path)
         part_path.parent.mkdir(parents=True, exist_ok=True)
         expected = entry["size"]
-        if entry["kind"] == "projection":
-            path = f"/ic/sync/files/projection/{entry['resource_file_id']}/"
-        else:
-            path = f"/ic/sync/files/subtitle/{entry['subtitle_id']}/"
-        if entry["kind"] != "projection" or not expected:
-            response = self._get(path)
-            if response.status_code != 200:
-                raise ParentError(f"Download failed: HTTP {response.status_code}")
-            part_path.write_bytes(response.content)
-            if on_bytes:
-                on_bytes(len(response.content))
-            return
+        path = f"/ic/sync/files/projection/{entry['resource_file_id']}/"
         offset = part_path.stat().st_size if part_path.exists() else 0
         if offset > expected:
             part_path.unlink()

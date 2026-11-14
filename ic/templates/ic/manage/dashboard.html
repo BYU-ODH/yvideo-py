@@ -28,7 +28,6 @@
                 <dt>Last sync</dt>
                 <dd>
                     {{ booth.report.status|default:"–" }}
-                    {% if booth.report.trigger %}({{ booth.report.trigger }}){% endif %}
                     {% if booth.report.error %}<span class="ic-error">{{ booth.report.error }}</span>{% endif %}
                 </dd>
                 {% if booth.report.disk %}
@@ -38,6 +37,7 @@
                     </dd>
                 {% endif %}
             </dl>
+            {% for file in booth.report.failed_files %}<p class="ic-warn">⚠️ {{ file.error }}</p>{% endfor %}
             {% for warning in booth.report.warnings %}<p class="ic-warn">⚠️ {{ warning }}</p>{% endfor %}
             <p class="ic-muted">
                 The booth checks for changes every {{ check_interval }} seconds and pulls them itself. To sync at once, the projectionist presses <strong>Sync now</strong> on the booth.

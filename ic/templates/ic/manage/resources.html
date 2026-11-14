@@ -48,10 +48,12 @@
                     <td>{{ row.resource.name }}</td>
                     <td>
                         {% if row.master %}
-                            {{ row.master.width }}×{{ row.master.height }} · {{ row.master.video_codec }}
-                            {% if row.master.frame_rate %}· {{ row.master.frame_rate|floatformat:3 }} fps{% endif %}
-                            · {{ row.master.size_bytes|filesizeformat }}
-                            {% if row.master.duration_seconds %}· {{ row.master.duration_seconds|floatformat:0 }}s{% endif %}
+                            {% with probe=row.master.probe %}
+                                {{ probe.width }}×{{ probe.height }} · {{ probe.video_codec }}
+                                {% if probe.frame_rate %}· {{ probe.frame_rate|floatformat:3 }} fps{% endif %}
+                                · {{ row.master.size_bytes|filesizeformat }}
+                                {% if probe.duration_seconds %}· {{ probe.duration_seconds|floatformat:0 }}s{% endif %}
+                            {% endwith %}
                             <br>
                             {% if row.master.master_released_at %}
                                 <span class="ic-muted">Released {{ row.master.master_released_at|date:"M j" }}: the booth holds the only copy.</span>
@@ -69,7 +71,7 @@
                     </td>
                     <td>
                         {% if row.derived %}
-                            {{ row.derived.width }}×{{ row.derived.height }} · {{ row.derived.size_bytes|filesizeformat }}
+                            {{ row.derived.probe.width }}×{{ row.derived.probe.height }} · {{ row.derived.size_bytes|filesizeformat }}
                         {% elif row.transcode and row.transcode.is_pending %}
                             Being made… {% if row.transcode.progress %}{% widthratio row.transcode.progress 1 100 %}%{% endif %}
                         {% elif row.transcode and row.transcode.status == "failed" %}

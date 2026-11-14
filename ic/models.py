@@ -135,11 +135,6 @@ class ICProgramItem(models.Model):
             resource_id=self.content.resource_id, is_projection_file=True
         ).first()
 
-    def subtitle_track(self):
-        if self.subtitles != self.Subtitles.VTT:
-            return None
-        return self.content.default_subtitle_track
-
 
 class MediaJob(models.Model):
     """Background work on production, run by `manage.py process_media_jobs`."""
@@ -288,13 +283,8 @@ class ICBoothReport(models.Model):
 
 
 class ICSyncRun(models.Model):
-    """One sync on the booth, whatever started it."""
-
-    class Trigger(models.TextChoices):
-        # The agent's check found something to do: a change on production, a retry, or
-        # the weekly re-hash.
-        AUTO = "auto", "Automatic"
-        FORCE_PULL = "force_pull", "Sync now"
+    """One sync on the booth, whatever started it (the agent's check, or Sync now):
+    every run does the same work."""
 
     class Status(models.TextChoices):
         QUEUED = "queued"
@@ -306,7 +296,6 @@ class ICSyncRun(models.Model):
     FINAL_STATUSES = (Status.SUCCEEDED, Status.PARTIAL, Status.FAILED)
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    trigger = models.CharField(max_length=10, choices=Trigger.choices)
     # Hash every file on disk instead of trusting earlier verification. Only the
     # agent's weekly morning re-hash of released masters sets this.
     full_rehash = models.BooleanField(default=False)
@@ -328,7 +317,7 @@ class ICSyncRun(models.Model):
         ordering = ["-requested_at"]
 
     def __str__(self):
-        return f"{self.trigger} {self.status} {self.requested_at:%Y-%m-%d %H:%M}"
+        return f"{self.status} {self.requested_at:%Y-%m-%d %H:%M}"
 
     @property
     def is_final(self):
@@ -344,14 +333,10 @@ class ICSyncRun(models.Model):
 
 
 class ICLocalFile(models.Model):
-    """A file the booth holds and has verified against production's checksum."""
+    """A projection master the booth holds and has verified against production's checksum."""
 
-    class Kind(models.TextChoices):
-        PROJECTION = "projection"
-        SUBTITLE = "subtitle"
-
-    kind = models.CharField(max_length=10, choices=Kind.choices)
-    ref_id = models.BigIntegerField()
+    # Not a foreign key: the mirrored ResourceFile rows are replaced on every import.
+    resource_file_id = models.BigIntegerField(unique=True)
     name = models.CharField(max_length=255)
     size = models.BigIntegerField()
     xxh64 = models.CharField(max_length=16)
@@ -360,11 +345,8 @@ class ICLocalFile(models.Model):
     available_from_parent = models.BooleanField(default=True)
     last_program_end = models.DateField(null=True, blank=True)
 
-    class Meta:
-        unique_together = ("kind", "ref_id")
-
     def __str__(self):
-        return f"{self.kind}:{self.ref_id} {self.name}"
+        return f"{self.resource_file_id} {self.name}"
 
 
 # The kiosk counts the sync agent as running if it beat its heartbeat this recently.

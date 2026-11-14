@@ -63,26 +63,12 @@ def _record(request, comment):
     reversion.set_comment(comment)
 
 
-def _booth_cell(booth, matches, program):
-    """How the booth reported this program in its last sync."""
-    reported = next(
-        (p for p in booth.report.get("programs", []) if p.get("id") == program.pk),
-        None,
-    )
-    if reported is None:
-        return {"state": "not_synced"}
-    if not reported.get("ready"):
-        return {"state": "not_playable", "problems": reported.get("problems", [])}
-    return {"state": "matches" if matches else "changed"}
-
-
-def _program_row(program, booth_cell):
+def _program_row(program):
     problems = readiness.program_problems(program)
     return {
         "program": program,
         "problems": problems,
         "status": readiness.rollup(problems),
-        "booth": booth_cell,
     }
 
 
@@ -100,7 +86,7 @@ def dashboard(request):
     matches = bool(current_hash) and booth.applied_manifest_hash == current_hash
 
     def rows(programs):
-        return [_program_row(p, _booth_cell(booth, matches, p)) for p in programs]
+        return [_program_row(p) for p in programs]
 
     return render(
         request,

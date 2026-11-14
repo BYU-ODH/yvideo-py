@@ -30,7 +30,7 @@ def master_problems(master):
     def add(severity, code, message):
         problems.append(Problem(severity, code, message))
 
-    codec = (master.video_codec or "").lower()
+    codec = (master.probe.get("video_codec") or "").lower()
     allowed = [c.lower() for c in settings.IC_BOOTH_VIDEO_CODECS]
     if codec not in allowed:
         add(
@@ -46,16 +46,22 @@ def master_problems(master):
             "HDR master: Chrome on Linux won't tone-map it for the projector, so it will "
             "look washed out. Prefer an SDR master.",
         )
-    if (
-        not settings.IS_IC_INSTANCE
-        and master.master_released_at
-        and not ICBoothReport.get().holds_verified_copy(master)
-    ):
-        add(
-            ERROR,
-            "master_lost",
-            "Production released this master and the booth no longer reports a verified copy; re-upload it.",
-        )
+    if not settings.IS_IC_INSTANCE:
+        booth = ICBoothReport.get()
+        if booth.holds_verified_copy(master):
+            pass
+        elif master.master_released_at:
+            add(
+                ERROR,
+                "master_lost",
+                "Production released this master and the booth no longer reports a verified copy; re-upload it.",
+            )
+        elif booth.report:
+            add(
+                WARNING,
+                "not_on_booth",
+                "The booth doesn't have a verified copy of this master yet.",
+            )
     return problems
 
 

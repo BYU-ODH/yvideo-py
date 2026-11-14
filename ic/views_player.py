@@ -31,7 +31,6 @@ from .models import ICProgramItem
 from .models import ICSyncRun
 from .permissions import ic_editor_required
 from .sync.agent import disk_usage
-from .sync.bundle import content_fingerprint
 
 
 def player_view(view_func):
@@ -70,9 +69,7 @@ def _master_on_disk(item):
     master = item.projection_file()
     if master is None:
         return None
-    local = ICLocalFile.objects.filter(
-        kind=ICLocalFile.Kind.PROJECTION, ref_id=master.pk
-    ).first()
+    local = ICLocalFile.objects.filter(resource_file_id=master.pk).first()
     if local is None or local.xxh64 != master.checksum:
         return None
     if not master.file.storage.exists(master.file.name):
@@ -111,14 +108,10 @@ def item_json(item, problems):
     content = item.content
     return {
         "id": item.pk,
-        "position": item.position,
         "title": content.title,
         "mode": item.mode,
         "auto_advance": item.auto_advance,
         "subtitles": item.subtitles,
-        "subtitle_track_id": content.default_subtitle_track_id
-        if item.subtitles == item.Subtitles.VTT
-        else None,
         # The media URL comes with the player data, so the annotations and the file
         # they're timed against are always fetched as one pair.
         "player_data_url": reverse("ic_item_player_data", args=[item.pk]),
@@ -148,7 +141,6 @@ def player_data_for_item(item, media_url):
         "mode": item.mode,
         "annotations": player_json["annotations"],
         "subtitleTracks": subtitle_tracks,
-        "fingerprint": content_fingerprint(content),
         "media_url": media_url,
     }
 
@@ -274,8 +266,7 @@ def local_file(request, resource_file_id, xxh64):
     """
     local = get_object_or_404(
         ICLocalFile,
-        kind=ICLocalFile.Kind.PROJECTION,
-        ref_id=resource_file_id,
+        resource_file_id=resource_file_id,
         xxh64=xxh64,
     )
     # Resolved through ResourceFile's storage, which keeps masters outside MEDIA_ROOT.
@@ -296,7 +287,7 @@ def status(request):
         {
             "title": "Sync status",
             "runs": ICSyncRun.objects.order_by("-requested_at")[:25],
-            "local_files": ICLocalFile.objects.order_by("kind", "ref_id"),
+            "local_files": ICLocalFile.objects.order_by("resource_file_id"),
             "disk": disk_usage(),
             **_sync_summary(),
         },
@@ -320,14 +311,12 @@ def sync_run_create(request):
             status=503,
             content_type="text/plain",
         )
-    # A second press while one is still queued joins it.
+    # A press while a run is still queued joins it: every run does the same work.
     run = (
-        ICSyncRun.objects.filter(
-            status=ICSyncRun.Status.QUEUED, trigger=ICSyncRun.Trigger.FORCE_PULL
-        )
+        ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED)
         .order_by("requested_at")
         .first()
-    ) or ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.FORCE_PULL)
+    ) or ICSyncRun.objects.create()
     return _render(request, "ic/partials/sync_run.html", {"run": run})
 
 

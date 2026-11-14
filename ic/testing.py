@@ -115,11 +115,7 @@ def make_master(resource, payload=None, **fields):
     destination.write_bytes(payload)
     defaults = {
         "version": f"ic-master-{checksum[:8]}",
-        "video_codec": "h264",
-        "width": 1920,
-        "height": 1080,
-        "frame_rate": 24.0,
-        "duration_seconds": 100.0,
+        "probe": {"video_codec": "h264", "width": 1920, "height": 1080},
     }
     defaults.update(fields)
     for field, value in defaults.items():
@@ -138,8 +134,7 @@ def make_sd_file(master, payload=None):
         resource=master.resource,
         version=f"ic-sd-{master.checksum[:8]}",
         derived_from=master,
-        width=854,
-        height=480,
+        probe={"width": 854, "height": 480},
         size_bytes=len(payload),
     )
     relative = f"{master.resource.name}/ic-sd-{master.checksum[:8]}.mp4"

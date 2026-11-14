@@ -16,7 +16,6 @@
             <thead>
                 <tr>
                     <th scope="col">Requested</th>
-                    <th scope="col">Trigger</th>
                     <th scope="col">Status</th>
                     <th scope="col">Details</th>
                 </tr>
@@ -26,26 +25,24 @@
                     <tr>
                         <td>{{ run.requested_at|date:"M j H:i:s" }}</td>
                         <td>
-                            {{ run.get_trigger_display }}
+                            {{ run.get_status_display }}
                             {% if run.full_rehash %}· weekly re-hash{% endif %}
                         </td>
-                        <td>{{ run.get_status_display }}</td>
                         <td>{{ run.error }}</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="4">No syncs yet.</td>
+                        <td colspan="3">No syncs yet.</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     </section>
     <section class="ic-panel">
-        <h2>Files on this booth</h2>
+        <h2>Projection masters on this booth</h2>
         <table class="ic-table">
             <thead>
                 <tr>
-                    <th scope="col">Kind</th>
                     <th scope="col">File</th>
                     <th scope="col">Size</th>
                     <th scope="col">Verified</th>
@@ -55,7 +52,6 @@
             <tbody>
                 {% for file in local_files %}
                     <tr>
-                        <td>{{ file.kind }}</td>
                         <td>{{ file.name }}</td>
                         <td>{{ file.size|filesizeformat }}</td>
                         <td>{{ file.verified_at|date:"M j H:i" }}</td>
@@ -69,7 +65,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="5">No files yet.</td>
+                        <td colspan="4">No masters yet.</td>
                     </tr>
                 {% endfor %}
             </tbody>

@@ -170,8 +170,8 @@ controller; it shows live progress and ends in one of:
 
 | Result | Meaning |
 |---|---|
-| ✅ Succeeded | Every file is present and checksum-verified, and every film's player data matches production exactly. |
-| ⚠️ Partial | Some programs aren't playable yet; each one says why. If a master for a program that is showing now couldn't be fetched, the booth keeps its previous data until it can. |
+| ✅ Succeeded | The booth applied production's rows and every master production can send is present and checksum-verified; every film's player data matches production exactly. A lost master (released by production, then damaged on the booth) is listed as a warning: only a re-upload fixes it. |
+| ⚠️ Partial | Some masters didn't arrive; each one says why, and the agent retries 15 minutes later. If a master for a program that is showing now couldn't be fetched, the booth keeps its previous data until it can. |
 | ❌ Failed | Nothing changed on the booth, which keeps playing its last verified data. The message says why. |
 
 ## Operating
@@ -190,7 +190,7 @@ controller; it shows live progress and ends in one of:
   after their last program, warns 7 days ahead, and re-hashes them weekly in the morning,
   rate-capped like downloads. To re-hash now (e.g. after a disk scare; never during a
   showing), run on the booth:
-  `bash deploy/manage.sh shell -c 'from ic.models import ICSyncRun; ICSyncRun.objects.create(trigger="auto", full_rehash=True)'`.
+  `bash deploy/manage.sh shell -c 'from ic.models import ICSyncRun; ICSyncRun.objects.create(full_rehash=True)'`.
   Keep the original disc or file until the film's last showing; if the booth loses one,
   its programs show ❌ *re-upload required*, and uploading the same file again restores it.
 - **Logs.**

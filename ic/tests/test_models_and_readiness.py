@@ -111,7 +111,7 @@ class ReadinessTests(ICTempDirsMixin, TestCase):
             master.save()
 
         def hdr():
-            master.color_transfer = "smpte2084"
+            master.probe["color_transfer"] = "smpte2084"
             master.save()
 
         for code, change in (
@@ -130,10 +130,10 @@ class ReadinessTests(ICTempDirsMixin, TestCase):
 
     def test_av1_and_unverified_codecs(self):
         master = self.film.projection_file()
-        master.video_codec = "av1"
+        master.probe["video_codec"] = "av1"
         master.save()
         self.assertIn("codec", self.codes(self.film))
-        master.video_codec = "hevc"
+        master.probe["video_codec"] = "hevc"
         master.save()
         self.assertIn("codec", self.codes(self.film))
         with override_settings(IC_BOOTH_VIDEO_CODECS=["h264", "hevc"]):

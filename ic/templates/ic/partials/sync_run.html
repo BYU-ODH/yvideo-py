@@ -6,9 +6,9 @@
      role="status"
      aria-live="polite">
     {% if run.status == "succeeded" %}
-        <p class="ic-status ic-ok">✅ Succeeded: everything matches production.</p>
+        <p class="ic-status ic-ok">✅ Succeeded: the booth has production's current data.</p>
     {% elif run.status == "partial" %}
-        <p class="ic-status ic-warn">⚠️ Partial: some programs aren't playable yet.</p>
+        <p class="ic-status ic-warn">⚠️ Partial: some files didn't arrive; the next sync will try again.</p>
     {% elif run.status == "failed" %}
         <p class="ic-status ic-error">
             ❌ Failed: {{ run.error }} Nothing changed; the booth keeps playing its previous verified data.
@@ -21,21 +21,7 @@
             {% if run.bytes_total %}{{ run.bytes_done|filesizeformat }} of {{ run.bytes_total|filesizeformat }}{% endif %}
         </p>
     {% endif %}
-    {% if run.report.programs %}
-        <ul class="ic-run-programs">
-            {% for program in run.report.programs %}
-                <li>
-                    {% if program.ready %}
-                        ✅
-                    {% else %}
-                        ⚠️
-                    {% endif %}
-                    {{ program.name }}
-                    {% for problem in program.problems %}<span class="ic-muted">— {{ problem }}</span>{% endfor %}
-                </li>
-            {% endfor %}
-        </ul>
-    {% endif %}
+    {% for file in run.report.failed_files %}<p class="ic-status ic-warn">⚠️ {{ file.error }}</p>{% endfor %}
     {% for warning in run.report.warnings %}<p class="ic-status ic-warn">⚠️ {{ warning }}</p>{% endfor %}
     {% if run.manifest_hash and run.is_final %}<p class="ic-muted">Manifest {{ run.manifest_hash|slice:":12" }}</p>{% endif %}
 </div>

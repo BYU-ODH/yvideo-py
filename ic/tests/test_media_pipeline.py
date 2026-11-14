@@ -104,9 +104,9 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
             resource=self.resource, is_projection_file=True
         )
         self.assertTrue(Path(master.file.path).is_relative_to(self.projection_root))
-        self.assertEqual(master.height, 720)
+        self.assertEqual(master.probe["height"], 720)
         sd = master.derivatives.get()
-        self.assertEqual(sd.height, 480)
+        self.assertEqual(sd.probe["height"], 480)
         self.assertTrue(Path(sd.file.path).is_relative_to(self.media_root))
         self.assertFalse(sd.is_projection_file)
         self.assertEqual(
@@ -217,7 +217,6 @@ class ReleaseMasterTests(ICTempDirsMixin, TestCase):
                 "report": {
                     "verified_files": [
                         {
-                            "kind": "projection",
                             "resource_file_id": self.master.pk,
                             "xxh64": checksum or self.master.checksum,
                         }

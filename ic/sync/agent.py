@@ -1,6 +1,6 @@
 """One booth sync run, whatever started it.
 
-Every trigger runs this same pipeline: fetch the manifest, verify files, import and
+Every run follows this same pipeline: fetch the manifest, verify files, import and
 verify the rows. The weekly run also re-hashes every file instead of trusting earlier
 verification.
 
@@ -20,7 +20,6 @@ from django.conf import settings
 from django.utils import timezone
 
 from core.models import ResourceFile
-from core.models import Subtitle
 
 from ..models import ICBoothState
 from ..models import ICLocalFile
@@ -57,19 +56,9 @@ class RunFailed(Exception):
         super().__init__(message)
 
 
-def _storage_path(entry):
-    """Where a manifest file lives locally: the same name it has on production."""
-    if entry["kind"] == "projection":
-        return Path(ResourceFile().file.storage.path(entry["name"]))
-    return Path(Subtitle().subtitles_file.storage.path(entry["name"]))
-
-
-def _ref_id(entry):
-    return (
-        entry["resource_file_id"]
-        if entry["kind"] == "projection"
-        else entry["subtitle_id"]
-    )
+def _storage_path(name):
+    """Where a master lives locally: the same name it has on production."""
+    return Path(ResourceFile().file.storage.path(name))
 
 
 def _sort_key(entry):
@@ -122,22 +111,12 @@ def _check_migrations(manifest):
     """Refuse rows this booth's schema can't hold (or that production's can't make)."""
     remote = manifest.get("migrations", {})
     local = migration_leaves()
-    if remote == local:
-        return
-    behind = []
-    for app in sorted(set(remote) | set(local)):
-        theirs, ours = remote.get(app, ""), local.get(app, "")
-        if theirs != ours:
-            side = "booth" if theirs > ours else "production"
-            behind.append(
-                f"{app}: production {theirs or '-'}, booth {ours or '-'} ({side} is behind)"
-            )
-    raise RunFailed(
-        "code_mismatch",
-        "Code version mismatch; "
-        + "; ".join(behind)
-        + ". Wait for the deploy to finish.",
-    )
+    if remote != local:
+        raise RunFailed(
+            "code_mismatch",
+            f"Code version mismatch (production {remote}, booth {local}); "
+            "wait for the deploy to finish.",
+        )
 
 
 def _plan_files(ctx, manifest, *, full_rehash):
@@ -149,9 +128,9 @@ def _plan_files(ctx, manifest, *, full_rehash):
     results = {}
     todo = []
     for entry in sorted(manifest.get("files", []), key=_sort_key):
-        path = _storage_path(entry)
+        path = _storage_path(entry["name"])
         local = ICLocalFile.objects.filter(
-            kind=entry["kind"], ref_id=_ref_id(entry)
+            resource_file_id=entry["resource_file_id"]
         ).first()
         on_disk = path.exists() and path.stat().st_size == entry["size"]
         if local is not None:
@@ -170,7 +149,7 @@ def _plan_files(ctx, manifest, *, full_rehash):
             and on_disk
             and not full_rehash
         ):
-            results[(entry["kind"], _ref_id(entry))] = {"ok": True}
+            results[entry["resource_file_id"]] = {"ok": True}
         else:
             todo.append((entry, path, on_disk))
     ctx.save(force=True, bytes_total=sum(e["size"] for e, _, _ in todo), bytes_done=0)
@@ -200,7 +179,7 @@ def _fetch_file(ctx, entry, path, on_disk):
             return {"ok": True}
         # These bytes are damaged: they must never count as verified again, even if
         # they can't be replaced now.
-        ICLocalFile.objects.filter(kind=entry["kind"], ref_id=_ref_id(entry)).delete()
+        ICLocalFile.objects.filter(resource_file_id=entry["resource_file_id"]).delete()
     if not entry.get("available_from_parent", True):
         return {
             "ok": False,
@@ -216,7 +195,7 @@ def _fetch_file(ctx, entry, path, on_disk):
     try:
         ctx.client.download(entry, part, on_bytes=ctx.add_bytes)
     except ParentError as exc:
-        return {"ok": False, "error": str(exc)}
+        return {"ok": False, "error": f"Couldn't download {entry['name']}: {exc}"}
     if not ctx.verify(part, entry["xxh64"], count_bytes=False):
         part.unlink(missing_ok=True)
         return {
@@ -232,10 +211,10 @@ def _fetch_files(ctx, todo):
     results = {}
     for entry, path, on_disk in todo:
         result = _fetch_file(ctx, entry, path, on_disk)
+        result["name"] = entry["name"]
         if result["ok"]:
             ICLocalFile.objects.update_or_create(
-                kind=entry["kind"],
-                ref_id=_ref_id(entry),
+                resource_file_id=entry["resource_file_id"],
                 defaults={
                     "name": entry["name"],
                     "size": entry["size"],
@@ -245,18 +224,14 @@ def _fetch_files(ctx, todo):
                     "last_program_end": _date_or_none(entry.get("last_program_end")),
                 },
             )
-        results[(entry["kind"], _ref_id(entry))] = result
+        results[entry["resource_file_id"]] = result
     return results
 
 
 def _showing_master(entry, today):
     """A master for a program that has already started: rows wait for it."""
     start = entry.get("first_program_start")
-    return (
-        entry["kind"] == "projection"
-        and bool(start)
-        and date.fromisoformat(start) <= today
-    )
+    return bool(start) and date.fromisoformat(start) <= today
 
 
 def _unfetched(planned, file_results):
@@ -264,38 +239,9 @@ def _unfetched(planned, file_results):
     return [
         entry["name"]
         for entry, _, _ in planned
-        if not file_results[(entry["kind"], _ref_id(entry))]["ok"]
+        if not file_results[entry["resource_file_id"]]["ok"]
         and entry.get("available_from_parent", True)
     ]
-
-
-def _program_results(manifest, file_results):
-    by_resource = {}
-    for entry in manifest.get("files", []):
-        by_resource.setdefault(entry.get("resource_id"), []).append(entry)
-    programs = []
-    for program in manifest.get("programs", []):
-        problems = list(program.get("production_problems", []))
-        files_ready = True
-        for resource_id in program.get("resource_ids", []):
-            for entry in by_resource.get(resource_id, []):
-                result = file_results.get((entry["kind"], _ref_id(entry)), {})
-                if not result.get("ok"):
-                    files_ready = False
-                    problems.append(
-                        result.get("error")
-                        or f"{entry['name']} isn't on the booth yet."
-                    )
-        programs.append(
-            {
-                "id": program["id"],
-                "name": program["name"],
-                "files_ready": files_ready,
-                "ready": files_ready and not program.get("production_problems"),
-                "problems": problems,
-            }
-        )
-    return programs
 
 
 def _apply_database(ctx, manifest, manifest_digest):
@@ -307,7 +253,11 @@ def _apply_database(ctx, manifest, manifest_digest):
     """
     ctx.save(force=True, phase="Importing")
     try:
-        apply_fixture(manifest["fixture"], manifest.get("fingerprints", {}))
+        apply_fixture(
+            manifest["fixture"],
+            manifest.get("fingerprints", {}),
+            manifest.get("subtitles", {}),
+        )
     except FingerprintMismatch as exc:
         raise RunFailed("fingerprint_mismatch", str(exc)) from exc
     state = ICBoothState.get()
@@ -319,10 +269,10 @@ def _apply_database(ctx, manifest, manifest_digest):
 def prune(manifest, today=None):
     """Delete local files production no longer lists, with longer grace for released masters."""
     today = today or timezone.localdate()
-    listed = {(e["kind"], _ref_id(e)) for e in manifest.get("files", [])}
+    listed = {e["resource_file_id"] for e in manifest.get("files", [])}
     removed, warnings = [], []
     for local in ICLocalFile.objects.all():
-        if (local.kind, local.ref_id) in listed:
+        if local.resource_file_id in listed:
             if not local.available_from_parent and local.last_program_end:
                 delete_on = local.last_program_end + MASTER_PRUNE_AFTER
                 if delete_on - today <= MASTER_PRUNE_WARNING:
@@ -335,7 +285,7 @@ def prune(manifest, today=None):
         reference = local.last_program_end or local.verified_at.date()
         if today - reference < grace:
             continue
-        _storage_path({"kind": local.kind, "name": local.name}).unlink(missing_ok=True)
+        _storage_path(local.name).unlink(missing_ok=True)
         removed.append(local.name)
         local.delete()
     return removed, warnings
@@ -350,8 +300,7 @@ def execute_run(run, client=None, heartbeat=None):
         started_at=timezone.now(),
         phase="Contacting production",
     )
-    report = {"run_id": str(run.pk), "trigger": run.trigger}
-    file_results = {}
+    report = {"run_id": str(run.pk)}
     try:
         manifest = client.manifest()
         digest = manifest.get("manifest_hash", "")
@@ -359,24 +308,17 @@ def execute_run(run, client=None, heartbeat=None):
         _check_migrations(manifest)
         ctx.save(force=True, phase="Downloading")
         file_results, todo = _plan_files(ctx, manifest, full_rehash=run.full_rehash)
-        # Masters for programs already showing come first, then subtitles and the rows,
-        # then masters for later programs: a fix to tonight's annotations must not wait
-        # behind next month's 20 GB master.
+        # Masters for programs already showing come first, then the rows (with their
+        # subtitles), then masters for later programs: a fix to tonight's annotations
+        # must not wait behind next month's 20 GB master.
         today = timezone.localdate()
         showing = [t for t in todo if _showing_master(t[0], today)]
-        subtitles = [t for t in todo if t[0]["kind"] == "subtitle"]
-        upcoming = [t for t in todo if t not in showing and t not in subtitles]
+        upcoming = [t for t in todo if t not in showing]
         file_results.update(_fetch_files(ctx, showing))
-        # Swapping in rows that point at a file the booth couldn't fetch would make a
-        # film that plays today unplayable. Keep the previous rows (and their subtitle
-        # files) until a later run fetches it, unless production can't send it anyway
-        # (a lost master).
+        # Swapping in rows that point at a master the booth couldn't fetch would make a
+        # film that plays today unplayable. Keep the previous rows until a later run
+        # fetches it, unless production can't send it anyway (a lost master).
         blocking = _unfetched(showing, file_results)
-        if not blocking:
-            # The player JSON embeds subtitle text, so subtitles must be in place before
-            # the fingerprints are checked.
-            file_results.update(_fetch_files(ctx, subtitles))
-            blocking = _unfetched(subtitles, file_results)
         warnings = []
         if blocking:
             database = "kept_previous"
@@ -391,19 +333,24 @@ def execute_run(run, client=None, heartbeat=None):
         if upcoming:
             ctx.save(force=True, phase="Downloading upcoming films")
             file_results.update(_fetch_files(ctx, upcoming))
-        programs = _program_results(manifest, file_results)
         removed, prune_warnings = prune(manifest)
+        failures = [r for r in file_results.values() if not r["ok"]]
         report.update(
             {
-                "programs": programs,
                 "database": database,
+                "failed_files": [
+                    {"name": r["name"], "error": r["error"]} for r in failures
+                ],
                 "pruned": removed,
                 "warnings": warnings + prune_warnings,
             }
         )
-        all_ready = database != "kept_previous" and all(p["ready"] for p in programs)
+        # Partial means a later run could do better: rows kept, or a file production
+        # can still send didn't arrive. A lost master is reported, but only a
+        # re-upload (which changes the manifest) can fix it, so it doesn't count.
+        retryable = database != "applied" or any(not r.get("lost") for r in failures)
         run.status = (
-            ICSyncRun.Status.SUCCEEDED if all_ready else ICSyncRun.Status.PARTIAL
+            ICSyncRun.Status.PARTIAL if retryable else ICSyncRun.Status.SUCCEEDED
         )
     except RunFailed as exc:
         report["code"] = exc.code
@@ -422,19 +369,8 @@ def execute_run(run, client=None, heartbeat=None):
             "error": run.error,
             "applied_manifest_hash": ICBoothState.get().applied_manifest_hash,
             "verified_files": [
-                {
-                    "kind": local.kind,
-                    "resource_file_id": local.ref_id,
-                    "xxh64": local.xxh64,
-                }
-                for local in ICLocalFile.objects.filter(
-                    kind=ICLocalFile.Kind.PROJECTION
-                )
-            ],
-            "lost_files": [
-                {"kind": kind, "resource_file_id": ref_id}
-                for (kind, ref_id), result in file_results.items()
-                if result.get("lost") and kind == "projection"
+                {"resource_file_id": local.resource_file_id, "xxh64": local.xxh64}
+                for local in ICLocalFile.objects.all()
             ],
             "disk": disk_usage(),
         }
@@ -507,9 +443,7 @@ def check_parent(client=None, now=None):
         or (last.manifest_hash and parent_hash != last.manifest_hash)
         or now - last.finished_at >= RETRY_AFTER
     ):
-        return ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
+        return ICSyncRun.objects.create()
     if _rehash_due(now):
-        return ICSyncRun.objects.create(
-            trigger=ICSyncRun.Trigger.AUTO, full_rehash=True
-        )
+        return ICSyncRun.objects.create(full_rehash=True)
     return None

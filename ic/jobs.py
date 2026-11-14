@@ -219,7 +219,9 @@ def transcode(job):
         # A failed or interrupted transcode leaves no partial file in MEDIA_ROOT.
         temp_path.unlink(missing_ok=True)
     release_if_ready(master)
-    return f"Created SD file {derived.pk} ({derived.width}x{derived.height})."
+    return (
+        f"Created SD file {derived.pk} ({derived_probe.width}x{derived_probe.height})."
+    )
 
 
 # ---------------------------------------------------------------------------

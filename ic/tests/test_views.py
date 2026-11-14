@@ -197,7 +197,6 @@ class PreviewPlayerTests(ICTempDirsMixin, TestCase):
         data = self.client.get(reverse("ic_item_player_data", args=[film.pk])).json()
         self.assertEqual(len(data["subtitleTracks"]), 1)
         self.assertTrue(data["subtitleTracks"][0]["default"])
-        self.assertEqual(len(data["fingerprint"]), 64)
         self.assertEqual(data["media_url"], reverse("ic_item_media", args=[film.pk]))
         self.assertTrue(any(a["type"] == "blur" for a in data["annotations"]))
         film.subtitles = ICProgramItem.Subtitles.BURNED_IN
@@ -274,8 +273,9 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
     def test_token_required(self):
         self.assertEqual(self.client.get(reverse("ic_sync_manifest")).status_code, 401)
         self.assertEqual(self.get("ic_sync_manifest", token="wrong").status_code, 401)
-        self.assertIsNone(ICBoothReport.get().last_seen_at)
         self.assertEqual(self.get("ic_sync_manifest").status_code, 200)
+        self.assertIsNone(ICBoothReport.get().last_seen_at)
+        self.assertEqual(self.get("ic_sync_check").status_code, 200)
         self.assertIsNotNone(ICBoothReport.get().last_seen_at)
 
     def test_check_returns_only_the_manifest_hash(self):
@@ -298,21 +298,13 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
             self.get("ic_sync_projection_file", master.pk).status_code, 403
         )
 
-    def test_subtitle_download(self):
-        subtitle = self.scenario["feature"].default_subtitle_track
-        response = self.get("ic_sync_subtitle_file", subtitle.pk)
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.content.startswith(b"WEBVTT"))
-
     def report(self, xxh64):
         master = self.scenario["film_item"].projection_file()
         return master, {
             "run_id": str(uuid.uuid4()),
             "status": "succeeded",
             "applied_manifest_hash": "abc",
-            "verified_files": [
-                {"kind": "projection", "resource_file_id": master.pk, "xxh64": xxh64}
-            ],
+            "verified_files": [{"resource_file_id": master.pk, "xxh64": xxh64}],
         }
 
     def test_status_report_is_kept_and_releases_the_master(self):
@@ -342,33 +334,33 @@ class DashboardTests(ICTempDirsMixin, TestCase):
         self.scenario = make_program_scenario()
         self.client.force_login(self.scenario["editor"])
 
-    def test_booth_column_shows_each_programs_state_on_the_booth(self):
-        program = self.scenario["program"]
+    def test_the_booth_section_and_readiness_follow_its_last_report(self):
+        masters = ResourceFile.objects.filter(is_projection_file=True)
         booth = ICBoothReport.objects.create(
             pk=1,
             last_seen_at=timezone.now(),
-            report={
-                "programs": [
-                    {"id": program.pk, "ready": False, "problems": ["Disk full"]}
-                ]
-            },
+            report={"failed_files": [{"name": "x", "error": "Disk full"}]},
         )
         page = self.client.get(reverse("ic_manage_dashboard"))
-        self.assertContains(page, "Not playable on the booth")
         self.assertContains(page, "Disk full")
+        self.assertContains(page, "have a verified copy of this master yet")
 
         booth.report = {
-            "programs": [{"id": program.pk, "ready": True}],
             "applied_manifest_hash": build_bundle()[1],
+            "verified_files": [
+                {"resource_file_id": m.pk, "xxh64": m.checksum} for m in masters
+            ],
         }
         booth.save()
         page = self.client.get(reverse("ic_manage_dashboard"))
-        self.assertContains(page, "On the booth, matches production")
+        self.assertNotContains(page, "have a verified copy")
+        self.assertContains(page, "✅ Yes")
 
+        program = self.scenario["program"]
         program.items.first().delete()
         cache.clear()  # the manifest hash is cached for a few seconds
         page = self.client.get(reverse("ic_manage_dashboard"))
-        self.assertContains(page, "Changed since the last booth sync")
+        self.assertContains(page, "Production has changes the booth")
 
 
 class UseSDFileTests(ICTempDirsMixin, TestCase):

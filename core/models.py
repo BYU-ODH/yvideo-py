@@ -498,13 +498,7 @@ def validate_unique_checksum(file):
 
 
 def file_upload_path(instance, filename):
-    """Generate upload path: media/<resource name>/<version>.<ext>
-
-    Projection masters live under PROJECTION_FILE_PREFIX instead, which the storage
-    routes outside MEDIA_ROOT (see yvideo.storage.ResourceFileStorage).
-    """
-    if instance.is_projection_file:
-        return projection_file_name(instance.resource_id, instance.checksum, filename)
+    """Generate upload path: media/<resource name>/<version>.<ext>"""
     if instance.resource and instance.version:
         ext = os.path.splitext(filename)[1]
         return f"{instance.resource.name}/{instance.version}{ext}"
@@ -579,14 +573,9 @@ class ResourceFile(models.Model):
             "booth. Never attached to Content or streamed to viewers."
         ),
     )
-    # Filled in by ffprobe (ic.media.probe). Only set for files that went through the
-    # IC media pipeline: projection masters and the SD files derived from them.
-    duration_seconds = models.FloatField(null=True, blank=True, editable=False)
-    width = models.PositiveIntegerField(null=True, blank=True, editable=False)
-    height = models.PositiveIntegerField(null=True, blank=True, editable=False)
-    frame_rate = models.FloatField(null=True, blank=True, editable=False)
-    video_codec = models.CharField(max_length=32, blank=True, editable=False)
-    color_transfer = models.CharField(max_length=32, blank=True, editable=False)
+    # ffprobe's findings (ic.media.ProbeResult: width, height, video_codec, ...). Only
+    # set for files from the IC media pipeline: projection masters and their SD files.
+    probe = models.JSONField(default=dict, blank=True, editable=False)
     size_bytes = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
     derived_from = models.ForeignKey(
         "self",
@@ -610,7 +599,7 @@ class ResourceFile(models.Model):
 
     @property
     def is_hdr(self):
-        return self.color_transfer in self.HDR_TRANSFERS
+        return self.probe.get("color_transfer") in self.HDR_TRANSFERS
 
     @property
     def bytes_on_this_server(self):

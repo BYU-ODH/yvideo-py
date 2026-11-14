@@ -4,6 +4,7 @@ Everything here shells out with argument lists (never a shell string). The media
 container runs at idle CPU and I/O priority, which ffmpeg inherits.
 """
 
+from dataclasses import asdict
 from dataclasses import dataclass
 from fractions import Fraction
 import functools
@@ -38,12 +39,7 @@ class ProbeResult:
     video_duration: float | None
 
     def apply_to(self, resource_file):
-        resource_file.duration_seconds = self.duration_seconds
-        resource_file.width = self.width
-        resource_file.height = self.height
-        resource_file.frame_rate = self.frame_rate
-        resource_file.video_codec = self.video_codec
-        resource_file.color_transfer = self.color_transfer
+        resource_file.probe = asdict(self)
 
     @property
     def frame_seconds(self):
@@ -113,8 +109,8 @@ def probe(path):
         height=video.get("height"),
         frame_rate=_parse_rate(video.get("avg_frame_rate"))
         or _parse_rate(video.get("r_frame_rate")),
-        video_codec=(video.get("codec_name") or "")[:32],
-        color_transfer=(video.get("color_transfer") or "")[:32],
+        video_codec=video.get("codec_name") or "",
+        color_transfer=video.get("color_transfer") or "",
         video_start_time=_float(video.get("start_time")),
         video_duration=_float(video.get("duration")),
     )

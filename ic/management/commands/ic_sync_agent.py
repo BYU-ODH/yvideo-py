@@ -56,7 +56,7 @@ class Command(BaseCommand):
         # deployed, which is when a run refused for a code mismatch can succeed. When
         # nothing changed, the run only re-reads the manifest.
         if not ICSyncRun.objects.filter(status=ICSyncRun.Status.QUEUED).exists():
-            ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.AUTO)
+            ICSyncRun.objects.create()
 
         self.client = ParentClient()
         self.last_check = None  # check at once (time.monotonic() counts from boot)
@@ -68,7 +68,7 @@ class Command(BaseCommand):
                 .first()
             )
             if run is not None:
-                logger.info("Starting sync run %s (%s)", run.pk, run.trigger)
+                logger.info("Starting sync run %s", run.pk)
                 execute_run(run, client=self.client, heartbeat=self.tick)
                 logger.info(
                     "Sync run %s finished: %s %s", run.pk, run.status, run.error

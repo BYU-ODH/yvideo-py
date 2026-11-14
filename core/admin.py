@@ -909,12 +909,7 @@ class ResourceFileAdmin(VersionAdmin):
         "checksum",
         "checksum_at",
         "size_bytes",
-        "duration_seconds",
-        "width",
-        "height",
-        "frame_rate",
-        "video_codec",
-        "color_transfer",
+        "probe",
         "master_released_at",
     )
 

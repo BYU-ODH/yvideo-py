@@ -16,23 +16,6 @@ function nextPlayableIndex(items, index, direction = 1) {
   return null;
 }
 
-// What happens when an item finishes. Loop items never end (the output loops the
-// video), so an "ended" for one is treated as a loop restart.
-function afterEnded(items, index) {
-  const item = items[index];
-  if (!item) return { action: "idle", nextIndex: null };
-  if (item.mode === "loop") return { action: "loop", nextIndex: index };
-  const nextIndex = nextPlayableIndex(items, index, 1);
-  if (item.auto_advance && nextIndex !== null) return { action: "advance", nextIndex };
-  return { action: "idle", nextIndex };
-}
-
-function clampSeek(time, duration) {
-  if (!Number.isFinite(time) || time < 0) return 0;
-  if (Number.isFinite(duration) && duration > 0) return Math.min(time, Math.max(0, duration - 0.05));
-  return time;
-}
-
 function formatClock(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00:00";
   const whole = Math.floor(seconds);
@@ -156,17 +139,19 @@ function loadItem(index, { autoplay = false, startAt = 0 } = {}) {
   render();
 }
 
+// Loop items never end (the output loops the video), so an "ended" for one is a loop
+// restart and needs nothing.
 function handleEnded() {
-  const decision = afterEnded(items, state.index);
-  if (decision.action === "advance") {
-    loadItem(decision.nextIndex, { autoplay: true });
-  } else if (decision.action === "idle") {
-    send("idle");
-    ui.ready.hidden = decision.nextIndex === null;
-    if (decision.nextIndex !== null) {
-      ui.ready.textContent = `Ready: ${items[decision.nextIndex].title} (press N)`;
-    }
+  const item = items[state.index];
+  if (item?.mode === "loop") return;
+  const nextIndex = item ? nextPlayableIndex(items, state.index, 1) : null;
+  if (item?.auto_advance && nextIndex !== null) {
+    loadItem(nextIndex, { autoplay: true });
+    return;
   }
+  send("idle");
+  ui.ready.hidden = nextIndex === null;
+  if (nextIndex !== null) ui.ready.textContent = `Ready: ${items[nextIndex].title} (press N)`;
 }
 
 channel.addEventListener("message", (event) => {
@@ -266,7 +251,8 @@ function step(direction) {
 
 function seekBy(delta) {
   if (!state.output) return;
-  send("seek", { time: clampSeek(state.output.time + delta, state.output.duration) });
+  // The output clamps to the film's real length.
+  send("seek", { time: state.output.time + delta });
 }
 
 function toggleBlank() {

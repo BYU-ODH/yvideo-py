@@ -22,16 +22,14 @@ JUST_BOOTED = mock.patch("time.monotonic", return_value=600.0)
 class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
     @override_settings(IS_IC_INSTANCE=True)
     def test_once_syncs_at_startup_then_runs_what_the_check_queued(self):
-        stale = ICSyncRun.objects.create(
-            trigger=ICSyncRun.Trigger.AUTO, status=ICSyncRun.Status.RUNNING
-        )
+        stale = ICSyncRun.objects.create(status=ICSyncRun.Status.RUNNING)
         order = []
 
         def fake_check(client):
-            ICSyncRun.objects.create(trigger=ICSyncRun.Trigger.FORCE_PULL)
+            ICSyncRun.objects.create(full_rehash=True)
 
         def fake_execute(run, **kwargs):
-            order.append(run.trigger)
+            order.append(run.full_rehash)
             # Runs keep the agent alive and checking through their heartbeat.
             self.assertTrue(callable(kwargs["heartbeat"]))
             run.status = ICSyncRun.Status.SUCCEEDED
@@ -52,7 +50,7 @@ class SyncAgentCommandTests(ICTempDirsMixin, TestCase):
             call_command("ic_sync_agent", "--once")
         checked.assert_called_once()
         # The startup run, then the one the check queued, oldest first.
-        self.assertEqual(order, ["auto", "force_pull"])
+        self.assertEqual(order, [False, True])
         stale.refresh_from_db()
         self.assertEqual(stale.status, ICSyncRun.Status.FAILED)
         self.assertTrue(ICBoothState.get().agent_alive)

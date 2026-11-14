@@ -155,8 +155,7 @@ h2 {
 }
 
 .ic-program-list,
-.ic-queue,
-.ic-run-programs {
+.ic-queue {
   margin: 0;
   padding: 0;
   list-style: none;

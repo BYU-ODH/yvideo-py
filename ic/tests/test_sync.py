@@ -43,7 +43,9 @@ class BundleTests(ICTempDirsMixin, TestCase):
             for c in Content.objects.all()
         }
         manifest, _ = build_bundle()
-        apply_fixture(manifest["fixture"], manifest["fingerprints"])
+        apply_fixture(
+            manifest["fixture"], manifest["fingerprints"], manifest["subtitles"]
+        )
         after = {
             c.pk: c.get_player_json(include_subtitles=True)
             for c in Content.objects.all()
@@ -54,6 +56,17 @@ class BundleTests(ICTempDirsMixin, TestCase):
                 content_fingerprint(Content.objects.get(pk=int(content_id))),
                 fingerprint,
             )
+
+    def test_a_missing_subtitle_file_syncs_as_the_player_shows_it(self):
+        """Production's player renders an unreadable VTT as ""; the sync must not fail."""
+        subtitle = self.scenario["feature"].default_subtitle_track
+        Path(subtitle.subtitles_file.path).unlink()
+        manifest, _ = build_bundle()
+        self.assertIsNone(manifest["subtitles"][str(subtitle.pk)])
+        apply_fixture(
+            manifest["fixture"], manifest["fingerprints"], manifest["subtitles"]
+        )
+        self.assertFalse(Path(subtitle.subtitles_file.path).exists())
 
     def test_fixture_carries_no_personal_data(self):
         editor = self.scenario["editor"]
@@ -87,7 +100,6 @@ class BundleTests(ICTempDirsMixin, TestCase):
         program.start_date = program.end_date = timezone.localdate() - timedelta(days=5)
         program.save()
         manifest, _ = build_bundle()
-        self.assertEqual(manifest["programs"], [])
         self.assertEqual(manifest["files"], [])
 
 
@@ -160,13 +172,13 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         with self.production():
             manifest, digest = build_bundle()
             files = {
-                entry["name"]: Path(agent._storage_path(entry)).read_bytes()
+                entry["name"]: agent._storage_path(entry["name"]).read_bytes()
                 for entry in manifest["files"]
             }
         return FakeParent(manifest, digest, files)
 
-    def run_sync(self, trigger=ICSyncRun.Trigger.FORCE_PULL, full_rehash=False):
-        run = ICSyncRun.objects.create(trigger=trigger, full_rehash=full_rehash)
+    def run_sync(self, full_rehash=False):
+        run = ICSyncRun.objects.create(full_rehash=full_rehash)
         return agent.execute_run(run, client=self.parent, heartbeat=lambda: None)
 
     def test_a_run_downloads_verifies_and_applies(self):
@@ -174,15 +186,17 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(
             run.status, ICSyncRun.Status.SUCCEEDED, run.error or run.report
         )
-        self.assertEqual(len(self.parent.downloads), 3)
+        self.assertEqual(len(self.parent.downloads), 2)
         for entry in self.parent.manifest_data["files"]:
-            path = agent._storage_path(entry)
-            self.assertTrue(
-                path.is_relative_to(self.booth_projection)
-                or path.is_relative_to(self.booth_media)
-            )
+            path = agent._storage_path(entry["name"])
+            self.assertTrue(path.is_relative_to(self.booth_projection))
             self.assertTrue(path.exists())
-        self.assertEqual(ICLocalFile.objects.count(), 3)
+        self.assertEqual(ICLocalFile.objects.count(), 2)
+        subtitle = self.scenario["feature"].default_subtitle_track
+        self.assertTrue(
+            Path(subtitle.subtitles_file.path).is_relative_to(self.booth_media)
+        )
+        self.assertTrue(Path(subtitle.subtitles_file.path).exists())
         state = ICBoothState.get()
         self.assertEqual(state.applied_manifest_hash, self.parent.digest)
         report = self.parent.reports[-1]
@@ -191,25 +205,34 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         verified = {f["resource_file_id"]: f for f in report["verified_files"]}
         master = self.scenario["film_item"].projection_file()
         self.assertEqual(verified[master.pk]["xxh64"], master.checksum)
-        self.assertTrue(all(p["ready"] for p in report["programs"]))
+        self.assertEqual(report["failed_files"], [])
+
+    def test_production_side_problems_dont_make_a_run_partial(self):
+        """Only what a retry could fix makes a run partial (and so retried every 15 min)."""
+        later = timezone.localdate() + timedelta(days=20)
+        ICProgram.objects.create(
+            name="Not planned yet", start_date=later, end_date=later
+        )
+        self.parent = self.capture_production()
+        run = self.run_sync()
+        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.report)
+        self.assertIsNone(agent.check_parent(self.parent))
 
     def test_a_run_with_nothing_changed_reimports_but_fetches_nothing(self):
         self.run_sync()
         with mock.patch.object(
             agent, "apply_fixture", wraps=agent.apply_fixture
         ) as applied:
-            run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
+            run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED)
         applied.assert_called_once()
         # Verified files are trusted, not fetched again.
-        self.assertEqual(len(self.parent.downloads), 3)
+        self.assertEqual(len(self.parent.downloads), 2)
 
     def test_full_rehash_detects_and_repairs_a_damaged_file(self):
         self.run_sync()
-        entry = next(
-            e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
-        )
-        path = agent._storage_path(entry)
+        entry = self.parent.manifest_data["files"][0]
+        path = agent._storage_path(entry["name"])
         data = bytearray(path.read_bytes())
         data[10] ^= 0xFF
         path.write_bytes(bytes(data))
@@ -219,24 +242,20 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(path.read_bytes(), self.parent.files[entry["name"]])
 
     def test_a_corrupt_download_changes_nothing_and_is_retried(self):
-        entry = next(
-            e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
-        )
+        entry = self.parent.manifest_data["files"][0]
         good = self.parent.files[entry["name"]]
         self.parent.files[entry["name"]] = b"corrupt"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertFalse(agent._storage_path(entry).exists())
-        program = run.report["programs"][0]
-        self.assertFalse(program["ready"])
-        self.assertTrue(any("Checksum failed" in p for p in program["problems"]))
+        self.assertFalse(agent._storage_path(entry["name"]).exists())
+        self.assertIn("Checksum failed", run.report["failed_files"][0]["error"])
         # The program is showing today, so its rows wait for its files.
         self.assertEqual(run.report["database"], "kept_previous")
         self.assertIn("kept its previous data", run.report["warnings"][0])
         self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
 
         self.parent.files[entry["name"]] = good
-        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
+        run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         self.assertEqual(ICBoothState.get().applied_manifest_hash, self.parent.digest)
 
@@ -264,30 +283,34 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(applied_when[showing_master.file.name], "")
 
         # A failed download for the later program doesn't hold back the rows.
-        agent._storage_path(
-            {"kind": "projection", "name": upcoming_master.file.name}
-        ).unlink()
+        agent._storage_path(upcoming_master.file.name).unlink()
         self.parent.files[upcoming_master.file.name] = b"corrupt"
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
         self.assertEqual(run.report["database"], "applied")
-        ready = {p["name"]: p["ready"] for p in run.report["programs"]}
-        self.assertEqual(ready, {"Amélie week": True, "Next month": False})
+        self.assertEqual(
+            [f["name"] for f in run.report["failed_files"]],
+            [upcoming_master.file.name],
+        )
 
-    def test_migration_mismatch_says_which_side_is_behind(self):
+    def test_a_migration_mismatch_refuses_the_rows(self):
         self.parent.manifest_data["migrations"] = {
             **self.parent.manifest_data["migrations"],
             "ic": "9999_future",
         }
         run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.FAILED)
-        self.assertIn("booth is behind", run.error)
+        self.assertIn("9999_future", run.error)
+        self.assertEqual(ICBoothState.get().applied_manifest_hash, "")
 
     def test_fingerprint_mismatch_keeps_the_previous_mirror(self):
         self.run_sync()
         applied_before = ICBoothState.get().applied_manifest_hash
         mutes_before = MuteAnnotation.objects.count()
         feature = self.scenario["feature"]
+        subtitle = feature.default_subtitle_track
+        subtitle_before = Path(subtitle.subtitles_file.path).read_bytes()
+        self.parent.manifest_data["subtitles"][str(subtitle.pk)] = "WEBVTT\n\nchanged"
         self.parent.manifest_data["fingerprints"][str(feature.pk)] = "0" * 64
         self.parent.digest = "tampered"
         run = self.run_sync()
@@ -296,6 +319,10 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertEqual(ICBoothState.get().applied_manifest_hash, applied_before)
         self.assertTrue(Content.objects.filter(pk=feature.pk).exists())
         self.assertEqual(MuteAnnotation.objects.count(), mutes_before)
+        # The kept rows still render the subtitles they were verified with.
+        self.assertEqual(
+            Path(subtitle.subtitles_file.path).read_bytes(), subtitle_before
+        )
 
     def test_unreachable_production_fails_cleanly(self):
         self.parent.unreachable = True
@@ -310,34 +337,29 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
             run = self.run_sync()
         self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
         self.assertEqual(run.report["database"], "kept_previous")
-        problems = run.report["programs"][0]["problems"]
-        self.assertTrue(any("Not enough disk space" in p for p in problems))
+        errors = [f["error"] for f in run.report["failed_files"]]
+        self.assertTrue(any("Not enough disk space" in e for e in errors))
 
     def test_a_damaged_released_master_is_never_trusted_again(self):
         self.run_sync()
-        entry = next(
-            e for e in self.parent.manifest_data["files"] if e["kind"] == "projection"
-        )
+        entry = self.parent.manifest_data["files"][0]
         entry["available_from_parent"] = False
-        path = agent._storage_path(entry)
+        path = agent._storage_path(entry["name"])
         data = bytearray(path.read_bytes())
         data[0] ^= 0xFF
         path.write_bytes(bytes(data))
         self.parent.digest = "released"
         run = self.run_sync(full_rehash=True)
-        self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertEqual(
-            run.report["lost_files"],
-            [{"kind": "projection", "resource_file_id": entry["resource_file_id"]}],
-        )
+        # Only a re-upload can fix a lost master, so retrying wouldn't help.
+        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED)
+        self.assertIn("re-upload the master", run.report["failed_files"][0]["error"])
         # An ordinary run afterwards must not take the damaged bytes for verified.
         self.parent.digest = "released-again"
-        run = self.run_sync(trigger=ICSyncRun.Trigger.AUTO)
-        self.assertEqual(run.status, ICSyncRun.Status.PARTIAL)
-        self.assertEqual(len(run.report["lost_files"]), 1)
+        run = self.run_sync()
+        self.assertEqual(len(run.report["failed_files"]), 1)
         self.assertFalse(
             ICLocalFile.objects.filter(
-                kind="projection", ref_id=entry["resource_file_id"]
+                resource_file_id=entry["resource_file_id"]
             ).exists()
         )
         self.assertNotIn(
@@ -366,7 +388,7 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         self.assertIsNone(agent.check_parent(self.parent))
         self.parent.digest = "hash-2"
         run = agent.check_parent(self.parent)
-        self.assertEqual(run.trigger, ICSyncRun.Trigger.AUTO)
+        self.assertFalse(run.full_rehash)
         state = ICBoothState.get()
         self.assertEqual(state.parent_manifest_hash, "hash-2")
         self.assertTrue(state.production_has_newer_changes)
@@ -404,8 +426,7 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         # Nothing released: nothing to re-hash.
         self.assertIsNone(agent.check_parent(self.parent, now=morning))
         ICLocalFile.objects.create(
-            kind=ICLocalFile.Kind.PROJECTION,
-            ref_id=1,
+            resource_file_id=1,
             name="ic/1/master.mp4",
             size=1,
             xxh64="0",
@@ -435,8 +456,7 @@ class PruneTests(ICTempDirsMixin, TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"x")
         return ICLocalFile.objects.create(
-            kind=ICLocalFile.Kind.PROJECTION,
-            ref_id=ICLocalFile.objects.count() + 1,
+            resource_file_id=ICLocalFile.objects.count() + 1,
             name=name,
             size=1,
             xxh64="0",
@@ -468,9 +488,7 @@ class PruneTests(ICTempDirsMixin, TestCase):
         removed, _ = agent.prune({"files": []}, today=today)
         self.assertEqual(removed, [])
         self.assertTrue(path.exists())
-        listed = {
-            "files": [{"kind": "projection", "resource_file_id": only_copy.ref_id}]
-        }
+        listed = {"files": [{"resource_file_id": only_copy.resource_file_id}]}
         _, warnings = agent.prune(listed, today=today + timedelta(days=15))
         self.assertEqual(len(warnings), 1)
         self.assertIn("only copy", warnings[0])

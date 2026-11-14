@@ -1,4 +1,4 @@
-"""What production sends a booth: one manifest holding the rows and the list of files.
+"""What production sends a booth: one manifest holding the rows, subtitle text and masters.
 
 The booth never receives annotation JSON. It receives the rows behind it, with their
 original primary keys, and renders player JSON with the same code production uses.
@@ -8,7 +8,6 @@ anything becomes playable.
 
 import hashlib
 import json
-import os
 import time
 
 from django.core import serializers
@@ -230,7 +229,7 @@ class Bundle:
         return by_program
 
     def files(self):
-        """Every file the booth needs, with the dates of the programs that use it."""
+        """Every master the booth needs, with the dates of the programs that use it."""
         programs = {p.pk: p for p in self.programs}
         first_start, last_end = {}, {}
         for program_id, resource_ids in self._resource_ids_by_program().items():
@@ -242,66 +241,42 @@ class Bundle:
                 last_end[rid] = max(
                     last_end.get(rid, program.end_date), program.end_date
                 )
-
-        def dates(resource_id):
-            start, end = first_start.get(resource_id), last_end.get(resource_id)
-            return {
-                "resource_id": resource_id,
-                "first_program_start": start.isoformat() if start else None,
-                "last_program_end": end.isoformat() if end else None,
+        return [
+            {
+                "resource_file_id": master.pk,
+                "first_program_start": first_start[master.resource_id].isoformat(),
+                "last_program_end": last_end[master.resource_id].isoformat(),
+                "name": master.file.name,
+                "size": master.size_bytes,
+                "xxh64": master.checksum,
+                "available_from_parent": master.master_released_at is None
+                and master.bytes_on_this_server,
             }
+            for master in self.masters
+        ]
 
-        entries = []
-        for master in self.masters:
-            available = (
-                master.master_released_at is None and master.bytes_on_this_server
-            )
-            entries.append(
-                {
-                    "kind": "projection",
-                    "resource_file_id": master.pk,
-                    **dates(master.resource_id),
-                    "name": master.file.name,
-                    "size": master.size_bytes or (master.file.size if available else 0),
-                    "xxh64": master.checksum,
-                    "available_from_parent": bool(available),
-                }
-            )
+    def subtitle_texts(self):
+        """Each mirrored subtitle's VTT, or None where get_player_json would read "".
+
+        Subtitles travel inside the manifest: they are small, and the fingerprints
+        already cover their text.
+        """
+        texts = {}
         for subtitle in self.subtitles:
-            path = subtitle.subtitles_file.path
-            entries.append(
-                {
-                    "kind": "subtitle",
-                    "subtitle_id": subtitle.pk,
-                    **dates(subtitle.resource_id),
-                    "name": subtitle.subtitles_file.name,
-                    "size": os.path.getsize(path),
-                    "xxh64": file_xxh64(path),
-                    "available_from_parent": True,
-                }
-            )
-        return entries
+            try:
+                with subtitle.subtitles_file.open("rb") as handle:
+                    texts[str(subtitle.pk)] = handle.read().decode("utf-8")
+            except (OSError, ValueError):
+                texts[str(subtitle.pk)] = None
+        return texts
 
     def manifest(self):
-        from ic.readiness import program_problems
-
-        resource_ids = self._resource_ids_by_program()
         return {
             "migrations": migration_leaves(),
             "fixture": self.fixture(),
             "files": self.files(),
+            "subtitles": self.subtitle_texts(),
             "fingerprints": {str(c.pk): content_fingerprint(c) for c in self.contents},
-            "programs": [
-                {
-                    "id": program.pk,
-                    "name": program.name,
-                    "resource_ids": sorted(resource_ids.get(program.pk, ())),
-                    "production_problems": [
-                        p.message for p in program_problems(program) if p.is_error
-                    ],
-                }
-                for program in self.programs
-            ],
         }
 
 

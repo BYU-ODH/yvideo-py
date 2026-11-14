@@ -31,8 +31,7 @@ BOOTH_MIDDLEWARE = [
 def mark_local(item):
     master = item.projection_file()
     return ICLocalFile.objects.create(
-        kind=ICLocalFile.Kind.PROJECTION,
-        ref_id=master.pk,
+        resource_file_id=master.pk,
         name=master.file.name,
         size=master.size_bytes,
         xxh64=master.checksum,
@@ -188,12 +187,11 @@ class KioskTests(ICTempDirsMixin, TestCase):
         )
         self.assertFalse(ICSyncRun.objects.exists())
 
-    def test_sync_now_queues_one_forced_run_and_shows_its_progress(self):
+    def test_sync_now_queues_one_run_and_shows_its_progress(self):
         ICBoothState.record_agent_heartbeat()
         response = self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(response.status_code, 200)
         run = ICSyncRun.objects.get()
-        self.assertEqual(run.trigger, ICSyncRun.Trigger.FORCE_PULL)
         # The operator can't start a full re-hash: it would compete with playback.
         self.assertFalse(run.full_rehash)
         self.assertContains(
