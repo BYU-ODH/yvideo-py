@@ -1,0 +1,217 @@
+# Deploying International Cinema (IC) mode
+
+International Cinema shows films from a booth computer running its own copy of Y-video.
+Production is where IC editors prepare everything; the booth is a userless, read-only
+mirror that plays from its own disk, so a network outage cannot affect a showing.
+General deployment is in [DEPLOY.md](DEPLOY.md), which this file builds on.
+
+```txt
+PRODUCTION                                          BOOTH (Ubuntu + Google Chrome)
+<app>.service           web, /ic/manage, sync API    <app>.service              kiosk (127.0.0.1 only)
+<app>-media-worker      ingest, SD transcode,        <app>-ic-sync-agent        checks, pulls, verifies, applies
+                        master release               <app>-ic-kiosk (Chrome)    controller + output
+```
+
+Every connection goes from the booth to production; the booth needs no inbound ports and
+production holds no booth credentials. Sync is pull-only: the booth's sync agent checks
+production every 30 seconds for changes, pulls them, and reports back what it did.
+Production can't make the booth sync.
+
+Both machines must run the same database schema: a booth refuses production's data when
+their migrations differ (it reports `code_mismatch` until it updates). Pin the booth's `.env`
+`BRANCH` to production's branch. The booth's deploy timer polls GitHub like production's,
+but not during `IC_PLAYBACK_HOURS` (default `12-24`, noon to midnight), so a code update
+never restarts the kiosk during a showing; it catches up at the first poll after those
+hours. Changes are rare and a redeploy takes about a minute; if the controller ever looks
+stale after one, reload the page.
+
+## Production
+
+### 1. Settings
+
+In `.env`:
+
+```bash
+IC_MEDIA_WORKER=1
+# Optional; defaults to <checkout>/ic_projection. Never under media/ (#531).
+IC_PROJECTION_ROOT=/srv/yvideo-prod/ic_projection
+```
+
+In `yvideo/secret_settings.py`:
+
+```python
+IC_SYNC_TOKEN = "<shared secret>"  # the booth sets the same value (step 3)
+IC_BOOTH_VIDEO_CODECS = ["h264"]  # from the booth spike; add "hevc" only if verified
+```
+
+Plan disk space for masters: about 10 GB each, rarely over 20 GB, plus about 1.2× that
+during upload processing. Production deletes each master once the booth holds a
+verified copy and the SD file exists, so steady-state use is small.
+
+### 2. Deploy
+
+```bash
+bash deploy/install_quadlet.sh
+systemctl --user restart <app>.service <app>-media-worker.service
+```
+
+From then on the deploy timer rebuilds and restarts both. The image now includes
+ffmpeg.
+
+The media worker runs at the lowest CPU and I/O priority (`Nice=19`,
+`IOSchedulingClass=idle`, `CPUWeight=10`), and ffmpeg is limited to two threads, so a
+transcode does not slow the site. Check that `CPUWeight` took effect:
+
+```bash
+systemctl --user show -p CPUWeight <app>-media-worker.service
+```
+
+### 3. Booth token and IC staff
+
+1. Generate the booth's sync token once and put it in `IC_SYNC_TOKEN` on production and
+   on the booth:
+   `python -c "import secrets; print(secrets.token_urlsafe(32))"`. To rotate it, change
+   both and restart both.
+2. Add IC staff to the **IC Editors** group (Admin → Users). They then see
+   *International Cinema* in the sidebar.
+
+### Apache
+
+Masters upload in 16 MB `PUT`s to `/ic/manage/uploads/…/chunk/`, and the booth downloads
+in 8 MB ranges (the site's usual cap) from `/ic/sync/files/…`. The example vhost needs no changes; if you
+set `LimitRequestBody`, keep it above 16 MB for `/ic/`.
+
+## Booth
+
+### 1. Machine
+
+- Ubuntu with Google Chrome stable from Google's apt repository.
+- Intel graphics: `sudo apt install intel-media-va-driver-non-free vainfo`, then check
+  that `vainfo` lists `VAProfileH264High` (and `VAProfileHEVCMain` if HEVC will be used).
+- One user account that both owns the checkout (the deploy user from DEPLOY.md) and
+  logs in automatically to the desktop, so the kiosk unit runs in its graphical session.
+- Screen blanking, screensaver and notifications off:
+  `gsettings set org.gnome.desktop.session idle-delay 0`,
+  `gsettings set org.gnome.desktop.screensaver lock-enabled false`,
+  `gsettings set org.gnome.desktop.notifications show-banners false`.
+- Displays: screen 1 is the operator's; screen 2 is the output, mirrored to the
+  projector. Route Chrome's audio to the booth sound system.
+- `unattended-upgrades` restricted to a weekday-morning window, away from showtimes
+  (Chrome updates come through apt). After any Chrome or driver update, rehearse a
+  minute of the next program before it is shown; `sudo apt-mark hold google-chrome-stable`
+  is the emergency brake if an update breaks playback.
+
+### 2. The spike: do this before the first showing
+
+The booth's hardware and Chrome decide two things nothing else can test.
+With the largest real master IC expects:
+
+1. **Hardware decode.** Play it and check `chrome://gpu` (Video Decode: Hardware
+   accelerated) and `chrome://media-internals` (the decoder is a VA-API one, not
+   `FFmpegVideoDecoder`; dropped frames near 0). Try, in order: Chrome's defaults;
+   `--enable-features=VaapiVideoDecoder,VaapiVideoDecodeLinuxGL,VaapiIgnoreDriverChecks`;
+   that plus `--ozone-platform=x11`; and an "Ubuntu on Xorg" login.
+2. **Output placement.** With the same flags, open a program and press *Open output*:
+   the output should land on screen 2 and go fullscreen (or after one click on it).
+3. Record what worked: the flags in `.env` `IC_CHROME_FLAGS`, and `"hevc"` in
+   production's `IC_BOOTH_VIDEO_CODECS` only if HEVC decoded in hardware. The UHD 630
+   has no AV1 decoder, so AV1 masters are always refused.
+
+### 3. Settings
+
+`.env`:
+
+```bash
+IC_BOOTH=1
+IC_CHROME_FLAGS="<flags from the spike>"
+BRANCH=<production's branch>
+# Hours (local, start-end) when the deploy timer leaves the booth alone. Cover every
+# showtime, including matinees; 0-0 turns the guard off.
+IC_PLAYBACK_HOURS=12-24
+```
+
+`yvideo/secret_settings.py`:
+
+```python
+DEBUG = False
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+IS_IC_INSTANCE = True
+IC_PARENT_URL = "https://<production host>"
+IC_SYNC_TOKEN = "<the same value as production's>"
+```
+
+The booth has no OIDC, no admin and no users; the OIDC and API settings can stay empty.
+
+### 4. Install
+
+```bash
+bash deploy/install_quadlet.sh
+bash deploy/install_deploy_timer.sh
+systemctl --user start <app>.service <app>-ic-sync-agent.service
+bash deploy/ic/install_kiosk.sh
+```
+
+`install_kiosk.sh` installs `<app>-ic-kiosk.service` (Chrome in `--app` mode on the
+controller) and prints a command to run once with `sudo`, which installs the Chrome
+policy (pop-ups, autoplay, fullscreen and window placement for the kiosk; no sign-in,
+translation or notifications):
+
+```bash
+sudo install -D -m 644 var/ic/chrome-policy.json /etc/opt/chrome/policies/managed/ic.json
+```
+
+The booth needs no inbound firewall openings. The kiosk listens on 127.0.0.1 only; being
+userless is safe only because nothing off the booth can reach it.
+
+### 5. First sync
+
+The agent syncs as soon as it starts. To watch one, press **Sync now** on the booth's
+controller; it shows live progress and ends in one of:
+
+| Result | Meaning |
+|---|---|
+| ✅ Succeeded | The booth applied production's rows and every master production can send is present and checksum-verified; every film's player data matches production exactly. A lost master (released by production, then damaged on the booth) is listed as a warning: only a re-upload fixes it. |
+| ⚠️ Partial | Some masters didn't arrive; each one says why, and the agent retries 15 minutes later. If a master for a program that is showing now couldn't be fetched, the booth keeps its previous data until it can. |
+| ❌ Failed | Nothing changed on the booth, which keeps playing its last verified data. The message says why. |
+
+## Operating
+
+- **What and when.** Programs that are showing or upcoming (and yesterday's), within
+  about 30 seconds of a change on production, when the projectionist presses *Sync now*,
+  and when the agent starts. A sync that didn't finish cleanly is retried 15 minutes later.
+  Masters for programs already showing come first, then the data, then masters for later
+  programs, so a fix for tonight never waits behind next month's film. Downloads are
+  rate-capped (about 11 minutes per 10 GB) so they can't disturb playback.
+- **Never mid-film.** A sync can apply during a showing: the playing film keeps the
+  annotations it loaded and a URL naming one verified file. New data takes effect when the
+  next item loads.
+- **Only copies.** After the booth verifies a master and its SD file exists, production
+  deletes its copy (*Films and masters* says so). The booth keeps such files until 30 days
+  after their last program, warns 7 days ahead, and re-hashes them weekly in the morning,
+  rate-capped like downloads. To re-hash now (e.g. after a disk scare; never during a
+  showing), run on the booth:
+  `bash deploy/manage.sh shell -c 'from ic.models import ICSyncRun; ICSyncRun.objects.create(full_rehash=True)'`.
+  Keep the original disc or file until the film's last showing; if the booth loses one,
+  its programs show ❌ *re-upload required*, and uploading the same file again restores it.
+- **Logs.**
+  `journalctl --user -u <app>-ic-sync-agent -f` (booth),
+  `journalctl --user -u <app>-media-worker -f` (production).
+  The booth's *Sync status* page lists recent runs and the files on disk.
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Dashboard says *the booth hasn't checked in recently* | Booth off, offline, or its sync agent is stopped; check `systemctl --user status <app>-ic-sync-agent` on the booth. |
+| Booth badge: *Can't reach production* | Network, DNS or TLS between the booth and production, or a wrong `IC_PARENT_URL`/`IC_SYNC_TOKEN` (the *Sync status* page shows the error). Playback is unaffected. |
+| *Sync agent isn't running* | `systemctl --user restart <app>-ic-sync-agent`. |
+| `code_mismatch` | One side hasn't deployed the latest migrations yet. Production catches up within minutes; the booth waits until `IC_PLAYBACK_HOURS` end. To update the booth now (no film playing), run `bash deploy/deploy.sh` on it after `git pull`. |
+| `fingerprint_mismatch` | The booth computed different player data from production's rows; the booth kept its previous data. Report it: this is the corruption the design exists to prevent. |
+| Output not fullscreen | Click the output window once; if it opens on the wrong screen, revisit the spike's flags. |
+| Stutter at high bitrate | Check `chrome://media-internals` for a hardware decoder; re-encode the master at a lower bitrate. |
+
+## Moving off the Electron IC Player
+
+This PR removes the Electron IC Player (`IC_player/`; it remains in git history). Set up
+each film in Y-video, upload its master, and rehearse every program on the booth before
+its first showing.

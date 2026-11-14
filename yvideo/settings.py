@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "reversion",  # django-reversion
     "core.apps.CoreConfig",
+    "ic.apps.IcConfig",
 ]
 
 MIDDLEWARE = [
@@ -245,6 +246,41 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
+
+# International Cinema (#246).
+#
+# Production runs with IS_IC_INSTANCE False and serves IC editors, the sync API and the
+# preview player. The booth runs the same code with IS_IC_INSTANCE True, as a read-only,
+# userless mirror: the projectionist's kiosk pages, bound to localhost. The booth only
+# ever calls production; nothing connects to the booth.
+IS_IC_INSTANCE = getattr(secret_settings, "IS_IC_INSTANCE", False)
+# Projection masters. Never under MEDIA_ROOT: the web server publishes MEDIA_ROOT (#531).
+IC_PROJECTION_ROOT = _resolve_repo_path(
+    os.environ.get("IC_PROJECTION_ROOT")
+    or getattr(secret_settings, "IC_PROJECTION_ROOT", "ic_projection")
+)
+# The booth's bearer token for the sync API, the same value on production and the booth.
+# Empty on production means no booth can sync.
+IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
+# Booth: where to pull from.
+IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
+# What the booth's Chrome has been verified to decode. HEVC joins the list only once the
+# spike confirms hardware decode; AV1 never will on the booth's Intel UHD 630.
+IC_BOOTH_VIDEO_CODECS = getattr(secret_settings, "IC_BOOTH_VIDEO_CODECS", ["h264"])
+
+if IS_IC_INSTANCE:
+    ROOT_URLCONF = "yvideo.urls_ic"
+    # The booth has no users at all: nothing to log in to, spoof, or refresh.
+    MIDDLEWARE = [
+        m
+        for m in MIDDLEWARE
+        if m
+        not in (
+            "django.contrib.auth.middleware.LoginRequiredMiddleware",
+            "core.middleware.SpoofUserMiddleware",
+            "mozilla_django_oidc.middleware.SessionRefresh",
+        )
+    ]
 
 # Logging
 # https://docs.djangoproject.com/en/5.1/topics/logging/

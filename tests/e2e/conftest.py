@@ -5,6 +5,8 @@ from django.core.management import call_command
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 import pytest
 
+from ic.testing import make_mp4
+from ic.testing import make_program_scenario
 from tests.e2e import live_youtube as live_youtube_api
 
 # pytest-playwright initializes an event loop before Django's test DB setup.
@@ -23,7 +25,11 @@ READY_TIMEOUT_MS = 10_000
 
 DRAIN_TIMEOUT_MS = 5_000
 DRAIN_POLL_MS = 50
-DRAIN_QUIET_CHECKS = 4
+# The quiet stretch must outlast the longest client-side debounce, or a save the page
+# schedules just before teardown starts after the drain and collides with the DB flush
+# ("database table is locked"). The editor debounces item-form saves by 250 ms
+# (editor.js, `update`), so 8 x 50 ms leaves margin.
+DRAIN_QUIET_CHECKS = 8
 
 # window.videoPlayer and the video's duration load via two independent async paths with no ordering
 # guarantee between them, so waiting on duration alone races window.videoPlayer.loadData, which
@@ -271,3 +277,14 @@ def open_editor(logged_in_page, live_server, demo_content):
         return content
 
     return _open
+
+
+@pytest.fixture
+def ic_program(settings, tmp_path, seeded_demo_data):
+    settings.IC_PROJECTION_ROOT = tmp_path / "projection"
+    settings.IC_STATE_DIR = tmp_path / "state"
+    scenario = make_program_scenario()
+    # The preview plays the SD files, so make them real (6 s, enough to cross the skip).
+    for key in ("announcement", "feature"):
+        make_mp4(scenario[key].resource_file.file.path, seconds=6, faststart=True)
+    return scenario

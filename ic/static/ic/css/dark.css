@@ -1,0 +1,336 @@
+/* Dark mode for the operator pages (booth controller and its production preview).
+   A booth is dark during showings: a bright monitor spills light toward the audience
+   and costs the projectionist their night vision. Build only on these tokens. */
+
+:root {
+  --dark-bg: #121314;
+  --dark-surface: #1c1e20;
+  --dark-surface-raised: #26292c;
+  --ic-border: #3a3e42;
+  --dark-text: #e6e6e6;
+  --ic-muted: #a4a9ad;
+  --dark-focus: #8cc8ff;
+  --ic-ok: #7fc48a;
+  --ic-warn: #e3b55b;
+  --ic-error: #f08a80;
+  --dark-primary: #3b85a1;
+  --dark-primary-text: #fff;
+  --dark-blank: #b3261e;
+  --radius: 8px;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+
+body {
+  margin: 0;
+
+  font-family: system-ui, sans-serif;
+  line-height: 1.4;
+  color: var(--dark-text);
+
+  background: var(--dark-bg);
+}
+
+a,
+.ic-link {
+  color: var(--dark-focus);
+}
+
+:focus-visible {
+  outline: 3px solid var(--dark-focus);
+  outline-offset: 2px;
+}
+
+h1,
+h2 {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+}
+
+.ic-topbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--ic-border);
+
+  background: var(--dark-surface);
+}
+
+.ic-topbar-title {
+  font-weight: 600;
+  color: var(--dark-text);
+  text-decoration: none;
+}
+
+.ic-topbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ic-main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.ic-panel {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--ic-border);
+  border-radius: var(--radius);
+
+  background: var(--dark-surface);
+}
+
+.ic-button {
+  cursor: pointer;
+
+  min-height: 2.5rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--ic-border);
+  border-radius: var(--radius);
+
+  font: inherit;
+  color: var(--dark-text);
+
+  background: var(--dark-surface-raised);
+}
+
+.ic-button:hover {
+  border-color: var(--ic-muted);
+}
+
+.ic-button:disabled,
+.ic-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ic-button-primary {
+  border-color: var(--dark-primary);
+  color: var(--dark-primary-text);
+  background: var(--dark-primary);
+}
+
+.ic-button[aria-pressed="true"] {
+  border-color: var(--dark-focus);
+}
+
+.ic-button-blank {
+  min-width: 8rem;
+  min-height: 3.5rem;
+  border-color: var(--dark-blank);
+
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.08em;
+
+  background: var(--dark-blank);
+}
+
+.ic-button-blank[aria-pressed="true"] {
+  outline: 4px solid var(--ic-warn);
+}
+
+.ic-tag {
+  background: var(--dark-surface-raised);
+}
+
+.ic-program-list,
+.ic-queue {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ic-program-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--ic-border);
+  border-radius: var(--radius);
+
+  background: var(--dark-surface);
+}
+
+.ic-program-link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+
+  color: var(--dark-text);
+  text-decoration: none;
+}
+
+.ic-program-name {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.ic-control-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.ic-output-controls {
+  text-align: right;
+}
+
+.ic-output-controls p[data-connected="true"] {
+  color: var(--ic-ok);
+}
+
+.ic-alert {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+
+  border-color: var(--ic-error);
+
+  color: var(--ic-error);
+}
+
+.ic-message[data-kind="error"] {
+  color: var(--ic-error);
+}
+
+.ic-control-grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1fr) minmax(22rem, 1.4fr);
+  gap: 1rem;
+}
+
+@media (width <= 900px) {
+  .ic-control-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ic-queue li {
+  margin-bottom: 0.5rem;
+}
+
+.ic-queue-button {
+  cursor: pointer;
+
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--ic-border);
+  border-radius: var(--radius);
+
+  font: inherit;
+  color: var(--dark-text);
+  text-align: left;
+
+  background: var(--dark-surface-raised);
+}
+
+.ic-current .ic-queue-button {
+  border-color: var(--dark-focus);
+  box-shadow: inset 4px 0 0 var(--dark-focus);
+}
+
+.ic-unplayable .ic-queue-button {
+  opacity: 0.6;
+}
+
+.ic-queue-title {
+  font-weight: 600;
+}
+
+.ic-now-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.ic-clock {
+  margin: 0.5rem 0;
+  font-family: monospace;
+  font-size: 2rem;
+}
+
+.ic-scrubber {
+  width: 100%;
+}
+
+.ic-transport,
+.ic-safety {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.ic-cue-size-label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ic-annotations {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0 0;
+}
+
+.ic-annotations dt {
+  color: var(--ic-muted);
+}
+
+.ic-annotations dd {
+  margin: 0;
+}
+
+.ic-sync-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.ic-visually-hidden {
+  position: absolute;
+
+  overflow: hidden;
+
+  width: 1px;
+  height: 1px;
+
+  white-space: nowrap;
+
+  clip-path: inset(50%);
+}
+
+/* Last, so it wins over any display rule above at equal specificity. */
+[hidden] {
+  display: none;
+}

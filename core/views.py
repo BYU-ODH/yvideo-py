@@ -14,6 +14,7 @@ from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
+from django.db.models import ProtectedError
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -778,6 +779,9 @@ def update_playlist_settings(request, playlist):
                 playlist.published = False
             else:
                 playlist.published = form.cleaned_data["published"]
+            # Only IC editors see (and so submit) the field.
+            if request.user.is_ic_editor:
+                playlist.is_ic = form.cleaned_data["is_ic"]
             playlist.save()
             messages.success(request, "Playlist settings saved.")
             return render_playlist_info(request, playlist)
@@ -788,6 +792,17 @@ def update_playlist_settings(request, playlist):
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
+
+
+def scheduled_in_ic_programs(subject):
+    """409 explaining why: ICProgramItem protects its Content, so deleting one that an
+    International Cinema program shows would otherwise surface as a generic failure."""
+    return HttpResponse(
+        f"{subject} is scheduled in an International Cinema program. "
+        "Remove it from the program first.",
+        status=409,
+        content_type="text/plain",
+    )
 
 
 GRANTABLE_PLAYLIST_ROLES = (
@@ -1148,6 +1163,8 @@ def delete_playlist(request, playlist):
         playlist.delete()
         messages.success(request, "Playlist deleted.")
         return HttpResponse()
+    except ProtectedError:
+        return scheduled_in_ic_programs("This playlist")
     except Exception as e:
         logger.error(
             f"An error occured while deleting the playlist with id: {playlist.pk}. Exception: {e}"
@@ -1169,6 +1186,10 @@ def create_content(request, playlist):
         resource_file = ResourceFile.objects.get(pk=parsed_data["resource_file_id"])
         if not request.user.can_access_resource(resource_file.resource):
             return forbidden("You do not have access to that resource.")
+        if resource_file.is_projection_file:
+            return forbidden(
+                "Projection masters are for the International Cinema booth only."
+            )
         Content.objects.create(
             playlist=playlist,
             title=parsed_data["title"],
@@ -1265,7 +1286,7 @@ def render_create_from_resource_form(request, playlist, resource_id):
 
         context = {
             "playlist_id": playlist.pk,
-            "options": resource.resource_files.all(),
+            "options": resource.resource_files.filter(is_projection_file=False),
         }
         return render(request, "core/partials/create_from_resource_form.html", context)
     except Exception as e:
@@ -1286,6 +1307,8 @@ def delete_content(request, content):
             )
         else:
             return HttpResponse("", status=200)
+    except ProtectedError:
+        return scheduled_in_ic_programs("This video")
     except Exception as e:
         logger.error(
             f"An error occured while deleting content with id: {content.pk}. Exception: {e}"

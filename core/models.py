@@ -46,6 +46,8 @@ class PlaylistRole(models.IntegerChoices):
 
 
 LAB_ASSISTANT_GROUP_NAME = "lab_assistant"
+# International Cinema staff: manage IC programs, IC playlists and projection masters.
+IC_EDITOR_GROUP_NAME = "IC Editors"
 
 
 YOUTUBE_VIDEO_ID_PATTERN = r"[A-Za-z0-9_-]{11}"
@@ -226,6 +228,14 @@ class User(AbstractUser):
         return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1
 
     @property
+    def is_ic_editor(self):
+        """International Cinema staff, who manage programs and projection masters.
+
+        Superusers count, so every IC capability check is a single predicate.
+        """
+        return self.is_admin or self.groups.filter(name=IC_EDITOR_GROUP_NAME).exists()
+
+    @property
     def is_instructor(self):
         """Capability to own playlists and author content.
 
@@ -357,6 +367,11 @@ class Playlist(models.Model):
     )
     published = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
+    is_ic = models.BooleanField(
+        default=False,
+        verbose_name="International Cinema playlist",
+        help_text="Contents of IC playlists can be scheduled in International Cinema programs.",
+    )
     courses = models.ManyToManyField("Course", related_name="playlists", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -490,10 +505,29 @@ def file_upload_path(instance, filename):
     return filename
 
 
+# Names under this prefix are projection masters. They are stored in IC_PROJECTION_ROOT,
+# never under MEDIA_ROOT, because the web server publishes MEDIA_ROOT (#531).
+PROJECTION_FILE_PREFIX = "ic_projection/"
+
+
+def projection_file_name(resource_id, checksum, filename=".mp4"):
+    """The one name a master is stored under, identical on production and the booth."""
+    ext = os.path.splitext(filename)[1].lower() or ".mp4"
+    return f"{PROJECTION_FILE_PREFIX}{resource_id}/{checksum}{ext}"
+
+
+def resource_file_storage():
+    from yvideo.storage import ResourceFileStorage
+
+    return ResourceFileStorage()
+
+
 class ResourceFile(models.Model):
     file = models.FileField(
         upload_to=file_upload_path,
+        storage=resource_file_storage,
         validators=[validate_media_file, validate_unique_checksum],
+        max_length=255,
     )
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="resource_files"
@@ -532,6 +566,45 @@ class ResourceFile(models.Model):
         unique=True,
         help_text="The EAN or UPC barcode on the resource. If there isn't one, an internal 'BYU' prefixed code will be assigned.",
     )
+    is_projection_file = models.BooleanField(
+        default=False,
+        help_text=(
+            "International Cinema projection master: full resolution, played only in the "
+            "booth. Never attached to Content or streamed to viewers."
+        ),
+    )
+    # ffprobe's findings (ic.media.ProbeResult: width, height, video_codec, ...). Only
+    # set for files from the IC media pipeline: projection masters and their SD files.
+    probe = models.JSONField(default=dict, blank=True, editable=False)
+    size_bytes = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
+    derived_from = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="derivatives",
+        help_text="The projection master this file was transcoded from.",
+    )
+    master_released_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "When production deleted its copy of this master because the booth holds a "
+            "verified copy. The row, checksum and metadata are kept."
+        ),
+    )
+
+    HDR_TRANSFERS = ("smpte2084", "arib-std-b67")
+
+    @property
+    def is_hdr(self):
+        return self.probe.get("color_transfer") in self.HDR_TRANSFERS
+
+    @property
+    def bytes_on_this_server(self):
+        """Whether the file's bytes exist here (masters may have been released)."""
+        return bool(self.file) and self.file.storage.exists(self.file.name)
 
     def clean(self):
         super().clean()
@@ -559,7 +632,7 @@ class ResourceFile(models.Model):
 
     def delete(self, *args, **kwargs):
         """Delete the file from the filesystem when the model is deleted."""
-        if self.file:
+        if self.file and self.file.storage.exists(self.file.name):
             self.file.delete(save=False)
         super().delete(*args, **kwargs)
 
@@ -577,6 +650,13 @@ class ResourceFile(models.Model):
 
     class Meta:
         unique_together = ("resource", "version")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource"],
+                condition=models.Q(is_projection_file=True),
+                name="one_projection_file_per_resource",
+            )
+        ]
 
 
 class AnnotationSet(models.Model):
@@ -765,7 +845,9 @@ class AnnotationSet(models.Model):
         """
         Get all tracks as they are
         """
-        return sorted(self.tracks.all(), key=lambda track: track.stack_position)
+        return sorted(
+            self.tracks.order_by("pk"), key=lambda track: track.stack_position
+        )
 
     def get_highest_stack_position(self):
         track_with_highest_position_value = (
@@ -778,7 +860,7 @@ class AnnotationSet(models.Model):
         Get all currently active annotations across all tracks.
         """
         annotations = []
-        for track in list(self.tracks.all()):
+        for track in self.tracks.order_by("pk"):
             annotations.extend(track.get_active_annotations())
         return sorted(annotations, key=lambda a: a.start_time)
 
@@ -819,7 +901,9 @@ class Track(models.Model):
             CommentAnnotation,
             Clip,
         ]:
-            annotations.extend(model_class.objects.filter(track=self, active=True))
+            annotations.extend(
+                model_class.objects.filter(track=self, active=True).order_by("pk")
+            )
         return sorted(annotations, key=lambda a: a.start_time)
 
     def is_final_stack_position(self):
@@ -919,6 +1003,18 @@ class Content(models.Model):
     def extended_display_name(self):
         return f"{self.display_name} | {self.resource.imdb_id if self.resource else 'unknown imdb_id'}"
 
+    def clean(self):
+        super().clean()
+        if self.resource_file_id and self.resource_file.is_projection_file:
+            raise ValidationError(
+                {
+                    "resource_file": (
+                        "Projection masters are for the International Cinema booth "
+                        "only and cannot be attached to content."
+                    )
+                }
+            )
+
     def save(self, *args, **kwargs):
         if self.resource_file:
             self.resource = self.resource_file.resource
@@ -981,7 +1077,7 @@ class Content(models.Model):
         resource = self.get_resource()
         if not resource:
             return []
-        sub_objs = Subtitle.objects.filter(resource=resource)
+        sub_objs = Subtitle.objects.filter(resource=resource).order_by("pk")
         default_id = self.default_subtitle_track_id
         subtitles = []
         for sub in sub_objs:

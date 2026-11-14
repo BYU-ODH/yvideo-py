@@ -16,6 +16,10 @@ echo "Deploying $(git rev-parse --short HEAD) at $(date)"
 bash "$script_dir/install_quadlet.sh"
 podman build -t "$(build_image_tag)" -f "$repo_root/Dockerfile" "$repo_root"
 systemctl --user restart "$(container_service_name)"
+# International Cinema units start after the main container has migrated.
+while IFS= read -r unit; do
+    [ -n "$unit" ] && systemctl --user restart "$unit.service"
+done < <(ic_unit_names)
 
 podman image prune -f
 

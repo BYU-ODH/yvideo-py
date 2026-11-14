@@ -1,0 +1,74 @@
+{% extends "ic/base_dark.html" %}
+
+{% block content %}
+    <h1>Sync status</h1>
+    <section class="ic-panel">
+        <h2>Now</h2>
+        {% include "ic/partials/sync_badge.html" %}
+
+        {% if disk %}
+            <p>Disk: {{ disk.free|filesizeformat }} free of {{ disk.total|filesizeformat }}</p>
+        {% endif %}
+    </section>
+    <section class="ic-panel">
+        <h2>Recent syncs</h2>
+        <table class="ic-table">
+            <thead>
+                <tr>
+                    <th scope="col">Requested</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in runs %}
+                    <tr>
+                        <td>{{ run.requested_at|date:"M j H:i:s" }}</td>
+                        <td>
+                            {{ run.get_status_display }}
+                            {% if run.full_rehash %}· weekly re-hash{% endif %}
+                        </td>
+                        <td>{{ run.error }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="3">No syncs yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <section class="ic-panel">
+        <h2>Projection masters on this booth</h2>
+        <table class="ic-table">
+            <thead>
+                <tr>
+                    <th scope="col">File</th>
+                    <th scope="col">Size</th>
+                    <th scope="col">Verified</th>
+                    <th scope="col">Only copy?</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in local_files %}
+                    <tr>
+                        <td>{{ file.name }}</td>
+                        <td>{{ file.size|filesizeformat }}</td>
+                        <td>{{ file.verified_at|date:"M j H:i" }}</td>
+                        <td>
+                            {% if file.available_from_parent %}
+                                no
+                            {% else %}
+                                yes, production released its copy
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4">No masters yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

@@ -20,6 +20,12 @@ if [ -z "$branch" ]; then
     fi
 fi
 
+# The booth plays films from its own container; don't restart it during showtimes.
+# Changes wait for the first poll after playback hours end.
+if in_ic_playback_hours; then
+    exit 0
+fi
+
 git fetch --quiet origin "$branch"
 
 # rev-parse gives the full commit hash for HEAD and origin/branch, so this checks if

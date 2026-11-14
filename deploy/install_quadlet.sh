@@ -37,9 +37,23 @@ mkdir -p \
     "$root/media" \
     "$root/staticfiles" \
     "$root/var" \
+    "$IC_PROJECTION_ROOT" \
     "$dest_dir"
 
 render_template "$root/deploy/quadlet.container.in" "$dest_dir/$APP_NAME.container"
+
+# International Cinema units (DEPLOY_IC.md). Units for roles this checkout no
+# longer runs are removed so a stale worker cannot keep running.
+for role in media-worker ic-sync-agent; do
+    unit="$dest_dir/$APP_NAME-$role.container"
+    if ic_unit_names | grep -qx "$APP_NAME-$role"; then
+        render_template "$root/deploy/ic/$role.container.in" "$unit"
+        printf 'Installed %s\n' "$unit"
+    elif [ -f "$unit" ]; then
+        rm -f "$unit"
+        printf 'Removed %s\n' "$unit"
+    fi
+done
 
 if [ "$reload_systemd" -eq 1 ]; then
     systemctl --user daemon-reload

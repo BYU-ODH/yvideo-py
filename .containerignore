@@ -2,12 +2,12 @@
 # authoritative build-context ignore list for deployment builds.
 .git/
 .venv/
-IC_player/
 old/
 node_modules/
 demo_media/
 tests/
 tmp/
+ic_projection/
 
 db.sqlite3*
 data/

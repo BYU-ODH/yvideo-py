@@ -1,0 +1,162 @@
+{% extends "ic/base_dark.html" %}
+
+{% load static %}
+
+{% block title %}
+    {{ program.name }} · International Cinema
+{% endblock %}
+{% block content %}
+    {{ page_data|json_script:"ic-page-data" }}
+    <div class="ic-control">
+        <section class="ic-panel ic-control-header" aria-labelledby="ic-program-name">
+            <div>
+                <h1 id="ic-program-name">{{ program.name }}</h1>
+                <p class="ic-muted">{{ program.start_date|date:"M j" }} – {{ program.end_date|date:"M j, Y" }}</p>
+                {% if rehearsal %}
+                    <p class="ic-status ic-warn">Rehearsal: this program hasn't started yet.</p>
+                {% endif %}
+                {% if not booth %}
+                    <p class="ic-muted">Preview: plays the SD editing files. The booth plays the projection masters.</p>
+                {% endif %}
+            </div>
+            <div class="ic-output-controls">
+                <button type="button" id="ic-open-output" class="ic-button">Open output (O)</button>
+                <p id="ic-output-status" class="ic-muted" data-connected="false">Output not open</p>
+            </div>
+        </section>
+        <div id="ic-output-lost" class="ic-panel ic-alert" role="alert" hidden>
+            <span id="ic-output-lost-text">Output lost.</span>
+            <button type="button" id="ic-reopen-output" class="ic-button">Reopen and resume</button>
+        </div>
+        <p id="ic-message" class="ic-message" role="status" hidden></p>
+        {% if booth %}
+            <div id="ic-stale" class="ic-panel ic-alert" role="status" hidden>
+                <span>The booth received new program data from production. Reload this page between films to see it; the output keeps playing.</span>
+                <button type="button" id="ic-reload" class="ic-button">Reload</button>
+            </div>
+        {% endif %}
+        <div class="ic-control-grid">
+            <section class="ic-panel" aria-labelledby="ic-queue-heading">
+                <h2 id="ic-queue-heading">Queue</h2>
+                <ol class="ic-queue">
+                    {% for item in items %}
+                        <li class="{% if not item.playable %}ic-unplayable{% endif %}">
+                            <button type="button"
+                                    class="ic-queue-button"
+                                    data-ic-load="{{ forloop.counter0 }}"
+                                    {% if not item.playable %}aria-disabled="true"{% endif %}>
+                                <span class="ic-queue-title">{{ item.title }}</span>
+                                <span class="ic-muted">
+                                    {% if item.mode == "loop" %}
+                                        Loops until advanced
+                                    {% elif item.auto_advance %}
+                                        Plays once, then next
+                                    {% else %}
+                                        Plays once
+                                    {% endif %}
+                                    ·
+                                    {% if item.subtitles == "vtt" %}
+                                        VTT subtitles
+                                    {% elif item.subtitles == "burned_in" %}
+                                        Burned-in subtitles
+                                    {% else %}
+                                        No subtitles
+                                    {% endif %}
+                                </span>
+                            </button>
+                            {% include "ic/partials/problems.html" with problems=item.problems %}
+                        </li>
+                    {% empty %}
+                        <li>This program has nothing in it.</li>
+                    {% endfor %}
+                </ol>
+            </section>
+            <section class="ic-panel" aria-labelledby="ic-now-heading">
+                <h2 id="ic-now-heading">Now</h2>
+                <p class="ic-now-title" id="ic-now-title">Nothing loaded</p>
+                <p class="ic-muted" id="ic-now-mode"></p>
+                <p id="ic-ready-next" class="ic-status ic-ok" hidden></p>
+                <div class="ic-clock">
+                    <span id="ic-time">0:00:00</span> / <span id="ic-duration">–:––:––</span>
+                </div>
+                <label class="ic-visually-hidden" for="ic-scrubber">Position</label>
+                <input id="ic-scrubber"
+                       class="ic-scrubber"
+                       type="range"
+                       min="0"
+                       max="0"
+                       step="0.1"
+                       value="0"
+                       disabled>
+                <div class="ic-transport">
+                    <button type="button"
+                            id="ic-prev"
+                            class="ic-button"
+                            title="Previous item (P)">◀◀ Prev</button>
+                    <button type="button"
+                            id="ic-back"
+                            class="ic-button"
+                            title="Back 5 seconds (←)">−5s</button>
+                    <button type="button"
+                            id="ic-play-pause"
+                            class="ic-button ic-button-primary"
+                            title="Play/pause (Space)">Play</button>
+                    <button type="button"
+                            id="ic-forward"
+                            class="ic-button"
+                            title="Forward 5 seconds (→)">+5s</button>
+                    <button type="button" id="ic-next" class="ic-button" title="Next item (N)">Next ▶▶</button>
+                </div>
+                <div class="ic-safety">
+                    <button type="button"
+                            id="ic-blank"
+                            class="ic-button ic-button-blank"
+                            aria-pressed="false"
+                            title="Black out the projector immediately (B)">BLANK</button>
+                    <button type="button"
+                            id="ic-mute"
+                            class="ic-button"
+                            aria-pressed="false"
+                            title="Mute (M)">Mute</button>
+                    <button type="button"
+                            id="ic-subtitles"
+                            class="ic-button"
+                            aria-pressed="true"
+                            title="Subtitles on/off (S)">Subtitles</button>
+                </div>
+                <label class="ic-cue-size-label">
+                    Subtitle size
+                    <input id="ic-cue-size" type="range" min="2" max="8" step="0.25" value="4">
+                </label>
+                <dl class="ic-annotations">
+                    <dt>Active</dt>
+                    <dd id="ic-active-annotations">
+                        None
+                    </dd>
+                    <dt>Next</dt>
+                    <dd id="ic-next-annotation">
+                        None
+                    </dd>
+                </dl>
+            </section>
+        </div>
+        {% if booth %}
+            <section class="ic-panel" aria-labelledby="ic-sync-heading">
+                <h2 id="ic-sync-heading">Sync with production</h2>
+                <form hx-post="{% url 'ic_sync_run_create' %}"
+                      hx-target="#ic-sync-run-slot"
+                      hx-on:htmx:response-error="document.getElementById('ic-sync-run-slot').textContent = '❌ ' + event.detail.xhr.responseText"
+                      hx-swap="innerHTML"
+                      class="ic-sync-form">
+                    <button type="submit" class="ic-button">Sync now</button>
+                </form>
+                <div id="ic-sync-run-slot" role="status" aria-live="polite"></div>
+            </section>
+        {% endif %}
+        <details class="ic-panel ic-help">
+            <summary>Keyboard shortcuts</summary>
+            <p>Space play/pause · N next · P previous · B blank · M mute · S subtitles · ← → 5 seconds · O open output</p>
+        </details>
+    </div>
+    <script type="module" src="{% static 'ic/js/ic-control.js' %}"></script>
+{% endblock %}

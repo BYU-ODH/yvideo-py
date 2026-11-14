@@ -26,6 +26,7 @@ import pytest
 
 from core.models import Content
 from core.models import Playlist
+from ic.testing import FFMPEG_AVAILABLE
 
 pytestmark = [
     pytest.mark.e2e,
@@ -1197,3 +1198,26 @@ AUDITED_TEMPLATES = {
     "admin/core/resourceintakerequest/change_form.html",
     "admin/core/user/add_form.html",
 }
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/ic/",
+        "/ic/program/{program}/",
+        "/ic/manage/",
+        "/ic/manage/programs/new/",
+        "/ic/manage/programs/{program}/",
+        "/ic/manage/resources/",
+        "/ic/manage/resources/{resource}/projection-upload/",
+    ],
+)
+@pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="needs ffmpeg to make playable videos")
+def test_ic_pages_are_accessible(logged_in_page, live_server, ic_program, path):
+    """International Cinema's templates live in ic/templates, outside TEMPLATE_ROOTS."""
+    url = path.format(
+        program=ic_program["program"].pk, resource=ic_program["feature"].resource_id
+    )
+    logged_in_page.goto(f"{live_server.url}{url}")
+    violations = _run_axe(logged_in_page)["violations"]
+    assert not violations, _format_violations(violations, url)
