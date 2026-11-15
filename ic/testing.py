@@ -6,7 +6,6 @@ import subprocess
 import tempfile
 
 from django.contrib.auth.models import Group
-from django.core.cache import cache
 from django.test import modify_settings
 from django.test import override_settings
 from django.utils import timezone
@@ -89,7 +88,6 @@ class ICTempDirsMixin:
             MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
         )
         self._ic_middleware.enable()
-        cache.clear()  # the manifest hash is cached between requests
         self.addCleanup(self._ic_cleanup)
 
     def _ic_cleanup(self):

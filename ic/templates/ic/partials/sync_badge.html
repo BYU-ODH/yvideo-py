@@ -1,6 +1,6 @@
 {# Persistent booth sync status. #}
-{# data-ic-data-version tells an open controller that newer program data was applied. #}
-<span hidden data-ic-data-version="{{ data_version }}"></span>
+{# Tells an open controller that newer data for its program was applied. #}
+<span hidden data-ic-data-versions="{{ data_versions_json }}"></span>
 {% if latest and latest.status == "running" %}
     <span class="ic-badge ic-warn" role="status">⟳ Syncing…</span>
 {% elif last_run.status == "failed" %}

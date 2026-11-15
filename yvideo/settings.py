@@ -268,19 +268,15 @@ IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
 # spike confirms hardware decode; AV1 never will on the booth's Intel UHD 630.
 IC_BOOTH_VIDEO_CODECS = getattr(secret_settings, "IC_BOOTH_VIDEO_CODECS", ["h264"])
 
+# The booth has no users at all: nothing to log in to, spoof, or refresh.
+BOOTH_EXCLUDED_MIDDLEWARE = (
+    "django.contrib.auth.middleware.LoginRequiredMiddleware",
+    "core.middleware.SpoofUserMiddleware",
+    "mozilla_django_oidc.middleware.SessionRefresh",
+)
 if IS_IC_INSTANCE:
     ROOT_URLCONF = "yvideo.urls_ic"
-    # The booth has no users at all: nothing to log in to, spoof, or refresh.
-    MIDDLEWARE = [
-        m
-        for m in MIDDLEWARE
-        if m
-        not in (
-            "django.contrib.auth.middleware.LoginRequiredMiddleware",
-            "core.middleware.SpoofUserMiddleware",
-            "mozilla_django_oidc.middleware.SessionRefresh",
-        )
-    ]
+    MIDDLEWARE = [m for m in MIDDLEWARE if m not in BOOTH_EXCLUDED_MIDDLEWARE]
 
 # Logging
 # https://docs.djangoproject.com/en/5.1/topics/logging/

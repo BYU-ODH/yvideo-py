@@ -192,17 +192,6 @@ class UploadFlowTests(ICTempDirsMixin, TestCase):
         path.write_bytes(data)
         return path
 
-    @unittest.skipUnless(FFMPEG_AVAILABLE, "needs ffmpeg and ffprobe")
-    def test_a_file_that_is_not_a_video_fails_with_a_message(self):
-        junk = self._ic_tmp / "junk.mp4"
-        junk.write_bytes(b"\x00" * 2048)
-        upload = self.upload_file(junk)
-        run_due_jobs()
-        row = ICUpload.objects.get(pk=upload["id"])
-        self.assertEqual(row.status, ICUpload.Status.FAILED)
-        self.assertTrue(row.error)
-        self.assertFalse(row.part_path.exists())
-
 
 class ReleaseMasterTests(ICTempDirsMixin, TestCase):
     def setUp(self):

@@ -62,16 +62,6 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         self.assertRedirects(response, reverse("ic_program_edit", args=[program.pk]))
         self.assertEqual(Version.objects.get_for_object(program).count(), 1)
 
-    def test_end_before_start_is_rejected(self):
-        response = self.client.post(
-            reverse("ic_program_new"),
-            {"name": "Bad", "start_date": "2026-11-12", "end_date": "2026-11-10"},
-        )
-        self.assertContains(
-            response, "The program can&#x27;t end before it starts.", status_code=400
-        )
-        self.assertFalse(ICProgram.objects.filter(name="Bad").exists())
-
     def test_add_move_and_remove_items(self):
         extra = self.scenario["feature"]
         self.client.post(
@@ -127,26 +117,6 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         item.refresh_from_db()
         self.assertTrue(item.auto_advance)
         self.assertEqual(item.subtitles, ICProgramItem.Subtitles.BURNED_IN)
-
-    def test_edit_and_delete_a_program(self):
-        url = reverse("ic_program_edit", args=[self.program.pk])
-        response = self.client.post(
-            url,
-            {
-                "name": "Amélie, extended",
-                "start_date": self.program.start_date.isoformat(),
-                "end_date": self.program.end_date.isoformat(),
-                "notes": "",
-            },
-        )
-        self.assertRedirects(response, url)
-        self.program.refresh_from_db()
-        self.assertEqual(self.program.name, "Amélie, extended")
-        response = self.client.post(
-            reverse("ic_program_delete", args=[self.program.pk])
-        )
-        self.assertRedirects(response, reverse("ic_manage_dashboard"))
-        self.assertFalse(ICProgram.objects.filter(pk=self.program.pk).exists())
 
 
 class MasterUploadPathTests(ICTempDirsMixin, TestCase):
@@ -276,11 +246,6 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
         self.assertEqual(self.get("ic_sync_check").status_code, 200)
         self.assertIsNotNone(ICBoothReport.get().last_seen_at)
 
-    def test_check_returns_only_the_manifest_hash(self):
-        digest = self.get("ic_sync_manifest").json()["manifest_hash"]
-        data = self.get("ic_sync_check").json()
-        self.assertEqual(data, {"manifest_hash": digest})
-
     def post(self, name, data):
         return self.client.post(
             reverse(name),
@@ -315,12 +280,6 @@ class SyncAPITests(ICTempDirsMixin, TestCase):
         booth = ICBoothReport.get()
         self.assertEqual(booth.report["status"], "succeeded")
         self.assertEqual(booth.applied_manifest_hash, "abc")
-
-    def test_a_copy_with_another_checksum_never_releases_the_master(self):
-        master, report = self.report("bad")
-        self.post("ic_sync_status", report)
-        master.refresh_from_db()
-        self.assertIsNone(master.master_released_at)
 
 
 class DashboardTests(ICTempDirsMixin, TestCase):

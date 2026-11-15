@@ -8,6 +8,7 @@ the booth shows apart from the video file.
 
 from datetime import date
 from functools import wraps
+import json
 
 from django.conf import settings
 from django.http import Http404
@@ -139,13 +140,11 @@ def item_json(entry):
     }
 
 
-def _data_version(state):
-    """What the controller page is built from: when it changes, the page is stale.
-
-    Only the programs count. Player data is fetched fresh for every item, and a run
-    that changes nothing, or only which masters production still holds, isn't news.
-    """
-    return manifest_hash(state.bundle.get("programs", []))
+def _data_versions(state):
+    """Each program's version, as its controller page was built from it: when it
+    changes, that page is stale. Player data is fetched fresh for every item, and a
+    change to another program, or to which masters production holds, isn't news."""
+    return {p["id"]: manifest_hash(p) for p in state.bundle.get("programs", [])}
 
 
 def _sync_summary():
@@ -153,7 +152,7 @@ def _sync_summary():
     state = ICBoothState.get()
     return {
         "state": state,
-        "data_version": _data_version(state),
+        "data_versions_json": json.dumps(_data_versions(state)),
         "latest": ICSyncRun.objects.order_by("-requested_at").first(),
         "last_run": ICSyncRun.latest_finished(),
         "parent_unreachable": bool(state.parent_check_error),
@@ -201,9 +200,9 @@ def control(request, program_id):
     context = {"program": program, "items": items, "page_data": page_data}
     if booth:
         context.update(_sync_summary())
-        # When the sync badge reports a newer apply, the controller asks for a reload:
-        # its queue was built from the data applied before.
-        page_data["data_version"] = context["data_version"]
+        # When the sync badge reports a newer version of this program, the controller
+        # asks for a reload: its queue was built from the data applied before.
+        page_data["data_version"] = _data_versions(ICBoothState.get()).get(program.pk)
         context["rehearsal"] = program.is_upcoming()
     return _render(request, "ic/control.html", context)
 

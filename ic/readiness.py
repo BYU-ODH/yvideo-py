@@ -1,5 +1,5 @@
-"""Whether a program is ready to show. Runs on production; the booth gets the
-problems that concern it in its bundle (ic.sync.bundle).
+"""Whether a program is ready to show, for IC editors on production. The booth shows
+only whether each item can play.
 
 Errors block "ready"; warnings are shown but do not.
 """
@@ -19,50 +19,6 @@ class Problem:
     severity: str
     code: str
     message: str
-
-    @property
-    def is_error(self):
-        return self.severity == ERROR
-
-
-def master_problems(master):
-    problems = []
-
-    def add(severity, code, message):
-        problems.append(Problem(severity, code, message))
-
-    codec = (master.probe.get("video_codec") or "").lower()
-    allowed = [c.lower() for c in settings.IC_BOOTH_VIDEO_CODECS]
-    if codec not in allowed:
-        add(
-            ERROR,
-            "codec",
-            f"The booth hasn't been verified to decode {codec or 'this codec'} "
-            f"(verified: {', '.join(allowed)}). Use an H.264 master.",
-        )
-    if master.is_hdr:
-        add(
-            WARNING,
-            "hdr",
-            "HDR master: Chrome on Linux won't tone-map it for the projector, so it will "
-            "look washed out. Prefer an SDR master.",
-        )
-    booth = ICBoothReport.get()
-    if booth.holds_verified_copy(master):
-        pass
-    elif master.master_released_at:
-        add(
-            ERROR,
-            "master_lost",
-            "Production released this master and the booth no longer reports a verified copy; re-upload it.",
-        )
-    elif booth.report:
-        add(
-            WARNING,
-            "not_on_booth",
-            "The booth doesn't have a verified copy of this master yet.",
-        )
-    return problems
 
 
 def item_problems(item):
@@ -90,7 +46,37 @@ def item_problems(item):
     if master is None:
         add(ERROR, "no_master", "No projection master has been uploaded for this film.")
     else:
-        problems.extend(master_problems(master))
+        codec = (master.probe.get("video_codec") or "").lower()
+        allowed = [c.lower() for c in settings.IC_BOOTH_VIDEO_CODECS]
+        if codec not in allowed:
+            add(
+                ERROR,
+                "codec",
+                f"The booth hasn't been verified to decode {codec or 'this codec'} "
+                f"(verified: {', '.join(allowed)}). Use an H.264 master.",
+            )
+        if master.is_hdr:
+            add(
+                WARNING,
+                "hdr",
+                "HDR master: Chrome on Linux won't tone-map it for the projector, so it will "
+                "look washed out. Prefer an SDR master.",
+            )
+        booth = ICBoothReport.get()
+        if booth.holds_verified_copy(master):
+            pass
+        elif master.master_released_at:
+            add(
+                ERROR,
+                "master_lost",
+                "Production released this master and the booth no longer reports a verified copy; re-upload it.",
+            )
+        elif booth.report:
+            add(
+                WARNING,
+                "not_on_booth",
+                "The booth doesn't have a verified copy of this master yet.",
+            )
         job = master.media_jobs.filter(kind="transcode").order_by("-created_at").first()
         derived_exists = master.derivatives.exists()
         if job is not None and job.is_pending:
@@ -152,7 +138,7 @@ def program_problems(program):
 
 
 def rollup(problems):
-    if any(problem.is_error for problem in problems):
+    if any(problem.severity == ERROR for problem in problems):
         return ERROR
     if problems:
         return WARNING

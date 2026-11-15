@@ -129,9 +129,9 @@ def _ingest(upload):
         replaced_ids = []
         if previous is not None:
             replaced_ids = list(previous.derivatives.values_list("pk", flat=True))
-            if previous.bytes_on_this_server:
-                old_name = previous.file.name
-                transaction.on_commit(lambda: master.file.storage.delete(old_name))
+            # A released master's bytes are already gone; deleting them is a no-op.
+            old_name = previous.file.name
+            transaction.on_commit(lambda: master.file.storage.delete(old_name))
             # A queryset delete, not ResourceFile.delete(), which would remove the
             # bytes at once rather than after the commit.
             ResourceFile.objects.filter(pk=previous.pk).delete()
@@ -186,11 +186,7 @@ def transcode(job):
             ).first()
             if derived is None:
                 derived = ResourceFile(resource=master.resource, version=version)
-            elif (
-                derived.file
-                and derived.bytes_on_this_server
-                and derived.file.name != relative
-            ):
+            elif derived.file and derived.file.name != relative:
                 derived.file.delete(save=False)
             final_path.parent.mkdir(parents=True, exist_ok=True)
             os.replace(temp_path, final_path)
@@ -232,8 +228,6 @@ def transcode(job):
 def release_blockers(master):
     """Why production must keep this master's bytes; empty when it may release them."""
     blockers = []
-    if not master.is_projection_file:
-        return ["not a projection master"]
     if master.master_released_at:
         return ["already released"]
     if not master.derivatives.exists():
@@ -249,9 +243,8 @@ def release_if_ready(master):
         master = ResourceFile.objects.select_for_update().get(pk=master.pk)
         if release_blockers(master):
             return False
-        if master.bytes_on_this_server:
-            name = master.file.name
-            transaction.on_commit(lambda: master.file.storage.delete(name))
+        name = master.file.name
+        transaction.on_commit(lambda: master.file.storage.delete(name))
         master.master_released_at = timezone.now()
         master.save(update_fields=["master_released_at", "updated_at"])
     logger.info("Released production's copy of master %s.", master.pk)

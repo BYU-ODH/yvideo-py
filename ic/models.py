@@ -299,7 +299,7 @@ class ICSyncRun(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.QUEUED
     )
-    # What the run is doing now, for the operator ("Downloading", "Importing", ...).
+    # What the run is doing now, for the operator ("Downloading", ...).
     phase = models.CharField(max_length=40, blank=True)
     bytes_done = models.BigIntegerField(default=0)
     bytes_total = models.BigIntegerField(default=0)

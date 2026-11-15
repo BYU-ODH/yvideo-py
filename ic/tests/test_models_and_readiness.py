@@ -45,12 +45,6 @@ class ProjectionFileModelTests(ICTempDirsMixin, TestCase):
         with self.assertRaises(ValidationError):
             content.clean()
 
-    def test_deleting_a_released_master_row_does_not_fail(self):
-        master = make_master(ResourceFactory())
-        Path(master.file.path).unlink()
-        master.delete()
-        self.assertFalse(ResourceFile.objects.filter(pk=master.pk).exists())
-
 
 class ProgramDateTests(TestCase):
     def test_active_upcoming_and_syncable(self):

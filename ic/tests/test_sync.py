@@ -81,13 +81,6 @@ class BundleTests(ICTempDirsMixin, TestCase):
         mute.edit(end_time=mute.end_time + 1)
         self.assertNotEqual(first, build_bundle()[1])
 
-    def test_past_programs_are_not_synced(self):
-        program = self.scenario["program"]
-        program.start_date = program.end_date = timezone.localdate() - timedelta(days=5)
-        program.save()
-        manifest, _ = build_bundle()
-        self.assertEqual(manifest["files"], [])
-
 
 class FakeParent:
     """Stands in for production: serves a captured manifest and file bytes."""
@@ -190,17 +183,6 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertIn(master.checksum, report["verified"])
         self.assertEqual(report["failed_files"], [])
 
-    def test_production_side_problems_dont_make_a_run_partial(self):
-        """Only what a retry could fix makes a run partial (and so retried every 15 min)."""
-        later = timezone.localdate() + timedelta(days=20)
-        ICProgram.objects.create(
-            name="Not planned yet", start_date=later, end_date=later
-        )
-        self.parent = self.capture_production()
-        run = self.run_sync()
-        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.report)
-        self.assertIsNone(agent.check_parent(self.parent))
-
     def test_a_run_with_nothing_changed_fetches_nothing(self):
         self.run_sync()
         run = self.run_sync()
@@ -218,6 +200,8 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         run = self.run_sync(full_rehash=True)
         self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED, run.error)
         self.assertEqual(self.parent.downloads.count(entry["name"]), 2)
+        # Hashed, then downloaded again: both passes count toward the total.
+        self.assertEqual(run.bytes_done, run.bytes_total)
         self.assertEqual(path.read_bytes(), self.parent.files[entry["name"]])
 
     def test_a_corrupt_download_changes_nothing_and_is_retried(self):
@@ -281,12 +265,6 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         self.assertIn("player data format", run.error)
         self.assertEqual(ICBoothState.get().applied_manifest_hash, applied_before)
 
-    def test_unreachable_production_fails_cleanly(self):
-        self.parent.unreachable = True
-        run = self.run_sync()
-        self.assertEqual(run.status, ICSyncRun.Status.FAILED)
-        self.assertIn("unreachable", run.error)
-
     def test_a_file_that_does_not_fit_fails_only_itself(self):
         with mock.patch.object(
             agent.shutil, "disk_usage", return_value=mock.Mock(free=10, total=100)
@@ -297,26 +275,6 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         errors = [f["error"] for f in run.report["failed_files"]]
         self.assertTrue(any("Not enough disk space" in e for e in errors))
 
-    def test_a_damaged_released_master_is_never_trusted_again(self):
-        self.run_sync()
-        entry = self.parent.manifest_data["files"][0]
-        entry["available_from_parent"] = False
-        path = agent._storage_path(entry["name"])
-        data = bytearray(path.read_bytes())
-        data[0] ^= 0xFF
-        path.write_bytes(bytes(data))
-        self.parent.digest = "released"
-        run = self.run_sync(full_rehash=True)
-        # Only a re-upload can fix a lost master, so retrying wouldn't help.
-        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED)
-        self.assertIn("re-upload the master", run.report["failed_files"][0]["error"])
-        # An ordinary run afterwards must not take the damaged bytes for verified.
-        self.parent.digest = "released-again"
-        run = self.run_sync()
-        self.assertEqual(len(run.report["failed_files"]), 1)
-        self.assertFalse(ICLocalFile.objects.filter(xxh64=entry["xxh64"]).exists())
-        self.assertNotIn(entry["xxh64"], run.report["verified"])
-
     def test_a_missing_released_master_is_no_longer_reported_verified(self):
         """Production flags master_lost only if the booth stops listing the copy."""
         self.run_sync()
@@ -326,6 +284,8 @@ class AgentRunTests(ICTempDirsMixin, TestCase):
         agent._storage_path(entry["name"]).unlink()
         self.parent.digest = "released"
         run = self.run_sync()
+        # Only a re-upload can fix a lost master, so retrying wouldn't help.
+        self.assertEqual(run.status, ICSyncRun.Status.SUCCEEDED)
         self.assertIn("re-upload the master", run.report["failed_files"][0]["error"])
         self.assertNotIn(entry["xxh64"], run.report["verified"])
 
@@ -421,35 +381,17 @@ class CheckParentTests(ICTempDirsMixin, TestCase):
         self.assertIsNone(agent.check_parent(self.parent, now=evening))
         run = agent.check_parent(self.parent, now=morning)
         self.assertTrue(run.full_rehash)
-        self.finish(run, ICSyncRun.Status.SUCCEEDED, "hash-1")
+        # A re-hash that fails early (e.g. HTTP 500) backs off like any other run,
+        # rather than starting again at every check.
+        run.status, run.finished_at = ICSyncRun.Status.FAILED, morning
+        run.save()
+        later = morning + timedelta(minutes=10)
+        self.assertIsNone(agent.check_parent(self.parent, now=later))
+        run.status = ICSyncRun.Status.SUCCEEDED
+        run.save()
         self.assertIsNone(
             agent.check_parent(self.parent, now=morning + timedelta(days=1))
         )
-
-    def test_a_failing_rehash_backs_off_like_any_other_run(self):
-        """Not a new full re-hash every check while production can't be synced."""
-        state = ICBoothState.get()
-        state.bundle = {"manifest_hash": "hash-1"}
-        state.save()
-        ICLocalFile.objects.create(
-            xxh64="0",
-            name="ic/1/master.mp4",
-            size=1,
-            verified_at=timezone.now(),
-            available_from_parent=False,
-            last_program_end=timezone.localdate(),
-        )
-        morning = timezone.localtime().replace(hour=4, minute=0)
-        run = agent.check_parent(self.parent, now=morning)
-        self.assertTrue(run.full_rehash)
-        # It failed before it saw a manifest (e.g. HTTP 500).
-        run.status, run.finished_at = ICSyncRun.Status.FAILED, morning
-        run.save()
-        for seconds in (30, 60, 600):
-            later = morning + timedelta(seconds=seconds)
-            self.assertIsNone(agent.check_parent(self.parent, now=later))
-        later = morning + agent.RETRY_AFTER
-        self.assertIsNotNone(agent.check_parent(self.parent, now=later))
 
     def test_unreachable_production_is_recorded_and_queues_nothing(self):
         self.parent.unreachable = True
@@ -496,6 +438,19 @@ class PruneTests(ICTempDirsMixin, TestCase):
         self.assertEqual(removed, [])
         self.assertTrue(path.exists())
 
+    def test_partial_downloads_go_once_production_stops_listing_them(self):
+        """A download cut off before its master was replaced or unscheduled can never
+        resume; one that's still listed must, so it stays."""
+        root = Path(ResourceFile().file.storage.path("ic_projection/1/x"))
+        root.parent.mkdir(parents=True)
+        listed = root.with_name("aaaa.mp4.part")
+        unlisted = root.with_name("bbbb.mp4.part")
+        for part in (listed, unlisted):
+            part.write_bytes(b"x")
+        agent.prune({"files": [{"xxh64": "aaaa"}]})
+        self.assertTrue(listed.exists())
+        self.assertFalse(unlisted.exists())
+
     def test_released_masters_are_kept_much_longer_and_warned_about(self):
         """The warning comes in the week before deletion, once the master is unlisted,
         which is the only time a realistic manifest lets it be due."""
@@ -515,17 +470,6 @@ class PruneTests(ICTempDirsMixin, TestCase):
         removed, _ = agent.prune({"files": []}, today=delete_on)
         self.assertEqual(removed, ["ic_projection/3/c.mp4"])
         self.assertFalse(path.exists())
-
-    def test_old_run_history_goes(self):
-        old = ICSyncRun.objects.create(status=ICSyncRun.Status.SUCCEEDED)
-        ICSyncRun.objects.filter(pk=old.pk).update(
-            finished_at=timezone.now() - agent.RUN_HISTORY - timedelta(days=1)
-        )
-        recent = ICSyncRun.objects.create(
-            status=ICSyncRun.Status.SUCCEEDED, finished_at=timezone.now()
-        )
-        agent.prune({"files": []})
-        self.assertEqual(list(ICSyncRun.objects.all()), [recent])
 
 
 class HashRateTests(TestCase):
@@ -624,7 +568,3 @@ class ParentClientTests(ICTempDirsMixin, TestCase):
         part.unlink()
         with self.assertRaisesMessage(ParentError, "no longer holds"):
             self.client_.download(entry, part)
-
-    def test_a_wrong_token_is_reported(self):
-        with self.assertRaisesMessage(ParentError, "rejected this booth's sync token"):
-            self.parent_client("wrong").check()

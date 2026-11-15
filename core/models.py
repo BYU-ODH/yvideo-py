@@ -632,7 +632,7 @@ class ResourceFile(models.Model):
 
     def delete(self, *args, **kwargs):
         """Delete the file from the filesystem when the model is deleted."""
-        if self.file and self.file.storage.exists(self.file.name):
+        if self.file:
             self.file.delete(save=False)
         super().delete(*args, **kwargs)
 

@@ -113,6 +113,14 @@ def _check_format(manifest):
         )
 
 
+def _tracked_fields(entry):
+    """What production says about a master that the booth keeps for prune."""
+    return {
+        "available_from_parent": entry["available_from_parent"],
+        "last_program_end": date.fromisoformat(entry["last_program_end"]),
+    }
+
+
 def _plan_files(ctx, manifest, *, full_rehash):
     """Split the manifest's files into ones already verified here and ones to hash or fetch.
 
@@ -126,8 +134,7 @@ def _plan_files(ctx, manifest, *, full_rehash):
         on_disk = path.exists() and path.stat().st_size == entry["size"]
         # Keep what production says about a verified file current, for prune.
         verified = ICLocalFile.objects.filter(xxh64=entry["xxh64"]).update(
-            available_from_parent=entry["available_from_parent"],
-            last_program_end=date.fromisoformat(entry["last_program_end"]),
+            **_tracked_fields(entry)
         )
         if verified and on_disk and not full_rehash:
             results[entry["xxh64"]] = {"ok": True}
@@ -169,6 +176,9 @@ def _fetch_file(ctx, entry, path, on_disk):
             "ok": False,
             "error": f"Not enough disk space on the booth for {entry['name']}.",
         }
+    # A failed hash above already counted this file once; the download counts again.
+    if on_disk:
+        ctx.run.bytes_total += entry["size"]
     # The bytes are hashed as they arrive (after what an interrupted run left), so a
     # download needs no second pass over the file to verify it.
     digest = xxhash.xxh64()
@@ -206,26 +216,11 @@ def _fetch_files(ctx, todo):
                     "name": entry["name"],
                     "size": entry["size"],
                     "verified_at": timezone.now(),
-                    "available_from_parent": entry["available_from_parent"],
-                    "last_program_end": date.fromisoformat(entry["last_program_end"]),
+                    **_tracked_fields(entry),
                 },
             )
         results[entry["xxh64"]] = result
     return results
-
-
-def _showing_master(entry, today):
-    """A master for a program that has already started: the bundle waits for it."""
-    return date.fromisoformat(entry["first_program_start"]) <= today
-
-
-def _unfetched(planned, file_results):
-    """Names of planned files that failed but production could still send."""
-    return [
-        entry["name"]
-        for entry, _, _ in planned
-        if not file_results[entry["xxh64"]]["ok"] and entry["available_from_parent"]
-    ]
 
 
 def _apply(manifest):
@@ -248,7 +243,7 @@ def prune(manifest, today=None):
     in each run's report during the last days before they go.
     """
     today = today or timezone.localdate()
-    listed = [entry["xxh64"] for entry in manifest["files"]]
+    listed = {entry["xxh64"] for entry in manifest["files"]}
     removed, warnings = [], []
     for local in ICLocalFile.objects.exclude(xxh64__in=listed):
         only_copy = not local.available_from_parent
@@ -264,6 +259,10 @@ def prune(manifest, today=None):
                 f"The booth will delete its only copy of {local.name} on {delete_on}; "
                 "re-upload will be needed to show it again."
             )
+    # A partial download production no longer lists can't be resumed; reclaim its space.
+    for part in Path(settings.IC_PROJECTION_ROOT).glob("*/*.part"):
+        if part.name.split(".", 1)[0] not in listed:
+            part.unlink(missing_ok=True)
     ICSyncRun.objects.filter(finished_at__lt=timezone.now() - RUN_HISTORY).delete()
     return removed, warnings
 
@@ -287,14 +286,20 @@ def execute_run(run, client=None, heartbeat=None):
         # Masters for programs already showing come first, then the bundle, then masters
         # for later programs: a fix to tonight's annotations must not wait behind next
         # month's 20 GB master.
-        today = timezone.localdate()
-        showing = [t for t in todo if _showing_master(t[0], today)]
-        upcoming = [t for t in todo if t not in showing]
+        today = timezone.localdate().isoformat()
+        showing, upcoming = [], []
+        for planned in todo:
+            started = planned[0]["first_program_start"] <= today
+            (showing if started else upcoming).append(planned)
         file_results.update(_fetch_files(ctx, showing))
         # Applying a bundle that points at a master the booth couldn't fetch would make a
         # film that plays today unplayable. Keep the previous bundle until a later run
         # fetches it, unless production can't send it anyway (a lost master).
-        blocking = _unfetched(showing, file_results)
+        blocking = [
+            entry["name"]
+            for entry, _, _ in showing
+            if not file_results[entry["xxh64"]]["ok"] and entry["available_from_parent"]
+        ]
         warnings = []
         applied = not blocking
         if blocking:

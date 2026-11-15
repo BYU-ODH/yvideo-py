@@ -282,7 +282,6 @@ def open_editor(logged_in_page, live_server, demo_content):
 @pytest.fixture
 def ic_program(settings, tmp_path, seeded_demo_data):
     settings.IC_PROJECTION_ROOT = tmp_path / "projection"
-    settings.IC_STATE_DIR = tmp_path / "state"
     scenario = make_program_scenario()
     # The preview plays the SD files, so make them real (6 s, enough to cross the skip).
     for key in ("announcement", "feature"):

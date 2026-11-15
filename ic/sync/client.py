@@ -24,9 +24,8 @@ class ParentError(Exception):
 
 class ParentClient:
     def __init__(self, base_url=None, token=None, session=None):
-        self.base_url = (
-            base_url if base_url is not None else settings.IC_PARENT_URL
-        ).rstrip("/")
+        # settings.IC_PARENT_URL has no trailing slash.
+        self.base_url = base_url if base_url is not None else settings.IC_PARENT_URL
         self.session = session or requests.Session()
         self.session.headers["Authorization"] = (
             f"Bearer {token if token is not None else settings.IC_SYNC_TOKEN}"

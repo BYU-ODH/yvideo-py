@@ -350,14 +350,16 @@ setInterval(() => {
   }
 }, LOST_CHECK_MS);
 
-// The booth's sync badge refreshes itself; when it reports data applied after this page
-// was built, the queue may be out of date.
+// The booth's sync badge refreshes itself; when it reports newer data for this program
+// than this page was built from (or none: it ended), the queue may be out of date.
 if (data.booth) {
   const stale = el("ic-stale");
   el("ic-reload").addEventListener("click", () => window.location.reload());
   document.body.addEventListener("htmx:afterSwap", () => {
-    const marker = document.querySelector("[data-ic-data-version]");
-    if (marker && marker.dataset.icDataVersion !== data.data_version) stale.hidden = false;
+    const marker = document.querySelector("[data-ic-data-versions]");
+    if (!marker) return;
+    const versions = JSON.parse(marker.dataset.icDataVersions);
+    if (versions[data.program.id] !== data.data_version) stale.hidden = false;
   });
 }
 

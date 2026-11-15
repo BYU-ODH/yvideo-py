@@ -147,12 +147,17 @@ def _item_row(item, form=None):
 
 def _program_edit_context(program, form=None):
     rows = [_item_row(item) for item in program.ordered_items()]
-    problems = readiness.program_problems(program)
+    # An empty program isn't ready (readiness.program_problems).
+    status = (
+        readiness.rollup([p for row in rows for p in row["problems"]])
+        if rows
+        else readiness.ERROR
+    )
     return {
         "program": program,
         "form": form or ICProgramForm(instance=program),
         "rows": rows,
-        "status": readiness.rollup(problems),
+        "status": status,
         "available_contents": _available_contents(),
         "breadcrumbs": ic_trail((program.name, None)),
     }

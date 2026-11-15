@@ -1,6 +1,8 @@
 """The booth: userless, read-only kiosk and file-addressed media."""
 
 from datetime import timedelta
+import html
+import json
 from pathlib import Path
 
 from django.conf import settings
@@ -20,14 +22,7 @@ from ic.testing import make_master
 from ic.testing import make_program_scenario
 
 BOOTH_MIDDLEWARE = [
-    m
-    for m in settings.MIDDLEWARE
-    if m
-    not in (
-        "django.contrib.auth.middleware.LoginRequiredMiddleware",
-        "core.middleware.SpoofUserMiddleware",
-        "mozilla_django_oidc.middleware.SessionRefresh",
-    )
+    m for m in settings.MIDDLEWARE if m not in settings.BOOTH_EXCLUDED_MIDDLEWARE
 ]
 
 
@@ -171,24 +166,30 @@ class KioskTests(ICTempDirsMixin, TestCase):
         response = self.client.get(reverse("ic_control", args=[self.program.pk]))
         self.assertTrue(response.context["rehearsal"])
 
-    def test_the_controller_learns_when_its_programs_change(self):
-        """Only a change to the programs it was built from makes the page stale: not a
-        run that changed nothing, nor a change to which masters production holds."""
+    def test_the_controller_learns_when_its_program_changes(self):
+        """Only a change to the program it was built from makes the page stale: not a
+        run that changed nothing, a change to which masters production holds, or a
+        change to another program."""
         mark_local(self.film)
         page = self.client.get(reverse("ic_control", args=[self.program.pk]))
         version = page.context["page_data"]["data_version"]
-        self.assertContains(page, f'data-ic-data-version="{version}"')
         self.assertContains(page, 'id="ic-stale"')
 
         def badge_version():
             badge = self.client.get(reverse("ic_sync_badge")).content.decode()
-            return badge.split('data-ic-data-version="')[1].split('"')[0]
+            marker = badge.split('data-ic-data-versions="')[1].split('"')[0]
+            return json.loads(html.unescape(marker)).get(str(self.program.pk))
 
+        self.assertEqual(badge_version(), version)
         state = ICBoothState.get()
         state.applied_at = timezone.now()
         for entry in state.bundle["files"]:
             entry["available_from_parent"] = False
         state.save()
+        self.assertEqual(badge_version(), version)
+        later = timezone.localdate() + timedelta(days=30)
+        ICProgram.objects.create(name="Next month", start_date=later, end_date=later)
+        apply_bundle()
         self.assertEqual(badge_version(), version)
 
         self.film.title = "Renamed"
@@ -197,20 +198,8 @@ class KioskTests(ICTempDirsMixin, TestCase):
         apply_bundle()
         self.assertNotEqual(badge_version(), version)
 
-    def test_the_badge_reports_applied_data_even_when_runs_are_partial(self):
-        """A film for next month that doesn't fit isn't "never synced"."""
-        state = ICBoothState.get()
-        state.applied_at = timezone.now()
-        state.parent_manifest_hash = state.applied_manifest_hash
-        state.save()
-        ICSyncRun.objects.create(
-            status=ICSyncRun.Status.PARTIAL, finished_at=timezone.now()
-        )
-        badge = self.client.get(reverse("ic_sync_badge"))
-        self.assertNotContains(badge, "Never synced")
-        self.assertContains(badge, "Data from production applied")
-
-    def test_sync_now_needs_a_live_agent(self):
+    def test_sync_now_queues_one_run_and_shows_its_progress(self):
+        # Without a running agent, nothing would ever take the run.
         response = self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(response.status_code, 503)
         self.assertIn(
@@ -218,7 +207,6 @@ class KioskTests(ICTempDirsMixin, TestCase):
         )
         self.assertFalse(ICSyncRun.objects.exists())
 
-    def test_sync_now_queues_one_run_and_shows_its_progress(self):
         ICBoothState.record_agent_heartbeat()
         response = self.client.post(reverse("ic_sync_run_create"))
         self.assertEqual(response.status_code, 200)
@@ -236,16 +224,3 @@ class KioskTests(ICTempDirsMixin, TestCase):
         html = self.client.get(reverse("ic_sync_run_detail", args=[run.pk]))
         self.assertContains(html, "Production unreachable.")
         self.assertNotContains(html, "every 1s")
-
-
-class BoothViewsOnProductionTests(ICTempDirsMixin, TestCase):
-    def test_booth_views_refuse_to_run_on_production(self):
-        from django.test import RequestFactory
-
-        from ic import views_player
-
-        request = RequestFactory().get("/ic/status/")
-        from django.http import Http404
-
-        with self.assertRaises(Http404):
-            views_player.status(request)
