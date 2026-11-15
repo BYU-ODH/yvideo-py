@@ -55,9 +55,12 @@ def ic_trail(*crumbs):
     ]
 
 
-def _record(request, comment):
+def _record(request, program, comment):
     reversion.set_user(getattr(request, "original_user", request.user))
     reversion.set_comment(comment)
+    # Every revision holds the whole program with its items, so reorders (queryset
+    # updates) and deletes are in the history too.
+    reversion.add_to_revision(program)
 
 
 def _program_row(program):
@@ -120,7 +123,7 @@ def program_new(request):
         )
     with transaction.atomic(), reversion.create_revision():
         program = form.save()
-        _record(request, "Created IC program")
+        _record(request, program, "Created IC program")
     messages.success(
         request, f'Program "{program.name}" created. Now add what it shows.'
     )
@@ -177,7 +180,7 @@ def program_edit(request, program_id):
         )
     with transaction.atomic(), reversion.create_revision():
         form.save()
-        _record(request, "Updated IC program")
+        _record(request, program, "Updated IC program")
     messages.success(request, "Program saved.")
     return redirect("ic_program_edit", program.pk)
 
@@ -188,8 +191,8 @@ def program_delete(request, program_id):
     program = get_object_or_404(ICProgram, pk=program_id)
     name = program.name
     with transaction.atomic(), reversion.create_revision():
+        _record(request, program, "Deleted IC program")
         program.delete()
-        _record(request, "Deleted IC program")
     messages.success(request, f'Program "{name}" deleted.')
     return redirect("ic_manage_dashboard")
 
@@ -224,7 +227,7 @@ def item_add(request, program_id):
             mode=mode,
             subtitles=subtitles,
         )
-        _record(request, "Added IC program item")
+        _record(request, program, "Added IC program item")
     return redirect("ic_program_edit", program.pk)
 
 
@@ -238,7 +241,7 @@ def item_update(request, program_id, item_id):
     if form.is_valid():
         with transaction.atomic(), reversion.create_revision():
             form.save()
-            _record(request, "Updated IC program item")
+            _record(request, program, "Updated IC program item")
     # The program page posts here as soon as a setting changes (htmx follows the
     # redirect and swaps in the program with fresh readiness); without JavaScript the
     # item form has a Save button.
@@ -253,7 +256,7 @@ def item_delete(request, program_id, item_id):
     with transaction.atomic(), reversion.create_revision():
         item.delete()
         program.renumber_items()
-        _record(request, "Removed IC program item")
+        _record(request, program, "Removed IC program item")
     return redirect("ic_program_edit", program.pk)
 
 
@@ -272,7 +275,7 @@ def item_move(request, program_id, item_id):
             for position, each in enumerate(items):
                 if each.position != position:
                     ICProgramItem.objects.filter(pk=each.pk).update(position=position)
-            _record(request, "Reordered IC program items")
+            _record(request, program, "Reordered IC program items")
     return redirect("ic_program_edit", program.pk)
 
 

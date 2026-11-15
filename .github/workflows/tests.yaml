@@ -56,6 +56,10 @@ jobs:
     - name: Run Django tests
       run: uv run python manage.py test core ic
 
+    # Plain pytest functions, which `manage.py test` doesn't collect.
+    - name: Run URL-registry permission checks
+      run: uv run pytest core/tests/test_view_permissions.py
+
   js-tests:
     runs-on: ubuntu-latest
     steps:

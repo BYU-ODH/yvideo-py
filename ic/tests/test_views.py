@@ -52,7 +52,7 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         self.program = self.scenario["program"]
         self.client.force_login(self.scenario["editor"])
 
-    def test_create_program_records_a_revision(self):
+    def test_program_changes_are_recorded_as_revisions(self):
         today = timezone.localdate().isoformat()
         response = self.client.post(
             reverse("ic_program_new"),
@@ -61,6 +61,15 @@ class ProgramEditingTests(ICTempDirsMixin, TestCase):
         program = ICProgram.objects.get(name="Parasite")
         self.assertRedirects(response, reverse("ic_program_edit", args=[program.pk]))
         self.assertEqual(Version.objects.get_for_object(program).count(), 1)
+        # Reorders (queryset updates) and deletes are in the history too.
+        item = self.program.items.order_by("position").first()
+        self.client.post(
+            reverse("ic_item_move", args=[self.program.pk, item.pk]),
+            {"direction": "down"},
+        )
+        self.assertEqual(Version.objects.get_for_object(self.program).count(), 1)
+        self.client.post(reverse("ic_program_delete", args=[self.program.pk]))
+        self.assertEqual(Version.objects.get_deleted(ICProgram).count(), 1)
 
     def test_add_move_and_remove_items(self):
         extra = self.scenario["feature"]
