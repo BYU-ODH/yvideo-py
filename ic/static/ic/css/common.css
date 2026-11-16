@@ -1,0 +1,68 @@
+/* Shared by the IC management pages (manage.css: Y-video's light theme) and the operator
+   pages (dark.css). Each sets the --ic-* colour tokens these rules use. */
+
+.ic-ok {
+  color: var(--ic-ok);
+}
+
+.ic-warn {
+  color: var(--ic-warn);
+}
+
+.ic-error,
+.ic-problem-error {
+  color: var(--ic-error);
+}
+
+.ic-problem-warning {
+  color: var(--ic-warn);
+}
+
+.ic-muted {
+  color: var(--ic-muted);
+}
+
+.ic-status {
+  margin: 0.25rem 0;
+}
+
+.ic-badge,
+.ic-tag {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--ic-border);
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+.ic-problems {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.ic-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.ic-facts dt {
+  color: var(--ic-muted);
+}
+
+.ic-facts dd {
+  margin: 0;
+}
+
+.ic-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ic-table th,
+.ic-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--ic-border);
+  text-align: left;
+  vertical-align: top;
+}

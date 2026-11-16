@@ -1,0 +1,33 @@
+{% if jobs %}
+    <table class="ic-table">
+        <thead>
+            <tr>
+                <th scope="col">Job</th>
+                <th scope="col">File</th>
+                <th scope="col">Status</th>
+                <th scope="col">Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+                <tr>
+                    <td>{{ job.get_kind_display }}</td>
+                    <td>{{ job.resource_file.resource.name|default:"–" }}</td>
+                    <td>
+                        {{ job.status }}
+                        {% if job.status == "running" and job.progress is not None %}{% widthratio job.progress 1 100 %}%{% endif %}
+                    </td>
+                    <td>
+                        {% if job.error %}
+                            <span class="ic-error">{{ job.error }}</span>
+                        {% else %}
+                            {{ job.log }}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p class="ic-muted">No recent jobs.</p>
+{% endif %}

@@ -2,6 +2,20 @@
 
 {% load static %}
 
+{% block siteBanner %}
+    <div id="yvideo-beta-banner" popover>
+        <h2>Welcome to Y-Video Beta!</h2>
+        <p>
+            This is the beta version of the new Y-Video application. You are encouraged to play around
+            with the site and report any issues that you come across. Please keep in mind that any
+            changes you make in Y-Video beta will not be saved when the completed application is released.
+            For more information about the upcoming Y-Video release, please visit our
+            <a href="https://odh.byu.edu/blog/" target="_blank">ODH blog website</a>. We know this banner
+            is annoying, but we have to make sure you see it... Click anywhere outside of this banner to
+            dismiss it.
+        </p>
+    </div>
+{% endblock %}
 {% block extra_css %}
     {{ block.super }}
 {% endblock %}
@@ -33,5 +47,16 @@
                 event.detail.headers['X-CSRFToken'] = getCookie('csrftoken');
             });
         });
+    </script>
+    <script>
+        const timeKey = "lastYvideoBetaBannerShowTime";
+        const lastBannerShowTime = Number(localStorage.getItem(timeKey));
+
+        if (lastBannerShowTime == 0 || Date.now() - lastBannerShowTime > (60*1000)) {
+          window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('yvideo-beta-banner').showPopover();
+            localStorage.setItem(timeKey, Date.now().toString());
+          });
+        }
     </script>
 {% endblock %}

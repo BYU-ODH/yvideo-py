@@ -17,6 +17,9 @@
                        {% if form.archived.value == True %} disabled {% endif %}>
             </div>
             <div class="playlist-form-group">{{ form.archived.as_field_group }}</div>
+            {% if user.is_ic_editor %}
+                <div class="playlist-form-group">{{ form.is_ic.as_field_group }}</div>
+            {% endif %}
             <div class="row-flex">
                 <button id="playlist-settings-submit" class="blue-button" type="submit">Submit</button>
                 <button id="playlist-settings-reset" class="cancel-button">Reset</button>

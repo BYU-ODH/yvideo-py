@@ -72,6 +72,18 @@ button:hover {
     cursor: pointer;
 }
 
+#yvideo-beta-banner {
+    top: 2rem;
+
+    width: 50rem;
+    margin: 0;
+    margin-right: auto;
+    margin-left: auto;
+    padding: 0.5rem;
+
+    box-shadow: 3px 3px 3px var(--box-shadow-color);
+}
+
 .action-link {
     display: flex;
     flex-direction: row;
