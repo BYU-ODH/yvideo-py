@@ -8,8 +8,8 @@
         <button class="close-dialog-button"
                 command="close"
                 commandfor="annotation-set-deletion-modal"
-                aria-label="Close delete annotation set modal">X</button>
-        <h2>Delete Annotation set</h2>
+                aria-label="Remove the {{ annotation_set.name }} annotation set">X</button>
+        <h2>{% if annotation_set_owner_candidates %}Transfer and remove from my videos{% else %}Delete this set{% endif %}</h2>
         <div class="column-flex">
             {% if annotation_set_owner_candidates|length > 1 %}
                 <p class="annotation-set-editors-note">

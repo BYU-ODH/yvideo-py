@@ -1,4 +1,3 @@
-from datetime import datetime
 from datetime import timedelta
 import json
 import logging
@@ -647,9 +646,13 @@ class AnnotationSet(models.Model):
             raise PermissionDenied
 
         try:
+            current_owner = self.owner
+
             with transaction.atomic():
                 # allows for admin user to become the owner, but only if there is not a non-admin user.
-                users_using_this_set_other_than_owner = self.ownership_candidates(user)
+                users_using_this_set_other_than_owner = self.ownership_candidates(
+                    current_owner
+                )
 
                 # determine who should be the new owner
                 new_owner_candidate = (
@@ -674,11 +677,18 @@ class AnnotationSet(models.Model):
                     except IntegrityError:
                         # if there is somehow another integrity error at this point, we will let
                         # the outer try except block raise the exception higher.
-                        self.name = f"{self.name} (transfered by {user.username} on {datetime.now()}"
+                        # the transferred by user.username remains "user" instead of "current_owner" so if an admin transfers the set, the admin's name appears here
+                        name_label = "no previous owner"
+                        if current_owner is not None:
+                            name_label = (
+                                current_owner.get_full_name() or current_owner.username
+                            )
+                        self.name = f"{self.name} (transferred by {name_label} on {timezone.localdate():%Y-%m-%d})"
                         self.save(update_fields=["name", "owner", "updated_at"])
-                    self.contents.filter(playlist__owner_id=user.id).update(
-                        annotation_set=None
-                    )
+                    if current_owner is not None:
+                        self.contents.filter(
+                            playlist__owner_id=current_owner.id
+                        ).update(annotation_set=None)
                     result["reassigned"] = True
 
         except Exception:
