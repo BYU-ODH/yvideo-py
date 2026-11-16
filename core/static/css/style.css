@@ -797,14 +797,16 @@ button:hover {
     box-shadow: 0 4px 6px -4px var(--box-shadow-color);
 }
 
-.navbar a {
+.navbar a,
+.navbar .link-button {
     display: flex;
     align-items: center;
     color: black;
     text-decoration: none;
 }
 
-.navbar a:hover {
+.navbar a:hover,
+.navbar .link-button:hover {
     text-decoration: underline;
 }
 
@@ -961,6 +963,16 @@ button:hover {
     margin-top: 1rem;
     border-bottom: 1px solid black;
     font-size: 1rem;
+}
+
+.link-button {
+    padding: 0;
+    border: none;
+
+    color: LinkText;
+    text-decoration: underline;
+
+    background: none;
 }
 
 #sidebar-close {

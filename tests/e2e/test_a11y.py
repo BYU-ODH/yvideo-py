@@ -383,7 +383,7 @@ def test_message_levels_have_no_color_contrast_violations(
 def test_the_playlists_page_states_have_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
-    """The banner, the sidebar and the add-playlist dialog, none of which start on screen.
+    """The banner, the sidebar and the dialogs, none of which start on screen.
 
     The what's-new banner ships `hidden` and is unhidden only for a viewer who has not
     dismissed it, so clearing localStorage is what makes it auditable at all.
@@ -399,6 +399,11 @@ def test_the_playlists_page_states_have_no_a11y_violations(
     page.locator(".sidebar-toggle").click()
     page.wait_for_selector(".sidebar.show")
     assert_no_violations(page, "playlists with the sidebar open")
+
+    page.locator(".sidebar [commandfor='help-and-feedback-dialog']").click()
+    page.wait_for_selector("#help-and-feedback-dialog", state="visible")
+    assert_no_violations(page, "the help-and-feedback dialog", include=["dialog[open]"])
+    page.keyboard.press("Escape")
     page.locator("#sidebar-close").click()
 
     page.locator("[commandfor='add-new-playlist-dialog'][command='show-modal']").click()
@@ -1152,6 +1157,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/add_video.html",
     "core/partials/modals/content_delete.html",
     "core/partials/modals/create_from_resource.html",
+    "core/partials/modals/help_and_feedback.html",
     "core/partials/modals/playlist_course_assignments.html",
     "core/partials/modals/playlist_delete.html",
     "core/partials/modals/playlist_member_remove.html",
