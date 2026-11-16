@@ -1,0 +1,121 @@
+{% extends "ic/manage/base.html" %}
+
+{% block ic_content %}
+    <header class="video-title">
+        <h2>Films and projection masters</h2>
+    </header>
+    <p class="ic-muted">
+        Upload each film's projection master (maximum resolution and bitrate). Y-video makes the SD editing file from it; add the film to an IC playlist using that file (its version starts with <code>ic-sd-</code>), so annotations line up exactly with what the booth projects.
+    </p>
+    <p class="ic-muted">
+        Once the booth holds a verified copy, production deletes its copy of the master. Keep the original disc or file until the film's last showing.
+    </p>
+    <form method="get"
+          action="{% url 'ic_manage_resources' %}"
+          class="ic-manage-form"
+          role="search">
+        <label for="ic-resource-search">Find a film</label>
+        <input id="ic-resource-search"
+               type="search"
+               name="q"
+               value="{{ query }}"
+               placeholder="Title"
+               aria-describedby="ic-resource-search-help">
+        <button type="submit" class="blue-button">Search</button>
+        {% if query %}
+            <a href="{% url 'ic_manage_resources' %}">Show IC films</a>
+        {% endif %}
+    </form>
+    <p id="ic-resource-search-help" class="ic-muted">
+        {% if query %}
+            Every film whose title matches “{{ query }}”.
+        {% else %}
+            Films with a projection master or used in an IC playlist. To upload a master for a new film, find it by title.
+        {% endif %}
+    </p>
+    <table class="ic-table">
+        <thead>
+            <tr>
+                <th scope="col">Film</th>
+                <th scope="col">Projection master</th>
+                <th scope="col">SD editing file</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>{{ row.resource.name }}</td>
+                    <td>
+                        {% if row.master %}
+                            {% with probe=row.master.probe %}
+                                {{ probe.width }}×{{ probe.height }} · {{ probe.video_codec }}
+                                {% if probe.frame_rate %}· {{ probe.frame_rate|floatformat:3 }} fps{% endif %}
+                                · {{ row.master.size_bytes|filesizeformat }}
+                                {% if probe.duration_seconds %}· {{ probe.duration_seconds|floatformat:0 }}s{% endif %}
+                            {% endwith %}
+                            <br>
+                            {% if row.master.master_released_at %}
+                                <span class="ic-muted">Released {{ row.master.master_released_at|date:"M j" }}: the booth holds the only copy.</span>
+                            {% elif row.release_blockers %}
+                                <span class="ic-muted">Kept on production until: {{ row.release_blockers|join:"; " }}.</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="ic-error">None</span>
+                        {% endif %}
+                        {% for upload in row.uploads %}
+                            <br>
+                            <span class="ic-muted">Upload {{ upload.filename }}: {{ upload.status }}, {{ upload.received_bytes|filesizeformat }} of {{ upload.expected_size|filesizeformat }}</span>
+                            {% if upload.error %}<span class="ic-error">{{ upload.error }}</span>{% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if row.derived %}
+                            {{ row.derived.probe.width }}×{{ row.derived.probe.height }} · {{ row.derived.size_bytes|filesizeformat }}
+                        {% elif row.transcode and row.transcode.is_pending %}
+                            Being made… {% if row.transcode.progress %}{% widthratio row.transcode.progress 1 100 %}%{% endif %}
+                        {% elif row.transcode and row.transcode.status == "failed" %}
+                            <span class="ic-error">Failed: {{ row.transcode.error }}</span>
+                        {% else %}
+                            <span class="ic-muted">–</span>
+                        {% endif %}
+                        {% if row.contents_not_on_sd %}
+                            <br>
+                            <span class="ic-warn">⚠️ {{ row.contents_not_on_sd|length }} IC content(s) still use another file.</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.can_upload %}
+                            <a class="blue-button"
+                               href="{% url 'ic_projection_upload' row.resource.pk %}">
+                                {% if row.master %}
+                                    Replace master
+                                {% else %}
+                                    Upload master
+                                {% endif %}
+                            </a>
+                            {% if row.contents_not_on_sd %}
+                                <form method="post" action="{% url 'ic_resource_use_sd' row.resource.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="white-button-with-border">Use the SD file for IC contents</button>
+                                </form>
+                            {% endif %}
+                        {% else %}
+                            <span class="ic-muted">You don't have access to this resource.</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">
+                        {% if query %}
+                            No films match “{{ query }}”. A Y-video administrator adds films (resources) in the admin.
+                        {% else %}
+                            No IC films yet. Find a film by title to upload its master.
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

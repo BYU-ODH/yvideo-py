@@ -94,12 +94,21 @@ load_deploy_env() {
     BRANCH="${BRANCH:-}"
     WORKERS="${WORKERS:-2}"
     THREADS="${THREADS:-2}"
+    # International Cinema (DEPLOY_IC.md). Production sets IC_MEDIA_WORKER=1; the
+    # booth sets IC_BOOTH=1.
+    IC_MEDIA_WORKER="${IC_MEDIA_WORKER:-0}"
+    IC_BOOTH="${IC_BOOTH:-0}"
+    IC_PROJECTION_ROOT="${IC_PROJECTION_ROOT:-$(repo_root)/ic_projection}"
+    IC_PLAYBACK_HOURS="${IC_PLAYBACK_HOURS:-12-24}"
 
     validate_user_or_app_name "$DEPLOY_USER"
     validate_user_or_app_name "$APP_NAME"
     validate_port "$HOST_PORT"
     validate_positive_int "$WORKERS" "WORKERS"
     validate_positive_int "$THREADS" "THREADS"
+    if ! [[ "$IC_PLAYBACK_HOURS" =~ ^([01]?[0-9]|2[0-4])-([01]?[0-9]|2[0-4])$ ]]; then
+        die "IC_PLAYBACK_HOURS must look like 12-24 (start-end hours)"
+    fi
 
     export DEPLOY_USER
     export APP_NAME
@@ -107,7 +116,36 @@ load_deploy_env() {
     export BRANCH
     export WORKERS
     export THREADS
+    export IC_MEDIA_WORKER
+    export IC_BOOTH
+    export IC_PROJECTION_ROOT
+    export IC_PLAYBACK_HOURS
 }
+
+# True on a booth (IC_BOOTH=1) during IC_PLAYBACK_HOURS ("start-end", local time, start
+# inclusive, end exclusive), when the deploy timer must leave the kiosk alone.
+in_ic_playback_hours() {
+    [ "${IC_BOOTH:-0}" = "1" ] || return 1
+    local start="${IC_PLAYBACK_HOURS%-*}" end="${IC_PLAYBACK_HOURS#*-}" hour
+    hour=$((10#$(date +%H)))
+    if [ "$start" -le "$end" ]; then
+        [ "$hour" -ge "$start" ] && [ "$hour" -lt "$end" ]
+    else
+        # Wraps past midnight, e.g. 18-2.
+        [ "$hour" -ge "$start" ] || [ "$hour" -lt "$end" ]
+    fi
+}
+
+# Extra container units this checkout runs alongside $APP_NAME, one per line.
+ic_unit_names() {
+    if [ "${IC_MEDIA_WORKER:-0}" = "1" ]; then
+        printf '%s\n' "$APP_NAME-media-worker"
+    fi
+    if [ "${IC_BOOTH:-0}" = "1" ]; then
+        printf '%s\n' "$APP_NAME-ic-sync-agent"
+    fi
+}
+
 
 require_deploy_user_context() {
     local current_user root
@@ -149,5 +187,6 @@ render_template() {
         -e "s|@DEPLOY_HOME@|$(escape_sed_replacement "$HOME")|g" \
         -e "s|@WORKERS@|$(escape_sed_replacement "$WORKERS")|g" \
         -e "s|@THREADS@|$(escape_sed_replacement "$THREADS")|g" \
+        -e "s|@IC_PROJECTION_ROOT@|$(escape_sed_replacement "$IC_PROJECTION_ROOT")|g" \
         "$template" >"$output"
 }

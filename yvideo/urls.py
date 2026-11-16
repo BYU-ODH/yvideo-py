@@ -51,6 +51,7 @@ urlpatterns = core_urlpatterns
 
 urlpatterns.extend(
     [
+        path("ic/", include("ic.urls")),
         path("oidc/", include(oidc_urlpatterns)),
         path("login/dev/quick/", dev_quick_login, name="dev_quick_login"),
         path("admin/", admin.site.urls),
