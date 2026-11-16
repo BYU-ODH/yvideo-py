@@ -24,8 +24,6 @@ const SEEK_POLL_INTERVAL_MS = 50;
 const SEEK_TOLERANCE_SECONDS = 0.5;
 const SEEK_TIMEOUT_MS = 1000;
 
-const PRIME_TIMEOUT_MS = 5000;
-
 // Mirrors HTMLMediaElement's readyState constants, the only two values this element can honestly
 // distinguish: the player object exists (so duration and seeking work) or it does not.
 const HAVE_NOTHING = 0;
@@ -79,8 +77,13 @@ export class YouTubeVideoElement extends HTMLElement {
     this._seekTimer = null;
     this._initialized = false;
     this._priming = false;
-    this._primeTimer = null;
-    this._playRequested = false;
+    // Whether the app wants the video playing: set by play(), cleared by pause() and by any stop
+    // the player reports. YouTube can start playback on its own - suspected to be the OS/browser
+    // sending the iframe a "play" when the audio output changes, e.g. on plugging in a monitor
+    // (#480) - and any PLAYING this does not agree with is undone rather than reported.
+    this._wantsPlay = false;
+    // An unrequested play has been told to pause and its PAUSED has not arrived yet.
+    this._undoing = false;
   }
 
   connectedCallback() {
@@ -105,14 +108,17 @@ export class YouTubeVideoElement extends HTMLElement {
         // provides all playback UI. disablekb:1 stops YouTube from also handling
         // keyboard shortcuts (space/arrows) that AnnotationPlayer.js already
         // listens for. iv_load_policy:3 suppresses YouTube's video annotation
-        // cards, which would otherwise overlay the video the same way.
+        // cards, which would otherwise overlay the video the same way. fs:0 drops
+        // YouTube's fullscreen affordance; AnnotationPlayer fullscreens the whole
+        // player, overlay included.
         playerVars: {
           playsinline: 1,
-          modestbranding: 1,
           rel: 0,
           controls: 0,
           disablekb: 1,
+          fs: 0,
           iv_load_policy: 3,
+          origin: location.origin,
         },
         events: {
           onReady: () => this._onReady(),
@@ -132,8 +138,9 @@ export class YouTubeVideoElement extends HTMLElement {
       if (this.isConnected) return;
       this._stopPolling();
       this._clearSeekTimer();
-      this._clearPrimeTimer();
       this._priming = false;
+      this._wantsPlay = false;
+      this._undoing = false;
       this._player?.destroy();
       this._player = null;
       this._ready = false;
@@ -165,22 +172,18 @@ export class YouTubeVideoElement extends HTMLElement {
     this._primeFirstFrame();
   }
 
+  // Play muted (a browser will not autoplay with sound) to get past YouTube's splash screen. It is
+  // an unrequested play, so `_onStateChange` undoes it like any other, which ends priming. If the browser blocks even a muted play, priming simply stays pending until
+  // play() ends it.
   _primeFirstFrame() {
-    if (this._playRequested) return;
+    if (this._wantsPlay) return;
     this._priming = true;
-    this._player.mute();  // Youtube does not allow autoplay with sound.
+    this._player.mute();
     this._player.playVideo();
-    this._primeTimer = setTimeout(() => this._cancelPriming(), PRIME_TIMEOUT_MS);
   }
 
-  _clearPrimeTimer() {
-    if (this._primeTimer) {
-      clearTimeout(this._primeTimer);
-      this._primeTimer = null;
-    }
-  }
-
-  _restoreMuteAfterPriming() {
+  _endPriming() {
+    this._priming = false;
     if (this._state.muted) {
       this._player.mute();
     } else {
@@ -188,47 +191,43 @@ export class YouTubeVideoElement extends HTMLElement {
     }
   }
 
-  _finishPriming() {
-    this._clearPrimeTimer();
-    this._priming = false;
-    this._player.seekTo(this._state.currentTime, true);
-    this._restoreMuteAfterPriming();
-  }
-
-  _cancelPriming() {
-    if (!this._priming) return;
-    this._clearPrimeTimer();
-    this._priming = false;
-    this._restoreMuteAfterPriming();
-    if (this._player.getPlayerState() === window.YT.PlayerState.PLAYING) {
-      this._onStateChange({ data: window.YT.PlayerState.PLAYING });
-    }
-  }
-
   _onStateChange(event) {
     const YT = window.YT;
-    if (this._priming) {
-      if (event.data === YT.PlayerState.PLAYING) {
-        this._player.pauseVideo();
-      } else if (event.data === YT.PlayerState.PAUSED) {
-        this._finishPriming();
-      }
-      return;
-    }
     if (event.data === YT.PlayerState.PLAYING) {
+      if (!this._wantsPlay) {
+        this._undoing = true;
+        this._player.pauseVideo();
+        return;
+      }
       this._state.paused = false;
       this._state.ended = false;
       this._startPolling();
       this.dispatchEvent(new Event("play"));
       this.dispatchEvent(new Event("playing"));
     } else if (event.data === YT.PlayerState.PAUSED) {
+      if (this._undoing) {
+        // The app never saw this play, so put the playhead back where the app last saw it.
+        this._undoing = false;
+        this._player.seekTo(this._state.currentTime, true);
+        if (this._priming) this._endPriming();
+        // play() arrived while the undo was in flight and left the playing to this.
+        if (this._wantsPlay) this._player.playVideo();
+        return;
+      }
+      if (this._state.paused) return;
+      this._wantsPlay = false;
       this._state.paused = true;
       this._state.ended = false;
+      this._state.currentTime = this._player.getCurrentTime();
       this._stopPolling();
       this.dispatchEvent(new Event("pause"));
     } else if (event.data === YT.PlayerState.ENDED) {
+      if (this._state.ended) return;
+      this._wantsPlay = false;
+      this._undoing = false;
       this._state.paused = true;
       this._state.ended = true;
+      this._state.currentTime = this._player.getCurrentTime();
       this._stopPolling();
       // Both, in the order a <video> emits them. `pause` is what stops the animation loops in
       // utils.js; `ended` is what tells the UI this is a finished video rather than a paused
@@ -241,7 +240,6 @@ export class YouTubeVideoElement extends HTMLElement {
   _onError() {
     this._stopPolling();
     this._clearSeekTimer();
-    this._clearPrimeTimer();
     this._priming = false;
     // Nothing about this player will ever resolve now: duration stays NaN, so anything waiting on
     // metadata (the editor's boot poll, for one) waits forever unless it can find out. Recorded as
@@ -337,12 +335,17 @@ export class YouTubeVideoElement extends HTMLElement {
   }
 
   play() {
-    this._playRequested = true;
-    this._cancelPriming();
-    this._whenReady(() => this._player.playVideo());
+    this._wantsPlay = true;
+    if (this._priming) this._endPriming();
+    this._whenReady(() => {
+      // Mid-undo, the pause already sent would land after this play and stop it; the undo's
+      // PAUSED plays instead.
+      if (!this._undoing) this._player.playVideo();
+    });
   }
 
   pause() {
+    this._wantsPlay = false;
     this._whenReady(() => this._player.pauseVideo());
   }
 

@@ -251,10 +251,11 @@ player paints its own UI **inside** the frame, and everything about it belongs t
 - a share button, and a "More videos" strip of suggested-video thumbnails
 - the end screen, once the video finishes
 
-None of it can be blurred, skipped, muted or hidden by an annotation, and the links are live: a
-student can click through from a curated playlist to arbitrary YouTube content. `rel=0` does not
-prevent this — since 2018 it only restricts suggestions to the same channel — and
-`modestbranding` is a no-op on the current player. For a tool whose purpose includes controlling
+None of it can be blurred, skipped, muted or hidden by an annotation. Its links are no longer
+clickable: the iframe has `pointer-events: none` (#480), so every click goes to the app's own
+player. `rel=0` alone would not have stopped a student clicking through to arbitrary YouTube
+content — since 2018 it only restricts suggestions to the same channel. Whether disabling
+YouTube's own links is acceptable under YouTube's API terms of service is an open question. For a tool whose purpose includes controlling
 what a class sees, this is the sharpest edge of YouTube-backed content, which is why the editor
 banner says so ([video_editor.html](core/templates/core/video_editor.html)).
 
@@ -267,9 +268,10 @@ nothing to do with this code.
 
 - [ ] Pause mid-video. Note everything YouTube draws over the frame, and whether any of it sits
       over something a blur was meant to conceal.
-- [ ] Click the title bar and the "More videos" thumbnails. Confirm where they take the user
-      (new tab, or navigation inside the embed) and decide whether that is acceptable for the
-      classes using this.
+- [ ] Click the title bar and the "More videos" thumbnails. Confirm nothing happens beyond the
+      app's own click-to-play/pause.
+- [ ] On iOS Safari, confirm tapping the app's play button starts a YouTube video: a tap can no
+      longer reach YouTube's own play button as a fallback.
 - [ ] Let a video play to the end. The end screen is suggested content chosen by YouTube, not by
       the instructor.
 - [ ] Check whether a blur placed over the top or bottom strip still conceals during playback,
