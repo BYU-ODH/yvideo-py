@@ -916,6 +916,30 @@ button:hover {
     background: none;
 }
 
+/* Circled "?" that opens the help and feedback modal, stroked to match the hamburger bars */
+.help-toggle {
+    cursor: pointer;
+
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+    width: 25px;
+    height: 25px;
+    padding: 0;
+    border: 3px solid black;
+    border-radius: 50%;
+
+    font-size: 0.9rem;
+    font-weight: bold;
+    line-height: 1;
+    color: black;
+
+    background: none;
+}
+
 /* The bars are borders rather than backgrounds for better accessibility */
 .sidebar-toggle::before {
     content: "";
