@@ -1988,8 +1988,11 @@ class Course(models.Model):
         max_length=5,
         validators=[
             RegexValidator(
-                regex=r"^[A-Z ]{2,5}$",
-                message="Department must be 2 to 5 uppercase letters or spaces.",
+                regex=r"^(?:[A-Z&]{2,5}|REL [A-Z&]|PHY S|C S)$",
+                message=(
+                    "Department must be 2 to 5 uppercase letters or '&' characters, "
+                    "with a single space allowed after 'REL' or in 'PHY S' or 'C S'."
+                ),
                 code="invalid_dept",
             )
         ],
@@ -1998,8 +2001,8 @@ class Course(models.Model):
         max_length=4,
         validators=[
             RegexValidator(
-                regex=r"^\d{3}R?$",
-                message="Catalog number must be a 3-digit number (and optional 'R' suffix).",
+                regex=r"^\d{3}[A-Z]?$",
+                message="Catalog number must be a 3-digit number with an optional single capital letter suffix.",
                 code="invalid_catalog_number",
             )
         ],
