@@ -179,6 +179,11 @@ urlpatterns = [
         name="get_editable_subtitles",
     ),
     path(
+        "subtitles/<int:subtitle_id>/export/",
+        views_video_editor.export_subtitle_track,
+        name="export_subtitle_track",
+    ),
+    path(
         "subtitles/<int:subtitle_id>/update-cues/",
         views_video_editor.update_subtitle_content,
         name="update_subtitle_content",

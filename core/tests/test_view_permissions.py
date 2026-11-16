@@ -183,6 +183,7 @@ def test_object_ids_are_not_taken_from_the_request_body():
         "delete_track": "track_id",
         "update_subtitle_content": "subtitle_id",
         "get_editable_subtitles": "subtitle_id",
+        "export_subtitle_track": "subtitle_id",
     }
     routes = {pattern.name: route for route, pattern in core_url_patterns()}
     missing = [
