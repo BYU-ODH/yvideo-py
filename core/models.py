@@ -637,7 +637,7 @@ class AnnotationSet(models.Model):
         """If the set has no other users, delete it immediately. If there is a named new_owner,
         transfer ownership to that user. Otherwise, choose the first user that is also using
         this set sorted by whether they are an admin (non-admins appear sooner) and then by
-        primary key. Returns a result dictionary with keys "deleted and reassigned"each pointing
+        primary key. Returns a result dictionary with keys "deleted" and "reassigned", each pointing
         to boolean values that describe the outcome. Errors including unauthorized request are
         handled by exceptions (PermissionDenied, and the generic Exception)
         """
@@ -645,54 +645,51 @@ class AnnotationSet(models.Model):
         if not self.can_be_administered_by(user):
             raise PermissionDenied
 
-        try:
-            current_owner = self.owner
+        current_owner = self.owner
 
-            with transaction.atomic():
-                # allows for admin user to become the owner, but only if there is not a non-admin user.
-                users_using_this_set_other_than_owner = self.ownership_candidates(
-                    current_owner
+        with transaction.atomic():
+            # allows for admin user to become the owner, but only if there is not a non-admin user.
+            users_using_this_set_other_than_owner = self.ownership_candidates(
+                current_owner
+            )
+
+            # determine who should be the new owner
+            new_owner_candidate = (
+                new_owner
+                if new_owner in users_using_this_set_other_than_owner
+                else (
+                    users_using_this_set_other_than_owner[0]
+                    if users_using_this_set_other_than_owner
+                    else None
                 )
+            )
 
-                # determine who should be the new owner
-                new_owner_candidate = (
-                    new_owner
-                    if new_owner in users_using_this_set_other_than_owner
-                    else (
-                        users_using_this_set_other_than_owner[0]
-                        if users_using_this_set_other_than_owner
-                        else None
-                    )
-                )
-
-                # handle deletion/reassignment
-                if new_owner_candidate is None:
-                    self.delete()
-                    result["deleted"] = True
-                else:
-                    try:
-                        self.owner = new_owner_candidate
-                        with transaction.atomic():
-                            self.save(update_fields=["owner", "updated_at"])
-                    except IntegrityError:
-                        # if there is somehow another integrity error at this point, we will let
-                        # the outer try except block raise the exception higher.
-                        # the transferred by user.username remains "user" instead of "current_owner" so if an admin transfers the set, the admin's name appears here
-                        name_label = "no previous owner"
-                        if current_owner is not None:
-                            name_label = (
-                                current_owner.get_full_name() or current_owner.username
-                            )
-                        self.name = f"{self.name} (transferred by {name_label} on {timezone.localdate():%Y-%m-%d})"
-                        self.save(update_fields=["name", "owner", "updated_at"])
+            # handle deletion/reassignment
+            if new_owner_candidate is None:
+                self.delete()
+                result["deleted"] = True
+            else:
+                try:
+                    self.owner = new_owner_candidate
+                    with transaction.atomic():
+                        self.save(update_fields=["owner", "updated_at"])
+                except IntegrityError:
+                    # if there is somehow another integrity error at this point, we will let
+                    # the outer try except block raise the exception higher.
+                    # the transferred by user.username remains "user" instead of "current_owner" so if an admin transfers the set, the admin's name appears here
+                    name_label = "no previous owner"
                     if current_owner is not None:
-                        self.contents.filter(
-                            playlist__owner_id=current_owner.id
-                        ).update(annotation_set=None)
-                    result["reassigned"] = True
+                        name_label = (
+                            current_owner.get_full_name() or current_owner.username
+                        )
+                    self.name = f"{self.name} (transferred by {name_label} on {timezone.localdate():%Y-%m-%d})"
+                    self.save(update_fields=["name", "owner", "updated_at"])
+                if current_owner is not None:
+                    self.contents.filter(playlist__owner_id=current_owner.id).update(
+                        annotation_set=None
+                    )
+                result["reassigned"] = True
 
-        except Exception:
-            raise
         return result
 
     @classmethod
