@@ -12,6 +12,7 @@ from django.db import IntegrityError
 from django.db import OperationalError
 from django.db import connections
 from django.db import transaction
+from django.http import FileResponse
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseNotFound
@@ -1365,7 +1366,12 @@ def create_subtitle_track(request, content):
     if create_mode != "empty":
         return JsonResponse({"error": "Invalid subtitle creation mode."}, status=400)
 
-    create_form = SubtitleCreateForm(data, resource=resource, owner=request.user)
+    create_form = SubtitleCreateForm(
+        data,
+        request.FILES,
+        resource=resource,
+        owner=request.user,
+    )
     if not create_form.is_valid():
         return _render_subtitle_track_creation_modal(
             request, content, create_form=create_form
@@ -1383,7 +1389,8 @@ def create_subtitle_track(request, content):
         with transaction.atomic(using=database):
             subtitle.subtitles_file = store_independent_subtitle_file(
                 subtitle,
-                ContentFile(
+                create_form.cleaned_data["subtitles_file"]
+                or ContentFile(
                     build_vtt_file_string_from_cues([]).encode("utf-8"),
                     name=f"{subtitle.name}.vtt",
                 ),
@@ -1617,6 +1624,18 @@ def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
         logger.exception("Failed to copy subtitle track %s.", source.pk)
         return JsonResponse({"error": "Failed to copy the subtitle track."}, status=500)
     return JsonResponse({"id": copied.pk}, status=201)
+
+
+@require_GET
+@subtitle_read_required
+def export_subtitle_track(request, subtitle):
+    """Download the subtitle track's stored file, which is always canonical WebVTT."""
+    return FileResponse(
+        subtitle.subtitles_file.open("rb"),
+        as_attachment=True,
+        filename=f"{subtitle.name}.{subtitle.language.bcp47}.vtt",
+        content_type="text/vtt",
+    )
 
 
 @require_GET

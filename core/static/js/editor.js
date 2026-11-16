@@ -2984,6 +2984,12 @@ export class Editor {
       // multi option menu
       const subtitleTrackMenu = document.getElementById("subtitle-track-settings-menu-wrapper");
       setupMultiOptionMenu(subtitleTrackMenu);
+      document.getElementById("export-subtitle-track-button")?.addEventListener("click", async () => {
+        if (this.selectedSubtitleTrackId) {
+          await Promise.allSettled(this.subtitleCueSaves);
+          window.location.assign(`/subtitles/${this.selectedSubtitleTrackId}/export/`);
+        }
+      });
 
       // We don't want to use the replace all function for deleting words, so
       // this function only enables the button if matches is != 0 and won't
@@ -3235,6 +3241,7 @@ export class Editor {
         )?.textContent.trim() || "";
         document.getElementById(`cap-track-${trackId}-button`)?.click();
         document.getElementById("open-subtitle-track-edit-modal").disabled = false;
+        document.getElementById("export-subtitle-track-button").disabled = false;
         document.getElementById("open-delete-subtitle-track-modal").disabled =
           document.getElementById("subtitle-panel-content").dataset.canEdit !== "true";
         return true;
