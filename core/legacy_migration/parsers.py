@@ -119,7 +119,7 @@ def map_legacy_media_type(legacy_value):
         return Resource.MediaType.AUDIO
     if value in {"txt", "text"}:
         return Resource.MediaType.TEXT
-    if value in {"www", "web"}:
+    if value in {"www", "web", "online-media"}:
         return Resource.MediaType.WEB
     return Resource.MediaType.VIDEO
 
