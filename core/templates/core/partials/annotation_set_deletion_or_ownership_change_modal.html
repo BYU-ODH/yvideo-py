@@ -24,10 +24,12 @@
                     {% endfor %}
                 </select>
             {% elif annotation_set_owner_candidates|length == 1 %}
-                <p class="annotation-set-editors-note">
-                    {{ annotation_set_owner_candidates.get_full_name|default:annotation_set_owner_candidates.username }} ({{ annotation_set_owner_candidates.username }})
-                    will become the new owner of this annotation set.
-                </p>
+                {% with candidate=annotation_set_owner_candidates|first %}
+                    <p class="annotation-set-editors-note">
+                        {{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})
+                        will become the new owner of this annotation set.
+                    </p>
+                {% endwith %}
             {% else %}
                 <p class="annotation-set-editors-note">
                     All annotations will be deleted and are not recoverable. This change
