@@ -33,7 +33,10 @@ function setupDeletePlaylist() {
       }
     });
     if (!deleteResponse.ok) {
-      displayUserMessage("error", "Failed to delete playlist");
+      // A plain-text body is a message written for the user (e.g. "scheduled in an IC
+      // program"); anything else is an error page and gets the generic message.
+      const isMessage = (deleteResponse.headers.get("content-type") ?? "").startsWith("text/plain");
+      displayUserMessage("error", isMessage ? (await deleteResponse.text()) : "Failed to delete playlist");
     } else {
       window.location.replace("/playlists/");
     }

@@ -1,0 +1,27 @@
+{% if rows %}
+    <table class="ic-table">
+        <thead>
+            <tr>
+                <th scope="col">Program</th>
+                <th scope="col">Dates</th>
+                <th scope="col">Readiness</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>
+                        <a href="{% url 'ic_program_edit' row.program.pk %}">{{ row.program.name }}</a>
+                    </td>
+                    <td>{{ row.program.start_date|date:"M j" }} – {{ row.program.end_date|date:"M j, Y" }}</td>
+                    <td>
+                        {% include "ic/partials/status_label.html" with status=row.status %}
+                        {% include "ic/partials/problems.html" with problems=row.problems %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>None.</p>
+{% endif %}

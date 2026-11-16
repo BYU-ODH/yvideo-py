@@ -75,7 +75,8 @@ class PlaylistForm(forms.ModelForm):
 class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
-        fields = ["name", "published", "archived"]
+        # is_ic is shown to, and applied for, IC editors only.
+        fields = ["name", "published", "archived", "is_ic"]
 
 
 class UpdateContentForm(forms.ModelForm):

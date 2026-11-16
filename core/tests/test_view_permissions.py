@@ -20,6 +20,7 @@ PERMISSION_EXEMPT_VIEWS = {
     "whats_new": "static explanation of the differences from legacy Y-video",
     "invalid_login": "login failure page, deliberately unauthenticated",
     "playlists": "lists only what the requester can reach; filters rather than checks",
+    "render_user_message": "renders the caller's own message text; reads no object",
     # Guarded by the spoofing decorators instead.
     "start_spoofing": "spoof_permission_required + can_spoof_as",
     "stop_spoofing": "spoof_permission_required",
@@ -41,7 +42,7 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 # Views that render on GET and write on POST -- the standard Django form pattern. The
 # write still only happens on the POST branch, so CSRF protection covers it.
-FORM_VIEWS = {"request_resource"}
+FORM_VIEWS = {"request_resource", "ic_program_new", "ic_program_edit"}
 
 
 def iter_url_patterns(resolver=None, prefix=""):
@@ -54,11 +55,16 @@ def iter_url_patterns(resolver=None, prefix=""):
             yield prefix + str(pattern.pattern), pattern
 
 
-def core_url_patterns():
+# Modules whose views this project owns. International Cinema's live in ic/.
+OWN_VIEW_MODULES = ("core.views", "ic.views")
+
+
+def core_url_patterns(urlconf=None):
     """Only this project's own views; not admin, OIDC, or static."""
-    for route, pattern in iter_url_patterns():
+    resolver = get_resolver(urlconf) if urlconf else None
+    for route, pattern in iter_url_patterns(resolver):
         module = getattr(pattern.callback, "__module__", "")
-        if module.startswith("core.views"):
+        if module.startswith(OWN_VIEW_MODULES):
             yield route, pattern
 
 
@@ -107,11 +113,17 @@ def allowed_methods(view, seen=None):
     return None
 
 
+# The booth's urlconf is walked too: a booth view without a check is as exploitable
+# there as a production one would be here.
+URLCONFS = [None, "yvideo.urls_ic"]
+
+
 @pytest.mark.django_db
-def test_every_view_declares_a_permission_check():
+@pytest.mark.parametrize("urlconf", URLCONFS)
+def test_every_view_declares_a_permission_check(urlconf):
     unprotected = [
         f"{describe(pattern)} ({route})"
-        for route, pattern in core_url_patterns()
+        for route, pattern in core_url_patterns(urlconf)
         if not hasattr(pattern.callback, "permission_check")
         and describe(pattern) not in PERMISSION_EXEMPT_VIEWS
     ]
@@ -123,9 +135,10 @@ def test_every_view_declares_a_permission_check():
 
 
 @pytest.mark.django_db
-def test_every_mutating_view_has_a_method_guard():
+@pytest.mark.parametrize("urlconf", URLCONFS)
+def test_every_mutating_view_has_a_method_guard(urlconf):
     unguarded = []
-    for route, pattern in core_url_patterns():
+    for route, pattern in core_url_patterns(urlconf):
         allowed = allowed_methods(pattern.callback)
         if allowed is None:
             # Without a guard the view answers every method, including GET, so CSRF
