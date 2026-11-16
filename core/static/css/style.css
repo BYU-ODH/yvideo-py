@@ -1807,6 +1807,10 @@ button:hover {
     width: min(90vw, 1100px);
 }
 
+#help-and-feedback-dialog {
+    max-width: min(90vw, 40rem);
+}
+
 .playlist-item-tile, .resource-details {
     border-radius: 12px;
     box-shadow:  2px 2px 5px var(--box-shadow-color);
