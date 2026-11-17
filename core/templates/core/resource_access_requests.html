@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+
+{% block title %}Resource Access Requests{% endblock %}
+{% block content %}
+    <div class="main-content">
+        <h2>Resource Access Requests</h2>
+        <p>Approve a request once the instructor has shown their physical copy of the resource.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Instructor</th>
+                    <th scope="col">Resource</th>
+                    <th scope="col">Barcodes</th>
+                    <th scope="col">Requested</th>
+                    <th scope="col">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for access_request in access_requests %}
+                    <tr>
+                        <td>{{ access_request.user.get_full_name }} ({{ access_request.user.netid }})</td>
+                        <td>{{ access_request.resource }}</td>
+                        <td>
+                            {% for resource_file in access_request.resource.barcoded_files %}
+                                {{ resource_file.barcode }}
+                                {% if not forloop.last %}<br>{% endif %}
+                            {% endfor %}
+                        </td>
+                        <td>{{ access_request.created_at|date }}</td>
+                        <td>
+                            <form method="post"
+                                  action="{% url 'approve_resource_access_request' access_request.pk %}">
+                                {% csrf_token %}
+                                <button class="white-button-with-border"
+                                        type="submit"
+                                        aria-label="Approve {{ access_request.user.get_full_name }}'s access to {{ access_request.resource }}">
+                                    Approve
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5">No pending requests.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

@@ -5,6 +5,7 @@ import logging
 import mimetypes
 import os
 import re
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
@@ -14,6 +15,7 @@ from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
+from django.db.models import Prefetch
 from django.db.models import ProtectedError
 from django.db.models import Q
 from django.http import Http404
@@ -28,9 +30,11 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
+import reversion
 
 from .forms import AddUserLookupForm
 from .forms import PlaylistSettingsForm
@@ -41,6 +45,7 @@ from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
 from .models import Resource
+from .models import ResourceAccessRequest
 from .models import ResourceFile
 from .models import ResourceFileKey
 from .models import Subtitle
@@ -51,6 +56,7 @@ from .permissions import content_read_required
 from .permissions import content_write_required
 from .permissions import forbidden
 from .permissions import instructor_required
+from .permissions import lab_assistant_required
 from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
@@ -1450,9 +1456,114 @@ def spoof_user_search(request):
     return HttpResponse(html)
 
 
+SEARCH_RESULT_LIMIT = 25
+
+
+def _search_resources(user, query):
+    """Library resources matching a title or barcode, flagged with the user's status."""
+    resources = list(
+        Resource.objects.exclude(media_type=Resource.MediaType.WEB)
+        .filter(
+            Q(name__icontains=query)
+            | Q(name_disambiguator__icontains=query)
+            | Q(resource_files__barcode=query)
+        )
+        .distinct()
+        .order_by("name", "name_disambiguator")
+        .prefetch_related(
+            Prefetch(
+                "resource_files",
+                queryset=ResourceFile.objects.filter(
+                    is_projection_file=False, barcode__gt=""
+                ),
+                to_attr="barcoded_files",
+            )
+        )[: SEARCH_RESULT_LIMIT + 1]
+    )
+    accessible_ids = set(
+        accessible_resources(user)
+        .filter(pk__in=[r.pk for r in resources])
+        .values_list("pk", flat=True)
+    )
+    pending_ids = set(
+        ResourceAccessRequest.objects.filter(
+            user=user, resource__in=resources, approved_at=None
+        ).values_list("resource_id", flat=True)
+    )
+    for resource in resources:
+        resource.user_has_access = resource.pk in accessible_ids
+        resource.access_requested = resource.pk in pending_ids
+    return resources
+
+
+@require_POST
+@instructor_required
+def request_resource_access(request, resource_id):
+    resource = get_object_or_404(
+        Resource.objects.exclude(media_type=Resource.MediaType.WEB), pk=resource_id
+    )
+    if not request.user.can_access_resource(resource):
+        ResourceAccessRequest.objects.update_or_create(
+            user=request.user,
+            resource=resource,
+            defaults={"approved_at": None, "created_at": timezone.now()},
+        )
+        messages.success(
+            request,
+            f"Your request for access to {resource} has been submitted. Please bring "
+            "your physical copy of this resource to the Humanities Learning Commons "
+            "(HLC) as proof of ownership.",
+        )
+    return redirect(f"{reverse('request_resource')}?{urlencode({'q': resource.name})}")
+
+
+@require_GET
+@lab_assistant_required
+def resource_access_requests(request):
+    pending = (
+        ResourceAccessRequest.objects.filter(approved_at=None)
+        .select_related("user", "resource")
+        .prefetch_related(
+            Prefetch(
+                "resource__resource_files",
+                queryset=ResourceFile.objects.filter(
+                    is_projection_file=False, barcode__gt=""
+                ),
+                to_attr="barcoded_files",
+            )
+        )
+        .order_by("created_at")
+    )
+    return render(
+        request, "core/resource_access_requests.html", {"access_requests": pending}
+    )
+
+
+@require_POST
+@lab_assistant_required
+def approve_resource_access_request(request, access_request_id):
+    access_request = get_object_or_404(
+        ResourceAccessRequest, pk=access_request_id, approved_at=None
+    )
+    with reversion.create_revision():
+        approved = access_request.approve()
+        if approved:
+            reversion.set_user(_spoof_actor(request))
+            reversion.set_comment("Approved resource access request")
+            reversion.add_to_revision(access_request)
+    if approved:
+        messages.success(
+            request,
+            f"Granted {access_request.user.get_full_name()} access to "
+            f"{access_request.resource}.",
+        )
+    return redirect("resource_access_requests")
+
+
 @require_http_methods(["GET", "POST"])
 @instructor_required
 def request_resource(request):
+    query = request.GET.get("q", "").strip()
     title_collision_error = False
     if request.method == "POST":
         form = ResourceIntakeRequestForm(request.POST)
@@ -1479,10 +1590,18 @@ def request_resource(request):
                     f"{widget.attrs.get('class', '')} invalid-input".strip()
                 )
     else:
-        form = ResourceIntakeRequestForm()
+        form = ResourceIntakeRequestForm(initial={"resource_title": query})
 
+    results = _search_resources(request.user, query) if query else []
     return render(
         request,
         "core/partials/resource_intake_request.html",
-        {"form": form, "title_collision_error": title_collision_error},
+        {
+            "form": form,
+            "title_collision_error": title_collision_error,
+            "query": query,
+            "results": results[:SEARCH_RESULT_LIMIT],
+            "results_truncated": len(results) > SEARCH_RESULT_LIMIT,
+            "show_intake_form": bool(query) or request.method == "POST",
+        },
     )

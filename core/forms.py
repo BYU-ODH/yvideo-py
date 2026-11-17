@@ -260,7 +260,7 @@ class ResourceIntakeRequestForm(forms.ModelForm):
 
     class Meta:
         model = ResourceIntakeRequest
-        exclude = []
+        exclude = ["owner", "generated_resource"]
         widgets = {
             "date_needed": forms.DateInput(attrs={"type": "date"}),
         }

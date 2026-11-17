@@ -209,6 +209,7 @@ def awkward_data(seeded_demo_data, settings):
     from core.factories import ContentFactory
     from core.factories import PlaylistFactory
     from core.legacy_migration import LegacyMigrationRequest
+    from core.models import ResourceAccessRequest
     from core.models import ResourceIntakeRequest
 
     settings.LEGACY_MIGRATION_ENABLED = True
@@ -241,6 +242,9 @@ def awkward_data(seeded_demo_data, settings):
             audio_language="English",
             acknowledged_compliance=True,
             acknowledged_fair_use_limitation=True,
+        ),
+        resource_access_request=ResourceAccessRequest.objects.create(
+            user=playlist.owner, resource=birds.resource_file.resource
         ),
         migration_request=LegacyMigrationRequest.objects.create(
             requested_by=playlist.owner,
@@ -280,7 +284,8 @@ FULL_PAGE_VIEWS = {
         f"/video-editor/{d.content_without_annotation_set.pk}/"
     ),
     "invalid_login": lambda d, everything: "/invalid-login",
-    "request_resource": lambda d, everything: "/resource-intake-request/",
+    "request_resource": lambda d, everything: "/resource-intake-request/?q=Grid",
+    "resource_access_requests": lambda d, everything: "/resource-access-requests/",
     "legacy_migration_requests": lambda d, everything: "/legacy-migrations/",
     "legacy_migration_request_detail": lambda d, everything: (
         f"/legacy-migrations/{d.migration_request.pk}/"
@@ -529,7 +534,7 @@ def test_the_resource_request_form_has_no_a11y_violations_when_it_rejects_a_subm
     and a field marked invalid only by colour is exactly the kind of thing axe catches.
     """
     page = logged_in_page
-    page.goto(f"{live_server.url}/resource-intake-request/")
+    page.goto(f"{live_server.url}/resource-intake-request/?q=Grid")
 
     page.locator("#resource-intake-form button[type=submit]").click()
     page.wait_for_selector("#resource-intake-form .resource-intake-field-error")
@@ -1148,6 +1153,7 @@ AUDITED_TEMPLATES = {
     "core/partials/player-wrapper.html",
     "core/partials/playlist_settings.html",
     "core/partials/resource_intake_request.html",
+    "core/resource_access_requests.html",
     "core/partials/whats_new_banner.html",
     # message-level color-contrast sweep
     "core/partials/user_message.html",

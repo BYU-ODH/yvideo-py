@@ -130,6 +130,13 @@ class Resource(models.Model):
         return self.name
 
     @property
+    def imdb_url(self):
+        # BYU- and YT-prefixed IDs are internal and have no IMDb page.
+        if self.imdb_id and self.imdb_id.startswith("tt"):
+            return f"https://www.imdb.com/title/{self.imdb_id}/"
+        return None
+
+    @property
     def belongs_to_byu_library(self):
         """Every instructor may reach a resource BYU itself holds a copy of."""
         return self.checked_out_from_hbll or self.checked_out_from_other_byu_library
@@ -338,6 +345,43 @@ class ResourceAccess(models.Model):  # "through" model
         return (
             f"{self.user.netid} {self.user.username} | {self.resource.name} | {self.id}"
         )
+
+
+class ResourceAccessRequest(models.Model):
+    """An instructor asking for access to a Resource already in the library.
+
+    Staff grant it once the instructor has shown proof of owning a physical copy.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("user", "resource")
+
+    def __str__(self):
+        return f"{self.user.netid} {self.user.username} | {self.resource}"
+
+    def approve(self):
+        """Grant access. Returns False if someone else approved it first."""
+        now = timezone.now()
+        with transaction.atomic():
+            # Claim the row conditionally so a double-click or two lab assistants
+            # approving at once grant access only once.
+            claimed = ResourceAccessRequest.objects.filter(
+                pk=self.pk, approved_at=None
+            ).update(approved_at=now)
+            if not claimed:
+                return False
+            ResourceAccess.objects.update_or_create(
+                user_id=self.user_id,
+                resource_id=self.resource_id,
+                defaults={"last_verified": now},
+            )
+        self.approved_at = now
+        return True
 
 
 class Playlist(models.Model):
