@@ -4,13 +4,13 @@ from django.test import TestCase
 from django.test import modify_settings
 from django.test import override_settings
 from django.urls import reverse
-from django.utils import timezone
 from reversion.models import Version
 
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import UserFactory
 from ..models import Resource
+from ..models import ResourceAccess
 from ..models import ResourceAccessRequest
 
 
@@ -85,7 +85,10 @@ class ResourceAccessRequestTests(TestCase):
         )
 
         self.assertTrue(self.instructor.can_access_resource(self.resource))
-        approval = Version.objects.get_for_object(ResourceAccessRequest.objects.get())
+        response = self.client.get(reverse("resource_access_requests"))
+        self.assertContains(response, "No pending requests.")
+        grant = ResourceAccess.objects.get(user=self.instructor, resource=self.resource)
+        approval = Version.objects.get_for_object(grant)
         self.assertEqual(approval.first().revision.user, lab_assistant)
         self.client.force_login(self.instructor)
         response = self.client.get(self.url, {"q": "Amelie"})
@@ -98,16 +101,6 @@ class ResourceAccessRequestTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertFalse(ResourceAccessRequest.objects.exists())
-
-    def test_access_can_be_requested_again_after_it_is_revoked(self):
-        ResourceAccessRequest.objects.create(
-            user=self.instructor, resource=self.resource, approved_at=timezone.now()
-        )
-
-        self.request_access(self.resource)
-
-        response = self.client.get(self.url, {"q": "Amelie"})
-        self.assertContains(response, "Access requested")
 
     def test_an_instructor_cannot_approve_their_own_request(self):
         self.request_access(self.resource)

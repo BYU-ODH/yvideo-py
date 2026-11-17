@@ -1087,8 +1087,8 @@ class ResourceAccessAdmin(VersionAdmin):
 
 @admin.register(ResourceAccessRequest)
 class ResourceAccessRequestAdmin(VersionAdmin):
-    list_display = ("user", "resource", "created_at", "approved_at")
-    list_filter = (("approved_at", admin.EmptyFieldListFilter), "created_at")
+    list_display = ("user", "resource", "created_at")
+    list_filter = ("created_at",)
     search_fields = ("user__netid", "user__username", "resource__name")
 
 

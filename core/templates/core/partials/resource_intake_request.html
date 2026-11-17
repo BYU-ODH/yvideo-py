@@ -47,10 +47,9 @@
                             <li>No resources in Y-Video match "{{ query }}".</li>
                         {% endfor %}
                     </ul>
-                    {% if results_truncated %}<p>Only the first {{ results|length }} matches are shown. Try a more specific title or the barcode.</p>{% endif %}
                 {% endif %}
             </section>
-            {% if show_intake_form %}
+            {% if query %}
                 <h3>Step 2: Not listed? Request a new resource</h3>
                 <form id="resource-intake-form" method="post" novalidate>
                     {% csrf_token %}

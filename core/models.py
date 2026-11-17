@@ -348,40 +348,21 @@ class ResourceAccess(models.Model):  # "through" model
 
 
 class ResourceAccessRequest(models.Model):
-    """An instructor asking for access to a Resource already in the library.
+    """A pending request for access to a Resource already in the library.
 
-    Staff grant it once the instructor has shown proof of owning a physical copy.
+    Staff grant it once the instructor has shown proof of owning a physical copy,
+    which creates a ResourceAccess and deletes this request.
     """
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
-    approved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ("user", "resource")
 
     def __str__(self):
         return f"{self.user.netid} {self.user.username} | {self.resource}"
-
-    def approve(self):
-        """Grant access. Returns False if someone else approved it first."""
-        now = timezone.now()
-        with transaction.atomic():
-            # Claim the row conditionally so a double-click or two lab assistants
-            # approving at once grant access only once.
-            claimed = ResourceAccessRequest.objects.filter(
-                pk=self.pk, approved_at=None
-            ).update(approved_at=now)
-            if not claimed:
-                return False
-            ResourceAccess.objects.update_or_create(
-                user_id=self.user_id,
-                resource_id=self.resource_id,
-                defaults={"last_verified": now},
-            )
-        self.approved_at = now
-        return True
 
 
 class Playlist(models.Model):

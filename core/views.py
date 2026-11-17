@@ -45,6 +45,7 @@ from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
 from .models import Resource
+from .models import ResourceAccess
 from .models import ResourceAccessRequest
 from .models import ResourceFile
 from .models import ResourceFileKey
@@ -1459,6 +1460,14 @@ def spoof_user_search(request):
 SEARCH_RESULT_LIMIT = 25
 
 
+def _barcoded_files(lookup):
+    return Prefetch(
+        lookup,
+        queryset=ResourceFile.objects.filter(is_projection_file=False, barcode__gt=""),
+        to_attr="barcoded_files",
+    )
+
+
 def _search_resources(user, query):
     """Library resources matching a title or barcode, flagged with the user's status."""
     resources = list(
@@ -1470,15 +1479,7 @@ def _search_resources(user, query):
         )
         .distinct()
         .order_by("name", "name_disambiguator")
-        .prefetch_related(
-            Prefetch(
-                "resource_files",
-                queryset=ResourceFile.objects.filter(
-                    is_projection_file=False, barcode__gt=""
-                ),
-                to_attr="barcoded_files",
-            )
-        )[: SEARCH_RESULT_LIMIT + 1]
+        .prefetch_related(_barcoded_files("resource_files"))[:SEARCH_RESULT_LIMIT]
     )
     accessible_ids = set(
         accessible_resources(user)
@@ -1487,7 +1488,7 @@ def _search_resources(user, query):
     )
     pending_ids = set(
         ResourceAccessRequest.objects.filter(
-            user=user, resource__in=resources, approved_at=None
+            user=user, resource__in=resources
         ).values_list("resource_id", flat=True)
     )
     for resource in resources:
@@ -1503,10 +1504,8 @@ def request_resource_access(request, resource_id):
         Resource.objects.exclude(media_type=Resource.MediaType.WEB), pk=resource_id
     )
     if not request.user.can_access_resource(resource):
-        ResourceAccessRequest.objects.update_or_create(
-            user=request.user,
-            resource=resource,
-            defaults={"approved_at": None, "created_at": timezone.now()},
+        ResourceAccessRequest.objects.get_or_create(
+            user=request.user, resource=resource
         )
         messages.success(
             request,
@@ -1521,17 +1520,8 @@ def request_resource_access(request, resource_id):
 @lab_assistant_required
 def resource_access_requests(request):
     pending = (
-        ResourceAccessRequest.objects.filter(approved_at=None)
-        .select_related("user", "resource")
-        .prefetch_related(
-            Prefetch(
-                "resource__resource_files",
-                queryset=ResourceFile.objects.filter(
-                    is_projection_file=False, barcode__gt=""
-                ),
-                to_attr="barcoded_files",
-            )
-        )
+        ResourceAccessRequest.objects.select_related("user", "resource")
+        .prefetch_related(_barcoded_files("resource__resource_files"))
         .order_by("created_at")
     )
     return render(
@@ -1542,21 +1532,21 @@ def resource_access_requests(request):
 @require_POST
 @lab_assistant_required
 def approve_resource_access_request(request, access_request_id):
-    access_request = get_object_or_404(
-        ResourceAccessRequest, pk=access_request_id, approved_at=None
-    )
+    access_request = get_object_or_404(ResourceAccessRequest, pk=access_request_id)
     with reversion.create_revision():
-        approved = access_request.approve()
-        if approved:
-            reversion.set_user(_spoof_actor(request))
-            reversion.set_comment("Approved resource access request")
-            reversion.add_to_revision(access_request)
-    if approved:
-        messages.success(
-            request,
-            f"Granted {access_request.user.get_full_name()} access to "
-            f"{access_request.resource}.",
+        ResourceAccess.objects.update_or_create(
+            user_id=access_request.user_id,
+            resource_id=access_request.resource_id,
+            defaults={"last_verified": timezone.now()},
         )
+        access_request.delete()
+        reversion.set_user(_spoof_actor(request))
+        reversion.set_comment("Approved resource access request")
+    messages.success(
+        request,
+        f"Granted {access_request.user.get_full_name()} access to "
+        f"{access_request.resource}.",
+    )
     return redirect("resource_access_requests")
 
 
@@ -1600,8 +1590,6 @@ def request_resource(request):
             "form": form,
             "title_collision_error": title_collision_error,
             "query": query,
-            "results": results[:SEARCH_RESULT_LIMIT],
-            "results_truncated": len(results) > SEARCH_RESULT_LIMIT,
-            "show_intake_form": bool(query) or request.method == "POST",
+            "results": results,
         },
     )
