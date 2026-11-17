@@ -1157,6 +1157,7 @@ AUDITED_TEMPLATES = {
     "core/partials/content_settings_form.html",
     "core/partials/landing_page_playlist.html",
     "core/partials/player-wrapper.html",
+    "core/partials/editable_thumbnail.html",
     "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
     "core/partials/resource_intake_request.html",

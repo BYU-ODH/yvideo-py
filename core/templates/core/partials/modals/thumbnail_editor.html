@@ -11,63 +11,116 @@
             <div class="thumbnail-editor-preview">
                 {% include "core/partials/thumbnail.html" %}
             </div>
-            <fieldset class="column-flex">
-                <legend>Background</legend>
-                <label>
-                    Color
-                    <input type="color"
-                           name="background_color"
-                           value="{{ thumbnail.background_color }}">
-                </label>
-                <label>
-                    Upload image
-                    <input type="file" id="thumbnail-upload" accept="image/*">
-                </label>
-                {% if stream_url %}
-                    {# Shown by JS only once the video turns out to have frames worth picking. #}
-                    <div id="thumbnail-frame-picker" class="column-flex" hidden>
-                        <p>Pick a frame from the video:</p>
-                        <div id="thumbnail-frames" class="row-flex"></div>
-                        <video id="thumbnail-video"
-                               src="{{ stream_url }}"
-                               preload="metadata"
-                               muted
-                               playsinline>
-                        </video>
-                        <input type="range"
-                               id="thumbnail-scrubber"
-                               min="0"
-                               max="1000"
-                               value="500"
-                               aria-label="Scrub through the video">
-                        <button type="button" id="thumbnail-capture" class="blue-button">Use this frame</button>
+            <div class="thumbnail-editor-controls">
+                <fieldset class="column-flex">
+                    <legend>Background</legend>
+                    <div class="thumbnail-tabs" role="tablist" aria-label="Background source">
+                        <button type="button"
+                                role="tab"
+                                id="thumbnail-tab-color"
+                                aria-controls="thumbnail-panel-color"
+                                aria-selected="true">Solid color</button>
+                        {% if stream_url %}
+                            {# Shown by JS only once the video turns out to have frames worth picking. #}
+                            <button type="button"
+                                    role="tab"
+                                    id="thumbnail-tab-frame"
+                                    aria-controls="thumbnail-panel-frame"
+                                    aria-selected="false"
+                                    tabindex="-1"
+                                    hidden>Video frame</button>
+                        {% endif %}
+                        {% if youtube_video_id %}
+                            <button type="button"
+                                    role="tab"
+                                    id="thumbnail-tab-youtube"
+                                    aria-controls="thumbnail-panel-youtube"
+                                    aria-selected="false"
+                                    tabindex="-1">YouTube</button>
+                        {% endif %}
+                        <button type="button"
+                                role="tab"
+                                id="thumbnail-tab-upload"
+                                aria-controls="thumbnail-panel-upload"
+                                aria-selected="false"
+                                tabindex="-1">Upload</button>
                     </div>
-                {% endif %}
-                {% if youtube_video_id %}
-                    <button type="button" id="thumbnail-use-youtube" class="blue-button">Use YouTube thumbnail</button>
-                {% endif %}
-                <button type="button" id="thumbnail-remove-image" class="cancel-button">Use color only</button>
-            </fieldset>
-            <fieldset class="column-flex">
-                <legend>Text</legend>
-                <label>
-                    Text
-                    <input type="text" name="text" maxlength="100" value="{{ settings.text }}">
-                </label>
-                <label>
-                    Color
-                    <input type="color" name="text_color" value="{{ settings.color }}">
-                </label>
-                <label>
-                    Size
-                    <input type="range"
-                           name="text_size"
-                           min="0.75"
-                           max="4"
-                           step="0.25"
-                           value="{{ settings.size }}">
-                </label>
-            </fieldset>
+                    <div id="thumbnail-panel-color"
+                         class="column-flex"
+                         role="tabpanel"
+                         aria-labelledby="thumbnail-tab-color">
+                        <label>
+                            Color
+                            <input type="color"
+                                   name="background_color"
+                                   value="{{ thumbnail.background_color }}">
+                        </label>
+                        <button type="button" id="thumbnail-remove-image" class="cancel-button">Use color only</button>
+                    </div>
+                    {% if stream_url %}
+                        <div id="thumbnail-panel-frame"
+                             class="column-flex"
+                             role="tabpanel"
+                             aria-labelledby="thumbnail-tab-frame"
+                             hidden>
+                            <p>Pick a frame from the video:</p>
+                            <div id="thumbnail-frames" class="row-flex"></div>
+                            <video id="thumbnail-video"
+                                   src="{{ stream_url }}"
+                                   preload="metadata"
+                                   muted
+                                   playsinline>
+                            </video>
+                            <input type="range"
+                                   id="thumbnail-scrubber"
+                                   min="0"
+                                   max="1000"
+                                   value="500"
+                                   aria-label="Scrub through the video">
+                            <button type="button" id="thumbnail-capture" class="blue-button">Use this frame</button>
+                        </div>
+                    {% endif %}
+                    {% if youtube_video_id %}
+                        <div id="thumbnail-panel-youtube"
+                             class="column-flex"
+                             role="tabpanel"
+                             aria-labelledby="thumbnail-tab-youtube"
+                             hidden>
+                            <button type="button" id="thumbnail-use-youtube" class="blue-button">Use YouTube thumbnail</button>
+                        </div>
+                    {% endif %}
+                    <div id="thumbnail-panel-upload"
+                         class="column-flex"
+                         role="tabpanel"
+                         aria-labelledby="thumbnail-tab-upload"
+                         hidden>
+                        <label>
+                            Upload image
+                            <input type="file" id="thumbnail-upload" accept="image/*">
+                        </label>
+                    </div>
+                </fieldset>
+                <fieldset class="column-flex">
+                    <legend>Text</legend>
+                    <label>
+                        Text
+                        <input type="text" name="text" maxlength="100" value="{{ settings.text }}">
+                    </label>
+                    <label>
+                        Color
+                        <input type="color" name="text_color" value="{{ settings.color }}">
+                    </label>
+                    <label>
+                        Size
+                        <input type="range"
+                               name="text_size"
+                               min="0.75"
+                               max="4"
+                               step="0.25"
+                               value="{{ settings.size }}">
+                    </label>
+                </fieldset>
+            </div>
             <button type="submit" class="blue-button">Save</button>
         </form>
     {% endwith %}

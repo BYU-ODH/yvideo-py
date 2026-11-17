@@ -23,6 +23,36 @@ function seek(video, time) {
   });
 }
 
+// Follows the ARIA tabs pattern: one tab stop, arrow keys move between tabs.
+function setupTabs(tablist) {
+  const tabs = [...tablist.querySelectorAll("[role=tab]")];
+  function select(tab) {
+    for (const each of tabs) {
+      const selected = each === tab;
+      each.setAttribute("aria-selected", selected);
+      each.tabIndex = selected ? 0 : -1;
+      document.getElementById(each.getAttribute("aria-controls")).hidden = !selected;
+    }
+  }
+  tablist.addEventListener("click", (event) => {
+    const tab = event.target.closest("[role=tab]");
+    if (tab) {
+      select(tab);
+    }
+  });
+  tablist.addEventListener("keydown", (event) => {
+    const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+    if (!step) {
+      return;
+    }
+    const visible = tabs.filter((tab) => !tab.hidden);
+    const index = visible.indexOf(document.activeElement);
+    const next = visible[(index + step + visible.length) % visible.length];
+    select(next);
+    next.focus();
+  });
+}
+
 function setupEditor(dialog) {
   const form = dialog.querySelector("#thumbnail-editor-form");
   const preview = form.querySelector(".thumbnail");
@@ -47,6 +77,10 @@ function setupEditor(dialog) {
     previewText.style.fontSize = `${form.text_size.value}rem`;
   }
   form.addEventListener("input", updateStyles);
+
+  setupTabs(form.querySelector("[role=tablist]"));
+  // An image would hide the new color, so picking one means the user wants color only.
+  form.background_color.addEventListener("input", () => setImage("none", null));
 
   form.querySelector("#thumbnail-upload").addEventListener("change", async (event) => {
     const file = event.target.files[0];
@@ -94,7 +128,7 @@ function setupEditor(dialog) {
         frames.append(button);
       }
       scrubTo();
-      form.querySelector("#thumbnail-frame-picker").hidden = false;
+      form.querySelector("#thumbnail-tab-frame").hidden = false;
     }, { once: true });
     scrubber.addEventListener("input", scrubTo);
     form.querySelector("#thumbnail-capture").addEventListener("click", async () => {

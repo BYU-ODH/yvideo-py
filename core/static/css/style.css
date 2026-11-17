@@ -143,7 +143,7 @@ button:hover {
     box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
 }
 
-.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible {
+.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible, .edit-thumbnail-button:focus-visible {
     outline: var(--medium-blue) dashed;
     box-shadow: none;
 }
@@ -2124,20 +2124,138 @@ button.disabled:hover {
     overflow-wrap: anywhere;
 }
 
-/* Thumbnails are stored at 640px wide, so the editor shows them near full size. */
-.thumbnail-editor-preview .thumbnail {
-    max-width: 640px;
+/* Room for the edit button, which sticks out past the thumbnail's corner. */
+.editable-thumbnail {
+    position: relative;
+
+    width: calc(100% - 1rem);
+    max-width: 320px;
+    margin-top: 1rem;
+    margin-right: 1rem;
+}
+
+.edit-thumbnail-button {
+    cursor: pointer;
+
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(40%, -40%);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 2px solid white;
+    border-radius: 50%;
+
+    background: var(--primary-blue);
+    box-shadow: 0 1px 4px var(--box-shadow-color);
+}
+
+.edit-thumbnail-button:hover,
+.edit-thumbnail-button:focus-visible {
+    background: var(--dark-primary-blue);
+}
+
+.edit-thumbnail-button img {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+#thumbnail-editor-dialog {
+    width: min(800px, 95vw);
+}
+
+/* Kept in view while scrolling so every change can be seen as it is made. */
+.thumbnail-editor-preview {
+    position: sticky;
+    top: 0;
+
+    display: flex;
+    justify-content: center;
+
+    padding-block: 0.5rem;
+
+    background: white;
+}
+
+.thumbnail-editor-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+    gap: 1rem;
+}
+
+/* Fieldsets otherwise refuse to shrink below their content, which overflows narrow screens. */
+.thumbnail-editor-controls fieldset {
+    min-width: 0;
+}
+
+.thumbnail-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    border-bottom: 2px solid var(--primary-blue);
+}
+
+.thumbnail-tabs [role="tab"] {
+    cursor: pointer;
+
+    margin-bottom: -2px;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid transparent;
+    border-radius: var(--basic-border-radius) var(--basic-border-radius) 0 0;
+
+    color: inherit;
+
+    background: none;
+}
+
+.thumbnail-tabs [role="tab"][aria-selected="true"] {
+    border-color: var(--primary-blue);
+    border-bottom-color: white;
+    font-weight: bold;
+    background: white;
+}
+
+.thumbnail-tabs [role="tab"]:not([aria-selected="true"]):hover {
+    background: var(--selectable-grey);
+}
+
+/* `.column-flex` would otherwise beat the browser's own [hidden] rule. */
+[role="tabpanel"][hidden] {
+    display: none;
+}
+
+#thumbnail-upload {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+/* The padding every dialog input gets otherwise squeezes the swatch to a thin line. */
+.thumbnail-editor-controls input[type="color"] {
+    width: 3rem;
+    height: 2rem;
+    padding: 2px;
 }
 
 #thumbnail-video {
+    align-self: center;
     width: 100%;
-    max-width: 640px;
+    max-width: 240px;
 }
 
 .thumbnail-frame {
     cursor: pointer;
+
+    flex: 1;
+
+    min-width: 0;
     padding: 0;
     border: 2px solid transparent;
+
     background: none;
 }
 
@@ -2148,5 +2266,5 @@ button.disabled:hover {
 
 .thumbnail-frame img {
     display: block;
-    width: 160px;
+    width: 100%;
 }

@@ -20,11 +20,8 @@
                 {% include 'core/partials/action_link.html' with link_href=player_url link_text="Preview" %}
             </div>
             <div class="row-flex">
-                {% include "core/partials/thumbnail.html" %}
-
-                <button type="button"
-                        class="blue-button"
-                        data-thumbnail-editor-url="{% url 'content_thumbnail_editor' content.id %}">Edit thumbnail</button>
+                {% url 'content_thumbnail_editor' content.id as thumbnail_editor_url %}
+                {% include "core/partials/editable_thumbnail.html" with editor_url=thumbnail_editor_url %}
             </div>
             <div id="content-settings">
                 <div class="row-flex flex-apart-aligned">

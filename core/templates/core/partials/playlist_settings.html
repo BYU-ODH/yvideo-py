@@ -1,6 +1,9 @@
 <div id="playlist-settings" data-playlist-id="{{ playlist.pk }}">
     <div class="column-flex">
         <h3>Settings</h3>
+        {% url 'playlist_thumbnail_editor' playlist.pk as thumbnail_editor_url %}
+        {% include "core/partials/editable_thumbnail.html" with editor_url=thumbnail_editor_url %}
+
         <form id="playlist-settings-form"
               class="column-flex"
               method="post"
@@ -17,13 +20,6 @@
                        {% if form.archived.value == True %} disabled {% endif %}>
             </div>
             <div class="playlist-form-group">{{ form.archived.as_field_group }}</div>
-            <div class="playlist-form-group">
-                {% include "core/partials/thumbnail.html" %}
-
-                <button type="button"
-                        class="blue-button"
-                        data-thumbnail-editor-url="{% url 'playlist_thumbnail_editor' playlist.pk %}">Edit thumbnail</button>
-            </div>
             {% if user.is_ic_editor %}
                 <div class="playlist-form-group">{{ form.is_ic.as_field_group }}</div>
             {% endif %}
