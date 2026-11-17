@@ -797,14 +797,16 @@ button:hover {
     box-shadow: 0 4px 6px -4px var(--box-shadow-color);
 }
 
-.navbar a {
+.navbar a,
+.navbar .link-button {
     display: flex;
     align-items: center;
     color: black;
     text-decoration: none;
 }
 
-.navbar a:hover {
+.navbar a:hover,
+.navbar .link-button:hover {
     text-decoration: underline;
 }
 
@@ -914,6 +916,30 @@ button:hover {
     background: none;
 }
 
+/* Circled "?" that opens the help and feedback modal, stroked to match the hamburger bars */
+.help-toggle {
+    cursor: pointer;
+
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+    width: 25px;
+    height: 25px;
+    padding: 0;
+    border: 3px solid black;
+    border-radius: 50%;
+
+    font-size: 0.9rem;
+    font-weight: bold;
+    line-height: 1;
+    color: black;
+
+    background: none;
+}
+
 /* The bars are borders rather than backgrounds for better accessibility */
 .sidebar-toggle::before {
     content: "";
@@ -961,6 +987,16 @@ button:hover {
     margin-top: 1rem;
     border-bottom: 1px solid black;
     font-size: 1rem;
+}
+
+.link-button {
+    padding: 0;
+    border: none;
+
+    color: LinkText;
+    text-decoration: underline;
+
+    background: none;
 }
 
 #sidebar-close {
@@ -1769,6 +1805,10 @@ button:hover {
 
 #select-resource-dialog {
     width: min(90vw, 1100px);
+}
+
+#help-and-feedback-dialog {
+    max-width: min(90vw, 40rem);
 }
 
 .playlist-item-tile, .resource-details {
