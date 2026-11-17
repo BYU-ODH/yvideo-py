@@ -633,7 +633,8 @@ export class Editor {
           }
 
           this.lastSavedItemFormState = state;
-          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
+          // The form itself, because a deselect while waiting above takes it off the page.
+          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false, form: itemForm});
           if (!updated) {
             this.lastSavedItemFormState = null;
             return;
@@ -1000,7 +1001,7 @@ export class Editor {
 
     // `seek: false` leaves the player where it is instead of jumping to the item's start. Timeline
     // drags use it: the playhead goes back to where the user parked it (see beginDragPreview).
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm}) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm, form=document.getElementById("annotation-update-form")}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -1013,8 +1014,7 @@ export class Editor {
         });
         contentType = "application/json";
       } else {
-        const annotationUpdateForm = document.getElementById("annotation-update-form");
-        const formData = new FormData(annotationUpdateForm);
+        const formData = new FormData(form);
         requestBody = {};
         for (let pair of formData.entries()) {
           const key = pair[0];
