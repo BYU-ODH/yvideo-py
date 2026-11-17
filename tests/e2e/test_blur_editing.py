@@ -1870,6 +1870,57 @@ def test_undo_during_a_pending_nudge_drops_only_the_nudge(page, open_editor):
     assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(40.0, abs=0.01)
 
 
+def _nudge_and_save(page, key):
+    _seek(page, 7.0)
+    _focus_rig(page)
+    _mark_panel(page)
+    page.keyboard.press(key)
+    page.keyboard.press("Enter")
+    _wait_for_save(page)
+
+
+def _undo_or_redo(page, shortcut):
+    previous_id = page.locator("#existing-item-form").get_attribute(
+        "data-annotation-id"
+    )
+    page.keyboard.press(shortcut)
+    page.wait_for_function(
+        "(previous) => document.querySelector('#existing-item-form')?.dataset.annotationId"
+        " !== previous",
+        arg=previous_id,
+        timeout=5000,
+    )
+
+
+def test_a_saved_nudge_can_be_undone_and_redone(page, open_editor):
+    open_editor()
+    _select(page, MOVING_BLUR)
+
+    _nudge_and_save(page, "ArrowRight")
+    assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(40.5, abs=0.01)
+
+    for shortcut, expected_x in (("Control+z", 40.0), ("Control+Shift+z", 40.5)):
+        _undo_or_redo(page, shortcut)
+        assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(expected_x, abs=0.01)
+        row_x = _row_for(page, 1).get_attribute("data-x")
+        assert float(row_x) == pytest.approx(expected_x, abs=0.01)
+
+
+def test_editing_goes_on_working_after_undo_and_redo(page, open_editor):
+    open_editor()
+    _select(page, MOVING_BLUR)
+    _nudge_and_save(page, "ArrowRight")
+
+    _undo_or_redo(page, "Control+z")
+    _undo_or_redo(page, "Control+Shift+z")
+    _nudge_and_save(page, "ArrowRight")
+    assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(41.0, abs=0.01)
+
+    _undo_or_redo(page, "Control+z")
+    _nudge_and_save(page, "ArrowLeft")
+    assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(40.0, abs=0.01)
+
+
 def test_the_rig_keeps_the_arrow_keys_away_from_the_player(page, open_editor):
     """The player binds bare arrows on `document` and only steps aside for inputs and textareas, so
     without stopPropagation a nudge would also seek the video and change the volume under it."""
@@ -2214,7 +2265,8 @@ def test_a_nudge_saved_as_the_selection_moves_on_still_reaches_the_player(
     id no longer matched, so the server held the edit while the player went on painting the old
     geometry for the rest of the session.
     """
-    annotation = open_editor() and _select(page, MOVING_BLUR)
+    open_editor()
+    _select(page, MOVING_BLUR)
     _seek(page, 7.0)
     _focus_rig(page)
 
@@ -2233,7 +2285,14 @@ def test_a_nudge_saved_as_the_selection_moves_on_still_reaches_the_player(
     assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(40.5, abs=0.01), (
         "the nudge never reached the database, so this proves nothing about the player"
     )
-    assert _player_points(page, annotation) == [
+    # The save made a new version, which the player picks up when it reloads its annotations.
+    live = _blur(MOVING_BLUR)
+    page.wait_for_function(
+        "(id) => window.videoPlayer.annotations.some((a) => a.id == id)",
+        arg=live.pk,
+        timeout=5000,
+    )
+    assert _player_points(page, live) == [
         [3.0, pytest.approx(12.5, abs=0.01)],
         [7.0, pytest.approx(40.5, abs=0.01)],
         [11.0, pytest.approx(66.5, abs=0.01)],

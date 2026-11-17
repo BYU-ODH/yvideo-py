@@ -117,9 +117,11 @@ export class Editor {
           video: this.video,
           player: window.videoPlayer,
           timelineWrapper: this.timelineWrapper,
-          onBlurAnchorPointsSaved: () => {
-            this.placeTrackItems();
-            this.setupItems();
+          onBlurAnchorPointsSaved: (previousAnnotationId, responseData) => {
+            if (String(responseData.annotation_id) !== String(previousAnnotationId)) {
+              window.dispatchEvent(this.annotationUpdatedEvent);
+            }
+            this.applyAnnotationVersionResponse(responseData, previousAnnotationId, false, {seek: false});
           },
         });
 
@@ -608,6 +610,8 @@ export class Editor {
           const state = this.serializeItemForm(itemForm);
           if (state === this.lastSavedItemFormState) return;
 
+          // A blur point save in flight is about to give the annotation a new id.
+          await this.blurEditor.writes;
           const annotationId = itemForm.dataset["annotationId"];
           const annotationType = itemForm.dataset["annotationType"];
 
@@ -833,9 +837,15 @@ export class Editor {
         return false;
       }
       this.historyRequestInFlight = true;
-      button.disabled = true;
 
       try {
+        // Undo has to apply to the version a blur point save in flight is about to create, and that
+        // save can leave nothing to redo or the user can have moved on to another annotation.
+        await this.blurEditor.writes;
+        if (button.disabled || !button.isConnected) {
+          return false;
+        }
+        button.disabled = true;
         const response = await savePost(
           button.dataset.historyUrl,
           new URLSearchParams({
@@ -939,11 +949,18 @@ export class Editor {
       updateForm.dataset.annotationId = annotationId;
       this.annotationIdInFocus = annotationId;
 
-      const renderedForm = createElementFromHTMLString(responseData.form_html);
-      const renderedToolbar = renderedForm.querySelector(".undo-redo-toolbar");
+      const renderedToolbar = responseData.form_html
+        ? createElementFromHTMLString(responseData.form_html).querySelector(".undo-redo-toolbar")
+        : null;
       const currentToolbar = itemForm.querySelector(".undo-redo-toolbar");
       if (renderedToolbar && currentToolbar) {
         currentToolbar.replaceWith(renderedToolbar);
+      } else if (currentToolbar) {
+        // Blur anchor point saves reply without a form, so the existing buttons are repointed.
+        for (const button of currentToolbar.querySelectorAll(".annotation-history-button")) {
+          button.dataset.annotationId = annotationId;
+          button.disabled = !responseData[`can_${button.dataset.historyAction}`];
+        }
       }
 
       if (annotationType == "blur") {

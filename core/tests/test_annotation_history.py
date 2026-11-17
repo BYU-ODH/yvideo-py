@@ -95,14 +95,15 @@ class AnnotationHistoryModelTests(TestCase):
         )
 
         edited = blur.edit(name="Edited logo")
-        copied_blur_anchor_point = edited.blur_anchor_points.get()
 
-        self.assertNotEqual(copied_blur_anchor_point.id, blur_anchor_point.id)
-        self.assertEqual(copied_blur_anchor_point.time, blur_anchor_point.time)
-        self.assertEqual(copied_blur_anchor_point.x, blur_anchor_point.x)
-        self.assertEqual(copied_blur_anchor_point.y, blur_anchor_point.y)
-        self.assertEqual(copied_blur_anchor_point.width, blur_anchor_point.width)
-        self.assertEqual(copied_blur_anchor_point.height, blur_anchor_point.height)
+        def geometry(point):
+            return (point.time, point.x, point.y, point.width, point.height)
+
+        # The editor addresses points by id, so the live version keeps them.
+        self.assertEqual(edited.blur_anchor_points.get().id, blur_anchor_point.id)
+        self.assertEqual(
+            geometry(blur.blur_anchor_points.get()), geometry(blur_anchor_point)
+        )
 
     def test_undo_redo_and_edit_after_undo_manage_the_chain(self):
         root = CommentAnnotationFactory(track=self.track, name="Root")
@@ -435,32 +436,22 @@ class AnnotationHistoryViewTests(TestCase):
             original_times,
         )
 
-    def test_undo_discards_rig_edits_made_since_the_version_was_created(self):
-        """Pins a known limitation rather than asserting desired behaviour.
+    def _undo_or_redo(self, action, blur_id):
+        response = self.client.post(
+            reverse(f"{action}_annotation", args=[self.content.id]),
+            {"annotation_id": blur_id, "annotation_type": "blur"},
+        )
+        self.assertEqual(response.status_code, 200)
+        return BlurAnnotation.objects.get(id=response.json()["annotation_id"])
 
-        Blur geometry is written by upsert_blur_anchor_point, which edits the active version's
-        anchor points in place and never calls edit(). Only a field save creates a version. So a rig
-        drag made *after* a field save lands on the active version alone, and the next undo -
-        which the user means as "take back that field save" - reverts the drag along with it.
-        No history step ever corresponded to the drag, so nothing warns them.
-
-        Order matters: dragging *before* a field save is safe, because edit() then snapshots the
-        dragged geometry into the version it creates. It is the drag that follows a save that is
-        exposed.
-
-        Change this test when rig edits join the version chain; it exists so that change is a
-        deliberate one and not a silent behaviour swap.
-        """
+    def test_blur_anchor_point_edits_are_undone_one_at_a_time(self):
         blur = BlurAnnotation.objects.create(
             track=self.track, name="Logo", start_time=0, end_time=10, active=True
         )
-        # At time 0 so it is the point ensure_first_blur_anchor_point pins to start_time; the drag below
-        # then updates this row rather than adding a second one.
         BlurAnchorPoint.objects.create(
             blur_annotation=blur, time=0, x=10, y=20, width=30, height=40
         )
 
-        # A field save, which is the only thing that creates a version.
         rename = self.client.post(
             reverse("update_annotation", args=[self.content.id, "blur", blur.id]),
             data=json.dumps(
@@ -473,32 +464,67 @@ class AnnotationHistoryViewTests(TestCase):
             ),
             content_type="application/json",
         )
-        self.assertEqual(rename.status_code, 200)
-        renamed = BlurAnnotation.objects.get(id=rename.json()["annotation_id"])
-        self.assertEqual(renamed.blur_anchor_points.get().x, 10)
+        renamed_id = rename.json()["annotation_id"]
 
-        # Now a rig drag on the new active version: geometry only, no version created. Kept
-        # inside the frame so the model's clamping does not rewrite the value asserted on.
         drag = self.client.post(
-            reverse("upsert_blur_anchor_point", args=[renamed.id]),
+            reverse("upsert_blur_anchor_point", args=[renamed_id]),
             data=json.dumps({"time": 0, "x": 55, "y": 50, "width": 30, "height": 40}),
             content_type="application/json",
         )
         self.assertEqual(drag.status_code, 200)
-        renamed.refresh_from_db()
-        self.assertIsNone(renamed.next_id)
-        self.assertEqual(renamed.blur_anchor_points.get().x, 55)
-
-        # One undo, meaning "take back the rename", silently takes the drag with it.
-        undo = self.client.post(
-            reverse("undo_annotation", args=[self.content.id]),
-            {"annotation_id": renamed.id, "annotation_type": "blur"},
+        dragged_id = drag.json()["annotation_id"]
+        added = self.client.post(
+            reverse("upsert_blur_anchor_point", args=[dragged_id]),
+            data=json.dumps({"time": 5, "x": 60, "y": 50, "width": 30, "height": 40}),
+            content_type="application/json",
         )
-        self.assertEqual(undo.status_code, 200)
-        restored = BlurAnnotation.objects.get(id=undo.json()["annotation_id"])
-        self.assertEqual(restored.id, blur.id)
-        self.assertEqual(restored.name, "Logo")
-        self.assertEqual(restored.blur_anchor_points.get().x, 10)
+        added_point = BlurAnchorPoint.objects.get(
+            blur_annotation_id=added.json()["annotation_id"], time=5
+        )
+        deleted = self.client.delete(
+            reverse("delete_blur_anchor_point", args=[added_point.pk])
+        )
+        self.assertEqual(deleted.status_code, 200)
+
+        def geometry(annotation):
+            return [(p.time, p.x) for p in annotation.blur_anchor_points.all()]
+
+        current = BlurAnnotation.objects.get(id=deleted.json()["annotation_id"])
+        self.assertEqual(geometry(current), [(0, 55)])
+
+        current = self._undo_or_redo("undo", current.id)
+        self.assertEqual(geometry(current), [(0, 55), (5, 60)])
+        current = self._undo_or_redo("undo", current.id)
+        self.assertEqual(geometry(current), [(0, 55)])
+        current = self._undo_or_redo("undo", current.id)
+        self.assertEqual((current.name, geometry(current)), ("Renamed logo", [(0, 10)]))
+        current = self._undo_or_redo("undo", current.id)
+        self.assertEqual((current.id, current.name), (blur.id, "Logo"))
+
+        current = self._undo_or_redo("redo", current.id)
+        current = self._undo_or_redo("redo", current.id)
+        self.assertEqual(geometry(current), [(0, 55)])
+
+    def test_clicking_a_blur_without_moving_it_adds_no_undo_step(self):
+        blur = BlurAnnotation.objects.create(
+            track=self.track, name="Logo", start_time=0, end_time=10, active=True
+        )
+        BlurAnchorPoint.objects.create(
+            blur_annotation=blur, time=0, x=10, y=20, width=30, height=40
+        )
+
+        response = self.client.post(
+            reverse("upsert_blur_anchor_point", args=[blur.id]),
+            data=json.dumps({"time": 0, "x": 10, "y": 20, "width": 30, "height": 40}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["annotation_id"], blur.id)
+        self.assertFalse(response.json()["can_undo"])
+        blur.refresh_from_db()
+        self.assertTrue(blur.active)
+        self.assertIsNone(blur.next_id)
 
     def test_detail_form_has_icon_history_buttons_at_the_top(self):
         updated = self.annotation.edit(name="Updated")

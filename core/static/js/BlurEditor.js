@@ -45,6 +45,10 @@ const SNAP_SECONDS = 0.05;
 
 const CLAMP_LIMITS = { minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT };
 
+// Undo, redo, and the form's autosave wait behind point saves, so one that never answers must not
+// hold them up forever.
+const SAVE_TIMEOUT_MS = 15000;
+
 // The arrow keys the player uses for frame-stepping belong to the box once the rig has focus, so
 // `,` and `.` replace them.
 const SCRUB_SECONDS = 0.1;
@@ -132,8 +136,9 @@ export class BlurEditor {
    * @param {HTMLVideoElement} options.video
    * @param {object} options.player the AnnotationPlayer instance
    * @param {HTMLElement} options.timelineWrapper delegation root for the timeline dots
-   * @param {Function} options.onBlurAnchorPointsSaved called after a save lands, so the editor can
-   *   re-place the track items whose HTML this module just replaced
+   * @param {Function} options.onBlurAnchorPointsSaved called with the previous annotation id and the
+   *   response after a save lands; a save is a new version of the blur, so the editor swaps in the
+   *   bar, panel item, and undo buttons for it
    */
   constructor({ video, player, timelineWrapper, onBlurAnchorPointsSaved }) {
     this.video = video;
@@ -154,6 +159,10 @@ export class BlurEditor {
     // The time is the frame that was on screen when the first key was pressed; see _nudge.
     this.nudge = new PendingNudge(({ rect, time }) => this._commit(rect, { time }));
     this.draggingBlurAnchorPointDot = false;
+    this.writes = Promise.resolve();
+    this.pendingWrites = 0;
+    // Old version id -> the id the write against it produced; see _enqueue.
+    this.versions = new Map();
 
     this._onRigPointerDown = this._onRigPointerDown.bind(this);
     this._onRigKeyDown = this._onRigKeyDown.bind(this);
@@ -515,10 +524,36 @@ export class BlurEditor {
    *   the numeric inputs and dragging a timeline dot. A drag on the frame must never send one.
    * @param {number} [options.time] only alongside blurAnchorPointId, to retime that point.
    */
-  async _commit(rect, { blurAnchorPointId, time } = {}) {
+  _commit(rect, { blurAnchorPointId, time } = {}) {
     const annotationId = this.annotationId;
-    if (!annotationId) return false;
+    if (!annotationId) return Promise.resolve(false);
+    const requested =
+      time !== undefined ? time : Math.round(this.video.currentTime * 100) / 100;
+    return this._enqueue(annotationId, (latestId) =>
+      this._send(latestId, rect, { blurAnchorPointId, requested }),
+    );
+  }
 
+  // Every write makes a new version of the blur under a new id, so a write sent before the previous
+  // one has answered would be addressed to a version that is no longer live.
+  _enqueue(annotationId, write) {
+    this.pendingWrites += 1;
+    const result = this.writes.then(() => write(this._latestVersion(annotationId)));
+    this.writes = result
+      .catch(() => {})
+      .finally(() => {
+        // Only writes queued behind one another need these, and undo can make an old id live again.
+        if (--this.pendingWrites === 0) this.versions.clear();
+      });
+    return result;
+  }
+
+  _latestVersion(annotationId) {
+    while (this.versions.has(annotationId)) annotationId = this.versions.get(annotationId);
+    return annotationId;
+  }
+
+  async _send(annotationId, rect, { blurAnchorPointId, requested }) {
     // From the bar the server rendered, not built here: see the data-blur-anchor-points-url comment in
     // core/templates/core/partials/item.html. Its absence means the bar for this blur is gone, in
     // which case there is nothing to save against.
@@ -528,8 +563,6 @@ export class BlurEditor {
       return false;
     }
 
-    const requested =
-      time !== undefined ? time : Math.round(this.video.currentTime * 100) / 100;
     // Send the point's own time when one is being edited, so client and server cannot disagree
     // about which moment this write belongs to.
     const editing = blurAnchorPointId === undefined ? this._blurAnchorPointAt(requested) : null;
@@ -555,6 +588,7 @@ export class BlurEditor {
         method: "POST",
         headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(SAVE_TIMEOUT_MS),
       });
     } catch (error) {
       console.error("Failed to reach the server to save a blur anchor point", error);
@@ -594,17 +628,28 @@ export class BlurEditor {
    *   blur_anchor_points.html. Taking the control rather than an id is what keeps the URL out of this
    *   file, and means a point the server will refuse to delete offers nothing to delete it with.
    */
-  async _delete(control) {
-    const annotationId = this.annotationId;
+  _delete(control) {
     const url = control?.dataset["deleteUrl"];
     if (!url) {
       console.error("No delete endpoint on the control for the blur anchor point being deleted");
+      return Promise.resolve(false);
+    }
+    return this._enqueue(this.annotationId, (latestId) => this._sendDelete(latestId, url));
+  }
+
+  async _sendDelete(annotationId, url) {
+    let response;
+    try {
+      response = await saveStatus.fetch(url, {
+        method: "DELETE",
+        headers: { "X-CSRFToken": getCSRFToken() },
+        signal: AbortSignal.timeout(SAVE_TIMEOUT_MS),
+      });
+    } catch (error) {
+      console.error("Failed to reach the server to delete a blur anchor point", error);
+      this._reportFailure(annotationId, "The blur anchor point could not be deleted - no reply from the server.");
       return false;
     }
-    const response = await saveStatus.fetch(url, {
-      method: "DELETE",
-      headers: { "X-CSRFToken": getCSRFToken() },
-    });
     if (!response.ok) {
       console.error(`Failed to delete blur anchor point (${response.status})`);
       this._status(await serverMessage(response, "That blur anchor point could not be deleted."));
@@ -630,22 +675,15 @@ export class BlurEditor {
     // Canonical state first, and unconditionally: the save happened, so the player's anchor points and
     // the bar's blur anchor point dots have to reflect it even if the selection has already moved on - deselect()
     // flushes a pending nudge, so a saved edit routinely lands after annotationId has been cleared.
-    const item = this._itemElement(annotationId);
-    if (item && payload["trackItem"]) {
-      const wasActive = item.classList.contains("active-track-item");
-      item.outerHTML = payload["trackItem"];
-      // Re-applying just the class, rather than calling markItemAsActive, which would also seek the
-      // playhead back to the blur's start and throw away the frame being edited.
-      if (wasActive) this._itemElement(annotationId)?.classList.add("active-track-item");
-    }
-
     this.player.replaceBlurAnchorPoints(annotationId, payload["blurAnchorPoints"]);
-    // After the bar is replaced, because it re-places the blur anchor point dots from that DOM.
-    this.onBlurAnchorPointsSaved(annotationId);
+    const savedId = String(payload["annotation_id"]);
+    if (savedId !== annotationId) this.versions.set(annotationId, savedId);
+    // Replaces the bar and moves the selection onto the new version, retargeting this editor.
+    this.onBlurAnchorPointsSaved(annotationId, payload);
 
     // Everything below is specific to the blur on screen: the panel is a singleton belonging to
     // whatever is selected, and the rig paints only the selection.
-    if (annotationId !== this.annotationId) return false;
+    if (savedId !== this.annotationId) return false;
 
     // Only the table, not the whole wrapper: replacing the status line would re-insert a live region
     // with its message already inside it, which screen readers generally do not announce. The
