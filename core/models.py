@@ -1636,17 +1636,21 @@ BLUR_DEFAULT_GEOMETRY = {"x": 40.0, "y": 42.5, "width": 20.0, "height": 15.0}
 
 class BlurAnnotation(BaseAnnotation):
     def _copy_related_data_to_version(self, new_annotation):
+        # The new version takes over the existing rows and this one keeps the copies, so the ids the
+        # editor has on screen stay valid across every point write.
+        blur_anchor_points = list(self.blur_anchor_points.all())
+        self.blur_anchor_points.update(blur_annotation=new_annotation)
         BlurAnchorPoint.objects.bulk_create(
             [
                 BlurAnchorPoint(
-                    blur_annotation=new_annotation,
+                    blur_annotation=self,
                     time=blur_anchor_point.time,
                     x=blur_anchor_point.x,
                     y=blur_anchor_point.y,
                     width=blur_anchor_point.width,
                     height=blur_anchor_point.height,
                 )
-                for blur_anchor_point in self.blur_anchor_points.all()
+                for blur_anchor_point in blur_anchor_points
             ]
         )
 

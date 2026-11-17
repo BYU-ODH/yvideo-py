@@ -117,9 +117,11 @@ export class Editor {
           video: this.video,
           player: window.videoPlayer,
           timelineWrapper: this.timelineWrapper,
-          onBlurAnchorPointsSaved: () => {
-            this.placeTrackItems();
-            this.setupItems();
+          onBlurAnchorPointsSaved: (previousAnnotationId, responseData) => {
+            if (String(responseData.annotation_id) !== String(previousAnnotationId)) {
+              window.dispatchEvent(this.annotationUpdatedEvent);
+            }
+            this.applyAnnotationVersionResponse(responseData, previousAnnotationId, false, {seek: false});
           },
         });
 
@@ -608,6 +610,8 @@ export class Editor {
           const state = this.serializeItemForm(itemForm);
           if (state === this.lastSavedItemFormState) return;
 
+          // A blur point save in flight is about to give the annotation a new id.
+          await this.blurEditor.writes;
           const annotationId = itemForm.dataset["annotationId"];
           const annotationType = itemForm.dataset["annotationType"];
 
@@ -629,7 +633,8 @@ export class Editor {
           }
 
           this.lastSavedItemFormState = state;
-          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
+          // The form itself, because a deselect while waiting above takes it off the page.
+          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false, form: itemForm});
           if (!updated) {
             this.lastSavedItemFormState = null;
             return;
@@ -833,9 +838,15 @@ export class Editor {
         return false;
       }
       this.historyRequestInFlight = true;
-      button.disabled = true;
 
       try {
+        // Undo has to apply to the version a blur point save in flight is about to create, and that
+        // save can leave nothing to redo or the user can have moved on to another annotation.
+        await this.blurEditor.writes;
+        if (button.disabled || !button.isConnected) {
+          return false;
+        }
+        button.disabled = true;
         const response = await savePost(
           button.dataset.historyUrl,
           new URLSearchParams({
@@ -859,6 +870,9 @@ export class Editor {
           responseData,
           button.dataset.annotationId,
           true,
+          // Blurs are edited frame by frame, so keep the frame; the blur editor moves the playhead
+          // itself if the restored version no longer covers it.
+          {seek: responseData.annotation_type !== "blur"},
         );
         if (!applied && button.isConnected) {
           // The version did change on the server, but the timeline could not be updated to show
@@ -939,11 +953,18 @@ export class Editor {
       updateForm.dataset.annotationId = annotationId;
       this.annotationIdInFocus = annotationId;
 
-      const renderedForm = createElementFromHTMLString(responseData.form_html);
-      const renderedToolbar = renderedForm.querySelector(".undo-redo-toolbar");
+      const renderedToolbar = responseData.form_html
+        ? createElementFromHTMLString(responseData.form_html).querySelector(".undo-redo-toolbar")
+        : null;
       const currentToolbar = itemForm.querySelector(".undo-redo-toolbar");
       if (renderedToolbar && currentToolbar) {
         currentToolbar.replaceWith(renderedToolbar);
+      } else if (currentToolbar) {
+        // Blur anchor point saves reply without a form, so the existing buttons are repointed.
+        for (const button of currentToolbar.querySelectorAll(".annotation-history-button")) {
+          button.dataset.annotationId = annotationId;
+          button.disabled = !responseData[`can_${button.dataset.historyAction}`];
+        }
       }
 
       if (annotationType == "blur") {
@@ -983,7 +1004,7 @@ export class Editor {
 
     // `seek: false` leaves the player where it is instead of jumping to the item's start. Timeline
     // drags use it: the playhead goes back to where the user parked it (see beginDragPreview).
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm}) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm, form=document.getElementById("annotation-update-form")}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -996,8 +1017,7 @@ export class Editor {
         });
         contentType = "application/json";
       } else {
-        const annotationUpdateForm = document.getElementById("annotation-update-form");
-        const formData = new FormData(annotationUpdateForm);
+        const formData = new FormData(form);
         requestBody = {};
         for (let pair of formData.entries()) {
           const key = pair[0];

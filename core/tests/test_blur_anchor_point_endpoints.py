@@ -28,6 +28,7 @@ from core.factories import PlaylistUserAccessFactory
 from core.factories import TrackFactory
 from core.factories import UserFactory
 from core.models import BlurAnchorPoint
+from core.models import BlurAnnotation
 from core.models import PlaylistRole
 from core.tests.test_js_constant_parity import read_js_constant
 from core.views_video_editor import BLUR_ANCHOR_POINT_FIRST_UNDELETABLE
@@ -48,6 +49,16 @@ class BlurAnchorPointEndpointTests(TestCase):
             blur_annotation=self.blur, time=5.0
         )
 
+    def _live(self):
+        """The active version: every point write leaves the previous one behind for undo."""
+        return BlurAnnotation.objects.get(track=self.track, active=True)
+
+    def _times(self):
+        return [p.time for p in self._live().blur_anchor_points.all()]
+
+    def _point_at(self, time):
+        return self._live().blur_anchor_points.get(time=time)
+
     def _upsert(self, **overrides):
         payload = {
             "time": 7.0,
@@ -58,7 +69,7 @@ class BlurAnchorPointEndpointTests(TestCase):
         }
         payload.update(overrides)
         return self.client.post(
-            reverse("upsert_blur_anchor_point", args=[self.blur.pk]),
+            reverse("upsert_blur_anchor_point", args=[self._live().pk]),
             data=json.dumps(payload),
             content_type="application/json",
         )
@@ -119,7 +130,12 @@ class BlurAnchorPointEndpointTests(TestCase):
         self.blur.delete_with_history()
         self.client.force_login(self.owner)
 
-        self.assertEqual(self._upsert(time=9.0).status_code, 404)
+        response = self.client.post(
+            reverse("upsert_blur_anchor_point", args=[self.blur.pk]),
+            data=json.dumps({"time": 9.0, "x": 1, "y": 2, "width": 3, "height": 4}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
         self.assertEqual([p.time for p in self.blur.blur_anchor_points.all()], [5.0])
 
     def test_a_point_on_a_deleted_blur_cannot_be_deleted_either(self):
@@ -140,13 +156,7 @@ class BlurAnchorPointEndpointTests(TestCase):
         self.client.force_login(self.owner)
         self.assertEqual(self._upsert(time=9.0).status_code, 200)
 
-        self.assertEqual(
-            [p.time for p in self.blur.blur_anchor_points.all()], [5.0, 9.0]
-        )
-        self.blur_anchor_point.refresh_from_db()
-        self.assertEqual(
-            self.blur_anchor_point.time, 5.0, "the existing point was retimed"
-        )
+        self.assertEqual(self._times(), [5.0, 9.0], "the existing point was retimed")
 
     def test_a_write_near_an_existing_point_moves_that_point_without_retiming_it(self):
         """Within the snap window the user is editing that point, not making a new one."""
@@ -154,10 +164,8 @@ class BlurAnchorPointEndpointTests(TestCase):
         self.client.force_login(self.owner)
         self.assertEqual(self._upsert(time=9.0).status_code, 200)
 
-        self.assertEqual(
-            [p.time for p in self.blur.blur_anchor_points.all()], [5.0, 9.02]
-        )
-        self.assertEqual(self.blur.blur_anchor_points.get(time=9.02).x, 10.0)
+        self.assertEqual(self._times(), [5.0, 9.02])
+        self.assertEqual(self._point_at(9.02).x, 10.0)
 
     def test_a_write_between_two_close_points_lands_on_the_nearer_one(self):
         """With two points inside the snap window, the earlier one is not automatically it.
@@ -168,31 +176,33 @@ class BlurAnchorPointEndpointTests(TestCase):
         and a point they were not looking at had moved. Two points this close are reachable
         through the panel's time field, which accepts any value.
         """
-        near = BlurAnchorPointFactory(blur_annotation=self.blur, time=9.03, x=1.0)
-        far = BlurAnchorPointFactory(blur_annotation=self.blur, time=9.0, x=2.0)
+        BlurAnchorPointFactory(blur_annotation=self.blur, time=9.03, x=1.0)
+        BlurAnchorPointFactory(blur_annotation=self.blur, time=9.0, x=2.0)
         self.client.force_login(self.owner)
 
         payload = self._upsert(time=9.03).json()
 
-        near.refresh_from_db()
-        far.refresh_from_db()
-        self.assertEqual(near.x, 10.0, "the nearest point should have taken the write")
-        self.assertEqual(far.x, 2.0, "the further point must not be touched")
+        self.assertEqual(
+            self._point_at(9.03).x,
+            10.0,
+            "the nearest point should have taken the write",
+        )
+        self.assertEqual(
+            self._point_at(9.0).x, 2.0, "the further point must not be touched"
+        )
         self.assertEqual(payload["time"], 9.03)
         self.assertFalse(payload["created"])
 
     def test_the_nearer_point_wins_from_either_side(self):
         """The same, approaching from below, so the fix cannot be an ordering coincidence."""
-        far = BlurAnchorPointFactory(blur_annotation=self.blur, time=9.04, x=2.0)
-        near = BlurAnchorPointFactory(blur_annotation=self.blur, time=9.0, x=1.0)
+        BlurAnchorPointFactory(blur_annotation=self.blur, time=9.04, x=2.0)
+        BlurAnchorPointFactory(blur_annotation=self.blur, time=9.0, x=1.0)
         self.client.force_login(self.owner)
 
         payload = self._upsert(time=9.01).json()
 
-        near.refresh_from_db()
-        far.refresh_from_db()
-        self.assertEqual(near.x, 10.0)
-        self.assertEqual(far.x, 2.0)
+        self.assertEqual(self._point_at(9.0).x, 10.0)
+        self.assertEqual(self._point_at(9.04).x, 2.0)
         self.assertEqual(payload["time"], 9.0)
 
     def test_a_named_blur_anchor_point_can_be_retimed(self):
@@ -202,9 +212,7 @@ class BlurAnchorPointEndpointTests(TestCase):
         self.assertEqual(
             self._upsert(blur_anchor_point_id=moving.pk, time=11.0).status_code, 200
         )
-        self.assertEqual(
-            [p.time for p in self.blur.blur_anchor_points.all()], [5.0, 11.0]
-        )
+        self.assertEqual(self._times(), [5.0, 11.0])
 
     def test_retiming_onto_another_point_is_a_conflict_not_a_500(self):
         occupied = BlurAnchorPointFactory(blur_annotation=self.blur, time=9.0)
@@ -214,26 +222,23 @@ class BlurAnchorPointEndpointTests(TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.content.decode(), BLUR_ANCHOR_POINT_TIME_TAKEN)
         # The rejected save must not have poisoned the transaction, and nothing may be lost.
+        self.assertEqual(self._times(), [5.0, 9.0, 11.0])
         self.assertEqual(
-            [p.time for p in self.blur.blur_anchor_points.all()], [5.0, 9.0, 11.0]
+            self._live(), self.blur, "a refused write must not add an undo step"
         )
 
     def test_a_time_outside_the_blurs_window_is_clamped_not_rejected(self):
         """Rounding at a boundary is not worth failing an edit over."""
         self.client.force_login(self.owner)
         self.assertEqual(self._upsert(time=99.0).status_code, 200)
-        self.assertEqual(
-            [p.time for p in self.blur.blur_anchor_points.all()], [5.0, 12.0]
-        )
+        self.assertEqual(self._times(), [5.0, 12.0])
 
     def test_the_first_point_stays_pinned_to_the_blurs_start(self):
         """Invariant I5, re-asserted after every write rather than trusted to callers."""
         self.client.force_login(self.owner)
         self._upsert(time=8.0)
-        self._upsert(blur_anchor_point_id=self.blur_anchor_point.pk, time=10.0)
-        self.assertEqual(
-            self.blur.blur_anchor_points.first().time, self.blur.start_time
-        )
+        self._upsert(blur_anchor_point_id=self._point_at(5.0).pk, time=10.0)
+        self.assertEqual(self._times()[0], self.blur.start_time)
 
     def test_the_response_carries_the_blur_anchor_points_the_player_needs(self):
         self.client.force_login(self.owner)
@@ -248,7 +253,7 @@ class BlurAnchorPointEndpointTests(TestCase):
         # The panel and the timeline bar are both rebuilt from the response, so the editor never
         # has to reconstruct row numbering or dot placement itself.
         self.assertIn("blurAnchorPointsHtml", payload)
-        self.assertIn("trackItem", payload)
+        self.assertIn("item_html", payload)
 
     def test_the_returned_markup_carries_the_endpoints_for_the_next_write(self):
         """The editor reads its URLs out of this markup instead of assembling paths.
@@ -259,21 +264,21 @@ class BlurAnchorPointEndpointTests(TestCase):
         the attributes is what makes this fail if a template starts hardcoding them again.
         """
         self.client.force_login(self.owner)
-        deletable = BlurAnchorPointFactory(blur_annotation=self.blur, time=8.0)
+        BlurAnchorPointFactory(blur_annotation=self.blur, time=8.0)
         payload = self._upsert(time=9.0).json()
 
-        upsert_url = reverse("upsert_blur_anchor_point", args=[self.blur.pk])
+        upsert_url = reverse("upsert_blur_anchor_point", args=[self._live().pk])
         self.assertIn(
-            f'data-blur-anchor-points-url="{upsert_url}"', payload["trackItem"]
+            f'data-blur-anchor-points-url="{upsert_url}"', payload["item_html"]
         )
 
         # The panel offers the button and the bar offers the dot; both are ways to delete this point,
         # so both carry its endpoint.
-        delete_url = reverse("delete_blur_anchor_point", args=[deletable.pk])
+        delete_url = reverse("delete_blur_anchor_point", args=[self._point_at(8.0).pk])
         self.assertIn(
             f'data-delete-url="{delete_url}"', payload["blurAnchorPointsHtml"]
         )
-        self.assertIn(f'data-delete-url="{delete_url}"', payload["trackItem"])
+        self.assertIn(f'data-delete-url="{delete_url}"', payload["item_html"])
 
     def test_the_undeletable_first_point_is_offered_no_way_to_delete_it(self):
         """A control the server would refuse is not rendered, so its URL is not either.
@@ -287,10 +292,10 @@ class BlurAnchorPointEndpointTests(TestCase):
         payload = self._upsert(time=9.0).json()
 
         first_delete_url = reverse(
-            "delete_blur_anchor_point", args=[self.blur_anchor_point.pk]
+            "delete_blur_anchor_point", args=[self._point_at(5.0).pk]
         )
         self.assertNotIn(first_delete_url, payload["blurAnchorPointsHtml"])
-        self.assertNotIn(first_delete_url, payload["trackItem"])
+        self.assertNotIn(first_delete_url, payload["item_html"])
 
     def test_a_refusal_says_something_the_editor_can_show_the_user(self):
         """The response body *is* the message; see serverMessage in BlurEditor.js.
@@ -340,12 +345,14 @@ class BlurAnchorPointEndpointTests(TestCase):
             if "core_bluranchorpoint" in query["sql"]
             and query["sql"].lstrip().upper().startswith("SELECT")
         ]
-        # The write path legitimately reads the table before rendering: the upsert looks for a point
-        # to land on, ensure_first_blur_anchor_point checks the earliest, and the response reads back the
-        # stored time. What must not appear is one read per projection of the response.
+        # The write path legitimately reads the table before rendering: it snapshots the points to
+        # spot a write that changes nothing, copies them into the new version, looks for a point to
+        # land on, ensure_first_blur_anchor_point checks the earliest, the stored time is read back,
+        # and the points are snapshotted again. What must not appear is one read per projection of
+        # the response.
         self.assertLessEqual(
             len(selects),
-            4,
+            7,
             "the blur_anchor_points table is being read once per projection of the response; "
             "generate_blur_item_and_anchor_points_html prefetches so they can share one read:\n"
             + "\n".join(selects),
@@ -386,7 +393,7 @@ class BlurAnchorPointEndpointTests(TestCase):
         self.client.force_login(self.owner)
         response = self._upsert(x=0, y=0)
         self.assertEqual(response.status_code, 200)
-        created = self.blur.blur_anchor_points.get(time=7.0)
+        created = self._point_at(7.0)
         self.assertEqual((created.x, created.y), (0.0, 0.0))
 
     def test_missing_field_is_still_a_bad_request(self):
@@ -412,7 +419,7 @@ class BlurAnchorPointEndpointTests(TestCase):
             reverse("delete_blur_anchor_point", args=[deletable.pk])
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([p.time for p in self.blur.blur_anchor_points.all()], [5.0])
+        self.assertEqual(self._times(), [5.0])
         self.assertEqual(
             [p["time"] for p in response.json()["blurAnchorPoints"]], [5.0]
         )

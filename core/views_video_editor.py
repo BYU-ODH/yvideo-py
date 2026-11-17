@@ -530,10 +530,11 @@ BLUR_ANCHOR_POINT_FIRST_UNDELETABLE = (
 
 
 def generate_blur_item_and_anchor_points_html(parent_annotation_id, request=None):
-    """Everything the page needs to redraw one blur's points after a write.
+    """Everything the page needs to redraw one blur's points after a write, and to follow the write
+    onto the new version it created.
 
-    Three projections of a single list, because three parts of the page consume it differently: the
-    points panel (`blurAnchorPointsHtml`), the timeline bar's dots (`trackItem`), and the player's own copy
+    Three projections of a single point list, because three parts of the page consume it differently: the
+    points panel (`blurAnchorPointsHtml`), the timeline bar's dots (`item_html`), and the player's own copy
     of the annotation (`blurAnchorPoints`, the only one that is data rather than markup).
 
     Anything new that needs these anchor points should read one of the two client-side copies - the
@@ -564,9 +565,26 @@ def generate_blur_item_and_anchor_points_html(parent_annotation_id, request=None
             # item.html contains {% csrf_token %}, which renders empty without a request.
             request=request,
         )
+        panel_item_html = render_to_string(
+            "core/partials/annotation_list_item.html",
+            {
+                "id": parent_annotation.pk,
+                "type": "blur",
+                "name": parent_annotation.name,
+            },
+            request=request,
+        )
         return {
+            # Every point write is a new version of the blur, so the editor needs what it uses to
+            # follow any other annotation edit onto its new id.
+            "annotation_id": parent_annotation.pk,
+            "annotation_type": "blur",
+            "track_id": parent_annotation.track_id,
+            "item_html": track_item_html,
+            "panel_item_html": panel_item_html,
+            "can_undo": parent_annotation.prev_id is not None,
+            "can_redo": parent_annotation.next_id is not None,
             "blurAnchorPointsHtml": blur_anchor_points_html,
-            "trackItem": track_item_html,
             "blurAnchorPoints": [
                 blur_anchor_point.to_json()
                 for blur_anchor_point in parent_annotation.blur_anchor_points.all()
@@ -576,6 +594,13 @@ def generate_blur_item_and_anchor_points_html(parent_annotation_id, request=None
     except Exception as e:
         logger.error(f"Failed to generate blur anchor point html. Exception: {e}")
         return False
+
+
+def blur_anchor_point_snapshot(annotation):
+    return [
+        (point.time, point.x, point.y, point.width, point.height)
+        for point in annotation.blur_anchor_points.all()
+    ]
 
 
 @require_POST
@@ -632,42 +657,72 @@ def upsert_blur_anchor_point(request, annotation_id):
         annotation.end_time, max(annotation.start_time, blur_anchor_point_time)
     )
 
+    named_blur_anchor_point = None
     if blur_anchor_point_id is not None:
         # Scoped to this annotation: an id belonging to someone else's blur is a 404, not an
         # opening to write through it.
-        blur_anchor_point = get_object_or_404(
+        named_blur_anchor_point = get_object_or_404(
             BlurAnchorPoint, pk=blur_anchor_point_id, blur_annotation=annotation
         )
-        blur_anchor_point.time = blur_anchor_point_time
-    else:
-        # A point already sitting within a frame or two of the playhead *is* the point the user is
-        # editing, so keep its time and only move the box. Anything else creates a point.
-        #
-        # The *nearest* candidate, not the earliest, because BlurEditor._blurAnchorPointAt picks the closest and
-        # the two have to agree: two points less than BLUR_SNAP_SECONDS apart (which the panel's time
-        # field allows) would otherwise land a drag on a neighbour.
-        nearby = annotation.blur_anchor_points.filter(
-            time__gte=blur_anchor_point_time - BLUR_SNAP_SECONDS,
-            time__lte=blur_anchor_point_time + BLUR_SNAP_SECONDS,
-        )
-        blur_anchor_point = min(
-            nearby,
-            key=lambda candidate: abs(candidate.time - blur_anchor_point_time),
-            default=None,
-        ) or BlurAnchorPoint(blur_annotation=annotation, time=blur_anchor_point_time)
 
-    # Recorded before save() gives it a pk. Only this side of the request knows whether a drag added a
-    # point or moved one, and the editor reports that to the user.
-    created = blur_anchor_point.pk is None
-
-    for field, value in geometry.items():
-        setattr(blur_anchor_point, field, value)
-
+    before = blur_anchor_point_snapshot(annotation)
     try:
         # An inner savepoint so a rejected retime does not poison the outer transaction: the
         # views below this line still have to query to rebuild the panel.
         with transaction.atomic():
+            # A new version, so that undo can step back over this write.
+            version = annotation.edit()
+            if named_blur_anchor_point is not None:
+                # Re-read, because edit() moved this row onto the new version.
+                blur_anchor_point = version.blur_anchor_points.get(
+                    pk=named_blur_anchor_point.pk
+                )
+                blur_anchor_point.time = blur_anchor_point_time
+            else:
+                # A point already sitting within a frame or two of the playhead *is* the point the user is
+                # editing, so keep its time and only move the box. Anything else creates a point.
+                #
+                # The *nearest* candidate, not the earliest, because BlurEditor._blurAnchorPointAt picks the closest and
+                # the two have to agree: two points less than BLUR_SNAP_SECONDS apart (which the panel's time
+                # field allows) would otherwise land a drag on a neighbour.
+                nearby = version.blur_anchor_points.filter(
+                    time__gte=blur_anchor_point_time - BLUR_SNAP_SECONDS,
+                    time__lte=blur_anchor_point_time + BLUR_SNAP_SECONDS,
+                )
+                blur_anchor_point = min(
+                    nearby,
+                    key=lambda candidate: abs(candidate.time - blur_anchor_point_time),
+                    default=None,
+                ) or BlurAnchorPoint(
+                    blur_annotation=version, time=blur_anchor_point_time
+                )
+
+            # Recorded before save() gives it a pk. Only this side of the request knows whether a drag added a
+            # point or moved one, and the editor reports that to the user.
+            created = blur_anchor_point.pk is None
+
+            for field, value in geometry.items():
+                setattr(blur_anchor_point, field, value)
             blur_anchor_point.save()
+
+            # A retime could have moved some other point ahead of the earliest one, and the first point
+            # is the geometry in effect when the blur starts, so it has to stay pinned to start_time.
+            version.ensure_first_blur_anchor_point()
+
+            # Read back rather than echoed from the request: the time is clamped into the blur's window, may
+            # snap onto a nearby point, and ensure_first_blur_anchor_point above can retime this very row. The editor
+            # puts this in front of the user, so it has to be the time that was actually stored.
+            saved_time = (
+                BlurAnchorPoint.objects.filter(pk=blur_anchor_point.pk)
+                .values_list("time", flat=True)
+                .first()
+            )
+
+            # Clicking the box to focus it commits the geometry it already has, and that must not
+            # leave an undo step that does nothing.
+            unchanged = blur_anchor_point_snapshot(version) == before
+            if unchanged:
+                transaction.set_rollback(True)
     except IntegrityError:
         # Only reachable by retiming a named anchor point onto another one's time, which the panel's
         # time input allows. The request is well-formed, so 409 rather than 400.
@@ -676,23 +731,14 @@ def upsert_blur_anchor_point(request, annotation_id):
         logger.error(f"Failed to save BlurAnchorPoint. Exception: {e}")
         return HttpResponseServerError()
 
-    # A retime could have moved some other point ahead of the earliest one, and the first point
-    # is the geometry in effect when the blur starts, so it has to stay pinned to start_time.
-    annotation.ensure_first_blur_anchor_point()
+    if unchanged:
+        version = annotation
 
     item_and_blur_anchor_points_html = generate_blur_item_and_anchor_points_html(
-        annotation.pk, request=request
+        version.pk, request=request
     )
     if item_and_blur_anchor_points_html is False:
         return HttpResponseServerError()
-    # Read back rather than echoed from the request: the time is clamped into the blur's window, may
-    # snap onto a nearby point, and ensure_first_blur_anchor_point above can retime this very row. The editor
-    # puts this in front of the user, so it has to be the time that was actually stored.
-    saved_time = (
-        BlurAnchorPoint.objects.filter(pk=blur_anchor_point.pk)
-        .values_list("time", flat=True)
-        .first()
-    )
     return JsonResponse(
         {
             **item_and_blur_anchor_points_html,
@@ -725,13 +771,16 @@ def delete_blur_anchor_point(request, blur_anchor_point_id):
         return HttpResponse(BLUR_ANCHOR_POINT_FIRST_UNDELETABLE, status=409)
 
     try:
-        blur_anchor_point.delete()
+        # A new version, so that undo can bring the point back.
+        with transaction.atomic():
+            version = annotation.edit()
+            blur_anchor_point.delete()
     except Exception as e:
         logger.error(f"Failed to delete blur anchor point. Exception: {e}")
         return HttpResponseServerError()
 
     item_and_blur_anchor_points_html = generate_blur_item_and_anchor_points_html(
-        annotation.pk, request=request
+        version.pk, request=request
     )
     if item_and_blur_anchor_points_html is False:
         return HttpResponseServerError()
