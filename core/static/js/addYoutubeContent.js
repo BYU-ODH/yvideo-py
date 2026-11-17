@@ -1,4 +1,5 @@
 import { getCSRFToken } from "./utils.js";
+import { openThumbnailEditor } from "./thumbnailEditor.js";
 
 function setupAddYoutubeVideoForm() {
   const form = document.getElementById("add-youtube-video-form");
@@ -46,6 +47,8 @@ function setupAddYoutubeVideoForm() {
         return;
       }
 
+      submitButton.closest("dialog")?.close();
+      await openThumbnailEditor((await response.json()).thumbnail_editor_url);
       window.location.reload();
     } catch (error) {
       // A rejected fetch is the offline//DNS/blocked case, which has no response to read a

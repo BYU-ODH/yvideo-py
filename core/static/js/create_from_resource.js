@@ -1,5 +1,6 @@
 import { getCSRFToken, displayUserMessage } from "./utils.js";
 import { getPlaylistIdValue } from "./utils.js";
+import { openThumbnailEditor } from "./thumbnailEditor.js";
 
 async function displayCreateFromResourceForm(
   resourceDetail,
@@ -144,6 +145,8 @@ function setupCreateResourceForm(formRoot) {
       displayUserMessage("error", "Failed to create content from resource");
       return;
     }
+    formRoot.close();
+    await openThumbnailEditor((await response.json()).thumbnail_editor_url);
 
     window.location.replace(`/playlists/${playlistIdInput.value}/`);
   });

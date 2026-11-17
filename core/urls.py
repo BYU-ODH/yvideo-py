@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from . import views_legacy_migration
+from . import views_thumbnails
 from . import views_video_editor
 
 app_name = "core"
@@ -141,6 +142,36 @@ urlpatterns = [
         "content/<int:content_id>/player-data/",
         views.get_player_data,
         name="get_player_data",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/",
+        views_thumbnails.playlist_thumbnail_editor,
+        name="playlist_thumbnail_editor",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/save/",
+        views_thumbnails.save_playlist_thumbnail,
+        name="save_playlist_thumbnail",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/image/",
+        views_thumbnails.playlist_thumbnail_image,
+        name="playlist_thumbnail_image",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/",
+        views_thumbnails.content_thumbnail_editor,
+        name="content_thumbnail_editor",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/save/",
+        views_thumbnails.save_content_thumbnail,
+        name="save_content_thumbnail",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/image/",
+        views_thumbnails.content_thumbnail_image,
+        name="content_thumbnail_image",
     ),
     path("player/<int:content_id>/", views.player, name="player"),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),

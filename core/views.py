@@ -44,6 +44,7 @@ from .models import Resource
 from .models import ResourceFile
 from .models import ResourceFileKey
 from .models import Subtitle
+from .models import Thumbnail
 from .models import User
 from .models import UserCourses
 from .models import active_yearterms
@@ -91,8 +92,14 @@ def prepare_playlist_for_display(playlist):
         if contents_count > 1 or contents_count == 0
         else f"{contents_count} published item",
         "published_contents": published_contents,
+        "thumbnail": Thumbnail.for_item(playlist),
     }
     return parsed_playlist
+
+
+def thumbnail_editor_response(url_name, item):
+    """Tells the client which thumbnail editor to open for a newly created item."""
+    return JsonResponse({"thumbnail_editor_url": reverse(url_name, args=[item.pk])})
 
 
 def display_yearterm(yearterm):
@@ -472,9 +479,9 @@ def create_playlist(request):
     data = json.loads(request.body)
     if data and "name" in data:
         try:
-            Playlist.objects.create(name=data["name"], owner=request.user)
+            playlist = Playlist.objects.create(name=data["name"], owner=request.user)
             messages.success(request, "Playlist created.")
-            return HttpResponse()
+            return thumbnail_editor_response("playlist_thumbnail_editor", playlist)
         except Exception as e:
             logger.error(
                 f"An error occured when the user: {request.user} attempted to create a playlist. Exception: {e}"
@@ -557,15 +564,17 @@ def playlist_info(request, playlist):
 def render_playlist_info(request, playlist):
     try:
         can_edit = playlist.can_be_edited_by(request.user)
-        contents = Content.objects.filter(playlist=playlist)
+        contents = Content.objects.filter(playlist=playlist).select_related("resource")
         if not can_edit:
             contents = contents.filter(published=True)
+        contents = [(content, Thumbnail.for_item(content)) for content in contents]
         year_and_semester = get_semester_and_year_options()
         assigned_courses = get_assigned_courses(playlist, year_and_semester["yearterm"])
 
         context = {
             "playlist": playlist,
             "contents": contents,
+            "thumbnail": Thumbnail.for_item(playlist) if can_edit else None,
             "can_edit": can_edit,
             "can_administer": playlist.can_be_administered_by(request.user),
             "form": PlaylistSettingsForm(instance=playlist),
@@ -590,6 +599,7 @@ def display_playlist_settings(request, playlist):
         context = {
             "playlist": playlist,
             "form": form,
+            "thumbnail": Thumbnail.for_item(playlist),
             "semester": year_and_semester["semester"],
             "year_options": year_and_semester["year_options"],
         }
@@ -1190,13 +1200,13 @@ def create_content(request, playlist):
             return forbidden(
                 "Projection masters are for the International Cinema booth only."
             )
-        Content.objects.create(
+        content = Content.objects.create(
             playlist=playlist,
             title=parsed_data["title"],
             resource_file=resource_file,
         )
         messages.success(request, "Video added to playlist.")
-        return HttpResponse()
+        return thumbnail_editor_response("content_thumbnail_editor", content)
     except ResourceFile.DoesNotExist:
         logger.error("Failed to create new content due to missing ResourceFile")
         return HttpResponseBadRequest()
@@ -1230,14 +1240,14 @@ def create_content_from_youtube_url(request, playlist):
             )
 
         resource = get_or_create_youtube_resource(video_id, request.user.username)
-        Content.objects.create(
+        content = Content.objects.create(
             playlist=playlist,
             title=parsed_data["title"],
             url=parsed_data["url"],
             resource=resource,
         )
         messages.success(request, "YouTube video added to playlist.")
-        return HttpResponse()
+        return thumbnail_editor_response("content_thumbnail_editor", content)
     except json.JSONDecodeError:
         logger.error(
             "Failed to create new content from URL because of a malformed body"
@@ -1325,6 +1335,7 @@ def display_content_info(request, content):
         context = {
             "content": content,
             "content_id": content.pk,
+            "thumbnail": Thumbnail.for_item(content),
             "can_edit": content.can_be_edited_by(request.user),
             "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
             "content_source_url": content_source_url,

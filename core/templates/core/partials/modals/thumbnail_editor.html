@@ -1,0 +1,74 @@
+{% extends "core/partials/modals/user_view_modal.html" %}
+
+{% block modal_title %}Thumbnail{% endblock %}
+{% block modal_body %}
+    {% with settings=thumbnail.text_settings %}
+        <form id="thumbnail-editor-form"
+              class="column-flex"
+              data-save-url="{{ save_url }}"
+              {% if youtube_video_id %}data-youtube-image-url="https://i.ytimg.com/vi/{{ youtube_video_id }}/hqdefault.jpg"{% endif %}>
+            {% csrf_token %}
+            <div class="thumbnail-editor-preview">
+                {% include "core/partials/thumbnail.html" %}
+            </div>
+            <fieldset class="column-flex">
+                <legend>Background</legend>
+                <label>
+                    Color
+                    <input type="color"
+                           name="background_color"
+                           value="{{ thumbnail.background_color }}">
+                </label>
+                <label>
+                    Upload image
+                    <input type="file" id="thumbnail-upload" accept="image/*">
+                </label>
+                {% if stream_url %}
+                    {# Shown by JS only once the video turns out to have frames worth picking. #}
+                    <div id="thumbnail-frame-picker" class="column-flex" hidden>
+                        <p>Pick a frame from the video:</p>
+                        <div id="thumbnail-frames" class="row-flex"></div>
+                        <video id="thumbnail-video"
+                               src="{{ stream_url }}"
+                               preload="metadata"
+                               muted
+                               playsinline>
+                        </video>
+                        <input type="range"
+                               id="thumbnail-scrubber"
+                               min="0"
+                               max="1000"
+                               value="500"
+                               aria-label="Scrub through the video">
+                        <button type="button" id="thumbnail-capture" class="blue-button">Use this frame</button>
+                    </div>
+                {% endif %}
+                {% if youtube_video_id %}
+                    <button type="button" id="thumbnail-use-youtube" class="blue-button">Use YouTube thumbnail</button>
+                {% endif %}
+                <button type="button" id="thumbnail-remove-image" class="cancel-button">Use color only</button>
+            </fieldset>
+            <fieldset class="column-flex">
+                <legend>Text</legend>
+                <label>
+                    Text
+                    <input type="text" name="text" maxlength="100" value="{{ settings.text }}">
+                </label>
+                <label>
+                    Color
+                    <input type="color" name="text_color" value="{{ settings.color }}">
+                </label>
+                <label>
+                    Size
+                    <input type="range"
+                           name="text_size"
+                           min="0.75"
+                           max="4"
+                           step="0.25"
+                           value="{{ settings.size }}">
+                </label>
+            </fieldset>
+            <button type="submit" class="blue-button">Save</button>
+        </form>
+    {% endwith %}
+{% endblock %}

@@ -19,6 +19,13 @@
                 {% url 'player' content.id as player_url %}
                 {% include 'core/partials/action_link.html' with link_href=player_url link_text="Preview" %}
             </div>
+            <div class="row-flex">
+                {% include "core/partials/thumbnail.html" %}
+
+                <button type="button"
+                        class="blue-button"
+                        data-thumbnail-editor-url="{% url 'content_thumbnail_editor' content.id %}">Edit thumbnail</button>
+            </div>
             <div id="content-settings">
                 <div class="row-flex flex-apart-aligned">
                     <h3>Settings</h3>
@@ -38,4 +45,5 @@
         </div>
     </div>
     <script type="module" src="{% static 'js/contentInfo.js' %}"></script>
+    <script type="module" src="{% static 'js/thumbnailEditor.js' %}"></script>
 {% endblock %}

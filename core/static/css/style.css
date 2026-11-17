@@ -2099,3 +2099,54 @@ button.disabled {
 button.disabled:hover {
     background-color: #e0e0e040;
 }
+
+.thumbnail {
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    max-width: 320px;
+    padding: 0.5rem;
+    border-radius: 8px;
+
+    background-position: center;
+    background-size: cover;
+}
+
+.thumbnail-text {
+    font-weight: bold;
+    text-align: center;
+    text-shadow: 0 0 4px #000, 1px 1px 2px #000;
+    overflow-wrap: anywhere;
+}
+
+/* Thumbnails are stored at 640px wide, so the editor shows them near full size. */
+.thumbnail-editor-preview .thumbnail {
+    max-width: 640px;
+}
+
+#thumbnail-video {
+    width: 100%;
+    max-width: 640px;
+}
+
+.thumbnail-frame {
+    cursor: pointer;
+    padding: 0;
+    border: 2px solid transparent;
+    background: none;
+}
+
+.thumbnail-frame:hover,
+.thumbnail-frame:focus-visible {
+    border-color: var(--box-shadow-color);
+}
+
+.thumbnail-frame img {
+    display: block;
+    width: 160px;
+}

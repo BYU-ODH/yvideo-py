@@ -507,6 +507,17 @@ def test_the_content_delete_dialog_has_no_a11y_violations(
     assert_no_violations(page, "the delete-content dialog", include=["dialog[open]"])
 
 
+def test_the_thumbnail_editor_has_no_a11y_violations(
+    logged_in_page: Page, live_server, awkward_data
+):
+    page = logged_in_page
+    page.goto(f"{live_server.url}/content/{awkward_data.birds.id}/display-settings/")
+
+    page.get_by_role("button", name="Edit thumbnail").click()
+    page.wait_for_selector("#thumbnail-editor-form", state="visible")
+    assert_no_violations(page, "the thumbnail editor", include=["dialog[open]"])
+
+
 def test_the_clips_only_info_popover_has_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
@@ -1146,6 +1157,7 @@ AUDITED_TEMPLATES = {
     "core/partials/content_settings_form.html",
     "core/partials/landing_page_playlist.html",
     "core/partials/player-wrapper.html",
+    "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
     "core/partials/resource_intake_request.html",
     "core/partials/whats_new_banner.html",
@@ -1172,6 +1184,7 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
     "core/partials/modals/tools_info.html",
+    "core/partials/modals/thumbnail_editor.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
     "core/partials/modals/user_view_modal.html",

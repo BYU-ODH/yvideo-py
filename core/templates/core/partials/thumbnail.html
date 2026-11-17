@@ -1,0 +1,10 @@
+{% with settings=thumbnail.text_settings %}
+    <div class="thumbnail"
+         style="background-color: {{ thumbnail.background_color }};
+                {% if thumbnail.has_image %}background-image: url('{{ thumbnail.image_url }}');
+                {% endif %}">
+        <span class="thumbnail-text"
+              style="color: {{ settings.color }};
+                     font-size: {{ settings.size }}rem">{{ settings.text }}</span>
+    </div>
+{% endwith %}
