@@ -436,13 +436,14 @@ class AnnotationSetCreateForContentTests(TestCase):
             resource=self.resource,
             owner=self.owner,
         )
+        # the last track stays empty, so copies and imports must keep empty tracks
         self.tracks = [
             TrackFactory(
                 annotation_set=self.original_set,
                 name=f"Track {i + 1}",
                 stack_position=i,
             )
-            for i in range(5)
+            for i in range(6)
         ]
 
         # Track 0 holds an example of every annotation subclass so per-track
@@ -752,6 +753,27 @@ class AnnotationSetCreateForContentTests(TestCase):
 
         self.assertIsNotNone(new_set)
         self.assertEqual(len(new_set.get_active_annotations_from_tracks()), 1)
+
+    def test_import_of_repeated_track_names_keeps_every_track(self):
+        annotation_set_json = json.dumps(
+            {
+                "tracks": [
+                    {"name": "Track 1", "stack_position": 0},
+                    {"name": "Track 1", "stack_position": 1},
+                ],
+                "annotations": [],
+            }
+        )
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            annotation_set_json=annotation_set_json,
+        )
+
+        self.assertEqual(
+            [track.name for track in new_set.get_tracks()], ["Track 1", "Track 2"]
+        )
 
     def test_import_keeps_annotations_on_a_blank_named_track(self):
         annotation_set_json = json.dumps(

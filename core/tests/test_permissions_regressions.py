@@ -785,14 +785,31 @@ class OwnerHappyPathTests(TestCase):
         self.annotation_set.refresh_from_db()
         self.assertEqual(self.annotation_set.name, "Original")
 
-    def test_unnamed_new_tracks_get_unique_default_names(self):
+    def test_unnamed_new_tracks_are_numbered_after_the_highest_default_name(self):
         url = reverse("create_track", args=[self.annotation_set.pk])
+        self.post_json(url, {"track_name": "Track 5"})
         self.post_json(url, {"track_name": "   "})
         self.post_json(url, {})
 
         self.assertEqual(
             [track.name for track in self.annotation_set.get_tracks()],
-            ["Track 1", "Track 2", "Track 3"],
+            ["Track 1", "Track 5", "Track 6", "Track 7"],
+        )
+
+    def test_a_track_name_already_in_the_set_is_refused(self):
+        create = self.post_json(
+            reverse("create_track", args=[self.annotation_set.pk]),
+            {"track_name": "Track 1"},
+        )
+        other = TrackFactory(annotation_set=self.annotation_set, name="Other")
+        rename = self.post_json(
+            reverse("update_track_name", args=[other.pk]), {"new_value": "Track 1"}
+        )
+
+        self.assertEqual((create.status_code, rename.status_code), (409, 409))
+        self.assertEqual(
+            [track.name for track in self.annotation_set.get_tracks()],
+            ["Track 1", "Other"],
         )
 
     def test_the_owner_may_select_a_readable_set_from_another_owner(self):

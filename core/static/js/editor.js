@@ -1985,7 +1985,10 @@ export class Editor {
         dialog.close();
 
         if (!newTrackResponse.ok) {
-          displayUserMessage("error", "Failed to create new track!");
+          const message = newTrackResponse.status === 409
+            ? await newTrackResponse.text()
+            : "Failed to create new track!";
+          displayUserMessage("error", message);
           return;
         }
 

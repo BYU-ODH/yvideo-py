@@ -841,7 +841,7 @@ class AnnotationSet(models.Model):
                     }
 
                     annotation_set_data = json.loads(annotation_set_json)
-                    # imported tracks may be renamed (e.g. blank names get a
+                    # imported tracks may be renamed (blank or repeated names get a
                     # default), so annotations find their track by its exported name
                     tracks_by_name = {}
                     for track_data in annotation_set_data.get("tracks", []):
@@ -866,6 +866,9 @@ class AnnotationSet(models.Model):
                                 f"Failed to import annotation. Annotation type: {class_type}. Exception: {e!r}"
                             )
                 elif annotation_set_to_copy is not None:
+                    # copy every track up front so tracks without annotations survive
+                    for track in annotation_set_to_copy.tracks.all():
+                        track.copy_to_new_annotation_set(annotation_set)
                     annotations = (
                         annotation_set_to_copy.get_active_annotations_from_tracks()
                     )
@@ -894,12 +897,13 @@ class AnnotationSet(models.Model):
         )
 
     def next_default_track_name(self):
-        """Return the first unused "Track <n>" name in this set."""
-        taken_names = set(self.tracks.values_list("name", flat=True))
-        number = 1
-        while f"Track {number}" in taken_names:
-            number += 1
-        return f"Track {number}"
+        """Return "Track <n>", numbered one past the highest "Track <n>" in this set."""
+        numbers = [
+            int(match[1])
+            for name in self.tracks.values_list("name", flat=True)
+            if (match := re.fullmatch(r"Track (\d+)", name))
+        ]
+        return f"Track {max(numbers, default=0) + 1}"
 
     def get_highest_stack_position(self):
         """Return the top track's stack position, or -1 if the set has no tracks."""
@@ -937,6 +941,15 @@ class Track(models.Model):
     name = models.CharField(max_length=50, default="Track 1")
     stack_position = models.IntegerField(default=0)
 
+    class Meta:
+        # exports and copies identify an annotation's track by name
+        constraints = [
+            models.UniqueConstraint(
+                fields=["annotation_set", "name"],
+                name="unique_track_name_per_annotation_set",
+            )
+        ]
+
     def get_active_annotations(self):
         """
         Get all currently active annotations across all types.
@@ -968,26 +981,22 @@ class Track(models.Model):
         return {"id": self.pk, "name": self.name, "stack_position": self.stack_position}
 
     def copy_to_new_annotation_set(self, annotation_set):
-        # check if a track with this name exists in the new annotation set
-        track_query_set = Track.objects.filter(
-            annotation_set=annotation_set, name=self.name
+        track, _ = Track.objects.get_or_create(
+            annotation_set=annotation_set,
+            name=self.name,
+            defaults={"stack_position": self.stack_position},
         )
-        if track_query_set.count() > 0:
-            return track_query_set.first()
-        else:
-            new_track = Track.objects.create(
-                annotation_set=annotation_set,
-                name=self.name,
-                stack_position=self.stack_position,
-            )
-            return new_track
+        return track
 
     @classmethod
     def from_import(cls, imported_data, annotation_set):
+        name = (imported_data.get("name") or "").strip()
+        # imported files may repeat a name
+        if not name or annotation_set.tracks.filter(name=name).exists():
+            name = annotation_set.next_default_track_name()
         return cls.objects.create(
             annotation_set=annotation_set,
-            name=(imported_data.get("name") or "").strip()
-            or annotation_set.next_default_track_name(),
+            name=name,
             stack_position=imported_data.get("stack_position", 0),
         )
 

@@ -1234,7 +1234,10 @@ def update_track_name(request, track):
 
     try:
         track.name = name
-        track.save(update_fields=["name"])
+        with transaction.atomic():
+            track.save(update_fields=["name"])
+    except IntegrityError:
+        return HttpResponse("A track with that name already exists.", status=409)
     except Exception as e:
         logger.error(f"Failed to update track name. Exception: {e}")
         return HttpResponseServerError()
@@ -1301,13 +1304,16 @@ def create_track(request, annotation_set):
     try:
         parsed_body = json.loads(request.body)
         name = (parsed_body.get("track_name") or "").strip()
-        Track.objects.create(
-            annotation_set=annotation_set,
-            name=name or annotation_set.next_default_track_name(),
-            stack_position=annotation_set.get_highest_stack_position() + 1,
-        )
+        with transaction.atomic():
+            Track.objects.create(
+                annotation_set=annotation_set,
+                name=name or annotation_set.next_default_track_name(),
+                stack_position=annotation_set.get_highest_stack_position() + 1,
+            )
 
         return convertTracksToHTML(annotation_set, request)
+    except IntegrityError:
+        return HttpResponse("A track with that name already exists.", status=409)
     except Exception as e:
         logger.error(f"Failed to create a new track. Exception: {e}")
         return HttpResponseServerError()
