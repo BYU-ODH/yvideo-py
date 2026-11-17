@@ -1903,6 +1903,7 @@ def test_a_saved_nudge_can_be_undone_and_redone_and_editing_continues(
 
     for shortcut, expected_x in (("Control+z", 40.0), ("Control+Shift+z", 40.5)):
         _undo_or_redo(page, shortcut)
+        assert _current_time(page) == pytest.approx(7.0, abs=0.05)
         assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(expected_x, abs=0.01)
         row_x = _row_for(page, 1).get_attribute("data-x")
         assert float(row_x) == pytest.approx(expected_x, abs=0.01)

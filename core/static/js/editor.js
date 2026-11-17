@@ -870,6 +870,9 @@ export class Editor {
           responseData,
           button.dataset.annotationId,
           true,
+          // Blurs are edited frame by frame, so keep the frame; the blur editor moves the playhead
+          // itself if the restored version no longer covers it.
+          {seek: responseData.annotation_type !== "blur"},
         );
         if (!applied && button.isConnected) {
           // The version did change on the server, but the timeline could not be updated to show
