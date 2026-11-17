@@ -1,0 +1,34 @@
+# International Cinema media jobs on production: ingest, SD transcode, upload
+# cleanup. Installed when .env sets IC_MEDIA_WORKER=1.
+[Unit]
+Description=International Cinema media worker for @APP_NAME@
+After=@APP_NAME@.service
+Requires=@APP_NAME@.service
+
+[Container]
+ContainerName=@APP_NAME@-media-worker
+Image=@BUILD_IMAGE_TAG@
+Volume=@REPO_ROOT@/data:/app/data
+Volume=@REPO_ROOT@/media:/app/media
+Volume=@REPO_ROOT@/var:/app/var
+Volume=@IC_PROJECTION_ROOT@:/app/ic_projection
+Volume=@REPO_ROOT@/yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
+Environment=YVIDEO_ROLE=media-worker
+Environment=YVIDEO_DB_DIR=/app/data
+Environment=IC_PROJECTION_ROOT=/app/ic_projection
+LogDriver=journald
+Pull=never
+SecurityLabelDisable=true
+
+[Service]
+# Transcodes run at low CPU and I/O priority so the site stays responsive; ffmpeg
+# inherits these and is limited to two threads.
+Nice=19
+IOSchedulingClass=idle
+CPUWeight=10
+Restart=always
+RestartSec=10
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

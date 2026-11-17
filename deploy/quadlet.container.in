@@ -10,6 +10,9 @@ Volume=@REPO_ROOT@/media:/app/media
 Volume=@REPO_ROOT@/staticfiles:/app/staticfiles
 Volume=@REPO_ROOT@/var:/app/var
 Volume=@REPO_ROOT@/demo_media:/app/demo_media:ro
+# International Cinema projection masters: deliberately not under media/, which the
+# web server publishes (#531).
+Volume=@IC_PROJECTION_ROOT@:/app/ic_projection
 Volume=@REPO_ROOT@/yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
 # LEGACY MIGRATION ONLY — delete this line when legacy_migration is removed
 # (and remove the matching DEPLOY_HOME template-variable substitution in
@@ -19,6 +22,7 @@ Volume=@REPO_ROOT@/yvideo/secret_settings.py:/app/yvideo/secret_settings.py:ro
 # the deploy user's own keys/known_hosts for the legacy media host.
 Volume=@DEPLOY_HOME@/.ssh:/root/.ssh:ro
 Environment=YVIDEO_DB_DIR=/app/data
+Environment=IC_PROJECTION_ROOT=/app/ic_projection
 Environment=WORKERS=@WORKERS@
 Environment=THREADS=@THREADS@
 LogDriver=journald

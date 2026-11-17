@@ -26,6 +26,7 @@ import pytest
 
 from core.models import Content
 from core.models import Playlist
+from ic.testing import FFMPEG_AVAILABLE
 
 pytestmark = [
     pytest.mark.e2e,
@@ -250,30 +251,6 @@ def awkward_data(seeded_demo_data, settings):
     )
 
 
-@pytest.fixture
-def read_only_annotation_set_content(seeded_demo_data):
-    """A content whose owner may edit the video but not the annotation set it points at.
-
-    Sharing a set rather than copying it is the point of the annotation-set model, so
-    "someone else owns these annotations" is a first-class state of the editor: the set
-    picker renders disabled, and every other control is intercepted by an offer to copy.
-    """
-    from core.factories import ContentFactory
-    from core.models import AnnotationSet
-
-    ada_playlist = Playlist.objects.get(name="Birds of a Feather")
-    bens_set = AnnotationSet.objects.get(name="Professor Ben Grid Annotations")
-    grid_content = Content.objects.get(title="Pattern Analysis Warmup")
-
-    return ContentFactory(
-        playlist=ada_playlist,
-        resource_file=grid_content.resource_file,
-        annotation_set=bens_set,
-        title="A11y Borrowed Annotations",
-        published=True,
-    )
-
-
 # ------------------------------------------------------------------------- full pages
 
 # Every view that renders a complete document, plus the data shapes that change what it
@@ -407,7 +384,7 @@ def test_message_levels_have_no_color_contrast_violations(
 def test_the_playlists_page_states_have_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
-    """The banner, the sidebar and the add-playlist dialog, none of which start on screen.
+    """The banner, the sidebar and the dialogs, none of which start on screen.
 
     The what's-new banner ships `hidden` and is unhidden only for a viewer who has not
     dismissed it, so clearing localStorage is what makes it auditable at all.
@@ -423,6 +400,11 @@ def test_the_playlists_page_states_have_no_a11y_violations(
     page.locator(".sidebar-toggle").click()
     page.wait_for_selector(".sidebar.show")
     assert_no_violations(page, "playlists with the sidebar open")
+
+    page.locator(".sidebar [commandfor='help-and-feedback-dialog']").click()
+    page.wait_for_selector("#help-and-feedback-dialog", state="visible")
+    assert_no_violations(page, "the help-and-feedback dialog", include=["dialog[open]"])
+    page.keyboard.press("Escape")
     page.locator("#sidebar-close").click()
 
     page.locator("[commandfor='add-new-playlist-dialog'][command='show-modal']").click()
@@ -1176,6 +1158,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/add_video.html",
     "core/partials/modals/content_delete.html",
     "core/partials/modals/create_from_resource.html",
+    "core/partials/modals/help_and_feedback.html",
     "core/partials/modals/playlist_course_assignments.html",
     "core/partials/modals/playlist_delete.html",
     "core/partials/modals/playlist_member_remove.html",
@@ -1203,7 +1186,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/annotation_set_options/import_from_file.html",
     "core/partials/modals/annotation_set_options/use_existing_set.html",
     "core/partials/annotation_set_selector.html",
-    "core/partials/annotation_set_retirement_modal.html",
+    "core/partials/annotation_set_deletion_or_ownership_change_modal.html",
     "core/partials/blur_anchor_points.html",
     "core/partials/modals/save_failed_help.html",
     "core/partials/save_status.html",
@@ -1221,3 +1204,26 @@ AUDITED_TEMPLATES = {
     "admin/core/resourceintakerequest/change_form.html",
     "admin/core/user/add_form.html",
 }
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/ic/",
+        "/ic/program/{program}/",
+        "/ic/manage/",
+        "/ic/manage/programs/new/",
+        "/ic/manage/programs/{program}/",
+        "/ic/manage/resources/",
+        "/ic/manage/resources/{resource}/projection-upload/",
+    ],
+)
+@pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="needs ffmpeg to make playable videos")
+def test_ic_pages_are_accessible(logged_in_page, live_server, ic_program, path):
+    """International Cinema's templates live in ic/templates, outside TEMPLATE_ROOTS."""
+    url = path.format(
+        program=ic_program["program"].pk, resource=ic_program["feature"].resource_id
+    )
+    logged_in_page.goto(f"{live_server.url}{url}")
+    violations = _run_axe(logged_in_page)["violations"]
+    assert not violations, _format_violations(violations, url)

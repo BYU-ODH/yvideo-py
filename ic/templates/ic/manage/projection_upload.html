@@ -1,0 +1,30 @@
+{% extends "ic/manage/base.html" %}
+
+{% load static %}
+
+{% block ic_content %}
+    <header class="video-title">
+        <h2>Projection master: {{ resource.name }}</h2>
+    </header>
+    {% if master %}
+        <p class="ic-warn">
+            ⚠️ This film already has a master. Uploading a different file replaces it, and a new SD editing file is made from the new one.
+        </p>
+    {% endif %}
+    <p class="ic-muted">
+        MP4/M4V, at the highest resolution and bitrate available (H.264 plays on the booth). Large uploads continue where they stopped if the connection drops or this page is reopened.
+    </p>
+    <div id="ic-upload"
+         class="ic-manage-form"
+         data-create-url="{% url 'ic_upload_create' resource.pk %}"
+         data-chunk-bytes="{{ chunk_bytes }}"
+         data-resource-id="{{ resource.pk }}"
+         data-done-url="{% url 'ic_manage_resources' %}">
+        <label for="ic-upload-file">Master file</label>
+        <input id="ic-upload-file" type="file" accept=".mp4,.m4v,video/mp4">
+        <button type="button" id="ic-upload-start" class="blue-button" disabled>Upload</button>
+        <progress id="ic-upload-progress" max="100" value="0" hidden></progress>
+        <p id="ic-upload-status" role="status" aria-live="polite"></p>
+    </div>
+    <script type="module" src="{% static 'ic/js/projection-upload.js' %}"></script>
+{% endblock %}

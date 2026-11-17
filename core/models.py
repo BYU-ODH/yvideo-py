@@ -7,12 +7,12 @@ import re
 from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
+from django.db import IntegrityError
 from django.db import models
 from django.db import transaction
-from django.db.models.signals import pre_delete
-from django.dispatch import receiver
 from django.utils import timezone
 import xxhash
 
@@ -46,6 +46,8 @@ class PlaylistRole(models.IntegerChoices):
 
 
 LAB_ASSISTANT_GROUP_NAME = "lab_assistant"
+# International Cinema staff: manage IC programs, IC playlists and projection masters.
+IC_EDITOR_GROUP_NAME = "IC Editors"
 
 
 YOUTUBE_VIDEO_ID_PATTERN = r"[A-Za-z0-9_-]{11}"
@@ -226,6 +228,14 @@ class User(AbstractUser):
         return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1
 
     @property
+    def is_ic_editor(self):
+        """International Cinema staff, who manage programs and projection masters.
+
+        Superusers count, so every IC capability check is a single predicate.
+        """
+        return self.is_admin or self.groups.filter(name=IC_EDITOR_GROUP_NAME).exists()
+
+    @property
     def is_instructor(self):
         """Capability to own playlists and author content.
 
@@ -314,26 +324,6 @@ class User(AbstractUser):
         return resource_file_key
 
 
-def describe_user_for_attribution(user):
-    """Name and netid, for records that must outlive the User row."""
-    full_name = user.get_full_name().strip()
-    if user.netid:
-        return f"{full_name} ({user.netid})".strip()
-    return full_name or user.username
-
-
-@receiver(pre_delete, sender=settings.AUTH_USER_MODEL)
-def stamp_previous_owner_on_annotation_sets(sender, instance, **kwargs):
-    """Preserve attribution before the database nulls AnnotationSet.owner.
-
-    on_delete=SET_NULL runs in the database, which cannot populate a sibling column,
-    so deleting an account would otherwise leave its sets labelled only "no owner".
-    """
-    instance.owned_annotation_sets.update(
-        previous_owner=describe_user_for_attribution(instance)
-    )
-
-
 class ResourceAccess(models.Model):  # "through" model
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
@@ -357,6 +347,11 @@ class Playlist(models.Model):
     )
     published = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
+    is_ic = models.BooleanField(
+        default=False,
+        verbose_name="International Cinema playlist",
+        help_text="Contents of IC playlists can be scheduled in International Cinema programs.",
+    )
     courses = models.ManyToManyField("Course", related_name="playlists", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -490,10 +485,29 @@ def file_upload_path(instance, filename):
     return filename
 
 
+# Names under this prefix are projection masters. They are stored in IC_PROJECTION_ROOT,
+# never under MEDIA_ROOT, because the web server publishes MEDIA_ROOT (#531).
+PROJECTION_FILE_PREFIX = "ic_projection/"
+
+
+def projection_file_name(resource_id, checksum, filename=".mp4"):
+    """The one name a master is stored under, identical on production and the booth."""
+    ext = os.path.splitext(filename)[1].lower() or ".mp4"
+    return f"{PROJECTION_FILE_PREFIX}{resource_id}/{checksum}{ext}"
+
+
+def resource_file_storage():
+    from yvideo.storage import ResourceFileStorage
+
+    return ResourceFileStorage()
+
+
 class ResourceFile(models.Model):
     file = models.FileField(
         upload_to=file_upload_path,
+        storage=resource_file_storage,
         validators=[validate_media_file, validate_unique_checksum],
+        max_length=255,
     )
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="resource_files"
@@ -532,6 +546,45 @@ class ResourceFile(models.Model):
         unique=True,
         help_text="The EAN or UPC barcode on the resource. If there isn't one, an internal 'BYU' prefixed code will be assigned.",
     )
+    is_projection_file = models.BooleanField(
+        default=False,
+        help_text=(
+            "International Cinema projection master: full resolution, played only in the "
+            "booth. Never attached to Content or streamed to viewers."
+        ),
+    )
+    # ffprobe's findings (ic.media.ProbeResult: width, height, video_codec, ...). Only
+    # set for files from the IC media pipeline: projection masters and their SD files.
+    probe = models.JSONField(default=dict, blank=True, editable=False)
+    size_bytes = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
+    derived_from = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="derivatives",
+        help_text="The projection master this file was transcoded from.",
+    )
+    master_released_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "When production deleted its copy of this master because the booth holds a "
+            "verified copy. The row, checksum and metadata are kept."
+        ),
+    )
+
+    HDR_TRANSFERS = ("smpte2084", "arib-std-b67")
+
+    @property
+    def is_hdr(self):
+        return self.probe.get("color_transfer") in self.HDR_TRANSFERS
+
+    @property
+    def bytes_on_this_server(self):
+        """Whether the file's bytes exist here (masters may have been released)."""
+        return bool(self.file) and self.file.storage.exists(self.file.name)
 
     def clean(self):
         super().clean()
@@ -577,6 +630,13 @@ class ResourceFile(models.Model):
 
     class Meta:
         unique_together = ("resource", "version")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource"],
+                condition=models.Q(is_projection_file=True),
+                name="one_projection_file_per_resource",
+            )
+        ]
 
 
 class AnnotationSet(models.Model):
@@ -596,14 +656,6 @@ class AnnotationSet(models.Model):
         null=True,
         blank=True,
     )
-    previous_owner = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text=(
-            "Display name and netid of the owner at the time the set was orphaned. "
-            "Preserves attribution after the owner deletes the set or their account."
-        ),
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -618,12 +670,7 @@ class AnnotationSet(models.Model):
         """Chooser and admin label for the owner, which may be NULL."""
         if self.owner_id:
             return self.owner.get_full_name()
-        if self.previous_owner:
-            return f"no owner — was {self.previous_owner}"
         return "no owner"
-
-    def is_orphaned(self):
-        return self.owner_id is None
 
     def can_be_edited_by(self, user):
         if user.is_superuser:
@@ -645,20 +692,85 @@ class AnnotationSet(models.Model):
     def can_be_read_by(self, user):
         return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
 
-    def can_be_orphaned_by(self, user):
-        """Only the owner may retire a set, mirroring a collaborator's inability to delete a playlist."""
+    def can_be_administered_by(self, user):
+        """Admin and owner are the only users that have full control over an annotation set"""
         return user.is_superuser or self.owner_id == user.pk
 
-    def orphan(self):
-        """Retire this set without deleting it.
+    def ownership_candidates(self, exclude_user=None):
+        """Returns all users using this annotation set. Populate exclude_user to
+        remove the current annotation set owner (or some other user) from the list
+        of results."""
+        users = (
+            User.objects.filter(
+                playlists_owned__contents__annotation_set=self,
+            )
+            .order_by("is_superuser", "pk")
+            .distinct()
+        )
 
-        Contents that already reference it keep working, and it stays readable and
-        copyable, so retiring a set never forces borrowers into near-identical copies.
+        if exclude_user is not None:
+            users = users.exclude(pk=exclude_user.id)
+
+        return users
+
+    def delete_or_reassign_ownership(self, user, new_owner=None):
+        """If the set has no other users, delete it immediately. If there is a named new_owner,
+        transfer ownership to that user. Otherwise, choose the first user that is also using
+        this set sorted by whether they are an admin (non-admins appear sooner) and then by
+        primary key. Returns a result dictionary with keys "deleted" and "reassigned", each pointing
+        to boolean values that describe the outcome. Errors including unauthorized request are
+        handled by exceptions (PermissionDenied, and the generic Exception)
         """
-        if self.owner_id:
-            self.previous_owner = describe_user_for_attribution(self.owner)
-        self.owner = None
-        self.save(update_fields=["owner", "previous_owner", "updated_at"])
+        result = {"deleted": False, "reassigned": False}
+        if not self.can_be_administered_by(user):
+            raise PermissionDenied
+
+        current_owner = self.owner
+
+        with transaction.atomic():
+            # allows for admin user to become the owner, but only if there is not a non-admin user.
+            users_using_this_set_other_than_owner = self.ownership_candidates(
+                current_owner
+            )
+
+            # determine who should be the new owner
+            new_owner_candidate = (
+                new_owner
+                if new_owner in users_using_this_set_other_than_owner
+                else (
+                    users_using_this_set_other_than_owner[0]
+                    if users_using_this_set_other_than_owner
+                    else None
+                )
+            )
+
+            # handle deletion/reassignment
+            if new_owner_candidate is None:
+                self.delete()
+                result["deleted"] = True
+            else:
+                try:
+                    self.owner = new_owner_candidate
+                    with transaction.atomic():
+                        self.save(update_fields=["owner", "updated_at"])
+                except IntegrityError:
+                    # if there is somehow another integrity error at this point, we will let
+                    # the outer try except block raise the exception higher.
+                    # the transferred by user.username remains "user" instead of "current_owner" so if an admin transfers the set, the admin's name appears here
+                    name_label = "no previous owner"
+                    if current_owner is not None:
+                        name_label = (
+                            current_owner.get_full_name() or current_owner.username
+                        )
+                    self.name = f"{self.name} (transferred by {name_label} on {timezone.localdate():%Y-%m-%d})"
+                    self.save(update_fields=["name", "owner", "updated_at"])
+                if current_owner is not None:
+                    self.contents.filter(playlist__owner_id=current_owner.id).update(
+                        annotation_set=None
+                    )
+                result["reassigned"] = True
+
+        return result
 
     @classmethod
     def create_for_content(
@@ -765,7 +877,9 @@ class AnnotationSet(models.Model):
         """
         Get all tracks as they are
         """
-        return sorted(self.tracks.all(), key=lambda track: track.stack_position)
+        return sorted(
+            self.tracks.order_by("pk"), key=lambda track: track.stack_position
+        )
 
     def get_highest_stack_position(self):
         track_with_highest_position_value = (
@@ -778,7 +892,7 @@ class AnnotationSet(models.Model):
         Get all currently active annotations across all tracks.
         """
         annotations = []
-        for track in list(self.tracks.all()):
+        for track in self.tracks.order_by("pk"):
             annotations.extend(track.get_active_annotations())
         return sorted(annotations, key=lambda a: a.start_time)
 
@@ -819,7 +933,9 @@ class Track(models.Model):
             CommentAnnotation,
             Clip,
         ]:
-            annotations.extend(model_class.objects.filter(track=self, active=True))
+            annotations.extend(
+                model_class.objects.filter(track=self, active=True).order_by("pk")
+            )
         return sorted(annotations, key=lambda a: a.start_time)
 
     def is_final_stack_position(self):
@@ -919,6 +1035,18 @@ class Content(models.Model):
     def extended_display_name(self):
         return f"{self.display_name} | {self.resource.imdb_id if self.resource else 'unknown imdb_id'}"
 
+    def clean(self):
+        super().clean()
+        if self.resource_file_id and self.resource_file.is_projection_file:
+            raise ValidationError(
+                {
+                    "resource_file": (
+                        "Projection masters are for the International Cinema booth "
+                        "only and cannot be attached to content."
+                    )
+                }
+            )
+
     def save(self, *args, **kwargs):
         if self.resource_file:
             self.resource = self.resource_file.resource
@@ -981,7 +1109,7 @@ class Content(models.Model):
         resource = self.get_resource()
         if not resource:
             return []
-        sub_objs = Subtitle.objects.filter(resource=resource)
+        sub_objs = Subtitle.objects.filter(resource=resource).order_by("pk")
         default_id = self.default_subtitle_track_id
         subtitles = []
         for sub in sub_objs:
@@ -1860,8 +1988,11 @@ class Course(models.Model):
         max_length=5,
         validators=[
             RegexValidator(
-                regex=r"^[A-Z ]{2,5}$",
-                message="Department must be 2 to 5 uppercase letters or spaces.",
+                regex=r"^(?:[A-Z&]{2,5}|REL [A-Z&]|PHY S|C S)$",
+                message=(
+                    "Department must be 2 to 5 uppercase letters or '&' characters, "
+                    "with a single space allowed after 'REL' or in 'PHY S' or 'C S'."
+                ),
                 code="invalid_dept",
             )
         ],
@@ -1870,8 +2001,8 @@ class Course(models.Model):
         max_length=4,
         validators=[
             RegexValidator(
-                regex=r"^\d{3}R?$",
-                message="Catalog number must be a 3-digit number (and optional 'R' suffix).",
+                regex=r"^\d{3}[A-Z]?$",
+                message="Catalog number must be a 3-digit number with an optional single capital letter suffix.",
                 code="invalid_catalog_number",
             )
         ],

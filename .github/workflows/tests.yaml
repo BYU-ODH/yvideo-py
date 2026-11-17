@@ -50,8 +50,15 @@ jobs:
     - name: Install python dependencies
       run: uv sync
 
+    - name: Install ffmpeg
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
     - name: Run Django tests
-      run: uv run python manage.py test core
+      run: uv run python manage.py test core ic
+
+    # Plain pytest functions, which `manage.py test` doesn't collect.
+    - name: Run URL-registry permission checks
+      run: uv run pytest core/tests/test_view_permissions.py
 
   js-tests:
     runs-on: ubuntu-latest
@@ -85,6 +92,9 @@ jobs:
     - name: Install Playwright browser
       run: uv run python -m playwright install --with-deps chromium
 
+    - name: Install ffmpeg
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
     - name: Run e2e tests
       run: uv run pytest tests/e2e --ignore=tests/e2e/test_a11y.py --browser chromium  # a11y tests run in their own job
 
@@ -112,6 +122,9 @@ jobs:
 
     - name: Install Playwright browser
       run: uv run python -m playwright install --with-deps chromium
+
+    - name: Install ffmpeg
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
     - name: Run accessibility tests
       run: uv run pytest tests/e2e/test_a11y.py --browser chromium

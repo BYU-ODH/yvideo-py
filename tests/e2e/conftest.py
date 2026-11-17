@@ -5,6 +5,8 @@ from django.core.management import call_command
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 import pytest
 
+from ic.testing import make_mp4
+from ic.testing import make_program_scenario
 from tests.e2e import live_youtube as live_youtube_api
 
 # pytest-playwright initializes an event loop before Django's test DB setup.
@@ -23,10 +25,13 @@ READY_TIMEOUT_MS = 10_000
 
 DRAIN_TIMEOUT_MS = 5_000
 DRAIN_POLL_MS = 50
-DRAIN_QUIET_CHECKS = 4
-# True while the editor holds an edit back to save it later (e.g. the item form's debounce). No
-# request is in flight then, but one is coming, so the drain must not call the page quiet yet.
-# Must match WAITING_TEXT in core/static/js/save-status.js.
+# The quiet stretch must outlast the longest client-side debounce, or a save the page
+# schedules just before teardown starts after the drain and collides with the DB flush
+# ("database table is locked"). The editor debounces item-form saves by 250 ms
+# (editor.js, `update`), so 8 x 50 ms leaves margin.
+DRAIN_QUIET_CHECKS = 8
+# Also busy while the editor's save status shows an edit held back to save later, which
+# covers a debounce of any length. Must match WAITING_TEXT in core/static/js/save-status.js.
 _SAVE_PENDING = """() => Array.from(document.querySelectorAll('.save-status-text'))
     .some((el) => el.textContent === 'Waiting to autosave...')"""
 
@@ -171,6 +176,33 @@ def demo_content(seeded_demo_data):
 
 
 @pytest.fixture
+def read_only_annotation_set_content(seeded_demo_data):
+    """A content whose owner may edit the video but not the annotation set it points at.
+
+    Sharing a set rather than copying it is the point of the annotation-set model, so
+    "someone else owns these annotations" is a first-class state of the editor: the set
+    picker renders disabled, annotations open read-only, and edit controls are
+    intercepted by an offer to copy.
+    """
+    from core.factories import ContentFactory
+    from core.models import AnnotationSet
+    from core.models import Content
+    from core.models import Playlist
+
+    ada_playlist = Playlist.objects.get(name="Birds of a Feather")
+    bens_set = AnnotationSet.objects.get(name="Professor Ben Grid Annotations")
+    grid_content = Content.objects.get(title="Pattern Analysis Warmup")
+
+    return ContentFactory(
+        playlist=ada_playlist,
+        resource_file=grid_content.resource_file,
+        annotation_set=bens_set,
+        title="A11y Borrowed Annotations",
+        published=True,
+    )
+
+
+@pytest.fixture
 def logged_in_page(page, live_server, seeded_demo_data):
     """A page authenticated as the demo admin, who can view and edit the seeded content.
 
@@ -251,3 +283,13 @@ def open_editor(logged_in_page, live_server, demo_content):
         return content
 
     return _open
+
+
+@pytest.fixture
+def ic_program(settings, tmp_path, seeded_demo_data):
+    settings.IC_PROJECTION_ROOT = tmp_path / "projection"
+    scenario = make_program_scenario()
+    # The preview plays the SD files, so make them real (6 s, enough to cross the skip).
+    for key in ("announcement", "feature"):
+        make_mp4(scenario[key].resource_file.file.path, seconds=6, faststart=True)
+    return scenario

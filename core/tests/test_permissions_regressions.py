@@ -13,12 +13,14 @@ would mask a 403 as a redirect on every GET-based probe.
 import json
 import time
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
 from core.factories import AnnotationSetFactory
 from core.factories import ContentFactory
 from core.factories import CourseFactory
+from core.factories import LanguageFactory
 from core.factories import PlaylistFactory
 from core.factories import PlaylistUserAccessFactory
 from core.factories import ResourceFactory
@@ -31,6 +33,7 @@ from core.factories import UserFactory
 from core.models import AnnotationSet
 from core.models import Content
 from core.models import PlaylistRole
+from core.models import Subtitle
 from core.models import Track
 
 
@@ -392,6 +395,11 @@ class StrangerIsRefusedTests(TestCase):
             self.client.get(reverse("get_editable_subtitles", args=[self.subtitle.pk]))
         )
 
+    def test_export_subtitle_track_refuses_a_stranger(self):
+        self.assert_refused(
+            self.client.get(reverse("export_subtitle_track", args=[self.subtitle.pk]))
+        )
+
     def test_update_subtitle_content_refuses_a_stranger(self):
         original = self.subtitle.subtitles_file.read()
 
@@ -668,7 +676,7 @@ class CollaboratorTests(TestCase):
             self.playlist.can_grant_role(self.collaborator, PlaylistRole.STUDENT)
         )
 
-    def test_a_collaborator_may_not_retire_the_owners_annotation_set(self):
+    def test_a_collaborator_may_not_delete_the_owners_annotation_set(self):
         response = self.client.delete(
             reverse("delete_annotation_set", args=[self.annotation_set.pk])
         )
@@ -707,16 +715,6 @@ class OwnerHappyPathTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_the_owner_may_retire_their_own_set(self):
-        response = self.client.delete(
-            reverse("delete_annotation_set", args=[self.annotation_set.pk])
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.annotation_set.refresh_from_db()
-        self.assertIsNone(self.annotation_set.owner_id)
-        self.assertTrue(self.annotation_set.previous_owner)
-
     def test_the_owner_may_copy_a_set_they_can_read(self):
         borrowed = AnnotationSetFactory(resource=self.resource, name="Someone else's")
 
@@ -742,6 +740,31 @@ class OwnerHappyPathTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(AnnotationSet.objects.filter(name="Stolen copy").exists())
 
+    def test_the_owner_may_import_an_srt_track_and_export_it_as_vtt(self):
+        srt = SimpleUploadedFile(
+            "imported.srt", b"1\n00:00:01,000 --> 00:00:02,500\nHello\n"
+        )
+
+        response = self.client.post(
+            reverse("create_subtitle_track", args=[self.content.pk]),
+            {
+                "create_mode": "empty",
+                "name": "Imported",
+                "language": LanguageFactory().pk,
+                "subtitles_file": srt,
+            },
+        )
+
+        self.assertEqual(response.status_code, 201, response.content[:200])
+        subtitle = Subtitle.objects.get(pk=response.json()["id"])
+        self.assertEqual(subtitle.owner_id, self.owner.pk)
+        response = self.client.get(reverse("export_subtitle_track", args=[subtitle.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment;", response["Content-Disposition"])
+        body = b"".join(response.streaming_content).decode()
+        self.assertTrue(body.startswith("WEBVTT\n\n"))
+        self.assertIn("00:00:01.000 --> 00:00:02.500\nHello", body)
+
     def test_the_owner_may_rename_their_set(self):
         response = self.post_json(
             reverse("update_annotation_set_name", args=[self.annotation_set.pk]),
@@ -763,20 +786,6 @@ class OwnerHappyPathTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.content.refresh_from_db()
         self.assertEqual(self.content.annotation_set_id, borrowed.pk)
-
-    def test_the_owner_may_select_an_orphaned_set(self):
-        """Retiring a set must not strip it out of everyone else's chooser."""
-        orphan = AnnotationSetFactory(resource=self.resource)
-        orphan.orphan()
-
-        response = self.post_json(
-            reverse("select_annotation_set", args=[self.content.pk]),
-            {"annotation_set_id": orphan.pk},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.content.refresh_from_db()
-        self.assertEqual(self.content.annotation_set_id, orphan.pk)
 
     def test_the_owner_may_create_content_from_an_accessible_resource(self):
         response = self.post_json(

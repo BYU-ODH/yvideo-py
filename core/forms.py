@@ -75,7 +75,8 @@ class PlaylistForm(forms.ModelForm):
 class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
-        fields = ["name", "published", "archived"]
+        # is_ic is shown to, and applied for, IC editors only.
+        fields = ["name", "published", "archived", "is_ic"]
 
 
 class UpdateContentForm(forms.ModelForm):
@@ -182,8 +183,6 @@ class SubtitleUpdateForm(forms.Form):
 
 
 class SubtitleCreateForm(SubtitleUpdateForm):
-    subtitles_file = None
-
     def __init__(self, *args, resource=None, owner=None, **kwargs):
         kwargs.setdefault("auto_id", "subtitle-track-create-%s")
         super().__init__(

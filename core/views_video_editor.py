@@ -6,12 +6,14 @@ from os.path import splitext
 from urllib.parse import quote
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.db import OperationalError
 from django.db import connections
 from django.db import transaction
+from django.http import FileResponse
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseNotFound
@@ -44,6 +46,7 @@ from .models import PauseAnnotation
 from .models import SkipAnnotation
 from .models import Subtitle
 from .models import Track
+from .models import User
 from .models import validate_font_color
 from .permissions import annotation_set_read_required
 from .permissions import annotation_set_write_required
@@ -220,7 +223,7 @@ def video_editor(request, content):
         # contents, which any of that owner's collaborators may do.
         can_administer_annotation_set = (
             annotation_set is not None
-            and annotation_set.can_be_orphaned_by(request.user)
+            and annotation_set.can_be_administered_by(request.user)
         )
 
         # Prepare track data for timeline
@@ -251,6 +254,13 @@ def video_editor(request, content):
             "annotation_set": annotation_set,
             "can_edit": can_edit,
             "can_administer_annotation_set": can_administer_annotation_set,
+            # can_administer_annotation_set is False if the annotation set is None, so we don't need to do an extra check
+            # to see if the annotation set is none before accessing ownership_candidates
+            "annotation_set_owner_candidates": annotation_set.ownership_candidates(
+                annotation_set.owner
+            )
+            if can_administer_annotation_set
+            else [],
             "annotation_groups": annotation_groups,
             "tracks": tracks,
             "subtitle_options": subtitle_options,
@@ -926,9 +936,14 @@ def load_annotation_form(request, annotation_type, annotation_id):
     if annotation.track.annotation_set_id != content.annotation_set_id:
         return HttpResponseNotFound("Annotation does not belong to this content")
 
-    if not annotation.track.annotation_set.can_be_edited_by(request.user):
+    # Loading the form is a read; annotation_form.html renders read-only for borrowers.
+    # Editing the content is what opens its editor, which already shows this set.
+    if not (
+        content.can_be_edited_by(request.user)
+        or annotation.track.annotation_set.can_be_read_by(request.user)
+    ):
         return HttpResponse(
-            "You don't have permission to edit this annotation", status=403
+            "You don't have permission to view this annotation", status=403
         )
 
     start_seconds = annotation.start_time
@@ -958,7 +973,7 @@ def load_annotation_set_settings(request, annotation_set):
         {
             "annotation_set": annotation_set,
             "content": content,
-            "can_administer_annotation_set": annotation_set.can_be_orphaned_by(
+            "can_administer_annotation_set": annotation_set.can_be_administered_by(
                 request.user
             ),
         },
@@ -1062,23 +1077,55 @@ def export_annotation_set(request, annotation_set):
 @require_http_methods(["DELETE"])
 @annotation_set_write_required
 def delete_annotation_set(request, annotation_set):
-    """Retire a set by orphaning it rather than deleting the row.
-
-    Other instructors' content may reference this set, and forcing them into
-    near-identical copies is the clutter this avoids. Orphaning keeps it readable and
-    copyable while freezing it against further edits.
-    """
-    if not annotation_set.can_be_orphaned_by(request.user):
-        return forbidden("Only the owner of an annotation set can retire it.")
+    """Deletes the set, or transfers ownership if another user is using it."""
+    if not annotation_set.can_be_administered_by(request.user):
+        return forbidden("Only the owner or an admin can remove an annotation set.")
     try:
-        annotation_set.orphan()
-        messages.success(
-            request,
-            f'The Annotation set "{annotation_set.name}" was retired.',
+        body = json.loads(request.body) if request.body else {}
+        if not isinstance(body, dict):
+            return HttpResponseBadRequest("Expected a JSON object.")
+
+        new_owner = None
+        new_owner_id = body.get("new_owner_id")
+        if new_owner_id is not None:
+            new_owner = User.objects.get(pk=new_owner_id)
+
+        deletion_result = annotation_set.delete_or_reassign_ownership(
+            request.user, new_owner=new_owner
         )
+        if deletion_result["deleted"]:
+            messages.success(
+                request, f'The annotation set "{annotation_set.name}" was deleted.'
+            )
+        elif deletion_result["reassigned"]:
+            messages.success(request, "The annotation set was reassigned.")
         return HttpResponse()
-    except Exception as e:
-        logger.error(f"Failed to retire annotation set. Exception: {e}")
+
+    except PermissionDenied:
+        messages.error(
+            request,
+            "You do not have permission to delete or reassign the annotation set",
+        )
+        return HttpResponse(status=403)
+    except User.DoesNotExist:
+        messages.error(
+            request,
+            "The user you have attempted to reassigned the annotation set to doesn't exist.",
+        )
+        return HttpResponseBadRequest()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.exception("Failed to delete annotation set: request body was malformed.")
+        messages.error(
+            request,
+            "Failed to delete annotation set because the request was malformed.",
+        )
+        return HttpResponseBadRequest()
+    except Exception:
+        logger.exception("Failed to delete annotation set")
+        messages.error(
+            request,
+            "An error occurred while attempting to delete or reassign the annotation set",
+        )
         return HttpResponseServerError()
 
 
@@ -1360,7 +1407,12 @@ def create_subtitle_track(request, content):
     if create_mode != "empty":
         return JsonResponse({"error": "Invalid subtitle creation mode."}, status=400)
 
-    create_form = SubtitleCreateForm(data, resource=resource, owner=request.user)
+    create_form = SubtitleCreateForm(
+        data,
+        request.FILES,
+        resource=resource,
+        owner=request.user,
+    )
     if not create_form.is_valid():
         return _render_subtitle_track_creation_modal(
             request, content, create_form=create_form
@@ -1378,7 +1430,8 @@ def create_subtitle_track(request, content):
         with transaction.atomic(using=database):
             subtitle.subtitles_file = store_independent_subtitle_file(
                 subtitle,
-                ContentFile(
+                create_form.cleaned_data["subtitles_file"]
+                or ContentFile(
                     build_vtt_file_string_from_cues([]).encode("utf-8"),
                     name=f"{subtitle.name}.vtt",
                 ),
@@ -1612,6 +1665,18 @@ def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
         logger.exception("Failed to copy subtitle track %s.", source.pk)
         return JsonResponse({"error": "Failed to copy the subtitle track."}, status=500)
     return JsonResponse({"id": copied.pk}, status=201)
+
+
+@require_GET
+@subtitle_read_required
+def export_subtitle_track(request, subtitle):
+    """Download the subtitle track's stored file, which is always canonical WebVTT."""
+    return FileResponse(
+        subtitle.subtitles_file.open("rb"),
+        as_attachment=True,
+        filename=f"{subtitle.name}.{subtitle.language.bcp47}.vtt",
+        content_type="text/vtt",
+    )
 
 
 @require_GET
