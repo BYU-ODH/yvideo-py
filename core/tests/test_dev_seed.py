@@ -244,12 +244,22 @@ class DemoSeedDataTests(TestCase):
         playlist = Playlist.objects.get(name="Classic Films")
         content = Content.objects.get(playlist=playlist)
         self.assertEqual(content.title, "His Girl Friday (1940)")
-        self.assertTrue(
-            PlaylistUserAccess.objects.filter(
-                playlist=playlist,
-                user__username="111228888",
-                playlist_role=PlaylistRole.STUDENT,
-            ).exists()
+        self.assertEqual(
+            str(content.resource_file.resource),
+            "His Girl Friday (1940) (public-domain demo)",
+        )
+        self.assertEqual(
+            set(
+                PlaylistUserAccess.objects.filter(playlist=playlist).values_list(
+                    "user__netid", "playlist_role"
+                )
+            ),
+            {
+                ("profben", PlaylistRole.COLLABORATOR),
+                ("caseyta", PlaylistRole.COLLABORATOR),
+                ("studbob", PlaylistRole.STUDENT),
+                ("studivy", PlaylistRole.STUDENT),
+            },
         )
 
         media_path = Path(content.resource_file.file.path)

@@ -51,6 +51,8 @@ DEMO_ADMIN_USERNAMES = {
     "111229999",
 }
 DEMO_RESOURCE_NAMES = {"Birds", "Grid", "Grid Overlay"}
+# Keeps seeded films from clashing with real resources of the same title.
+DEMO_FILM_DISAMBIGUATOR = "public-domain demo"
 DEMO_COURSES = [
     ("BIO", "205", "001"),
     ("FILM", "330", "001"),
@@ -119,11 +121,7 @@ def seed_demo_data():
 def purge_demo_data():
     User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).delete()
     Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).delete()
-    # Film titles could match real resources, so only remove the seeded ones.
-    Resource.objects.filter(
-        name__in=[film.title for film in DEMO_FILMS],
-        requester_username__in=DEMO_ADMIN_USERNAMES,
-    ).delete()
+    Resource.objects.filter(name_disambiguator=DEMO_FILM_DISAMBIGUATOR).delete()
 
     for dept, catalog_number, section_number in DEMO_COURSES:
         Course.objects.filter(
@@ -592,6 +590,7 @@ def create_demo_data():
 
     demo_film_count = create_demo_films(
         owner=professor_ben,
+        collaborators=[teaching_assistant],
         students=[student_bob, student_ivy],
         course=film_course,
         language=english,
@@ -635,7 +634,7 @@ def create_media_resource_file(
     return resource_file
 
 
-def create_demo_films(*, owner, students, course, language):
+def create_demo_films(*, owner, collaborators, students, course, language):
     """Seed whichever demo films fetch_demo_films has cached; never download here."""
     films = [film for film in DEMO_FILMS if film.cache_path.exists()]
     if not films:
@@ -644,16 +643,23 @@ def create_demo_films(*, owner, students, course, language):
     playlist = PlaylistFactory(
         owner=owner, name="Classic Films", published=True, courses=[course]
     )
-    PlaylistUserAccessFactory(
-        playlist=playlist, user=owner, playlist_role=PlaylistRole.COLLABORATOR
-    )
+    for collaborator in [owner, *collaborators]:
+        PlaylistUserAccessFactory(
+            playlist=playlist,
+            user=collaborator,
+            playlist_role=PlaylistRole.COLLABORATOR,
+        )
     for student in students:
         PlaylistUserAccessFactory(
             playlist=playlist, user=student, playlist_role=PlaylistRole.STUDENT
         )
 
     for film in films:
-        resource = ResourceFactory(name=film.title, requester_username=owner.username)
+        resource = ResourceFactory(
+            name=film.title,
+            name_disambiguator=DEMO_FILM_DISAMBIGUATOR,
+            requester_username=owner.username,
+        )
         ResourceAccessFactory(user=owner, resource=resource)
         resource_file = link_media_resource_file(
             resource=resource,
