@@ -792,19 +792,35 @@ class AnnotationSet(models.Model):
                         "Content must be associated with a resource to create an AnnotationSet"
                     )
 
-                # Create annotation set with user as owner
-                if set_name is not None and set_name != "":
-                    name = set_name
+                annotation_set_to_copy = None
+                if annotation_set_json is None and annotation_set_id_to_copy:
+                    annotation_set_to_copy = cls.objects.get(
+                        pk=annotation_set_id_to_copy
+                    )
+
+                set_name = (set_name or "").strip()
+                user_label = user.get_full_name() or user.username
+                if set_name:
+                    base_name = set_name
+                elif annotation_set_to_copy is not None:
+                    base_name = (
+                        f"{annotation_set_to_copy.name} (copied by {user_label})"
+                    )
                 else:
-                    name = f"{user.get_full_name()}'s Annotations"
+                    base_name = f"{user_label}'s Annotations"
 
                 # names only have to be unique per (name, resource, owner), so
                 # another instructor's identically named set is not a conflict
-                existing_count = cls.objects.filter(
-                    name__startswith=name, resource=resource, owner=user
-                ).count()
-                if existing_count > 0:
-                    name = f"{name} ({existing_count + 1})"
+                taken_names = set(
+                    cls.objects.filter(resource=resource, owner=user).values_list(
+                        "name", flat=True
+                    )
+                )
+                name = base_name
+                suffix = 2
+                while name in taken_names:
+                    name = f"{base_name} ({suffix})"
+                    suffix += 1
 
                 annotation_set = cls.objects.create(
                     name=name, resource=resource, owner=user
@@ -821,39 +837,35 @@ class AnnotationSet(models.Model):
                         "PauseAnnotation": PauseAnnotation,
                         "BlurAnnotation": BlurAnnotation,
                         "CommentAnnotation": CommentAnnotation,
+                        "Clip": Clip,
                     }
 
                     annotation_set_data = json.loads(annotation_set_json)
-                    for track in annotation_set_data.get("tracks", []):
-                        Track.from_import(track, annotation_set)
+                    # imported tracks may be renamed (e.g. blank names get a
+                    # default), so annotations find their track by its exported name
+                    tracks_by_name = {}
+                    for track_data in annotation_set_data.get("tracks", []):
+                        track = Track.from_import(track_data, annotation_set)
+                        tracks_by_name.setdefault(track_data.get("name"), track)
 
+                    # one malformed annotation should not sink the whole import
                     for annotation in annotation_set_data.get("annotations", []):
-                        track = annotation_set.tracks.get(
-                            name=annotation.get("track_name")
-                        )
+                        class_type = annotation.get("class_type")
                         try:
                             with transaction.atomic():
-                                annotation_class = annotation_types[
-                                    annotation["class_type"]
-                                ]
-                                annotation_class.from_import(annotation, track)
+                                track = tracks_by_name.get(annotation.get("track_name"))
+                                if track is None:
+                                    raise ValueError(
+                                        f"No track named {annotation.get('track_name')!r}"
+                                    )
+                                annotation_types[class_type].from_import(
+                                    annotation, track
+                                )
                         except Exception as e:
                             logger.error(
-                                f"Failed to import annotation. Annotation type: {annotation_class}. Exception: {e}"
+                                f"Failed to import annotation. Annotation type: {class_type}. Exception: {e!r}"
                             )
-                            continue
-                # copying from pre-existing annotation set
-                elif (
-                    annotation_set_json is None
-                    and annotation_set_id_to_copy is not None
-                ):
-                    annotation_set_to_copy = AnnotationSet.objects.get(
-                        pk=annotation_set_id_to_copy
-                    )
-                    if set_name is None or set_name == "":
-                        annotation_set.name = (
-                            annotation_set_to_copy.name + f" (copied by {user.__str__})"
-                        )
+                elif annotation_set_to_copy is not None:
                     annotations = (
                         annotation_set_to_copy.get_active_annotations_from_tracks()
                     )
@@ -862,11 +874,11 @@ class AnnotationSet(models.Model):
                 # a new set with no annotations. Any new empty set setup should happen here
 
                 # users can't add annotations without a track, so make sure a track exists on the set
-                existing_track_count = Track.objects.filter(
-                    annotation_set=annotation_set
-                ).count()
-                if existing_track_count == 0:
-                    Track.objects.create(annotation_set=annotation_set)
+                if not annotation_set.tracks.exists():
+                    Track.objects.create(
+                        annotation_set=annotation_set,
+                        name=annotation_set.next_default_track_name(),
+                    )
 
             return annotation_set
         except Exception as e:
@@ -881,11 +893,18 @@ class AnnotationSet(models.Model):
             self.tracks.order_by("pk"), key=lambda track: track.stack_position
         )
 
+    def next_default_track_name(self):
+        """Return the first unused "Track <n>" name in this set."""
+        taken_names = set(self.tracks.values_list("name", flat=True))
+        number = 1
+        while f"Track {number}" in taken_names:
+            number += 1
+        return f"Track {number}"
+
     def get_highest_stack_position(self):
-        track_with_highest_position_value = (
-            self.tracks.all().order_by("stack_position").last()
-        )
-        return track_with_highest_position_value.stack_position
+        """Return the top track's stack position, or -1 if the set has no tracks."""
+        highest = self.tracks.aggregate(highest=models.Max("stack_position"))["highest"]
+        return -1 if highest is None else highest
 
     def get_active_annotations_from_tracks(self):
         """
@@ -967,7 +986,8 @@ class Track(models.Model):
     def from_import(cls, imported_data, annotation_set):
         return cls.objects.create(
             annotation_set=annotation_set,
-            name=imported_data.get("name", ""),
+            name=(imported_data.get("name") or "").strip()
+            or annotation_set.next_default_track_name(),
             stack_position=imported_data.get("stack_position", 0),
         )
 
@@ -1385,7 +1405,7 @@ class BaseAnnotation(models.Model):
 
 
 class SkipAnnotation(BaseAnnotation):
-    """Skip annotation - standard time range. Allows optional message to be displayed at the beginning of a skip."""
+    """Skip annotation - standard time range."""
 
     def calculate_position(self):
         return {
@@ -1399,18 +1419,6 @@ class SkipAnnotation(BaseAnnotation):
         data = super().to_player_json()  # includes start/end + display strings
         data["type"] = "skip"  # keep/ensure type
         return data
-
-    def copy_to_new_annotation_set(self, annotation_set):
-        new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        new_annotation.save()
-        return new_annotation
-
-    @classmethod
-    def from_import(cls, imported_data, track):
-        obj = super().from_import(imported_data, track)
-        obj.message = imported_data.get("message", "")
-        obj.save()
-        return obj
 
 
 class MuteAnnotation(BaseAnnotation):
@@ -1908,13 +1916,9 @@ class BlurAnchorPoint(models.Model):
 
 
 class Clip(BaseAnnotation):
-    description = models.TextField(blank=True)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._meta.get_field(
-            "description"
-        ).help_text = "Short description of the scene this clip is showing"
+    description = models.TextField(
+        blank=True, help_text="Short description of the scene this clip is showing"
+    )
 
     def __str__(self):
         return f"Clip {self.name} | {self.start_time}-{self.end_time} | {self.id}"
@@ -2097,8 +2101,7 @@ class Language(models.Model):
 
 def subtitle_file_upload_path(instance, filename):
     """Generate upload path to media/<resource name>/subtitles/<filename>"""
-    if isinstance(instance, Subtitle):
-        return f"{instance.resource.name}/subtitles/{filename}"
+    return f"{instance.resource.name}/subtitles/{filename}"
 
 
 class Subtitle(models.Model):

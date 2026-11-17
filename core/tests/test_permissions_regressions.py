@@ -700,7 +700,7 @@ class OwnerHappyPathTests(TestCase):
         self.annotation_set = AnnotationSetFactory(
             owner=self.owner, resource=self.resource, name="Original"
         )
-        TrackFactory(annotation_set=self.annotation_set)
+        TrackFactory(annotation_set=self.annotation_set, name="Track 1")
         self.content.annotation_set = self.annotation_set
         self.content.save()
         login(self.client, self.owner)
@@ -774,6 +774,26 @@ class OwnerHappyPathTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.annotation_set.refresh_from_db()
         self.assertEqual(self.annotation_set.name, "Renamed")
+
+    def test_a_blank_set_name_is_refused(self):
+        response = self.post_json(
+            reverse("update_annotation_set_name", args=[self.annotation_set.pk]),
+            {"name": "   "},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.annotation_set.refresh_from_db()
+        self.assertEqual(self.annotation_set.name, "Original")
+
+    def test_unnamed_new_tracks_get_unique_default_names(self):
+        url = reverse("create_track", args=[self.annotation_set.pk])
+        self.post_json(url, {"track_name": "   "})
+        self.post_json(url, {})
+
+        self.assertEqual(
+            [track.name for track in self.annotation_set.get_tracks()],
+            ["Track 1", "Track 2", "Track 3"],
+        )
 
     def test_the_owner_may_select_a_readable_set_from_another_owner(self):
         borrowed = AnnotationSetFactory(resource=self.resource)

@@ -990,10 +990,11 @@ def update_annotation_set_name(request, annotation_set):
             return HttpResponseBadRequest()
 
         name = parsed_body["name"].strip()
-        if name:
-            annotation_set.name = name
-            annotation_set.save()
+        if not name:
+            return HttpResponseBadRequest("Annotation set names cannot be blank.")
 
+        annotation_set.name = name
+        annotation_set.save()
         return HttpResponse()
     except IntegrityError:
         # Names are unique per (name, resource, owner), so this is the user picking a
@@ -1299,18 +1300,12 @@ def update_track_positions_in_set(request, annotation_set):
 def create_track(request, annotation_set):
     try:
         parsed_body = json.loads(request.body)
-        set_has_tracks = annotation_set.tracks.count() > 0
-
-        track = {
-            "annotation_set": annotation_set,
-            "stack_position": annotation_set.get_highest_stack_position() + 1
-            if set_has_tracks
-            else 0,
-        }
-        if "track_name" in parsed_body:
-            track["name"] = parsed_body["track_name"]
-
-        Track.objects.create(**track)
+        name = (parsed_body.get("track_name") or "").strip()
+        Track.objects.create(
+            annotation_set=annotation_set,
+            name=name or annotation_set.next_default_track_name(),
+            stack_position=annotation_set.get_highest_stack_position() + 1,
+        )
 
         return convertTracksToHTML(annotation_set, request)
     except Exception as e:

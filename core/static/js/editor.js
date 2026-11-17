@@ -1974,11 +1974,7 @@ export class Editor {
       async function handleTrackCreation(e) {
         e.preventDefault();
         e.stopPropagation();
-        const newTrackName = addNewTrackInput.value;
-        if (!newTrackName) {
-          return;
-        }
-
+        const newTrackName = addNewTrackInput.value.trim();
         const newTrackResponse = await savePost(
           `/annotation-set/${annotationSetId}/track/create/`,
           JSON.stringify({
