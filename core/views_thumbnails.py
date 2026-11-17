@@ -1,5 +1,4 @@
 import logging
-import math
 import re
 
 from django.http import Http404
@@ -59,9 +58,7 @@ def _render_editor(request, item, save_url):
 
 def _save(request, item):
     field = Thumbnail.field_for(item)
-    thumbnail = Thumbnail.objects.filter(**{field: item}).first() or Thumbnail(
-        **{field: item}
-    )
+    thumbnail = getattr(item, "thumbnail", None) or Thumbnail(**{field: item})
 
     background_color = request.POST.get("background_color", "")
     text_color = request.POST.get("text_color", "")
@@ -69,8 +66,8 @@ def _save(request, item):
     try:
         text_size = float(request.POST.get("text_size", ""))
     except ValueError:
-        text_size = math.nan
-    if not math.isfinite(text_size):
+        text_size = -1
+    if not 0.75 <= text_size <= 4:
         return HttpResponseBadRequest("Invalid text size.")
     if not (
         HEX_COLOR_RE.fullmatch(background_color) and HEX_COLOR_RE.fullmatch(text_color)
@@ -109,7 +106,7 @@ def _save(request, item):
     thumbnail.background_color = background_color
     thumbnail.text = {
         "color": text_color,
-        "size": min(max(text_size, 0.75), 4.0),
+        "size": text_size,
     }
     # Unchanged default text is left unsaved so the tile keeps following renames.
     if text != thumbnail.default_text():
