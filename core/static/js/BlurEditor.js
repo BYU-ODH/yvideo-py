@@ -45,10 +45,6 @@ const SNAP_SECONDS = 0.05;
 
 const CLAMP_LIMITS = { minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT };
 
-// Undo, redo, and the form's autosave wait behind point saves, so one that never answers must not
-// hold them up forever.
-const SAVE_TIMEOUT_MS = 15000;
-
 // The arrow keys the player uses for frame-stepping belong to the box once the rig has focus, so
 // `,` and `.` replace them.
 const SCRUB_SECONDS = 0.1;
@@ -588,7 +584,6 @@ export class BlurEditor {
         method: "POST",
         headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(SAVE_TIMEOUT_MS),
       });
     } catch (error) {
       console.error("Failed to reach the server to save a blur anchor point", error);
@@ -643,7 +638,6 @@ export class BlurEditor {
       response = await saveStatus.fetch(url, {
         method: "DELETE",
         headers: { "X-CSRFToken": getCSRFToken() },
-        signal: AbortSignal.timeout(SAVE_TIMEOUT_MS),
       });
     } catch (error) {
       console.error("Failed to reach the server to delete a blur anchor point", error);

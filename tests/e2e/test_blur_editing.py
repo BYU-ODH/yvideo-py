@@ -1892,7 +1892,9 @@ def _undo_or_redo(page, shortcut):
     )
 
 
-def test_a_saved_nudge_can_be_undone_and_redone(page, open_editor):
+def test_a_saved_nudge_can_be_undone_and_redone_and_editing_continues(
+    page, open_editor
+):
     open_editor()
     _select(page, MOVING_BLUR)
 
@@ -1905,14 +1907,6 @@ def test_a_saved_nudge_can_be_undone_and_redone(page, open_editor):
         row_x = _row_for(page, 1).get_attribute("data-x")
         assert float(row_x) == pytest.approx(expected_x, abs=0.01)
 
-
-def test_editing_goes_on_working_after_undo_and_redo(page, open_editor):
-    open_editor()
-    _select(page, MOVING_BLUR)
-    _nudge_and_save(page, "ArrowRight")
-
-    _undo_or_redo(page, "Control+z")
-    _undo_or_redo(page, "Control+Shift+z")
     _nudge_and_save(page, "ArrowRight")
     assert _point_at(MOVING_BLUR, 7.0)[1] == pytest.approx(41.0, abs=0.01)
 
