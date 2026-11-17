@@ -6,7 +6,7 @@
         <form id="thumbnail-editor-form"
               class="column-flex"
               data-save-url="{{ save_url }}"
-              {% if youtube_video_id %}data-youtube-image-url="https://i.ytimg.com/vi/{{ youtube_video_id }}/hqdefault.jpg"{% endif %}>
+              {% if youtube_image_url %}data-youtube-image-url="{{ youtube_image_url }}"{% endif %}>
             {% csrf_token %}
             <div class="thumbnail-editor-preview">
                 {% include "core/partials/thumbnail.html" %}
@@ -30,7 +30,7 @@
                                     tabindex="-1"
                                     hidden>Video frame</button>
                         {% endif %}
-                        {% if youtube_video_id %}
+                        {% if youtube_image_url %}
                             <button type="button"
                                     role="tab"
                                     id="thumbnail-tab-youtube"
@@ -55,7 +55,6 @@
                                    name="background_color"
                                    value="{{ thumbnail.background_color }}">
                         </label>
-                        <button type="button" id="thumbnail-remove-image" class="cancel-button">Use color only</button>
                     </div>
                     {% if stream_url %}
                         <div id="thumbnail-panel-frame"
@@ -80,13 +79,14 @@
                             <button type="button" id="thumbnail-capture" class="blue-button">Use this frame</button>
                         </div>
                     {% endif %}
-                    {% if youtube_video_id %}
+                    {% if youtube_image_url %}
                         <div id="thumbnail-panel-youtube"
                              class="column-flex"
                              role="tabpanel"
                              aria-labelledby="thumbnail-tab-youtube"
+                             tabindex="0"
                              hidden>
-                            <button type="button" id="thumbnail-use-youtube" class="blue-button">Use YouTube thumbnail</button>
+                            <p>Uses the thumbnail YouTube shows for this video.</p>
                         </div>
                     {% endif %}
                     <div id="thumbnail-panel-upload"

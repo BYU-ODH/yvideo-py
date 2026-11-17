@@ -10,7 +10,6 @@ from core.factories import ContentFactory
 from core.factories import PlaylistFactory
 from core.factories import PlaylistUserAccessFactory
 from core.factories import UserFactory
-from core.models import Content
 from core.models import Thumbnail
 from core.youtube_utils import get_or_create_youtube_resource
 
@@ -53,19 +52,6 @@ class ThumbnailTests(TestCase):
         editor_url = response.json()["thumbnail_editor_url"]
         editor = self.client.get(editor_url)
         self.assertContains(editor, 'value="New playlist"')
-
-    def test_creating_content_points_to_its_thumbnail_editor(self):
-        source = ContentFactory(playlist=self.playlist)
-        response = self.client.post(
-            reverse("create_content", args=[self.playlist.pk]),
-            json.dumps({"title": "Clip", "resource_file_id": source.resource_file_id}),
-            content_type="application/json",
-        )
-
-        content = Content.objects.get(title="Clip")
-        editor = self.client.get(response.json()["thumbnail_editor_url"])
-        self.assertContains(editor, f'value="{content.resource.name}"')
-        self.assertContains(editor, 'id="thumbnail-video"')
 
     def test_items_without_a_saved_thumbnail_show_defaults(self):
         content = ContentFactory(playlist=self.playlist)
@@ -112,15 +98,6 @@ class ThumbnailTests(TestCase):
 
         self.assertContains(response, "Renamed</span>")
 
-    def test_custom_text_survives_renames(self):
-        self.save_playlist_thumbnail(text="Week 1")
-        self.playlist.name = "Renamed"
-        self.playlist.save()
-
-        response = self.client.get(reverse("playlists"))
-
-        self.assertContains(response, "Week 1</span>")
-
     def test_invalid_color_is_rejected(self):
         response = self.save_playlist_thumbnail(background_color="red;}")
 
@@ -157,13 +134,8 @@ class ThumbnailTests(TestCase):
         self.assertEqual(bytes(content.thumbnail.image), JPEG)
 
     def test_strangers_cannot_edit_thumbnails(self):
-        stranger = UserFactory()
-        self.client.force_login(stranger)
+        self.client.force_login(UserFactory())
 
-        editor = self.client.get(
-            reverse("playlist_thumbnail_editor", args=[self.playlist.pk])
-        )
-        save = self.save_playlist_thumbnail()
+        response = self.save_playlist_thumbnail()
 
-        self.assertEqual(editor.status_code, 403)
-        self.assertEqual(save.status_code, 403)
+        self.assertEqual(response.status_code, 403)

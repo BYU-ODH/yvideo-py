@@ -33,10 +33,12 @@ def _youtube_video_id(request, item):
     return youtube_video_id_for_content(item, request.user.get_content_source_url(item))
 
 
+def _youtube_thumbnail_url(video_id):
+    return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+
+
 def _fetch_youtube_thumbnail(video_id):
-    response = requests.get(
-        f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg", timeout=10
-    )
+    response = requests.get(_youtube_thumbnail_url(video_id), timeout=10)
     response.raise_for_status()
     return response.content
 
@@ -46,12 +48,13 @@ def _render_editor(request, item, save_url):
     if isinstance(item, Content) and item.resource_file_id:
         key = request.user.get_resource_filekey(item)
         stream_url = reverse("stream_file", args=[key.pk]) if key else None
+    video_id = _youtube_video_id(request, item)
     context = {
         "dialog_id": "thumbnail-editor-dialog",
         "thumbnail": Thumbnail.for_item(item),
         "save_url": save_url,
         "stream_url": stream_url,
-        "youtube_video_id": _youtube_video_id(request, item),
+        "youtube_image_url": _youtube_thumbnail_url(video_id) if video_id else None,
     }
     return render(request, "core/partials/modals/thumbnail_editor.html", context)
 

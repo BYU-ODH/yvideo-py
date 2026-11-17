@@ -23,8 +23,10 @@ function seek(video, time) {
   });
 }
 
-// Follows the ARIA tabs pattern: one tab stop, arrow keys move between tabs.
-function setupTabs(tablist) {
+// Follows the ARIA tabs pattern: one tab stop, and arrow keys move between tabs.
+// Arrows only move focus, because choosing a tab changes the background.
+// `onChoose` runs only when the user picks a tab, not for the initial selection.
+function setupTabs(tablist, onChoose) {
   const tabs = [...tablist.querySelectorAll("[role=tab]")];
   function select(tab) {
     for (const each of tabs) {
@@ -38,6 +40,7 @@ function setupTabs(tablist) {
     const tab = event.target.closest("[role=tab]");
     if (tab) {
       select(tab);
+      onChoose(tab);
     }
   });
   tablist.addEventListener("keydown", (event) => {
@@ -48,9 +51,9 @@ function setupTabs(tablist) {
     const visible = tabs.filter((tab) => !tab.hidden);
     const index = visible.indexOf(document.activeElement);
     const next = visible[(index + step + visible.length) % visible.length];
-    select(next);
     next.focus();
   });
+  return select;
 }
 
 function setupEditor(dialog) {
@@ -78,9 +81,17 @@ function setupEditor(dialog) {
   }
   form.addEventListener("input", updateStyles);
 
-  setupTabs(form.querySelector("[role=tablist]"));
-  // An image would hide the new color, so picking one means the user wants color only.
-  form.background_color.addEventListener("input", () => setImage("none", null));
+  const selectTab = setupTabs(form.querySelector("[role=tablist]"), (tab) => {
+    if (tab.id === "thumbnail-tab-color") {
+      setImage("none", null);
+    } else if (tab.id === "thumbnail-tab-youtube") {
+      setImage("youtube", form.dataset.youtubeImageUrl);
+    }
+  });
+  // A saved image covers the color, so start on the Upload tab rather than Solid color.
+  if (preview.style.backgroundImage) {
+    selectTab(form.querySelector("#thumbnail-tab-upload"));
+  }
 
   form.querySelector("#thumbnail-upload").addEventListener("change", async (event) => {
     const file = event.target.files[0];
@@ -93,12 +104,9 @@ function setupEditor(dialog) {
     } catch {
       displayUserMessage("error", "That file could not be read as an image.");
     }
+    // Lets the same file be picked again after switching away from it.
+    event.target.value = "";
   });
-
-  form.querySelector("#thumbnail-remove-image").addEventListener("click", () => setImage("none", null));
-
-  const youtubeButton = form.querySelector("#thumbnail-use-youtube");
-  youtubeButton?.addEventListener("click", () => setImage("youtube", form.dataset.youtubeImageUrl));
 
   const video = form.querySelector("#thumbnail-video");
   if (video) {
@@ -132,6 +140,9 @@ function setupEditor(dialog) {
     }, { once: true });
     scrubber.addEventListener("input", scrubTo);
     form.querySelector("#thumbnail-capture").addEventListener("click", async () => {
+      if (video.seeking) {
+        await new Promise((resolve) => video.addEventListener("seeked", resolve, { once: true }));
+      }
       useBlob(await captureFrame());
     });
   }
