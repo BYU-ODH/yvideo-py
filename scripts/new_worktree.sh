@@ -7,8 +7,8 @@ usage() {
 Usage: bash scripts/new_worktree.sh BRANCH [PATH] [--base=REF] [--no-db]
 
 Creates a git worktree for BRANCH and prepares it for local development:
-- symlinks untracked local files (node_modules, secret settings, .env, etc.)
-  from the main worktree
+- symlinks untracked local files (node_modules, secret settings, .env, the
+  demo film cache, etc.) from the main worktree
 - runs uv sync --dev
 - creates a fresh SQLite database with migrate and seed_demo_data
 
@@ -109,7 +109,12 @@ shared_paths=(
     yvideo/secret_settings.py
     scripts/dump_legacy_to_sqlite_settings.py
     .claude/settings.local.json
+    AGENTS.md
+    demo_media/films
 )
+
+# Every worktree shares one demo film cache, so make sure there is one to link to.
+mkdir -p "$main_root/demo_media/films"
 
 for rel in "${shared_paths[@]}"; do
     src="$main_root/$rel"
