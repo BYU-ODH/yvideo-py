@@ -2796,7 +2796,8 @@ export class Editor {
 
 
   watchAndHandleAnnotationSetDelete() {
-      if (!this.canEditAnnotationSet) return;
+
+      if (this.timelineWrapper.dataset["annotationSetId"] == '' || !this.canEditAnnotationSet) return;
 
     const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
       if (!deleteAnnotationSetButton) {
@@ -2809,11 +2810,14 @@ export class Editor {
         if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
           return;
         }
+        const newOwner = document.getElementById("annotation-set-new-owner");
         const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/delete/`, {
           method: "DELETE",
           headers: {
-            "X-CSRFToken": getCSRFToken()
-          }
+            "X-CSRFToken": getCSRFToken(),
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({new_owner_id: newOwner?.value || null})
         });
         if (!deleteResponse.ok) {
           displayUserMessage("error", "Failed to delete annotation set");
