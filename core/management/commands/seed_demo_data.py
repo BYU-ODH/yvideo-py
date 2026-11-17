@@ -2,11 +2,15 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 
+from core.demo_films import DEMO_FILMS
 from core.dev_seed import seed_demo_data
 
 
 class Command(BaseCommand):
-    help = "Create deterministic local demo data and copy sample media into MEDIA_ROOT."
+    help = (
+        "Create deterministic local demo data, copy sample media into MEDIA_ROOT, "
+        "and link in any demo films cached by fetch_demo_films."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -34,6 +38,9 @@ class Command(BaseCommand):
                     f"Admin netid: {summary['seeded_admin_netid']}",
                     f"Admin password: {summary['seeded_admin_password']}",
                     f"Sample content: {summary['sample_content_title']}",
+                    f"Demo films: {summary['demo_films']} of {len(DEMO_FILMS)}",
                 ]
             )
         )
+        if summary["demo_films"] < len(DEMO_FILMS):
+            self.stdout.write("Run fetch_demo_films to download the missing films.")

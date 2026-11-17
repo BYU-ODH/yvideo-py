@@ -59,6 +59,7 @@ def seeded_demo_data(settings, tmp_path, transactional_db):
     settings.DEBUG = True
     settings.DEV_QUICK_LOGIN_ENABLED = True
     settings.MEDIA_ROOT = media_root
+    settings.DEMO_FILMS_DIR = tmp_path / "no-films"
     settings.ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
     settings.SECRET_KEY = "test-secret-key"
 

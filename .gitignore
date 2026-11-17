@@ -1,6 +1,9 @@
 data/
 media/
 ic_projection/
+# Demo film cache (fetch_demo_films); no trailing slash so worktree symlinks match too
+demo_media/films
+AGENTS.md
 # Scratch files (screenshots, throwaway scripts)
 tmp/
 secret_settings.py
@@ -13,6 +16,7 @@ scripts/dump_legacy_to_sqlite_settings.py
 *.sqlite3
 *staticfiles
 *media
+!/demo_media/
 *requirements.txt
 
 # BDR notes to self about the task at hand

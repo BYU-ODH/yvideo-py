@@ -1,0 +1,7604 @@
+1
+00:00:16,100 --> 00:00:18,433
+SELZNICK INTERNATIONAL
+presents
+
+2
+00:00:18,500 --> 00:00:21,700
+"A STAR IS BORN"
+
+3
+00:00:21,701 --> 00:00:24,301
+IN TECHNICOLOR
+
+4
+00:00:25,500 --> 00:00:29,766
+STARRING
+JANET GAYNOR
+and
+FREDRIC MARCH
+
+5
+00:00:30,367 --> 00:00:34,867
+FEATURING
+ADOLPHE MENDJOV / MAY ROBSON
+ANDY DEVINE / LIONEL STANDER
+AND MANY MORE ...
+
+6
+00:00:39,768 --> 00:00:42,318
+SCREEN PLAY BY
+DOROTHY PARKER  -  ALAN CAMPBELL
+ROBERT CARSON
+
+7
+00:00:42,369 --> 00:00:44,919
+FROM A STORY BY
+WILLIAM WELLMAN AND ROBERT CARSON
+
+8
+00:00:44,990 --> 00:00:47,690
+RELEASED BY
+UNITED ARTIST
+
+9
+00:00:48,314 --> 00:00:53,814
+....
+
+10
+00:00:58,562 --> 00:01:02,062
+DIRECTED
+BY
+WILLIAM A. WELLMAN
+
+11
+00:01:02,164 --> 00:01:05,664
+PRODUCED
+BY
+DAVID O. SELZNICK
+
+12
+00:01:16,166 --> 00:01:19,400
+Screen Play
+"<u>A</u> <u>STAR</u> <u>IS</u> <u>BORN</u>"
+FINAL SHOOTING SCRIPT
+
+13
+00:01:19,550 --> 00:01:21,116
+The events and characters depicted in this photoplay are fictitious.
+
+14
+00:01:21,133 --> 00:01:23,900
+Any similarity to actual persons living or dead is purely coincidental.
+
+15
+00:01:24,200 --> 00:01:26,033
+A STAR IS BORN
+Scene 1
+
+16
+00:01:26,100 --> 00:01:28,066
+FADE IN:
+MOONLIGHT. LONG SHOT EXPANSE OF SNOW.
+
+17
+00:01:28,133 --> 00:01:31,066
+In the foreground a wolf silhouetted in the moonlight.
+
+18
+00:01:31,200 --> 00:01:34,033
+In the background the isolated farmhouse of the Blodgetts.
+
+19
+00:01:34,166 --> 00:01:37,466
+As we hear the melancholy howling of the wolf, we --
+DISVOLVE TO:
+
+20
+00:01:37,550 --> 00:01:44,330
+(Howling)
+
+21
+00:01:47,300 --> 00:01:49,800
+Well, home from the movies at last.
+
+22
+00:01:50,000 --> 00:01:51,200
+Looks like it, Aunt Mattle.
+
+23
+00:01:52,200 --> 00:01:52,866
+Hi, Dad!
+
+24
+00:01:53,100 --> 00:01:54,000
+Hello, Son!
+
+25
+00:01:55,033 --> 00:01:57,400
+Well, daughter, how was the movie pictured tonight?
+
+26
+00:01:57,600 --> 00:01:59,200
+Hmm.
+Lovely.
+
+27
+00:01:59,933 --> 00:02:02,200
+Right, that's what it was. Just a lot of mud.
+
+28
+00:02:02,400 --> 00:02:04,200
+There wasn't anybody killed in the whole thing.
+
+29
+00:02:04,400 --> 00:02:07,100
+No, well then, I'll stick to these, these don't talk.
+
+30
+00:02:07,400 --> 00:02:10,133
+Well, that big clock, Norman Maine was in the pictures tonight,
+
+31
+00:02:10,500 --> 00:02:12,500
+he never does anything but kiss a lot of girls.
+
+32
+00:02:12,900 --> 00:02:14,933
+Norman Maine, is one of the best actors in pictures.
+
+33
+00:02:15,200 --> 00:02:17,300
+You and your movies.
+That's all that you think about.
+
+34
+00:02:17,600 --> 00:02:20,400
+You shouldn't be allowed to go to them at all, if you ask me.
+
+35
+00:02:20,966 --> 00:02:23,100
+Too bad I was so busy in the kitchen.
+
+36
+00:02:24,000 --> 00:02:26,300
+And I didn't hear anybody asking you.
+
+37
+00:02:26,600 --> 00:02:27,266
+Hello, Granny!
+
+38
+00:02:27,400 --> 00:02:28,366
+Hello, Darling
+
+39
+00:02:28,500 --> 00:02:30,266
+And off course no one ever listens to me!
+
+40
+00:02:30,433 --> 00:02:32,333
+They do if they're within ten miles of ya.
+
+41
+00:02:32,500 --> 00:02:33,933
+Gathering around picture shows,
+
+42
+00:02:34,266 --> 00:02:36,233
+house all covered up with movies magazines.
+
+43
+00:02:36,600 --> 00:02:39,566
+And the other day I caught her talking to a horse with a Swedish accent!
+
+44
+00:02:39,633 --> 00:02:40,600
+Well, Sis...
+
+45
+00:02:41,766 --> 00:02:43,400
+...you're only young once, you know?
+
+46
+00:02:45,766 --> 00:02:46,666
+Ah!
+
+47
+00:02:47,500 --> 00:02:48,500
+Hollywood!
+
+48
+00:02:49,283 --> 00:02:52,575
+You'd better be getting yourself a good husband and stop mooning about Hollywood.
+
+49
+00:02:53,100 --> 00:02:54,300
+You know what she wants to do?
+
+50
+00:02:54,600 --> 00:02:56,400
+She wants to go to Hollywood!
+
+51
+00:02:57,566 --> 00:02:59,333
+I've noted all along.
+
+52
+00:02:59,900 --> 00:03:02,766
+I've seen her making faces in the mirror and talking to herself
+
+53
+00:03:03,366 --> 00:03:05,000
+That's what comes of your movies!
+
+54
+00:03:06,166 --> 00:03:09,166
+Why? What would you do if you did go to Hollywood?
+
+55
+00:03:09,600 --> 00:03:10,700
+I'd be an actress.
+
+56
+00:03:10,833 --> 00:03:11,733
+Ha, ha, ha, ha.
+
+57
+00:03:12,000 --> 00:03:13,900
+I would, I tell ya, I've always known I could.
+
+58
+00:03:14,500 --> 00:03:19,633
+Guys, wouldn't it be wonderful to have a movie star in the family?
+Oh, Miss Blodgett, may I have your autograph?
+
+59
+00:03:19,800 --> 00:03:23,200
+You may not know it Aleck, but you're practically on your way to bed.
+
+60
+00:03:23,233 --> 00:03:27,100
+Oh, Miss Blodgett you're my favorite actress, wouldn't you tell me the secret of your success?
+
+61
+00:03:27,300 --> 00:03:28,000
+Oh, let me alone!
+
+62
+00:03:28,700 --> 00:03:30,466
+Why Esther, what's come over you?
+
+63
+00:03:30,600 --> 00:03:32,100
+I'll tell you what's come over her.
+
+64
+00:03:32,400 --> 00:03:35,700
+She's just a silly little girl whose head is been turned by the movies
+
+65
+00:03:35,800 --> 00:03:38,600
+And as soon as she forgets the whole thing, the better off she'll be.
+
+66
+00:03:38,700 --> 00:03:40,100
+Oh, why will I be better off?
+
+67
+00:03:40,200 --> 00:03:44,900
+What's wrong with want to go out and make something of myself? What do you do that's so much better?
+
+68
+00:03:45,000 --> 00:03:48,600
+Just because you're satisfied to sit here all your life, you think you can laugh at me!
+
+69
+00:03:48,700 --> 00:03:53,300
+Well, some day you won't laugh at me! I'm going out and have a real life! I'm gonna be somebody!
+
+70
+00:03:57,933 --> 00:04:02,600
+Now if it was spring, I'd say give her a good dose of sulfur and molasses.
+
+71
+00:04:07,300 --> 00:04:09,266
+I thought I'd find you up.
+
+72
+00:04:10,500 --> 00:04:11,600
+Oh, stop that!
+
+73
+00:04:11,900 --> 00:04:14,000
+Now stop crying! that isn't going to do you a bit good.
+
+74
+00:04:14,133 --> 00:04:17,233
+I'm crying because Aunt Mattie and Aleck make so mad.
+
+75
+00:04:17,400 --> 00:04:21,300
+Well, it's your aunt Mattie, Aleck.
+They're not important.
+
+76
+00:04:22,000 --> 00:04:24,066
+You're the only one that counts.
+
+77
+00:04:24,100 --> 00:04:27,966
+Esther, everyone in this world who has ever dreamed about better things
+
+78
+00:04:28,075 --> 00:04:30,575
+has been laughed at, don't you know that?
+
+79
+00:04:30,900 --> 00:04:32,200
+Oh, I suppose I do, but --
+
+80
+00:04:32,433 --> 00:04:34,866
+But there's a difference between dreaming and doing.
+
+81
+00:04:35,300 --> 00:04:37,366
+The dreamers just sit around and moon
+
+82
+00:04:37,433 --> 00:04:39,500
+about how wonderful it would be
+
+83
+00:04:39,533 --> 00:04:41,633
+if only things were different.
+
+84
+00:04:42,700 --> 00:04:44,800
+And the years roll on and they grow old
+
+85
+00:04:45,800 --> 00:04:47,666
+and by and by they forget everything,
+
+86
+00:04:48,266 --> 00:04:49,900
+even about their dreams.
+
+87
+00:04:50,100 --> 00:04:52,900
+I don't want to be like that,
+I want to be somebody,
+
+88
+00:04:53,000 --> 00:04:53,966
+Oh yes, oh yes.
+
+89
+00:04:54,066 --> 00:04:55,333
+You want to be somebody,
+
+90
+00:04:55,700 --> 00:04:56,800
+but you want it to be easy.
+
+91
+00:04:57,066 --> 00:04:59,600
+Oh, you modern girls give me a pain!
+
+92
+00:05:00,400 --> 00:05:01,766
+When I wanted something better,
+
+93
+00:05:01,966 --> 00:05:05,900
+I came across those planes in the prairies... with your Grandfather.
+
+94
+00:05:06,600 --> 00:05:09,866
+Oh, everyone laughed at us, like they did with the other pioneers.
+
+95
+00:05:10,400 --> 00:05:12,700
+They said this country will never be anything but a wilderness.
+
+96
+00:05:13,242 --> 00:05:14,783
+We didn't believe that.
+
+97
+00:05:15,100 --> 00:05:17,100
+We were going to make a new country.
+
+98
+00:05:18,033 --> 00:05:18,600
+Besides,
+
+99
+00:05:19,600 --> 00:05:22,800
+we wanted to see our dreams come true.
+
+100
+00:05:23,033 --> 00:05:24,766
+Oh Granny, it must have been wonderful.
+
+101
+00:05:25,000 --> 00:05:26,266
+It was wonderful.
+
+102
+00:05:26,766 --> 00:05:30,566
+But don't you think for one single minute that it was easy, Esther Blodgett.
+
+103
+00:05:31,533 --> 00:05:34,242
+We burned in summer and we froze in winter.
+
+104
+00:05:34,466 --> 00:05:37,100
+But we kept right on going and we didn't complain.
+
+105
+00:05:37,300 --> 00:05:39,466
+Because we were doing what we wanted to do!
+
+106
+00:05:40,533 --> 00:05:41,733
+Can you understand that?
+
+107
+00:05:44,166 --> 00:05:45,133
+Yes, I can.
+
+108
+00:05:47,100 --> 00:05:48,200
+Could you do it?
+
+109
+00:05:49,633 --> 00:05:51,800
+Could you do it even if it broke your heart?
+
+110
+00:05:52,700 --> 00:05:53,733
+Because remember Esther,
+
+111
+00:05:53,800 --> 00:05:55,933
+for every dream of yours you make come true,
+
+112
+00:05:56,066 --> 00:05:58,400
+you'll pay the price in heartbreak.
+
+113
+00:06:01,533 --> 00:06:03,600
+I know what I'm talking about.
+
+114
+00:06:04,758 --> 00:06:05,950
+You may not believe it,
+
+115
+00:06:06,742 --> 00:06:08,242
+but I was a young girl once.
+
+116
+00:06:09,123 --> 00:06:10,609
+A very pretty young girl,
+
+117
+00:06:10,800 --> 00:06:12,300
+a lot prettier than you are.
+
+118
+00:06:13,966 --> 00:06:15,866
+I was in love with your grandfather,
+
+119
+00:06:16,566 --> 00:06:18,933
+and when some indian devil put a bullet through him,
+
+120
+00:06:19,633 --> 00:06:22,266
+I felt like it had come straight through my heart too.
+
+121
+00:06:23,100 --> 00:06:24,666
+I remembered all he taught me
+
+122
+00:06:25,470 --> 00:06:26,956
+and I went right on him.
+
+123
+00:06:27,333 --> 00:06:29,633
+I buried him out there on that wilderness
+
+124
+00:06:29,700 --> 00:06:30,600
+with my own hands.
+
+125
+00:06:32,033 --> 00:06:33,666
+I went right on that same day
+
+126
+00:06:34,800 --> 00:06:37,000
+And I kept right on the way,
+
+127
+00:06:37,500 --> 00:06:39,200
+even when your mother was born.
+
+128
+00:06:40,466 --> 00:06:44,166
+Oh Granny, I would make it worthwhile.
+
+129
+00:06:48,500 --> 00:06:49,266
+You know, Esther,
+
+130
+00:06:49,800 --> 00:06:51,633
+there'll always be a wilderness to conquer.
+
+131
+00:06:52,500 --> 00:06:54,833
+Maybe Hollywood is your wilderness now.
+
+132
+00:06:55,600 --> 00:06:56,800
+From all I hear,
+
+133
+00:06:57,400 --> 00:06:58,233
+it sounds like it.
+
+134
+00:06:59,766 --> 00:07:02,300
+But if you've got one drop of my blood in your veins,
+
+135
+00:07:03,166 --> 00:07:06,466
+you won't let Mattie or any of her kind break your heart,
+
+136
+00:07:07,166 --> 00:07:09,800
+you'll go right out there and break it yourself.
+
+137
+00:07:10,533 --> 00:07:11,500
+That's your right.
+
+138
+00:07:15,100 --> 00:07:15,466
+Here.
+
+139
+00:07:15,900 --> 00:07:17,533
+Oh, here, here, stop that nonsense.
+
+140
+00:07:18,866 --> 00:07:19,200
+Here.
+
+141
+00:07:20,300 --> 00:07:21,433
+Take this and go to your Hollywood.
+
+142
+00:07:21,900 --> 00:07:23,200
+Oh, I can't take you money.
+
+143
+00:07:23,300 --> 00:07:24,066
+Well, why not?
+
+144
+00:07:24,133 --> 00:07:25,100
+it's your savings!
+
+145
+00:07:25,366 --> 00:07:27,200
+Well, I was only saving up for my funeral.
+
+146
+00:07:27,733 --> 00:07:29,566
+Now I don't think I'm ever going to die.
+
+147
+00:07:29,900 --> 00:07:32,266
+Oh, granny, how can I ever thank you?
+
+148
+00:07:32,500 --> 00:07:35,600
+By giving me your word of honor that you'll never tell a living soul
+
+149
+00:07:35,700 --> 00:07:37,100
+where you got that money.
+
+150
+00:07:37,500 --> 00:07:38,033
+I promise.
+
+151
+00:07:38,433 --> 00:07:40,433
+Remember,
+if you do,
+
+152
+00:07:41,333 --> 00:07:42,833
+I'll have you arrested for robbing me.
+
+153
+00:07:51,900 --> 00:07:53,200
+Here we are.
+
+154
+00:07:53,500 --> 00:07:54,600
+Want me to help you, Granny?
+
+155
+00:07:54,833 --> 00:07:55,900
+Oh, I can make it, Dear.
+
+156
+00:07:57,633 --> 00:07:58,200
+Oh!
+
+157
+00:07:58,400 --> 00:08:00,400
+Man, it's cold, uh.
+
+158
+00:08:00,600 --> 00:08:03,733
+I kissed Dad goodbye,
+just a little kiss, he didn't even wake up.
+
+159
+00:08:03,900 --> 00:08:05,400
+I bet you didn't try that on your Aunt Mattie.
+
+160
+00:08:05,600 --> 00:08:06,633
+Oh, Aunt Mattie...
+
+161
+00:08:06,800 --> 00:08:08,033
+Think of her face when you tell her.
+
+162
+00:08:08,100 --> 00:08:09,400
+I am thinking about it.
+
+163
+00:08:10,000 --> 00:08:12,300
+I've waited for that chance for thirty years.
+
+164
+00:08:13,133 --> 00:08:14,300
+Fresh air
+
+165
+00:08:14,433 --> 00:08:16,633
+Oh, thank you Grelsy.
+Girls, eh?
+
+166
+00:08:21,200 --> 00:08:23,066
+Come on, come on!
+
+167
+00:08:23,600 --> 00:08:25,566
+Look, there is you train.
+
+168
+00:08:37,600 --> 00:08:38,733
+All aboard!
+
+169
+00:08:39,433 --> 00:08:40,666
+Oh, Granny!
+
+170
+00:08:42,333 --> 00:08:44,933
+Come on, come on! go on! go on!
+
+171
+00:08:46,950 --> 00:08:47,950
+Good bye Granny!
+
+172
+00:08:48,200 --> 00:08:49,166
+Good bye!
+
+173
+00:08:49,600 --> 00:08:51,800
+I'll be waiting for you in those movies pictures.
+
+174
+00:08:52,700 --> 00:08:53,700
+And don't tell Mattie,
+
+175
+00:08:54,233 --> 00:08:56,400
+you know my eyes are not as good as they used to be,
+
+176
+00:08:56,866 --> 00:08:58,200
+But my ears are alright.
+
+177
+00:08:58,600 --> 00:09:01,100
+So you remember, talk up good and loud.
+
+178
+00:09:03,800 --> 00:09:04,933
+All aboard!
+
+179
+00:09:06,233 --> 00:09:06,900
+Goodbye!
+
+180
+00:09:07,700 --> 00:09:08,333
+Goodbye!
+
+181
+00:09:11,500 --> 00:09:12,200
+Goodbye Granny!
+
+182
+00:09:14,000 --> 00:09:14,633
+Goodbye.
+
+183
+00:09:19,700 --> 00:09:21,066
+Do you want to go home now?
+
+184
+00:09:22,600 --> 00:09:23,566
+I don't want to
+
+185
+00:09:24,600 --> 00:09:25,966
+but I will.
+
+186
+00:09:31,533 --> 00:09:35,133
+HOLLYWOOD
+...the beckoning El Dorado...
+
+187
+00:09:35,217 --> 00:09:39,000
+Metropolis of Make-Believe in the Californian hills.
+
+188
+00:11:05,500 --> 00:11:07,433
+ROOMS FOR RENT
+Hollywood
+
+189
+00:11:07,500 --> 00:11:09,333
+$6 WEEKLY
+
+190
+00:11:09,400 --> 00:11:11,800
+Large rooms, running water.
+
+191
+00:11:11,900 --> 00:11:13,400
+No cowboys.
+
+192
+00:11:13,400 --> 00:11:15,200
+Convenient to all studios.
+
+193
+00:11:27,966 --> 00:11:28,833
+Good Afternoon.
+
+194
+00:11:30,608 --> 00:11:31,942
+Day, week or month?
+
+195
+00:11:32,608 --> 00:11:34,442
+But it's a little hard to say you see,
+
+196
+00:11:34,800 --> 00:11:35,900
+I'm going into the movies.
+
+197
+00:11:36,100 --> 00:11:37,433
+Well you better take it for a week,
+
+198
+00:11:37,500 --> 00:11:39,600
+it'll break your jump to Beverly Hills.
+
+199
+00:11:40,033 --> 00:11:41,700
+Are all the studios really near here?
+
+200
+00:11:42,900 --> 00:11:44,766
+All except Gramon British.
+
+201
+00:11:45,525 --> 00:11:48,775
+I suppose the best way to get a job is to go straight to the studios, isn't it?
+
+202
+00:11:49,900 --> 00:11:52,300
+I have many illusions you know, I am perfectly willing to begin with...
+
+203
+00:11:52,500 --> 00:11:53,566
+ooh a little bit of a part,
+
+204
+00:11:53,733 --> 00:11:54,833
+or even as an extra.
+
+205
+00:11:55,158 --> 00:11:56,408
+$6 please
+
+206
+00:11:56,500 --> 00:11:57,200
+in advance.
+
+207
+00:11:58,033 --> 00:11:58,500
+Oh.
+
+208
+00:12:09,250 --> 00:12:10,350
+Miss Esther Blodgett:
+
+209
+00:12:10,400 --> 00:12:12,066
+Your application for extra work received.
+
+210
+00:12:12,133 --> 00:12:13,900
+All extra talent is engaged by this studio,
+
+211
+00:12:13,900 --> 00:12:16,000
+as by all other major studios,
+
+212
+00:12:16,066 --> 00:12:18,100
+through the Central Casting Corporation at.
+
+213
+00:12:19,166 --> 00:12:20,466
+DO YOU UNDERSTAND FIGURES?
+
+214
+00:12:20,500 --> 00:12:21,566
+Extras Registered with us:
+
+215
+00:12:21,600 --> 00:12:22,650
+Women - 5,393
+
+216
+00:12:22,700 --> 00:12:23,733
+Men - 5,517
+
+217
+00:12:23,800 --> 00:12:24,800
+Children - 1,506
+
+218
+00:12:24,900 --> 00:12:26,166
+Total 12,146
+
+219
+00:12:46,533 --> 00:12:47,833
+I beg your pardon,
+
+220
+00:12:48,853 --> 00:12:50,658
+I'd like to register for extra work.
+
+221
+00:12:51,700 --> 00:12:52,800
+How long have you been in Hollywood?
+
+222
+00:12:53,633 --> 00:12:55,066
+Well, it's about a month now.
+
+223
+00:12:55,866 --> 00:12:58,300
+We haven't put anyone on our books for over two years.
+
+224
+00:13:00,866 --> 00:13:01,866
+Come here,
+
+225
+00:13:05,033 --> 00:13:06,408
+I'd like to show you something.
+
+226
+00:13:11,100 --> 00:13:14,966
+- Try later.
+- No can't be, try later.
+
+227
+00:13:15,300 --> 00:13:18,233
+- Try later, thank you.
+- Not now, try later.
+
+228
+00:13:18,966 --> 00:13:22,100
+Every time you see one of those little lights flash it's somebody asking for a job.
+
+229
+00:13:23,100 --> 00:13:24,333
+every time you hear them say: "Try later",
+
+230
+00:13:24,366 --> 00:13:25,933
+it means there isn't any job.
+
+231
+00:13:28,400 --> 00:13:31,033
+Can't keep the girls at the switchboard long, they'd go crazy.
+
+232
+00:13:32,866 --> 00:13:35,300
+Every one of those little lights thought it was going to be a star.
+
+233
+00:13:36,700 --> 00:13:38,066
+Still wanna go in the movies?
+
+234
+00:13:43,242 --> 00:13:44,533
+You know what your chances are?
+
+235
+00:13:45,825 --> 00:13:47,242
+One in a hundred thousand.
+
+236
+00:13:55,166 --> 00:13:55,800
+Maybe...
+
+237
+00:13:57,033 --> 00:13:58,033
+...I'm that one.
+
+238
+00:14:10,766 --> 00:14:12,233
+Any phone calls for me, Mr. Randall?
+
+239
+00:14:13,200 --> 00:14:13,800
+oh, no.
+
+240
+00:14:15,400 --> 00:14:18,733
+Jesse L. Lasky and Sammy Goldwyn must be writting letters instead.
+
+241
+00:14:21,283 --> 00:14:22,200
+How was the luck today?
+
+242
+00:14:22,492 --> 00:14:23,408
+There wasn't any.
+
+243
+00:14:24,366 --> 00:14:26,200
+Maybe you don't go at in the right way
+
+244
+00:14:26,800 --> 00:14:30,000
+Now take Danny McGuire here, he knows the ropes. Don't you Danny?
+
+245
+00:14:30,266 --> 00:14:32,133
+Sure, I've had 'em around my neck for years.
+
+246
+00:14:37,166 --> 00:14:37,500
+What?
+
+247
+00:14:37,900 --> 00:14:39,600
+Oh, Miss Blodgett,
+
+248
+00:14:39,783 --> 00:14:41,325
+Danny McGuire, our new tenant
+
+249
+00:14:41,950 --> 00:14:42,575
+How do you do?
+
+250
+00:14:43,033 --> 00:14:44,283
+Mr. McGuire is a...
+
+251
+00:14:44,700 --> 00:14:45,617
+...big director.
+
+252
+00:14:48,950 --> 00:14:49,867
+Oh.
+
+253
+00:14:50,366 --> 00:14:51,666
+Are you really?
+
+254
+00:14:53,400 --> 00:14:56,233
+Oh, could you possibly use me in a picture, Mr. McGuire?
+
+255
+00:14:56,766 --> 00:14:58,700
+Of course I haven't had much experience but
+
+256
+00:14:58,933 --> 00:15:01,100
+I don't think that really matters if you're willing.
+
+257
+00:15:01,500 --> 00:15:02,033
+- And I'm --
+
+258
+00:15:02,066 --> 00:15:02,900
+Now listen, lady.
+
+259
+00:15:03,433 --> 00:15:06,900
+In the first place I'm not a director, I'm an assistant director
+
+260
+00:15:07,033 --> 00:15:08,366
+and the second place
+
+261
+00:15:08,700 --> 00:15:12,133
+if I had any jobs to give away, I'd confirm one of them myself.
+
+262
+00:15:12,500 --> 00:15:16,000
+and in the third place, you should have stayed back home in the first place!
+
+263
+00:15:21,133 --> 00:15:22,966
+Oh, no! Look what you've done.
+
+264
+00:15:23,300 --> 00:15:24,733
+Hey, wait a minute!
+
+265
+00:15:25,166 --> 00:15:26,933
+Hey, don't be that way!
+
+266
+00:15:29,400 --> 00:15:30,300
+Don't do that.
+
+267
+00:15:32,300 --> 00:15:34,333
+Gosh, I didn't mean to get tough.
+
+268
+00:15:35,200 --> 00:15:37,000
+A guy thinks he's being kidded when
+
+269
+00:15:37,894 --> 00:15:40,033
+somebody asking for a job and,
+
+270
+00:15:41,033 --> 00:15:42,700
+he hasn't got one for himself.
+
+271
+00:15:46,117 --> 00:15:48,367
+After all, I'm not a big enough shot to
+
+272
+00:15:48,566 --> 00:15:49,433
+hurt your feelings.
+
+273
+00:15:49,733 --> 00:15:50,966
+I'm sorry.
+
+274
+00:15:51,533 --> 00:15:53,658
+It wasn't just that, oh, it was a lot of things.
+
+275
+00:15:54,000 --> 00:15:56,933
+I've been for a job everyday and never getting any nearer to it.
+
+276
+00:15:57,575 --> 00:15:59,367
+I guess I was beginning to get a little scared.
+
+277
+00:16:00,300 --> 00:16:01,066
+I know.
+
+278
+00:16:01,700 --> 00:16:03,533
+Lady, do I know.
+
+279
+00:16:04,100 --> 00:16:06,533
+Well, There's only one thing to do when you're feeling
+
+280
+00:16:06,700 --> 00:16:09,066
+tired and sunk and down to your last nickle.
+
+281
+00:16:09,133 --> 00:16:10,566
+Come on and I'll buy you a drink.
+
+282
+00:16:10,933 --> 00:16:12,900
+Well its not as bad as down to the last nickle
+
+283
+00:16:13,100 --> 00:16:14,533
+I've still got $11 left.
+
+284
+00:16:14,933 --> 00:16:16,233
+$11 dollars!
+
+285
+00:16:16,700 --> 00:16:19,133
+You're gonna buy me a drink! Come on!
+
+286
+00:16:25,966 --> 00:16:26,900
+That's right George
+
+287
+00:16:27,000 --> 00:16:28,633
+there's nothing like a little rum to
+
+288
+00:16:28,666 --> 00:16:30,266
+take away that milk flavor.
+
+289
+00:16:39,133 --> 00:16:41,066
+I beg your pardon.
+
+290
+00:16:41,233 --> 00:16:42,200
+Certainly.
+
+291
+00:16:50,800 --> 00:16:54,000
+and when I sign my contract, the first thing
+I'm gonna do is see that you direct every picture that I'm in.
+
+292
+00:16:54,300 --> 00:16:55,733
+Thats my pal!
+
+293
+00:16:57,366 --> 00:16:59,166
+Of course I'm going to be perfectly nice about it, but
+
+294
+00:16:59,600 --> 00:17:00,900
+I'll just insist.
+
+295
+00:17:03,825 --> 00:17:05,408
+Now that's the way to talk.
+
+296
+00:17:05,742 --> 00:17:07,492
+Don't let 'em lick ya.
+
+297
+00:17:07,600 --> 00:17:08,533
+They can't lick me,
+
+298
+00:17:08,733 --> 00:17:10,100
+If they anything like that well,
+
+299
+00:17:12,500 --> 00:17:13,800
+I just won't sign.
+
+300
+00:17:14,950 --> 00:17:17,462
+Now that's right.
+What have you got to lose?
+
+301
+00:17:18,308 --> 00:17:21,641
+Another one of these and we'll open our own studio.
+
+302
+00:17:28,266 --> 00:17:28,966
+Bill rendered,
+
+303
+00:17:29,233 --> 00:17:30,333
+twenty four dollars.
+
+304
+00:17:30,866 --> 00:17:31,933
+Past due.
+
+305
+00:17:32,366 --> 00:17:34,600
+Remit without further delay.
+
+306
+00:17:35,800 --> 00:17:36,566
+Me.
+<u>(The Management)</u>
+
+307
+00:17:46,400 --> 00:17:47,033
+Poor kid.
+
+308
+00:17:47,133 --> 00:17:50,200
+If she can't pay the bills she gets
+
+309
+00:17:51,100 --> 00:17:51,800
+No.
+
+310
+00:18:09,500 --> 00:18:13,466
+Fifth race, fifth race, I can't... I can't believe it...
+
+311
+00:18:17,558 --> 00:18:19,812
+HOLLYWOOD BOWL
+
+312
+00:18:32,165 --> 00:18:34,162
+Hey! The program is gonna be swell tonight.
+
+313
+00:18:34,433 --> 00:18:36,300
+Now you take this fella Beethoven:
+
+314
+00:18:36,400 --> 00:18:37,933
+I'm a pushover for him.
+
+315
+00:18:38,200 --> 00:18:39,200
+And Chopin -
+
+316
+00:18:39,600 --> 00:18:41,133
+well, he's not so dusty, either.
+
+317
+00:18:41,400 --> 00:18:43,533
+But I kinda wish that once in awhile that
+
+318
+00:18:43,700 --> 00:18:46,166
+play something you could sorta go out whistling.
+
+319
+00:18:46,400 --> 00:18:49,466
+You know, like "Blood on the saddle, blood on..."
+
+320
+00:18:51,333 --> 00:18:52,966
+well now there's a tune
+
+321
+00:18:53,500 --> 00:18:56,033
+Hey, why don't you throw your hat in the air or something. Can't you?
+
+322
+00:18:56,200 --> 00:18:58,566
+but this is a celebration, my job starts tomorrow
+
+323
+00:18:58,700 --> 00:19:00,900
+I know it does, and I think it's swell, Danny.
+
+324
+00:19:01,733 --> 00:19:03,533
+Gee, I wish you were in on it too.
+
+325
+00:19:04,133 --> 00:19:06,600
+But oh no, it would have to be a war picture.
+
+326
+00:19:06,933 --> 00:19:10,975
+A big novelty number. The war picture without any beautiful women at the front.
+
+327
+00:19:11,700 --> 00:19:13,300
+Oh well, something'll happen soon.
+
+328
+00:19:13,433 --> 00:19:14,000
+Maybe.
+
+329
+00:19:15,966 --> 00:19:17,500
+why don't you go home kid?
+
+330
+00:19:18,600 --> 00:19:20,333
+Oh Danny, I can't do that.
+
+331
+00:19:20,533 --> 00:19:22,500
+I came here and I've got to stay.
+
+332
+00:19:23,233 --> 00:19:25,033
+Well now, if it's on account of money I can...
+
+333
+00:19:25,200 --> 00:19:26,866
+Thank you but you given enough already
+
+334
+00:19:27,000 --> 00:19:29,900
+Anyhow this is no time to be worrying, this is a party!
+
+335
+00:19:32,133 --> 00:19:33,633
+Look at all the people.
+
+336
+00:19:33,833 --> 00:19:35,900
+Everybody in the world,
+
+337
+00:19:37,500 --> 00:19:38,066
+Look
+
+338
+00:19:40,166 --> 00:19:41,700
+That's Norman Maine
+
+339
+00:19:48,200 --> 00:19:51,633
+seems to have had that one extra cocktail
+
+340
+00:20:00,000 --> 00:20:01,700
+Oh, Thank you.
+
+341
+00:20:04,300 --> 00:20:07,500
+Sit down you dope that's for the orchestra leader.
+
+342
+00:20:14,400 --> 00:20:16,700
+Hello...
+Hello, Norman.
+
+343
+00:20:18,000 --> 00:20:20,233
+Oh, Mr. Maine, Mr. Maine,
+
+344
+00:20:20,633 --> 00:20:22,300
+Put your arm around Miss Regis.
+
+345
+00:20:22,433 --> 00:20:25,333
+Arlow, this is the Hollywood Bowl.
+
+346
+00:20:26,066 --> 00:20:27,200
+oh, afraid of crowds?
+
+347
+00:20:27,400 --> 00:20:29,033
+Go ahead, go on, Get outta here!
+
+348
+00:20:29,833 --> 00:20:32,500
+What's the matter? You getting too big to bother with photographers?
+
+349
+00:20:32,666 --> 00:20:34,733
+don't want any pictures taken now.
+
+350
+00:20:35,500 --> 00:20:38,233
+Oh is that so? Well supposing I take it anyway
+
+351
+00:20:38,700 --> 00:20:41,200
+I'll shove that Brownie Number 2 of yours down your throat.
+
+352
+00:20:41,400 --> 00:20:42,700
+Thank you! Mr. Maine!
+
+353
+00:20:42,866 --> 00:20:44,000
+No! Stop it!
+
+354
+00:20:45,333 --> 00:20:45,833
+No!
+
+355
+00:20:46,600 --> 00:20:47,266
+Stop it!
+
+356
+00:20:47,500 --> 00:20:48,700
+No, Stop!
+
+357
+00:20:49,300 --> 00:20:50,266
+Come on!
+
+358
+00:20:50,966 --> 00:20:51,900
+Take it easy, Mr. Maine!
+
+359
+00:20:52,200 --> 00:20:52,866
+Hey, take your hands off.
+
+360
+00:20:52,966 --> 00:20:53,900
+Calm down, please.
+
+361
+00:20:55,500 --> 00:20:58,766
+Norman! come back and sit down everybody's laughing at you.
+
+362
+00:21:05,400 --> 00:21:06,033
+Alright, already...
+
+363
+00:21:06,100 --> 00:21:06,866
+Hi, Norman.
+
+364
+00:21:09,333 --> 00:21:10,633
+Is he always like that?
+
+365
+00:21:11,275 --> 00:21:13,633
+Well, I suppose he has to sleep sometime.
+
+366
+00:21:13,733 --> 00:21:16,166
+Oh and he is so wonderful on the screen.
+
+367
+00:21:33,600 --> 00:21:35,700
+...and thanks again, dear Granny, for the money -
+
+368
+00:21:35,800 --> 00:21:37,933
+but you mustn't keep sending it.
+
+369
+00:21:38,000 --> 00:21:40,033
+Everything is going beautifully now.
+
+370
+00:21:40,100 --> 00:21:42,333
+In fact, Daniel McGuire, the director,
+
+371
+00:21:42,400 --> 00:21:45,500
+says I'm certain to get a job very soon.
+
+372
+00:21:48,800 --> 00:21:49,300
+Come in.
+
+373
+00:21:51,433 --> 00:21:52,200
+Hello, Danny.
+
+374
+00:21:53,400 --> 00:21:54,266
+What's the matter?
+
+375
+00:21:54,866 --> 00:21:57,233
+Belive it or not, I've got a job for you.
+
+376
+00:21:57,300 --> 00:21:58,300
+Ah!
+
+377
+00:21:58,400 --> 00:22:01,200
+Danny, that's wonderful! When do I go to the studio?
+
+378
+00:22:02,066 --> 00:22:04,200
+Well, you don't exactly know there's a studio.
+
+379
+00:22:04,300 --> 00:22:05,433
+Oh! It's on location.
+
+380
+00:22:05,600 --> 00:22:07,400
+No, it's not exactly on location.
+
+381
+00:22:07,533 --> 00:22:11,000
+Of course I haven't any makeup. Will you tell me what to get and sort of help me put it on?
+
+382
+00:22:11,133 --> 00:22:13,100
+Well, you don't exactly need any makeup,
+
+383
+00:22:13,200 --> 00:22:15,633
+you see it's not really a picture job
+
+384
+00:22:15,700 --> 00:22:17,866
+it's, it's well it's being a waitress.
+
+385
+00:22:20,800 --> 00:22:21,366
+Oh.
+
+386
+00:22:22,883 --> 00:22:25,925
+Well it's kind of a picture job if you look at it right.
+
+387
+00:22:27,100 --> 00:22:28,533
+but you said it was a waitress.
+
+388
+00:22:28,800 --> 00:22:30,733
+Well, it's waitressing for Casey Burt.
+
+389
+00:22:30,733 --> 00:22:34,033
+He's a big director over at our studio, he's giving a party tonight
+
+390
+00:22:34,100 --> 00:22:36,833
+to kind of celebrate on account of finishing the picture
+
+391
+00:22:37,258 --> 00:22:40,675
+and he wanted me to get him an extra waitress and it's 5 dollars.
+
+392
+00:22:41,300 --> 00:22:43,105
+and I thought of you right away, Esther.
+
+393
+00:22:43,400 --> 00:22:45,400
+That was awfully sweet of you Danny.
+
+394
+00:22:46,000 --> 00:22:46,633
+Well,
+
+395
+00:22:47,033 --> 00:22:49,766
+They're gonna be a lot of big people at Burke's house
+
+396
+00:22:49,800 --> 00:22:51,900
+I'll bet you there's any number of big directors
+
+397
+00:22:52,266 --> 00:22:54,200
+and if you're there maybe they'll notice you.
+
+398
+00:22:56,966 --> 00:22:58,166
+I could make them notice me.
+
+399
+00:22:58,300 --> 00:23:00,600
+Sure you could Ester! It's your chance!
+
+400
+00:23:02,600 --> 00:23:03,400
+My chance.
+
+401
+00:23:04,600 --> 00:23:06,466
+Alright Danny I'll do it, oh
+
+402
+00:23:06,900 --> 00:23:09,100
+but I can't, I haven't got the right things to wear.
+
+403
+00:23:09,333 --> 00:23:10,933
+Oh! Oh! Here!
+
+404
+00:23:14,533 --> 00:23:18,000
+You don't think the wardrobe department is right next to my office for nothing, do you?
+
+405
+00:23:18,633 --> 00:23:20,675
+Haha a perfect fit!
+
+406
+00:23:36,300 --> 00:23:37,900
+Did you get to the preview last night?
+
+407
+00:23:38,066 --> 00:23:38,733
+I did.
+
+408
+00:23:41,925 --> 00:23:45,008
+Vould you like a little hors d'oeuvre?
+
+409
+00:23:45,600 --> 00:23:47,533
+They are very nice.
+
+410
+00:23:48,300 --> 00:23:48,900
+Well thanks.
+
+411
+00:23:49,883 --> 00:23:51,050
+What did you think of the picture?
+
+412
+00:23:51,800 --> 00:23:53,300
+You should have saved it for Thanksgiving.
+
+413
+00:23:53,500 --> 00:23:54,033
+What a turkey!
+
+414
+00:24:01,666 --> 00:24:04,833
+Will you have some hors d'oeuvres? You do like hors d'oeuvres don't you?
+
+415
+00:24:04,966 --> 00:24:08,866
+I don't think there's anything so enjoyable as hors d'oeuvres before supper
+
+416
+00:24:09,000 --> 00:24:11,400
+And these are really delightful.
+
+417
+00:24:22,675 --> 00:24:25,592
+and at the finish, the kid turns around and sings a lullaby to its mother.
+
+418
+00:24:25,900 --> 00:24:27,500
+Pardon me, big boy
+
+419
+00:24:28,200 --> 00:24:31,066
+but, would you like a little, hors d'oeuvres?
+
+420
+00:24:31,800 --> 00:24:33,466
+They say they're the best.
+
+421
+00:24:34,333 --> 00:24:35,300
+In town.
+
+422
+00:24:35,433 --> 00:24:36,266
+Don't tell me.
+
+423
+00:24:37,000 --> 00:24:37,666
+I know.
+
+424
+00:24:37,800 --> 00:24:38,500
+Mae West.
+
+425
+00:24:39,000 --> 00:24:42,966
+That's a great twist! But where are you gonna find a two month old baby that can sing?
+
+426
+00:24:46,200 --> 00:24:46,933
+Hello, Oliver!
+
+427
+00:24:47,066 --> 00:24:47,800
+Oh, hello Casey!
+
+428
+00:24:48,592 --> 00:24:50,550
+Wanna fire me now or wait till you see the picture?
+
+429
+00:24:51,166 --> 00:24:52,666
+I'm not a director anymore I'm a...
+
+430
+00:24:53,133 --> 00:24:53,787
+male nurse!
+
+431
+00:24:54,550 --> 00:24:55,800
+What's the matter with the picture?
+
+432
+00:24:55,933 --> 00:24:57,366
+A guy by the name of Norman Main
+
+433
+00:24:58,700 --> 00:25:00,966
+His work is beginning to interfere with his drinking.
+
+434
+00:25:02,833 --> 00:25:03,300
+Oliver,
+
+435
+00:25:03,666 --> 00:25:06,700
+don't tell me I'm to direct his next picture, too. -mhm
+
+436
+00:25:08,033 --> 00:25:09,666
+You were my favorite producer.
+
+437
+00:25:10,050 --> 00:25:12,133
+Now wait a minute, you just go right on with your directing.
+
+438
+00:25:12,758 --> 00:25:14,133
+I'll take care of these stars.
+
+439
+00:25:14,342 --> 00:25:15,425
+I know how to handle them.
+
+440
+00:25:15,800 --> 00:25:18,733
+I had a serious talk with Norman after that
+Hollywood Bowl occurrence.
+
+441
+00:25:19,100 --> 00:25:21,100
+And you not have to worry any more about his behavior.
+
+442
+00:25:21,433 --> 00:25:22,366
+Excuse me, Mister Niles.
+
+443
+00:25:23,100 --> 00:25:25,500
+Mr Libby, of your publicity department is on the telephone.
+
+444
+00:25:25,833 --> 00:25:27,233
+He says it's most important Sir.
+
+445
+00:25:27,833 --> 00:25:28,800
+It's about Mr. Maine.
+
+446
+00:25:29,233 --> 00:25:29,766
+Thank you.
+
+447
+00:25:32,700 --> 00:25:34,800
+Oh, it's probably just some little thing.
+
+448
+00:25:35,092 --> 00:25:36,175
+Of course, Oliver!
+
+449
+00:25:36,600 --> 00:25:37,600
+I´ll turn on the radio and see
+
+450
+00:25:37,700 --> 00:25:39,766
+If he's called out the National Guard yet.
+
+451
+00:25:41,633 --> 00:25:42,933
+Hello Libby, what´s the good word?
+
+452
+00:25:43,700 --> 00:25:47,266
+Mister Norman Maine, America's prince charming,
+
+453
+00:25:47,900 --> 00:25:49,800
+Was apprehended driving an ambulance
+
+454
+00:25:49,966 --> 00:25:51,233
+Down Wilshire Blvd!
+
+455
+00:25:51,633 --> 00:25:53,675
+with a siren going full blast
+
+456
+00:25:54,050 --> 00:25:57,342
+He explained he was a tree surgeon on a maternity case.
+
+457
+00:25:57,833 --> 00:25:59,100
+Well... er, will it be in the papers?
+
+458
+00:25:59,533 --> 00:26:01,066
+No it won't be in the papers.
+
+459
+00:26:01,633 --> 00:26:04,092
+But that's a nice expensive hobby of yours.
+
+460
+00:26:04,300 --> 00:26:07,833
+Keeping Mr. Maine's informal entertainment out of the public press.
+
+461
+00:26:09,533 --> 00:26:11,100
+Oh, that´s fine work Libby
+
+462
+00:26:11,433 --> 00:26:13,066
+Try and see that no one gets to Norman.
+
+463
+00:26:13,433 --> 00:26:15,466
+He's probably home sleeping it off.
+
+464
+00:26:16,983 --> 00:26:19,775
+Because you forgot those dopes at the studio for one night
+
+465
+00:26:20,300 --> 00:26:21,500
+Business, business all the time.
+
+466
+00:26:21,650 --> 00:26:23,275
+I dont know what´s gonna become of you
+
+467
+00:26:25,666 --> 00:26:26,500
+Norman!
+
+468
+00:26:27,442 --> 00:26:28,900
+Why didn't you call for me?
+
+469
+00:26:29,633 --> 00:26:31,366
+Oh my darling why didn't I call for you?
+
+470
+00:26:32,400 --> 00:26:34,933
+In case you've forgotten, I was supposed to come here with you.
+
+471
+00:26:35,133 --> 00:26:37,266
+Oh that old hat's alright, I got here without any trouble.
+
+472
+00:26:37,900 --> 00:26:39,500
+The only reason I don't slap your face --
+
+473
+00:26:39,733 --> 00:26:41,600
+Yes, yes, darling. I- I know.
+
+474
+00:26:42,358 --> 00:26:43,150
+Hello John!
+
+475
+00:26:43,433 --> 00:26:44,200
+Oh. Hello, Norman!
+
+476
+00:26:44,200 --> 00:26:46,300
+What's the matter with Oliver?
+he looks as if he got bad news.
+
+477
+00:26:48,400 --> 00:26:48,733
+Hello!
+
+478
+00:26:48,733 --> 00:26:49,333
+Hello Larry.
+
+479
+00:26:51,400 --> 00:26:52,300
+What's the matter, old boy?
+
+480
+00:26:53,266 --> 00:26:54,100
+Maybe I'm wrong.
+
+481
+00:26:54,200 --> 00:26:55,633
+I guess I've been drinking too much lately.
+
+482
+00:26:55,766 --> 00:26:57,566
+Oh you ought to cut that down, it's bad stuff
+
+483
+00:26:58,200 --> 00:26:59,033
+Scotch and soda
+
+484
+00:27:05,184 --> 00:27:06,345
+Come on, come on, come on.
+
+485
+00:27:07,400 --> 00:27:08,933
+The word you know, is pronounced 'when'.
+
+486
+00:27:10,067 --> 00:27:11,400
+Bad dialog Oliver.
+
+487
+00:27:12,108 --> 00:27:13,108
+Would rather not watch this
+
+488
+00:27:14,666 --> 00:27:15,433
+You know best
+
+489
+00:27:16,442 --> 00:27:17,275
+Soda!
+
+490
+00:27:19,266 --> 00:27:20,433
+Thank you!
+
+491
+00:27:21,666 --> 00:27:22,133
+Uh.
+
+492
+00:27:25,525 --> 00:27:26,400
+Go ahead and say it.
+
+493
+00:27:26,733 --> 00:27:27,666
+Got it coming to me.
+
+494
+00:27:28,333 --> 00:27:29,800
+Don't make it tougher on me Norman.
+
+495
+00:27:30,000 --> 00:27:31,433
+I don't want to stand here and preach,
+
+496
+00:27:31,500 --> 00:27:34,466
+but take a look at my side of it, I'm trying to make pictures with you
+
+497
+00:27:34,666 --> 00:27:35,100
+I know, I know.
+
+498
+00:27:35,817 --> 00:27:38,025
+Costs are going up and the grosses are going down.
+
+499
+00:27:38,033 --> 00:27:38,933
+No, it isn't that.
+
+500
+00:27:39,233 --> 00:27:40,433
+I made lots of money with you.
+
+501
+00:27:40,733 --> 00:27:41,866
+And I can afford to take a loss,
+
+502
+00:27:42,200 --> 00:27:44,100
+but I hate to see you going the way of so many others.
+
+503
+00:27:44,233 --> 00:27:46,833
+Why don't you get Lloyds to insure you against me?
+
+504
+00:27:47,100 --> 00:27:49,700
+You can't get insurance against a man forgetting who he is.
+
+505
+00:27:50,358 --> 00:27:54,400
+You're a great star Norman, but there's nobody so big they can afford to have people refuse to work with him.
+
+506
+00:27:54,692 --> 00:27:56,400
+Who doesn't wanna work with me? You--
+
+507
+00:27:56,433 --> 00:27:56,900
+Quiet.
+
+508
+00:27:57,200 --> 00:27:58,666
+Listen, I know plenty people who do.
+
+509
+00:27:58,800 --> 00:27:59,666
+Yes and so do I
+
+510
+00:27:59,800 --> 00:28:02,600
+but your real friends can't stand seeing you start to fall apart.
+
+511
+00:28:03,150 --> 00:28:03,900
+What do you mean by that?
+
+512
+00:28:04,400 --> 00:28:05,866
+First signs are always the same
+
+513
+00:28:06,033 --> 00:28:07,733
+not being able to remember your lines.
+
+514
+00:28:08,192 --> 00:28:09,942
+Camera man struggling to cover your hangovers
+
+515
+00:28:10,000 --> 00:28:11,600
+And all because you have to have a good time...
+
+516
+00:28:11,733 --> 00:28:12,900
+...every day and every night.
+
+517
+00:28:13,200 --> 00:28:14,266
+Listen I've warned you for a long time.
+
+518
+00:28:14,400 --> 00:28:15,700
+I know, Oliver you're a swell guy,
+
+519
+00:28:15,733 --> 00:28:17,900
+you won't lose any money on me.
+I'll promise you that.
+
+520
+00:28:18,533 --> 00:28:20,900
+I'll be ready for the curtains when the time comes.
+
+521
+00:28:23,200 --> 00:28:24,000
+When it does,
+
+522
+00:28:24,800 --> 00:28:25,866
+Here's my epitaph.
+
+523
+00:28:27,300 --> 00:28:29,000
+Good for amusement only.
+
+524
+00:28:30,400 --> 00:28:31,567
+Now I think I'll um...
+
+525
+00:28:32,600 --> 00:28:33,266
+have another drink.
+
+526
+00:28:37,617 --> 00:28:38,492
+Scotch and soda
+
+527
+00:28:43,700 --> 00:28:45,200
+Scotch and Soda.
+
+528
+00:28:51,624 --> 00:28:52,650
+Come on, come on, come on.
+
+529
+00:28:57,066 --> 00:28:58,000
+A little soda.
+
+530
+00:28:58,650 --> 00:28:59,442
+Caviar?
+
+531
+00:28:59,766 --> 00:29:00,200
+No, thanks.
+
+532
+00:29:00,466 --> 00:29:02,000
+Yes, um pardon me.
+
+533
+00:29:06,066 --> 00:29:07,166
+Lovely, lovely.
+
+534
+00:29:08,433 --> 00:29:09,833
+I mean caviar.
+
+535
+00:29:10,733 --> 00:29:12,942
+Oh don't, don't go away, I'm starving.
+
+536
+00:29:16,900 --> 00:29:18,400
+Which... which would you take?
+
+537
+00:29:19,067 --> 00:29:20,192
+Oh, I don't know.
+
+538
+00:29:20,366 --> 00:29:22,100
+You don't know? I... I don 't know either.
+
+539
+00:29:22,942 --> 00:29:23,817
+Hard to choose.
+
+540
+00:29:24,600 --> 00:29:26,100
+But I think I'll take, caviar.
+
+541
+00:29:26,333 --> 00:29:28,366
+Mr. Maine doesn't care for anymore.
+
+542
+00:29:29,692 --> 00:29:30,525
+Do you, Norman?
+
+543
+00:29:31,333 --> 00:29:31,866
+No.
+
+544
+00:29:33,150 --> 00:29:35,025
+No, Normy doesn't care for anymore.
+
+545
+00:29:38,817 --> 00:29:41,108
+I think I shall get very drunk indeed.
+
+546
+00:29:47,700 --> 00:29:48,400
+Scotch and soda.
+
+547
+00:29:49,533 --> 00:29:50,966
+Sorry, I have something.
+
+548
+00:30:06,983 --> 00:30:07,442
+Oh.
+
+549
+00:30:07,900 --> 00:30:09,150
+Mind if I help you?
+
+550
+00:30:15,067 --> 00:30:16,067
+Won't they miss you?
+
+551
+00:30:16,566 --> 00:30:19,233
+Oh no no, they'll just look under the table and when they see
+
+552
+00:30:19,442 --> 00:30:21,608
+I'm not there they'll forget the whole matter.
+
+553
+00:30:24,600 --> 00:30:25,766
+What... er?
+
+554
+00:30:25,900 --> 00:30:27,533
+What... what's your name?
+
+555
+00:30:28,000 --> 00:30:28,900
+Esther Blodgett.
+
+556
+00:30:29,333 --> 00:30:30,366
+My name is Maine.
+
+557
+00:30:30,833 --> 00:30:31,200
+I know.
+
+558
+00:30:31,533 --> 00:30:31,933
+You do?
+
+559
+00:30:36,900 --> 00:30:37,900
+What, What's so funny?
+
+560
+00:30:38,133 --> 00:30:39,933
+I was just thinking about all your fans
+
+561
+00:30:40,300 --> 00:30:43,033
+and how surprised they'd be to see you here helping me put plates away.
+
+562
+00:30:43,200 --> 00:30:45,500
+Oh they don't know my finest side.
+
+563
+00:30:45,900 --> 00:30:47,033
+They'd be pretty envious of me
+
+564
+00:30:47,400 --> 00:30:48,866
+meeting you this way in person.
+
+565
+00:30:49,100 --> 00:30:50,166
+Oh, how'd you do?
+
+566
+00:30:50,733 --> 00:30:52,000
+So Tell me eh, eh,
+
+567
+00:30:52,733 --> 00:30:54,233
+Are you disappointed?
+
+568
+00:30:55,233 --> 00:30:55,711
+Yes.
+
+569
+00:30:56,650 --> 00:30:57,775
+Oh.
+
+570
+00:30:58,275 --> 00:30:59,442
+Now you've done it.
+
+571
+00:30:59,983 --> 00:31:02,942
+Oh never mind that, that makes the room look lived in.
+
+572
+00:31:05,300 --> 00:31:05,933
+Tell me um
+
+573
+00:31:06,400 --> 00:31:06,966
+wh-
+
+574
+00:31:07,333 --> 00:31:08,800
+why are you disappointed?
+
+575
+00:31:09,500 --> 00:31:10,900
+I was sitting behind you,
+
+576
+00:31:11,066 --> 00:31:12,700
+at the Hollywood Bowl the night you
+
+577
+00:31:13,067 --> 00:31:14,233
+didn't want to be photographed.
+
+578
+00:31:16,817 --> 00:31:18,025
+Oh.
+
+579
+00:31:18,858 --> 00:31:21,650
+I'm told I crept in to many a heart that night
+
+580
+00:31:21,966 --> 00:31:23,400
+Oh I can never explain this.
+
+581
+00:31:23,900 --> 00:31:25,466
+You know you have very pretty hair.
+
+582
+00:31:25,566 --> 00:31:26,533
+You better get out of here.
+
+583
+00:31:26,700 --> 00:31:28,033
+A sensitive mouth,
+
+584
+00:31:28,800 --> 00:31:29,666
+and a charming little-
+
+585
+00:31:29,800 --> 00:31:32,166
+Can't see why you're here instead of with the rest of the guests
+
+586
+00:31:32,800 --> 00:31:34,500
+I was just trying to be helpful.
+
+587
+00:31:34,800 --> 00:31:35,466
+I see.
+
+588
+00:31:36,114 --> 00:31:38,108
+Are you sure there's no other attraction?
+
+589
+00:31:38,650 --> 00:31:40,758
+Well it might be that my old mania for
+
+590
+00:31:40,800 --> 00:31:43,100
+putting plates away is coming back on me.
+
+591
+00:31:43,483 --> 00:31:45,650
+It's rather odd. I always know where I can find you.
+
+592
+00:31:45,833 --> 00:31:47,233
+if there's a pretty girl around.
+
+593
+00:31:47,400 --> 00:31:48,933
+It's not only odd, it's embarrassing.
+
+594
+00:31:49,066 --> 00:31:50,766
+You're being deliberately insulting Norman.
+
+595
+00:31:50,900 --> 00:31:51,333
+I put up with you for long enough-
+
+596
+00:31:51,366 --> 00:31:53,533
+Now dear don't lose your temper.
+
+597
+00:31:53,900 --> 00:31:56,066
+Remember we must try to keep the voice low.
+
+598
+00:31:57,000 --> 00:31:59,400
+I know you'll excuse us if we go on with our work.
+
+599
+00:32:14,366 --> 00:32:15,466
+Now see what you've done!
+
+600
+00:32:23,500 --> 00:32:23,900
+Come here.
+
+601
+00:32:24,500 --> 00:32:25,200
+Help me up.
+
+602
+00:32:27,033 --> 00:32:27,933
+Are you hurt?
+
+603
+00:32:29,066 --> 00:32:30,400
+No more than usual.
+
+604
+00:32:31,166 --> 00:32:32,800
+Come on! The wolves are on us we gotta get outta here.
+
+605
+00:32:32,933 --> 00:32:34,600
+I can't! The dishes aren't finished!
+
+606
+00:32:34,900 --> 00:32:37,317
+Oh yes they are!
+
+607
+00:32:46,933 --> 00:32:48,066
+Well,
+
+608
+00:32:50,566 --> 00:32:52,166
+I bet I know what you're gonna say now.
+
+609
+00:32:52,400 --> 00:32:52,933
+What?
+
+610
+00:32:54,033 --> 00:32:54,533
+Good night.
+
+611
+00:32:55,483 --> 00:32:56,817
+Good night and thanks.
+
+612
+00:32:58,400 --> 00:32:59,766
+Hey wait a minute. Wait a minute.
+
+613
+00:32:59,799 --> 00:33:00,525
+Hey, Uh...
+
+614
+00:33:01,100 --> 00:33:01,800
+Here.
+
+615
+00:33:02,366 --> 00:33:03,333
+You realize that
+
+616
+00:33:04,100 --> 00:33:06,166
+all I found out about you is that you're
+
+617
+00:33:06,700 --> 00:33:08,333
+foolish enough to want to go into pictures?
+
+618
+00:33:08,733 --> 00:33:10,317
+Why the foolish, look at you.
+
+619
+00:33:10,733 --> 00:33:12,400
+Oh, that's what I mean.
+
+620
+00:33:13,400 --> 00:33:14,300
+No I'd
+
+621
+00:33:15,317 --> 00:33:18,650
+I'd rather like to go into this matter a little more thoroughly.
+
+622
+00:33:19,466 --> 00:33:21,066
+Well that's awfully nice of you.
+
+623
+00:33:21,933 --> 00:33:22,766
+Why um
+
+624
+00:33:23,666 --> 00:33:26,266
+why don't we uh go on up to my place and
+
+625
+00:33:26,966 --> 00:33:28,100
+talk it over?
+
+626
+00:33:28,533 --> 00:33:30,500
+Oh, no.
+Thank you very much, but
+
+627
+00:33:30,800 --> 00:33:32,266
+I really must say goodnight.
+
+628
+00:33:34,100 --> 00:33:34,733
+Goodnight.
+
+629
+00:33:36,833 --> 00:33:37,533
+You're not angry.
+
+630
+00:33:37,933 --> 00:33:38,700
+No no no.
+
+631
+00:33:39,275 --> 00:33:40,483
+I'm hungry.
+
+632
+00:33:40,900 --> 00:33:43,500
+Well, why don't you go and get something to eat?
+
+633
+00:33:46,300 --> 00:33:47,433
+Goodnight, Miss Blodgett.
+
+634
+00:33:48,433 --> 00:33:50,000
+Goodnight, Mr. Maine.
+
+635
+00:33:51,333 --> 00:33:52,133
+Wait a minute.
+
+636
+00:33:54,433 --> 00:33:56,700
+Least I can do is to see you to your door.
+
+637
+00:33:59,266 --> 00:34:00,866
+Will I see you again?
+
+638
+00:34:01,150 --> 00:34:02,108
+I hope so.
+
+639
+00:34:04,900 --> 00:34:06,817
+Has anyone ever told you that you're lovely?
+
+640
+00:34:08,692 --> 00:34:09,692
+Well, now you know.
+
+641
+00:34:10,866 --> 00:34:12,100
+Thank you.
+
+642
+00:34:16,889 --> 00:34:17,817
+It's a...
+
+643
+00:34:19,775 --> 00:34:20,942
+It's hard to say, but I
+
+644
+00:34:21,733 --> 00:34:22,800
+I wanna say it anyway.
+
+645
+00:34:24,700 --> 00:34:26,766
+You know I'm a, I'm a screen, I'm a
+
+646
+00:34:27,650 --> 00:34:28,525
+you know
+
+647
+00:34:29,400 --> 00:34:31,066
+In private life, I'm a
+
+648
+00:34:32,433 --> 00:34:33,300
+You know...
+
+649
+00:34:34,700 --> 00:34:37,100
+but whatever I do I
+
+650
+00:34:37,800 --> 00:34:39,733
+still respect lovely things.
+
+651
+00:34:41,700 --> 00:34:42,800
+And you're lovely.
+
+652
+00:34:44,500 --> 00:34:45,533
+Do you understand?
+
+653
+00:34:46,983 --> 00:34:48,468
+Yes, I think I do.
+
+654
+00:34:49,133 --> 00:34:51,900
+and it isn't that bump on the head that's doing this
+
+655
+00:34:52,400 --> 00:34:53,266
+I'm glad.
+
+656
+00:35:00,133 --> 00:35:00,633
+Goodnight.
+
+657
+00:35:01,700 --> 00:35:02,266
+Goodnight.
+
+658
+00:35:07,358 --> 00:35:07,900
+Hey!
+
+659
+00:35:09,233 --> 00:35:11,942
+Do you mind if I take just one more look?
+
+660
+00:35:20,567 --> 00:35:21,817
+Go away!
+
+661
+00:35:22,233 --> 00:35:23,192
+Quite impossible.
+
+662
+00:35:23,900 --> 00:35:25,192
+I wouldn't even consider it!
+
+663
+00:35:26,000 --> 00:35:27,533
+Oh no no!
+
+664
+00:35:37,633 --> 00:35:38,300
+Hello?
+
+665
+00:35:39,233 --> 00:35:39,983
+Who is it?
+
+666
+00:35:40,700 --> 00:35:41,200
+Who?
+
+667
+00:35:41,900 --> 00:35:42,400
+Norman?!
+
+668
+00:35:43,866 --> 00:35:44,800
+What have you done now?
+
+669
+00:35:45,700 --> 00:35:46,833
+You're not in jail are you?
+
+670
+00:35:48,100 --> 00:35:49,466
+Ohh.
+
+671
+00:35:51,333 --> 00:35:52,500
+Yes, I see.
+
+672
+00:35:53,833 --> 00:35:55,100
+Oh it's that again.
+
+673
+00:35:55,400 --> 00:35:56,200
+I see.
+
+674
+00:35:57,358 --> 00:35:58,358
+She's beautiful.
+
+675
+00:35:58,778 --> 00:36:00,442
+I know, you want me to give her a screen test.
+
+676
+00:36:01,600 --> 00:36:02,166
+Yeah?
+
+677
+00:36:02,600 --> 00:36:04,700
+Certainly, she's got wonderful possibilities.
+
+678
+00:36:06,033 --> 00:36:07,866
+Oh, you know she's got something.
+
+679
+00:36:08,666 --> 00:36:10,766
+and you knew all the other ones had something too
+
+680
+00:36:13,200 --> 00:36:13,800
+Oh no.
+
+681
+00:36:14,600 --> 00:36:15,633
+I tell you Oliver,
+
+682
+00:36:15,700 --> 00:36:18,366
+She's got that sincerity and and honestness.
+
+683
+00:36:18,700 --> 00:36:19,733
+and uh, uh
+
+684
+00:36:20,333 --> 00:36:23,566
+uh sincerity and honestness that uh that makes
+
+685
+00:36:23,800 --> 00:36:25,166
+great actresses
+
+686
+00:36:26,466 --> 00:36:29,600
+Oliver, I am so sure of this girl,
+
+687
+00:36:30,100 --> 00:36:32,133
+that I want to take the test with her myself.
+
+688
+00:36:33,400 --> 00:36:34,033
+hmm...
+
+689
+00:36:35,200 --> 00:36:36,800
+Listen Oliver, you've worked hard,
+
+690
+00:36:37,066 --> 00:36:38,600
+you're entitled to a break.
+
+691
+00:36:38,933 --> 00:36:39,500
+You get...
+
+692
+00:36:45,533 --> 00:36:46,900
+Yes. I heard you.
+
+693
+00:36:47,500 --> 00:36:49,200
+Anything. ANYTHING.
+
+694
+00:36:49,533 --> 00:36:50,166
+Yes!
+
+695
+00:36:51,400 --> 00:36:52,533
+Yes. Yeah.
+
+696
+00:36:53,066 --> 00:36:53,900
+Oliver, look,
+
+697
+00:36:54,650 --> 00:36:56,983
+You, you try to get a little sleep now old man.
+
+698
+00:36:58,033 --> 00:36:59,300
+right, alright boy.
+
+699
+00:36:59,633 --> 00:37:00,433
+Go- Good Night.
+
+700
+00:37:04,900 --> 00:37:05,766
+*mumbles*
+
+701
+00:37:13,600 --> 00:37:14,600
+Telephone book
+
+702
+00:37:15,358 --> 00:37:16,358
+Telephone book.
+
+703
+00:37:22,100 --> 00:37:23,233
+Where's telephone bo..
+
+704
+00:37:24,566 --> 00:37:26,633
+There you are little telephone book!
+
+705
+00:38:08,942 --> 00:38:09,692
+7
+
+706
+00:38:10,317 --> 00:38:11,358
+4
+
+707
+00:38:54,025 --> 00:38:54,817
+Yes?
+
+708
+00:38:54,966 --> 00:38:56,066
+Telephone!
+
+709
+00:38:56,400 --> 00:38:57,166
+For me?
+
+710
+00:38:57,833 --> 00:39:00,933
+Some drunk trying to be funny, says he's Norman Maine.
+
+711
+00:39:01,500 --> 00:39:04,466
+Oh, oh thanks I'll be right down.
+
+712
+00:39:07,025 --> 00:39:08,192
+And Miss Blodgett.
+
+713
+00:39:08,533 --> 00:39:10,500
+Would you give him the message for me?
+
+714
+00:39:11,317 --> 00:39:13,817
+Tell him it's 3 o'clock in the morning!
+
+715
+00:39:37,433 --> 00:39:38,100
+Hello?
+
+716
+00:39:38,300 --> 00:39:38,800
+What?
+
+717
+00:39:41,150 --> 00:39:41,900
+Ohh.
+
+718
+00:39:43,780 --> 00:39:44,616
+Ohh!
+
+719
+00:39:46,442 --> 00:39:47,358
+Oh..
+
+720
+00:39:47,900 --> 00:39:50,533
+Oh yes yes I'll be there!
+
+721
+00:39:50,833 --> 00:39:51,800
+Oh thank you!
+
+722
+00:39:51,933 --> 00:39:52,866
+Sigh
+
+723
+00:39:57,233 --> 00:39:59,266
+Danny...Danny...
+
+724
+00:40:00,066 --> 00:40:04,533
+Danny, what do you think? I'm going to take a test tomorrow and Norman Maine's helping me do it!
+
+725
+00:40:05,067 --> 00:40:07,233
+I'm taking one too.
+
+726
+00:40:08,466 --> 00:40:10,266
+Garbo's assisting me.
+
+727
+00:40:10,400 --> 00:40:10,933
+*groans* oh-
+
+728
+00:40:29,566 --> 00:40:34,633
+Oliver Niles Productions
+CALL SHEET
+
+729
+00:40:35,300 --> 00:40:37,466
+Test Nº - 12432
+ESTHER BLODGETT
+
+730
+00:40:37,600 --> 00:40:38,733
+Move that go bow in
+
+731
+00:40:39,000 --> 00:40:40,466
+Put a silk on that thorn
+
+732
+00:40:40,566 --> 00:40:41,533
+No the...
+
+733
+00:40:41,800 --> 00:40:43,000
+Is this light too hot for you?
+
+734
+00:40:43,100 --> 00:40:43,400
+Ok..
+
+735
+00:40:43,600 --> 00:40:44,800
+we'll put that on the drive way..
+
+736
+00:40:45,600 --> 00:40:46,800
+Put a double on that 90
+
+737
+00:40:47,300 --> 00:40:48,400
+bring it down a little.
+
+738
+00:40:49,633 --> 00:40:50,500
+That's it.
+
+739
+00:40:58,166 --> 00:40:59,433
+Pull down on that 150
+
+740
+00:41:03,400 --> 00:41:04,900
+Pull down on that 150.
+
+741
+00:41:20,300 --> 00:41:21,366
+Give me an apple bucket.
+
+742
+00:41:22,400 --> 00:41:23,833
+Listen, gentlemen. Please, if you don't mind.
+
+743
+00:41:26,466 --> 00:41:28,500
+This is... this is just a test.
+
+744
+00:41:28,600 --> 00:41:30,166
+Ready Mr. Burke
+
+745
+00:41:30,300 --> 00:41:31,133
+Ready Mr. Burke
+
+746
+00:41:31,600 --> 00:41:32,033
+Ready now Mr. Burke
+
+747
+00:41:32,200 --> 00:41:33,100
+All ready Mr. Burke
+
+748
+00:41:33,100 --> 00:41:34,333
+Ready now Mr. Burke
+
+749
+00:41:34,633 --> 00:41:35,566
+Ready Mr. Burke
+
+750
+00:41:35,600 --> 00:41:36,933
+We're ready Mr. Burke
+
+751
+00:41:40,133 --> 00:41:41,300
+All right, let's take it
+
+752
+00:41:41,500 --> 00:41:42,666
+QUIET!
+
+753
+00:41:42,800 --> 00:41:43,233
+Quiet!
+
+754
+00:41:43,333 --> 00:41:44,200
+Quiet!
+
+755
+00:41:44,400 --> 00:41:45,666
+quiet...quiet...
+
+756
+00:41:45,766 --> 00:41:46,333
+Quiet!
+
+757
+00:41:46,733 --> 00:41:47,666
+quiet...
+
+758
+00:41:48,275 --> 00:41:49,025
+Ready Norman.
+
+759
+00:41:49,533 --> 00:41:50,000
+Yup.
+
+760
+00:41:51,366 --> 00:41:53,433
+Ready Miss uh, what's your name.
+
+761
+00:41:55,500 --> 00:41:57,133
+He'll soon know your name, Esther.
+
+762
+00:41:57,500 --> 00:41:58,900
+The whole world's going to know it.
+
+763
+00:41:59,400 --> 00:42:00,700
+But I'm so scared.
+
+764
+00:42:01,000 --> 00:42:02,000
+Maybe I'd better not try today.
+
+765
+00:42:02,133 --> 00:42:05,000
+Oh, come on, now don't be foolish. They all had to go through this.
+
+766
+00:42:05,468 --> 00:42:07,604
+Harlow, Lombard, Myrna Loy.
+
+767
+00:42:07,933 --> 00:42:08,666
+And now,
+
+768
+00:42:09,200 --> 00:42:10,233
+Esther Blodgett.
+
+769
+00:42:11,766 --> 00:42:12,600
+Alright.
+
+770
+00:42:13,067 --> 00:42:13,692
+I'm ready.
+
+771
+00:42:14,800 --> 00:42:15,600
+This is a take.
+
+772
+00:42:15,733 --> 00:42:16,566
+Roll 'em.
+
+773
+00:42:17,000 --> 00:42:17,700
+Quiet!
+
+774
+00:42:18,300 --> 00:42:18,900
+Take
+
+775
+00:42:20,900 --> 00:42:22,533
+Oliver Niles Productions.
+
+776
+00:42:22,533 --> 00:42:24,166
+By Oliver Niles (Producer)
+
+777
+00:42:24,233 --> 00:42:26,233
+Esther Victoria Blodgett (Artist)
+
+778
+00:42:26,600 --> 00:42:28,400
+I may as well tell you that my whole organization
+
+779
+00:42:28,466 --> 00:42:29,733
+thinks I've gone a little nuts
+
+780
+00:42:29,833 --> 00:42:30,533
+to sign you.
+
+781
+00:42:32,067 --> 00:42:33,525
+Maybe they are right, I've been nuts before.
+
+782
+00:42:34,066 --> 00:42:34,733
+You see,
+
+783
+00:42:34,900 --> 00:42:38,833
+All the experts seems to think that your type is a little mild for present day's taste.
+
+784
+00:42:39,433 --> 00:42:41,933
+I'd rather believe that tastes change, like eyebrows.
+
+785
+00:42:42,133 --> 00:42:45,166
+And I think that also like eyebrows, tastes are going back to the natural.
+
+786
+00:42:45,700 --> 00:42:47,000
+You look like a nice girl,
+
+787
+00:42:49,075 --> 00:42:50,525
+I think I'm going to like you.
+
+788
+00:42:52,900 --> 00:42:53,666
+That's not important.
+
+789
+00:42:54,033 --> 00:42:55,366
+I think the public will like you.
+
+790
+00:42:55,500 --> 00:42:56,200
+That is important.
+
+791
+00:42:56,600 --> 00:42:58,066
+Oh yes.
+
+792
+00:42:58,333 --> 00:43:00,266
+I see what you mean, I - I mean I know it is.
+
+793
+00:43:00,533 --> 00:43:01,766
+but you don't think it's going to be easy
+
+794
+00:43:02,567 --> 00:43:04,692
+Nothing you really want is ever given away free.
+
+795
+00:43:05,166 --> 00:43:06,000
+You have to pay for it.
+
+796
+00:43:06,900 --> 00:43:08,200
+and usually with your heart.
+
+797
+00:43:10,233 --> 00:43:11,766
+Someone else told me that once.
+
+798
+00:43:12,500 --> 00:43:14,300
+But you still have to work it out for yourself.
+
+799
+00:43:15,500 --> 00:43:17,733
+Oh well, all this is just a long way of saying
+
+800
+00:43:18,100 --> 00:43:19,566
+I'm glad you're with us, and good luck to you.
+
+801
+00:43:19,900 --> 00:43:22,608
+Now, I'm going to turn you over to our demon press agent, Libby.
+
+802
+00:43:23,200 --> 00:43:24,166
+Don't let him frighten you.
+
+803
+00:43:24,400 --> 00:43:25,500
+He has a heart of gold...
+
+804
+00:43:25,800 --> 00:43:26,500
+only harder.
+
+805
+00:43:28,595 --> 00:43:29,692
+And for the love of Pete,
+
+806
+00:43:29,733 --> 00:43:31,800
+learn to close your mouth and keep it closed.
+
+807
+00:43:32,442 --> 00:43:33,483
+Even in your love scenes.
+
+808
+00:43:46,733 --> 00:43:47,600
+Are you a Russian?
+
+809
+00:43:48,400 --> 00:43:50,566
+No, I was born in Filmore North Dakota.
+
+810
+00:43:50,733 --> 00:43:51,600
+Oh no.
+
+811
+00:43:53,433 --> 00:43:54,733
+Grace saw light of day...
+
+812
+00:43:55,400 --> 00:43:56,566
+In a mountain cabin,
+
+813
+00:43:56,970 --> 00:43:58,067
+at trappers hut
+
+814
+00:43:58,300 --> 00:43:59,333
+High up in the rockies
+
+815
+00:44:01,707 --> 00:44:02,404
+Go on.
+
+816
+00:44:03,100 --> 00:44:05,400
+Well, I always wanted to be an actress.
+
+817
+00:44:06,466 --> 00:44:07,666
+Dreamed of footlights,
+
+818
+00:44:08,192 --> 00:44:09,650
+as lonely kitty
+
+819
+00:44:11,000 --> 00:44:12,800
+Are you sure theres no Russian in your family?
+
+820
+00:44:13,000 --> 00:44:13,633
+Positive.
+
+821
+00:44:14,200 --> 00:44:14,933
+That's a shame.
+
+822
+00:44:15,233 --> 00:44:16,733
+Well, what does your father do?
+
+823
+00:44:17,317 --> 00:44:17,900
+He's a farmer.
+
+824
+00:44:18,400 --> 00:44:18,983
+Eh..
+
+825
+00:44:20,067 --> 00:44:22,150
+Social registeried Father
+
+826
+00:44:22,700 --> 00:44:24,166
+Fed up with hypocrisy
+
+827
+00:44:24,400 --> 00:44:25,400
+a 400...
+
+828
+00:44:25,900 --> 00:44:27,700
+sought wilderness for consolation.
+
+829
+00:44:28,858 --> 00:44:30,650
+There amidst the mountain flowers.
+
+830
+00:44:31,100 --> 00:44:32,433
+He raised another blossom.
+
+831
+00:44:33,100 --> 00:44:34,600
+His lovely little daughter.
+
+832
+00:44:35,333 --> 00:44:35,933
+What's your name?
+
+833
+00:44:36,833 --> 00:44:39,266
+Esther Victoria Blodgett.
+
+834
+00:44:45,500 --> 00:44:48,600
+Greatly appreciating your attention in this matter, very surely...
+
+835
+00:44:48,733 --> 00:44:50,300
+do you know what her name is?
+
+836
+00:44:50,833 --> 00:44:54,133
+Esther Victoria Blodgett.
+
+837
+00:44:55,766 --> 00:44:57,700
+He will have to do something about that right away
+
+838
+00:45:00,233 --> 00:45:02,983
+Esther Victoria Blodgett
+
+839
+00:45:04,166 --> 00:45:05,866
+Well, that Blodgett's definitely out.
+
+840
+00:45:06,100 --> 00:45:08,200
+Let's see, Esther Victoria
+
+841
+00:45:08,300 --> 00:45:09,900
+Victoria, Vicky. How about Vicky?
+
+842
+00:45:10,100 --> 00:45:11,666
+Oh I think that's terribly cute! let's
+
+843
+00:45:11,900 --> 00:45:12,933
+see, Vicky, Vicky what?
+
+844
+00:45:13,233 --> 00:45:14,533
+Vicky Vicky. Pronounced.
+
+845
+00:45:14,817 --> 00:45:16,692
+Vicky. Vicky.
+
+846
+00:45:19,833 --> 00:45:22,500
+Siesta, besta, sesta, desta, festa...
+
+847
+00:45:22,800 --> 00:45:24,833
+Oh, that's very pretty.
+
+848
+00:45:26,933 --> 00:45:28,966
+Hesta, hesta, Jesta, Lester, Vicky Lester!
+
+849
+00:45:29,000 --> 00:45:30,166
+Oh I like that!
+
+850
+00:45:30,333 --> 00:45:30,766
+Say it!
+
+851
+00:45:30,800 --> 00:45:31,466
+Vicki Lester
+
+852
+00:45:31,600 --> 00:45:32,166
+Say it again.
+
+853
+00:45:32,300 --> 00:45:32,800
+Vicki Lester
+
+854
+00:45:33,067 --> 00:45:33,775
+Say it again.
+
+855
+00:45:34,025 --> 00:45:34,865
+Vicki Lester
+
+856
+00:45:35,000 --> 00:45:35,433
+Say it!
+
+857
+00:45:35,600 --> 00:45:36,400
+Vicki Lester
+
+858
+00:45:36,400 --> 00:45:37,100
+say Vicki Lester!
+
+859
+00:45:37,233 --> 00:45:37,900
+Vicki Lester
+
+860
+00:45:38,100 --> 00:45:38,700
+Vicki Lester
+
+861
+00:45:38,800 --> 00:45:39,500
+Vicki Lester
+
+862
+00:45:39,600 --> 00:45:40,466
+Vicki Lester!
+
+863
+00:45:42,200 --> 00:45:43,366
+Lester.
+
+864
+00:45:44,800 --> 00:45:45,366
+Franz
+
+865
+00:45:45,900 --> 00:45:48,000
+Oliver Nile Studio discovers new starlet.
+
+866
+00:45:48,200 --> 00:45:49,533
+A Cinderella of the Rockies
+
+867
+00:45:49,933 --> 00:45:51,866
+Her name is Vicky Lester
+
+868
+00:45:52,100 --> 00:45:53,100
+Those who have peeked
+
+869
+00:45:53,500 --> 00:45:55,400
+tells me should couldn't be more divine
+
+870
+00:45:55,666 --> 00:45:58,200
+The face of an angel and such natural talent
+
+871
+00:45:58,600 --> 00:45:59,966
+Her voice is a symphony.
+
+872
+00:46:00,000 --> 00:46:02,966
+Her very walk, they tell me is enough to drive men mad!
+
+873
+00:46:05,900 --> 00:46:07,275
+Not that way!
+
+874
+00:46:08,692 --> 00:46:10,817
+Get the lead outta your feet! Lift them up!
+
+875
+00:46:19,317 --> 00:46:20,317
+That's better.
+
+876
+00:46:20,633 --> 00:46:22,000
+It's terrible, but it's better.
+
+877
+00:46:23,525 --> 00:46:25,692
+The quality of mercy is not strange
+
+878
+00:46:26,000 --> 00:46:28,300
+it droppeth as the gentle rain from heaven
+
+879
+00:46:28,400 --> 00:46:28,966
+Cease.
+
+880
+00:46:29,300 --> 00:46:31,300
+Through the mouth, my child. Through the mouth.
+
+881
+00:46:32,400 --> 00:46:34,600
+The nose is for smelling roses.
+
+882
+00:46:35,700 --> 00:46:36,266
+Proceed.
+
+883
+00:46:40,700 --> 00:46:43,700
+Does she have to look surprised all the time?
+
+884
+00:46:49,733 --> 00:46:51,491
+Anyway, it's just a rough sketch.
+
+885
+00:46:52,192 --> 00:46:53,567
+pretty small mouth eh?
+
+886
+00:46:58,166 --> 00:46:59,200
+Oh well,
+
+887
+00:46:59,700 --> 00:47:01,433
+Give her that cloth a squeeze
+
+888
+00:47:01,866 --> 00:47:02,200
+ooh
+
+889
+00:47:10,067 --> 00:47:12,525
+This will give that xjssalhhfid
+
+890
+00:47:19,942 --> 00:47:21,317
+We are on the wrong track,
+
+891
+00:47:21,966 --> 00:47:23,500
+she still looks surprised.
+
+892
+00:47:28,442 --> 00:47:29,442
+Listen drunk people
+
+893
+00:47:29,600 --> 00:47:31,100
+My shoes not on the step this morning
+
+894
+00:47:31,366 --> 00:47:32,400
+not in the camera
+
+895
+00:47:32,633 --> 00:47:33,800
+now come on snap in to it!
+
+896
+00:47:37,885 --> 00:47:39,975
+Acme trrrrucking company.
+
+897
+00:47:40,466 --> 00:47:43,533
+No, Mister Smith is not in!
+
+898
+00:47:50,233 --> 00:47:51,775
+Acme trucking company.
+
+899
+00:47:52,600 --> 00:47:53,233
+No.
+
+900
+00:47:53,817 --> 00:47:56,358
+Mister Smith is not in.
+
+901
+00:48:04,900 --> 00:48:07,133
+Good morning, what can I bring you Mr. Maine?
+
+902
+00:48:07,333 --> 00:48:09,200
+Just shows how long you've been here.
+
+903
+00:48:09,400 --> 00:48:10,433
+Never blushes.
+
+904
+00:48:11,466 --> 00:48:13,300
+How soon are you and I going to be married huh?
+
+905
+00:48:13,533 --> 00:48:14,566
+I don't know.
+
+906
+00:48:14,983 --> 00:48:16,567
+You will have to ask my mother.
+
+907
+00:48:26,200 --> 00:48:28,200
+Acme trucking company.
+
+908
+00:48:28,483 --> 00:48:31,858
+No, Mister Smith is not in.
+
+909
+00:48:35,100 --> 00:48:36,900
+Acme trucking company.
+
+910
+00:48:37,333 --> 00:48:40,600
+No, Mister Smith is not in.
+
+911
+00:48:44,400 --> 00:48:45,133
+Acme...
+
+912
+00:48:45,466 --> 00:48:47,166
+Naw Shmith ain't in!
+
+913
+00:48:58,700 --> 00:49:00,300
+Acme trucking company.
+
+914
+00:49:00,300 --> 00:49:01,200
+I'd like to speak to Mr. Smith please.
+
+915
+00:49:01,366 --> 00:49:02,600
+Mister Smith is not--
+
+916
+00:49:03,200 --> 00:49:04,533
+Oh, Norman!
+
+917
+00:49:05,000 --> 00:49:06,100
+What's all this between you and Smith?
+
+918
+00:49:06,266 --> 00:49:08,066
+I got a part... It's only one line...
+
+919
+00:49:08,200 --> 00:49:09,166
+but it's in the Picture!
+
+920
+00:49:09,433 --> 00:49:12,133
+So it's ambition that made you break that date with me last night.
+
+921
+00:49:12,300 --> 00:49:14,300
+I had to be here so early this morning.
+
+922
+00:49:14,466 --> 00:49:15,400
+Uh, so did I.
+
+923
+00:49:16,300 --> 00:49:17,966
+I had to stay up all night to make it.
+
+924
+00:49:19,200 --> 00:49:20,633
+You've started your picture, haven't you?
+
+925
+00:49:21,066 --> 00:49:23,300
+No, no we are still in the testing stage.
+
+926
+00:49:23,733 --> 00:49:25,666
+Can't seem to get the right girl for the lead.
+
+927
+00:49:28,087 --> 00:49:29,567
+Hmm..You'd think with all the girls there are...
+
+928
+00:49:29,600 --> 00:49:31,500
+Yeah, well this one's got to be different.
+
+929
+00:49:31,600 --> 00:49:34,466
+She's got to be little, and cute, and sweet,
+
+930
+00:49:35,192 --> 00:49:36,108
+And intelligent.
+
+931
+00:49:38,333 --> 00:49:39,466
+Well blow me down.
+
+932
+00:49:39,566 --> 00:49:39,933
+What?
+
+933
+00:49:40,579 --> 00:49:42,358
+Well close my tired old eyes,
+
+934
+00:49:42,500 --> 00:49:43,233
+Wha..what is it?
+
+935
+00:49:43,333 --> 00:49:44,400
+Hold everything, come on.
+
+936
+00:49:45,200 --> 00:49:46,166
+Come on!
+
+937
+00:49:51,100 --> 00:49:52,600
+Have you been through the whole casting, Director?
+
+938
+00:49:52,733 --> 00:49:53,566
+I'll work day and night Mr...
+
+939
+00:49:53,633 --> 00:49:54,833
+And I'll work with her Oliver!
+
+940
+00:49:55,000 --> 00:49:57,466
+I can mean or nasty or anything you want, Mr Niles.
+
+941
+00:49:57,733 --> 00:49:59,733
+If she clicks Oliver, you've got a star overnight.
+
+942
+00:50:02,333 --> 00:50:03,000
+Ok.
+
+943
+00:50:10,800 --> 00:50:13,000
+You are about to see the Preview of a picture
+
+944
+00:50:13,133 --> 00:50:15,300
+that has not been finally edited.
+
+945
+00:50:15,400 --> 00:50:17,600
+Your opinion will be appreciated.
+
+946
+00:50:17,800 --> 00:50:19,833
+Please mail comment cards.
+
+947
+00:50:22,000 --> 00:50:23,900
+Oliver Niles
+
+948
+00:50:24,000 --> 00:50:24,766
+presents
+
+949
+00:50:24,866 --> 00:50:26,800
+NORMAN MAINE
+
+950
+00:50:27,033 --> 00:50:27,500
+in
+
+951
+00:50:27,600 --> 00:50:29,866
+"THE ENCHANTED HOUR"
+
+952
+00:50:30,466 --> 00:50:31,233
+introducing
+
+953
+00:50:31,300 --> 00:50:33,633
+VICKI LESTER
+
+954
+00:50:40,866 --> 00:50:42,933
+Wait till you hear them at the end of the picture.
+
+955
+00:50:56,133 --> 00:50:58,300
+When the world tripped politely
+
+956
+00:50:58,333 --> 00:51:00,500
+to the genteel music of spinnets.
+
+957
+00:51:12,583 --> 00:51:13,583
+Do you think we were noticed?
+
+958
+00:51:13,792 --> 00:51:16,553
+No one... They're much to busy playing at croquet.
+
+959
+00:51:19,166 --> 00:51:21,100
+I have loved you all my life.
+
+960
+00:51:21,566 --> 00:51:23,733
+But we have only met two days ago.
+
+961
+00:51:24,833 --> 00:51:27,066
+That's when my life began.
+
+962
+00:51:43,733 --> 00:51:47,066
+PREVIEW TONITE
+
+963
+00:51:50,933 --> 00:51:51,800
+Ain't she cute?
+
+964
+00:51:51,900 --> 00:51:54,500
+You know I think she's the same type I am. Don't you? I think she's sweet.
+
+965
+00:51:54,800 --> 00:51:55,966
+Well...has this picture...
+
+966
+00:51:56,133 --> 00:51:56,866
+all right!
+
+967
+00:51:57,000 --> 00:51:58,500
+I think she was much better than he was.
+
+968
+00:51:58,900 --> 00:52:00,442
+These producers are so horribly down...
+
+969
+00:52:00,766 --> 00:52:01,566
+They wont know how good she is...
+
+970
+00:52:01,733 --> 00:52:03,733
+Well maybe it's because she's a good girl.
+
+971
+00:52:06,066 --> 00:52:09,133
+All I mean is that it's not so bad..but it's even less that I want to see.
+
+972
+00:52:09,266 --> 00:52:11,500
+Darling, I think she's the most precious little thing I've ever-
+
+973
+00:52:13,500 --> 00:52:14,766
+She's a knock out Libby.
+
+974
+00:52:15,000 --> 00:52:17,200
+You might mention that when you write your review.
+
+975
+00:52:17,200 --> 00:52:18,666
+Unless the kids' a gold mine.
+
+976
+00:52:18,900 --> 00:52:20,266
+Did you like Norman Maine?
+
+977
+00:52:20,500 --> 00:52:21,133
+Was he in it?
+
+978
+00:52:23,533 --> 00:52:24,200
+Libby?
+
+979
+00:52:24,700 --> 00:52:25,833
+I'm afraid we have another hit.
+
+980
+00:52:25,966 --> 00:52:27,033
+It's in the bag.
+
+981
+00:52:27,500 --> 00:52:29,800
+Deeply tied up with beautiful pink ribbons.
+
+982
+00:52:29,900 --> 00:52:31,200
+Hey, where are Norman and Vicky?
+
+983
+00:52:31,300 --> 00:52:32,566
+I don't know, I thought you had them.
+
+984
+00:52:32,733 --> 00:52:34,900
+I wish they'd come, were having a party at the Trocadero.
+
+985
+00:52:38,400 --> 00:52:40,033
+Isn't it thrilling running away from people?
+
+986
+00:52:40,200 --> 00:52:41,600
+Norman, it's so exciting! So-
+
+987
+00:52:41,700 --> 00:52:42,633
+- So-
+- So new.
+
+988
+00:52:43,567 --> 00:52:44,775
+A star is born.
+
+989
+00:52:45,400 --> 00:52:46,483
+Come on!
+
+990
+00:52:55,775 --> 00:52:56,775
+Wonderful, isn't it?
+
+991
+00:52:57,275 --> 00:52:58,442
+A crazy quilt.
+
+992
+00:52:59,100 --> 00:53:03,133
+Well...It's a carpet spread for you...
+
+993
+00:53:05,168 --> 00:53:06,900
+All yours from now on you know.
+
+994
+00:53:08,567 --> 00:53:10,400
+you're a success
+
+995
+00:53:12,033 --> 00:53:13,700
+You can have everything in the world you want.
+
+996
+00:53:16,100 --> 00:53:17,233
+Hope it'll make you happy.
+
+997
+00:53:18,566 --> 00:53:19,733
+Doesn't it you?
+
+998
+00:53:22,983 --> 00:53:24,817
+Well... That was one thing I never had...
+
+999
+00:53:26,108 --> 00:53:26,995
+Lots of times I..
+
+1000
+00:53:27,500 --> 00:53:30,066
+I told myself I'd find it but I always knew I was lying.
+
+1001
+00:53:32,733 --> 00:53:34,833
+Still I...I never stopped looking for it...
+
+1002
+00:53:36,100 --> 00:53:37,166
+Maybe it'll come.
+
+1003
+00:53:38,567 --> 00:53:39,942
+Well I think it has come Ester.
+
+1004
+00:53:41,700 --> 00:53:43,100
+I only wish it weren't too late.
+
+1005
+00:53:44,608 --> 00:53:46,025
+Oh but it's not too late.
+
+1006
+00:53:47,300 --> 00:53:50,800
+Oh you can't throw away your life the way I've thrown away mine.
+
+1007
+00:53:52,033 --> 00:53:54,466
+I don't have anything left that's good enough...now.
+
+1008
+00:53:55,033 --> 00:53:55,866
+You can't...
+
+1009
+00:53:57,358 --> 00:53:58,525
+Norman.. You can...
+
+1010
+00:54:00,711 --> 00:54:01,942
+You mustn't tell me that, Esther.
+
+1011
+00:54:04,317 --> 00:54:06,233
+So afraid that I'll believe it.
+
+1012
+00:54:25,700 --> 00:54:27,366
+Pick your right!
+
+1013
+00:54:28,033 --> 00:54:29,233
+Swell, isn't it?
+
+1014
+00:54:29,300 --> 00:54:29,900
+Lovely.
+
+1015
+00:54:30,000 --> 00:54:31,300
+Let's watch again.
+
+1016
+00:54:31,966 --> 00:54:34,233
+He got ya...shoot your right!
+
+1017
+00:54:39,500 --> 00:54:42,100
+Go!...He got him!
+
+1018
+00:54:42,200 --> 00:54:43,200
+he did, didn't he?
+
+1019
+00:54:43,366 --> 00:54:44,800
+Yeah, but he'll be up, though.
+
+1020
+00:54:45,000 --> 00:54:45,633
+You like it?
+
+1021
+00:54:45,633 --> 00:54:46,200
+Sure I do.
+
+1022
+00:54:46,300 --> 00:54:46,933
+You like me?
+
+1023
+00:54:47,100 --> 00:54:47,766
+Sure I do.
+
+1024
+00:54:49,800 --> 00:54:51,433
+That reminds me. Will you marry me?
+
+1025
+00:54:51,466 --> 00:54:52,433
+No thank you.
+
+1026
+00:54:53,400 --> 00:54:55,300
+Come on...finish him! Why won't you marry me?
+
+1027
+00:54:55,300 --> 00:54:56,300
+Because you're not dependable
+
+1028
+00:54:56,400 --> 00:54:57,300
+Shoot your right!
+
+1029
+00:54:57,533 --> 00:54:58,333
+you throw away your money.
+
+1030
+00:54:58,433 --> 00:54:58,800
+Break him off!
+
+1031
+00:54:58,900 --> 00:55:00,266
+and you drink so much.
+
+1032
+00:55:02,233 --> 00:55:04,133
+cause i quit drinking
+
+1033
+00:55:04,233 --> 00:55:04,900
+Yes?
+
+1034
+00:55:04,966 --> 00:55:07,166
+Come on...Shoot your right in there... the right!!
+
+1035
+00:55:07,300 --> 00:55:08,433
+Cause I save my money.
+
+1036
+00:55:08,500 --> 00:55:08,900
+Yes.
+
+1037
+00:55:09,000 --> 00:55:10,700
+There he goes!...Let him have it!!
+
+1038
+00:55:10,800 --> 00:55:13,333
+I'm absolutely dependable on all occasions... Yes...
+
+1039
+00:55:17,300 --> 00:55:18,800
+Yeah!
+
+1040
+00:55:22,166 --> 00:55:25,366
+He got ya... He got him...He got him!
+
+1041
+00:55:25,900 --> 00:55:27,233
+He certainly did.
+
+1042
+00:55:36,500 --> 00:55:38,100
+Yeah that was a beautiful fight!
+
+1043
+00:55:39,466 --> 00:55:39,966
+Norman?
+
+1044
+00:55:40,070 --> 00:55:40,693
+Yes dear?
+
+1045
+00:55:40,700 --> 00:55:43,066
+Would you do all that for me if I said I'd marry you?
+
+1046
+00:55:43,133 --> 00:55:46,166
+No..certainly not...I'd just support you.
+
+1047
+00:55:51,200 --> 00:55:52,366
+We're going to be married.
+
+1048
+00:55:54,733 --> 00:55:56,133
+Guess I didn't read that line right.
+
+1049
+00:55:56,392 --> 00:55:57,267
+I'll try it again.
+
+1050
+00:55:58,147 --> 00:56:00,142
+We are going to be married.
+
+1051
+00:56:00,333 --> 00:56:00,966
+Both of us.
+
+1052
+00:56:01,166 --> 00:56:02,066
+To each other.
+
+1053
+00:56:02,766 --> 00:56:03,433
+What do you think of that?
+
+1054
+00:56:03,933 --> 00:56:05,166
+Well when? Where?
+
+1055
+00:56:05,500 --> 00:56:07,266
+Oh, we thought that we'd elope
+
+1056
+00:56:07,333 --> 00:56:08,600
+In a conventional manner.
+
+1057
+00:56:11,600 --> 00:56:12,350
+What's the matter?
+
+1058
+00:56:13,100 --> 00:56:15,166
+Trying to decide whether it's good for the studio.
+
+1059
+00:56:15,392 --> 00:56:15,850
+Is it?
+
+1060
+00:56:16,466 --> 00:56:17,366
+It is.
+
+1061
+00:56:17,900 --> 00:56:19,066
+Bless you my children.
+
+1062
+00:56:19,433 --> 00:56:20,233
+When's it going to happen?
+
+1063
+00:56:20,333 --> 00:56:21,833
+Oh we thought we'd just sneak out some time.
+
+1064
+00:56:22,066 --> 00:56:23,366
+W're not telling anyone but you.
+
+1065
+00:56:24,033 --> 00:56:25,266
+Listen to this!
+
+1066
+00:56:25,433 --> 00:56:27,000
+The squeeze ideal romance
+
+1067
+00:56:27,033 --> 00:56:28,900
+blossomed into breathing reality
+
+1068
+00:56:28,933 --> 00:56:30,733
+Today when Vicky Lester and Norman Maine,
+
+1069
+00:56:30,866 --> 00:56:32,566
+America's dream lovers
+
+1070
+00:56:32,833 --> 00:56:35,633
+Slipped quietly thru the portals of holy matrimony.
+
+1071
+00:56:35,933 --> 00:56:36,766
+How does it sound?
+
+1072
+00:56:37,533 --> 00:56:38,133
+Horrible.
+
+1073
+00:56:38,233 --> 00:56:40,000
+But you see we're going to elope.
+
+1074
+00:56:40,033 --> 00:56:40,866
+Sure you are!
+
+1075
+00:56:40,900 --> 00:56:43,166
+It will be the biggest elopement this town ever saw.
+
+1076
+00:56:43,533 --> 00:56:44,700
+We'll get a tie-up with the army
+
+1077
+00:56:44,800 --> 00:56:46,733
+and have you escorted all the way down to Yuma
+
+1078
+00:56:46,866 --> 00:56:48,766
+by twenty of their new bombing planes.
+
+1079
+00:56:49,642 --> 00:56:50,600
+Is he going with us?
+
+1080
+00:56:52,100 --> 00:56:54,100
+Don't you think we can work this thing out better alone?
+
+1081
+00:56:54,300 --> 00:56:56,800
+No sense in bothering the happy couple with all the details.
+
+1082
+00:56:57,300 --> 00:56:59,966
+I'll see to it that you get a carbon copy of the whole layout.
+
+1083
+00:57:00,033 --> 00:57:00,900
+I can hardly wait.
+
+1084
+00:57:01,533 --> 00:57:04,333
+I'm sorry we didn't realize we were in the way.
+
+1085
+00:57:04,833 --> 00:57:08,600
+While you're settling the details, you don't mind if I take this woman out and buy her a ring, do you?
+
+1086
+00:57:08,808 --> 00:57:10,892
+Sure, go ahead, we want everything legal.
+
+1087
+00:57:12,766 --> 00:57:14,400
+That's a charming match.
+
+1088
+00:57:15,033 --> 00:57:16,466
+A nice girl like Vicky.
+
+1089
+00:57:16,800 --> 00:57:18,566
+and public nuisance number one.
+
+1090
+00:57:18,733 --> 00:57:19,366
+Now wait a minute,
+
+1091
+00:57:19,533 --> 00:57:20,266
+Norman's alright.
+
+1092
+00:57:20,500 --> 00:57:22,733
+And if you'll pardon my pointing, Vickie's business is her own.
+
+1093
+00:57:22,900 --> 00:57:24,000
+It doesn't require any comment.
+
+1094
+00:57:24,233 --> 00:57:25,466
+I wasn't making any comments.
+
+1095
+00:57:25,866 --> 00:57:27,333
+I just said it's a rotting shame.
+
+1096
+00:57:27,433 --> 00:57:28,433
+So go ahead and plan the elopement.
+
+1097
+00:57:28,600 --> 00:57:30,133
+Oh that elopement stuff is out.
+
+1098
+00:57:30,500 --> 00:57:32,100
+You can't get any scope in that.
+
+1099
+00:57:32,800 --> 00:57:33,733
+We are going to have a wedding.
+
+1100
+00:57:35,033 --> 00:57:35,766
+Where will we have it?
+
+1101
+00:57:36,133 --> 00:57:37,733
+Customary place I believe is a church.
+
+1102
+00:57:37,866 --> 00:57:38,366
+Nah.
+
+1103
+00:57:38,700 --> 00:57:39,333
+Been done.
+
+1104
+00:57:40,000 --> 00:57:41,800
+This gotta be something big.
+
+1105
+00:57:43,300 --> 00:57:44,066
+The beach.
+
+1106
+00:57:44,600 --> 00:57:45,400
+I can visualize it.
+
+1107
+00:57:45,800 --> 00:57:47,433
+The bridesmaids in bathing suits.
+
+1108
+00:57:48,000 --> 00:57:50,733
+Twenty thousand Santa Monica school children.
+
+1109
+00:57:51,200 --> 00:57:52,500
+filling out the word love.
+
+1110
+00:57:56,308 --> 00:57:57,767
+It's a novelty, but is it big enough?
+
+1111
+00:57:58,983 --> 00:58:00,098
+Why not the city hall?
+
+1112
+00:58:00,666 --> 00:58:01,700
+A police escort.
+
+1113
+00:58:01,833 --> 00:58:03,833
+Every motorcycle cop in town.
+
+1114
+00:58:04,200 --> 00:58:06,766
+Sirens screaming. Confetti pouring out of buildings.
+
+1115
+00:58:07,100 --> 00:58:08,833
+Like the Lindbergh reception in New York.
+
+1116
+00:58:09,000 --> 00:58:10,433
+Only on a big scale.
+
+1117
+00:58:13,400 --> 00:58:15,133
+What's the matter? Isn't it big enough?
+
+1118
+00:58:17,000 --> 00:58:18,533
+And now if any man can show just cause
+
+1119
+00:58:18,700 --> 00:58:21,166
+why these two may not be lawfully joined together
+
+1120
+00:58:21,600 --> 00:58:24,572
+let him now speak, or else hereafter forever hold his peace.
+
+1121
+00:58:25,266 --> 00:58:25,933
+Do you
+
+1122
+00:58:26,233 --> 00:58:27,100
+Alfred Henkle
+
+1123
+00:58:27,400 --> 00:58:29,433
+take this woman as your lawful wedded wife?
+
+1124
+00:58:29,700 --> 00:58:32,300
+Will you love, comfort, honor and keep her in sickness and in health?
+
+1125
+00:58:32,566 --> 00:58:34,066
+as long as you both shall live?
+
+1126
+00:58:34,500 --> 00:58:35,133
+I will. Do you
+
+1127
+00:58:35,266 --> 00:58:36,166
+I beg your pardon.
+
+1128
+00:58:36,700 --> 00:58:38,200
+Do you Esther Blodget take
+
+1129
+00:58:39,017 --> 00:58:40,308
+this man as you your lawful wedded husband?
+
+1130
+00:58:40,366 --> 00:58:43,400
+Will you obey, serve, love, honor and keep him in sickness and in health?
+
+1131
+00:58:43,500 --> 00:58:44,833
+as long as you both shall live?
+
+1132
+00:58:45,700 --> 00:58:46,300
+I will.
+
+1133
+00:58:47,133 --> 00:58:48,633
+Place the ring on her finger.
+
+1134
+00:58:49,100 --> 00:58:50,200
+And hurry please.
+
+1135
+00:58:54,000 --> 00:58:56,333
+Now by virtues of the power invested in me
+
+1136
+00:58:56,433 --> 00:58:59,566
+as justice of the peace of
+
+1137
+00:58:59,800 --> 00:59:02,133
+I pronounce you man and wife.
+
+1138
+00:59:08,058 --> 00:59:09,267
+Quiet!
+
+1139
+00:59:13,334 --> 00:59:16,517
+And now I must exercise my prerogative of office.
+
+1140
+00:59:18,933 --> 00:59:21,017
+I hope you'll be very happy Mrs. Hinkle.
+
+1141
+00:59:21,133 --> 00:59:21,866
+Thank you.
+
+1142
+00:59:22,808 --> 00:59:23,600
+Thank you, sir.
+
+1143
+00:59:23,600 --> 00:59:24,633
+Thank you very much.
+
+1144
+00:59:25,400 --> 00:59:27,200
+Now if you will please sign the license.
+
+1145
+00:59:27,633 --> 00:59:28,433
+Oh, oh yeah.
+
+1146
+00:59:29,200 --> 00:59:30,600
+You know ahh.. Mrs. Hinkle...
+
+1147
+00:59:30,733 --> 00:59:33,833
+I can't help but believe I've seen you somewhere before.
+
+1148
+00:59:34,000 --> 00:59:35,066
+Oh really?
+
+1149
+00:59:35,300 --> 00:59:39,133
+Oh well, uh, I believe this is the first time I've ever been in San Bardo.
+
+1150
+00:59:39,500 --> 00:59:41,700
+You know your face is familiar too. Really? Here you are.
+
+1151
+00:59:41,800 --> 00:59:42,733
+Thank you very much.
+
+1152
+00:59:42,800 --> 00:59:43,600
+Well thank you.
+
+1153
+00:59:43,733 --> 00:59:44,666
+thank you
+
+1154
+00:59:45,100 --> 00:59:45,666
+Good bye.
+
+1155
+00:59:45,733 --> 00:59:46,500
+Good bye.
+
+1156
+00:59:46,766 --> 00:59:47,833
+Norm!
+
+1157
+00:59:47,900 --> 00:59:48,466
+Nice to see you again...
+
+1158
+00:59:48,533 --> 00:59:50,133
+No I just...coming darling.
+
+1159
+00:59:51,700 --> 00:59:52,900
+Ya I think he got by with it.
+
+1160
+00:59:52,900 --> 00:59:53,866
+but it was closed
+
+1161
+00:59:54,000 --> 00:59:56,233
+J.P. was just beginning to remember where he'd seen it.
+
+1162
+00:59:56,433 --> 00:59:57,866
+anyway we got away from Libby
+
+1163
+01:00:00,800 --> 01:00:01,933
+Hello, Sir!
+
+1164
+01:00:02,633 --> 01:00:06,400
+If you would be kind enough to glance between my shoulder blades.
+
+1165
+01:00:07,033 --> 01:00:08,433
+Mr. and Mrs. Hankle.
+
+1166
+01:00:08,633 --> 01:00:10,200
+You will find there a knife.
+
+1167
+01:00:10,200 --> 01:00:11,166
+Buried to the hilt.
+
+1168
+01:00:11,633 --> 01:00:13,233
+On the handle are your initials.
+
+1169
+01:00:13,400 --> 01:00:14,733
+Really good seeing you Libby!
+
+1170
+01:00:14,833 --> 01:00:16,133
+Hold it Danny!
+
+1171
+01:00:26,642 --> 01:00:29,267
+There comes a couple of rats I raised from mice.
+
+1172
+01:00:29,767 --> 01:00:31,392
+Well, they've got a right to get married haven't they?
+
+1173
+01:00:31,933 --> 01:00:33,767
+You haven't got any right to double cross the public.
+
+1174
+01:00:34,267 --> 01:00:35,350
+i haven't done it yet
+
+1175
+01:00:36,267 --> 01:00:37,100
+Hey!
+
+1176
+01:00:38,892 --> 01:00:39,975
+People vs. Porky Washington.
+
+1177
+01:00:40,400 --> 01:00:42,400
+Who is charge with violating section 600...
+
+1178
+01:00:42,600 --> 01:00:43,833
+Now your in contempt of court!
+
+1179
+01:00:44,100 --> 01:00:44,766
+Operator?
+
+1180
+01:00:45,533 --> 01:00:46,566
+Los Angeles Tribune
+
+1181
+01:00:46,700 --> 01:00:48,333
+I have a good mind to put you under arrest!
+
+1182
+01:00:48,533 --> 01:00:49,800
+wait till i make this call
+
+1183
+01:00:50,558 --> 01:00:51,322
+you wait too
+
+1184
+01:00:52,100 --> 01:00:52,700
+Tribune!
+
+1185
+01:00:53,133 --> 01:00:54,100
+Give me the city desk.
+
+1186
+01:00:54,866 --> 01:00:55,333
+Johnny!
+
+1187
+01:00:55,600 --> 01:00:56,600
+This is Matt Libby
+
+1188
+01:00:56,700 --> 01:00:57,866
+I've got a flash for you.
+
+1189
+01:00:58,300 --> 01:00:59,700
+Norman Maine and Vicki Lester
+
+1190
+01:00:59,766 --> 01:01:01,966
+were married at 2:30 this afternoon.
+
+1191
+01:01:02,033 --> 01:01:03,033
+Vicki Lester?!
+
+1192
+01:01:03,433 --> 01:01:04,733
+Court recess!
+
+1193
+01:01:11,533 --> 01:01:15,833
+VICKI LOVES IN TRAILER!
+
+1194
+01:01:51,800 --> 01:01:53,800
+So give me a horse...a great big horse...
+
+1195
+01:01:53,833 --> 01:01:55,700
+A great big buckeroo and
+
+1196
+01:01:55,800 --> 01:01:59,666
+let me waohoo, waohoo, waohoo!
+
+1197
+01:02:05,600 --> 01:02:06,566
+wahoo!
+
+1198
+01:02:28,700 --> 01:02:30,000
+waohoo.
+
+1199
+01:02:31,433 --> 01:02:32,033
+Waohoo.
+
+1200
+01:02:33,433 --> 01:02:35,466
+i don't want to sound immodest
+
+1201
+01:02:35,800 --> 01:02:37,366
+but i think I've stripped a gear
+
+1202
+01:02:37,700 --> 01:02:39,800
+Well sit down won't you and let's get acquainted.
+
+1203
+01:02:39,933 --> 01:02:42,266
+Probably be seeing quite a bit of each other from now on.
+
+1204
+01:02:42,266 --> 01:02:45,566
+might just as well break the ice now as later
+
+1205
+01:02:52,283 --> 01:02:53,533
+now we're old friends
+
+1206
+01:02:55,200 --> 01:02:57,666
+hey, have i got time for a shower before dinner?
+
+1207
+01:02:58,400 --> 01:03:00,066
+plenty, if you can find a shower
+
+1208
+01:03:00,566 --> 01:03:02,933
+i never can remember where that thing is
+
+1209
+01:03:03,200 --> 01:03:04,400
+it pull out or slide under?
+
+1210
+01:03:04,600 --> 01:03:05,800
+here, i think i can find it
+
+1211
+01:03:05,966 --> 01:03:07,833
+nope, that's the linen closet
+
+1212
+01:03:08,367 --> 01:03:08,992
+here it is
+
+1213
+01:03:09,566 --> 01:03:10,533
+Nice work.
+
+1214
+01:03:11,166 --> 01:03:12,900
+half the time those things are just luck
+
+1215
+01:03:13,400 --> 01:03:15,633
+ill see if i can disinfect this steak
+
+1216
+01:03:27,000 --> 01:03:29,133
+Hey Esther.
+Uh, there's no soap.
+
+1217
+01:03:29,733 --> 01:03:30,800
+Here.
+
+1218
+01:03:34,100 --> 01:03:34,966
+Oh and Esther!
+
+1219
+01:03:35,100 --> 01:03:35,433
+Yes.
+
+1220
+01:03:35,533 --> 01:03:36,866
+i'll need a washcloth please
+
+1221
+01:03:38,600 --> 01:03:40,066
+How you fix the cigarettes?
+
+1222
+01:03:40,800 --> 01:03:42,366
+You know I never smoke underwater.
+
+1223
+01:03:47,000 --> 01:03:49,500
+What do I do to make this thing work?
+
+1224
+01:03:50,000 --> 01:03:52,200
+Pull that gadget at the top and pray for rain.
+
+1225
+01:03:54,633 --> 01:03:55,100
+Oh I...
+
+1226
+01:03:55,992 --> 01:03:58,575
+i cant reach it, i cant get my hands up!
+
+1227
+01:03:59,433 --> 01:04:01,933
+You go in there with your arms down you'll never get your bath.
+
+1228
+01:04:02,266 --> 01:04:03,500
+unless you're a contortionist
+
+1229
+01:04:04,300 --> 01:04:07,633
+yea well, i..i'm not a contortionist and don't throw that up to me now
+
+1230
+01:04:07,866 --> 01:04:09,266
+you knew it, when you married me
+
+1231
+01:04:10,900 --> 01:04:12,100
+close this door please
+
+1232
+01:04:17,800 --> 01:04:18,533
+Thank you.
+
+1233
+01:04:23,266 --> 01:04:25,166
+OH...ow
+
+1234
+01:04:30,733 --> 01:04:33,133
+Norman, Norman! Here comes the car.
+
+1235
+01:04:33,200 --> 01:04:33,633
+You gotta...
+
+1236
+01:04:34,400 --> 01:04:34,900
+Huh?
+
+1237
+01:04:35,000 --> 01:04:35,733
+Here, quick!
+
+1238
+01:04:35,900 --> 01:04:36,500
+Quick what?
+
+1239
+01:04:36,700 --> 01:04:39,166
+Quick go out and stop them and ask for help.
+
+1240
+01:04:39,300 --> 01:04:40,566
+I'll catch a cold!
+
+1241
+01:04:41,031 --> 01:04:42,033
+Get warm again.
+
+1242
+01:04:42,200 --> 01:04:44,000
+they'll recognize me
+
+1243
+01:04:44,100 --> 01:04:45,200
+not if you keep your face down!
+
+1244
+01:04:45,400 --> 01:04:47,000
+go on, there may not be another car for weeks!
+
+1245
+01:04:47,133 --> 01:04:47,533
+Oh I...
+
+1246
+01:04:51,766 --> 01:04:53,300
+ah..ah..howdy partner!
+
+1247
+01:04:53,400 --> 01:04:53,800
+howdy..ah
+
+1248
+01:04:53,800 --> 01:04:54,700
+stuck?
+
+1249
+01:04:55,100 --> 01:04:56,200
+Yeah, how'd you guess it?
+
+1250
+01:04:56,700 --> 01:04:57,900
+Can you get us some help?
+
+1251
+01:04:58,333 --> 01:04:59,566
+Well, I reckon not.
+
+1252
+01:04:59,766 --> 01:05:01,133
+You know it's a long way to town,
+
+1253
+01:05:01,200 --> 01:05:02,166
+We're pretty busy down at that place.
+
+1254
+01:05:02,300 --> 01:05:04,466
+Well, I got to get out of here I got my wife with me.
+
+1255
+01:05:05,366 --> 01:05:06,166
+She like the country?
+
+1256
+01:05:06,233 --> 01:05:06,800
+No.
+
+1257
+01:05:07,100 --> 01:05:08,400
+And we're short of food.
+
+1258
+01:05:08,700 --> 01:05:09,766
+there's a lot of game in them woods
+
+1259
+01:05:10,400 --> 01:05:12,100
+well my wife can't shoot
+
+1260
+01:05:12,200 --> 01:05:13,366
+Well your sure up against it.
+
+1261
+01:05:13,600 --> 01:05:14,466
+Sorry I can't do anything
+
+1262
+01:05:14,633 --> 01:05:16,700
+for you.
+Wait listen I'll be frank with you.
+
+1263
+01:05:17,133 --> 01:05:18,033
+I'm Norman Maine.
+
+1264
+01:05:18,400 --> 01:05:18,766
+Who?
+
+1265
+01:05:19,617 --> 01:05:20,367
+Norman Maine!
+
+1266
+01:05:20,766 --> 01:05:21,900
+my name is Jett Baker
+
+1267
+01:05:22,100 --> 01:05:22,966
+Glad to have met you.
+
+1268
+01:05:23,200 --> 01:05:24,000
+Well so long.
+
+1269
+01:05:24,600 --> 01:05:26,866
+hey wait a..wait a minute..listen..you don't
+
+1270
+01:05:28,617 --> 01:05:30,533
+So you are Norman Maine.
+
+1271
+01:05:37,433 --> 01:05:38,700
+CINEMA SIDELIGHTS
+
+1272
+01:05:38,833 --> 01:05:39,800
+-- BY ARTIE CARVER --
+
+1273
+01:05:39,800 --> 01:05:41,366
+What famous male star has stopped gargling the grog
+
+1274
+01:05:41,400 --> 01:05:42,966
+and is now taking a non-alcoholic honeymoon?
+
+1275
+01:05:43,000 --> 01:05:44,166
+But why do friends think
+
+1276
+01:05:44,200 --> 01:05:46,100
+his bride came about six performances too late
+
+1277
+01:05:46,166 --> 01:05:47,800
+as far as the public is concerned?
+
+1278
+01:05:48,933 --> 01:05:51,066
+I've got my prestige to look out for.
+
+1279
+01:05:51,233 --> 01:05:53,566
+i'm supposed to be the best publicity man in the racket
+
+1280
+01:05:53,900 --> 01:05:55,733
+And they laughed themselves sick when I even
+
+1281
+01:05:55,833 --> 01:05:57,433
+try to get a decent mention of me.
+
+1282
+01:05:57,833 --> 01:06:00,600
+yes, i know how sensitive you are Libby. I don't like to see your feelings hurt
+
+1283
+01:06:00,900 --> 01:06:01,600
+Thanks boss.
+
+1284
+01:06:02,033 --> 01:06:02,633
+Now Vicki,
+
+1285
+01:06:02,900 --> 01:06:04,500
+there's a dish for free space
+
+1286
+01:06:04,900 --> 01:06:06,900
+but if Maine swam across the Pacifi
+
+1287
+01:06:06,966 --> 01:06:08,500
+the papers would keep it a secret
+
+1288
+01:06:09,200 --> 01:06:09,566
+Well,
+
+1289
+01:06:11,100 --> 01:06:12,500
+the exhibitors don't like him,
+
+1290
+01:06:12,900 --> 01:06:14,066
+the critics don't like him,
+
+1291
+01:06:14,200 --> 01:06:15,333
+the public don't like him,
+
+1292
+01:06:15,566 --> 01:06:16,733
+and I don't like him.
+
+1293
+01:06:17,700 --> 01:06:18,200
+Who likes him?
+
+1294
+01:06:27,033 --> 01:06:29,075
+Oh but darling, this is almost too much.
+
+1295
+01:06:30,450 --> 01:06:31,998
+there i was in my touching innocence
+
+1296
+01:06:32,133 --> 01:06:33,566
+thinking we were going to live in the beach house
+
+1297
+01:06:33,800 --> 01:06:35,266
+oh, we'll still keep a place at malibu
+
+1298
+01:06:35,950 --> 01:06:38,533
+this is special, this is our castle. It used to be in the air
+
+1299
+01:06:39,300 --> 01:06:41,266
+we will never use any ugly words like,
+
+1300
+01:06:41,366 --> 01:06:42,533
+contracts and pictures and careers
+
+1301
+01:06:43,566 --> 01:06:44,666
+When we come in those gates,
+
+1302
+01:06:45,366 --> 01:06:46,900
+Check the studio outside.
+
+1303
+01:06:47,617 --> 01:06:48,867
+Come on I got another little surprise for you.
+
+1304
+01:07:06,933 --> 01:07:08,266
+Oh Norman it's lovely.
+
+1305
+01:07:09,500 --> 01:07:10,266
+so are you, lovely
+
+1306
+01:07:12,400 --> 01:07:13,966
+The whole world is lovely.
+
+1307
+01:07:17,200 --> 01:07:18,075
+Hey! Hold it!
+
+1308
+01:07:23,933 --> 01:07:25,100
+That's it.
+
+1309
+01:07:26,100 --> 01:07:26,600
+Caption!
+
+1310
+01:07:27,100 --> 01:07:28,633
+Their honeymoon never ends.
+
+1311
+01:07:29,700 --> 01:07:31,000
+Alright, let's get some pictures.
+
+1312
+01:07:31,500 --> 01:07:33,100
+Now the bride will sit here.
+
+1313
+01:07:33,233 --> 01:07:34,800
+And the groom stand behind her.
+
+1314
+01:07:35,033 --> 01:07:36,400
+You have something unique.
+
+1315
+01:07:40,066 --> 01:07:41,466
+now lets go after something different
+
+1316
+01:07:41,800 --> 01:07:43,766
+You sit down and she'll stand up.
+
+1317
+01:07:44,825 --> 01:07:45,825
+pretty radical isn't it?
+
+1318
+01:07:45,866 --> 01:07:47,600
+Yea, but in a nice way
+
+1319
+01:07:49,266 --> 01:07:50,800
+Ok Otto fire!
+
+1320
+01:07:52,300 --> 01:07:54,900
+caption. Their honeymoon begins a new.
+
+1321
+01:07:55,900 --> 01:07:57,200
+Wow, the producer.
+
+1322
+01:07:58,833 --> 01:08:00,833
+Caption. Their honeymoon ceases abruptly.
+
+1323
+01:08:01,100 --> 01:08:01,800
+Hello Oliver
+
+1324
+01:08:01,933 --> 01:08:03,333
+Oh I'm glad your back.
+
+1325
+01:08:03,700 --> 01:08:04,733
+Vicki, how well you're lookng.
+
+1326
+01:08:04,966 --> 01:08:05,866
+Hello Oliver.
+
+1327
+01:08:06,600 --> 01:08:07,100
+Am I interrupting?
+
+1328
+01:08:07,233 --> 01:08:08,233
+Yes, thank you.
+
+1329
+01:08:08,333 --> 01:08:09,300
+just want a couple more pictures
+
+1330
+01:08:09,500 --> 01:08:10,500
+that's enough of both of them
+
+1331
+01:08:10,700 --> 01:08:12,900
+what they're asking for are exclusives of Miss Lester
+
+1332
+01:08:13,233 --> 01:08:13,833
+alone!
+
+1333
+01:08:14,300 --> 01:08:15,100
+oh i see
+
+1334
+01:08:15,866 --> 01:08:17,533
+come on Oliver, let you and me get exclusive
+
+1335
+01:08:17,733 --> 01:08:18,400
+see you later Vicky
+
+1336
+01:08:19,433 --> 01:08:22,333
+don't worry, my camera smashing days are over
+
+1337
+01:08:23,333 --> 01:08:24,700
+danger only days are over
+
+1338
+01:08:25,366 --> 01:08:26,400
+hold that Miss Lester
+
+1339
+01:08:28,500 --> 01:08:29,133
+gorgeous!
+
+1340
+01:08:29,900 --> 01:08:31,500
+Oliver!
+
+1341
+01:08:31,600 --> 01:08:33,100
+how's the dividend situation?
+
+1342
+01:08:33,200 --> 01:08:36,200
+very pleasant, i think we sold two million on our next quarter
+
+1343
+01:08:36,380 --> 01:08:39,140
+smart move of mine to sell my stock eh?
+
+1344
+01:08:39,300 --> 01:08:41,400
+oh well, when you need money you need it
+
+1345
+01:08:41,600 --> 01:08:43,300
+some people save up for just such an event
+
+1346
+01:08:43,310 --> 01:08:46,260
+there's bound to be a rainy day occasionally
+
+1347
+01:08:46,330 --> 01:08:48,420
+Well as a citizen of California, I've always refused to admit that
+
+1348
+01:08:48,530 --> 01:08:50,250
+I know, but still it does rain
+
+1349
+01:08:50,290 --> 01:08:53,340
+well anyways, you can thank me for some of those dividends of yours
+
+1350
+01:08:54,400 --> 01:08:56,600
+can't you?
+
+1351
+01:08:58,030 --> 01:08:59,680
+that was a little too quick Oliver
+
+1352
+01:09:00,600 --> 01:09:03,000
+Well then...Chanadora was a smash hit wasn't he?
+
+1353
+01:09:03,300 --> 01:09:05,800
+They made Vicky a star overnight
+
+1354
+01:09:05,900 --> 01:09:07,500
+how about me?
+
+1355
+01:09:07,630 --> 01:09:10,190
+well lets talk about business at the office Norman
+
+1356
+01:09:10,300 --> 01:09:11,800
+beautiful pool you have here
+
+1357
+01:09:11,870 --> 01:09:14,370
+no, lets talk about it here
+
+1358
+01:09:15,300 --> 01:09:16,100
+do they like me?
+
+1359
+01:09:16,270 --> 01:09:20,010
+maybe the part wasn't just right
+
+1360
+01:09:20,400 --> 01:09:21,890
+look, Oliver
+
+1361
+01:09:22,850 --> 01:09:24,620
+you think I'm slipping?
+
+1362
+01:09:25,080 --> 01:09:26,970
+can you take it?
+
+1363
+01:09:27,300 --> 01:09:31,000
+the tense is wrong. You're not slipping, you've slipped.
+
+1364
+01:09:33,400 --> 01:09:36,500
+My fan mail is still big.
+
+1365
+01:09:36,560 --> 01:09:39,510
+Norman, Norman, fan will write to anybody with a photograph.
+
+1366
+01:09:39,700 --> 01:09:43,300
+It only costs 3 cents for a stamp, and that makes photographs cheaper than wallpaper
+
+1367
+01:09:43,400 --> 01:09:47,100
+But every 25 cents they pay for a theater ticket buys them the right to be a critic.
+
+1368
+01:09:47,180 --> 01:09:50,350
+and your last few performances Norman, have not pleased your critics
+
+1369
+01:09:54,700 --> 01:09:56,900
+you remember i told you I'd uh...
+
+1370
+01:09:57,700 --> 01:10:00,100
+be ready for the curtains when the time came?
+
+1371
+01:10:01,900 --> 01:10:03,200
+well here it is.
+
+1372
+01:10:05,580 --> 01:10:08,230
+let's call off the contract, no hard feelings
+
+1373
+01:10:08,970 --> 01:10:10,980
+we're not quitting. Either of us
+
+1374
+01:10:11,100 --> 01:10:12,800
+there is no explaining these things
+
+1375
+01:10:12,840 --> 01:10:15,900
+we've all seen how the public turns. Maybe we can turn them back
+
+1376
+01:10:16,130 --> 01:10:18,060
+I've got a swell skit lined up for you
+
+1377
+01:10:19,260 --> 01:10:21,110
+about...about Esther
+
+1378
+01:10:21,400 --> 01:10:22,200
+uh..
+
+1379
+01:10:22,900 --> 01:10:24,900
+you think that i'm going to get in her way
+
+1380
+01:10:25,000 --> 01:10:28,100
+well as a matter of fact as it happens, there's no part in the story for her
+
+1381
+01:10:28,200 --> 01:10:30,900
+I'd more or less planned to star her in a picture of her own
+
+1382
+01:10:31,300 --> 01:10:33,600
+With uh..that young Pemberton opposite her
+
+1383
+01:10:33,640 --> 01:10:34,980
+he's coming along nicely
+
+1384
+01:10:37,400 --> 01:10:39,500
+good for young Pemberton
+
+1385
+01:10:41,800 --> 01:10:48,400
+alright Oliver... let's make a try at it. Lets hope it's not too late
+
+1386
+01:11:08,600 --> 01:11:11,200
+Get with the Oliver Niles Productions
+
+1387
+01:11:12,450 --> 01:11:15,080
+No argument...I'd buy those.
+
+1388
+01:11:18,000 --> 01:11:24,000
+Screens most finished actor... haha.. I'll say he's finished...He keeps them a way in droves.
+
+1389
+01:11:34,300 --> 01:11:38,400
+<u>Theater Men's Guide</U>
+Norman Maine Contract With Niles Cancelled
+
+1390
+01:11:38,700 --> 01:11:41,100
+Theater men who were short sighted enough to buy the Norman Maine pictures on this year's Oliver Niles Schedutle will be...
+
+1391
+01:11:41,300 --> 01:11:45,300
+glad to learn that they will be released from this burden on them and their audiences.
+
+1392
+01:11:45,400 --> 01:11:48,500
+Niles has finally bought off the Maine contract for an unknown figure...Orchids to Niles!
+
+1393
+01:11:48,600 --> 01:11:51,300
+...
+
+1394
+01:11:51,400 --> 01:11:53,700
+...
+
+1395
+01:12:11,700 --> 01:12:13,300
+hello
+
+1396
+01:12:14,290 --> 01:12:17,050
+no... no Miss Lester isn't home as yet
+
+1397
+01:12:18,840 --> 01:12:21,010
+no I am not the butler
+
+1398
+01:12:21,410 --> 01:12:24,530
+but I can take a message just as well as he can honestly
+
+1399
+01:12:25,090 --> 01:12:30,860
+Oh... Is that you Norman? Swell! Listen Norman this is Arty Carver
+
+1400
+01:12:30,890 --> 01:12:36,420
+How are you kid? Swell. Say I hear your thru with Oliver Niles...
+
+1401
+01:12:36,900 --> 01:12:37,800
+That on the Level?
+
+1402
+01:12:37,800 --> 01:12:41,200
+Oh please Arty I'm not news anymore forget it.
+
+1403
+01:12:41,400 --> 01:12:44,000
+Say what kind of a settlement did you make on your contract?
+
+1404
+01:12:44,770 --> 01:12:46,990
+Give me a figure so I can do a story on it.
+
+1405
+01:12:47,900 --> 01:12:50,300
+No money involved...we just called it quits.
+
+1406
+01:12:50,300 --> 01:12:53,000
+Ok, Ok, I'll fill in my own figure.
+
+1407
+01:12:53,500 --> 01:12:58,800
+Say by the way. I've been trying to get an interview with Vicky for two weeks but she's always busy...
+
+1408
+01:12:59,350 --> 01:13:03,100
+How about you give an old pal a break by speaking to her for me?
+
+1409
+01:13:03,500 --> 01:13:04,940
+Sure I'll ask her.
+
+1410
+01:13:05,400 --> 01:13:07,700
+Swell. So long. Heh
+
+1411
+01:13:20,100 --> 01:13:23,200
+I didn't mean to be late darling but Kacy wanted me... It's all right.
+
+1412
+01:13:23,510 --> 01:13:25,320
+Your here now.
+
+1413
+01:13:26,000 --> 01:13:27,500
+What's new today?
+
+1414
+01:13:27,600 --> 01:13:29,300
+Nothing...Haven't been out of the house.
+
+1415
+01:13:31,010 --> 01:13:32,380
+Lets go somewhere tonight.
+
+1416
+01:13:32,400 --> 01:13:34,900
+Oh no no your tired we'll stay in.
+
+1417
+01:13:35,130 --> 01:13:36,780
+I'm not tired really.
+
+1418
+01:13:37,600 --> 01:13:40,300
+Oh you are... you've got a hard day ahead of you...
+
+1419
+01:13:40,900 --> 01:13:43,400
+anyway I see you little of you I'd like to have you to myself..
+
+1420
+01:13:43,900 --> 01:13:46,840
+Oh but it's the servents night out and we
+haven't any dinner made... Yes we have...
+
+1421
+01:13:47,290 --> 01:13:49,960
+I fix a little snake with my own lily white hands.
+
+1422
+01:13:50,970 --> 01:13:51,710
+Hey ah...
+
+1423
+01:13:52,300 --> 01:13:56,200
+I'm learning to cook in my spare time. Then I think I'll marry you..
+
+1424
+01:13:57,400 --> 01:13:58,700
+Oh I get it.
+
+1425
+01:13:59,280 --> 01:14:00,990
+You want to make an honest cook of me huh?
+
+1426
+01:14:02,670 --> 01:14:05,320
+Comes in on wheels in this joint.
+
+1427
+01:14:25,230 --> 01:14:27,520
+Here you are...how's it look?
+
+1428
+01:14:27,720 --> 01:14:29,600
+Hmm...wonderful!
+
+1429
+01:14:29,730 --> 01:14:31,960
+That's what I thought.
+
+1430
+01:14:33,700 --> 01:14:36,730
+Now there don't be formal just pitch in.
+
+1431
+01:14:40,230 --> 01:14:41,690
+Here you are.
+
+1432
+01:14:51,620 --> 01:14:53,910
+I'm afraid my mouths not quite big enough.
+
+1433
+01:14:55,200 --> 01:14:59,100
+I'll measure next time and make them to size.
+
+1434
+01:14:59,390 --> 01:15:01,130
+A little hard to nip too.
+
+1435
+01:15:02,900 --> 01:15:06,890
+I'll take the hint...I'll take those measurements right now.
+
+1436
+01:15:17,630 --> 01:15:19,060
+That's what I wait for...
+
+1437
+01:15:19,970 --> 01:15:25,050
+That's why I rush home without even changing my costume.
+
+1438
+01:15:29,140 --> 01:15:33,940
+Wait.. We're forgetting that we're hungry...Would you like a sandwich?
+
+1439
+01:15:34,410 --> 01:15:36,980
+No Thank you I still have a little work on this one.
+
+1440
+01:15:40,100 --> 01:15:44,400
+Now...Oh...Heh...
+
+1441
+01:15:47,470 --> 01:15:50,900
+Norman will you unhook my dress, I can't breathe
+
+1442
+01:15:53,310 --> 01:15:57,050
+And all the time I thought it was the kiss that made you breathless.
+
+1443
+01:15:57,220 --> 01:15:59,560
+a lot of hooks, why don't you have a zipper?
+
+1444
+01:16:00,210 --> 01:16:01,710
+good idea
+
+1445
+01:16:02,600 --> 01:16:04,900
+feel better?
+
+1446
+01:16:14,510 --> 01:16:16,830
+don't look now but uh...
+
+1447
+01:16:17,400 --> 01:16:22,300
+I think that guy on your left is in love with you
+
+1448
+01:16:36,900 --> 01:16:38,800
+Door bell. Is it?
+
+1449
+01:16:39,290 --> 01:16:40,710
+Maybe they'll go away.
+
+1450
+01:16:41,100 --> 01:16:44,100
+Oh they never do at a time like this.
+
+1451
+01:16:46,290 --> 01:16:48,390
+Just a minute dear... I'll be right back.
+
+1452
+01:16:54,700 --> 01:16:58,400
+does Vicky Lester live here? I've got a package for her
+
+1453
+01:16:58,730 --> 01:17:00,270
+and who are you?
+
+1454
+01:17:01,520 --> 01:17:03,340
+I'm her husband
+
+1455
+01:17:03,720 --> 01:17:05,530
+Sign right here Mr.Lester
+
+1456
+01:17:27,600 --> 01:17:29,050
+package for you
+
+1457
+01:17:29,720 --> 01:17:31,890
+by the way i forgot to tell you uh...
+
+1458
+01:17:32,400 --> 01:17:37,300
+they want you for a benefit shrine auditorium next Wednesday night
+
+1459
+01:17:38,030 --> 01:17:39,310
+told them i'd ask you
+
+1460
+01:17:40,400 --> 01:17:43,000
+darling, i don't want to hear about that now
+
+1461
+01:17:43,100 --> 01:17:45,600
+you better wait till i finish before i forget them all
+
+1462
+01:17:46,200 --> 01:17:49,950
+uhm.. the academy dinner secretary phoned
+
+1463
+01:17:49,970 --> 01:17:52,820
+she wants to know if you want a table reserved for you
+
+1464
+01:17:54,000 --> 01:18:01,200
+Oh Yes Arty Carver called and ask if I'd use my influence with you to get him an interview.
+
+1465
+01:18:01,700 --> 01:18:06,300
+I told him I'd try. Ah that was all I think.
+
+1466
+01:18:06,700 --> 01:18:10,000
+Oh Norman please don't talk about those things now.
+
+1467
+01:18:10,640 --> 01:18:13,020
+We're forgetting the wonderful food you prepared.
+
+1468
+01:18:13,700 --> 01:18:17,500
+Hmm... I'm not very hungry now...I think I'll ah...
+
+1469
+01:18:17,810 --> 01:18:20,430
+I'll fix a little drink. Hmm...
+
+1470
+01:18:22,790 --> 01:18:24,170
+Norm...
+
+1471
+01:18:31,000 --> 01:18:32,700
+Academy of Motion Picture Arts and Sciences
+
+1472
+01:18:32,700 --> 01:18:34,900
+Eighth Annual Awards of Merit Banquet.
+
+1473
+01:18:40,300 --> 01:18:41,700
+I wish Norman would come.
+
+1474
+01:18:42,110 --> 01:18:43,310
+Stop worrying.
+
+1475
+01:18:43,690 --> 01:18:45,940
+Think how nice that statue is going to look on your mantle piece.
+
+1476
+01:18:46,000 --> 01:18:47,600
+You suppose anythings happened to him?
+
+1477
+01:18:47,900 --> 01:18:51,300
+Of course not, he's just been held up in traffic. You just think about that statuette.
+
+1478
+01:18:51,800 --> 01:18:57,000
+Now we arrive at the climax of the annual dinner of the Academy of Motion Picture of Arts and Science.
+
+1479
+01:18:57,600 --> 01:19:00,740
+The highest award within our power to bestow.
+
+1480
+01:19:01,300 --> 01:19:04,400
+We've already uploaded with our harts as well as our hands.
+
+1481
+01:19:04,780 --> 01:19:06,960
+While awards have been given those gentleman
+
+1482
+01:19:06,960 --> 01:19:11,160
+who during the past year have rendered distinguished service to the motion picture industry.
+
+1483
+01:19:11,950 --> 01:19:13,720
+We now pay honour to the ladies.
+
+1484
+01:19:14,210 --> 01:19:15,500
+Or rather to one lady.
+
+1485
+01:19:16,300 --> 01:19:20,600
+We offer to her the academy award of the finest performance of the past year.
+
+1486
+01:19:20,800 --> 01:19:22,900
+She has already had the world's acclaim
+
+1487
+01:19:23,090 --> 01:19:25,250
+but this is the tribute of our fellow workers,
+
+1488
+01:19:25,470 --> 01:19:27,330
+the men and women of this industry.
+
+1489
+01:19:27,600 --> 01:19:29,800
+It is not only my pleasure but my privilege
+
+1490
+01:19:30,300 --> 01:19:36,100
+to give this award to the actress who created the unforgettable actress of Anna in Green without end.
+
+1491
+01:19:37,030 --> 01:19:39,070
+Miss Vicky Leicester.
+
+1492
+01:19:58,300 --> 01:20:02,300
+What more can we say miss Leicester. This says it all for us.
+
+1493
+01:20:18,870 --> 01:20:23,710
+Lady's and gentlemen's! When something like this happens to you and you try to
+
+1494
+01:20:24,120 --> 01:20:26,540
+count how you feel about it, you find out that
+
+1495
+01:20:27,140 --> 01:20:30,070
+Out of the all the words in the world there are only two
+
+1496
+01:20:30,400 --> 01:20:33,700
+words that would mean anything:
+
+1497
+01:20:35,100 --> 01:20:36,600
+Thank you! All I can do is to say them to you from my heart.
+
+1498
+01:20:37,100 --> 01:20:39,800
+All I can do is
+
+1499
+01:20:40,500 --> 01:20:42,600
+All I can do is keep on saying them...
+
+1500
+01:20:43,000 --> 01:20:48,600
+Hey! That's fine. All this thing. Please!
+That's a very pretty speech my dear. Very pretty!
+
+1501
+01:20:49,280 --> 01:20:51,120
+You said what I think. I wanna be the very first
+
+1502
+01:20:51,300 --> 01:20:54,300
+I wanna be the very first to congratulate you. But..
+
+1503
+01:20:54,370 --> 01:20:58,310
+I'm not a valuable piece of... Now I wanna make a speech.
+
+1504
+01:20:58,680 --> 01:21:00,430
+Now I wanna make a speech.
+
+1505
+01:21:00,820 --> 01:21:04,060
+Gentleman of the Academy and fellow suckers
+
+1506
+01:21:05,200 --> 01:21:09,800
+I got one of those for the best performance, they don't mean a thing. People get them every year.
+
+1507
+01:21:10,030 --> 01:21:12,220
+What I want is a special award.
+
+1508
+01:21:12,510 --> 01:21:14,560
+Something nobody else can get.
+
+1509
+01:21:14,740 --> 01:21:18,390
+I wanna statue of the worst performance of the year.
+
+1510
+01:21:19,470 --> 01:21:21,510
+In fact I want three statues.
+
+1511
+01:21:21,740 --> 01:21:25,840
+For the three worst performances of the year, because I've earned them.
+
+1512
+01:21:26,260 --> 01:21:28,590
+And every single one of you
+
+1513
+01:21:29,000 --> 01:21:33,000
+that saw those last masterpieces of mine knows I've earned them.
+
+1514
+01:21:33,200 --> 01:21:35,570
+Liby start the music.
+
+1515
+01:21:36,500 --> 01:21:40,700
+What I'm here to find out is, do I get 'em or do I get 'em?
+
+1516
+01:21:41,940 --> 01:21:44,110
+As or yes or no? *splash*
+
+1517
+01:21:52,670 --> 01:21:55,430
+Come on darling! Let's put on some ice!
+
+1518
+01:22:03,300 --> 01:22:05,500
+Come on Owen put some aid!
+
+1519
+01:22:06,600 --> 01:22:08,600
+That's clear Owen. Hello, Norman!
+
+1520
+01:22:13,400 --> 01:22:14,800
+Hi! How are you? Hi, Owen!
+
+1521
+01:22:15,100 --> 01:22:16,000
+Hi Owen! My dear,
+
+1522
+01:22:17,240 --> 01:22:20,070
+My dear do let me congratulate you. You must be very proud
+
+1523
+01:22:20,200 --> 01:22:22,600
+You must be very proud and happy tonight.
+
+1524
+01:22:23,000 --> 01:22:23,950
+Thank you!
+
+1525
+01:22:31,820 --> 01:22:34,000
+Tony give me a drink!
+
+1526
+01:23:02,400 --> 01:23:06,400
+Albert nice of you to come to my venue. Vicky how are you? I missed you!
+
+1527
+01:23:06,400 --> 01:23:09,100
+Everyone missed you! Had a nice trip?
+
+1528
+01:23:09,400 --> 01:23:12,600
+Well the three months tour that get us out of... because of out of pleasure
+
+1529
+01:23:12,960 --> 01:23:16,370
+But the way they were screaming for your pictures all over the country,
+
+1530
+01:23:16,400 --> 01:23:19,300
+Esleka if I may talk shot you are Enaka.
+
+1531
+01:23:19,380 --> 01:23:21,880
+Thank you! Is good to hear that.
+
+1532
+01:23:23,860 --> 01:23:25,380
+You've been crying. A little
+
+1533
+01:23:26,540 --> 01:23:28,450
+A little. How is Norman?
+
+1534
+01:23:29,030 --> 01:23:30,660
+How is Norman?
+
+1535
+01:23:36,400 --> 01:23:38,900
+Rough he's trying hard for all of us.
+
+1536
+01:23:39,300 --> 01:23:42,540
+Letting Norman leave the studio was the hardest thing I ever do. There was nothing else I could do.
+
+1537
+01:23:43,600 --> 01:23:45,300
+There was nothing else I could do. I know.
+
+1538
+01:23:45,440 --> 01:23:46,330
+I know. Have you been .
+
+1539
+01:23:47,110 --> 01:23:49,980
+Have you been .. Is he alright?
+
+1540
+01:23:50,270 --> 01:23:52,600
+He got to the sanatarium
+
+1541
+01:23:53,500 --> 01:23:57,850
+He really wanted that prix. Now I think he could only...
+
+1542
+01:23:58,340 --> 01:24:03,860
+Well, I'll have to start working again, it'll be some encouragement.
+
+1543
+01:24:05,100 --> 01:24:08,790
+Oliver, could you... could you do that?
+
+1544
+01:24:09,480 --> 01:24:13,340
+Oh, thank you. But he mustn't ever know I told you.
+
+1545
+01:24:13,560 --> 01:24:17,850
+He won't know, and you mustn't worry. I want you to keep up your good work in this
+
+1546
+01:24:18,400 --> 01:24:22,600
+It's the one thing I can do for you.
+
+1547
+01:24:28,900 --> 01:24:33,700
+If you'll just sit here, Mr.Niles , I'll have Mr. Maindorf down.
+-Thank you.
+
+1548
+01:24:35,460 --> 01:24:37,120
+Or not.
+
+1549
+01:24:49,900 --> 01:24:53,700
+Hello Oliver! Welcome to Liberty Hall.
+
+1550
+01:24:53,900 --> 01:24:56,500
+Hello Norman. Well,
+
+1551
+01:24:57,250 --> 01:25:02,760
+... This is just a handshake
+
+1552
+01:25:03,350 --> 01:25:06,160
+This is Cuddle, Oliver, my social secretary.
+
+1553
+01:25:06,420 --> 01:25:08,180
+We, we go everywhere together.
+
+1554
+01:25:08,340 --> 01:25:10,000
+How're you feeling Norman? Alright?
+
+1555
+01:25:10,250 --> 01:25:12,180
+I'm getting on remarkably well,
+
+1556
+01:25:12,500 --> 01:25:14,920
+You oughta see some of the boys. (whistles)
+
+1557
+01:25:15,050 --> 01:25:17,050
+Go sit down.
+
+1558
+01:25:20,040 --> 01:25:22,890
+Cuddles, we really don't need you.
+
+1559
+01:25:28,400 --> 01:25:31,700
+Are you comfortable here, Norman?
+-Comfortable? It's positively luxurious.
+
+1560
+01:25:32,000 --> 01:25:36,700
+They even have iron bars on the windows to keep out the drought.
+
+1561
+01:25:36,980 --> 01:25:40,900
+How much longer are you gonna be here?
+
+1562
+01:25:41,840 --> 01:25:45,910
+Hang on for the next week or two to get in good shape.
+
+1563
+01:25:46,030 --> 01:25:52,120
+After all, there is no particular hurry to return to the cameras.
+
+1564
+01:25:52,180 --> 01:25:57,180
+That's what I wanted to talk to you about. I've got a script with a fine part for you in it.
+
+1565
+01:26:00,100 --> 01:26:03,200
+Ah well that's great. That's great.
+
+1566
+01:26:04,400 --> 01:26:06,700
+Who... who plays opposite me?
+
+1567
+01:26:07,300 --> 01:26:09,800
+Well, it is not exactly the lead.
+
+1568
+01:26:10,100 --> 01:26:14,700
+Young Pimberton's doing that, but I tell you frankly I find your part better than the lead.
+
+1569
+01:26:16,400 --> 01:26:19,100
+Huh. I see.
+
+1570
+01:26:19,910 --> 01:26:21,600
+Better than the lead?
+
+1571
+01:26:21,700 --> 01:26:23,700
+Of course it isn't terribly long,
+
+1572
+01:26:23,900 --> 01:26:26,000
+but it's one of those parts that makes an impression on you.
+
+1573
+01:26:26,100 --> 01:26:28,600
+They'll be thinking about you all through the picture.
+-Uh huh.
+
+1574
+01:26:29,050 --> 01:26:34,170
+Well, the thing is Oliver, I'm, uh, pretty well settled at another studio.
+
+1575
+01:26:34,640 --> 01:26:40,260
+And I'm not at liberty at the moment to tell you which one, you know yourself how those things are.
+
+1576
+01:26:40,600 --> 01:26:44,370
+Big picture, One of the biggest of the year and the part
+
+1577
+01:26:44,900 --> 01:26:47,600
+every actor in Hollywood will give his teeth to play.
+
+1578
+01:26:47,920 --> 01:26:52,960
+Well that's fine Norman, and naturally, that would tie you up for a while, but we won't get to this picture for some time,
+
+1579
+01:26:53,000 --> 01:26:55,000
+and perhaps, if you want to consider it for later on,
+
+1580
+01:26:55,100 --> 01:26:57,400
+Well, I tell ya Oliver, you better not count on me.
+
+1581
+01:26:58,390 --> 01:27:03,410
+See, I've got several pictures lined up after this, and then they're talking to me about England
+
+1582
+01:27:03,900 --> 01:27:06,900
+You know, they're doing some very interesting things over there
+
+1583
+01:27:06,900 --> 01:27:08,200
+Hey
+
+1584
+01:27:09,200 --> 01:27:11,500
+What is it? Cuddle speak right out. We all love you.
+
+1585
+01:27:11,800 --> 01:27:13,500
+The dinner.
+-Oh!
+
+1586
+01:27:14,100 --> 01:27:18,200
+We dine at five thirty here, makes the nights longer.
+
+1587
+01:27:18,800 --> 01:27:22,800
+Now, goodbye Norman. I'm glad to see you're getting along so well.
+
+1588
+01:27:22,900 --> 01:27:24,100
+I'll be out in no time.
+
+1589
+01:27:24,700 --> 01:27:30,100
+I'll have to introduce myself all over to a lot of people, won't know when I'm not drinking.
+
+1590
+01:27:30,400 --> 01:27:31,100
+Goodbye.
+-Goodbye.
+
+1591
+01:27:31,200 --> 01:27:32,700
+Goodbye Norman.
+-Thanks for dropping in.
+
+1592
+01:27:37,100 --> 01:27:41,200
+Well, cuddles... alone at last.
+
+1593
+01:27:46,700 --> 01:27:49,700
+Christmas Week
+Racing
+Santa Anita Park
+
+1594
+01:28:28,500 --> 01:28:29,000
+Oh, hello.
+
+1595
+01:28:29,000 --> 01:28:29,400
+-Hello
+-Hello
+
+1596
+01:28:30,930 --> 01:28:32,160
+Hello, Norman.
+
+1597
+01:28:35,260 --> 01:28:36,610
+I see.
+
+1598
+01:28:38,840 --> 01:28:41,690
+How I hate to run into these has-beens.
+
+1599
+01:28:41,800 --> 01:28:42,700
+Give me the creeps.
+
+1600
+01:28:42,760 --> 01:28:43,910
+Me too.
+
+1601
+01:28:44,700 --> 01:28:46,500
+He was good while he had it.
+
+1602
+01:28:46,880 --> 01:28:48,460
+And he had it quite a while.
+
+1603
+01:28:49,400 --> 01:28:51,500
+-Hello
+-Hello Mr. Maine
+
+1604
+01:28:51,600 --> 01:28:54,300
+-I haven't seen you in a long time.
+-Ah, I've been resting
+
+1605
+01:28:55,130 --> 01:28:56,420
+Ginger ale, please.
+
+1606
+01:28:56,730 --> 01:28:58,220
+Ginger ale and what?
+
+1607
+01:28:58,700 --> 01:29:01,300
+Ginger ale and ginger ale.
+
+1608
+01:29:01,500 --> 01:29:02,100
+New leaf?
+
+1609
+01:29:02,590 --> 01:29:04,190
+A whole new book.
+
+1610
+01:29:05,750 --> 01:29:06,810
+Thank you.
+
+1611
+01:29:09,380 --> 01:29:11,150
+Scotch straight.
+
+1612
+01:29:11,600 --> 01:29:12,800
+Hello Libby
+
+1613
+01:29:13,750 --> 01:29:16,090
+Why it's Mr. America of yesteryear.
+
+1614
+01:29:16,820 --> 01:29:20,150
+Do they let you wander about now without a keeping?
+
+1615
+01:29:23,700 --> 01:29:26,020
+I didn't expect to find you an Santa Anita.
+
+1616
+01:29:26,630 --> 01:29:29,410
+What do they do with the actors when you're away?
+
+1617
+01:29:29,500 --> 01:29:32,500
+Oh, they cut them into slices and fry them with eggs.
+
+1618
+01:29:38,100 --> 01:29:40,590
+Suppose you'll be here all the time
+
+1619
+01:29:40,800 --> 01:29:45,500
+Now that you've retired from the hurly-burly of the silver screen.
+
+1620
+01:29:45,800 --> 01:29:52,400
+Well, I'm living down in Malibu now. Pretty lonesome with Esther away working all day.
+
+1621
+01:29:53,000 --> 01:29:55,700
+I wouldn't squawk about that if I were you.
+
+1622
+01:29:56,780 --> 01:29:59,290
+It's nice having somebody in the family making a living.
+
+1623
+01:29:59,420 --> 01:30:00,610
+Oh Well, I'm gonna tell you.
+
+1624
+01:30:02,200 --> 01:30:03,700
+I don't want to forget that we're friends.
+
+1625
+01:30:03,800 --> 01:30:06,200
+Friends my eye. Say listen
+
+1626
+01:30:06,230 --> 01:30:10,760
+I got you out of your jams because I had to, it was my job not because I was your friend.
+
+1627
+01:30:11,000 --> 01:30:14,500
+I don't like you and I never have liked you. Nothing made me happier
+
+1628
+01:30:14,670 --> 01:30:20,330
+than to see all those cute little pranks of yours has finally catch up with you and land you on your celebrated face!
+
+1629
+01:30:20,830 --> 01:30:25,420
+Pretty work, Libby. Always wait till they're down, then kick them.
+
+1630
+01:30:25,700 --> 01:30:29,400
+I don't feel sorry for you. You've fixed yourself nice and comfortable.
+
+1631
+01:30:29,700 --> 01:30:34,600
+You can live off your wife now. She'll buy you drinks and put up with you even though nobody else will.
+
+1632
+01:30:45,100 --> 01:30:46,800
+Wait a minute, Wait a minute...
+
+1633
+01:30:46,800 --> 01:30:48,220
+Come on outside for your right, pal!
+
+1634
+01:30:48,300 --> 01:30:49,400
+I am Norman Maine!
+
+1635
+01:30:49,410 --> 01:30:52,220
+Oh, Don't bother to throw him out.
+
+1636
+01:30:52,300 --> 01:30:54,200
+-He's harmless.
+-Alright, Mr. Libby if you say so.
+
+1637
+01:30:54,300 --> 01:30:57,800
+We should let him go, What can he do?
+He can't fight any better that he can act.
+
+1638
+01:30:57,940 --> 01:31:00,100
+Norman Maine...
+
+1639
+01:31:17,200 --> 01:31:23,500
+Give me Scotch...double.
+Leave the bottle here.
+
+1640
+01:31:30,220 --> 01:31:32,790
+Vicki, you'll be ill.
+Why don't you try to get some sleep?
+
+1641
+01:31:33,230 --> 01:31:36,210
+He's been gone 4 days, 4 days and not a word.
+
+1642
+01:31:41,400 --> 01:31:43,130
+Oliver I can't.
+
+1643
+01:31:46,460 --> 01:31:51,930
+Hello? No, this is Oliver Niles speaking. What? Where?
+
+1644
+01:31:53,520 --> 01:31:54,400
+Thank you.
+
+1645
+01:31:54,700 --> 01:31:55,100
+What is it?
+
+1646
+01:31:55,130 --> 01:31:56,120
+Nothing, nothing.
+
+1647
+01:31:56,140 --> 01:31:57,310
+Oliver tell me.
+
+1648
+01:31:57,400 --> 01:32:01,600
+He's in the night court. He's been arrested on a drunk charge and he's alright, isn't hurt and I'm going right now to get him out.
+
+1649
+01:32:01,700 --> 01:32:02,300
+I'm going with you.
+
+1650
+01:32:02,300 --> 01:32:04,400
+Vicki, is isn't many place for you and if it gets in the paper-
+
+1651
+01:32:04,400 --> 01:32:07,880
+What I care about the paper? I'm going with you!
+
+1652
+01:32:14,000 --> 01:32:17,200
+Precinct 30, Municipal Court
+County Los Angeles.
+
+1653
+01:32:17,250 --> 01:32:19,140
+The honorable judge Jeff Harris presiding.
+
+1654
+01:32:19,200 --> 01:32:20,500
+Be seated, Please.
+
+1655
+01:32:21,620 --> 01:32:22,960
+Oliver, did you do anything?
+
+1656
+01:32:23,120 --> 01:32:24,660
+The judge wouldn't even see me.
+
+1657
+01:32:24,830 --> 01:32:25,960
+Ready, Your honor.
+
+1658
+01:32:31,460 --> 01:32:34,750
+I want to advise you that you are entitled
+to be represented by counsel,
+
+1659
+01:32:35,100 --> 01:32:37,700
+to be confronted by the witnesses that may testified against you,
+
+1660
+01:32:37,800 --> 01:32:40,300
+To compel witnesses to attend on your behalf
+
+1661
+01:32:40,400 --> 01:32:43,400
+to the public and a speedy trial by the court, by a jury
+
+1662
+01:32:43,500 --> 01:32:46,440
+and the right to place a bail.
+Call the first five.
+
+1663
+01:32:46,600 --> 01:32:51,100
+Gregory, Railes, Maine, Rodríguez, Johnson
+Come on, Let's go!
+
+1664
+01:32:52,290 --> 01:32:53,930
+Go ahead, Move Along.
+
+1665
+01:32:57,300 --> 01:33:00,300
+-William Gregory
+-Yes
+
+1666
+01:33:01,690 --> 01:33:04,050
+Plain drunk, picked up in fifth and towne
+
+1667
+01:33:04,440 --> 01:33:07,410
+Sleeping in the gutter, 14 similar offenses in the past 6 months.
+
+1668
+01:33:07,670 --> 01:33:09,580
+Still at it, Gregory? How do you plead?
+
+1669
+01:33:09,830 --> 01:33:11,500
+I don't feel so good.
+
+1670
+01:33:11,950 --> 01:33:14,590
+I didn't ask how you feel, I ask you how you plead?!
+
+1671
+01:33:14,700 --> 01:33:15,800
+Guilty, I guess.
+
+1672
+01:33:16,000 --> 01:33:17,800
+When did you get out the last time?
+
+1673
+01:33:18,400 --> 01:33:21,100
+Day before christmas.
+
+1674
+01:33:21,170 --> 01:33:25,690
+I'm sorry. You'll have to miss New Years. You should be out in time for Washington's birthday. Sixty days.
+
+1675
+01:33:28,200 --> 01:33:30,020
+Milton Railes
+
+1676
+01:33:33,560 --> 01:33:35,100
+Plain drunk,
+
+1677
+01:33:35,200 --> 01:33:39,400
+Picked up im Brooklyn avenue, giving treatment at residence hospital, then removed to jail.
+
+1678
+01:33:39,410 --> 01:33:41,030
+How old are you, Railes?
+
+1679
+01:33:41,700 --> 01:33:43,200
+Uh, seventeen, sir.
+
+1680
+01:33:43,290 --> 01:33:46,120
+Did you get a good look at those men in the cell with you last night?
+
+1681
+01:33:47,240 --> 01:33:48,080
+Yes, sir.
+
+1682
+01:33:48,480 --> 01:33:50,600
+Have you taken a good look at yourself this morning?
+
+1683
+01:33:51,360 --> 01:33:52,480
+Well, no sir.
+
+1684
+01:33:52,720 --> 01:33:55,700
+Well, I suggest that you do.
+Five dollars and two days.
+
+1685
+01:33:57,360 --> 01:33:58,830
+Sentence suspended.
+
+1686
+01:33:59,010 --> 01:34:00,440
+Oh, judge! I...
+
+1687
+01:34:00,960 --> 01:34:02,430
+Alfred Henckle!
+
+1688
+01:34:02,740 --> 01:34:05,200
+Commonly Known as Norman Maine.
+
+1689
+01:34:05,200 --> 01:34:09,600
+Drinking disorderly, Wreck a car into a tree in Sunset and Coronado.
+
+1690
+01:34:09,920 --> 01:34:14,230
+Evidently been drinking for days, Resisted arrest and injured one of the arresting officers.
+
+1691
+01:34:14,810 --> 01:34:16,470
+How do you plead?
+
+1692
+01:34:16,730 --> 01:34:17,540
+Guilty.
+
+1693
+01:34:18,260 --> 01:34:20,760
+You're Norman Maine, the actor, aren't you?
+
+1694
+01:34:22,870 --> 01:34:25,120
+You've come pretty low, haven't you?
+
+1695
+01:34:25,360 --> 01:34:28,880
+There isn't a man here who's had the advantages you've had. Look what you've done with them.
+
+1696
+01:34:28,930 --> 01:34:35,370
+You're nothing but an irresponsible drunk,
+Driving above the streets with the power to inflict death or injury to innocent people.
+
+1697
+01:34:36,350 --> 01:34:38,590
+We better deny you that power for a while.
+
+1698
+01:34:38,700 --> 01:34:40,600
+Ninety days in the city jail.
+
+1699
+01:34:41,140 --> 01:34:42,350
+Please wait.
+
+1700
+01:34:50,700 --> 01:34:51,700
+I'm his wife.
+
+1701
+01:34:52,100 --> 01:34:54,090
+Yes, I recognized you Ms. Lester.
+
+1702
+01:34:57,500 --> 01:35:02,000
+Please, Judge. I promise you, this won't happen again.
+
+1703
+01:35:02,800 --> 01:35:08,200
+I'll be responsible for him... if you just won't send him there.
+
+1704
+01:35:09,150 --> 01:35:13,880
+Do you realize that this man, when drunk, is obviously a menace to public safety?
+
+1705
+01:35:15,860 --> 01:35:17,930
+and you realized too Ms. Lester,
+
+1706
+01:35:18,130 --> 01:35:21,560
+the responsibility you'll be assuming to this court...
+
+1707
+01:35:22,260 --> 01:35:23,610
+I do.
+
+1708
+01:35:27,620 --> 01:35:30,940
+Sentence suspended.
+Prisioner remanded to custody of wife.
+
+1709
+01:35:33,550 --> 01:35:36,090
+You can meet him at the jail entrance madam.
+
+1710
+01:35:36,680 --> 01:35:38,830
+José Rodriguez
+
+1711
+01:35:40,450 --> 01:35:43,720
+Found drunk, picked up first of maine.
+Second offense.
+
+1712
+01:35:44,120 --> 01:35:49,420
+-How do you plead?
+-I think I'm guilty, your honor
+-Sixty days
+
+1713
+01:36:04,500 --> 01:36:05,800
+I'm...
+
+1714
+01:36:05,810 --> 01:36:08,660
+-I'm so tired.
+-Hold it, Mr. Maine, a picture.
+
+1715
+01:36:08,660 --> 01:36:11,950
+-Oh no, Please. -What about a picture to the press?
+-Oh no, Please.
+
+1716
+01:36:12,700 --> 01:36:23,900
+<i>Norman Maine Released to custody
+of Vicki Lester after drunk Conviction!
+Night court Drama as star Pleads for husband's freedom.</i>
+
+1717
+01:36:27,320 --> 01:36:30,160
+He's still asleep. He's been asleep all day.
+
+1718
+01:36:30,500 --> 01:36:32,420
+That's the best thing for him.
+
+1719
+01:36:32,650 --> 01:36:35,540
+Is awful to see this happen to someone you love
+
+1720
+01:36:35,900 --> 01:36:39,400
+and know in your heart that can't get any better.
+
+1721
+01:36:39,600 --> 01:36:43,200
+All I know that, All I can do now is stay
+with him and try to help him.
+
+1722
+01:36:43,200 --> 01:36:47,800
+So am I.
+...take care of him.
+
+1723
+01:36:47,830 --> 01:36:49,890
+You'll very fond of him aren't you Oliver.
+
+1724
+01:36:50,300 --> 01:36:52,100
+I'm very fond of both.
+
+1725
+01:36:53,870 --> 01:36:56,710
+Then I know you'll understand what I have to tell you.
+
+1726
+01:36:57,170 --> 01:37:02,950
+After what happen last night, I think you already know what it is.
+I can't do any more pictures.
+
+1727
+01:37:03,000 --> 01:37:05,400
+I'm going away for good with Norman.
+
+1728
+01:37:05,500 --> 01:37:10,600
+You can't do that Vicki, You're in the very peak of your success and you work so hard to achieve.
+
+1729
+01:37:10,700 --> 01:37:20,600
+This is for Norman, I thought it all out
+
+1730
+01:37:21,100 --> 01:37:23,000
+I know it's too late to think about that now.
+
+1731
+01:37:23,100 --> 01:37:23,600
+But...
+
+1732
+01:37:24,580 --> 01:37:28,140
+May not too be late to go away with him and star over somewhere.
+
+1733
+01:37:28,250 --> 01:37:30,060
+It's your life your giving up Vicki.
+
+1734
+01:37:32,070 --> 01:37:35,140
+So I can try to get norman back his.
+
+1735
+01:37:37,150 --> 01:37:40,320
+Can you honestly tell me I'm wrong to do it.
+
+1736
+01:37:42,540 --> 01:37:46,760
+No Vicki, I can't honestly tell you that.
+
+1737
+01:37:49,700 --> 01:37:54,500
+Then there'll be no more Vicki Lester.
+
+1738
+01:37:58,230 --> 01:38:00,020
+Come on, walk to the door with me.
+
+1739
+01:38:13,870 --> 01:38:17,390
+Goodbye, Vicki Lester. You were a grand girl.
+
+1740
+01:38:18,400 --> 01:38:20,500
+Good luck, Mrs. Norman Maine.
+
+1741
+01:39:37,700 --> 01:39:39,100
+Darling!
+
+1742
+01:39:41,700 --> 01:39:44,400
+Maine coming in to apologize again.
+
+1743
+01:39:44,400 --> 01:39:47,300
+Stop, I'm sorry Dear, but
+
+1744
+01:39:48,100 --> 01:39:49,700
+It isn't you
+
+1745
+01:39:50,800 --> 01:39:52,900
+What other troubles have you got?
+
+1746
+01:39:53,100 --> 01:39:54,600
+None.
+
+1747
+01:39:55,500 --> 01:39:58,700
+I was just playing a scene with myself.
+
+1748
+01:39:59,000 --> 01:40:04,300
+Now look, I'm just coming out of the jitters and your just going into them.
+
+1749
+01:40:05,500 --> 01:40:07,500
+This is swell housefold.
+
+1750
+01:40:07,600 --> 01:40:08,900
+Isn't it?
+
+1751
+01:40:08,990 --> 01:40:14,360
+Tell you what we'll do. I promise to brace up,
+you go on the wagon.
+
+1752
+01:40:15,120 --> 01:40:18,140
+I cannot have been drinking too mch.
+
+1753
+01:40:19,300 --> 01:40:22,900
+What I'm gonna do, I'm going to be an athlete.
+
+1754
+01:40:23,200 --> 01:40:25,900
+You mean with great big muscles and everything.
+
+1755
+01:40:25,990 --> 01:40:27,990
+Well, roughly speaking.
+
+1756
+01:40:28,400 --> 01:40:31,500
+Gonna join the YMCA?
+
+1757
+01:40:31,500 --> 01:40:35,200
+No, cost too much. Now I'm going waiting out on the front yard.
+
+1758
+01:40:36,290 --> 01:40:37,760
+-Now
+-Sure!
+
+1759
+01:40:38,330 --> 01:40:40,010
+Do you like me to go with you?
+
+1760
+01:40:40,910 --> 01:40:42,360
+Sure, if you like to.
+
+1761
+01:40:43,170 --> 01:40:48,290
+Norman, I don't think I will.
+It might spoil this beatiful natural waves.
+
+1762
+01:40:49,100 --> 01:40:50,400
+Yeah, I get that's right.
+
+1763
+01:40:50,600 --> 01:40:53,600
+Darling, look.
+Can I have a hot...
+
+1764
+01:40:54,700 --> 01:40:57,800
+I mean some hot soup for me, when I come back?
+
+1765
+01:40:57,900 --> 01:40:59,400
+A hot soup.
+
+1766
+01:40:59,400 --> 01:41:01,400
+and I make one some of those nice sandwiches.
+
+1767
+01:41:01,760 --> 01:41:04,240
+Norman, do you have to?
+
+1768
+01:41:13,700 --> 01:41:18,900
+-Come on now.
+-Don't stay out too long
+
+1769
+01:41:25,030 --> 01:41:26,530
+Hey!
+
+1770
+01:41:28,970 --> 01:41:32,530
+Do you mind if I take just... one more look?
+
+1771
+01:42:28,020 --> 01:42:33,700
+<i>Norman Maine's body found of Malibu
+Ex-Star perishes in tragic accident!</i>
+
+1772
+01:42:38,000 --> 01:42:43,800
+First drink of water he had in twenty years.
+Then, he had to get it by accident.
+
+1773
+01:42:43,930 --> 01:42:45,750
+(Laughing)
+
+1774
+01:42:46,900 --> 01:42:52,600
+but how do you write congratulations to the Pacific Ocean?
+
+1775
+01:42:52,680 --> 01:42:55,400
+(Laughing)
+
+1776
+01:42:59,000 --> 01:42:59,900
+There he is now!
+
+1777
+01:43:00,300 --> 01:43:02,220
+Oh! You can't see a thing.
+
+1778
+01:43:04,570 --> 01:43:06,330
+Hello Vicki!
+
+1779
+01:43:22,500 --> 01:43:25,700
+-Get away, can't you?
+-Come on, Vicki! Let's see your face.
+
+1780
+01:43:25,700 --> 01:43:28,700
+Vicki, will you sign my book for me?
+Write "This is Norman Maine".
+
+1781
+01:43:29,000 --> 01:43:31,000
+Don't you care, Vicki. You'll get over it.
+
+1782
+01:43:33,300 --> 01:43:35,100
+Stand back, can't you?
+
+1783
+01:43:36,320 --> 01:43:38,960
+Don't you cry, dearie! He wasn't so much!
+
+1784
+01:44:04,420 --> 01:44:10,160
+Do you mind if I take just... one more look?
+
+1785
+01:44:31,830 --> 01:44:34,130
+Here are the paychecks for the servants, Graves.
+
+1786
+01:44:34,160 --> 01:44:36,530
+You'll find a very nice bonus in each one.
+
+1787
+01:44:36,600 --> 01:44:39,700
+Miss Nasta asked me to thank you for your kindness and service.
+
+1788
+01:44:39,800 --> 01:44:43,200
+If there is anything i can do for the little lady, i should be glad to do it.
+
+1789
+01:44:43,300 --> 01:44:46,500
+She would appreciate your attending to
+the closing of the Beverly Hills house.
+
+1790
+01:44:46,710 --> 01:44:48,530
+Be careful with that!
+
+1791
+01:44:48,900 --> 01:44:51,100
+Put it down, I say!
+
+1792
+01:44:53,000 --> 01:44:54,500
+Well? Where is she?
+
+1793
+01:44:54,500 --> 01:44:56,300
+I-In the bedroom, who are you?
+
+1794
+01:44:56,400 --> 01:44:59,400
+Oh, I'm her grandmother. Get out of the way!
+
+1795
+01:45:01,700 --> 01:45:02,900
+Hey
+
+1796
+01:45:03,000 --> 01:45:05,600
+Granny, darling!
+
+1797
+01:45:07,800 --> 01:45:10,400
+Oh I'm so glad to see you. What made you come?
+
+1798
+01:45:10,600 --> 01:45:12,200
+Oh I know when I'm needed.
+
+1799
+01:45:13,000 --> 01:45:15,300
+Now get out of here! Go on, get out of here, all of you!
+
+1800
+01:45:15,300 --> 01:45:17,480
+I want to talk to my grand-daughter alone.
+
+1801
+01:45:18,000 --> 01:45:20,400
+I came just as quickly as i could.
+
+1802
+01:45:20,400 --> 01:45:23,100
+But I'm going home. I sent you a ride yesterday.
+
+1803
+01:45:23,800 --> 01:45:29,200
+Hm! Sit down!
+
+1804
+01:45:32,880 --> 01:45:34,780
+Is it true that you're going to uit the movie?
+
+1805
+01:45:35,300 --> 01:45:37,000
+I never want to hear them again.
+
+1806
+01:45:39,800 --> 01:45:41,400
+What''re you running away from?
+
+1807
+01:45:42,800 --> 01:45:44,700
+I'm not running away.
+
+1808
+01:45:45,210 --> 01:45:47,840
+It's just that i can't go on. My heart isn't there anymore.
+
+1809
+01:45:49,400 --> 01:45:53,400
+Once i told you to get what you want to have to give your heart in exchange
+
+1810
+01:45:54,200 --> 01:45:56,900
+And you said, you will win, remember?
+
+1811
+01:45:57,360 --> 01:45:58,810
+I remember.
+
+1812
+01:46:00,400 --> 01:46:03,000
+Seems to me that you got more than you were bargaining for.
+
+1813
+01:46:03,030 --> 01:46:07,730
+More fame. More success. Even more, personal happiness.
+
+1814
+01:46:08,100 --> 01:46:10,900
+Maybe, more unhappiness.
+
+1815
+01:46:11,500 --> 01:46:17,310
+But you did make a bargain and now you're whining over it.
+
+1816
+01:46:17,310 --> 01:46:21,430
+I don't think i'd feel so very proud of myself, if i were you
+
+1817
+01:46:22,100 --> 01:46:25,200
+I'm not Granny, my mind's made up
+
+1818
+01:46:28,800 --> 01:46:31,700
+But Granny-
+I was proud of you Esther.
+
+1819
+01:46:31,750 --> 01:46:35,600
+I was proud to be the grandmother of Esther.
+
+1820
+01:46:35,600 --> 01:46:40,800
+It gave me something to live for. Now, I haven't any.
+
+1821
+01:46:42,360 --> 01:46:48,250
+I know. i wanna be strong but I can't go on.
+
+1822
+01:46:49,100 --> 01:46:53,100
+You must. Tragedy is a test of courage.
+
+1823
+01:46:53,200 --> 01:46:56,900
+If you can meet it bravely, it will leave you bigger than it found you.
+
+1824
+01:46:57,040 --> 01:47:00,910
+If not, then you'll have to live all your life as a coward.
+
+1825
+01:47:01,080 --> 01:47:05,530
+Because no matter where you may run, you can never run away from yourself.
+
+1826
+01:47:07,400 --> 01:47:09,930
+I never knew Norman Maine.
+
+1827
+01:47:10,150 --> 01:47:13,310
+He wrote me a very sweet letter when you were married.
+
+1828
+01:47:13,660 --> 01:47:17,210
+He said you told him how much I meant to you.
+
+1829
+01:47:17,380 --> 01:47:21,720
+And I know just how much you must meant to him.
+
+1830
+01:47:22,800 --> 01:47:27,090
+You know, Esther. I can't believe that whenever you meet
+
+1831
+01:47:27,300 --> 01:47:29,000
+he can be very happy
+
+1832
+01:47:29,030 --> 01:47:34,760
+knowing that he just broke the spirit of the little girl he praised me so highly
+
+1833
+01:47:34,830 --> 01:47:38,300
+and I can't believe that he can be very proud
+
+1834
+01:47:38,390 --> 01:47:42,620
+knowing that all the great love is to you
+
+1835
+01:47:42,800 --> 01:47:46,400
+was to make me a Putter.
+
+1836
+01:47:48,220 --> 01:47:52,450
+The car is ready Ms. Esther. You'll have to go now to make the train.
+
+1837
+01:47:58,020 --> 01:48:00,920
+Put the car back in the garage.
+
+1838
+01:48:22,800 --> 01:48:25,280
+The girl who has won the heart of Hollywood.
+
+1839
+01:48:25,330 --> 01:48:27,370
+The girl who has won the heart of the world.
+
+1840
+01:48:27,410 --> 01:48:29,240
+Ms. Vicki Lester!
+
+1841
+01:48:29,300 --> 01:48:34,080
+And if i'm not mistaken, Ms. Lester's car has just been arrived.
+
+1842
+01:48:34,200 --> 01:48:36,700
+Yes, it is here!
+
+1843
+01:48:52,600 --> 01:48:54,700
+I scare very slowly, young man!
+
+1844
+01:48:54,720 --> 01:48:56,480
+smile folks, please!
+
+1845
+01:49:01,720 --> 01:49:03,650
+They'll have your mug-
+
+1846
+01:49:03,720 --> 01:49:08,300
+I mean, your face plastered across half
+the papers in the country tomorrow
+- Hm how do i look?
+
+1847
+01:49:08,360 --> 01:49:10,410
+Oh you look well
+
+1848
+01:49:10,500 --> 01:49:12,200
+You're a liar, but I like ya.
+
+1849
+01:49:12,210 --> 01:49:13,980
+and here Mrs.Lester Grandmother.
+
+1850
+01:49:14,490 --> 01:49:16,600
+Would you say a few words to the radio audience, please?
+
+1851
+01:49:17,060 --> 01:49:18,260
+Say something, lady
+
+1852
+01:49:18,900 --> 01:49:24,900
+You know, we've got a thing like that back home where they all listen
+You know but we call it a pathy-line
+
+1853
+01:49:25,000 --> 01:49:25,800
+(Laughing)
+
+1854
+01:49:25,810 --> 01:49:28,240
+Won't you say something, please? They're listening.
+
+1855
+01:49:30,660 --> 01:49:35,040
+Maybe some of you people listening
+in dream about coming to Hollywood.
+
+1856
+01:49:35,090 --> 01:49:38,170
+Maybe some of you will get pretty discouraged.
+
+1857
+01:49:38,570 --> 01:49:42,180
+Well, when you do, you just think about me.
+
+1858
+01:49:42,490 --> 01:49:44,450
+It took me over seventy—
+
+1859
+01:49:45,330 --> 01:49:49,420
+sixty years to get here, but here I am
+
+1860
+01:49:49,620 --> 01:49:51,750
+and here I mean to stay.
+
+1861
+01:49:52,000 --> 01:49:54,500
+(Applause and laughing)
+Thank you very much.
+
+1862
+01:49:59,100 --> 01:50:00,800
+Norman Maine
+GOOD LUCK
+
+1863
+01:50:05,690 --> 01:50:07,250
+Miss Lester
+
+1864
+01:50:11,500 --> 01:50:13,600
+This microphone is on an international hookup.
+
+1865
+01:50:13,700 --> 01:50:16,800
+Throughout the world, your fans are hoping
+that you'll say a few words to them.
+
+1866
+01:50:25,080 --> 01:50:26,630
+Hello, everyone...
+
+1867
+01:50:27,260 --> 01:50:30,650
+This is Mrs. Norman Maine.
+
+1868
+01:50:36,500 --> 01:50:39,200
+ESTHER AT MICROPHONE
+
+1869
+01:50:39,200 --> 01:50:42,300
+Esther
+Hello, everybody... This is Mrs. Norman Maine.
+
+1870
+01:50:42,400 --> 01:50:45,600
+The ovation is tremendous.
+CAMERA MOVES IN TO BIG CLOSEUP OF ESTHER.
+
+1871
+01:50:45,700 --> 01:50:48,900
+Tears are starting down her cheeks.
+She looks out past all this crowd, this confusion,
+
+1872
+01:50:49,000 --> 01:50:52,100
+this uproar, to some distant point of her own.
+The music swells up.
+FADE OUT.
+
+1873
+01:50:52,200 --> 01:50:53,200
+THE END.
+
+1874
+01:50:53,330 --> 01:50:55,640
+A Selznick International Picture
+
+1875
+01:50:58,703 --> 01:51:05,709
+FROM THE COLLECTION OF
+GEORGE EASTMAN HOUSE
