@@ -33,7 +33,7 @@ def rename_duplicate_and_blank_tracks(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("core", "0023_clip_description_help_text"),
+        ("core", "0025_clip_description_help_text"),
     ]
 
     operations = [
