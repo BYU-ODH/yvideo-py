@@ -122,7 +122,7 @@ class ThumbnailTests(TestCase):
             resource=get_or_create_youtube_resource("abcdefghijk", "owner"),
             url="https://www.youtube.com/watch?v=abcdefghijk",
         )
-        with mock.patch("core.views_thumbnails.requests.get") as get:
+        with mock.patch("core.views.requests.get") as get:
             get.return_value.content = JPEG
             response = self.client.post(
                 reverse("save_content_thumbnail", args=[content.pk]),

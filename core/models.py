@@ -1177,14 +1177,13 @@ class Content(models.Model):
 
 
 THUMBNAIL_COLORS = [
+    "#4e5760",
     "#1f4e79",
-    "#2e7d32",
-    "#8e24aa",
-    "#c62828",
-    "#ef6c00",
-    "#00838f",
-    "#5d4037",
-    "#37474f",
+    "#266457",
+    "#2d7a35",
+    "#993175",
+    "#ac4f4f",
+    "#54206a",
 ]
 THUMBNAIL_TEXT_DEFAULTS = {"color": "#ffffff", "size": 1.5}
 

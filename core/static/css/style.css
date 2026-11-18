@@ -2220,8 +2220,10 @@ button.disabled:hover {
     background: white;
 }
 
+/* The solid bottom edge keeps the tab bar's underline unbroken. */
 .thumbnail-tabs [role="tab"]:not([aria-selected="true"]):hover {
-    background: var(--selectable-grey);
+    border-color: var(--primary-blue);
+    border-style: dashed dashed solid;
 }
 
 /* `.column-flex` would otherwise beat the browser's own [hidden] rule. */
@@ -2230,15 +2232,26 @@ button.disabled:hover {
 }
 
 #thumbnail-upload {
+    cursor: pointer;
     box-sizing: border-box;
     max-width: 100%;
 }
 
 /* The padding every dialog input gets otherwise squeezes the swatch to a thin line. */
 .thumbnail-editor-controls input[type="color"] {
+    cursor: pointer;
     width: 3rem;
     height: 2rem;
     padding: 2px;
+}
+
+.thumbnail-field {
+    align-items: center;
+}
+
+.thumbnail-field input:is([type="text"], [type="file"]) {
+    flex: 1;
+    min-width: 0;
 }
 
 #thumbnail-video {
