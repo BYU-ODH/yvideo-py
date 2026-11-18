@@ -1056,7 +1056,7 @@ button:hover {
 
 /* PLAYLIST PAGE */
 #add-new-playlist-button {
-    align-self: flex-end;
+    align-self: flex-start;
 }
 
 .playlists-list-content {
