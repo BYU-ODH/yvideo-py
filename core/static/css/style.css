@@ -2226,9 +2226,21 @@ button.disabled:hover {
     border-style: dashed dashed solid;
 }
 
-/* `.column-flex` would otherwise beat the browser's own [hidden] rule. */
-[role="tabpanel"][hidden] {
-    display: none;
+/* Panels share one grid cell, so the tallest sets the height and switching tabs doesn't resize the dialog. */
+.thumbnail-panels {
+    display: grid;
+
+    /* Lets the column shrink below the file input's natural width instead of overflowing. */
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.thumbnail-panels > [role="tabpanel"] {
+    grid-area: 1 / 1;
+}
+
+.thumbnail-panels > [role="tabpanel"][hidden] {
+    display: flex;
+    visibility: hidden;
 }
 
 #thumbnail-upload {
@@ -2249,12 +2261,23 @@ button.disabled:hover {
     align-items: center;
 }
 
-.thumbnail-field input:is([type="text"], [type="file"]) {
+.thumbnail-field input[type="text"] {
     flex: 1;
     min-width: 0;
 }
 
+.thumbnail-frame-heading {
+    margin-block: 0.25rem;
+    text-align: center;
+}
+
+/* The browser's auto side margins on <hr> collapse it to zero width inside a flex column. */
+#thumbnail-panel-frame hr {
+    width: 100%;
+}
+
 #thumbnail-video {
+    cursor: pointer;
     align-self: center;
     width: 100%;
     max-width: 240px;

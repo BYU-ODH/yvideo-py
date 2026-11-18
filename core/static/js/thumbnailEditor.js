@@ -114,11 +114,13 @@ function setupEditor(dialog) {
     const frames = form.querySelector("#thumbnail-frames");
     const captureFrame = () => toJpeg(video, video.videoWidth, video.videoHeight);
     const scrubTo = () => {
-      video.currentTime = video.duration * (scrubber.value / scrubber.max);
+      video.currentTime = scrubber.value;
     };
     video.addEventListener("loadedmetadata", async () => {
       // Audio-only files have no picture and live streams no fixed length to pick from.
       if (!video.videoWidth || !Number.isFinite(video.duration)) {
+        // Otherwise the unused panel still reserves its height in the dialog.
+        form.querySelector("#thumbnail-panel-frame").remove();
         return;
       }
       for (const position of AUTO_FRAME_POSITIONS) {
@@ -135,16 +137,21 @@ function setupEditor(dialog) {
         button.addEventListener("click", () => useBlob(blob));
         frames.append(button);
       }
+      // Measured in seconds so each arrow-key step moves a fixed tenth of a second.
+      scrubber.max = video.duration;
+      scrubber.value = video.duration / 2;
       scrubTo();
       form.querySelector("#thumbnail-tab-frame").hidden = false;
     }, { once: true });
     scrubber.addEventListener("input", scrubTo);
-    form.querySelector("#thumbnail-capture").addEventListener("click", async () => {
+    const useCurrentFrame = async () => {
       if (video.seeking) {
         await new Promise((resolve) => video.addEventListener("seeked", resolve, { once: true }));
       }
       useBlob(await captureFrame());
-    });
+    };
+    form.querySelector("#thumbnail-capture").addEventListener("click", useCurrentFrame);
+    video.addEventListener("click", useCurrentFrame);
   }
 
   form.addEventListener("submit", async (event) => {

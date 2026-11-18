@@ -45,59 +45,62 @@
                                 aria-selected="false"
                                 tabindex="-1">Upload</button>
                     </div>
-                    <div id="thumbnail-panel-color"
-                         class="column-flex"
-                         role="tabpanel"
-                         aria-labelledby="thumbnail-tab-color">
-                        <div class="row-flex thumbnail-field">
-                            <label for="thumbnail-background-color">Color</label>
-                            <input type="color"
-                                   id="thumbnail-background-color"
-                                   name="background_color"
-                                   value="{{ thumbnail.background_color }}">
-                        </div>
-                    </div>
-                    {% if stream_url %}
-                        <div id="thumbnail-panel-frame"
+                    <div class="thumbnail-panels">
+                        <div id="thumbnail-panel-color"
                              class="column-flex"
                              role="tabpanel"
-                             aria-labelledby="thumbnail-tab-frame"
-                             hidden>
-                            <p>Pick a frame from the video:</p>
-                            <div id="thumbnail-frames" class="row-flex"></div>
-                            <video id="thumbnail-video"
-                                   src="{{ stream_url }}"
-                                   preload="metadata"
-                                   muted
-                                   playsinline>
-                            </video>
-                            <input type="range"
-                                   id="thumbnail-scrubber"
-                                   min="0"
-                                   max="1000"
-                                   value="500"
-                                   aria-label="Scrub through the video">
-                            <button type="button" id="thumbnail-capture" class="blue-button">Use this frame</button>
+                             aria-labelledby="thumbnail-tab-color">
+                            <div class="row-flex thumbnail-field">
+                                <label for="thumbnail-background-color">Color</label>
+                                <input type="color"
+                                       id="thumbnail-background-color"
+                                       name="background_color"
+                                       value="{{ thumbnail.background_color }}">
+                            </div>
                         </div>
-                    {% endif %}
-                    {% if youtube_image_url %}
-                        <div id="thumbnail-panel-youtube"
+                        {% if stream_url %}
+                            <div id="thumbnail-panel-frame"
+                                 class="column-flex"
+                                 role="tabpanel"
+                                 aria-labelledby="thumbnail-tab-frame"
+                                 hidden>
+                                <p class="thumbnail-frame-heading">Randomly selected frames:</p>
+                                <div id="thumbnail-frames" class="row-flex"></div>
+                                <hr>
+                                <p class="thumbnail-frame-heading">Find your own frame:</p>
+                                <video id="thumbnail-video"
+                                       src="{{ stream_url }}"
+                                       preload="metadata"
+                                       muted
+                                       playsinline>
+                                </video>
+                                <input type="range"
+                                       id="thumbnail-scrubber"
+                                       min="0"
+                                       step="0.1"
+                                       aria-label="Scrub through the video">
+                                <button type="button" id="thumbnail-capture" class="blue-button">Use this frame</button>
+                            </div>
+                        {% endif %}
+                        {% if youtube_image_url %}
+                            <div id="thumbnail-panel-youtube"
+                                 class="column-flex"
+                                 role="tabpanel"
+                                 aria-labelledby="thumbnail-tab-youtube"
+                                 tabindex="0"
+                                 hidden>
+                                <p>Uses the thumbnail YouTube shows for this video.</p>
+                            </div>
+                        {% endif %}
+                        <div id="thumbnail-panel-upload"
                              class="column-flex"
                              role="tabpanel"
-                             aria-labelledby="thumbnail-tab-youtube"
-                             tabindex="0"
+                             aria-labelledby="thumbnail-tab-upload"
                              hidden>
-                            <p>Uses the thumbnail YouTube shows for this video.</p>
-                        </div>
-                    {% endif %}
-                    <div id="thumbnail-panel-upload"
-                         class="column-flex"
-                         role="tabpanel"
-                         aria-labelledby="thumbnail-tab-upload"
-                         hidden>
-                        <div class="row-flex thumbnail-field">
-                            <label for="thumbnail-upload">Upload image</label>
-                            <input type="file" id="thumbnail-upload" accept="image/*">
+                            <div class="column-flex">
+                                <label for="thumbnail-upload">Upload image</label>
+                                <input type="file" id="thumbnail-upload" accept="image/*">
+                            </div>
                         </div>
                     </div>
                 </fieldset>
