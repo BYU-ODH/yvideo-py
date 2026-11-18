@@ -1,4 +1,4 @@
-import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, setupMultiOptionMenu, setupInPlaceFieldEdit } from "./utils.js";
+import { formatSecondsToString, parseTimeStringToSeconds, createElementFromHTMLString, getCSRFToken, makePostRequest, animateDuringPlayback, applyRect, displayUserMessage, failedResponseMessage, setupMultiOptionMenu, setupInPlaceFieldEdit } from "./utils.js";
 import { BlurEditor, placeBlurAnchorPointDots } from "./BlurEditor.js";
 import { saveStatus } from "./save-status.js";
 import { isHexColor, setUpColorCombobox } from "./ColorCombobox.js";
@@ -1617,7 +1617,10 @@ export class Editor {
             displayText(payload);
           } else {
             displayText(originalNameValue);
-            displayUserMessage("error", "Failed to update annotation set name");
+            displayUserMessage(
+              "error",
+              await failedResponseMessage(response, "Failed to update annotation set name")
+            );
           }
         }
         else if (e.key == "Escape") {
@@ -1985,10 +1988,10 @@ export class Editor {
         dialog.close();
 
         if (!newTrackResponse.ok) {
-          const message = newTrackResponse.status === 409
-            ? await newTrackResponse.text()
-            : "Failed to create new track!";
-          displayUserMessage("error", message);
+          displayUserMessage(
+            "error",
+            await failedResponseMessage(newTrackResponse, "Failed to create new track!")
+          );
           return;
         }
 

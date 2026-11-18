@@ -136,6 +136,17 @@ export async function displayUserMessage(level, message) {
 
   container.insertAdjacentHTML("beforeend", html);
 }
+
+// Views send messages meant for the user as text/plain; other bodies are error pages.
+export async function failedResponseMessage(response, fallback) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("text/plain")) {
+    return fallback;
+  }
+  const text = (await response.text()).trim();
+  return text || fallback;
+}
+
 /* makePostRequest
 * handles csrf token and conent type placement. Returns the result of the request.
 * fetchImpl lets callers route the request through a wrapper such as saveStatus.fetch.
@@ -233,11 +244,12 @@ export function setupInPlaceFieldEdit(wrapperElement, editEndpointURL, { onSucce
         editEndpointURL, JSON.stringify({ new_value: newValue }), undefined, fetchImpl
       );
       if (!response.ok) {
-        throw new Error(`${response.status} ${await response.text()}`);
+        const message = await failedResponseMessage(response, "Failed to save your change.");
+        displayUserMessage("error", message);
+        throw new Error(`${response.status} ${message}`);
       }
       await onSuccess(response);
     } catch (err) {
-      // The save indicator reports the failure when fetchImpl is saveStatus.fetch.
       inputElement.value = originalTitle;
       console.error("In-place edit failed:", err);
     } finally {

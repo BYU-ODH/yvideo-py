@@ -962,6 +962,13 @@ def load_annotation_form(request, annotation_type, annotation_id):
     return HttpResponse(form_html)
 
 
+def user_error(message, status=400):
+    # The editor shows text/plain error bodies to the user as written.
+    return HttpResponse(
+        message, status=status, content_type="text/plain; charset=utf-8"
+    )
+
+
 @require_GET
 @annotation_set_write_required
 def load_annotation_set_settings(request, annotation_set):
@@ -991,7 +998,7 @@ def update_annotation_set_name(request, annotation_set):
 
         name = parsed_body["name"].strip()
         if not name:
-            return HttpResponseBadRequest("Annotation set names cannot be blank.")
+            return user_error("Annotation set names cannot be blank.")
 
         annotation_set.name = name
         annotation_set.save()
@@ -999,7 +1006,7 @@ def update_annotation_set_name(request, annotation_set):
     except IntegrityError:
         # Names are unique per (name, resource, owner), so this is the user picking a
         # name they already used on this resource.
-        return HttpResponse("You already have a set with that name.", status=409)
+        return user_error("You already have a set with that name.", status=409)
     except Exception as e:
         logger.error(f"Failed to update annotation set name. Exception: {e}")
         return HttpResponseServerError()
@@ -1230,14 +1237,14 @@ def update_track_name(request, track):
     name = name.strip()
     max_length = Track._meta.get_field("name").max_length
     if not name or len(name) > max_length:
-        return HttpResponseBadRequest(f"Track names must be 1-{max_length} characters")
+        return user_error(f"Track names must be 1-{max_length} characters")
 
     try:
         track.name = name
         with transaction.atomic():
             track.save(update_fields=["name"])
     except IntegrityError:
-        return HttpResponse("A track with that name already exists.", status=409)
+        return user_error("A track with that name already exists.", status=409)
     except Exception as e:
         logger.error(f"Failed to update track name. Exception: {e}")
         return HttpResponseServerError()
@@ -1313,7 +1320,7 @@ def create_track(request, annotation_set):
 
         return convertTracksToHTML(annotation_set, request)
     except IntegrityError:
-        return HttpResponse("A track with that name already exists.", status=409)
+        return user_error("A track with that name already exists.", status=409)
     except Exception as e:
         logger.error(f"Failed to create a new track. Exception: {e}")
         return HttpResponseServerError()
