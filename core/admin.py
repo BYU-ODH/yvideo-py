@@ -38,6 +38,7 @@ from .models import Playlist
 from .models import PlaylistUserAccess
 from .models import Resource
 from .models import ResourceAccess
+from .models import ResourceAccessRequest
 from .models import ResourceFile
 from .models import ResourceFileKey
 from .models import ResourceIntakeRequest
@@ -1081,6 +1082,19 @@ class EmailAdmin(VersionAdmin):
 class ResourceAccessAdmin(VersionAdmin):
     list_display = ("user", "resource", "last_verified", "created_at")
     list_filter = ("last_verified", "created_at")
+    search_fields = ("user__netid", "user__username", "resource__name")
+
+
+@admin.register(ResourceAccessRequest)
+class ResourceAccessRequestAdmin(VersionAdmin):
+    list_display = (
+        "user",
+        "resource",
+        "acknowledged_compliance",
+        "acknowledged_fair_use_limitation",
+        "created_at",
+    )
+    list_filter = ("created_at",)
     search_fields = ("user__netid", "user__username", "resource__name")
 
 

@@ -1013,27 +1013,6 @@ button:hover {
     padding: 1rem;
 }
 
-#resource-search-input {
-    width: 100%;
-    padding: 5px;
-    border: none;
-}
-
-.resource-search-submit {
-    z-index: 1;
-
-    width: 50%;
-    height: 2rem;
-    padding: 0 1.25rem 0 3.25rem;
-    border: none;
-    border-radius: 0.5rem;
-
-    font-size: 1rem;
-
-    background: white;
-    box-shadow: var(--box-shadow-color) 0 2px 5px -1px;
-}
-
 .playlists-page {
     display: flex;
     flex: 1;
@@ -1585,6 +1564,19 @@ button:hover {
 }
 
 /* resource content intake styles */
+
+#resource-intake-details > summary {
+    cursor: pointer;
+}
+
+#resource-intake-details > summary > h3 {
+    display: inline;
+}
+
+#resource-access-form:has(.resource-intake-choice-set input:not(:checked)) #resource-search-results {
+    opacity: 0.6;
+}
+
 #resource-intake-form-wrapper {
     display: flex;
     flex-direction: column;
@@ -1623,7 +1615,8 @@ button:hover {
     flex-direction: column;
 }
 
-.resource-intake-form-group input {
+.resource-intake-form-group input,
+#resource-search-input {
     width: 100%;
     max-width: 320px;
     height: 36px;
@@ -1649,7 +1642,7 @@ button:hover {
     row-gap: 0.75rem;
 }
 
-#resource-intake-policy-compliance-label {
+.resource-intake-policy-compliance-label {
     white-space: normal;
 }
 

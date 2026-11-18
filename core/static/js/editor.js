@@ -13,6 +13,12 @@ import { nearestEdge, pickSnapEdge } from "./timeline-snap.js";
 const saveFetch = (...args) => saveStatus.fetch(...args);
 const savePost = (url, body, contentType) => makePostRequest(url, body, contentType, saveFetch);
 
+// collectCues tags each cue with its element's position in the list. A symbol key keeps the tag
+// out of JSON.stringify, so it is neither sent to the server nor part of the saved-state checks.
+const CUE_LIST_INDEX = Symbol("cueListIndex");
+const CUE_FIELD_SELECTOR =
+  ".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content, .editor-subtitle-cue-delete";
+
 const SEEK_REGION_SELECTOR = '#timeline-row-ticks-and-scrubbers, .timeline-track-row-right';
 // Mirror COMMENT_MIN_WIDTH / COMMENT_MIN_HEIGHT in core/models.py. A comment has no stored height,
 // so the minimum is only what keeps a strip of the box on the frame.
@@ -117,9 +123,11 @@ export class Editor {
           video: this.video,
           player: window.videoPlayer,
           timelineWrapper: this.timelineWrapper,
-          onBlurAnchorPointsSaved: () => {
-            this.placeTrackItems();
-            this.setupItems();
+          onBlurAnchorPointsSaved: (previousAnnotationId, responseData) => {
+            if (String(responseData.annotation_id) !== String(previousAnnotationId)) {
+              window.dispatchEvent(this.annotationUpdatedEvent);
+            }
+            this.applyAnnotationVersionResponse(responseData, previousAnnotationId, false, {seek: false});
           },
         });
 
@@ -608,6 +616,8 @@ export class Editor {
           const state = this.serializeItemForm(itemForm);
           if (state === this.lastSavedItemFormState) return;
 
+          // A blur point save in flight is about to give the annotation a new id.
+          await this.blurEditor.writes;
           const annotationId = itemForm.dataset["annotationId"];
           const annotationType = itemForm.dataset["annotationType"];
 
@@ -629,7 +639,8 @@ export class Editor {
           }
 
           this.lastSavedItemFormState = state;
-          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false});
+          // The form itself, because a deselect while waiting above takes it off the page.
+          const updated = await this.updateAnnotation({annotationType, annotationId, autoUpdateForm: false, form: itemForm});
           if (!updated) {
             this.lastSavedItemFormState = null;
             return;
@@ -833,9 +844,15 @@ export class Editor {
         return false;
       }
       this.historyRequestInFlight = true;
-      button.disabled = true;
 
       try {
+        // Undo has to apply to the version a blur point save in flight is about to create, and that
+        // save can leave nothing to redo or the user can have moved on to another annotation.
+        await this.blurEditor.writes;
+        if (button.disabled || !button.isConnected) {
+          return false;
+        }
+        button.disabled = true;
         const response = await savePost(
           button.dataset.historyUrl,
           new URLSearchParams({
@@ -859,6 +876,9 @@ export class Editor {
           responseData,
           button.dataset.annotationId,
           true,
+          // Blurs are edited frame by frame, so keep the frame; the blur editor moves the playhead
+          // itself if the restored version no longer covers it.
+          {seek: responseData.annotation_type !== "blur"},
         );
         if (!applied && button.isConnected) {
           // The version did change on the server, but the timeline could not be updated to show
@@ -939,11 +959,18 @@ export class Editor {
       updateForm.dataset.annotationId = annotationId;
       this.annotationIdInFocus = annotationId;
 
-      const renderedForm = createElementFromHTMLString(responseData.form_html);
-      const renderedToolbar = renderedForm.querySelector(".undo-redo-toolbar");
+      const renderedToolbar = responseData.form_html
+        ? createElementFromHTMLString(responseData.form_html).querySelector(".undo-redo-toolbar")
+        : null;
       const currentToolbar = itemForm.querySelector(".undo-redo-toolbar");
       if (renderedToolbar && currentToolbar) {
         currentToolbar.replaceWith(renderedToolbar);
+      } else if (currentToolbar) {
+        // Blur anchor point saves reply without a form, so the existing buttons are repointed.
+        for (const button of currentToolbar.querySelectorAll(".annotation-history-button")) {
+          button.dataset.annotationId = annotationId;
+          button.disabled = !responseData[`can_${button.dataset.historyAction}`];
+        }
       }
 
       if (annotationType == "blur") {
@@ -983,7 +1010,7 @@ export class Editor {
 
     // `seek: false` leaves the player where it is instead of jumping to the item's start. Timeline
     // drags use it: the playhead goes back to where the user parked it (see beginDragPreview).
-    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm}) {
+    async updateAnnotation({annotationType, annotationId, name=undefined, description=undefined, startTime=undefined, endTime=undefined, trackId=undefined, isFromItem=false, autoUpdateForm=true, seek=autoUpdateForm, form=document.getElementById("annotation-update-form")}) {
 
       let requestBody, contentType;
       if (isFromItem) {
@@ -996,8 +1023,7 @@ export class Editor {
         });
         contentType = "application/json";
       } else {
-        const annotationUpdateForm = document.getElementById("annotation-update-form");
-        const formData = new FormData(annotationUpdateForm);
+        const formData = new FormData(form);
         requestBody = {};
         for (let pair of formData.entries()) {
           const key = pair[0];
@@ -3189,14 +3215,21 @@ export class Editor {
         return targetEl?.closest(".editor-subtitle-cue-start, .editor-subtitle-cue-end, .editor-subtitle-cue-content");
       }
 
-      // change watcher
-      subtitlePanel.addEventListener("change", (e) => {
-        if (canEditCues() && isACueInput(e?.target)) {
-          e.preventDefault();
-          this.saveCues(this.collectCues());
-          return;
-        }
-      })
+      // focusout watcher: leaving a cue field saves any unsent edits. Unlike "change", this
+      // also catches an edit that returns a field to the value it had when focused, e.g.
+      // after a failed Enter save (which leaves the field in place) the user undoes the edit.
+      subtitlePanel.addEventListener("focusout", (e) => {
+        const cueInput = e?.target;
+        if (!canEditCues() || !isACueInput(cueInput)) return;
+        // Defer until any in-progress re-render of the cue list finishes, so a field that
+        // loses focus because it was replaced isn't compared against a half-built list.
+        queueMicrotask(() => {
+          if (!cueInput.isConnected) return;
+          const cues = this.collectCues();
+          if (JSON.stringify(cues) === this.sentCueState) return;
+          this.saveCues(cues);
+        });
+      });
 
       // keydown watcher
       subtitlePanel.addEventListener("keydown", (e) => {
@@ -3470,6 +3503,7 @@ export class Editor {
       const rawCues = document.getElementsByClassName("editor-subtitle-cue");
       const cues = [];
       for (let cue of rawCues) {
+        const listIndex = cues.length;
         // gather elements to extract data from
         const payloadEl = cue.querySelector(".editor-subtitle-cue-content");
         const startTimeEl = cue.querySelector(".editor-subtitle-cue-start");
@@ -3481,9 +3515,61 @@ export class Editor {
           payload: payloadEl.value,
           start_time: startTimeEl.value,
           end_time: endTimeEl.value,
+          [CUE_LIST_INDEX]: listIndex,
         });
       }
       return cues;
+    }
+
+    // Replaces the cue list with the server's rendering of `sentCues` and puts focus back on
+    // the matching field. The server sorts cues by start time and renders each with
+    // data-sent-index (its position in `sentCues`), and each sent cue still carries the position
+    // collectCues gave its element, so the focused field's cue can be followed even if it moved.
+    replaceCueListKeepingFocus(listEl, html, sentCues) {
+      const focused = document.activeElement;
+      const field = listEl.contains(focused) ? focused.closest(CUE_FIELD_SELECTOR) : null;
+      let restore = null;
+      if (field) {
+        const cueEls = Array.from(listEl.querySelectorAll(".editor-subtitle-cue"));
+        const listIndex = cueEls.indexOf(field.closest(".editor-subtitle-cue"));
+        const textField = field.matches("input, textarea");
+        restore = {
+          listIndex,
+          sentIndex: sentCues.findIndex((cue) => cue[CUE_LIST_INDEX] === listIndex),
+          fieldClass: CUE_FIELD_SELECTOR.split(", ").find((selector) => field.matches(selector)),
+          selection: textField
+            ? [field.selectionStart, field.selectionEnd, field.selectionDirection]
+            : null,
+          fieldScrollTop: field.scrollTop,
+        };
+      }
+      const listScrollTop = listEl.scrollTop;
+
+      listEl.innerHTML = html;
+      listEl.scrollTop = listScrollTop;
+      if (!restore) return;
+
+      // The focused cue was sent, so follow it to wherever the sort put it. Otherwise it was the
+      // deleted cue: move to the cue that took its place, or the new last cue, keeping the same
+      // kind of field so that, e.g., repeated deletes can walk down the list.
+      let cueEl = restore.sentIndex !== -1
+        ? listEl.querySelector(`.editor-subtitle-cue[data-sent-index="${restore.sentIndex}"]`)
+        : null;
+      if (!cueEl) {
+        const cueEls = listEl.querySelectorAll(".editor-subtitle-cue");
+        cueEl = cueEls[Math.min(restore.listIndex, cueEls.length - 1)] ?? null;
+      }
+      const target = cueEl?.querySelector(restore.fieldClass)
+        ?? document.getElementById("add-new-subtitle-button");
+      if (!target) return;
+      target.focus();
+      if (restore.sentIndex !== -1 && restore.selection && target.matches("input, textarea")) {
+        // The value can differ from the one sent (e.g. times are reformatted); clamp to it.
+        const [start, end, direction] = restore.selection;
+        const length = target.value.length;
+        target.setSelectionRange(Math.min(start, length), Math.min(end, length), direction);
+        target.scrollTop = restore.fieldScrollTop;
+      }
     }
 
     async saveCues(cues) {
@@ -3491,6 +3577,14 @@ export class Editor {
       const trackId = this.selectedSubtitleTrackId;
       const originalCueState = JSON.stringify(this.collectCues());
       this.sentCueState = originalCueState;
+      // sentCueState stands for what the server has. After a failure that is unknown: the edit
+      // may or may not have been stored (e.g. the response was lost). Forget it, so leaving a cue
+      // field saves whatever the cues are then, and the input watcher never shows them as saved.
+      // If sentCueState no longer matches, a later save replaced it and will settle it itself.
+      const forgetSentCueState = () => {
+        if (this.selectedSubtitleTrackId !== trackId) return;
+        if (this.sentCueState === originalCueState) this.sentCueState = null;
+      };
       saveStatus.settle("subtitle-cues");
       const save = (async () => {
         try {
@@ -3504,6 +3598,7 @@ export class Editor {
           );
           if (this.selectedSubtitleTrackId !== trackId) return false;
           if (!updateResponse.ok) {
+            forgetSentCueState();
             displayUserMessage("error", "Failed to save changes to subtitle cues.");
             return false;
           }
@@ -3513,13 +3608,14 @@ export class Editor {
           // was a change made while the save was in progress, we don't want to save the
           // current state because it is now out of date.
           if (JSON.stringify(this.collectCues()) !== originalCueState) return true;
-          document.getElementById("subtitle-panel-list").innerHTML = html;
+          this.replaceCueListKeepingFocus(document.getElementById("subtitle-panel-list"), html, cues);
           this.sentCueState = JSON.stringify(this.collectCues());
           saveStatus.settle("subtitle-cues");
           window.dispatchEvent(this.annotationUpdatedEvent);
 
           return true;
         } catch {
+          forgetSentCueState();
           displayUserMessage("error", "Failed to save changes to subtitle cues");
           return false;
         }

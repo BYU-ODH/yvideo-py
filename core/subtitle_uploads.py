@@ -141,6 +141,10 @@ class VTTCue:
     payload.
     """
 
+    # Position of this cue in the list the editor sent, so the editor can find it again after
+    # the server re-sorts the list (see Editor.replaceCueListKeepingFocus). None for cues not from an edit request.
+    sent_index = None
+
     def __init__(
         self, type=None, payload="", start_time=None, end_time=None, is_valid=True
     ):
