@@ -42,7 +42,7 @@
                     <a href="{% url 'request_resource' %}">Request New Resource</a>
                 {% endif %}
                 {% if user.is_admin or is_lab_assistant %}
-                    <a href="{% url 'resource_access_requests' %}">Resource Access Requests</a>
+                    <a href="{% url 'resource_access_requests' %}">Resource Requests</a>
                 {% endif %}
             {% endif %}
         {% endwith %}

@@ -536,6 +536,7 @@ def test_the_resource_request_form_has_no_a11y_violations_when_it_rejects_a_subm
     page = logged_in_page
     page.goto(f"{live_server.url}/resource-intake-request/?q=Grid")
 
+    page.locator("#resource-intake-details > summary").click()
     page.locator("#resource-intake-form button[type=submit]").click()
     page.wait_for_selector("#resource-intake-form .resource-intake-field-error")
 
@@ -652,6 +653,15 @@ def test_the_unplayable_video_notices_have_no_a11y_violations(
     assert_no_violations(page, "the editor's unplayable video banner")
 
 
+def _spoof_as_ada(page):
+    page.locator("#spoof-user-input").fill("Ada")
+    page.wait_for_selector("#spoof-user-select option")
+    value = page.locator("#spoof-user-select option").first.get_attribute("value")
+    page.select_option("#spoof-user-select", value)
+    page.locator("#spoof-user-submit").click()
+    page.wait_for_selector("#spoof-warning")
+
+
 def test_a_read_only_annotation_set_has_no_a11y_violations(
     logged_in_page: Page, live_server, read_only_annotation_set_content
 ):
@@ -666,12 +676,7 @@ def test_a_read_only_annotation_set_has_no_a11y_violations(
 
     # Spoofing is the only way to be a non-superuser here: an admin can edit any set, so
     # the read-only branch never renders for the account the other tests use.
-    page.locator("#spoof-user-input").fill("Ada")
-    page.wait_for_selector("#spoof-user-select option")
-    value = page.locator("#spoof-user-select option").first.get_attribute("value")
-    page.select_option("#spoof-user-select", value)
-    page.locator("#spoof-user-submit").click()
-    page.wait_for_selector("#spoof-warning")
+    _spoof_as_ada(page)
 
     page.goto(f"{live_server.url}/video-editor/{read_only_annotation_set_content.pk}/")
     page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
@@ -1006,6 +1011,35 @@ def test_find_replace_interface_has_no_a11y_violations(
     )
 
 
+def test_the_request_access_checkboxes_have_no_a11y_violations(
+    logged_in_page: Page, live_server
+):
+    """Admins can already access every resource, so the "Request access" checkboxes only
+    show for an instructor without access - here, Ada searching for Ben's resource."""
+    page = logged_in_page
+    page.goto(f"{live_server.url}/playlists/")
+    _spoof_as_ada(page)
+
+    page.goto(f"{live_server.url}/resource-intake-request/?q=Grid")
+    request_button = page.get_by_role("button", name="Request access").first
+
+    expect(request_button).to_be_disabled()
+    assert_no_violations(
+        page,
+        "search results greyed out until terms are agreed",
+        include=["#resource-access-form"],
+    )
+
+    for checkbox in page.locator("#resource-access-form input[type=checkbox]").all():
+        checkbox.check()
+    expect(request_button).to_be_enabled()
+    assert_no_violations(
+        page,
+        "search results after agreeing to terms",
+        include=["#resource-access-form"],
+    )
+
+
 # -------------------------------------------------------------------------- spoofing
 
 
@@ -1153,6 +1187,7 @@ AUDITED_TEMPLATES = {
     "core/partials/player-wrapper.html",
     "core/partials/playlist_settings.html",
     "core/partials/resource_intake_request.html",
+    "core/partials/legal_compliance_checkboxes.html",
     "core/resource_access_requests.html",
     "core/partials/whats_new_banner.html",
     # message-level color-contrast sweep

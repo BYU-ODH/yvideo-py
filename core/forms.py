@@ -254,10 +254,12 @@ class SubtitleCopyForm(forms.Form):
         return cleaned_data
 
 
-class ResourceIntakeRequestForm(forms.ModelForm):
+class LegalComplianceForm(forms.Form):
     acknowledged_compliance = forms.BooleanField(required=True)
     acknowledged_fair_use_limitation = forms.BooleanField(required=True)
 
+
+class ResourceIntakeRequestForm(LegalComplianceForm, forms.ModelForm):
     class Meta:
         model = ResourceIntakeRequest
         exclude = ["owner", "generated_resource"]

@@ -1,9 +1,10 @@
 {% extends "core/base.html" %}
 
-{% block title %}Resource Access Requests{% endblock %}
+{% block title %}Resource Requests{% endblock %}
 {% block content %}
     <div class="main-content">
-        <h2>Resource Access Requests</h2>
+        <h2>Resource Requests</h2>
+        <h3>Access to Existing Resources</h3>
         <p>Approve a request once the instructor has shown their physical copy of the resource.</p>
         <table>
             <thead>
@@ -41,7 +42,47 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="5">No pending requests.</td>
+                        <td colspan="5">No pending access requests.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <h3>New Resource Requests</h3>
+        <p>An admin processes these once the instructor has dropped off their physical copy.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Instructor</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Needed by</th>
+                    <th scope="col">Requested</th>
+                    {% if user.is_admin %}
+                        <th scope="col">Action</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for intake_request in intake_requests %}
+                    <tr>
+                        <td>
+                            {% if intake_request.owner %}{{ intake_request.owner.get_full_name }} ({{ intake_request.owner.netid }}){% endif %}
+                        </td>
+                        <td>
+                            {{ intake_request.resource_title }}
+                            {% if intake_request.resource_name_disambiguator %}({{ intake_request.resource_name_disambiguator }}){% endif %}
+                        </td>
+                        <td>{{ intake_request.date_needed|date }}</td>
+                        <td>{{ intake_request.created_at|date }}</td>
+                        {% if user.is_admin %}
+                            <td>
+                                <a href="{% url 'admin:core_resourceintakerequest_change' intake_request.pk %}"
+                                   aria-label="Open in admin: {{ intake_request.resource_title }}">Open in admin</a>
+                            </td>
+                        {% endif %}
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="{% if user.is_admin %}5{% else %}4{% endif %}">No pending new resource requests.</td>
                     </tr>
                 {% endfor %}
             </tbody>

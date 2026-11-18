@@ -357,6 +357,8 @@ class ResourceAccessRequest(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    acknowledged_compliance = models.BooleanField(default=False)
+    acknowledged_fair_use_limitation = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ("user", "resource")

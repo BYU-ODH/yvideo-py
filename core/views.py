@@ -37,6 +37,7 @@ from django.views.decorators.http import require_POST
 import reversion
 
 from .forms import AddUserLookupForm
+from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
 from .models import Content
@@ -49,6 +50,7 @@ from .models import ResourceAccess
 from .models import ResourceAccessRequest
 from .models import ResourceFile
 from .models import ResourceFileKey
+from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
 from .models import UserCourses
@@ -1503,17 +1505,28 @@ def request_resource_access(request, resource_id):
     resource = get_object_or_404(
         Resource.objects.exclude(media_type=Resource.MediaType.WEB), pk=resource_id
     )
-    if not request.user.can_access_resource(resource):
-        ResourceAccessRequest.objects.get_or_create(
-            user=request.user, resource=resource
+    compliance = LegalComplianceForm(request.POST)
+    if not compliance.is_valid():
+        messages.error(
+            request,
+            "Please agree to the legal compliance terms before requesting access.",
         )
+    elif not request.user.can_access_resource(resource):
+        # The revision keeps a record of who agreed to the terms after approval
+        # deletes the request.
+        with reversion.create_revision():
+            ResourceAccessRequest.objects.get_or_create(
+                user=request.user, resource=resource, defaults=compliance.cleaned_data
+            )
+            reversion.set_user(_spoof_actor(request))
         messages.success(
             request,
             f"Your request for access to {resource} has been submitted. Please bring "
             "your physical copy of this resource to the Humanities Learning Commons "
             "(HLC) as proof of ownership.",
         )
-    return redirect(f"{reverse('request_resource')}?{urlencode({'q': resource.name})}")
+    query = request.POST.get("q") or resource.name
+    return redirect(f"{reverse('request_resource')}?{urlencode({'q': query})}")
 
 
 @require_GET
@@ -1524,8 +1537,15 @@ def resource_access_requests(request):
         .prefetch_related(_barcoded_files("resource__resource_files"))
         .order_by("created_at")
     )
+    intake_requests = (
+        ResourceIntakeRequest.objects.filter(generated_resource__isnull=True)
+        .select_related("owner")
+        .order_by("date_needed", "created_at")
+    )
     return render(
-        request, "core/resource_access_requests.html", {"access_requests": pending}
+        request,
+        "core/resource_access_requests.html",
+        {"access_requests": pending, "intake_requests": intake_requests},
     )
 
 
@@ -1591,5 +1611,10 @@ def request_resource(request):
             "title_collision_error": title_collision_error,
             "query": query,
             "results": results,
+            "any_requestable": any(
+                not r.user_has_access and not r.access_requested for r in results
+            ),
+            # Its ids must differ from the intake form's copy of the same checkboxes.
+            "access_form": LegalComplianceForm(auto_id="access-%s"),
         },
     )
