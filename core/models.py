@@ -130,6 +130,13 @@ class Resource(models.Model):
         return self.name
 
     @property
+    def imdb_url(self):
+        # BYU- and YT-prefixed IDs are internal and have no IMDb page.
+        if self.imdb_id and self.imdb_id.startswith("tt"):
+            return f"https://www.imdb.com/title/{self.imdb_id}/"
+        return None
+
+    @property
     def belongs_to_byu_library(self):
         """Every instructor may reach a resource BYU itself holds a copy of."""
         return self.checked_out_from_hbll or self.checked_out_from_other_byu_library
@@ -338,6 +345,26 @@ class ResourceAccess(models.Model):  # "through" model
         return (
             f"{self.user.netid} {self.user.username} | {self.resource.name} | {self.id}"
         )
+
+
+class ResourceAccessRequest(models.Model):
+    """A pending request for access to a Resource already in the library.
+
+    Staff grant it once the instructor has shown proof of owning a physical copy,
+    which creates a ResourceAccess and deletes this request.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    acknowledged_compliance = models.BooleanField(default=False)
+    acknowledged_fair_use_limitation = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("user", "resource")
+
+    def __str__(self):
+        return f"{self.user.netid} {self.user.username} | {self.resource}"
 
 
 class Playlist(models.Model):
