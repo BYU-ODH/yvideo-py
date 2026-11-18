@@ -41,6 +41,18 @@ uv run manage.py seed_demo_data
 The deterministic demo dataset includes a local admin with netid `devadmin` and password `devadmin`.
 The seed command copies the checked-in sample mp4 files from `demo_media/` into `MEDIA_ROOT`.
 
+To also seed three full-length public-domain films (*His Girl Friday*, *Charade*, and
+*A Star Is Born*) in a "Classic Films" playlist for FILM 330, download them once (~2 GB from
+archive.org) and re-seed:
+```bash
+uv run manage.py fetch_demo_films
+uv run manage.py seed_demo_data
+```
+
+The films are cached in the gitignored `demo_media/films/`, and seeding symlinks them into
+`MEDIA_ROOT` instead of copying them. `seed_demo_data` never downloads; it seeds whichever films
+are in the cache and skips the rest. Tests don't seed the films.
+
 If you want to wipe local state and rebuild from the current models, use:
 ```bash
 bash scripts/dangerously_reset_local_state.sh --bootstrap
@@ -56,8 +68,8 @@ bash scripts/new_worktree.sh <branch> [path] [--base=main] [--no-db]
 ```
 
 This creates the worktree (default: a sibling directory named after the branch), symlinks
-`node_modules`, `.env`, `yvideo/secret_settings.py`, and other untracked local config from
-the main worktree, runs `uv sync --dev`, and builds a fresh database with `migrate` and
+`node_modules`, `.env`, `yvideo/secret_settings.py`, the demo film cache, and other untracked
+local config from the main worktree, runs `uv sync --dev`, and builds a fresh database with `migrate` and
 `seed_demo_data`.
 
 If you want a one-click local app login for that admin, enable `DEV_QUICK_LOGIN_ENABLED = True`

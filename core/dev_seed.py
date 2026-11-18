@@ -6,6 +6,7 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import transaction
 
+from .demo_films import DEMO_FILMS
 from .dev_features import DEMO_ADMIN_PASSWORD
 from .dev_features import DEMO_ADMIN_USERNAME
 from .factories import AnnotationSetFactory
@@ -35,6 +36,7 @@ from .models import PlaylistRole
 from .models import Resource
 from .models import ResourceFile
 from .models import User
+from .subtitle_uploads import build_subtitle_file_from_upload
 from .utils import estimate_current_yearterm
 
 DEMO_MEDIA_DIR = Path(settings.BASE_DIR) / "demo_media"
@@ -49,6 +51,8 @@ DEMO_ADMIN_USERNAMES = {
     "111229999",
 }
 DEMO_RESOURCE_NAMES = {"Birds", "Grid", "Grid Overlay"}
+# Keeps seeded films from clashing with real resources of the same title.
+DEMO_FILM_DISAMBIGUATOR = "public-domain demo"
 DEMO_COURSES = [
     ("BIO", "205", "001"),
     ("FILM", "330", "001"),
@@ -117,6 +121,7 @@ def seed_demo_data():
 def purge_demo_data():
     User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).delete()
     Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).delete()
+    Resource.objects.filter(name_disambiguator=DEMO_FILM_DISAMBIGUATOR).delete()
 
     for dept, catalog_number, section_number in DEMO_COURSES:
         Course.objects.filter(
@@ -583,6 +588,14 @@ def create_demo_data():
 
     ResourceFileKeyFactory(user=admin, resource_file=birds_file)
 
+    demo_film_count = create_demo_films(
+        owner=professor_ben,
+        collaborators=[teaching_assistant],
+        students=[student_bob, student_ivy],
+        course=film_course,
+        language=english,
+    )
+
     return {
         "users": User.objects.filter(username__in=DEMO_ADMIN_USERNAMES).count(),
         "resources": Resource.objects.filter(name__in=DEMO_RESOURCE_NAMES).count(),
@@ -595,6 +608,7 @@ def create_demo_data():
         "seeded_admin_netid": DEMO_ADMIN_USERNAME,
         "seeded_admin_password": DEMO_ADMIN_PASSWORD,
         "sample_content_title": birds_content.title,
+        "demo_films": demo_film_count,
     }
 
 
@@ -616,5 +630,81 @@ def create_media_resource_file(
     )
     with source_path.open("rb") as fixture_handle:
         resource_file.file.save(source_path.name, File(fixture_handle), save=False)
+    resource_file.save()
+    return resource_file
+
+
+def create_demo_films(*, owner, collaborators, students, course, language):
+    """Seed whichever demo films fetch_demo_films has cached; never download here."""
+    films = [film for film in DEMO_FILMS if film.cache_path.exists()]
+    if not films:
+        return 0
+
+    playlist = PlaylistFactory(
+        owner=owner, name="Classic Films", published=True, courses=[course]
+    )
+    for collaborator in [owner, *collaborators]:
+        PlaylistUserAccessFactory(
+            playlist=playlist,
+            user=collaborator,
+            playlist_role=PlaylistRole.COLLABORATOR,
+        )
+    for student in students:
+        PlaylistUserAccessFactory(
+            playlist=playlist, user=student, playlist_role=PlaylistRole.STUDENT
+        )
+
+    for film in films:
+        resource = ResourceFactory(
+            name=film.title,
+            name_disambiguator=DEMO_FILM_DISAMBIGUATOR,
+            requester_username=owner.username,
+        )
+        ResourceAccessFactory(user=owner, resource=resource)
+        resource_file = link_media_resource_file(
+            resource=resource,
+            version="original",
+            source_path=film.cache_path,
+            audio_language=language,
+        )
+        subtitle = None
+        if film.subtitle_filename:
+            with (DEMO_MEDIA_DIR / "subtitles" / film.subtitle_filename).open(
+                "rb"
+            ) as handle:
+                subtitles_file = build_subtitle_file_from_upload(File(handle))
+            subtitle = SubtitleFactory(
+                resource=resource,
+                owner=owner,
+                language=language,
+                name=film.subtitle_name,
+                subtitles_file=subtitles_file,
+            )
+        ContentFactory(
+            playlist=playlist,
+            resource_file=resource_file,
+            title=film.title,
+            description="Public-domain feature film from archive.org.",
+            published=True,
+            default_subtitle_track=subtitle,
+        )
+    return len(films)
+
+
+def link_media_resource_file(*, resource, version, source_path, audio_language=None):
+    """Symlink a large cached file into MEDIA_ROOT instead of copying it."""
+    resource_file = ResourceFile(
+        resource=resource,
+        version=version,
+        full_video=True,
+        audio_language=audio_language,
+    )
+    name = resource_file.file.field.generate_filename(resource_file, source_path.name)
+    link = Path(resource_file.file.storage.path(name))
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if link.is_symlink():
+        link.unlink()
+    link.symlink_to(source_path.resolve())
+    resource_file.file.name = name
     resource_file.save()
     return resource_file

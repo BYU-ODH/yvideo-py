@@ -104,6 +104,19 @@ def track_write_required(view_func):
     return _wrapped
 
 
+def lab_assistant_required(view_func):
+    """For HLC staff tasks, such as granting resource access once proof is shown."""
+
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not (request.user.is_admin or request.user.is_lab_assistant):
+            return forbidden("Only lab assistants can do that.")
+        return view_func(request, *args, **kwargs)
+
+    _wrapped.permission_check = "lab_assistant"
+    return _wrapped
+
+
 def checks_permission_inline(reason):
     """Mark a view whose object cannot be resolved by a decorator.
 

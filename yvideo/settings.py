@@ -246,6 +246,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
+# Download cache for the optional full-length demo films (fetch_demo_films). It lives
+# outside MEDIA_ROOT so resetting media/ never forces a re-download.
+DEMO_FILMS_DIR = BASE_DIR / "demo_media" / "films"
 
 # International Cinema (#246).
 #
