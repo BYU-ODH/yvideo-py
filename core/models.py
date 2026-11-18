@@ -1325,7 +1325,7 @@ class Thumbnail(models.Model):
     @property
     def text_settings(self):
         settings = {**THUMBNAIL_TEXT_DEFAULTS, **self.text}
-        if not settings.get("text"):
+        if "text" not in settings:
             settings["text"] = self.default_text()
         return settings
 

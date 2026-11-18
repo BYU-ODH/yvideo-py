@@ -98,6 +98,15 @@ class ThumbnailTests(TestCase):
 
         self.assertContains(response, "Renamed</span>")
 
+    def test_empty_text_is_kept(self):
+        saved = self.save_playlist_thumbnail(text="   ")
+
+        response = self.client.get(reverse("playlists"))
+
+        self.assertEqual(saved.status_code, 204)
+        self.assertContains(response, self.playlist.name)
+        self.assertNotContains(response, f"{self.playlist.name}</span>")
+
     def test_invalid_color_is_rejected(self):
         response = self.save_playlist_thumbnail(background_color="red;}")
 

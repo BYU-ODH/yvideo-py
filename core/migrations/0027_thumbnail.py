@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0022_merge_20261116_1505'),
+        ('core', '0026_unique_track_name_per_annotation_set'),
     ]
 
     operations = [
