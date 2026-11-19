@@ -4,7 +4,7 @@
 
 {% block content %}
     <div class="main-content">
-        <div class="playlist-video-page column-flex">
+        <div id="playlist-content" class="playlist-video-page column-flex">
             <header class="video-title">
                 <h2>Playlist</h2>
                 <div id="playlist-name-wrapper">
@@ -23,7 +23,16 @@
                 </div>
             </header>
             {% if can_edit %}
-                {% include 'core/partials/playlist_settings.html' %}
+                <div class="row-flex flex-apart-aligned">
+                    {% include 'core/partials/playlist_settings.html' %}
+
+                    <button id="playlist-settings-delete"
+                            class="red-button"
+                            command="show-modal"
+                            commandfor="playlist-delete-modal"
+                            type="button">Delete Playlist</button>
+                    {% include "core/partials/modals/playlist_delete.html" with dialog_id="playlist-delete-modal" %}
+                </div>
             {% endif %}
             <div id="playlist-videos-content">
                 <h2>Playlist Videos</h2>

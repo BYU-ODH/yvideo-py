@@ -1073,6 +1073,26 @@ button:hover {
 }
 
 /* PLAYLIST PAGE */
+.playlist-form-group {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
+    align-items: center;
+
+    padding: 10px 20px;
+    border: 2px solid var(--primary-blue);
+    border-radius: 20px;
+}
+
+.playlist-form-group input {
+    cursor: pointer;
+}
+
+.playlist-form-group input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+}
+
 #add-new-playlist-button {
     align-self: flex-start;
 }
@@ -1212,16 +1232,13 @@ button:hover {
     transform: rotate(180deg);
 }
 
-#playlist-settings, #content-settings {
+#content-settings {
+    display: flex;
+    flex-direction: column;
+
     padding: 1rem;
     border: 1px solid #00000025;
     border-radius: 1rem;
-}
-
-#playlist-settings {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
 }
 
 #playlist-name-wrapper {
@@ -1229,11 +1246,6 @@ button:hover {
     flex-direction: row;
     column-gap: 1rem;
     align-items: center;
-}
-
-#content-settings {
-    display: flex;
-    flex-direction: column;
 }
 
 #content-settings form {
@@ -1991,6 +2003,11 @@ button:hover {
 
 .label-with-info {
     anchor-scope: --info-button;  /* eslint-disable-line css/use-baseline */
+
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+
     font-weight: 500;
 }
 

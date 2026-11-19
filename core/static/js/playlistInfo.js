@@ -43,33 +43,18 @@ function setupDeletePlaylist() {
   });
 }
 
-function setupResetPlaylistSettings() {
-  const resetButton = document.getElementById("playlist-settings-reset");
-  if (!resetButton) {
-    return;
-  }
-  resetButton.addEventListener("click", async (event) => {
-    event.preventDefault();
-    const playlistId = getPlaylistIdValue();
-    const resetResponse = await fetch(`/playlists/${playlistId}/settings/`);
-    if (!resetResponse.ok) {
-      displayUserMessage("error", "Failed to reset playlist settings");
-      return;
-    }
-    const settingsHTML = await resetResponse.text();
-    const currentSettingsEl = document.getElementById("playlist-settings");
-    currentSettingsEl.outerHTML = settingsHTML;
-    setupPlaylistSettings();
-  });
-}
-
 function setupPlaylistSettings() {
-  setupDeletePlaylist();
-  setupResetPlaylistSettings();
+  const playlistContent = document.getElementById("playlist-content");
+  if (!playlistContent) return;
+  playlistContent.addEventListener("change", (e) => {
+    e.preventDefault();
+    console.log("Caught!");
+  });
 }
 
 function initialize() {
   setupVideoSearch();
+  setupDeletePlaylist();
   setupPlaylistSettings();
   const playlistNameWrapper = document.getElementById("playlist-name-wrapper");
   const playlistId = getPlaylistIdValue();
