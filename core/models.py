@@ -13,6 +13,7 @@ from django.core.validators import RegexValidator
 from django.db import IntegrityError
 from django.db import models
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 import xxhash
 
@@ -1229,6 +1230,104 @@ class Content(models.Model):
             "tracks": annotation_set_json["tracks"],
             "subtitleTracks": self.get_subtitles() if include_subtitles else [],
         }
+
+
+THUMBNAIL_COLORS = [
+    "#4e5760",
+    "#1f4e79",
+    "#266457",
+    "#2d7a35",
+    "#993175",
+    "#ac4f4f",
+    "#54206a",
+]
+THUMBNAIL_TEXT_DEFAULTS = {"color": "#ffffff", "size": 1.5}
+
+
+class Thumbnail(models.Model):
+    """A playlist's or content's tile: a background color or JPEG with text over it.
+
+    Items without a saved Thumbnail (including migrated legacy items) show the same
+    defaults the editor starts from, so every item always has a usable tile.
+    """
+
+    playlist = models.OneToOneField(
+        Playlist,
+        on_delete=models.CASCADE,
+        related_name="thumbnail",
+        null=True,
+        blank=True,
+    )
+    content = models.OneToOneField(
+        Content,
+        on_delete=models.CASCADE,
+        related_name="thumbnail",
+        null=True,
+        blank=True,
+    )
+    background_color = models.CharField(max_length=7)
+    image = models.BinaryField(null=True, blank=True)
+    text = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(playlist__isnull=False, content__isnull=True)
+                | models.Q(playlist__isnull=True, content__isnull=False),
+                name="thumbnail_belongs_to_playlist_xor_content",
+            )
+        ]
+
+    @staticmethod
+    def field_for(item):
+        return "playlist" if isinstance(item, Playlist) else "content"
+
+    @classmethod
+    def for_item(cls, item):
+        """The saved thumbnail for a Playlist or Content, or an unsaved default.
+
+        The image bytes are left out because tiles fetch them separately.
+        """
+        field = cls.field_for(item)
+        thumbnail = (
+            cls.objects.defer("image")
+            .annotate(has_image=models.Q(image__isnull=False))
+            .filter(**{field: item})
+            .first()
+        )
+        if thumbnail is None:
+            thumbnail = cls(
+                background_color=THUMBNAIL_COLORS[item.pk % len(THUMBNAIL_COLORS)]
+            )
+            thumbnail.has_image = False
+        setattr(thumbnail, field, item)
+        return thumbnail
+
+    @property
+    def image_url(self):
+        if self.playlist_id:
+            url = reverse("playlist_thumbnail_image", args=[self.playlist_id])
+        else:
+            url = reverse("content_thumbnail_image", args=[self.content_id])
+        # Changes whenever the image does, so browsers can cache each version forever.
+        return f"{url}?v={self.updated_at.timestamp() * 1_000_000:.0f}"
+
+    def default_text(self):
+        if self.playlist_id:
+            return self.playlist.name
+        # YouTube resources have generated names, so the content's title reads better.
+        resource = self.content.get_resource()
+        if resource is None or self.content.is_url_only():
+            return self.content.title
+        return resource.name
+
+    @property
+    def text_settings(self):
+        settings = {**THUMBNAIL_TEXT_DEFAULTS, **self.text}
+        if "text" not in settings:
+            settings["text"] = self.default_text()
+        return settings
 
 
 class BaseAnnotation(models.Model):

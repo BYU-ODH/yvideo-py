@@ -151,8 +151,12 @@ def test_existing_resource_modal_chain_stays_on_the_playlist_page(
     resource_form_modal.locator("#content-title-input").fill("Added in modal chain")
     resource_form_modal.locator("#resource-file-input").select_option(index=1)
 
+    resource_form_modal.get_by_role("button", name="Create").click()
+    thumbnail_editor = logged_in_page.locator("#thumbnail-editor-dialog")
+    expect(thumbnail_editor).to_be_visible()
+    expect(thumbnail_editor.locator("#thumbnail-frames img")).to_have_count(3)
     with logged_in_page.expect_navigation():
-        resource_form_modal.get_by_role("button", name="Create").click()
+        thumbnail_editor.get_by_role("button", name="Save").click()
 
     expect(logged_in_page).to_have_url(playlist_url)
     expect(

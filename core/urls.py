@@ -157,6 +157,36 @@ urlpatterns = [
         views.get_player_data,
         name="get_player_data",
     ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/",
+        views.playlist_thumbnail_editor,
+        name="playlist_thumbnail_editor",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/save/",
+        views.save_playlist_thumbnail,
+        name="save_playlist_thumbnail",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/image/",
+        views.playlist_thumbnail_image,
+        name="playlist_thumbnail_image",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/",
+        views.content_thumbnail_editor,
+        name="content_thumbnail_editor",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/save/",
+        views.save_content_thumbnail,
+        name="save_content_thumbnail",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/image/",
+        views.content_thumbnail_image,
+        name="content_thumbnail_image",
+    ),
     path("player/<int:content_id>/", views.player, name="player"),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),
     path("invalid-login", views.invalid_login, name="invalid_login"),
