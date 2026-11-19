@@ -1215,7 +1215,7 @@ class LegacyMigrationService:
         )
         return playlist
 
-    def _import_file_to_storage(self, source_path, resource, version):
+    def _storage_destination(self, source_path, resource, version):
         extension = get_legacy_file_extension(source_path)
         relative_name = f"{resource.name}/{version}{extension}"
         destination = Path(settings.MEDIA_ROOT) / relative_name
@@ -1228,6 +1228,12 @@ class LegacyMigrationService:
                 # Stale leftover from an earlier failed import attempt.
                 destination.unlink()
         destination.parent.mkdir(parents=True, exist_ok=True)
+        return relative_name, destination
+
+    def _import_file_to_storage(self, source_path, resource, version):
+        relative_name, destination = self._storage_destination(
+            source_path, resource, version
+        )
         if is_remote_legacy_path(source_path):
             scp_remote_legacy_file(source_path, destination)
             return relative_name

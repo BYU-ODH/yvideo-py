@@ -120,3 +120,18 @@ def test_a_network_error_still_closes_the_field(page, open_editor, demo_content)
 
     expect(rename_input).to_be_hidden()
     expect(row.locator(".track-name")).to_have_text("Original")
+
+
+def test_a_duplicate_name_is_refused_with_a_message(page, open_editor, demo_content):
+    track = _add_track(demo_content, "Original")
+    _add_track(demo_content, "Taken")
+    open_editor()
+
+    row, rename_input = _open_rename(page, track)
+    rename_input.fill("Taken")
+    rename_input.press("Enter")
+
+    expect(row.locator(".track-name")).to_have_text("Original")
+    expect(page.locator("#django-messages-container")).to_contain_text(
+        "A track with that name already exists."
+    )

@@ -436,13 +436,14 @@ class AnnotationSetCreateForContentTests(TestCase):
             resource=self.resource,
             owner=self.owner,
         )
+        # the last track stays empty, so copies and imports must keep empty tracks
         self.tracks = [
             TrackFactory(
                 annotation_set=self.original_set,
                 name=f"Track {i + 1}",
                 stack_position=i,
             )
-            for i in range(5)
+            for i in range(6)
         ]
 
         # Track 0 holds an example of every annotation subclass so per-track
@@ -508,6 +509,13 @@ class AnnotationSetCreateForContentTests(TestCase):
                 width=100.0,
                 height=80.0,
             )
+        ClipFactory(
+            track=full_coverage_track,
+            name="Clip 1",
+            start_time=21.0,
+            end_time=25.0,
+            description="opening scene",
+        )
 
         # Tracks 1-4 collectively cover every annotation type at least once so
         # distributed-across-tracks copy/serialization paths are also exercised.
@@ -702,6 +710,88 @@ class AnnotationSetCreateForContentTests(TestCase):
         self._assert_annotation_set_json_is_correct(
             original_json, new_set.to_player_json()
         )
+
+    def test_copy_without_name_is_named_after_source_and_copier(self):
+        self.owner.first_name, self.owner.last_name = "Ada", "Lovelace"
+        self.owner.save()
+
+        names = [
+            AnnotationSet.create_for_content(
+                content=self.content,
+                user=self.owner,
+                annotation_set_id_to_copy=self.original_set.pk,
+            ).name
+            for _ in range(2)
+        ]
+
+        self.assertEqual(
+            names,
+            [
+                "Original Set (copied by Ada Lovelace)",
+                "Original Set (copied by Ada Lovelace) (2)",
+            ],
+        )
+
+    def test_import_skips_malformed_annotations_and_keeps_the_rest(self):
+        annotation_set_json = json.dumps(
+            {
+                "tracks": [{"name": "Track 1", "stack_position": 0}],
+                "annotations": [
+                    {"class_type": "MuteAnnotation", "track_name": "Track 1"},
+                    {"class_type": "NoSuchAnnotation", "track_name": "Track 1"},
+                    {"track_name": "Track 1"},
+                    {"class_type": "MuteAnnotation", "track_name": "Missing"},
+                ],
+            }
+        )
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            annotation_set_json=annotation_set_json,
+        )
+
+        self.assertIsNotNone(new_set)
+        self.assertEqual(len(new_set.get_active_annotations_from_tracks()), 1)
+
+    def test_import_of_repeated_track_names_keeps_every_track(self):
+        annotation_set_json = json.dumps(
+            {
+                "tracks": [
+                    {"name": "Track 1", "stack_position": 0},
+                    {"name": "Track 1", "stack_position": 1},
+                ],
+                "annotations": [],
+            }
+        )
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            annotation_set_json=annotation_set_json,
+        )
+
+        self.assertEqual(
+            [track.name for track in new_set.get_tracks()], ["Track 1", "Track 2"]
+        )
+
+    def test_import_keeps_annotations_on_a_blank_named_track(self):
+        annotation_set_json = json.dumps(
+            {
+                "tracks": [{"name": "  ", "stack_position": 0}],
+                "annotations": [{"class_type": "MuteAnnotation", "track_name": "  "}],
+            }
+        )
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            annotation_set_json=annotation_set_json,
+        )
+
+        [track] = new_set.get_tracks()
+        self.assertEqual(track.name, "Track 1")
+        self.assertEqual(len(track.get_active_annotations()), 1)
 
 
 class ContentClipsOnlyViewTests(TestCase):
