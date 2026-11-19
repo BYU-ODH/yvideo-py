@@ -61,14 +61,14 @@ only detected with `--commit`.
 - A hardlinked file is shared by both apps: editing it in place changes it for
   both, but deleting either path is safe.
 
-### Keeping migration I/O from slowing the live servers
+### Keeping migration I/O from slowing other services
 
-Both commands lower their own CPU priority (`nice 19`) and request idle I/O
-priority (`ionice -c3`). Hashing and copying are also limited to
-`LEGACY_MIGRATION_MAX_READ_MBPS` (default 150 MB/s; `0` means unlimited).
-Override it for a single run with
-`import_legacy_media --max-read-mbps N`. At 150 MB/s, 3.3 TB takes about
-6 hours.
+This app is stopped during the import, but the legacy Y-Video app and anything
+else on the same disks are still running. Both commands lower their own CPU
+priority (`nice 19`) and request idle I/O priority (`ionice -c3`).
+`import_legacy_media` also limits hashing and copying to 150 MB/s; change it
+with `--max-read-mbps N` (`0` means unlimited). At 150 MB/s, 3.3 TB takes
+about 6 hours.
 
 `ionice -c3` only works with the BFQ (or old CFQ) I/O scheduler. On
 `mq-deadline` or `none` (common for NVMe and VM disks) it is silently ignored.

@@ -16,6 +16,7 @@ from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import SubtitleFactory
 from ..legacy_migration import LegacySourceMap
+from ..legacy_migration import io_limits
 from ..legacy_migration.file_index import compute_checksum
 from ..legacy_migration.io_limits import read_chunks
 from ..models import Content
@@ -34,7 +35,6 @@ class ImportLegacyMediaTests(TestCase):
         settings_override = override_settings(
             MEDIA_ROOT=str(self.media_root),
             LEGACY_MIGRATION_MEDIA_ROOT=str(self.legacy_root),
-            LEGACY_MIGRATION_MAX_READ_MBPS=0,
         )
         settings_override.enable()
         self.addCleanup(settings_override.disable)
@@ -195,13 +195,13 @@ class ImportLegacyMediaTests(TestCase):
     def test_failed_copy_leaves_no_partial_file(self, _priority):
         self.placeholder_file("f1", "a.mp4", b"video-a")
 
-        def partial_copy(_source, destination):
-            Path(destination).write_bytes(b"vid")
+        def partial_read(_handle):
+            yield b"vid"
             raise OSError("No space left on device")
 
         with (
             mock.patch("os.link", side_effect=OSError("Operation not permitted")),
-            mock.patch("core.legacy_migration.service.copy_file", partial_copy),
+            mock.patch.object(io_limits, "read_chunks", partial_read),
         ):
             _, stderr = self.run_command("--commit", "--allow-copy")
 
@@ -233,10 +233,10 @@ class ImportLegacyMediaTests(TestCase):
 
 
 class ReadLimitTests(TestCase):
-    @override_settings(LEGACY_MIGRATION_MAX_READ_MBPS=1)
     def test_reads_pause_to_stay_under_limit(self):
         handle = BytesIO(b"x" * 3 * 1024 * 1024)
         with (
+            mock.patch.object(io_limits, "max_read_mbps", 1),
             mock.patch(
                 "core.legacy_migration.io_limits.time.monotonic", return_value=0
             ),

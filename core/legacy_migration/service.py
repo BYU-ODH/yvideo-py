@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -40,7 +41,6 @@ from .dump import run_legacy_dump
 from .file_index import ChecksumCache
 from .file_index import CurrentFileIndex
 from .file_index import compute_checksum
-from .io_limits import copy_file
 from .legacy_roles import map_legacy_collection_role
 from .models import LegacyMigrationFileAction
 from .models import LegacyMigrationFileDecision
@@ -1215,7 +1215,7 @@ class LegacyMigrationService:
         )
         return playlist
 
-    def _import_file_to_storage(self, source_path, resource, version, allow_copy=True):
+    def _storage_destination(self, source_path, resource, version):
         extension = get_legacy_file_extension(source_path)
         relative_name = f"{resource.name}/{version}{extension}"
         destination = Path(settings.MEDIA_ROOT) / relative_name
@@ -1228,31 +1228,24 @@ class LegacyMigrationService:
                 # Stale leftover from an earlier failed import attempt.
                 destination.unlink()
         destination.parent.mkdir(parents=True, exist_ok=True)
+        return relative_name, destination
+
+    def _import_file_to_storage(self, source_path, resource, version):
+        relative_name, destination = self._storage_destination(
+            source_path, resource, version
+        )
         if is_remote_legacy_path(source_path):
-            method = "scp"
-        else:
-            source_path = Path(source_path)
-            method = "copy"
-            try:
-                if source_path.stat().st_dev == destination.parent.stat().st_dev:
-                    os.link(source_path, destination)
-                    return relative_name, "link"
-            except OSError as exc:
-                if not allow_copy:
-                    raise
-                logger.warning("Hardlink failed for %s; copying: %s", source_path, exc)
-            if not allow_copy:
-                raise OSError(f"Cannot hardlink {source_path} across filesystems.")
+            scp_remote_legacy_file(source_path, destination)
+            return relative_name
+        source_path = Path(source_path)
         try:
-            if method == "scp":
-                scp_remote_legacy_file(source_path, destination)
+            if source_path.stat().st_dev == destination.parent.stat().st_dev:
+                os.link(source_path, destination)
             else:
-                copy_file(source_path, destination)
-        except BaseException:
-            # A half-written copy must not be mistaken for real media later.
-            destination.unlink(missing_ok=True)
-            raise
-        return relative_name, method
+                shutil.copy2(source_path, destination)
+        except OSError:
+            shutil.copy2(source_path, destination)
+        return relative_name
 
     def _ensure_resource_file(self, request_obj, target_resource, file_decision):
         if file_decision.action == LegacyMigrationFileAction.SKIP:
@@ -1277,7 +1270,7 @@ class LegacyMigrationService:
         if mapped_file:
             return mapped_file
 
-        relative_name, _ = self._import_file_to_storage(
+        relative_name = self._import_file_to_storage(
             resolve_legacy_file_path(file_decision.legacy_path),
             target_resource,
             file_decision.target_version or file_decision.legacy_version,

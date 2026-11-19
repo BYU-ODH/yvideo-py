@@ -12,7 +12,9 @@ from django.utils import timezone
 
 from core.legacy_migration import LegacyMigrationService
 from core.legacy_migration import LegacySourceMap
+from core.legacy_migration import io_limits
 from core.legacy_migration.file_index import compute_checksum
+from core.legacy_migration.io_limits import copy_file
 from core.legacy_migration.io_limits import lower_process_priority
 from core.legacy_migration.remote_files import is_remote_legacy_path
 from core.legacy_migration.remote_files import resolve_legacy_file_path
@@ -41,8 +43,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-read-mbps",
             type=float,
-            help="Disk read limit for this run in MB/s (0 = unlimited). "
-            "Defaults to LEGACY_MIGRATION_MAX_READ_MBPS.",
+            default=150,
+            help="Disk read limit in MB/s (0 = unlimited). Default: 150.",
         )
         parser.add_argument(
             "--allow-copy",
@@ -53,13 +55,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         lower_process_priority()
-        previous_limit = settings.LEGACY_MIGRATION_MAX_READ_MBPS
-        if options["max_read_mbps"] is not None:
-            settings.LEGACY_MIGRATION_MAX_READ_MBPS = options["max_read_mbps"]
+        previous_limit = io_limits.max_read_mbps
+        io_limits.max_read_mbps = options["max_read_mbps"]
         try:
             self._run(options)
         finally:
-            settings.LEGACY_MIGRATION_MAX_READ_MBPS = previous_limit
+            io_limits.max_read_mbps = previous_limit
 
     def _run(self, options):
         if is_remote_legacy_path(settings.LEGACY_MIGRATION_MEDIA_ROOT):
@@ -87,11 +88,7 @@ class Command(BaseCommand):
             .values_list("pk", flat=True)
         )
         for pk in pending_ids:
-            mapping = LegacySourceMap.objects.filter(
-                pk=pk, metadata__media_pending=True
-            ).first()
-            if mapping is None:
-                continue
+            mapping = LegacySourceMap.objects.get(pk=pk)
             label = f"{mapping.source_type} {mapping.source_id}"
             try:
                 if mapping.source_type == "file":
@@ -158,12 +155,13 @@ class Command(BaseCommand):
                 self._mark_done(mapping)
             return f"duplicate of ResourceFile {existing.pk}"
 
-        relative_name, method = self.service._import_file_to_storage(
-            source,
-            resource_file.resource,
-            resource_file.version,
-            allow_copy=self.allow_copy,
+        relative_name, destination = self.service._storage_destination(
+            source, resource_file.resource, resource_file.version
         )
+        if method == "link":
+            os.link(source, destination)
+        else:
+            copy_file(source, destination)
         with transaction.atomic():
             resource_file.file.name = relative_name
             resource_file.checksum = checksum

@@ -154,11 +154,6 @@ LEGACY_MIGRATION_DUMP_SCRIPT = str(
         )
     )
 )
-# Caps disk reads during legacy media migration so the live servers sharing
-# those disks stay responsive. 0 means unlimited.
-LEGACY_MIGRATION_MAX_READ_MBPS = getattr(
-    secret_settings, "LEGACY_MIGRATION_MAX_READ_MBPS", 150
-)
 LEGACY_MIGRATION_WORKER_LOCK_PATH = _resolve_repo_path(
     getattr(
         secret_settings,

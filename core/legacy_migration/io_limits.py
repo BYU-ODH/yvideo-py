@@ -1,4 +1,4 @@
-"""Keep legacy migration I/O from starving the live servers that share its disks.
+"""Keep legacy migration I/O from starving other services that share its disks.
 
 `ionice` only takes effect under the BFQ (or old CFQ) I/O scheduler, so the
 read limit below is the only control that works everywhere. See
@@ -7,15 +7,16 @@ LEGACY_MIGRATION.md for production guidance.
 
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import time
 
-from django.conf import settings
-
 logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 1024 * 1024
+# 0 means unlimited. import_legacy_media sets this from --max-read-mbps.
+max_read_mbps = 150
 
 
 def lower_process_priority():
@@ -33,13 +34,8 @@ def lower_process_priority():
         logger.warning("Could not set idle I/O priority: %s", exc)
 
 
-def max_read_bytes_per_second():
-    mbps = settings.LEGACY_MIGRATION_MAX_READ_MBPS or 0
-    return int(mbps * 1_000_000)
-
-
 def read_chunks(handle):
-    limit = max_read_bytes_per_second()
+    limit = int((max_read_mbps or 0) * 1_000_000)
     started = time.monotonic()
     total = 0
     for chunk in iter(lambda: handle.read(CHUNK_SIZE), b""):
@@ -52,7 +48,12 @@ def read_chunks(handle):
 
 
 def copy_file(source, destination):
-    with open(source, "rb") as src, open(destination, "wb") as dst:
-        for chunk in read_chunks(src):
-            dst.write(chunk)
-    shutil.copystat(source, destination)
+    try:
+        with open(source, "rb") as src, open(destination, "wb") as dst:
+            for chunk in read_chunks(src):
+                dst.write(chunk)
+        shutil.copystat(source, destination)
+    except BaseException:
+        # A half-written copy must not be mistaken for real media later.
+        Path(destination).unlink(missing_ok=True)
+        raise

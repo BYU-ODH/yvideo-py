@@ -3078,7 +3078,7 @@ class LegacyMigrationTests(TestCase):
         with mock.patch(
             "core.legacy_migration.remote_files.subprocess.run"
         ) as run_mock:
-            relative_name, method = service._import_file_to_storage(
+            relative_name = service._import_file_to_storage(
                 source_path,
                 resource,
                 "english",
@@ -3086,7 +3086,6 @@ class LegacyMigrationTests(TestCase):
 
         destination = Path(settings.MEDIA_ROOT) / relative_name
         self.assertEqual(relative_name, "Imported Lecture/english.mp4")
-        self.assertEqual(method, "scp")
         self.assertTrue(destination.parent.exists())
         run_mock.assert_called_once_with(
             [
@@ -3352,7 +3351,7 @@ class LegacyMigrationTests(TestCase):
             "legacy/new-video.mp4", payload=b"new-bytes"
         )
 
-        relative_name, _ = service._import_file_to_storage(
+        relative_name = service._import_file_to_storage(
             str(source_path), resource, "english"
         )
 
@@ -3368,7 +3367,7 @@ class LegacyMigrationTests(TestCase):
         self.write_media_file("Stale Name/english.mp4", payload=b"stale-bytes")
         source_path = self.write_media_file("legacy/fresh.mp4", payload=b"fresh-bytes")
 
-        relative_name, _ = service._import_file_to_storage(
+        relative_name = service._import_file_to_storage(
             str(source_path), resource, "english"
         )
 
