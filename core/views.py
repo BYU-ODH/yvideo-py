@@ -770,28 +770,55 @@ def unassign_playlist_from_course(request, playlist):
 @require_POST
 @playlist_write_required
 def update_playlist_settings(request, playlist):
-    form = PlaylistSettingsForm(request.POST)
-    if form.is_valid():
-        try:
-            playlist.name = form.cleaned_data["name"]
-            playlist.archived = form.cleaned_data["archived"]
-            if form.cleaned_data["archived"]:
-                playlist.published = False
-            else:
-                playlist.published = form.cleaned_data["published"]
-            # Only IC editors see (and so submit) the field.
-            if request.user.is_ic_editor:
-                playlist.is_ic = form.cleaned_data["is_ic"]
-            playlist.save()
-            messages.success(request, "Playlist settings saved.")
-            return render_playlist_info(request, playlist)
-        except Exception as e:
-            logger.error(
-                f"An error occured while attempting to update playlist settings. {e}"
-            )
-            return HttpResponseServerError()
-    else:
-        return HttpResponseBadRequest()
+    parsed_body = json.loads(request.body)
+    update_fields = []
+    if "new_value" in parsed_body:
+        # name change only. see utils.js::setupInPlaceFieldEdit
+        new_name = parsed_body["new_value"]
+        if new_name is None:
+            return HttpResponseBadRequest()
+        new_name = new_name.strip()
+        if new_name == "":
+            messages.error(request, "A playlist name cannot be blank")
+            return HttpResponseBadRequest()
+        playlist.name = new_name[:255]
+        update_fields.append("name")
+
+    try:
+        with transaction.atomic():
+            playlist.save(update_fields=update_fields)
+            return HttpResponse(status=200)
+
+    except Exception as e:
+        logger.exception(e)
+        messages.error(
+            request,
+            "An error occurred while attempting to update the playlist. Your changes have been reverted.",
+        )
+        return HttpResponseServerError()
+
+    # form = PlaylistSettingsForm(request.POST)
+    # if form.is_valid():
+    #     try:
+    #         playlist.name = form.cleaned_data["name"]
+    #         playlist.archived = form.cleaned_data["archived"]
+    #         if form.cleaned_data["archived"]:
+    #             playlist.published = False
+    #         else:
+    #             playlist.published = form.cleaned_data["published"]
+    #         # Only IC editors see (and so submit) the field.
+    #         if request.user.is_ic_editor:
+    #             playlist.is_ic = form.cleaned_data["is_ic"]
+    #         playlist.save()
+    #         messages.success(request, "Playlist settings saved.")
+    #         return render_playlist_info(request, playlist)
+    #     except Exception as e:
+    #         logger.error(
+    #             f"An error occured while attempting to update playlist settings. {e}"
+    #         )
+    #         return HttpResponseServerError()
+    # else:
+    #     return HttpResponseBadRequest()
 
 
 def scheduled_in_ic_programs(subject):

@@ -1,4 +1,4 @@
-import { getCSRFToken, displayUserMessage } from "./utils.js";
+import { getCSRFToken, displayUserMessage, setupInPlaceFieldEdit } from "./utils.js";
 import { getPlaylistIdValue } from "./utils.js";
 
 function setupVideoSearch() {
@@ -71,6 +71,21 @@ function setupPlaylistSettings() {
 function initialize() {
   setupVideoSearch();
   setupPlaylistSettings();
+  const playlistNameWrapper = document.getElementById("playlist-name-wrapper");
+  const playlistId = getPlaylistIdValue();
+  if (playlistNameWrapper && playlistId !== undefined) {
+    setupInPlaceFieldEdit(playlistNameWrapper, `/playlists/${playlistId}/settings/update/`, {
+      onSuccess: () => {
+        const playlistTitle = playlistNameWrapper.querySelector("h3");
+        const playlistInput = playlistNameWrapper.querySelector("input");
+        if (!playlistTitle || !playlistInput) {
+          displayUserMessage("error", "Failed to display updated playlist name. Please refresh the page.");
+          return;
+        }
+        playlistTitle.textContent = playlistInput.value;
+      }
+    });
+  }
 }
 
 initialize();

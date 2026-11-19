@@ -7,7 +7,20 @@
         <div class="playlist-video-page column-flex">
             <header class="video-title">
                 <h2>Playlist</h2>
-                <h3>{{ playlist.name }}</h3>
+                <div id="playlist-name-wrapper" class="row-flex">
+                    <h3>{{ playlist.name }}</h3>
+                    <input type="text"
+                           class="playlist-rename-input hidden"
+                           value="{{ playlist.name }}"
+                           placeholder="{{ playlist.name }}"
+                           aria-label="Rename playlist"
+                           maxlength="255">
+                    {% if can_edit %}
+                        <button class="text-edit-icon-button" aria-label="Edit playlist name">
+                            <img src="{% static 'img/edit.svg' %}" alt="E">
+                        </button>
+                    {% endif %}
+                </div>
             </header>
             {% if can_edit %}
                 {% include 'core/partials/playlist_settings.html' %}
