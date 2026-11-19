@@ -4,6 +4,7 @@ from pathlib import Path
 import xxhash
 
 from ..models import ResourceFile
+from .io_limits import read_chunks
 from .remote_files import compute_remote_checksum
 from .remote_files import is_remote_legacy_path
 from .remote_files import parse_remote_legacy_path
@@ -26,7 +27,7 @@ def file_fingerprint_from_stat(path_obj, stat_result):
 def compute_checksum(path_obj):
     file_hash = xxhash.xxh64()
     with open(path_obj, "rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        for chunk in read_chunks(handle):
             file_hash.update(chunk)
     return file_hash.hexdigest()
 

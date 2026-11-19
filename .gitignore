@@ -19,6 +19,10 @@ scripts/dump_legacy_to_sqlite_settings.py
 !/demo_media/
 *requirements.txt
 
+# Code review reports
+PR-*-?.md
+issue-*-?.md
+
 # BDR notes to self about the task at hand
 task_notes
 
