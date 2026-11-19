@@ -1,14 +1,12 @@
 """Keep legacy migration I/O from starving other services that share its disks.
 
-`ionice` only takes effect under the BFQ (or old CFQ) I/O scheduler, so the
-read limit below is the only control that works everywhere. See
+`ionice` is ignored by the `none` I/O scheduler and can be lost on the way
+through software RAID, so the read limit below is the control to rely on. See
 LEGACY_MIGRATION.md for production guidance.
 """
 
 import logging
 import os
-from pathlib import Path
-import shutil
 import subprocess
 import time
 
@@ -16,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 1024 * 1024
 # 0 means unlimited. import_legacy_media sets this from --max-read-mbps.
-max_read_mbps = 150
+max_read_mbps = 100
 
 
 def lower_process_priority():
@@ -45,15 +43,3 @@ def read_chunks(handle):
             delay = total / limit - (time.monotonic() - started)
             if delay > 0:
                 time.sleep(delay)
-
-
-def copy_file(source, destination):
-    try:
-        with open(source, "rb") as src, open(destination, "wb") as dst:
-            for chunk in read_chunks(src):
-                dst.write(chunk)
-        shutil.copystat(source, destination)
-    except BaseException:
-        # A half-written copy must not be mistaken for real media later.
-        Path(destination).unlink(missing_ok=True)
-        raise

@@ -192,39 +192,15 @@ class ImportLegacyMediaTests(TestCase):
         self.assertEqual(subtitle.subtitles_file.read(), original)
         self.assertEqual(self.pending(), 0)
 
-    def test_failed_copy_leaves_no_partial_file(self, _priority):
+    def test_unlinkable_file_is_skipped(self, _priority):
         self.placeholder_file("f1", "a.mp4", b"video-a")
 
-        def partial_read(_handle):
-            yield b"vid"
-            raise OSError("No space left on device")
-
-        with (
-            mock.patch("os.link", side_effect=OSError("Operation not permitted")),
-            mock.patch.object(io_limits, "read_chunks", partial_read),
-        ):
-            _, stderr = self.run_command("--commit", "--allow-copy")
-
-        self.assertIn("No space left on device", stderr)
-        self.assertEqual(list(self.media_root.rglob("*.mp4")), [])
-        self.assertEqual(self.pending(), 1)
-
-    def test_unlinkable_file_is_skipped_unless_copy_allowed(self, _priority):
-        resource_file, _ = self.placeholder_file("f1", "a.mp4", b"video-a")
-        no_link = mock.patch("os.link", side_effect=OSError("Operation not permitted"))
-
-        with no_link:
+        with mock.patch("os.link", side_effect=OSError("Operation not permitted")):
             _, stderr = self.run_command("--commit")
+
         self.assertIn("file f1: skipped: Cannot hardlink", stderr)
         self.assertEqual(list(self.media_root.rglob("*.mp4")), [])
         self.assertEqual(self.pending(), 1)
-
-        with no_link:
-            stdout, _ = self.run_command("--commit", "--allow-copy")
-        self.assertIn("file f1: copy", stdout)
-        resource_file.refresh_from_db()
-        self.assertEqual(Path(resource_file.file.path).read_bytes(), b"video-a")
-        self.assertEqual(self.pending(), 0)
 
     @override_settings(LEGACY_MIGRATION_MEDIA_ROOT="yvideo:/opt/y-video")
     def test_remote_legacy_root_is_refused(self, _priority):

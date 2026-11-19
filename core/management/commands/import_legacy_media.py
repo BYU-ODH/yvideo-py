@@ -14,7 +14,6 @@ from core.legacy_migration import LegacyMigrationService
 from core.legacy_migration import LegacySourceMap
 from core.legacy_migration import io_limits
 from core.legacy_migration.file_index import compute_checksum
-from core.legacy_migration.io_limits import copy_file
 from core.legacy_migration.io_limits import lower_process_priority
 from core.legacy_migration.remote_files import is_remote_legacy_path
 from core.legacy_migration.remote_files import resolve_legacy_file_path
@@ -43,14 +42,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--max-read-mbps",
             type=float,
-            default=150,
-            help="Disk read limit in MB/s (0 = unlimited). Default: 150.",
-        )
-        parser.add_argument(
-            "--allow-copy",
-            action="store_true",
-            help="Copy files that cannot be hardlinked instead of skipping them "
-            "(doubles their disk use).",
+            default=100,
+            help="Disk read limit in MB/s (0 = unlimited). Default: 100.",
         )
 
     def handle(self, *args, **options):
@@ -69,7 +62,6 @@ class Command(BaseCommand):
                 "filesystem as MEDIA_ROOT."
             )
         self.commit = options["commit"]
-        self.allow_copy = options["allow_copy"]
         self.service = LegacyMigrationService(require_catalog=False)
         self.stdout.write(
             "COMMIT: transferring legacy media."
@@ -104,13 +96,6 @@ class Command(BaseCommand):
 
         summary = ", ".join(f"{count} {name}" for name, count in sorted(counts.items()))
         self.stdout.write(f"Summary: {summary or 'nothing pending'}.")
-        if counts["copy"] or counts["would copy"]:
-            self.stdout.write(
-                self.style.WARNING(
-                    "Some files were copied instead of hardlinked, which doubles "
-                    "their disk use."
-                )
-            )
 
     def _file(self, mapping):
         resource_file = (
@@ -128,9 +113,9 @@ class Command(BaseCommand):
         if not filepath:
             raise SkipItem("Legacy row has no filepath.")
         source = Path(resolve_legacy_file_path(filepath))
-        method = self._check_source(source)
+        self._check_source(source)
         if not self.commit:
-            return f"would {method}"
+            return "would link"
 
         checksum = compute_checksum(source)
         existing = (
@@ -158,17 +143,14 @@ class Command(BaseCommand):
         relative_name, destination = self.service._storage_destination(
             source, resource_file.resource, resource_file.version
         )
-        if method == "link":
-            os.link(source, destination)
-        else:
-            copy_file(source, destination)
+        os.link(source, destination)
         with transaction.atomic():
             resource_file.file.name = relative_name
             resource_file.checksum = checksum
             resource_file.checksum_at = timezone.now()
             resource_file.save()
             self._mark_done(mapping)
-        return method
+        return "link"
 
     def _check_source(self, path):
         if not path.is_file():
@@ -177,20 +159,18 @@ class Command(BaseCommand):
             raise SkipItem(f"Unreadable legacy file {path}.")
         # Same-device checks aren't enough: Linux's fs.protected_hardlinks
         # refuses links to files this user doesn't own or can't write, so
-        # try a real one.
+        # try a real one. Doing it before hashing avoids reading a file that
+        # can't be placed.
         probe = Path(settings.MEDIA_ROOT) / ".import_legacy_media-probe"
         probe.unlink(missing_ok=True)
         try:
             os.link(path, probe)
         except OSError as exc:
-            if not self.allow_copy:
-                raise SkipItem(
-                    f"Cannot hardlink {path} into MEDIA_ROOT ({exc}); fix "
-                    "ownership/filesystem or pass --allow-copy."
-                ) from exc
-            return "copy"
+            raise SkipItem(
+                f"Cannot hardlink {path} into MEDIA_ROOT ({exc}); check "
+                "permissions and that both are on the same mount."
+            ) from exc
         probe.unlink()
-        return "link"
 
     def _subtitle(self, mapping):
         subtitle = Subtitle.objects.filter(pk=mapping.target_id).first()

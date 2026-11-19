@@ -31,7 +31,7 @@ systemctl --user start <app>.service <app>-deploy.timer   # plus <app>-media-wor
 ```
 
 `import_legacy_media` only hardlinks legacy files into `MEDIA_ROOT`; it never
-copies 3.3 TB by accident. Requirements:
+copies them. Requirements:
 
 - `LEGACY_MIGRATION_MEDIA_ROOT` must be a local path (the command refuses a
   `host:/path` value) on the same filesystem *and mount* as `MEDIA_ROOT`.
@@ -46,8 +46,7 @@ copies 3.3 TB by accident. Requirements:
   user.
 
 The dry run makes a real test link for each file. Files that can't be linked
-are reported and skipped; pass `--allow-copy` to copy them instead (doubling
-their disk use). The dry run does not hash files, so duplicates (below) are
+are reported and skipped. The dry run does not hash files, so duplicates (below) are
 only detected with `--commit`.
 
 - Each file and subtitle is committed on its own, so the command is safe to
@@ -66,14 +65,20 @@ only detected with `--commit`.
 This app is stopped during the import, but the legacy Y-Video app and anything
 else on the same disks are still running. Both commands lower their own CPU
 priority (`nice 19`) and request idle I/O priority (`ionice -c3`).
-`import_legacy_media` also limits hashing and copying to 150 MB/s; change it
-with `--max-read-mbps N` (`0` means unlimited). At 150 MB/s, 3.3 TB takes
-about 6 hours.
+`import_legacy_media` must read every file once to hash it, so it also limits
+reads to 100 MB/s; change it with `--max-read-mbps N` (`0` means unlimited).
+At 100 MB/s, 3.3 TB takes about 9 hours.
 
-`ionice -c3` only works with the BFQ (or old CFQ) I/O scheduler. On
-`mq-deadline` or `none` (common for NVMe and VM disks) it is silently ignored.
-Check with `cat /sys/block/<dev>/queue/scheduler`. The read limit works
-everywhere.
+`ionice -c3` is ignored by the `none` I/O scheduler (common for NVMe and VM
+disks) and honored by `mq-deadline` (kernel 5.14+) and `bfq`. Software RAID can
+drop the priority for some reads. Check with
+`cat /sys/block/<dev>/queue/scheduler` on the physical disks under the legacy
+media (`lsblk -s <device>`). The read limit works everywhere.
+
+On spinning disks, watch the run with `iostat -x 5 <disks>` (from `sysstat`).
+If `%util` stays near 100% or `r_await` stays above about 20–30 ms, stop the
+command and rerun it with a lower `--max-read-mbps`; if the disks look idle,
+raise it.
 
 ## Retired: Per-Request Collection Migration
 
