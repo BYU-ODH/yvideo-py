@@ -74,7 +74,7 @@ function initialize() {
   const playlistNameWrapper = document.getElementById("playlist-name-wrapper");
   const playlistId = getPlaylistIdValue();
   if (playlistNameWrapper && playlistId !== undefined) {
-    setupInPlaceFieldEdit(playlistNameWrapper, `/playlists/${playlistId}/settings/update/`, {
+    setupInPlaceFieldEdit(playlistNameWrapper, `/playlists/${playlistId}/change-name/`, {
       onSuccess: () => {
         const playlistTitle = playlistNameWrapper.querySelector("h3");
         const playlistInput = playlistNameWrapper.querySelector("input");

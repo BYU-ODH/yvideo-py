@@ -72,6 +72,11 @@ urlpatterns = [
         name="update_playlist_settings",
     ),
     path(
+        "playlists/<int:playlist_id>/change-name/",
+        views.update_playlist_name,
+        name="update_playlist_name",
+    ),
+    path(
         "playlists/<int:playlist_id>/members/",
         views.render_playlist_members,
         name="render_playlist_members",
