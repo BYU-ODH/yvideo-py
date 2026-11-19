@@ -26,7 +26,7 @@ class SkipItem(Exception):
 
 
 def _storage_destination(source_path, resource, version):
-    relative_name = f"{resource.name}/{version}{source_path.suffix.lower()}"
+    relative_name = f"{resource.pk}/{version}{source_path.suffix.lower()}"
     destination = Path(settings.MEDIA_ROOT) / relative_name
     if destination.exists():
         if ResourceFile.objects.filter(file=relative_name).exists():

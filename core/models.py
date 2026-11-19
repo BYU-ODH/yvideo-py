@@ -1,4 +1,5 @@
 from datetime import timedelta
+from functools import partial
 import json
 import logging
 import os
@@ -13,10 +14,14 @@ from django.core.validators import RegexValidator
 from django.db import IntegrityError
 from django.db import models
 from django.db import transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.urls import reverse
 from django.utils import timezone
 import xxhash
 
+from .subtitle_uploads import cleanup_subtitle_files
+from .subtitle_uploads import subtitle_file_references
 from .subtitle_uploads import validate_subtitle_file
 from .utils import estimate_current_yearterm
 from .utils import seconds2hms
@@ -25,6 +30,12 @@ HMS_VALIDATOR = RegexValidator(
     regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",
     message="Time must be in H:MM:SS format (e.g., 1:23:45.67 or 12:34:56.78)",
     code="invalid_time_format",
+)
+
+YEARTERM_VALIDATOR = RegexValidator(
+    regex=r"^\d{4}[1345]$",
+    message="Yearterm must be a 4-digit year followed by 1, 3, 4, or 5 (e.g., 20265).",
+    code="invalid_yearterm",
 )
 
 BCP47_VALIDATOR = RegexValidator(
@@ -72,6 +83,18 @@ def validate_imdb_id(id):
     )
 
 
+def acknowledgements_constraint(model_name):
+    return models.CheckConstraint(
+        condition=models.Q(
+            acknowledged_compliance=True, acknowledged_fair_use_limitation=True
+        ),
+        name=f"{model_name}_acknowledged",
+        violation_error_message=(
+            "Both the compliance and fair use acknowledgements are required."
+        ),
+    )
+
+
 class Resource(models.Model):
     class MediaType(models.TextChoices):
         TEXT = ("txt", "Text")
@@ -85,6 +108,18 @@ class Resource(models.Model):
                 fields=["name", "name_disambiguator"],
                 name="unique_resource_name_and_disambiguator",
             ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    checked_out_from_hbll=False,
+                    checked_out_from_other_byu_library=False,
+                )
+                | ~models.Q(byu_call_number=""),
+                name="resource_call_number_required",
+                violation_error_message=(
+                    "A BYU call number is required when checked out from HBLL or "
+                    "another BYU library."
+                ),
+            ),
         ]
 
     name = models.CharField(max_length=255)
@@ -93,7 +128,7 @@ class Resource(models.Model):
     requester_username = models.CharField(max_length=9)
     copyrighted = models.BooleanField(default=True)
     physical_copy_exists = models.BooleanField(default=False)
-    views = models.IntegerField(default=0)
+    views = models.PositiveIntegerField(default=0)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -302,6 +337,24 @@ class User(AbstractUser):
             user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
         ).exists()
 
+    def accessible_resources(self):
+        """The resource library as this user may see it, matching can_access_resource."""
+        if self.is_superuser or self.is_lab_assistant:
+            return Resource.objects.all()
+        granted = models.Q(resourceaccess__user=self)
+        # A collaborator inherits every grant held by the owner of a playlist
+        # they can write to.
+        inherited = models.Q(
+            resourceaccess__user__playlists_owned__playlistuseraccess__user=self,
+            resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
+        )
+        visible = granted | inherited
+        if self.is_instructor:
+            visible |= models.Q(checked_out_from_hbll=True) | models.Q(
+                checked_out_from_other_byu_library=True
+            )
+        return Resource.objects.filter(visible).distinct()
+
     def get_content_source_url(self, content):
         """URL for URL-only content, gated by the same permission check that
         protects file-backed content."""
@@ -340,7 +393,11 @@ class ResourceAccess(models.Model):  # "through" model
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("user", "resource")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "resource"], name="unique_resource_access"
+            )
+        ]
 
     def __str__(self):
         return (
@@ -362,7 +419,12 @@ class ResourceAccessRequest(models.Model):
     acknowledged_fair_use_limitation = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = ("user", "resource")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "resource"], name="unique_resource_access_request"
+            ),
+            acknowledgements_constraint("resource_access_request"),
+        ]
 
     def __str__(self):
         return f"{self.user.netid} {self.user.username} | {self.resource}"
@@ -388,7 +450,11 @@ class Playlist(models.Model):
         return f"{self.name} | {self.owner} | {self.id}"
 
     class Meta:
-        unique_together = ("name", "owner")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "owner"], name="unique_playlist_name_per_owner"
+            )
+        ]
 
     def can_be_administered_by(self, user):
         """Delete the playlist; grant the COLLABORATOR role."""
@@ -434,7 +500,11 @@ class PlaylistUserAccess(models.Model):  # "through" model
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("user", "playlist")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "playlist"], name="unique_playlist_user_access"
+            )
+        ]
 
     def __str__(self):
         return f"{self.user.netid} {self.user.username} | {self.playlist.name}"
@@ -506,11 +576,13 @@ def validate_unique_checksum(file):
 
 
 def file_upload_path(instance, filename):
-    """Generate upload path: media/<resource name>/<version>.<ext>"""
-    if instance.resource and instance.version:
-        ext = os.path.splitext(filename)[1]
-        return f"{instance.resource.name}/{instance.version}{ext}"
-    return filename
+    """media/<resource id>/<version>.<ext>, or the uploaded filename if unversioned.
+
+    Keyed on the id because resource names change and may contain slashes.
+    """
+    if instance.version:
+        filename = instance.version + os.path.splitext(filename)[1]
+    return f"{instance.resource_id}/{filename}"
 
 
 # Names under this prefix are projection masters. They are stored in IC_PROJECTION_ROOT,
@@ -572,6 +644,13 @@ class ResourceFile(models.Model):
         null=True,
         blank=True,
         unique=True,
+        validators=[
+            RegexValidator(
+                regex=r"^(?:\d{12,13}|BYU\d{10})$",
+                message="Barcode must be a 12- or 13-digit UPC/EAN.",
+                code="invalid_barcode",
+            )
+        ],
         help_text="The EAN or UPC barcode on the resource. If there isn't one, an internal 'BYU' prefixed code will be assigned.",
     )
     is_projection_file = models.BooleanField(
@@ -614,17 +693,6 @@ class ResourceFile(models.Model):
         """Whether the file's bytes exist here (masters may have been released)."""
         return bool(self.file) and self.file.storage.exists(self.file.name)
 
-    def clean(self):
-        super().clean()
-        self.validate_barcode()
-
-    def validate_barcode(self):
-        if self.barcode is None:
-            return
-        barcode_len = len(self.barcode)
-        if barcode_len < 12 or barcode_len > 13:
-            raise ValidationError("Barcode must be 12 or 13 characters long.")
-
     def generate_barcode(self):
         """
         If we need to generate a barcode, that means the media doesn't have
@@ -638,18 +706,27 @@ class ResourceFile(models.Model):
         self.barcode = "BYU" + str(self.pk).zfill(10)
         self.save(update_fields=["barcode"])
 
-    def delete(self, *args, **kwargs):
-        """Delete the file from the filesystem when the model is deleted."""
-        if self.file:
-            self.file.delete(save=False)
-        super().delete(*args, **kwargs)
-
     def save(self, *args, **kwargs):
-        """Generate checksum before saving."""
-        if self.file and not self.checksum:
+        # An uncommitted file is a new upload, possibly replacing an earlier one.
+        new_upload = bool(self.file) and not self.file._committed
+        replaced_name = None
+        if new_upload and self.pk:
+            replaced_name = (
+                ResourceFile.objects.filter(pk=self.pk)
+                .values_list("file", flat=True)
+                .first()
+            )
+        if self.file and (new_upload or not self.checksum):
             self.checksum = _calculate_checksum_for_file(self.file)
             self.checksum_at = timezone.now()
         super().save(*args, **kwargs)
+        if replaced_name and replaced_name != self.file.name:
+            storage = self.file.storage
+            transaction.on_commit(
+                lambda: storage.delete(replaced_name),
+                using=kwargs.get("using"),
+                robust=True,
+            )
         if not self.barcode:
             self.generate_barcode()
 
@@ -657,13 +734,15 @@ class ResourceFile(models.Model):
         return f"{self.file} | {self.resource.name}"
 
     class Meta:
-        unique_together = ("resource", "version")
         constraints = [
+            models.UniqueConstraint(
+                fields=["resource", "version"], name="unique_resource_file_version"
+            ),
             models.UniqueConstraint(
                 fields=["resource"],
                 condition=models.Q(is_projection_file=True),
                 name="one_projection_file_per_resource",
-            )
+            ),
         ]
 
 
@@ -688,7 +767,12 @@ class AnnotationSet(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [["name", "resource", "owner"]]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "resource", "owner"],
+                name="unique_annotation_set_name_per_resource_owner",
+            )
+        ]
         ordering = ["name"]
 
     def __str__(self):
@@ -1035,8 +1119,6 @@ class Content(models.Model):
         Playlist,
         on_delete=models.CASCADE,
         related_name="contents",
-        null=True,
-        blank=True,
     )
     resource_file = models.ForeignKey(
         ResourceFile,
@@ -1072,17 +1154,26 @@ class Content(models.Model):
     allow_captions = models.BooleanField(default=True)
     allow_fast_playback = models.BooleanField(default=True)
     clips_only = models.BooleanField(default=False)
-    views = models.IntegerField(default=0, editable=False)
+    views = models.PositiveIntegerField(default=0, editable=False)
     published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("playlist", "title")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["playlist", "title"], name="unique_content_title_per_playlist"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(resource_file__isnull=False)
+                | (models.Q(url__isnull=False) & ~models.Q(url="")),
+                name="content_has_resource_file_or_url",
+                violation_error_message="Content needs a resource file or a URL.",
+            ),
+        ]
 
     def __str__(self):
-        playlist_name = self.playlist.name if self.playlist else "No Playlist"
-        return f"{self.title} | {playlist_name} | {self.id}"
+        return f"{self.title} | {self.playlist.name} | {self.id}"
 
     @property
     def display_name(self):
@@ -1094,15 +1185,39 @@ class Content(models.Model):
 
     def clean(self):
         super().clean()
+        errors = {}
         if self.resource_file_id and self.resource_file.is_projection_file:
-            raise ValidationError(
-                {
-                    "resource_file": (
-                        "Projection masters are for the International Cinema booth "
-                        "only and cannot be attached to content."
-                    )
-                }
+            errors["resource_file"] = (
+                "Projection masters are for the International Cinema booth "
+                "only and cannot be attached to content."
             )
+        elif (
+            self.resource_file_id
+            and self.playlist_id
+            and not self.playlist.owner.can_access_resource(self.resource_file.resource)
+        ):
+            errors["resource_file"] = (
+                "The playlist owner doesn't have access to this file's resource."
+            )
+        # save() takes the resource from the file, so check against that.
+        resource_id = (
+            self.resource_file.resource_id
+            if self.resource_file_id
+            else self.resource_id
+        )
+        if self.annotation_set_id and self.annotation_set.resource_id != resource_id:
+            errors["annotation_set"] = (
+                "The annotation set must belong to this content's resource."
+            )
+        if (
+            self.default_subtitle_track_id
+            and self.default_subtitle_track.resource_id != resource_id
+        ):
+            errors["default_subtitle_track"] = (
+                "The default subtitle track must belong to this content's resource."
+            )
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         if self.resource_file:
@@ -1110,7 +1225,7 @@ class Content(models.Model):
         super().save(*args, **kwargs)
 
     def can_be_edited_by(self, user):
-        return bool(self.playlist_id) and self.playlist.can_be_edited_by(user)
+        return self.playlist.can_be_edited_by(user)
 
     def can_be_viewed_by(self, user):
         """Unpublished content is a draft, so only the people who can edit it see it.
@@ -1120,11 +1235,7 @@ class Content(models.Model):
         """
         if self.can_be_edited_by(user):
             return True
-        return (
-            self.published
-            and bool(self.playlist_id)
-            and self.playlist.can_be_viewed_by(user)
-        )
+        return self.published and self.playlist.can_be_viewed_by(user)
 
     def get_resource(self):
         if self.resource_id:
@@ -1364,8 +1475,7 @@ class BaseAnnotation(models.Model):
         blank=True,
     )
     description = models.TextField(
-        blank=False,
-        null=False,
+        blank=True,
         help_text="Short description of what content this annotation covers.",
     )
 
@@ -1374,6 +1484,17 @@ class BaseAnnotation(models.Model):
 
     class Meta:
         abstract = True
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    start_time__gte=0, end_time__gte=models.F("start_time")
+                ),
+                name="%(app_label)s_%(class)s_valid_times",
+                violation_error_message=(
+                    "Start time must not be negative or after the end time."
+                ),
+            )
+        ]
 
     @property
     def annotation_type(self):
@@ -1594,7 +1715,11 @@ class BlankAnnotation(BaseAnnotation):
 class PauseAnnotation(BaseAnnotation):
     """Pause annotation - point in time, not a range."""
 
-    message = models.TextField(max_length=255, blank=True, default="")
+    message = models.CharField(max_length=255, blank=True, default="")
+
+    def save(self, *args, **kwargs):
+        self.end_time = self.start_time
+        super().save(*args, **kwargs)
 
     def calculate_position(self):
         """Override: pause is a point marker, not a range."""
@@ -1638,20 +1763,11 @@ FONT_COLOR_PRESETS = [
 ]
 
 
-def validate_font_color(hexcode):
-    # font color must be at least 3 characters or 6 characters.
-    font_color_length = len(hexcode)
-    if font_color_length != 3 and font_color_length != 6:
-        raise ValidationError(
-            f"font_color must be 3 or 6 characters. {hexcode} was provided which has {font_color_length} characters."
-        )
-    # check that each character is [0-9], [a-f], or [A-F]
-    pattern = "[0-9a-fA-F]"
-    for char in hexcode:
-        if re.search(pattern, char) is None:
-            raise ValidationError(
-                "font_color must only include valid hexadecimal characters: 0-9, a-f or A-F"
-            )
+validate_font_color = RegexValidator(
+    regex=r"^(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+    message="font_color must be 3 or 6 hexadecimal characters (0-9, a-f).",
+    code="invalid_font_color",
+)
 
 
 def clamp_rect(x, y, width, height, *, min_width, min_height, precision):
@@ -1733,20 +1849,27 @@ class CommentAnnotation(BaseAnnotation):
 
     @classmethod
     def from_import(cls, imported_data, track):
+        # Missing values keep the model defaults the new annotation was created with.
         new_annotation = super().from_import(imported_data, track)
-        new_annotation.text = imported_data.get("text", "Your comment here")
+        new_annotation.text = imported_data.get("text", new_annotation.text)
         # Files exported before x/y/width replaced the two corners still carry the corners.
-        x = imported_data.get("x", imported_data.get("top_left_x", 50.0))
+        x = imported_data.get("x", imported_data.get("top_left_x", new_annotation.x))
         new_annotation.x = x
-        new_annotation.y = imported_data.get("y", imported_data.get("top_left_y", 50.0))
+        new_annotation.y = imported_data.get(
+            "y", imported_data.get("top_left_y", new_annotation.y)
+        )
         if "width" in imported_data:
             new_annotation.width = imported_data["width"]
-        else:
-            right = imported_data.get("bottom_right_x", x + 10.0)
+        elif "bottom_right_x" in imported_data:
+            right = imported_data["bottom_right_x"]
             # Inverted corners rendered with the text running to the frame's right edge.
             new_annotation.width = right - x if right > x else 100.0 - x
-        new_annotation.font_size_in_rem = imported_data.get("font_size_in_rem", 1.0)
-        new_annotation.font_color = imported_data.get("font_color", "abcdef")
+        new_annotation.font_size_in_rem = imported_data.get(
+            "font_size_in_rem", new_annotation.font_size_in_rem
+        )
+        new_annotation.font_color = imported_data.get(
+            "font_color", new_annotation.font_color
+        )
         new_annotation.save()
         return new_annotation
 
@@ -2076,7 +2199,9 @@ class YearTerm(models.Model):
     refresh_year_terms management command.
     """
 
-    yearterm = models.CharField(max_length=5, unique=True)
+    yearterm = models.CharField(
+        max_length=5, unique=True, validators=[YEARTERM_VALIDATOR]
+    )
     start_date_time = models.DateTimeField()
     end_date_time = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -2084,6 +2209,13 @@ class YearTerm(models.Model):
 
     class Meta:
         ordering = ["start_date_time"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(start_date_time__lt=models.F("end_date_time")),
+                name="yearterm_starts_before_it_ends",
+                violation_error_message="A term must start before it ends.",
+            )
+        ]
 
     def __str__(self):
         return f"{self.yearterm} | {self.start_date_time:%Y-%m-%d} - {self.end_date_time:%Y-%m-%d}"
@@ -2156,18 +2288,23 @@ class Course(models.Model):
         validators=[
             RegexValidator(
                 regex=r"^\d{3}$",
-                message="Section number must be 1 to 3 digits.",
+                message="Section number must be exactly 3 digits.",
                 code="invalid_section_number",
             )
         ],
     )
 
-    yearterm = models.CharField(max_length=5, blank=False)
+    yearterm = models.CharField(max_length=5, validators=[YEARTERM_VALIDATOR])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("dept", "catalog_number", "section_number", "yearterm")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dept", "catalog_number", "section_number", "yearterm"],
+                name="unique_course_section_per_yearterm",
+            )
+        ]
         ordering = ["dept", "catalog_number", "section_number", "yearterm"]
 
     def display_yearterm(self):
@@ -2192,9 +2329,17 @@ class Course(models.Model):
 class UserCourses(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    yearterm = models.CharField(max_length=5, blank=False)
+    yearterm = models.CharField(max_length=5, validators=[YEARTERM_VALIDATOR])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "course", "yearterm"],
+                name="unique_user_course_yearterm",
+            )
+        ]
 
     def display_yearterm(self):
         if not self.yearterm:
@@ -2239,8 +2384,8 @@ class Language(models.Model):
 
 
 def subtitle_file_upload_path(instance, filename):
-    """Generate upload path to media/<resource name>/subtitles/<filename>"""
-    return f"{instance.resource.name}/subtitles/{filename}"
+    """Generate upload path to media/<resource id>/subtitles/<filename>"""
+    return f"{instance.resource_id}/subtitles/{filename}"
 
 
 class Subtitle(models.Model):
@@ -2265,7 +2410,12 @@ class Subtitle(models.Model):
         return f"{self.name} | {self.language.language} | {self.resource.name} | {self.owner.first_name} {self.owner.last_name} | {self.id}"
 
     class Meta:
-        unique_together = ("resource", "owner", "language", "name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource", "owner", "language", "name"],
+                name="unique_subtitle_name_per_resource_owner_language",
+            )
+        ]
 
     def can_be_edited_by(self, user):
         return (
@@ -2280,6 +2430,25 @@ class Subtitle(models.Model):
 
     def can_be_read_by(self, user):
         return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
+
+
+@receiver(post_delete, sender=ResourceFile)
+def delete_resource_file_bytes(sender, instance, using, **kwargs):
+    # Waiting for the commit keeps the bytes if the delete is rolled back. A failed
+    # file delete is only logged, because the row is already gone by then.
+    if instance.file:
+        storage, name = instance.file.storage, instance.file.name
+        transaction.on_commit(lambda: storage.delete(name), using=using, robust=True)
+
+
+@receiver(post_delete, sender=Subtitle)
+def delete_subtitle_file(sender, instance, using, **kwargs):
+    transaction.on_commit(
+        partial(
+            cleanup_subtitle_files, subtitle_file_references(instance), using=using
+        ),
+        using=using,
+    )
 
 
 class ResourceFileKey(models.Model):  # "through" model
@@ -2346,7 +2515,8 @@ class ResourceIntakeRequest(models.Model):
             models.UniqueConstraint(
                 fields=["resource_title", "resource_name_disambiguator"],
                 name="unique_resource_title_and_disambiguator",
-            )
+            ),
+            acknowledgements_constraint("resource_intake_request"),
         ]
 
     owner = models.ForeignKey(
@@ -2363,15 +2533,35 @@ class ResourceIntakeRequest(models.Model):
     )
 
     # Resource-specific fields
-    resource_title = models.CharField(default="")
+    resource_title = models.CharField(max_length=255, default="")
     resource_name_disambiguator = models.CharField(
+        max_length=200,
         blank=True,
         default="",
         help_text="Provide some information that would differentiate this resource from another of the same name (e.g. release year, starting actor/actress, or director)",
     )
     imdb_link = models.URLField(default="", blank=True)
-    audio_language = models.CharField(default="", blank=True)
-    subtitle_language = models.CharField(default="", blank=True)
+    audio_language = models.ForeignKey(
+        Language,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    subtitle_language = models.ForeignKey(
+        Language,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    language_notes = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Languages that aren't in the lists above.",
+    )
 
     # Checkout information
     checked_out_from_hbll = models.BooleanField(default=False)

@@ -176,13 +176,14 @@ def import_annotations(annotation_set, content, legacy_annotations, legacy_clips
             stack_position=len(stack_positions),
         )
         for clip_index, legacy_clip in enumerate(legacy_clips):
+            start_time = float(legacy_clip.get("start", 0) or 0)
             clip = Clip.objects.create(
                 track=clip_track,
                 name=legacy_clip.get("title")
                 or legacy_clip.get("label")
                 or f"{content.title} Clip {clip_index + 1}",
-                start_time=float(legacy_clip.get("start", 0) or 0),
-                end_time=float(legacy_clip.get("end", 0) or 0),
+                start_time=start_time,
+                end_time=float(legacy_clip.get("end", start_time) or start_time),
                 description=legacy_clip.get("description", ""),
                 active=True,
             )

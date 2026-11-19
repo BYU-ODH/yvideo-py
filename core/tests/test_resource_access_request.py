@@ -171,13 +171,18 @@ class ResourceAccessRequestTests(TestCase):
         self.assertFalse(self.instructor.can_access_resource(self.resource))
 
     def test_staff_see_pending_new_resource_requests(self):
+        acknowledged = {
+            "acknowledged_compliance": True,
+            "acknowledged_fair_use_limitation": True,
+        }
         ResourceIntakeRequest.objects.create(
-            owner=self.instructor, resource_title="Delicatessen"
+            owner=self.instructor, resource_title="Delicatessen", **acknowledged
         )
         ResourceIntakeRequest.objects.create(
             owner=self.instructor,
             resource_title="Already processed",
             generated_resource=self.resource,
+            **acknowledged,
         )
         self.client.force_login(UserFactory(lab_assistant=True, netid="rar_la"))
 

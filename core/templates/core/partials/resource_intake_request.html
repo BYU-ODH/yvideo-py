@@ -103,6 +103,10 @@
                                         <label for="{{ form.subtitle_language.id_for_label }}">Subtitle Language (optional)</label>
                                         {{ form.subtitle_language }}
                                     </div>
+                                    <div class="resource-intake-form-group{% if form.language_notes.errors %} resource-intake-field-error{% endif %}">
+                                        <label for="{{ form.language_notes.id_for_label }}">Other Language (required if "Other" is chosen)</label>
+                                        {{ form.language_notes }}
+                                    </div>
                                 </div>
                             </div>
                         </div>

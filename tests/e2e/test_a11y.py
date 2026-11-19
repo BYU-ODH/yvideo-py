@@ -208,6 +208,7 @@ def awkward_data(seeded_demo_data):
 
     from core.factories import ContentFactory
     from core.factories import PlaylistFactory
+    from core.models import Language
     from core.models import ResourceAccessRequest
     from core.models import ResourceIntakeRequest
 
@@ -236,12 +237,15 @@ def awkward_data(seeded_demo_data):
         resource_intake_request=ResourceIntakeRequest.objects.create(
             owner=playlist.owner,
             resource_title="A11y Intake Request",
-            audio_language="English",
+            audio_language=Language.objects.get(bcp47="en"),
             acknowledged_compliance=True,
             acknowledged_fair_use_limitation=True,
         ),
         resource_access_request=ResourceAccessRequest.objects.create(
-            user=playlist.owner, resource=birds.resource_file.resource
+            user=playlist.owner,
+            resource=birds.resource_file.resource,
+            acknowledged_compliance=True,
+            acknowledged_fair_use_limitation=True,
         ),
     )
 
