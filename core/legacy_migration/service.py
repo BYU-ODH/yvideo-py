@@ -1217,7 +1217,7 @@ class LegacyMigrationService:
 
     def _storage_destination(self, source_path, resource, version):
         extension = get_legacy_file_extension(source_path)
-        relative_name = f"{resource.name}/{version}{extension}"
+        relative_name = f"{resource.pk}/{version}{extension}"
         destination = Path(settings.MEDIA_ROOT) / relative_name
         if destination.exists():
             if ResourceFile.objects.filter(file=relative_name).exists():
@@ -1348,13 +1348,14 @@ class LegacyMigrationService:
     def _ensure_clip(self, request_obj, content, track, legacy_clip, clip_index):
         source_id = f"{content.pk}:{clip_index}"
         clip = self._get_source_map_target("clip", source_id, Clip)
+        start_time = float(legacy_clip.get("start", 0) or 0)
         defaults = {
             "track": track,
             "name": legacy_clip.get("title")
             or legacy_clip.get("label")
             or f"{content.title} Clip {clip_index + 1}",
-            "start_time": float(legacy_clip.get("start", 0) or 0),
-            "end_time": float(legacy_clip.get("end", 0) or 0),
+            "start_time": start_time,
+            "end_time": float(legacy_clip.get("end", start_time) or start_time),
             "description": legacy_clip.get("description", ""),
             "active": True,
         }

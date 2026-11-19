@@ -136,21 +136,8 @@ def _resource_match_candidates(intake_request):
 
 
 def _language_matches_request(language, requested_language):
-    if not requested_language or not requested_language.strip():
-        return True
-    if not language:
-        return False
-
-    requested_values = {
-        _normalize_match_value(part)
-        for part in re.split(r"[/,;()]+", requested_language)
-        if _normalize_match_value(part)
-    }
-    language_values = {
-        _normalize_match_value(language.language),
-        _normalize_match_value(language.bcp47),
-    }
-    return bool(requested_values & language_values)
+    """A request that names no language accepts any."""
+    return requested_language is None or language == requested_language
 
 
 def _resource_file_matches_request(resource_file, intake_request):
@@ -167,20 +154,6 @@ def _resource_file_matches_languages(resource_file, audio_language, subtitle_lan
     ) and _language_matches_request(
         resource_file.burned_in_subtitles_language,
         subtitle_language,
-    )
-
-
-def _resolve_requested_language(value):
-    normalized_value = _normalize_match_value(value)
-    if not normalized_value:
-        return None
-    return next(
-        (
-            language
-            for language in Language.objects.all()
-            if _language_matches_request(language, value)
-        ),
-        None,
     )
 
 
@@ -354,10 +327,10 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
 
         self.fields[
             "new_resource_file_audio_language"
-        ].initial = _resolve_requested_language(self.instance.audio_language)
+        ].initial = self.instance.audio_language_id
         self.fields[
             "new_resource_file_subtitle_language"
-        ].initial = _resolve_requested_language(self.instance.subtitle_language)
+        ].initial = self.instance.subtitle_language_id
         self.fields["new_resource_imdb_id"].initial = _extract_imdb_id(
             self.instance.imdb_link
         )
@@ -751,6 +724,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
                     "resource_name_disambiguator",
                     "imdb_link",
                     ("audio_language", "subtitle_language"),
+                    "language_notes",
                     (
                         "checked_out_from_hbll",
                         "checked_out_from_other_byu_library",
@@ -946,42 +920,16 @@ class ContentAdmin(VersionAdmin):
     def get_form(self, request, obj=None, **kwargs):
         """Dynamically filters the 'resource_file' field's queryset.
 
-        If editing an existing Content object, it shows only the files
-        associated with resources owned by the content's playlist owner.
-        If adding a new Content object, it shows no files until a playlist
-        is selected and saved, guiding the user with help text.
+        If editing an existing Content object, it shows only the files whose
+        resource the content's playlist owner can access.
+        If adding a new Content object, the playlist isn't known yet, so it
+        shows every file except projection masters.
         """
         form = super().get_form(request, obj, **kwargs)
-        # If we are editing an existing Content object.
+        files = ResourceFile.objects.filter(is_projection_file=False)
         if obj:
-            # Check if the content has a playlist and the playlist has an owner.
-            if obj.playlist and obj.playlist.owner:
-                # Filter the 'resource_file' field to show only files whose resource is accessible
-                # by the playlist's owner.
-                form.base_fields[
-                    "resource_file"
-                ].queryset = ResourceFile.objects.filter(
-                    resource__users=obj.playlist.owner, is_projection_file=False
-                )
-            else:
-                # If no playlist or owner, show no files.
-                form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
-
-            # Filter clips to show only those associated with the selected file
-            if obj.get_resource():
-                form.base_fields["clips"].queryset = Clip.objects.filter(
-                    resource=obj.get_resource()
-                )
-            else:
-                form.base_fields["clips"].queryset = Clip.objects.none()
-
-        else:
-            # On the 'add' page, we can't filter by playlist owner yet.
-            # Showing no files until a playlist is selected and saved.
-            form.base_fields["resource_file"].queryset = ResourceFile.objects.none()
-            form.base_fields[
-                "resource_file"
-            ].help_text = "Select playlist, then save to see available resource files. You will be unable to see resource files that belong to Resources that you do not have Resource Access to."
+            files = files.filter(resource__in=obj.playlist.owner.accessible_resources())
+        form.base_fields["resource_file"].queryset = files
 
         return form
 
