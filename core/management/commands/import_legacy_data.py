@@ -3,6 +3,7 @@ from django.core.management.base import CommandError
 
 from core.legacy_migration.bulk_import import BulkImportError
 from core.legacy_migration.bulk_import import LegacyBulkImporter
+from core.legacy_migration.io_limits import lower_process_priority
 
 
 class Command(BaseCommand):
@@ -34,6 +35,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        lower_process_priority()
         self.stdout.write(
             "COMMIT: importing into the configured default database."
             if options["commit"]
@@ -68,7 +70,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             self.style.SUCCESS(
-                "Import committed."
+                "Import committed. Run import_legacy_media to transfer files and subtitles."
                 if options["commit"]
                 else "Dry run passed; all database changes rolled back."
             )

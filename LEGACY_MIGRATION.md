@@ -418,6 +418,71 @@ Two safety rules apply during import:
 
 This is why the file review step is important.
 
+## Transferring Media After a Bulk Import
+
+`import_legacy_data` copies database rows only. Imported files and subtitles
+have no media until you run:
+
+```bash
+uv run python manage.py import_legacy_media            # dry run: shows link/skip per file
+uv run python manage.py import_legacy_media --commit
+```
+
+The command only hardlinks legacy files into `MEDIA_ROOT`; it never copies
+3.3 TB by accident. Requirements:
+
+- `LEGACY_MIGRATION_MEDIA_ROOT` must be a local path (the command refuses a
+  `host:/path` value) on the same filesystem *and mount* as `MEDIA_ROOT`.
+  Check that `findmnt -T <path>` shows the same target for both. A bind mount
+  counts as a different mount and breaks hardlinks; a symlink does not.
+- Run it on the host with the app service stopped, not inside the app
+  container (where the legacy folder is not mounted). With the service
+  stopped, the per-request migration worker can't import files at the same
+  time.
+- Most Linux systems enable `fs.protected_hardlinks`, which only allows linking
+  files the user owns or can both read *and* write. If the legacy files belong
+  to another user, add the deploy user to the files' group and run
+  `chmod g+w` on the files.
+
+The dry run makes a real test link for each file. Files that can't be linked
+are reported and skipped; pass `--allow-copy` to copy them instead (doubling
+their disk use). The dry run does not hash files, so duplicates (below) are
+only detected with `--commit`.
+
+- Each file and subtitle is committed on its own, so the command is safe to
+  stop and rerun. Finished items are not touched again.
+- Missing, unreadable, or unlinkable legacy files are reported and skipped.
+  They stay pending, so a later run retries them.
+- Each file is hashed before it is placed. If it has the same bytes as an
+  existing file in the same resource, its contents are pointed at the existing
+  file and the duplicate placeholder is deleted. A match in a *different*
+  resource is reported and left pending for manual review.
+- A hardlinked file is shared by both apps: editing it in place changes it for
+  both, but deleting either path is safe.
+
+### Keeping migration I/O from slowing the live servers
+
+All migration commands (`import_legacy_data`, `import_legacy_media`, and the
+job worker) lower their own CPU priority (`nice 19`) and request idle I/O
+priority (`ionice -c3`). Hashing and copying are also limited to
+`LEGACY_MIGRATION_MAX_READ_MBPS` (default 150 MB/s; `0` means unlimited), which
+also caps `scp` bandwidth for the per-request job worker. Override it for a single run with
+`import_legacy_media --max-read-mbps N`. At 150 MB/s, 3.3 TB takes about
+6 hours.
+
+`ionice -c3` only works with the BFQ (or old CFQ) I/O scheduler. On
+`mq-deadline` or `none` (common for NVMe and VM disks) it is silently ignored.
+Check with `cat /sys/block/<dev>/queue/scheduler`. The read limit works
+everywhere.
+
+For production runs, also wrap the command in a systemd scope so the kernel
+enforces the limit:
+
+```bash
+systemd-run --scope -p IOReadBandwidthMax="/opt/y-video 150M" -p CPUWeight=20 -p IOWeight=10 \
+  uv run python manage.py import_legacy_media --commit
+```
+
 ## Verifying the Imported Playlist
 
 After completion, verify the new playlist in the application.
