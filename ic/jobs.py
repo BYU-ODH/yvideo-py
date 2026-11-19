@@ -129,12 +129,7 @@ def _ingest(upload):
         replaced_ids = []
         if previous is not None:
             replaced_ids = list(previous.derivatives.values_list("pk", flat=True))
-            # A released master's bytes are already gone; deleting them is a no-op.
-            old_name = previous.file.name
-            transaction.on_commit(lambda: master.file.storage.delete(old_name))
-            # A queryset delete, not ResourceFile.delete(), which would remove the
-            # bytes at once rather than after the commit.
-            ResourceFile.objects.filter(pk=previous.pk).delete()
+            previous.delete()
         master.save()
         upload.status = ICUpload.Status.DONE
         upload.save(update_fields=["status", "updated_at"])
@@ -164,7 +159,7 @@ def transcode(job):
     master_probe = media.probe(source)
 
     version = f"ic-sd-{master.checksum[:8]}"
-    relative = f"{master.resource.name}/{version}.mp4"
+    relative = f"{master.resource_id}/{version}.mp4"
     final_path = Path(settings.MEDIA_ROOT) / relative
     temp_path = final_path.with_name(f".{final_path.stem}.{uuid.uuid4().hex}.mp4")
     try:
@@ -206,11 +201,9 @@ def transcode(job):
             Content.objects.filter(resource_file_id__in=replaced_ids).update(
                 resource_file=derived
             )
-            for old in ResourceFile.objects.filter(pk__in=replaced_ids).exclude(
+            ResourceFile.objects.filter(pk__in=replaced_ids).exclude(
                 pk=derived.pk
-            ):
-                transaction.on_commit(lambda f=old.file: f.storage.delete(f.name))
-                ResourceFile.objects.filter(pk=old.pk).delete()
+            ).delete()
     finally:
         # A failed or interrupted transcode leaves no partial file in MEDIA_ROOT.
         temp_path.unlink(missing_ok=True)

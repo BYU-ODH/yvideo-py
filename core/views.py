@@ -143,9 +143,6 @@ def breadcrumb_trail(*crumbs):
 
 
 def content_parent_crumbs(content):
-    """Content.playlist is nullable, so the parent crumb is not always available."""
-    if content.playlist_id is None:
-        return ()
     return (
         (content.playlist.name, reverse("playlist_info", args=[content.playlist_id])),
     )

@@ -965,11 +965,7 @@ class LegacyBulkImporter:
         return self._save(target), True
 
     def _content(self, row):
-        playlist = (
-            self._require("collections", row["collection_id"])
-            if row["collection_id"]
-            else None
-        )
+        playlist = self._require("collections", row["collection_id"])
         resource_id = row["resource_id"]
         file_id = row["file_id"]
         url = (row["url"] or "").strip()
@@ -1022,10 +1018,6 @@ class LegacyBulkImporter:
         annotations = self._events(row["annotations"], annotations=True)
         clips = self._events(row["clips"])
         if annotations or clips:
-            if playlist is None:
-                raise BulkImportError(
-                    "Content with annotations/clips needs a collection owner."
-                )
             service = _AnnotationImporter(self, playlist.owner)
             for event in annotations:
                 if service._annotation_model_for_type(event.get("type")) is None:
@@ -1097,10 +1089,6 @@ class LegacyBulkImporter:
 
     def _subtitle(self, row):
         content = self._require("contents", row["content_id"])
-        if content.playlist_id is None:
-            raise BulkImportError(
-                "Subtitle ownership cannot be inferred without a content collection."
-            )
         language_code = (row["language"] or "").strip()
         languages = list(
             Language.objects.filter(

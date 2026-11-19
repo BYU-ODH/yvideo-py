@@ -16,8 +16,7 @@ class AnnotationSetDeletionOrReassignmentTests(TestCase):
     def _content_using_set(self, user):
         return ContentFactory(
             playlist=PlaylistFactory(owner=user),
-            resource_file=None,
-            resource=self.annotation_set.resource,
+            resource_file__resource=self.annotation_set.resource,
             annotation_set=self.annotation_set,
         )
 

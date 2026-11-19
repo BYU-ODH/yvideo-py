@@ -3085,7 +3085,7 @@ class LegacyMigrationTests(TestCase):
             )
 
         destination = Path(settings.MEDIA_ROOT) / relative_name
-        self.assertEqual(relative_name, "Imported Lecture/english.mp4")
+        self.assertEqual(relative_name, f"{resource.pk}/english.mp4")
         self.assertTrue(destination.parent.exists())
         run_mock.assert_called_once_with(
             [
@@ -3364,14 +3364,14 @@ class LegacyMigrationTests(TestCase):
     def test_import_file_to_storage_replaces_stale_partial_copy(self):
         service = LegacyMigrationService(require_catalog=False)
         resource = ResourceFactory(name="Stale Name")
-        self.write_media_file("Stale Name/english.mp4", payload=b"stale-bytes")
+        self.write_media_file(f"{resource.pk}/english.mp4", payload=b"stale-bytes")
         source_path = self.write_media_file("legacy/fresh.mp4", payload=b"fresh-bytes")
 
         relative_name = service._import_file_to_storage(
             str(source_path), resource, "english"
         )
 
-        self.assertEqual(relative_name, "Stale Name/english.mp4")
+        self.assertEqual(relative_name, f"{resource.pk}/english.mp4")
         self.assertEqual(
             (Path(settings.MEDIA_ROOT) / relative_name).read_bytes(), b"fresh-bytes"
         )

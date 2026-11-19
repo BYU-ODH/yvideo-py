@@ -193,7 +193,9 @@ class ResourceAccessTests(TestCase):
         self.granted_resource = ResourceFactory()
         ResourceAccessFactory(user=self.instructor, resource=self.granted_resource)
         self.ungranted_resource = ResourceFactory()
-        self.library_resource = ResourceFactory(checked_out_from_hbll=True)
+        self.library_resource = ResourceFactory(
+            checked_out_from_hbll=True, byu_call_number="PN1997 .G73 2014"
+        )
 
     def test_an_explicit_grant_gives_access(self):
         self.assertTrue(self.instructor.can_access_resource(self.granted_resource))
@@ -206,7 +208,9 @@ class ResourceAccessTests(TestCase):
         self.assertTrue(self.instructor.can_access_resource(self.library_resource))
 
     def test_other_byu_library_counts_too(self):
-        other = ResourceFactory(checked_out_from_other_byu_library=True)
+        other = ResourceFactory(
+            checked_out_from_other_byu_library=True, byu_call_number="PN1997 .G73 2014"
+        )
 
         self.assertTrue(self.instructor.can_access_resource(other))
 

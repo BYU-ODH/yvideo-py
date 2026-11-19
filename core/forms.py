@@ -260,6 +260,38 @@ class LegalComplianceForm(forms.Form):
 
 
 class ResourceIntakeRequestForm(LegalComplianceForm, forms.ModelForm):
+    OTHER_LANGUAGE = "other"
+    LANGUAGE_FIELDS = ("audio_language", "subtitle_language")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = [
+            ("", "---------"),
+            *((language.pk, str(language)) for language in Language.objects.all()),
+            (self.OTHER_LANGUAGE, "Other"),
+        ]
+        for name in self.LANGUAGE_FIELDS:
+            self.fields[name] = forms.ChoiceField(
+                choices=choices, required=self.fields[name].required
+            )
+        # Staff may leave it blank for silent media, but requesters must choose one.
+        self.fields["audio_language"].required = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        chose_other = False
+        for name in self.LANGUAGE_FIELDS:
+            value = cleaned_data.get(name)
+            chose_other |= value == self.OTHER_LANGUAGE
+            cleaned_data[name] = (
+                Language.objects.get(pk=value)
+                if value and value != self.OTHER_LANGUAGE
+                else None
+            )
+        if chose_other and not cleaned_data.get("language_notes"):
+            self.add_error("language_notes", "Name the other language.")
+        return cleaned_data
+
     class Meta:
         model = ResourceIntakeRequest
         exclude = ["owner", "generated_resource"]

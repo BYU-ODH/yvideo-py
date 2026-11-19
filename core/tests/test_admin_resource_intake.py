@@ -63,8 +63,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
             "date_needed": timezone.localdate() + timedelta(days=7),
             "resource_title": "The Grand Budapest Hotel",
             "imdb_link": "https://www.imdb.com/title/tt2278388/",
-            "audio_language": "English",
-            "subtitle_language": "Spanish",
+            "audio_language": self.english,
+            "subtitle_language": self.spanish,
             "acknowledged_compliance": True,
             "acknowledged_fair_use_limitation": True,
         }
@@ -115,8 +115,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
             "date_needed": intake_request.date_needed.isoformat(),
             "resource_title": intake_request.resource_title,
             "imdb_link": intake_request.imdb_link,
-            "audio_language": intake_request.audio_language,
-            "subtitle_language": intake_request.subtitle_language,
+            "audio_language": intake_request.audio_language_id or "",
+            "subtitle_language": intake_request.subtitle_language_id or "",
             "acknowledged_compliance": "on",
             "acknowledged_fair_use_limitation": "on",
             "new_resource_imdb_id": imdb_id,
@@ -348,8 +348,8 @@ class ResourceIntakeRequestAdminTests(TestCase):
 
     def test_upload_allows_clip_with_blank_optional_metadata(self):
         intake_request = self.create_request(
-            audio_language="",
-            subtitle_language="",
+            audio_language=None,
+            subtitle_language=None,
         )
         resource = self.create_resource()
         payload = self.change_payload(
