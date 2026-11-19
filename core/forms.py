@@ -76,7 +76,7 @@ class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
         # is_ic is shown to, and applied for, IC editors only.
-        fields = ["name", "published", "archived", "is_ic"]
+        fields = ["published", "archived", "is_ic"]
 
 
 class UpdateContentForm(forms.ModelForm):
@@ -254,13 +254,15 @@ class SubtitleCopyForm(forms.Form):
         return cleaned_data
 
 
-class ResourceIntakeRequestForm(forms.ModelForm):
+class LegalComplianceForm(forms.Form):
     acknowledged_compliance = forms.BooleanField(required=True)
     acknowledged_fair_use_limitation = forms.BooleanField(required=True)
 
+
+class ResourceIntakeRequestForm(LegalComplianceForm, forms.ModelForm):
     class Meta:
         model = ResourceIntakeRequest
-        exclude = []
+        exclude = ["owner", "generated_resource"]
         widgets = {
             "date_needed": forms.DateInput(attrs={"type": "date"}),
         }

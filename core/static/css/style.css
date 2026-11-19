@@ -161,7 +161,7 @@ button:hover {
     box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
 }
 
-.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible {
+.blue-button:focus-visible, .white-button-with-border:focus-visible, .red-button:focus-visible, .cancel-button:focus-visible, .close-modal:focus-visible, .action-link:focus-visible, .edit-thumbnail-button:focus-visible {
     outline: var(--medium-blue) dashed;
     box-shadow: none;
 }
@@ -1031,27 +1031,6 @@ button:hover {
     padding: 1rem;
 }
 
-#resource-search-input {
-    width: 100%;
-    padding: 5px;
-    border: none;
-}
-
-.resource-search-submit {
-    z-index: 1;
-
-    width: 50%;
-    height: 2rem;
-    padding: 0 1.25rem 0 3.25rem;
-    border: none;
-    border-radius: 0.5rem;
-
-    font-size: 1rem;
-
-    background: white;
-    box-shadow: var(--box-shadow-color) 0 2px 5px -1px;
-}
-
 .playlists-page {
     display: flex;
     flex: 1;
@@ -1622,6 +1601,19 @@ button:hover {
 }
 
 /* resource content intake styles */
+
+#resource-intake-details > summary {
+    cursor: pointer;
+}
+
+#resource-intake-details > summary > h3 {
+    display: inline;
+}
+
+#resource-access-form:has(.resource-intake-choice-set input:not(:checked)) #resource-search-results {
+    opacity: 0.6;
+}
+
 #resource-intake-form-wrapper {
     display: flex;
     flex-direction: column;
@@ -1660,7 +1652,8 @@ button:hover {
     flex-direction: column;
 }
 
-.resource-intake-form-group input {
+.resource-intake-form-group input,
+#resource-search-input {
     width: 100%;
     max-width: 320px;
     height: 36px;
@@ -1686,7 +1679,7 @@ button:hover {
     row-gap: 0.75rem;
 }
 
-#resource-intake-policy-compliance-label {
+.resource-intake-policy-compliance-label {
     white-space: normal;
 }
 
@@ -2139,4 +2132,209 @@ button.disabled {
 
 button.disabled:hover {
     background-color: #e0e0e040;
+}
+
+.thumbnail {
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    box-sizing: border-box;
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    max-width: 320px;
+    padding: 0.5rem;
+    border-radius: 8px;
+
+    background-position: center;
+    background-size: cover;
+}
+
+.thumbnail-text {
+    font-weight: bold;
+    text-align: center;
+    text-shadow: 0 0 4px #000, 1px 1px 2px #000;
+    overflow-wrap: anywhere;
+}
+
+/* Room for the edit button, which sticks out past the thumbnail's corner. */
+.editable-thumbnail {
+    position: relative;
+
+    width: calc(100% - 1rem);
+    max-width: 320px;
+    margin-top: 1rem;
+    margin-right: 1rem;
+}
+
+.edit-thumbnail-button {
+    cursor: pointer;
+
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(40%, -40%);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 2px solid white;
+    border-radius: 50%;
+
+    background: var(--primary-blue);
+    box-shadow: 0 1px 4px var(--box-shadow-color);
+}
+
+.edit-thumbnail-button:hover,
+.edit-thumbnail-button:focus-visible {
+    background: var(--dark-primary-blue);
+}
+
+.edit-thumbnail-button img {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+#thumbnail-editor-dialog {
+    width: min(800px, 95vw);
+}
+
+/* Kept in view while scrolling so every change can be seen as it is made. */
+.thumbnail-editor-preview {
+    position: sticky;
+    top: 0;
+
+    display: flex;
+    justify-content: center;
+
+    padding-block: 0.5rem;
+
+    background: white;
+}
+
+.thumbnail-editor-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+    gap: 1rem;
+}
+
+/* Fieldsets otherwise refuse to shrink below their content, which overflows narrow screens. */
+.thumbnail-editor-controls fieldset {
+    min-width: 0;
+}
+
+.thumbnail-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    border-bottom: 2px solid var(--primary-blue);
+}
+
+.thumbnail-tabs [role="tab"] {
+    cursor: pointer;
+
+    margin-bottom: -2px;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid transparent;
+    border-radius: var(--basic-border-radius) var(--basic-border-radius) 0 0;
+
+    color: inherit;
+
+    background: none;
+}
+
+.thumbnail-tabs [role="tab"][aria-selected="true"] {
+    border-color: var(--primary-blue);
+    border-bottom-color: white;
+    font-weight: bold;
+    background: white;
+}
+
+/* The solid bottom edge keeps the tab bar's underline unbroken. */
+.thumbnail-tabs [role="tab"]:not([aria-selected="true"]):hover {
+    border-color: var(--primary-blue);
+    border-style: dashed dashed solid;
+}
+
+/* Panels share one grid cell, so the tallest sets the height and switching tabs doesn't resize the dialog. */
+.thumbnail-panels {
+    display: grid;
+
+    /* Lets the column shrink below the file input's natural width instead of overflowing. */
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.thumbnail-panels > [role="tabpanel"] {
+    grid-area: 1 / 1;
+}
+
+.thumbnail-panels > [role="tabpanel"][hidden] {
+    display: flex;
+    visibility: hidden;
+}
+
+#thumbnail-upload {
+    cursor: pointer;
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+/* The padding every dialog input gets otherwise squeezes the swatch to a thin line. */
+.thumbnail-editor-controls input[type="color"] {
+    cursor: pointer;
+    width: 3rem;
+    height: 2rem;
+    padding: 2px;
+}
+
+.thumbnail-field {
+    align-items: center;
+}
+
+.thumbnail-field input[type="text"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.thumbnail-frame-heading {
+    margin-block: 0.25rem;
+    text-align: center;
+}
+
+/* The browser's auto side margins on <hr> collapse it to zero width inside a flex column. */
+#thumbnail-panel-frame hr {
+    width: 100%;
+}
+
+#thumbnail-video {
+    cursor: pointer;
+    align-self: center;
+    width: 100%;
+    max-width: 240px;
+}
+
+.thumbnail-frame {
+    cursor: pointer;
+
+    flex: 1;
+
+    min-width: 0;
+    padding: 0;
+    border: 2px solid transparent;
+
+    background: none;
+}
+
+.thumbnail-frame:hover,
+.thumbnail-frame:focus-visible {
+    border-color: var(--box-shadow-color);
+}
+
+.thumbnail-frame img {
+    display: block;
+    width: 100%;
 }

@@ -1,10 +1,110 @@
 # Legacy Migration Guide
 
-This document explains exactly how a site administrator should migrate a collection from the legacy Y-Video system into this Django application.
+Legacy Y-Video data is moved into this app in one bulk import, using two
+management commands. This is the only supported way to migrate. The old
+per-request workflow (one collection at a time, reviewed in Django admin) is
+retired; see [the last section](#retired-per-request-collection-migration).
 
-It is written for the current implementation in this repository.
+## Bulk Import
 
-## Overview
+`import_legacy_data` copies database rows only. Imported files and subtitles
+have no media until you run `import_legacy_media`.
+
+Run both commands on the host, not inside the app container (where the legacy
+folder is not mounted, so don't use `deploy/manage.sh`). Run them as the deploy
+user from the repo root, with the app stopped so nothing else writes to the
+database at the same time. Stop the deploy timer too, or a new commit would
+restart the app in the middle of the run, and wait for any deploy already in
+progress to finish. The host needs `uv` installed.
+
+### Getting the source snapshot
+
+`import_legacy_data` reads a SQLite snapshot of the legacy PostgreSQL
+database. To create it, copy `scripts/dump_legacy_to_sqlite_settings_template.py`
+to `scripts/dump_legacy_to_sqlite_settings.py`, fill in read-only credentials
+for the legacy database, and run `uv run scripts/dump_legacy_to_sqlite.py`. It
+copies only the tables the import needs into
+`var/legacy_migration/legacy_dump.sqlite3`. Take the snapshot right before the
+import: anything added to the legacy app afterwards is not migrated. The import
+writes its `.dept_map` and `.cleaned-map` reports next to the snapshot.
+
+### Running the import
+
+```bash
+systemctl --user stop <app>-deploy.timer
+systemctl --user is-active <app>-deploy.service   # wait until this prints "inactive"
+systemctl --user stop <app>.service               # also stops <app>-media-worker.service, if present
+export YVIDEO_DB_DIR="$PWD/data"   # the container's database; without this the host uses ./db.sqlite3
+
+uv run scripts/dump_legacy_to_sqlite.py
+SNAPSHOT=var/legacy_migration/legacy_dump.sqlite3
+uv run python manage.py import_legacy_data --source "$SNAPSHOT" --yearterm <YYYYT>            # dry run
+uv run python manage.py import_legacy_data --source "$SNAPSHOT" --yearterm <YYYYT> --commit
+uv run python manage.py import_legacy_media            # dry run: shows link/skip per file
+uv run python manage.py import_legacy_media --commit
+
+systemctl --user start <app>.service <app>-deploy.timer   # plus <app>-media-worker.service if IC_MEDIA_WORKER=1
+```
+
+`import_legacy_media` only hardlinks legacy files into `MEDIA_ROOT`; it never
+copies them. Requirements:
+
+- `LEGACY_MIGRATION_MEDIA_ROOT` must be a local path (the command refuses a
+  `host:/path` value) on the same filesystem *and mount* as `MEDIA_ROOT`.
+  Check that `findmnt -T <path>` shows the same target for both. A bind mount
+  counts as a different mount and breaks hardlinks; a symlink does not.
+- The deploy user must be able to read *and* write the legacy files (for
+  example, through group write permission). Most Linux systems enable
+  `fs.protected_hardlinks`, which refuses links to files the user doesn't own
+  unless it has both.
+- Apache serves `media/` directly, and hardlinked files keep the legacy
+  owner and permissions, so the legacy files must be readable by Apache's
+  user.
+
+The dry run makes a real test link for each file. Files that can't be linked
+are reported and skipped. The dry run does not hash files, so duplicates (below) are
+only detected with `--commit`.
+
+- Each file and subtitle is committed on its own, so the command is safe to
+  stop and rerun. Finished items are not touched again.
+- Missing, unreadable, or unlinkable legacy files are reported and skipped.
+  They stay pending, so a later run retries them.
+- Each file is hashed before it is placed. If it has the same bytes as an
+  existing file in the same resource, its contents are pointed at the existing
+  file and the duplicate placeholder is deleted. A match in a *different*
+  resource is reported and left pending for manual review.
+- A hardlinked file is shared by both apps: editing it in place changes it for
+  both, but deleting either path is safe.
+
+### Keeping migration I/O from slowing other services
+
+This app is stopped during the import, but the legacy Y-Video app and anything
+else on the same disks are still running. Both commands lower their own CPU
+priority (`nice 19`) and request idle I/O priority (`ionice -c3`).
+`import_legacy_media` must read every file once to hash it, so it also limits
+reads to 100 MB/s; change it with `--max-read-mbps N` (`0` means unlimited).
+At 100 MB/s, 3.3 TB takes about 9 hours.
+
+`ionice -c3` is ignored by the `none` I/O scheduler (common for NVMe and VM
+disks) and honored by `mq-deadline` (kernel 5.14+) and `bfq`. Software RAID can
+drop the priority for some reads. Check with
+`cat /sys/block/<dev>/queue/scheduler` on the physical disks under the legacy
+media (`lsblk -s <device>`). The read limit works everywhere.
+
+On spinning disks, watch the run with `iostat -x 5 <disks>` (from `sysstat`).
+If `%util` stays near 100% or `r_await` stays above about 20–30 ms, stop the
+command and rerun it with a lower `--max-read-mbps`; if the disks look idle,
+raise it.
+
+## Retired: Per-Request Collection Migration
+
+Everything below describes the old collection-by-collection workflow
+(migration requests, preflight, admin review, and the Gunicorn-managed job
+worker). It is retired and will not be used. Keep
+`LEGACY_MIGRATION_ENABLED = False`. This section stays only until its code is
+removed; see `core/legacy_migration/REMOVAL.md`.
+
+### Overview
 
 The migration workflow has three parts:
 
@@ -14,7 +114,7 @@ The migration workflow has three parts:
 
 The legacy PostgreSQL database is only ever read by the dump script, which the app runs itself before every preflight. The Django app reads the freshly generated SQLite snapshot. Imported records are written into the new application's database and media storage.
 
-## What Gets Migrated for a Collection
+### What Gets Migrated for a Collection
 
 A collection migration can import:
 
@@ -30,11 +130,11 @@ A collection migration can import:
 - Collection access
 - Resource access
 
-## Before You Start
+### Before You Start
 
 Make sure the following are true.
 
-### 1. The app database is migrated
+#### 1. The app database is migrated
 
 Run:
 
@@ -52,7 +152,7 @@ uv run python manage.py showmigrations core
 
 You should see every listed migration marked `[X]`, with no unapplied (`[ ]`) entries.
 
-### 2. Legacy migration is enabled
+#### 2. Legacy migration is enabled
 
 In `yvideo/secret_settings.py`, set:
 
@@ -62,7 +162,7 @@ LEGACY_MIGRATION_ENABLED = True
 
 If this is `False`, the UI link is hidden and `/legacy-migrations/` returns `404`.
 
-### 3. Configure the legacy dump script
+#### 3. Configure the legacy dump script
 
 The Django app reads a local SQLite snapshot for legacy migration. That snapshot is produced by `scripts/dump_legacy_to_sqlite.py`.
 
@@ -91,7 +191,7 @@ By default, the SQLite snapshot is written to:
 var/legacy_migration/legacy_dump.sqlite3
 ```
 
-### 4. The legacy media root is mounted on the same host
+#### 4. The legacy media root is mounted on the same host
 
 In `yvideo/secret_settings.py`, configure:
 
@@ -114,7 +214,7 @@ LEGACY_MIGRATION_MEDIA_ROOT = "yvideo:/opt/media/y-video/"
 Preflight will inspect remote files over `ssh`, and imports will copy them
 locally with `scp`.
 
-### 5. Optional: allow automatic creation of missing users
+#### 5. Optional: allow automatic creation of missing users
 
 If you want the app to try to create missing users from BYU IDs during preflight, set:
 
@@ -124,7 +224,7 @@ LEGACY_MIGRATION_CREATE_MISSING_USERS = True
 
 If this is `False`, unresolved users must be mapped manually in Django admin before approval.
 
-## The Snapshot Is Always Fresh
+### The Snapshot Is Always Fresh
 
 There is no separate snapshot-refresh step to remember, and no snapshot
 scheduler. Every time the migration job worker runs preflight, the app first runs
@@ -138,7 +238,7 @@ the snapshot. The dump normally takes a couple of seconds. This means:
 - You never need to run `scripts/dump_legacy_to_sqlite.py` by hand. It's only
   useful for troubleshooting (see below).
 
-## Migration Job Worker
+### Migration Job Worker
 
 In production, Gunicorn starts one continuous migration job worker subprocess
 when `LEGACY_MIGRATION_ENABLED` is `True`. It polls for queued jobs every five
@@ -167,11 +267,11 @@ uv run python manage.py process_legacy_migration_jobs
 `--once` exits with an error instead of waiting if a continuous worker already
 holds the lock.
 
-## How a Collection Migration Is Requested
+### How a Collection Migration Is Requested
 
 There are two ways to start.
 
-### Option A: Instructor submits the request
+#### Option A: Instructor submits the request
 
 1. The instructor signs in.
 2. The instructor goes to `Manage Collections`.
@@ -183,7 +283,7 @@ There are two ways to start.
 
 After submission, the app creates a queued preflight job.
 
-### Option B: Administrator creates the request manually
+#### Option B: Administrator creates the request manually
 
 1. Open Django admin at `/admin/`.
 2. Open `Legacy Migration Requests`.
@@ -198,11 +298,11 @@ After submission, the app creates a queued preflight job.
 
 Then run preflight from the admin action list as described below.
 
-## Step-by-Step Admin Workflow
+### Step-by-Step Admin Workflow
 
 This is the exact operational workflow for approving and starting a collection migration.
 
-### Step 1. Open the request in Django admin
+#### Step 1. Open the request in Django admin
 
 Go to:
 
@@ -223,7 +323,7 @@ Common statuses:
 - `preflight_failed`: preflight failed
 - `canceled`: manually canceled
 
-### Step 2. Run preflight
+#### Step 2. Run preflight
 
 From the Django admin list page for `Legacy Migration Requests`:
 
@@ -240,11 +340,11 @@ Preflight reads the SQLite snapshot and the legacy filesystem, then creates:
 
 After preflight, the request should move to `needs_review`.
 
-### Step 3. Review the preflight results
+#### Step 3. Review the preflight results
 
 Open the request detail page in Django admin and review the inlines.
 
-#### A. `LegacyMigrationResource`
+##### A. `LegacyMigrationResource`
 
 This shows each resource the collection depends on.
 
@@ -256,7 +356,7 @@ Review:
 
 Use `include = False` if a resource should not be migrated.
 
-#### B. `LegacyMigrationFileDecision`
+##### B. `LegacyMigrationFileDecision`
 
 This is the most important review area for file migration.
 
@@ -284,7 +384,7 @@ If you choose `reuse existing`, you must also set `selected_existing_resource_fi
 
 Use this section to avoid unnecessary duplicate imports and to decide whether an existing exact-match file should be reused.
 
-#### C. `LegacyMigrationUserResolution`
+##### C. `LegacyMigrationUserResolution`
 
 This shows legacy users involved in the collection.
 
@@ -305,7 +405,7 @@ If the user should not be migrated:
 1. Set `resolution_status = skip`
 2. Optionally add notes
 
-#### D. `LegacyMigrationIssue`
+##### D. `LegacyMigrationIssue`
 
 This shows warnings and blocking issues.
 
@@ -329,7 +429,7 @@ Common warnings include:
 
 Warnings do not block approval. Blocking issues do.
 
-### Step 4. Save your edits and refresh issues
+#### Step 4. Save your edits and refresh issues
 
 After editing file decisions or user resolutions:
 
@@ -342,7 +442,7 @@ This recomputes the blocking issues using your latest decisions.
 
 Do not approve the request until all blocking issues are gone.
 
-### Step 5. Approve and queue the import
+#### Step 5. Approve and queue the import
 
 Once there are no blocking issues:
 
@@ -353,13 +453,13 @@ This changes the request to `approved`, creates an import job, and then moves th
 
 At this point the request is approved, but the actual import still has not run until the worker processes the queued job.
 
-### Step 6. Let the import worker process the job
+#### Step 6. Let the import worker process the job
 
 The Gunicorn-managed worker processes queued preflight and import jobs in
 creation order. It normally claims the job within five seconds. In local
 development without Gunicorn, use the manual command described above.
 
-### Step 7. Watch the request until it finishes
+#### Step 7. Watch the request until it finishes
 
 Open the request in Django admin and monitor:
 
@@ -385,7 +485,7 @@ When it completes successfully, the request status becomes `completed`.
 
 The `Imported Targets` section links the legacy source IDs to the newly created Django objects.
 
-## What the Import Does with Ownership and Permissions
+### What the Import Does with Ownership and Permissions
 
 For collection migrations:
 
@@ -395,7 +495,7 @@ For collection migrations:
 - Resolved legacy resource access rows are imported into `ResourceAccess`.
 - The target owner is always given access to imported resources.
 
-## How File Import Works
+### How File Import Works
 
 When a file is imported:
 
@@ -418,7 +518,7 @@ Two safety rules apply during import:
 
 This is why the file review step is important.
 
-## Verifying the Imported Playlist
+### Verifying the Imported Playlist
 
 After completion, verify the new playlist in the application.
 
@@ -433,7 +533,7 @@ Check:
 7. Courses are linked.
 8. Instructors/TAs have the intended access.
 
-## If Something Fails
+### If Something Fails
 
 If preflight fails:
 
@@ -460,13 +560,13 @@ notices the cancellation at its next phase boundary (for example between
 `files` and `contents`) and stops there; work already completed in earlier
 phases is kept and will be reused if the request is retried later.
 
-## Common Problems
+### Common Problems
 
-### The legacy migration page returns `404`
+#### The legacy migration page returns `404`
 
 `LEGACY_MIGRATION_ENABLED` is probably `False`.
 
-### The legacy migration page says the tables are not installed
+#### The legacy migration page says the tables are not installed
 
 Run:
 
@@ -474,11 +574,11 @@ Run:
 uv run python manage.py migrate
 ```
 
-### Preflight says the legacy file is missing
+#### Preflight says the legacy file is missing
 
 `LEGACY_MIGRATION_MEDIA_ROOT` is wrong, the file is missing on disk, or the app user cannot read it.
 
-### Preflight fails with "Legacy dump failed" or "Legacy dump subprocess failed to start"
+#### Preflight fails with "Legacy dump failed" or "Legacy dump subprocess failed to start"
 
 Preflight tried to run `scripts/dump_legacy_to_sqlite.py` itself before
 reading anything, and the dump script failed. The rest of the error message
@@ -496,11 +596,11 @@ You can also run the script by hand to see the same failure directly:
 uv run scripts/dump_legacy_to_sqlite.py
 ```
 
-### Preflight says a subtitle language is missing
+#### Preflight says a subtitle language is missing
 
 The new database does not have a matching `Language` row for the legacy subtitle language code.
 
-### Import does not start after approval
+#### Import does not start after approval
 
 The Gunicorn-managed worker may not be running. Check the application journal
 for `Legacy migration job worker` messages. For local development, process one
@@ -510,11 +610,11 @@ job manually:
 uv run python manage.py process_legacy_migration_jobs --once
 ```
 
-### A user could not be resolved
+#### A user could not be resolved
 
 Map them manually in `LegacyMigrationUserResolution`, then run `Refresh issues after user/file edits`.
 
-## Recommended Production Setup
+### Recommended Production Setup
 
 - Use read-only credentials in `scripts/dump_legacy_to_sqlite_settings.py`.
 - Mount the legacy media directory read-only.

@@ -1011,6 +1011,13 @@ def load_annotation_form(request, annotation_type, annotation_id):
     return HttpResponse(form_html)
 
 
+def user_error(message, status=400):
+    # The editor shows text/plain error bodies to the user as written.
+    return HttpResponse(
+        message, status=status, content_type="text/plain; charset=utf-8"
+    )
+
+
 @require_GET
 @annotation_set_write_required
 def load_annotation_set_settings(request, annotation_set):
@@ -1039,15 +1046,16 @@ def update_annotation_set_name(request, annotation_set):
             return HttpResponseBadRequest()
 
         name = parsed_body["name"].strip()
-        if name:
-            annotation_set.name = name
-            annotation_set.save()
+        if not name:
+            return user_error("Annotation set names cannot be blank.")
 
+        annotation_set.name = name
+        annotation_set.save()
         return HttpResponse()
     except IntegrityError:
         # Names are unique per (name, resource, owner), so this is the user picking a
         # name they already used on this resource.
-        return HttpResponse("You already have a set with that name.", status=409)
+        return user_error("You already have a set with that name.", status=409)
     except Exception as e:
         logger.error(f"Failed to update annotation set name. Exception: {e}")
         return HttpResponseServerError()
@@ -1278,11 +1286,14 @@ def update_track_name(request, track):
     name = name.strip()
     max_length = Track._meta.get_field("name").max_length
     if not name or len(name) > max_length:
-        return HttpResponseBadRequest(f"Track names must be 1-{max_length} characters")
+        return user_error(f"Track names must be 1-{max_length} characters")
 
     try:
         track.name = name
-        track.save(update_fields=["name"])
+        with transaction.atomic():
+            track.save(update_fields=["name"])
+    except IntegrityError:
+        return user_error("A track with that name already exists.", status=409)
     except Exception as e:
         logger.error(f"Failed to update track name. Exception: {e}")
         return HttpResponseServerError()
@@ -1348,20 +1359,17 @@ def update_track_positions_in_set(request, annotation_set):
 def create_track(request, annotation_set):
     try:
         parsed_body = json.loads(request.body)
-        set_has_tracks = annotation_set.tracks.count() > 0
-
-        track = {
-            "annotation_set": annotation_set,
-            "stack_position": annotation_set.get_highest_stack_position() + 1
-            if set_has_tracks
-            else 0,
-        }
-        if "track_name" in parsed_body:
-            track["name"] = parsed_body["track_name"]
-
-        Track.objects.create(**track)
+        name = (parsed_body.get("track_name") or "").strip()
+        with transaction.atomic():
+            Track.objects.create(
+                annotation_set=annotation_set,
+                name=name or annotation_set.next_default_track_name(),
+                stack_position=annotation_set.get_highest_stack_position() + 1,
+            )
 
         return convertTracksToHTML(annotation_set, request)
+    except IntegrityError:
+        return user_error("A track with that name already exists.", status=409)
     except Exception as e:
         logger.error(f"Failed to create a new track. Exception: {e}")
         return HttpResponseServerError()

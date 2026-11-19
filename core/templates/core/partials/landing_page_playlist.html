@@ -2,6 +2,8 @@
 
 <a href="{% url 'playlist_info' playlist_id=playlist.pk %}"
    class="playlist-item-tile">
+    {% include "core/partials/thumbnail.html" with thumbnail=playlist.thumbnail %}
+
     <div class="tile-body">
         <p class="playlist-header-name">{{ playlist.name }}</p>
         <p>{{ playlist.items_display }}</p>

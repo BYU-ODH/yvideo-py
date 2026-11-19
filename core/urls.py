@@ -127,6 +127,21 @@ urlpatterns = [
         name="request_resource",
     ),
     path(
+        "resources/<int:resource_id>/request-access/",
+        views.request_resource_access,
+        name="request_resource_access",
+    ),
+    path(
+        "resource-access-requests/",
+        views.resource_access_requests,
+        name="resource_access_requests",
+    ),
+    path(
+        "resource-access-requests/<int:access_request_id>/approve/",
+        views.approve_resource_access_request,
+        name="approve_resource_access_request",
+    ),
+    path(
         "content/<int:content_id>/display-settings/",
         views.display_content_info,
         name="display_content_info",
@@ -146,6 +161,36 @@ urlpatterns = [
         "content/<int:content_id>/player-data/",
         views.get_player_data,
         name="get_player_data",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/",
+        views.playlist_thumbnail_editor,
+        name="playlist_thumbnail_editor",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/save/",
+        views.save_playlist_thumbnail,
+        name="save_playlist_thumbnail",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/image/",
+        views.playlist_thumbnail_image,
+        name="playlist_thumbnail_image",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/",
+        views.content_thumbnail_editor,
+        name="content_thumbnail_editor",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/save/",
+        views.save_content_thumbnail,
+        name="save_content_thumbnail",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/image/",
+        views.content_thumbnail_image,
+        name="content_thumbnail_image",
     ),
     path("player/<int:content_id>/", views.player, name="player"),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),

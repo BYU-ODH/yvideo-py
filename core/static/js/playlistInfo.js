@@ -46,9 +46,37 @@ function setupDeletePlaylist() {
 function setupPlaylistSettings() {
   const playlistContent = document.getElementById("playlist-content");
   if (!playlistContent) return;
-  playlistContent.addEventListener("change", (e) => {
+
+  // stop form from refreshing page. We want to replace the form HTML
+  // on each input change.
+  playlistContent.addEventListener("submit", (e) => {
     e.preventDefault();
-    console.log("Caught!");
+  });
+
+  playlistContent.addEventListener("change", async (e) => {
+    e.preventDefault();
+    if (!e.target.classList.contains("playlist-setting-input")) return;
+
+    const playlistSettings = document.getElementById("playlist-settings");
+    if (!playlistSettings) return;
+    const settingsData = new FormData(playlistSettings);
+    const result = await fetch(playlistSettings.action, {
+      method: playlistSettings.method,
+      body: settingsData
+    });
+    if (!result.ok) {
+      displayUserMessage("error", "The playlist settings could not be updated. Please refresh the page.");
+      return;
+    }
+
+    try {
+      const updatedForm = await result.text();
+      playlistSettings.outerHTML = updatedForm;
+      displayUserMessage("success", "The playlist settings were updated successfully");
+    }
+    catch {
+      displayUserMessage("warning", "The playlist settings were updated successfully, but the change could not be displayed. Please refresh the page.");
+    }
   });
 }
 
