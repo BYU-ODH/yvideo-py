@@ -2400,3 +2400,7 @@ class ResourceIntakeRequest(models.Model):
 
     def __str__(self):
         return f"Content request for {self.resource_title} by {self.owner} due by {self.date_needed}"
+
+
+# Django only discovers models that core.models imports.
+from .legacy_migration.models import LegacySourceMap  # noqa: E402, F401

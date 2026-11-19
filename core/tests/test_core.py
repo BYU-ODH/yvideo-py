@@ -964,8 +964,7 @@ class ContentHasClipsWarningTests(TestCase):
         self.user = UserFactory(instructor=True)
         # Rendering the settings form is a GET request, which
         # mozilla_django_oidc's SessionRefresh middleware intercepts unless the
-        # session's auth backend is explicitly non-OIDC (see test_legacy_migration.py
-        # for the same pattern).
+        # session's auth backend is explicitly non-OIDC.
         self.client.force_login(
             self.user, backend="django.contrib.auth.backends.ModelBackend"
         )

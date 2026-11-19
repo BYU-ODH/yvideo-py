@@ -202,8 +202,8 @@ class ImportLegacyMediaTests(TestCase):
         self.assertEqual(list(self.media_root.rglob("*.mp4")), [])
         self.assertEqual(self.pending(), 1)
 
-    @override_settings(LEGACY_MIGRATION_MEDIA_ROOT="yvideo:/opt/y-video")
-    def test_remote_legacy_root_is_refused(self, _priority):
+    def test_missing_legacy_root_is_refused(self, _priority):
+        self.legacy_root.rmdir()
         with self.assertRaisesMessage(CommandError, "must be a local path"):
             self.run_command()
 

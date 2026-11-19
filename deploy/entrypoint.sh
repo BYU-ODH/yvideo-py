@@ -20,7 +20,6 @@ mkdir -p /app/data /app/media /app/staticfiles /app/var
 
 run_gunicorn() {
     exec uv run gunicorn yvideo.wsgi:application \
-        --config /app/gunicorn.conf.py \
         --bind 0.0.0.0:8000 \
         --workers "$WORKERS" \
         --threads "$THREADS" \

@@ -101,7 +101,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "core.context_processors.feature_flags",
             ],
         },
     },
@@ -128,45 +127,9 @@ DATABASES = {
 # Message configuration
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
 
-LEGACY_MIGRATION_ENABLED = getattr(secret_settings, "LEGACY_MIGRATION_ENABLED", False)
 LEGACY_MIGRATION_MEDIA_ROOT = getattr(
     secret_settings, "LEGACY_MIGRATION_MEDIA_ROOT", ""
 )
-LEGACY_MIGRATION_DB_ALIAS = getattr(
-    secret_settings, "LEGACY_MIGRATION_DB_ALIAS", "legacy"
-)
-LEGACY_MIGRATION_SQLITE_PATH = _resolve_repo_path(
-    getattr(
-        secret_settings,
-        "LEGACY_MIGRATION_SQLITE_PATH",
-        "var/legacy_migration/legacy_dump.sqlite3",
-    )
-)
-LEGACY_MIGRATION_CREATE_MISSING_USERS = getattr(
-    secret_settings, "LEGACY_MIGRATION_CREATE_MISSING_USERS", False
-)
-LEGACY_MIGRATION_DUMP_SCRIPT = str(
-    _resolve_repo_path(
-        getattr(
-            secret_settings,
-            "LEGACY_MIGRATION_DUMP_SCRIPT",
-            "scripts/dump_legacy_to_sqlite.py",
-        )
-    )
-)
-LEGACY_MIGRATION_WORKER_LOCK_PATH = _resolve_repo_path(
-    getattr(
-        secret_settings,
-        "LEGACY_MIGRATION_WORKER_LOCK_PATH",
-        "var/legacy_migration/job_worker.lock",
-    )
-)
-
-if LEGACY_MIGRATION_SQLITE_PATH:
-    DATABASES[LEGACY_MIGRATION_DB_ALIAS] = {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": LEGACY_MIGRATION_SQLITE_PATH,
-    }
 
 CONN_MAX_AGE = 600
 CONN_HEALTH_CHECKS = True

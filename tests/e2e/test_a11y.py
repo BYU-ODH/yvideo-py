@@ -197,7 +197,7 @@ def content_with_every_annotation_type(seeded_demo_data):
 
 
 @pytest.fixture
-def awkward_data(seeded_demo_data, settings):
+def awkward_data(seeded_demo_data):
     """The states the demo seed has no reason to contain, keyed for the page sweep.
 
     Empty and missing things are their own templates - "no videos here", the editor's
@@ -208,11 +208,8 @@ def awkward_data(seeded_demo_data, settings):
 
     from core.factories import ContentFactory
     from core.factories import PlaylistFactory
-    from core.legacy_migration import LegacyMigrationRequest
     from core.models import ResourceAccessRequest
     from core.models import ResourceIntakeRequest
-
-    settings.LEGACY_MIGRATION_ENABLED = True
 
     playlist = Playlist.objects.get(name="Demo Review Shelf")
     birds = Content.objects.get(title="Birds Overview")
@@ -245,12 +242,6 @@ def awkward_data(seeded_demo_data, settings):
         ),
         resource_access_request=ResourceAccessRequest.objects.create(
             user=playlist.owner, resource=birds.resource_file.resource
-        ),
-        migration_request=LegacyMigrationRequest.objects.create(
-            requested_by=playlist.owner,
-            target_owner=playlist.owner,
-            legacy_reference="Legacy Collection 1",
-            latest_job_error="Something went wrong during preflight.",
         ),
     )
 
@@ -286,10 +277,6 @@ FULL_PAGE_VIEWS = {
     "invalid_login": lambda d, everything: "/invalid-login",
     "request_resource": lambda d, everything: "/resource-intake-request/?q=Grid",
     "resource_access_requests": lambda d, everything: "/resource-access-requests/",
-    "legacy_migration_requests": lambda d, everything: "/legacy-migrations/",
-    "legacy_migration_request_detail": lambda d, everything: (
-        f"/legacy-migrations/{d.migration_request.pk}/"
-    ),
 }
 
 # Pages whose content is drawn by JS after load: auditing them any earlier audits an
@@ -552,27 +539,6 @@ def test_the_resource_request_form_has_no_a11y_violations_when_it_rejects_a_subm
     page.wait_for_selector("#resource-intake-form .resource-intake-field-error")
 
     assert_no_violations(page, "the rejected resource request form")
-
-
-def test_the_legacy_migration_form_has_no_a11y_violations_when_it_rejects_a_submission(
-    logged_in_page: Page, live_server, awkward_data
-):
-    """Same reason as the resource request above: the error state is its own rendering."""
-    page = logged_in_page
-    page.goto(f"{live_server.url}/legacy-migrations/")
-
-    page.locator("#id_acknowledged_compliance").check()
-    page.locator("#id_acknowledged_fair_use_limitation").check()
-    # The browser's own required-field check would refuse to send this, and what is being
-    # audited is the server's rejection - the same response a request that never ran the
-    # client-side check gets back.
-    page.evaluate(
-        "() => { document.querySelector('.legacy-migrations-form').noValidate = true; }"
-    )
-    page.get_by_role("button", name="Submit request").click()
-    page.wait_for_selector(".errorlist")
-
-    assert_no_violations(page, "the rejected legacy migration form")
 
 
 # ---------------------------------------------------------------------- player states
@@ -1096,9 +1062,6 @@ ADMIN_PAGES = {
     "admin_resource_intake_request": lambda d: (
         f"/admin/core/resourceintakerequest/{d.resource_intake_request.pk}/change/"
     ),
-    "admin_legacy_migration_request": lambda d: (
-        f"/admin/core/legacymigrationrequest/{d.migration_request.pk}/change/"
-    ),
 }
 
 # Django's own admin furniture, which these pages inherit and this project does not write:
@@ -1186,8 +1149,6 @@ AUDITED_TEMPLATES = {
     "core/about.html",
     "core/content_info.html",
     "core/invalid_login.html",
-    "core/legacy_migration_request_detail.html",
-    "core/legacy_migration_requests.html",
     "core/player.html",
     "core/playlist_info.html",
     "core/playlists.html",
@@ -1255,7 +1216,6 @@ AUDITED_TEMPLATES = {
     "core/partials/timeline_base.html",
     # django admin
     "admin/base_site.html",
-    "admin/core/legacymigrationrequest/change_form.html",
     "admin/core/resourceintakerequest/change_form.html",
     "admin/core/user/add_form.html",
 }

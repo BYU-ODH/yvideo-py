@@ -1,4 +1,4 @@
-"""How a legacy censor becomes a blur annotation.
+"""How legacy annotations are imported, especially how a censor becomes a blur annotation.
 
 The legacy app anchored a censor's geometry at the box's **center** and stored its keyframes as
 `{arbitrary_key: [time, centerX, centerY, width, height]}`. This app stores the **top-left**
@@ -22,11 +22,15 @@ import json
 
 from django.test import TestCase
 
+from core.factories import AnnotationSetFactory
 from core.factories import ContentFactory
-from core.factories import UserFactory
-from core.legacy_migration import LegacyMigrationRequest
-from core.legacy_migration.service import LegacyMigrationService
+from core.legacy_migration.annotations import import_annotations
+from core.models import BlankAnnotation
 from core.models import BlurAnnotation
+from core.models import CommentAnnotation
+from core.models import MuteAnnotation
+from core.models import PauseAnnotation
+from core.models import SkipAnnotation
 
 
 def _censor(position, start=2.0, end=6.0):
@@ -40,23 +44,10 @@ def _censor(position, start=2.0, end=6.0):
 
 
 class LegacyCensorImportTests(TestCase):
-    def setUp(self):
-        self.owner = UserFactory(instructor=True)
-        self.content = ContentFactory()
-        self.request_obj = LegacyMigrationRequest.objects.create(
-            requested_by=self.owner,
-            target_owner=self.owner,
-            migration_kind="collection",
-            legacy_reference="legacy-collection-1",
-        )
-        self.service = LegacyMigrationService(require_catalog=False)
-
     def _import(self, *legacy_events):
-        self.service._import_annotations(
-            self.request_obj, self.content, list(legacy_events)
+        import_annotations(
+            AnnotationSetFactory(), ContentFactory(), list(legacy_events), []
         )
-        # The import builds its own AnnotationSet and maps it through LegacySourceMap rather
-        # than attaching it to the Content, and each test imports exactly one censor.
         return BlurAnnotation.objects.get()
 
     def _stored(self, blur):
@@ -117,8 +108,7 @@ class LegacyCensorImportTests(TestCase):
         """Legacy keys are arbitrary ids, so nothing stopped two sharing a time.
 
         The unique (blur_annotation, time) index added in migration 0004 turns that into an
-        IntegrityError, and _import_annotations does not run in a transaction - so an
-        unrecoverable exception here abandons a migration job part-way through a playlist.
+        IntegrityError, which would abort the whole import.
 
         The duplicated time is deliberately not the earliest, so collapsing it is the only thing
         under test rather than being confounded with the start-time pinning below.
@@ -230,3 +220,63 @@ class LegacyCensorImportTests(TestCase):
 
         self.assertEqual([p.time for p in blur.blur_anchor_points.all()], [2.0])
         self.assertEqual(blur.blur_anchor_points.get().x, 30.0)
+
+
+class LegacyAnnotationImportTests(TestCase):
+    def test_each_supported_legacy_type_is_imported(self):
+        annotation_set = AnnotationSetFactory()
+        legacy_annotations = [
+            {"type": "Pause", "layer": 0, "start": 5, "message": "stop here"},
+            {"type": "Skip", "layer": 0, "start": 1, "end": 2},
+            {"type": "Mute", "layer": 1, "start": 3, "end": 4},
+            {"type": "Blank", "layer": 1, "start": 6, "end": 7},
+            {
+                "type": "Comment",
+                "layer": 1,
+                "start": 8,
+                "end": 9,
+                "comment": "look here",
+                "position": {"x": 30, "y": 40},
+            },
+            {"type": "Mystery", "layer": 9, "start": 0, "end": 1},
+        ]
+
+        import_annotations(annotation_set, ContentFactory(), legacy_annotations, [])
+
+        pause = PauseAnnotation.objects.get(track__annotation_set=annotation_set)
+        self.assertEqual(pause.start_time, 5.0)
+        self.assertEqual(pause.end_time, 5.0)
+        self.assertEqual(pause.message, "stop here")
+        for model in (SkipAnnotation, MuteAnnotation, BlankAnnotation):
+            self.assertEqual(
+                model.objects.filter(track__annotation_set=annotation_set).count(), 1
+            )
+        comment = CommentAnnotation.objects.get(track__annotation_set=annotation_set)
+        self.assertEqual(
+            (comment.text, comment.x, comment.y, comment.width),
+            ("look here", 30.0, 40.0, 70.0),
+        )
+        # The unrecognized "Mystery" event must not leave an empty track behind.
+        self.assertEqual(annotation_set.tracks.count(), 2)
+
+    def test_tracks_are_numbered_without_gaps(self):
+        annotation_set = AnnotationSetFactory()
+        legacy_annotations = [
+            {"type": "Skip", "layer": 5, "start": 1, "end": 2},
+            {"type": "Mute", "layer": 2, "start": 3, "end": 4},
+        ]
+
+        import_annotations(
+            annotation_set,
+            ContentFactory(),
+            legacy_annotations,
+            [{"title": "Intro", "start": 1, "end": 3}],
+        )
+
+        self.assertEqual(
+            [
+                (track.name, track.stack_position)
+                for track in annotation_set.get_tracks()
+            ],
+            [("Imported Layer 2", 0), ("Imported Layer 5", 1), ("Imported Clips", 2)],
+        )
