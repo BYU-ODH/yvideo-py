@@ -17,13 +17,29 @@ database at the same time. Stop the deploy timer too, or a new commit would
 restart the app in the middle of the run, and wait for any deploy already in
 progress to finish. The host needs `uv` installed.
 
+### Getting the source snapshot
+
+`import_legacy_data` reads a SQLite snapshot of the legacy PostgreSQL
+database. To create it, copy `scripts/dump_legacy_to_sqlite_settings_template.py`
+to `scripts/dump_legacy_to_sqlite_settings.py`, fill in read-only credentials
+for the legacy database, and run `uv run scripts/dump_legacy_to_sqlite.py`. It
+copies only the tables the import needs into
+`var/legacy_migration/legacy_dump.sqlite3`. Take the snapshot right before the
+import: anything added to the legacy app afterwards is not migrated. The import
+writes its `.dept_map` and `.cleaned-map` reports next to the snapshot.
+
+### Running the import
+
 ```bash
 systemctl --user stop <app>-deploy.timer
 systemctl --user is-active <app>-deploy.service   # wait until this prints "inactive"
 systemctl --user stop <app>.service               # also stops <app>-media-worker.service, if present
 export YVIDEO_DB_DIR="$PWD/data"   # the container's database; without this the host uses ./db.sqlite3
 
-uv run python manage.py import_legacy_data --source <dump> --yearterm <YYYYT> --commit
+uv run scripts/dump_legacy_to_sqlite.py
+SNAPSHOT=var/legacy_migration/legacy_dump.sqlite3
+uv run python manage.py import_legacy_data --source "$SNAPSHOT" --yearterm <YYYYT>            # dry run
+uv run python manage.py import_legacy_data --source "$SNAPSHOT" --yearterm <YYYYT> --commit
 uv run python manage.py import_legacy_media            # dry run: shows link/skip per file
 uv run python manage.py import_legacy_media --commit
 
