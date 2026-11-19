@@ -108,10 +108,6 @@ class LegacyMigrationWorkerCommandTests(SimpleTestCase):
                     "LegacyMigrationService",
                     return_value=service,
                 ),
-                mock.patch(
-                    "core.management.commands.process_legacy_migration_jobs."
-                    "lower_process_priority"
-                ),
                 self.assertLogs(
                     "core.management.commands.process_legacy_migration_jobs",
                     level="INFO",

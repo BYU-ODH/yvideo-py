@@ -154,8 +154,8 @@ LEGACY_MIGRATION_DUMP_SCRIPT = str(
         )
     )
 )
-# Caps disk reads (and scp bandwidth) during legacy media migration so the live
-# servers sharing those disks stay responsive. 0 means unlimited.
+# Caps disk reads during legacy media migration so the live servers sharing
+# those disks stay responsive. 0 means unlimited.
 LEGACY_MIGRATION_MAX_READ_MBPS = getattr(
     secret_settings, "LEGACY_MIGRATION_MAX_READ_MBPS", 150
 )

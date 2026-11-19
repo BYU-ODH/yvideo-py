@@ -3070,7 +3070,6 @@ class LegacyMigrationTests(TestCase):
             ["ssh", "-oBatchMode=yes", "yvideo"],
         )
 
-    @override_settings(LEGACY_MIGRATION_MAX_READ_MBPS=150)
     def test_import_file_to_storage_uses_scp_for_remote_source(self):
         service = self.build_service()
         resource = ResourceFactory(name="Imported Lecture")
@@ -3094,8 +3093,6 @@ class LegacyMigrationTests(TestCase):
                 "scp",
                 "-p",
                 "-oBatchMode=yes",
-                "-l",
-                "1200000",
                 "yvideo:'/opt/media/y-video/legacy dir/imported.mp4'",
                 str(destination),
             ],

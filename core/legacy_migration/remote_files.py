@@ -14,9 +14,6 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 import xxhash
 
-from .io_limits import read_chunks
-from .io_limits import scp_bandwidth_args
-
 REMOTE_LEGACY_MEDIA_ROOT_RE = re.compile(r"^(?P<host>[^:]+):(?P<path>/.*)$")
 
 
@@ -195,7 +192,7 @@ def compute_remote_checksum(resolved_path):
                 f"{resolved_path}. Command: {format_subprocess_command(command_args)}. "
                 "stdout/stderr pipes were not available."
             )
-        for chunk in read_chunks(process.stdout):
+        for chunk in iter(lambda: process.stdout.read(1024 * 1024), b""):
             file_hash.update(chunk)
         stderr_output = process.stderr.read()
         return_code = process.wait()
@@ -224,14 +221,7 @@ def scp_remote_legacy_file(resolved_path, destination):
     # The remote side of scp interprets the path through a shell, so quote it
     # the same way inspect_remote_legacy_file does.
     remote_spec = f"{host}:{shlex.quote(path_value)}"
-    command_args = [
-        "scp",
-        "-p",
-        "-oBatchMode=yes",
-        *scp_bandwidth_args(),
-        remote_spec,
-        str(destination),
-    ]
+    command_args = ["scp", "-p", "-oBatchMode=yes", remote_spec, str(destination)]
     try:
         subprocess.run(
             command_args,

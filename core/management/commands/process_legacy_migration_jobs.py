@@ -10,7 +10,6 @@ from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 
 from core.legacy_migration import LegacyMigrationService
-from core.legacy_migration.io_limits import lower_process_priority
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +68,6 @@ class Command(BaseCommand):
         once = options["once"]
         sleep_seconds = max(options["sleep_seconds"], 1)
         lock_file = self._acquire_worker_lock(once)
-        lower_process_priority()
         previous_sigterm_handler = signal.signal(
             signal.SIGTERM, self._handle_shutdown_signal
         )

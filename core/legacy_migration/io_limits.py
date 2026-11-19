@@ -38,11 +38,6 @@ def max_read_bytes_per_second():
     return int(mbps * 1_000_000)
 
 
-def scp_bandwidth_args():
-    mbps = settings.LEGACY_MIGRATION_MAX_READ_MBPS or 0
-    return ["-l", str(int(mbps * 8000))] if mbps > 0 else []
-
-
 def read_chunks(handle):
     limit = max_read_bytes_per_second()
     started = time.monotonic()
