@@ -251,9 +251,7 @@ class ResourceAccessTests(TestCase):
         self.assertFalse(student.can_access_resource(self.granted_resource))
 
     def test_the_library_listing_matches_the_predicate(self):
-        from core.views import accessible_resources
-
-        visible = set(accessible_resources(self.instructor))
+        visible = set(self.instructor.accessible_resources())
 
         self.assertEqual(visible, {self.granted_resource, self.library_resource})
 

@@ -17,6 +17,7 @@ from django.utils import timezone
 from ..factories import AnnotationSetFactory
 from ..factories import ContentFactory
 from ..factories import PlaylistFactory
+from ..factories import ResourceAccessFactory
 from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import SubtitleFactory
@@ -93,6 +94,60 @@ class EditorRuleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         moved = PauseAnnotation.objects.get(active=True)
         self.assertEqual((moved.start_time, moved.end_time), (8.0, 8.0))
+
+
+class ContentAdminTests(TestCase):
+    def setUp(self):
+        self.playlist = PlaylistFactory()
+        self.client.force_login(UserFactory(is_superuser=True, is_staff=True))
+
+    def add_content(self, resource_file):
+        return self.client.post(
+            reverse("admin:core_content_add"),
+            {
+                "title": "Clip",
+                "playlist": self.playlist.pk,
+                "resource_file": resource_file.pk,
+            },
+        )
+
+    def test_content_can_use_a_file_the_playlist_owner_can_access(self):
+        resource_file = ResourceFileFactory()
+        ResourceAccessFactory(user=self.playlist.owner, resource=resource_file.resource)
+
+        response = self.add_content(resource_file)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(self.playlist.contents.filter(title="Clip").exists())
+
+    def test_content_cannot_use_a_file_the_playlist_owner_cannot_access(self):
+        response = self.add_content(ResourceFileFactory())
+
+        self.assertContains(
+            response, "The playlist owner doesn&#x27;t have access to this file&#x27;s"
+        )
+        self.assertFalse(self.playlist.contents.exists())
+
+    def test_editing_content_offers_library_files_without_a_direct_grant(self):
+        content = ContentFactory(playlist=self.playlist)
+        library_file = ResourceFileFactory(
+            resource=ResourceFactory(
+                checked_out_from_hbll=True, byu_call_number="PN1997 .A1"
+            )
+        )
+
+        response = self.client.post(
+            reverse("admin:core_content_change", args=[content.pk]),
+            {
+                "title": content.title,
+                "playlist": self.playlist.pk,
+                "resource_file": library_file.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        content.refresh_from_db()
+        self.assertEqual(content.resource_file, library_file)
 
 
 class StoredFileTests(TestCase):

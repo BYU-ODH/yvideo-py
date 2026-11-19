@@ -337,6 +337,24 @@ class User(AbstractUser):
             user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
         ).exists()
 
+    def accessible_resources(self):
+        """The resource library as this user may see it, matching can_access_resource."""
+        if self.is_superuser or self.is_lab_assistant:
+            return Resource.objects.all()
+        granted = models.Q(resourceaccess__user=self)
+        # A collaborator inherits every grant held by the owner of a playlist
+        # they can write to.
+        inherited = models.Q(
+            resourceaccess__user__playlists_owned__playlistuseraccess__user=self,
+            resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
+        )
+        visible = granted | inherited
+        if self.is_instructor:
+            visible |= models.Q(checked_out_from_hbll=True) | models.Q(
+                checked_out_from_other_byu_library=True
+            )
+        return Resource.objects.filter(visible).distinct()
+
     def get_content_source_url(self, content):
         """URL for URL-only content, gated by the same permission check that
         protects file-backed content."""
@@ -704,7 +722,11 @@ class ResourceFile(models.Model):
         super().save(*args, **kwargs)
         if replaced_name and replaced_name != self.file.name:
             storage = self.file.storage
-            transaction.on_commit(lambda: storage.delete(replaced_name))
+            transaction.on_commit(
+                lambda: storage.delete(replaced_name),
+                using=kwargs.get("using"),
+                robust=True,
+            )
         if not self.barcode:
             self.generate_barcode()
 
@@ -1168,6 +1190,14 @@ class Content(models.Model):
             errors["resource_file"] = (
                 "Projection masters are for the International Cinema booth "
                 "only and cannot be attached to content."
+            )
+        elif (
+            self.resource_file_id
+            and self.playlist_id
+            and not self.playlist.owner.can_access_resource(self.resource_file.resource)
+        ):
+            errors["resource_file"] = (
+                "The playlist owner doesn't have access to this file's resource."
             )
         # save() takes the resource from the file, so check against that.
         resource_id = (
@@ -2404,10 +2434,11 @@ class Subtitle(models.Model):
 
 @receiver(post_delete, sender=ResourceFile)
 def delete_resource_file_bytes(sender, instance, using, **kwargs):
-    # Waiting for the commit keeps the bytes if the delete is rolled back.
+    # Waiting for the commit keeps the bytes if the delete is rolled back. A failed
+    # file delete is only logged, because the row is already gone by then.
     if instance.file:
         storage, name = instance.file.storage, instance.file.name
-        transaction.on_commit(lambda: storage.delete(name), using=using)
+        transaction.on_commit(lambda: storage.delete(name), using=using, robust=True)
 
 
 @receiver(post_delete, sender=Subtitle)

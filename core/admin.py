@@ -920,32 +920,16 @@ class ContentAdmin(VersionAdmin):
     def get_form(self, request, obj=None, **kwargs):
         """Dynamically filters the 'resource_file' field's queryset.
 
-        If editing an existing Content object, it shows only the files
-        associated with resources owned by the content's playlist owner.
+        If editing an existing Content object, it shows only the files whose
+        resource the content's playlist owner can access.
         If adding a new Content object, the playlist isn't known yet, so it
         shows every file except projection masters.
         """
         form = super().get_form(request, obj, **kwargs)
-        # If we are editing an existing Content object.
+        files = ResourceFile.objects.filter(is_projection_file=False)
         if obj:
-            # Filter the 'resource_file' field to show only files whose resource is accessible
-            # by the playlist's owner.
-            form.base_fields["resource_file"].queryset = ResourceFile.objects.filter(
-                resource__users=obj.playlist.owner, is_projection_file=False
-            )
-
-            # Filter clips to show only those associated with the selected file
-            if obj.get_resource():
-                form.base_fields["clips"].queryset = Clip.objects.filter(
-                    resource=obj.get_resource()
-                )
-            else:
-                form.base_fields["clips"].queryset = Clip.objects.none()
-
-        else:
-            form.base_fields["resource_file"].queryset = ResourceFile.objects.filter(
-                is_projection_file=False
-            )
+            files = files.filter(resource__in=obj.playlist.owner.accessible_resources())
+        form.base_fields["resource_file"].queryset = files
 
         return form
 

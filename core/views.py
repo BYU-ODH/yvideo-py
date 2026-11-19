@@ -1154,25 +1154,6 @@ def remove_playlist_member(request, playlist, user_id):
     return render_playlist_members_roster(request, playlist)
 
 
-def accessible_resources(user):
-    """The resource library as `user` may see it, matching User.can_access_resource."""
-    if user.is_superuser or user.is_lab_assistant:
-        return Resource.objects.all()
-    granted = Q(resourceaccess__user=user)
-    # A collaborator inherits every grant held by the owner of a playlist
-    # they can write to.
-    inherited = Q(
-        resourceaccess__user__playlists_owned__playlistuseraccess__user=user,
-        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
-    )
-    visible = granted | inherited
-    if user.is_instructor:
-        visible |= Q(checked_out_from_hbll=True) | Q(
-            checked_out_from_other_byu_library=True
-        )
-    return Resource.objects.filter(visible).distinct()
-
-
 def get_playlist_contents(playlist):
     contents = Content.objects.filter(playlist=playlist)
     published = contents.filter(published=True)
@@ -1296,7 +1277,7 @@ def render_create_from_resource_resources(request, playlist):
     return render(
         request,
         "core/partials/resource_list.html",
-        {"resources": accessible_resources(request.user)},
+        {"resources": request.user.accessible_resources()},
     )
 
 
@@ -1500,7 +1481,7 @@ def _search_resources(user, query):
         .prefetch_related(_barcoded_files("resource_files"))[:SEARCH_RESULT_LIMIT]
     )
     accessible_ids = set(
-        accessible_resources(user)
+        user.accessible_resources()
         .filter(pk__in=[r.pk for r in resources])
         .values_list("pk", flat=True)
     )
