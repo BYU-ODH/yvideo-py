@@ -59,7 +59,15 @@ function setupPlaylistSettings() {
 
     const playlistSettings = document.getElementById("playlist-settings");
     if (!playlistSettings) return;
+
     const settingsData = new FormData(playlistSettings);
+
+    // We don't want the user to make another change while request is in flight
+    const inputs = playlistSettings.querySelectorAll(".playlist-setting-input");
+    for (let input of inputs) {
+      input.disabled = true;
+    }
+
     const result = await fetch(playlistSettings.action, {
       method: playlistSettings.method,
       body: settingsData
@@ -76,6 +84,11 @@ function setupPlaylistSettings() {
     }
     catch {
       displayUserMessage("warning", "The playlist settings were updated successfully, but the change could not be displayed. Please refresh the page.");
+    }
+    for (let input of inputs) {
+      if (input.isConnected) {
+        input.disabled = true;
+      }
     }
   });
 }
