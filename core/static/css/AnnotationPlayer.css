@@ -190,6 +190,12 @@
   border: 0;
 }
 
+/* Every click goes to AnnotationPlayer (click-to-play, control auto-hide), never to YouTube's own
+   UI: the app, not the iframe, decides when the video plays. */
+.annotation-player-container youtube-video iframe {
+  pointer-events: none;
+}
+
 .annotation-player-container video.blanked,
 .annotation-player-container youtube-video.blanked {
   filter: brightness(0);

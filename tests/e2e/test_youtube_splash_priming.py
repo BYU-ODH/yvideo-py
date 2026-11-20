@@ -128,3 +128,116 @@ def test_priming_is_invisible_to_the_app(primed_editor, page):
     assert leaked == [], (
         f"priming dispatched media events the app never asked for: {leaked}"
     )
+
+
+# #480: the OS/browser can tell the iframe to play on its own (suspected: an audio-output change,
+# such as plugging in a monitor with speakers). Calling the player directly stands in for that.
+UNREQUESTED_PLAY_JS = """() => {
+    window.__leakedEvents.length = 0;
+    document.querySelector('youtube-video')._player.playVideo();
+}"""
+
+# Settled once the fake has played (~250ms), been told to pause, and that pause has landed.
+UNDONE_JS = """() => {
+    const element = document.querySelector('youtube-video');
+    return window.__playerCalls.slice(window.__callsBefore).includes('pauseVideo')
+        && element._player.getPlayerState() !== window.YT.PlayerState.PLAYING
+        && !element._undoing;
+}"""
+
+
+def _undo_an_unrequested_play(page):
+    page.evaluate("() => { window.__callsBefore = window.__playerCalls.length; }")
+    page.evaluate(UNREQUESTED_PLAY_JS)
+    page.wait_for_function(UNDONE_JS, timeout=5000)
+    return page.evaluate(
+        """() => ({
+            paused: document.querySelector('youtube-video').paused,
+            leaked: window.__leakedEvents,
+        })"""
+    )
+
+
+def test_a_play_the_app_did_not_ask_for_is_undone(primed_editor, page):
+    state = _undo_an_unrequested_play(page)
+
+    assert state["paused"] is True
+    assert state["leaked"] == [], (
+        f"an unrequested play was reported to the app: {state['leaked']}"
+    )
+
+
+def test_an_unrequested_play_after_the_video_ended_is_undone(primed_editor, page):
+    page.evaluate(
+        """() => {
+            const element = document.querySelector('youtube-video');
+            element.currentTime = element.duration - 0.5;
+            element.play();
+        }"""
+    )
+    page.wait_for_function(
+        "() => document.querySelector('youtube-video').ended", timeout=5000
+    )
+
+    state = _undo_an_unrequested_play(page)
+
+    assert state["paused"] is True
+    assert state["leaked"] == [], (
+        f"an unrequested play after the end was reported to the app: {state['leaked']}"
+    )
+
+
+def test_an_unrequested_play_after_an_outside_pause_is_undone(primed_editor, page):
+    # Played by the app, then paused by something else (a media key, say): the app's wish to play
+    # ended with that pause, so a later play nobody asked for must not resume.
+    page.evaluate("() => document.querySelector('youtube-video').play()")
+    page.wait_for_function(
+        "() => !document.querySelector('youtube-video').paused", timeout=5000
+    )
+    page.evaluate("() => document.querySelector('youtube-video')._player.pauseVideo()")
+    page.wait_for_function(
+        "() => document.querySelector('youtube-video').paused", timeout=5000
+    )
+
+    state = _undo_an_unrequested_play(page)
+
+    assert state["paused"] is True
+    assert state["leaked"] == [], (
+        f"an unrequested play after an outside pause was reported to the app: {state['leaked']}"
+    )
+
+
+def test_play_while_an_unrequested_play_is_being_undone_still_plays(
+    primed_editor, page
+):
+    # The app's play() lands in the gap between the undo's pauseVideo() and its PAUSED. Hooked on
+    # that pauseVideo() call so the timing is exact rather than raced.
+    page.evaluate(
+        """() => {
+            window.__leakedEvents.length = 0;
+            const element = document.querySelector('youtube-video');
+            const player = element._player;
+            const pauseVideo = player.pauseVideo.bind(player);
+            player.pauseVideo = () => {
+                pauseVideo();
+                player.pauseVideo = pauseVideo;
+                element.play();
+            };
+            player.playVideo();
+        }"""
+    )
+    page.wait_for_function(
+        "() => !document.querySelector('youtube-video').paused", timeout=5000
+    )
+    page.wait_for_timeout(300)
+    state = page.evaluate(
+        """() => ({
+            paused: document.querySelector('youtube-video').paused,
+            leaked: window.__leakedEvents.filter((name) => name !== 'timeupdate'),
+        })"""
+    )
+
+    assert state["paused"] is False, "the app asked to play and the video stopped"
+    assert state["leaked"] == ["play", "playing"], (
+        f"the app's play was not reported exactly once: {state['leaked']}"
+    )
