@@ -23,17 +23,21 @@
                 </div>
             </header>
             {% if can_edit %}
-                {% url 'playlist_thumbnail_editor' playlist.pk as thumbnail_editor_url %}
-                {% include "core/partials/editable_thumbnail.html" with editor_url=thumbnail_editor_url %}
-
                 <div class="row-flex flex-apart-aligned">
                     {% include 'core/partials/playlist_settings.html' %}
 
-                    <button id="playlist-settings-delete"
-                            class="red-button"
-                            command="show-modal"
-                            commandfor="playlist-delete-modal"
-                            type="button">Delete Playlist</button>
+                    <div class="row-flex">
+                        <button id="playlist-settings-thumbnail"
+                            class="white-button-with-border"
+                            data-thumbnail-editor-url="/playlists/{{ playlist.id }}/thumbnail/">
+                            Change Thumbnail
+                        </button>
+                        <button id="playlist-settings-delete"
+                                class="red-button"
+                                command="show-modal"
+                                commandfor="playlist-delete-modal"
+                                type="button">Delete Playlist</button>
+                    </div>
                     {% include "core/partials/modals/playlist_delete.html" with dialog_id="playlist-delete-modal" %}
                 </div>
             {% endif %}
@@ -87,6 +91,6 @@
         <script type="module" src="{% static 'js/playlistMembers.js' %}"></script>
         <script type="module" src="{% static 'js/addYoutubeContent.js' %}"></script>
         <script type="module" src="{% static 'js/create_from_resource.js' %}"></script>
-        <script type="module" src="{% static 'js/editableThumbnail.js' %}"></script>
+        <script type="module" src="{% static 'js/thumbnailEditor.js' %}"></script>
     {% endif %}
 {% endblock %}
