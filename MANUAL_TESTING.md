@@ -216,7 +216,7 @@ blur imported before that sits `width/2` percent right and `height/2` percent do
 its author put it — the bottom-right of whatever it covered is exposed.
 
 **Why it cannot be automated:** the arithmetic *is* automated, thoroughly — see
-[core/tests/test_legacy_blur_import.py](core/tests/test_legacy_blur_import.py). What no test can
+[core/tests/test_legacy_annotations.py](core/tests/test_legacy_annotations.py). What no test can
 do is confirm that the resulting box covers **the thing the original author meant to cover**.
 That requires the real legacy video, the real legacy censor, and someone who can look at the
 frame and say whether the face is hidden. Our fixtures assert coordinates against expected

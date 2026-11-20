@@ -30,10 +30,6 @@ PERMISSION_EXEMPT_VIEWS = {
     "create_playlist": "instructor_required; there is no object yet",
     "display_annotation_set_create_option": "static form fragment, no object",
     "display_annotation_set_import_option": "static form fragment, no object",
-    # Legacy migration, which checks capability and per-object ownership inline.
-    "legacy_migration_requests": "filters to requests the user owns",
-    "create_legacy_migration_request": "_can_request_migration; target_owner is request.user",
-    "legacy_migration_request_detail": "checks requested_by / target_owner",
 }
 
 # Methods that change state. A view answering one of these without a method guard also

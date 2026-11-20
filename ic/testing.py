@@ -135,7 +135,7 @@ def make_sd_file(master, payload=None):
         probe={"width": 854, "height": 480},
         size_bytes=len(payload),
     )
-    relative = f"{master.resource.name}/ic-sd-{master.checksum[:8]}.mp4"
+    relative = f"{master.resource_id}/ic-sd-{master.checksum[:8]}.mp4"
     path = Path(sd.file.storage.path(relative))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(payload)

@@ -1,7 +1,6 @@
 from django.urls import path
 
 from . import views
-from . import views_legacy_migration
 from . import views_video_editor
 
 app_name = "core"
@@ -14,21 +13,6 @@ urlpatterns = [
     path("about/", views.about, name="about"),
     path("whats-new/", views.whats_new, name="whats_new"),
     path("messages/render/", views.render_user_message, name="render_user_message"),
-    path(
-        "legacy-migrations/",
-        views_legacy_migration.legacy_migration_requests,
-        name="legacy_migration_requests",
-    ),
-    path(
-        "legacy-migrations/create/",
-        views_legacy_migration.create_legacy_migration_request,
-        name="create_legacy_migration_request",
-    ),
-    path(
-        "legacy-migrations/<int:pk>/",
-        views_legacy_migration.legacy_migration_request_detail,
-        name="legacy_migration_request_detail",
-    ),
     path("playlists/", views.playlists, name="playlists"),
     path("playlists/create/", views.create_playlist, name="create_playlist"),
     path(
@@ -156,6 +140,36 @@ urlpatterns = [
         "content/<int:content_id>/player-data/",
         views.get_player_data,
         name="get_player_data",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/",
+        views.playlist_thumbnail_editor,
+        name="playlist_thumbnail_editor",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/save/",
+        views.save_playlist_thumbnail,
+        name="save_playlist_thumbnail",
+    ),
+    path(
+        "playlists/<int:playlist_id>/thumbnail/image/",
+        views.playlist_thumbnail_image,
+        name="playlist_thumbnail_image",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/",
+        views.content_thumbnail_editor,
+        name="content_thumbnail_editor",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/save/",
+        views.save_content_thumbnail,
+        name="save_content_thumbnail",
+    ),
+    path(
+        "content/<int:content_id>/thumbnail/image/",
+        views.content_thumbnail_image,
+        name="content_thumbnail_image",
     ),
     path("player/<int:content_id>/", views.player, name="player"),
     path("stream/<int:resource_file_key_id>/", views.stream_file, name="stream_file"),

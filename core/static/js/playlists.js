@@ -1,4 +1,5 @@
 import { getCSRFToken, displayUserMessage } from "./utils.js";
+import { openThumbnailEditor } from "./thumbnailEditor.js";
 
 function setupPlaylistSearch() {
   for (let searchInput of document.querySelectorAll(".list-search-input")) {
@@ -39,6 +40,8 @@ function setupNewPlaylistSubmit() {
       displayUserMessage("error", "Failed to save new playlist");
       return;
     }
+    form.closest("dialog")?.close();
+    await openThumbnailEditor((await response.json()).thumbnail_editor_url);
     location.reload();
   });
 }

@@ -105,9 +105,7 @@ The application will be available at http://localhost:8000
 
 Legacy Y-Video data is moved in one bulk import with the `import_legacy_data`
 and `import_legacy_media` management commands, run on the production host with
-the app stopped. See [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md). The older
-per-request migration workflow is retired; leave `LEGACY_MIGRATION_ENABLED`
-off.
+the app stopped. See [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md).
 
 ### Development Tools
 

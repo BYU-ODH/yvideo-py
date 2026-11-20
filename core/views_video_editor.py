@@ -347,6 +347,10 @@ def select_annotation_set(request, content):
         # Editing it afterwards is checked separately, and an orphaned set is frozen.
         if not annotation_set.can_be_read_by(request.user):
             return forbidden()
+        if annotation_set.resource_id != content.resource_id:
+            return HttpResponseBadRequest(
+                "That annotation set belongs to a different resource."
+            )
 
         content.annotation_set = annotation_set
         content.save()
@@ -443,6 +447,10 @@ def create_annotation(request, track, annotation_type):
     end_time = (
         float(parsed_body["end_time"]) if annotation_type != "pause" else start_time
     )
+    if start_time < 0:
+        return HttpResponseBadRequest("start_time cannot be negative")
+    if end_time < start_time:
+        return HttpResponseBadRequest("end_time cannot precede start_time")
 
     data = {
         "track": track,
