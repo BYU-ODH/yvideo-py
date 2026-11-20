@@ -1,0 +1,111 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        The Blur tool adds a rectangular area where the visuals will be blurred. The position and size of the
+        blur can be adjusted using the Blur Area on the Overlay Preview and the Anchor Points under the
+        Properties Panel.
+    </p>
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#add-a-blur-item">Add a Blur item</a>
+        <a href="#adjust-the-blur-area">Adjust the Blur Area</a>
+        <a href="#anchor-points">Anchor Points</a>
+        <a href="#animate-the-blur-area">Animate the Blur Area</a>
+    </nav>
+    <h2 id="add-a-blur-item">Add a Blur item</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Move the Scrub Head to where the edit should start</h3>
+            <p>The new tool item’s Start Time defaults to the timecode where the Scrub Head is located.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Scrub Head on the timeline" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Click (+) next to Blur</h3>
+            <p>
+                The (+) button is to the right of the tool in the Overlay Tool Selection Panel.
+                A colored block appears on the timeline.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Blur row in the Tool Selection Panel" %}
+        </li>
+        <li class="guide-step">
+            <h3>Set the Start and End Times</h3>
+            <p>Drag the handles on either end of the timeline block, or type the timecodes in the Properties Panel.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Blur item Start and End fields" %}
+        </li>
+    </ol>
+    <h2 id="adjust-the-blur-area">Adjust the Blur Area</h2>
+    <p>
+        The Blur Area appears in the Overlay Preview, directly on the video, so you can see exactly where the
+        blur will appear.
+    </p>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Resize the area</h3>
+            <p>
+                Click and drag the handles (the large white dots on the corners and sides of the area). For more
+                precision, use the W and H fields in the Properties Panel.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Blur Area with resize handles" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Move the area</h3>
+            <p>
+                Click inside the boundary (indicated by the dotted line) and drag it to the desired position. For
+                more precision, use the X and Y fields in the Properties Panel.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Blur Area being dragged" wide=True %}
+        </li>
+    </ol>
+    <h2 id="anchor-points">Anchor Points</h2>
+    <div class="guide-panel">
+        <h3>What an Anchor Point is</h3>
+        <p>
+            An Anchor Point is a moment on the timeline where the position and size of the Blur Area is saved.
+            Other media editors commonly refer to this as a “keyframe.”
+        </p>
+        <ul>
+            <li>Time indicates where in the timeline the blurred area appears.</li>
+            <li>X and Y indicate the Blur Area’s relative position.</li>
+            <li>W indicates the Blur Area’s width and H is its relative height.</li>
+        </ul>
+        <p>The X, Y, W, and H properties use percentages compared to the size of the original video.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Anchor Point fields: Time, X, Y, W, H" wide=True %}
+    </div>
+    <h2 id="animate-the-blur-area">Animate the Blur Area</h2>
+    <p>
+        You can animate the Blur Area to follow a moving subject. Set anchor points to define its position and
+        size at different times. During playback, the Blur Area moves and resizes between the anchor points.
+    </p>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Add a Blur item and set its starting position</h3>
+            <p>
+                Adjust its Start Time. Set the blur’s initial position and size using the Blur Area in the Overlay
+                Preview or with the Anchor Point 1 fields in the Properties Panel. Anchor Point 1 is created by
+                default.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Anchor Point 1 fields" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Set the End Time</h3>
+            <p>Use the Properties Panel, or adjust the item’s handles on the timeline.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Blur item handles on the timeline" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Add more anchor points</h3>
+            <p>
+                Move the Scrub Head to a point between the Start Time and the End Time. Move or resize the Blur
+                Area in the Overlay Preview to add an anchor point at that time. Repeat as needed.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Blur Area repositioned at a later time" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Delete an anchor point (optional)</h3>
+            <p>
+                Click one of its value fields in the Properties Panel, then click the trash icon to the right of
+                those fields.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Anchor Point trash icon" %}
+        </li>
+    </ol>
+{% endblock %}

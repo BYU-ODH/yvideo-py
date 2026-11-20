@@ -18,6 +18,7 @@ PERMISSION_EXEMPT_VIEWS = {
     "index": "redirects to the playlists landing page; renders nothing itself",
     "about": "static marketing copy about the site, identical for every viewer",
     "whats_new": "static explanation of the differences from legacy Y-video",
+    "user_guide": "static help pages, identical for every viewer",
     "invalid_login": "login failure page, deliberately unauthenticated",
     "playlists": "lists only what the requester can reach; filters rather than checks",
     "render_user_message": "renders the caller's own message text; reads no object",

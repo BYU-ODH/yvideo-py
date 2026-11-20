@@ -1,0 +1,26 @@
+{% load static %}
+
+<ul class="guide-cards">
+    {% for page in guide_children %}
+        <li>
+            <a class="guide-card" href="{{ page.url }}">
+                <span class="guide-card-title">
+                    {% if page.tool %}<span class="guide-tool-dot guide-tool-{{ page.tool }}"></span>{% endif %}
+                    {{ page.title }}
+                    {% if page.flagged %}
+                        <span class="guide-review-dot" title="Contains content that needs review"></span>
+                        <span class="visually-hidden">(needs review)</span>
+                    {% endif %}
+                </span>
+                <span class="guide-card-summary">{{ page.summary }}</span>
+                <span class="guide-card-open">
+                    Open
+                    <img src="{% static 'img/user_guide/card-arrow.svg' %}"
+                         alt=""
+                         width="14"
+                         height="14">
+                </span>
+            </a>
+        </li>
+    {% endfor %}
+</ul>

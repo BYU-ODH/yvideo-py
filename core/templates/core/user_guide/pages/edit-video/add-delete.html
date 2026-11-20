@@ -1,0 +1,46 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#add">Add a tool item</a>
+        <a href="#view">View a tool’s items</a>
+        <a href="#delete">Delete a tool item</a>
+    </nav>
+    <h2 id="add">Add a tool item</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Move the Scrub Head to where the edit should start</h3>
+            <p>The Start Time of a newly created tool item defaults to the timecode where the Scrub Head is located.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Scrub Head on the timeline" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Click (+) to the right of the tool you want to add</h3>
+            <p>The new item appears in the panel and as a colored block on the timeline.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Skip row with (+) button" %}
+        </li>
+    </ol>
+    <h2 id="view">View a tool’s items</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Click the caret to the left of the tool</h3>
+            <p>A list of every item for that tool in the current media appears below it.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Mute expanded showing “Mute 1”" %}
+        </li>
+    </ol>
+    <h2 id="delete">Delete a tool item</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Select the tool item</h3>
+            <p>Select it from the list in the Selection Panel, or click its colored block on the timeline.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Selected tool item in the panel and timeline" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Click the trash icon</h3>
+            <p>The trash icon appears in the Selection Panel and in the Properties Panel.</p>
+            <div class="guide-panel">
+                <p>Deleting an item is permanent and cannot be undone.</p>
+            </div>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Trash icon on a tool item" %}
+        </li>
+    </ol>
+{% endblock %}

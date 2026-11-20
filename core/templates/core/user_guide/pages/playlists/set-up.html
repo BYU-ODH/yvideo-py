@@ -1,0 +1,35 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <h2>Create a playlist</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Go to Your Playlists</h3>
+            <p>
+                Select Playlists in the top navigation bar. Your Playlists lists every playlist you own, with its
+                visibility and number of videos.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Your Playlists page" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Select “+ Create New Playlist”</h3>
+            <p>A new, empty playlist opens.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“+ Create New Playlist” button" %}
+        </li>
+        <li class="guide-step">
+            <h3>Name the playlist and add a description</h3>
+            <p>
+                Click the pen icon next to the playlist title to rename it, then add a brief description of the
+                playlist and its contents.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Playlist title with pen icon and description" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Select “Save Changes”</h3>
+            <p>The Save Changes button is at the bottom of the playlist page.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“Save Changes” button" %}
+        </li>
+    </ol>
+{% endblock %}

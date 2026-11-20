@@ -1,0 +1,18 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <h2>Change the overlay name</h2>
+    <p>The name you assign appears at the top left of the editor and can be changed at any time.</p>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Click the pen icon next to the name</h3>
+            <p>The pen icon is to the right of the overlay name, at the top of the Overlay Tool Selection Panel.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Name with pen and three-dot icons" %}
+        </li>
+        <li class="guide-step">
+            <h3>Type the new name and press Enter</h3>
+            <p>Once you have typed in a new name, use the <kbd>Enter</kbd> key to confirm it.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Name field in edit mode" %}
+        </li>
+    </ol>
+{% endblock %}

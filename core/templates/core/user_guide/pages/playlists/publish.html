@@ -1,0 +1,52 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#publish-to-a-course">Publish to a course</a>
+        <a href="#remove-a-course">Remove a course</a>
+    </nav>
+    <h2 id="publish-to-a-course">Publish to a course</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Find Publishing Details on the playlist page</h3>
+            <p>The Publishing Details panel lists everyone who can view the playlist.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Publishing Details panel" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Choose the semester</h3>
+            <p>Select the semester from the Semester dropdown, for example Fall 2025.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Semester dropdown" %}
+        </li>
+        <li class="guide-step">
+            <h3>Add a course and its sections</h3>
+            <p>
+                Select “+ Add Course,” choose the course from the dropdown, then enter the sections that should see
+                the playlist. Repeat for each course.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Course row with sections" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Choose which videos are published</h3>
+            <p>
+                Use the toggle on each video to switch it between Published and Unpublished. Unpublished videos stay
+                in the playlist but students cannot see them.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Published / Unpublished toggle on a video row" %}
+        </li>
+        <li class="guide-step">
+            <h3>Publish and save</h3>
+            <p>Select “Publish,” then “Save Changes.” The button changes to “Unpublish” once the playlist is live.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Publish / Unpublish button" %}
+        </li>
+    </ol>
+    <h2 id="remove-a-course">Remove a course</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Select the trash icon on the course row</h3>
+            <p>Students in that course will no longer see the playlist after you save.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Course row trash icon" %}
+        </li>
+    </ol>
+{% endblock %}

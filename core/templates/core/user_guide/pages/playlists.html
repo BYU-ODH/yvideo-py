@@ -1,0 +1,8 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Pages in this section are placeholder content drafted from the current app designs." %}
+
+    <h2>In this section</h2>
+    {% include "core/user_guide/partials/cards.html" %}
+{% endblock %}

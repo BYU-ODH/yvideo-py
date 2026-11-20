@@ -1,0 +1,44 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#add-to-library">Add a new video to your library</a>
+        <a href="#add-or-remove-in-playlist">Add or remove videos in a playlist</a>
+    </nav>
+    <h2 id="add-to-library">Add a new video to your library</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Go to Your Videos</h3>
+            <p>Your Videos is a collection of all the videos you have ever added or edited.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Your Videos page" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Select “+ Add New Video”</h3>
+            <p>Follow the prompts to choose the original resource.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“+ Add New Video” button" %}
+        </li>
+    </ol>
+    <h2 id="add-or-remove-in-playlist">Add or remove videos in a playlist</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Open the playlist and select “Add/Remove Videos”</h3>
+            <p>The button is in the row of actions below the playlist description.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Playlist action buttons" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Choose the videos to include</h3>
+            <p>
+                Select videos to add them, or deselect them to remove them from the playlist. Removing a video from a
+                playlist does not delete it from Your Videos.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Add/Remove Videos selector" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Select “Save Changes”</h3>
+            <p>Each video now appears in the Videos list with its own Published toggle.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Videos list on the playlist page" wide=True %}
+        </li>
+    </ol>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#open-subtitle-editor">Open the Subtitle Editor</a>
+        <a href="#select-or-create-track">Select or create a subtitle track</a>
+        <a href="#edit-subtitles">Edit subtitles</a>
+    </nav>
+    <h2 id="open-subtitle-editor">Open the Subtitle Editor</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Click “Switch to Subtitle Editor”</h3>
+            <p>
+                The button is at the bottom of the Overlay Tools panel. It replaces the Overlay Tools panel with
+                the Subtitle Editor Panel.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“Switch to Subtitle Editor” button" %}
+        </li>
+    </ol>
+    <h2 id="select-or-create-track">Select or create a subtitle track</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Click the three dots at the top right of the Subtitle Editor panel</h3>
+            <p>This opens the Subtitles Settings window.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Subtitles Settings window" %}
+        </li>
+        <li class="guide-step">
+            <h3>Select a track from the dropdown</h3>
+            <p>The default subtitle tracks include any tracks extracted from the original resource.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“Select a subtitles track” dropdown" %}
+        </li>
+        <li class="guide-step">
+            <h3>Or click “+ Add new subtitle track”</h3>
+            <p>Creates a new, empty track.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“+ Add new subtitle track” button" %}
+        </li>
+        <li class="guide-step">
+            <h3>To remove a track, click “Delete subtitle track”</h3>
+            <p>This removes the selected track from the available options when published.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“Delete subtitle track” button" %}
+        </li>
+    </ol>
+    <h2 id="edit-subtitles">Edit subtitles</h2>
+    <div class="guide-panel">
+        <h3>Edit timing</h3>
+        <p>
+            Next to each subtitle text block are two timestamps that indicate the location and duration of the
+            subtitle on the timeline. The top is the Start Time, the bottom is the End Time.
+        </p>
+        {% include "core/user_guide/partials/review_note.html" with note="The original sentence ended “…of the subtitle on the .” Confirm “timeline” is the intended word." %}
+        {% include "core/user_guide/partials/screenshot.html" with caption="Subtitle row with Start and End timestamps" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Edit text</h3>
+        <p>Adjust the text by typing in the text field.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Subtitle text field" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Add a new subtitle</h3>
+        <p>Clicking “+ Add new subtitle at current time” creates a new section.</p>
+        {% include "core/user_guide/partials/review_note.html" with note="+++ flagged in the original guide. Confirm where the new subtitle is placed and its default duration." %}
+        {% include "core/user_guide/partials/screenshot.html" with caption="“+ Add new subtitle at current time” button" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Return to the Overlay Tools</h3>
+        <p>Switch back to the Overlay Tools panel by clicking the button at the bottom of the Subtitle Editor.</p>
+        {% include "core/user_guide/partials/review_note.html" with note="Button name was “+++” in the original guide. Screenshots show both “Switch to Annotation Editor” and “Show Annotation Editor.”" %}
+        {% include "core/user_guide/partials/screenshot.html" with caption="Button at bottom of Subtitle Editor" %}
+    </div>
+{% endblock %}

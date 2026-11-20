@@ -1,0 +1,11 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        Each tool affects the video in a different way, with some tools needing additional properties to function.
+        Every tool item also has the common properties described in
+        <a href="{% url 'user_guide' 'edit-video/adjust' %}">Adjust a tool item</a>.
+    </p>
+    <h2>In this section</h2>
+    {% include "core/user_guide/partials/cards.html" %}
+{% endblock %}

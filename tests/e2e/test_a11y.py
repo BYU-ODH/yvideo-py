@@ -26,6 +26,7 @@ import pytest
 
 from core.models import Content
 from core.models import Playlist
+from core.user_guide import PAGES as USER_GUIDE_PAGES
 from ic.testing import FFMPEG_AVAILABLE
 
 pytestmark = [
@@ -258,6 +259,12 @@ def awkward_data(seeded_demo_data):
 FULL_PAGE_VIEWS = {
     "about": lambda d, everything: "/about/",
     "whats_new": lambda d, everything: "/whats-new/",
+    **{
+        f"user_guide:{page.slug or 'index'}": lambda d, everything, slug=page.slug: (
+            f"/user-guide/{slug}/" if slug else "/user-guide/"
+        )
+        for page in USER_GUIDE_PAGES
+    },
     "playlists": lambda d, everything: "/playlists/",
     "playlist_info": lambda d, everything: f"/playlists/{d.playlist.id}/",
     "playlist_info_with_no_videos": lambda d, everything: (
@@ -1158,6 +1165,12 @@ AUDITED_TEMPLATES = {
     "core/playlists.html",
     "core/video_editor.html",
     "core/whats_new.html",
+    "core/user_guide/base.html",
+    "core/user_guide/partials/cards.html",
+    "core/user_guide/partials/nav_items.html",
+    "core/user_guide/partials/review_note.html",
+    "core/user_guide/partials/screenshot.html",
+    *(page.template for page in USER_GUIDE_PAGES),
     "core/partials/content_settings_form.html",
     "core/partials/landing_page_playlist.html",
     "core/partials/player-wrapper.html",

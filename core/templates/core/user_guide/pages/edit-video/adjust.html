@@ -1,0 +1,66 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        When you select a tool item on the timeline, the right panel displays properties that can be adjusted to
+        modify how that item affects the media. Every tool item has Undo/Redo buttons, a Delete button, a name,
+        Start and End Times, and a Description.
+    </p>
+    <div class="guide-panel">
+        <p>
+            Make sure the name at the top of the Properties Panel matches the name on the timeline block, so you are
+            editing the correct tool item.
+        </p>
+    </div>
+    <h2>Common properties</h2>
+    <div class="guide-panel">
+        <h3>Overlay Tool Name</h3>
+        <p>
+            The bold label at the top of the Properties Panel shows what kind of tool you have selected. This tells
+            you what it will do to the video and which properties can be adjusted.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Edit Mute” label at top of Properties Panel" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Undo &amp; Redo</h3>
+        <p>
+            Select a tool item on the timeline, then select Undo or Redo at the top of the Properties Panel. These
+            controls apply only to the selected item, so they may not reverse the last change you made to a different
+            item.
+        </p>
+        <p>
+            For example, if you edit a Comment item, then add a Mute item, but want to undo the Comment edit, you must
+            select that Comment item before clicking Undo.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Undo, Redo, and Delete icons" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Delete</h3>
+        <p>Click the trash icon to delete the selected tool item.</p>
+        <div class="guide-panel">
+            <p>Deleting an item is permanent and cannot be undone.</p>
+        </div>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Delete icon" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Tool Item Name</h3>
+        <p>Type a new name into the text field and press Enter on the keyboard.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Name field" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Start and End Times</h3>
+        <p>
+            These show where the item appears on the timeline and for how long. To change them, type the timecode
+            into the respective field.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Start and End fields" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Item Description</h3>
+        <p>
+            Leave notes to yourself about the item. Descriptions do not appear on the published video or affect the
+            item in any other way.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Description field" %}
+    </div>
+{% endblock %}

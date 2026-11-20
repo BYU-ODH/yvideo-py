@@ -1,0 +1,47 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        The Clip tool lets you show only specific portions of the full video, determined by the Start and End
+        times of each Clip tool item you use.
+    </p>
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#add-a-clip-item">Add a Clip item</a>
+        <a href="#clip-options">Clip options</a>
+    </nav>
+    <h2 id="add-a-clip-item">Add a Clip item</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Move the Scrub Head to where the edit should start</h3>
+            <p>The new tool item’s Start Time defaults to the timecode where the Scrub Head is located.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Scrub Head on the timeline" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Click (+) next to Clip</h3>
+            <p>
+                The (+) button is to the right of the tool in the Overlay Tool Selection Panel.
+                A colored block appears on the timeline.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Clip row in the Tool Selection Panel" %}
+        </li>
+        <li class="guide-step">
+            <h3>Set the Start and End Times</h3>
+            <p>Drag the handles on either end of the timeline block, or type the timecodes in the Properties Panel.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Clip item Start and End fields" %}
+        </li>
+    </ol>
+    <h2 id="clip-options">Clip options</h2>
+    <div class="guide-panel">
+        <h3>Clips Only</h3>
+        <p>
+            On the details page of the overlay, you can select “Clips Only,” which forces the Student Media Player
+            to show only the clips you have selected.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Clips Only” option on the overlay details page" %}
+    </div>
+    <div class="guide-panel">
+        <h3>View Previous / Next Clip</h3>
+        <p>Navigate through multiple Clip tool items using the View Previous Clip and View Next Clip buttons.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="View Previous Clip and View Next Clip buttons" %}
+    </div>
+{% endblock %}

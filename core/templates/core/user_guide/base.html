@@ -1,0 +1,71 @@
+{% extends "core/base.html" %}
+
+{% load static %}
+
+{% block title %}{{ guide_page.title }} | Y-Video User Guide{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/user_guide.css' %}">
+{% endblock %}
+{% block extra_js %}
+    {{ block.super }}
+    <script src="{% static 'js/user-guide.js' %}" defer></script>
+{% endblock %}
+{% block content %}
+    <div class="guide">
+        <nav class="guide-sidebar" aria-label="User guide">
+            <ul class="guide-nav">
+                {% include "core/user_guide/partials/nav_items.html" with nodes=guide_nav %}
+            </ul>
+            <p class="guide-legend">
+                <span class="guide-review-dot"></span>
+                Contains content that needs review
+            </p>
+            <p class="guide-legend guide-placeholder">
+                Screenshot boxes are placeholders. Rob can capture the real screenshots
+                automatically once the copy is final.
+            </p>
+        </nav>
+        <article class="guide-main">
+            {% if guide_ancestors %}
+                <p class="guide-eyebrow">
+                    {% for ancestor in guide_ancestors %}
+                        <a href="{{ ancestor.url }}">{{ ancestor.title }}</a>
+                        {% if not forloop.last %}<span aria-hidden="true">/</span>{% endif %}
+                    {% endfor %}
+                </p>
+            {% endif %}
+            <h1 class="guide-title">
+                {% if guide_page.tool %}<span class="guide-tool-dot guide-tool-{{ guide_page.tool }}"></span>{% endif %}
+                {{ guide_page.heading|default:guide_page.title }}
+            </h1>
+            {% block guide_content %}{% endblock %}
+            <nav class="guide-pager" aria-label="Previous and next pages">
+                {% if previous_page %}
+                    <a class="guide-pager-previous" href="{{ previous_page.url }}">
+                        <span class="guide-pager-label">
+                            <img src="{% static 'img/user_guide/arrow-left.svg' %}"
+                                 alt=""
+                                 width="14"
+                                 height="14">
+                            Previous
+                        </span>
+                        <span class="guide-pager-title">{{ previous_page.title }}</span>
+                    </a>
+                {% endif %}
+                {% if next_page %}
+                    <a class="guide-pager-next" href="{{ next_page.url }}">
+                        <span class="guide-pager-label">
+                            Next
+                            <img src="{% static 'img/user_guide/arrow-right.svg' %}"
+                                 alt=""
+                                 width="14"
+                                 height="14">
+                        </span>
+                        <span class="guide-pager-title">{{ next_page.title }}</span>
+                    </a>
+                {% endif %}
+            </nav>
+        </article>
+    </div>
+{% endblock %}
