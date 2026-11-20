@@ -53,9 +53,14 @@ function setupPlaylistSettings() {
     e.preventDefault();
   });
 
-  playlistContent.addEventListener("change", async (e) => {
+  playlistContent.addEventListener("click", async (e) => {
     e.preventDefault();
-    if (!e.target.classList.contains("playlist-setting-input")) return;
+    const checkboxButton = e.target.closest(".playlist-setting-checkbox-button");
+    if (!checkboxButton) return;
+
+    const settingCheckbox = checkboxButton.querySelector("input[type='checkbox']");
+    if (!settingCheckbox) return;
+    settingCheckbox.checked = !settingCheckbox.checked;
 
     const playlistSettings = document.getElementById("playlist-settings");
     if (!playlistSettings) return;

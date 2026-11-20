@@ -6,26 +6,38 @@
     {% csrf_token %}
     {{ form.non_field_errors }}
     <div class="playlist-form-group">
-        <label for="{{ form.published.id_for_label }}">Published:</label>
-        <input type="checkbox"
-               id="{{ form.published.id_for_label }}"
-               class="playlist-setting-input"
-               name="{{ form.published.name }}"
-               {% if form.published.value == True %} checked {% endif %}
-               {% if form.archived.value == True %} disabled {% endif %}>
+        <label aria-disabled="{% if form.archived.value == True %}True{% else %}False{% endif %}" for="{{ form.published.id_for_label }}" class="playlist-setting-checkbox-button {% if form.published.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
+            {% if form.published.value == True %}Unpublish{% else %}Publish{% endif %}
+            <input type="checkbox"
+                   id="{{ form.published.id_for_label }}"
+                   class="playlist-setting-input"
+                   name="{{ form.published.name }}"
+                   {% if form.published.value == True %} checked {% endif %}
+                   {% if form.archived.value == True %} disabled {% endif %}>
+        </label>
     </div>
     <div class="playlist-form-group">
-        <label for="{{ form.archived.id_for_label }}">Archived:</label>
-        <input type="checkbox"
-               id="{{ form.archived.id_for_label }}"
-               class="playlist-setting-input"
-               name="{{ form.archived.name }}"
-               {% if form.archived.value == True %} checked {% endif %}>
+        <label for="{{ form.archived.id_for_label }}" class="playlist-setting-checkbox-button {% if form.archived.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
+            {% if form.archived.value == True %}Unarchive{% else %}Archive{% endif %}
+            <input type="checkbox"
+                   id="{{ form.archived.id_for_label }}"
+                   class="playlist-setting-input"
+                   name="{{ form.archived.name }}"
+                   {% if form.archived.value == True %} checked {% endif %}>
+        </label>
+
     </div>
     {% if user.is_ic_editor %}
         <div class="playlist-form-group">
             <div class="label-with-info">
-                <label for="{{ form.is_ic.id_for_label }}">International Cinema playlist:</label>
+                <label for="{{ form.is_ic.id_for_label }}" class="playlist-setting-checkbox-button {% if form.is_ic.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
+                    {% if form.is_ic.value == True %}Unclassify as an IC playlist{% else %}Classify as an IC playlist{% endif %}
+                    <input type="checkbox"
+                           id="{{ form.is_ic.id_for_label }}"
+                           class="playlist-setting-input"
+                           name="{{ form.is_ic.name }}"
+                           {% if form.is_ic.value == True %} checked {% endif %}>
+                </label>
                 <button type="button"
                         id="ic-info-button"
                         class="info-button"
@@ -38,11 +50,6 @@
                     <p>{{ form.is_ic.help_text }}</p>
                 </div>
             </div>
-            <input type="checkbox"
-                   id="{{ form.is_ic.id_for_label }}"
-                   class="playlist-setting-input"
-                   name="{{ form.is_ic.name }}"
-                   {% if form.is_ic.value == True %} checked {% endif %}>
         </div>
     {% endif %}
 </form>

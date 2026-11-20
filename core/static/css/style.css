@@ -156,6 +156,7 @@ button:hover {
     text-decoration: none;
 
     box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+    cursor: pointer;
 }
 
 .blue-button:hover, .white-button-with-border:hover, .red-button:hover, .cancel-button:hover {
@@ -1058,19 +1059,15 @@ button:hover {
     flex-direction: row;
     column-gap: 0.5rem;
     align-items: center;
-
-    padding: 10px 20px;
-    border: 2px solid var(--primary-blue);
-    border-radius: 20px;
 }
 
-.playlist-form-group input {
-    cursor: pointer;
+.playlist-setting-checkbox-button[aria-disabled="True"] {
+    box-shadow: none;
+    border-color: grey;
 }
 
-.playlist-form-group input[type="checkbox"] {
-    width: 1rem;
-    height: 1rem;
+.playlist-setting-input[type="checkbox"] {
+    display: none;
 }
 
 #add-new-playlist-button {
@@ -2125,13 +2122,13 @@ button:hover {
     }
 }
 
-button.disabled {
+button.disabled, .playlist-setting-checkbox-button[aria-disabled='True'] {
     cursor: not-allowed;
     color: #434343;
     background-color: #e0e0e040;
 }
 
-button.disabled:hover {
+button.disabled:hover, .playlist-setting-checkbox-button[aria-disabled='True']:hover {
     background-color: #e0e0e040;
 }
 
