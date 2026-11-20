@@ -36,7 +36,7 @@
                     {% endif %}
                 </div>
                 <div id="playlist-video-list">
-                    {% for content in contents %}
+                    {% for content, content_thumbnail in contents %}
                         {% if can_edit %}
                             <a href="{% url 'display_content_info' content.id %}"
                                class="playlist-item-tile"
@@ -46,6 +46,8 @@
                                class="playlist-item-tile"
                                aria-label="Play {{ content.display_name }}">
                         {% endif %}
+                            {% include "core/partials/thumbnail.html" with thumbnail=content_thumbnail %}
+
                             <h3 class="video-item-title">{{ content.display_name }}</h3>
                         </a>
                     {% empty %}

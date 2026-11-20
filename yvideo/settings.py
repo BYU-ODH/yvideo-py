@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "reversion",  # django-reversion
     "core.apps.CoreConfig",
+    "ic.apps.IcConfig",
 ]
 
 MIDDLEWARE = [
@@ -100,7 +101,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "core.context_processors.feature_flags",
             ],
         },
     },
@@ -127,45 +127,9 @@ DATABASES = {
 # Message configuration
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
 
-LEGACY_MIGRATION_ENABLED = getattr(secret_settings, "LEGACY_MIGRATION_ENABLED", False)
 LEGACY_MIGRATION_MEDIA_ROOT = getattr(
     secret_settings, "LEGACY_MIGRATION_MEDIA_ROOT", ""
 )
-LEGACY_MIGRATION_DB_ALIAS = getattr(
-    secret_settings, "LEGACY_MIGRATION_DB_ALIAS", "legacy"
-)
-LEGACY_MIGRATION_SQLITE_PATH = _resolve_repo_path(
-    getattr(
-        secret_settings,
-        "LEGACY_MIGRATION_SQLITE_PATH",
-        "var/legacy_migration/legacy_dump.sqlite3",
-    )
-)
-LEGACY_MIGRATION_CREATE_MISSING_USERS = getattr(
-    secret_settings, "LEGACY_MIGRATION_CREATE_MISSING_USERS", False
-)
-LEGACY_MIGRATION_DUMP_SCRIPT = str(
-    _resolve_repo_path(
-        getattr(
-            secret_settings,
-            "LEGACY_MIGRATION_DUMP_SCRIPT",
-            "scripts/dump_legacy_to_sqlite.py",
-        )
-    )
-)
-LEGACY_MIGRATION_WORKER_LOCK_PATH = _resolve_repo_path(
-    getattr(
-        secret_settings,
-        "LEGACY_MIGRATION_WORKER_LOCK_PATH",
-        "var/legacy_migration/job_worker.lock",
-    )
-)
-
-if LEGACY_MIGRATION_SQLITE_PATH:
-    DATABASES[LEGACY_MIGRATION_DB_ALIAS] = {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": LEGACY_MIGRATION_SQLITE_PATH,
-    }
 
 CONN_MAX_AGE = 600
 CONN_HEALTH_CHECKS = True
@@ -245,6 +209,40 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
+# Download cache for the optional full-length demo films (fetch_demo_films). It lives
+# outside MEDIA_ROOT so resetting media/ never forces a re-download.
+DEMO_FILMS_DIR = BASE_DIR / "demo_media" / "films"
+
+# International Cinema (#246).
+#
+# Production runs with IS_IC_INSTANCE False and serves IC editors, the sync API and the
+# preview player. The booth runs the same code with IS_IC_INSTANCE True, as a read-only,
+# userless mirror: the projectionist's kiosk pages, bound to localhost. The booth only
+# ever calls production; nothing connects to the booth.
+IS_IC_INSTANCE = getattr(secret_settings, "IS_IC_INSTANCE", False)
+# Projection masters. Never under MEDIA_ROOT: the web server publishes MEDIA_ROOT (#531).
+IC_PROJECTION_ROOT = _resolve_repo_path(
+    os.environ.get("IC_PROJECTION_ROOT")
+    or getattr(secret_settings, "IC_PROJECTION_ROOT", "ic_projection")
+)
+# The booth's bearer token for the sync API, the same value on production and the booth.
+# Empty on production means no booth can sync.
+IC_SYNC_TOKEN = getattr(secret_settings, "IC_SYNC_TOKEN", "")
+# Booth: where to pull from.
+IC_PARENT_URL = getattr(secret_settings, "IC_PARENT_URL", "").rstrip("/")
+# What the booth's Chrome has been verified to decode. HEVC joins the list only once the
+# spike confirms hardware decode; AV1 never will on the booth's Intel UHD 630.
+IC_BOOTH_VIDEO_CODECS = getattr(secret_settings, "IC_BOOTH_VIDEO_CODECS", ["h264"])
+
+# The booth has no users at all: nothing to log in to, spoof, or refresh.
+BOOTH_EXCLUDED_MIDDLEWARE = (
+    "django.contrib.auth.middleware.LoginRequiredMiddleware",
+    "core.middleware.SpoofUserMiddleware",
+    "mozilla_django_oidc.middleware.SessionRefresh",
+)
+if IS_IC_INSTANCE:
+    ROOT_URLCONF = "yvideo.urls_ic"
+    MIDDLEWARE = [m for m in MIDDLEWARE if m not in BOOTH_EXCLUDED_MIDDLEWARE]
 
 # Logging
 # https://docs.djangoproject.com/en/5.1/topics/logging/

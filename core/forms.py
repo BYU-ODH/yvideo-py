@@ -75,7 +75,8 @@ class PlaylistForm(forms.ModelForm):
 class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
-        fields = ["name", "published", "archived"]
+        # is_ic is shown to, and applied for, IC editors only.
+        fields = ["name", "published", "archived", "is_ic"]
 
 
 class UpdateContentForm(forms.ModelForm):
@@ -182,8 +183,6 @@ class SubtitleUpdateForm(forms.Form):
 
 
 class SubtitleCreateForm(SubtitleUpdateForm):
-    subtitles_file = None
-
     def __init__(self, *args, resource=None, owner=None, **kwargs):
         kwargs.setdefault("auto_id", "subtitle-track-create-%s")
         super().__init__(
@@ -255,13 +254,47 @@ class SubtitleCopyForm(forms.Form):
         return cleaned_data
 
 
-class ResourceIntakeRequestForm(forms.ModelForm):
+class LegalComplianceForm(forms.Form):
     acknowledged_compliance = forms.BooleanField(required=True)
     acknowledged_fair_use_limitation = forms.BooleanField(required=True)
 
+
+class ResourceIntakeRequestForm(LegalComplianceForm, forms.ModelForm):
+    OTHER_LANGUAGE = "other"
+    LANGUAGE_FIELDS = ("audio_language", "subtitle_language")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = [
+            ("", "---------"),
+            *((language.pk, str(language)) for language in Language.objects.all()),
+            (self.OTHER_LANGUAGE, "Other"),
+        ]
+        for name in self.LANGUAGE_FIELDS:
+            self.fields[name] = forms.ChoiceField(
+                choices=choices, required=self.fields[name].required
+            )
+        # Staff may leave it blank for silent media, but requesters must choose one.
+        self.fields["audio_language"].required = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        chose_other = False
+        for name in self.LANGUAGE_FIELDS:
+            value = cleaned_data.get(name)
+            chose_other |= value == self.OTHER_LANGUAGE
+            cleaned_data[name] = (
+                Language.objects.get(pk=value)
+                if value and value != self.OTHER_LANGUAGE
+                else None
+            )
+        if chose_other and not cleaned_data.get("language_notes"):
+            self.add_error("language_notes", "Name the other language.")
+        return cleaned_data
+
     class Meta:
         model = ResourceIntakeRequest
-        exclude = []
+        exclude = ["owner", "generated_resource"]
         widgets = {
             "date_needed": forms.DateInput(attrs={"type": "date"}),
         }

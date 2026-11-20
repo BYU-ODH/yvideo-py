@@ -41,6 +41,18 @@ uv run manage.py seed_demo_data
 The deterministic demo dataset includes a local admin with netid `devadmin` and password `devadmin`.
 The seed command copies the checked-in sample mp4 files from `demo_media/` into `MEDIA_ROOT`.
 
+To also seed three full-length public-domain films (*His Girl Friday*, *Charade*, and
+*A Star Is Born*) in a "Classic Films" playlist for FILM 330, download them once (~2 GB from
+archive.org) and re-seed:
+```bash
+uv run manage.py fetch_demo_films
+uv run manage.py seed_demo_data
+```
+
+The films are cached in the gitignored `demo_media/films/`, and seeding symlinks them into
+`MEDIA_ROOT` instead of copying them. `seed_demo_data` never downloads; it seeds whichever films
+are in the cache and skips the rest. Tests don't seed the films.
+
 If you want to wipe local state and rebuild from the current models, use:
 ```bash
 bash scripts/dangerously_reset_local_state.sh --bootstrap
@@ -56,8 +68,8 @@ bash scripts/new_worktree.sh <branch> [path] [--base=main] [--no-db]
 ```
 
 This creates the worktree (default: a sibling directory named after the branch), symlinks
-`node_modules`, `.env`, `yvideo/secret_settings.py`, and other untracked local config from
-the main worktree, runs `uv sync --dev`, and builds a fresh database with `migrate` and
+`node_modules`, `.env`, `yvideo/secret_settings.py`, the demo film cache, and other untracked
+local config from the main worktree, runs `uv sync --dev`, and builds a fresh database with `migrate` and
 `seed_demo_data`.
 
 If you want a one-click local app login for that admin, enable `DEV_QUICK_LOGIN_ENABLED = True`
@@ -69,6 +81,17 @@ usable from `localhost` or `127.0.0.1`.
 
 See [DEPLOY.md](DEPLOY.md) for production deployment with Podman Quadlets and Apache.
 
+### International Cinema
+
+The `ic` app runs International Cinema's showings: IC editors manage programs and
+projection masters under `/ic/manage/`, and a booth computer runs Y-video as a read-only
+mirror that plays from its own disk. See [DEPLOY_IC.md](DEPLOY_IC.md) for setting up
+production and the booth.
+
+To try it locally after `seed_demo_data`, run `uv run manage.py seed_ic_demo`, sign in as
+`devadmin`, and open `/ic/manage/` (the preview player is at `/ic/`). The media worker runs
+with `uv run manage.py process_media_jobs` (it needs `ffmpeg` and `ffprobe` on `PATH`).
+
 ### Running the Development Server
 
 Start the Django development server:
@@ -78,29 +101,11 @@ uv run manage.py runserver
 
 The application will be available at http://localhost:8000
 
-### Legacy Migration Snapshot Setup
+### Legacy Migration
 
-If you want to use the legacy migration workflow, the Django app reads from a local
-SQLite snapshot instead of connecting directly to the legacy PostgreSQL database.
-
-1. Copy `scripts/dump_legacy_to_sqlite_settings_template.py` to `scripts/dump_legacy_to_sqlite_settings.py`
-2. Fill in the legacy PostgreSQL credentials in `scripts/dump_legacy_to_sqlite_settings.py`
-3. Test the script:
-
-```bash
-uv run scripts/dump_legacy_to_sqlite.py
-```
-
-4. Enable legacy migration in `yvideo/secret_settings.py`:
-
-```python
-LEGACY_MIGRATION_ENABLED = True
-```
-
-By default, the snapshot is written to
-`var/legacy_migration/legacy_dump.sqlite3`. Every preflight run dumps a fresh
-snapshot itself before reading it. See
-[LEGACY_MIGRATION.md](LEGACY_MIGRATION.md) for details.
+Legacy Y-Video data is moved in one bulk import with the `import_legacy_data`
+and `import_legacy_media` management commands, run on the production host with
+the app stopped. See [LEGACY_MIGRATION.md](LEGACY_MIGRATION.md).
 
 ### Development Tools
 

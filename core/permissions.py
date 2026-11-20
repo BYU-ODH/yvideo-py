@@ -19,7 +19,6 @@ from django.shortcuts import get_object_or_404
 from .models import AnnotationSet
 from .models import Content
 from .models import Playlist
-from .models import PrivilegeLevel
 from .models import Subtitle
 from .models import Track
 
@@ -104,6 +103,19 @@ def track_write_required(view_func):
     return _wrapped
 
 
+def lab_assistant_required(view_func):
+    """For HLC staff tasks, such as granting resource access once proof is shown."""
+
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not (request.user.is_admin or request.user.is_lab_assistant):
+            return forbidden("Only lab assistants can do that.")
+        return view_func(request, *args, **kwargs)
+
+    _wrapped.permission_check = "lab_assistant"
+    return _wrapped
+
+
 def checks_permission_inline(reason):
     """Mark a view whose object cannot be resolved by a decorator.
 
@@ -118,24 +130,6 @@ def checks_permission_inline(reason):
         return view_func
 
     return decorator
-
-
-def can_request_legacy_migration(user):
-    """Whether this user may reach the legacy migration pages at all.
-
-    Lives here rather than beside the views so the templates that offer the link and
-    the endpoints that enforce it cannot drift into offering a 403 (#379).
-    """
-    return bool(
-        user.is_authenticated
-        and (
-            user.privilege_level == PrivilegeLevel.INSTRUCTOR
-            or user.privilege_level_override == PrivilegeLevel.INSTRUCTOR
-            or user.is_staff
-            or user.is_superuser
-            or user.is_lab_assistant
-        )
-    )
 
 
 def instructor_required(view_func):

@@ -1,0 +1,13 @@
+{% load static %}
+
+<div class="editable-thumbnail">
+    {% include "core/partials/thumbnail.html" %}
+
+    <button type="button"
+            class="edit-thumbnail-button"
+            data-thumbnail-editor-url="{{ editor_url }}"
+            aria-label="Edit thumbnail"
+            title="Edit thumbnail">
+        <img src="{% static 'img/pencil.svg' %}" alt="">
+    </button>
+</div>

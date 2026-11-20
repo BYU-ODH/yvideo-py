@@ -436,13 +436,14 @@ class AnnotationSetCreateForContentTests(TestCase):
             resource=self.resource,
             owner=self.owner,
         )
+        # the last track stays empty, so copies and imports must keep empty tracks
         self.tracks = [
             TrackFactory(
                 annotation_set=self.original_set,
                 name=f"Track {i + 1}",
                 stack_position=i,
             )
-            for i in range(5)
+            for i in range(6)
         ]
 
         # Track 0 holds an example of every annotation subclass so per-track
@@ -508,6 +509,13 @@ class AnnotationSetCreateForContentTests(TestCase):
                 width=100.0,
                 height=80.0,
             )
+        ClipFactory(
+            track=full_coverage_track,
+            name="Clip 1",
+            start_time=21.0,
+            end_time=25.0,
+            description="opening scene",
+        )
 
         # Tracks 1-4 collectively cover every annotation type at least once so
         # distributed-across-tracks copy/serialization paths are also exercised.
@@ -703,6 +711,88 @@ class AnnotationSetCreateForContentTests(TestCase):
             original_json, new_set.to_player_json()
         )
 
+    def test_copy_without_name_is_named_after_source_and_copier(self):
+        self.owner.first_name, self.owner.last_name = "Ada", "Lovelace"
+        self.owner.save()
+
+        names = [
+            AnnotationSet.create_for_content(
+                content=self.content,
+                user=self.owner,
+                annotation_set_id_to_copy=self.original_set.pk,
+            ).name
+            for _ in range(2)
+        ]
+
+        self.assertEqual(
+            names,
+            [
+                "Original Set (copied by Ada Lovelace)",
+                "Original Set (copied by Ada Lovelace) (2)",
+            ],
+        )
+
+    def test_import_skips_malformed_annotations_and_keeps_the_rest(self):
+        annotation_set_json = json.dumps(
+            {
+                "tracks": [{"name": "Track 1", "stack_position": 0}],
+                "annotations": [
+                    {"class_type": "MuteAnnotation", "track_name": "Track 1"},
+                    {"class_type": "NoSuchAnnotation", "track_name": "Track 1"},
+                    {"track_name": "Track 1"},
+                    {"class_type": "MuteAnnotation", "track_name": "Missing"},
+                ],
+            }
+        )
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            annotation_set_json=annotation_set_json,
+        )
+
+        self.assertIsNotNone(new_set)
+        self.assertEqual(len(new_set.get_active_annotations_from_tracks()), 1)
+
+    def test_import_of_repeated_track_names_keeps_every_track(self):
+        annotation_set_json = json.dumps(
+            {
+                "tracks": [
+                    {"name": "Track 1", "stack_position": 0},
+                    {"name": "Track 1", "stack_position": 1},
+                ],
+                "annotations": [],
+            }
+        )
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            annotation_set_json=annotation_set_json,
+        )
+
+        self.assertEqual(
+            [track.name for track in new_set.get_tracks()], ["Track 1", "Track 2"]
+        )
+
+    def test_import_keeps_annotations_on_a_blank_named_track(self):
+        annotation_set_json = json.dumps(
+            {
+                "tracks": [{"name": "  ", "stack_position": 0}],
+                "annotations": [{"class_type": "MuteAnnotation", "track_name": "  "}],
+            }
+        )
+
+        new_set = AnnotationSet.create_for_content(
+            content=self.content,
+            user=self.owner,
+            annotation_set_json=annotation_set_json,
+        )
+
+        [track] = new_set.get_tracks()
+        self.assertEqual(track.name, "Track 1")
+        self.assertEqual(len(track.get_active_annotations()), 1)
+
 
 class ContentClipsOnlyViewTests(TestCase):
     """Tests for the clips_only field in the get_player_data and update_content views."""
@@ -874,8 +964,7 @@ class ContentHasClipsWarningTests(TestCase):
         self.user = UserFactory(instructor=True)
         # Rendering the settings form is a GET request, which
         # mozilla_django_oidc's SessionRefresh middleware intercepts unless the
-        # session's auth backend is explicitly non-OIDC (see test_legacy_migration.py
-        # for the same pattern).
+        # session's auth backend is explicitly non-OIDC.
         self.client.force_login(
             self.user, backend="django.contrib.auth.backends.ModelBackend"
         )
@@ -1102,3 +1191,52 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
         self.assertEqual(response.status_code, 200)
         content = Content.objects.get(pk=self.content.pk)
         self.assertIsNone(content.default_subtitle_track_id)
+
+
+class UpdateSubtitleCuesSentIndexTests(TestCase):
+    """update-cues sorts the cues it is sent; each rendered cue names its position in the request
+    so the editor can keep focus on the cue the user was in."""
+
+    def setUp(self):
+        import time
+
+        self.owner = UserFactory(instructor=True)
+        self.subtitle = SubtitleFactory(resource=ResourceFactory(), owner=self.owner)
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["oidc_id_token_expiration"] = time.time() + 3600
+        session.save()
+
+    def _cue(self, payload, start, end):
+        return {"type": "CUE", "payload": payload, "start_time": start, "end_time": end}
+
+    def test_rendered_cues_carry_their_index_in_the_request(self):
+        response = self.client.post(
+            reverse("update_subtitle_content", args=[self.subtitle.pk]),
+            data=json.dumps(
+                {
+                    "cues": [
+                        self._cue("later", "00:00:05.000", "00:00:06.000"),
+                        self._cue("earlier", "00:00:01.000", "00:00:02.000"),
+                        self._cue("same start", "00:00:01.000", "00:00:03.000"),
+                    ],
+                    "seconds_nudge": 0,
+                    "nudge_excluded_cues": [],
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content[:200])
+        html = response.content.decode()
+        sent_indexes = re.findall(r'data-sent-index="(\d+)"', html)
+        # Sorted by start time, stably: "earlier" (1), "same start" (2), then "later" (0).
+        self.assertEqual(sent_indexes, ["1", "2", "0"])
+
+    def test_editable_subtitles_have_no_sent_index(self):
+        response = self.client.get(
+            reverse("get_editable_subtitles", args=[self.subtitle.pk])
+        )
+
+        self.assertEqual(response.status_code, 200, response.content[:200])
+        self.assertNotIn("data-sent-index", response.content.decode())

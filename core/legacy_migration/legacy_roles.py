@@ -24,8 +24,7 @@ LEGACY_COLLECTION_ROLE_TO_PLAYLIST_ROLE = {
 def map_legacy_collection_role(legacy_value):
     """Map a legacy `collection_access.account_role` to a PlaylistRole, or None.
 
-    None is load-bearing: preflight files an unknown_collection_role warning for it and
-    the import skips the grant entirely.
+    The bulk import refuses to guess a role for None and stops with an error.
     """
     try:
         return LEGACY_COLLECTION_ROLE_TO_PLAYLIST_ROLE.get(

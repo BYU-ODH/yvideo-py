@@ -13,6 +13,11 @@
         {% include "core/partials/spoof_form.html" %}
     </div>
     <div class="navbar-actions">
+        <button class="help-toggle"
+                command="show-modal"
+                commandfor="help-and-feedback-dialog"
+                aria-label="Help and feedback"
+                title="Help and feedback">?</button>
         <button class="sidebar-toggle" aria-label="Toggle sidebar"></button>
     </div>
     <aside class="sidebar">
@@ -21,17 +26,28 @@
         {% if user.is_admin %}
             <a href="{% url 'admin:index' %}">Admin Dashboard</a>
         {% endif %}
-        {% if can_request_legacy_migration %}
-            <a href="{% url 'legacy_migration_requests' %}">Legacy Migration Requests</a>
-        {% endif %}
         <h2>Playlists</h2>
         <a href="{% url 'playlists' %}">Playlists</a>
-        {% if user.is_instructor %}
-            <h2>Resources</h2>
-            <a href="{% url 'request_resource' %}">Request New Resource</a>
+        {% if user.is_ic_editor %}
+            <h2>International Cinema</h2>
+            <a href="{% url 'ic_manage_dashboard' %}">International Cinema</a>
         {% endif %}
+        {% with is_lab_assistant=user.is_lab_assistant %}
+            {% if user.is_instructor or is_lab_assistant %}
+                <h2>Resources</h2>
+                {% if user.is_instructor %}
+                    <a href="{% url 'request_resource' %}">Request New Resource</a>
+                {% endif %}
+                {% if user.is_admin or is_lab_assistant %}
+                    <a href="{% url 'resource_access_requests' %}">Resource Requests</a>
+                {% endif %}
+            {% endif %}
+        {% endwith %}
         <h2>Help</h2>
         <a href="{% url 'whats_new' %}">What's new?</a>
+        <button class="link-button"
+                command="show-modal"
+                commandfor="help-and-feedback-dialog">Help and Feedback</button>
         <a href="{% url 'about' %}">About Y-Video</a>
         <h2>Connect With Us</h2>
         <a href="https://privacy.byu.edu"

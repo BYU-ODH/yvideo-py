@@ -26,6 +26,7 @@ import pytest
 
 from core.models import Content
 from core.models import Playlist
+from ic.testing import FFMPEG_AVAILABLE
 
 pytestmark = [
     pytest.mark.e2e,
@@ -196,7 +197,7 @@ def content_with_every_annotation_type(seeded_demo_data):
 
 
 @pytest.fixture
-def awkward_data(seeded_demo_data, settings):
+def awkward_data(seeded_demo_data):
     """The states the demo seed has no reason to contain, keyed for the page sweep.
 
     Empty and missing things are their own templates - "no videos here", the editor's
@@ -207,10 +208,9 @@ def awkward_data(seeded_demo_data, settings):
 
     from core.factories import ContentFactory
     from core.factories import PlaylistFactory
-    from core.legacy_migration import LegacyMigrationRequest
+    from core.models import Language
+    from core.models import ResourceAccessRequest
     from core.models import ResourceIntakeRequest
-
-    settings.LEGACY_MIGRATION_ENABLED = True
 
     playlist = Playlist.objects.get(name="Demo Review Shelf")
     birds = Content.objects.get(title="Birds Overview")
@@ -237,15 +237,15 @@ def awkward_data(seeded_demo_data, settings):
         resource_intake_request=ResourceIntakeRequest.objects.create(
             owner=playlist.owner,
             resource_title="A11y Intake Request",
-            audio_language="English",
+            audio_language=Language.objects.get(bcp47="en"),
             acknowledged_compliance=True,
             acknowledged_fair_use_limitation=True,
         ),
-        migration_request=LegacyMigrationRequest.objects.create(
-            requested_by=playlist.owner,
-            target_owner=playlist.owner,
-            legacy_reference="Legacy Collection 1",
-            latest_job_error="Something went wrong during preflight.",
+        resource_access_request=ResourceAccessRequest.objects.create(
+            user=playlist.owner,
+            resource=birds.resource_file.resource,
+            acknowledged_compliance=True,
+            acknowledged_fair_use_limitation=True,
         ),
     )
 
@@ -279,11 +279,8 @@ FULL_PAGE_VIEWS = {
         f"/video-editor/{d.content_without_annotation_set.pk}/"
     ),
     "invalid_login": lambda d, everything: "/invalid-login",
-    "request_resource": lambda d, everything: "/resource-intake-request/",
-    "legacy_migration_requests": lambda d, everything: "/legacy-migrations/",
-    "legacy_migration_request_detail": lambda d, everything: (
-        f"/legacy-migrations/{d.migration_request.pk}/"
-    ),
+    "request_resource": lambda d, everything: "/resource-intake-request/?q=Grid",
+    "resource_access_requests": lambda d, everything: "/resource-access-requests/",
 }
 
 # Pages whose content is drawn by JS after load: auditing them any earlier audits an
@@ -383,7 +380,7 @@ def test_message_levels_have_no_color_contrast_violations(
 def test_the_playlists_page_states_have_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
-    """The banner, the sidebar and the add-playlist dialog, none of which start on screen.
+    """The banner, the sidebar and the dialogs, none of which start on screen.
 
     The what's-new banner ships `hidden` and is unhidden only for a viewer who has not
     dismissed it, so clearing localStorage is what makes it auditable at all.
@@ -399,6 +396,11 @@ def test_the_playlists_page_states_have_no_a11y_violations(
     page.locator(".sidebar-toggle").click()
     page.wait_for_selector(".sidebar.show")
     assert_no_violations(page, "playlists with the sidebar open")
+
+    page.locator(".sidebar [commandfor='help-and-feedback-dialog']").click()
+    page.wait_for_selector("#help-and-feedback-dialog", state="visible")
+    assert_no_violations(page, "the help-and-feedback dialog", include=["dialog[open]"])
+    page.keyboard.press("Escape")
     page.locator("#sidebar-close").click()
 
     page.locator("[commandfor='add-new-playlist-dialog'][command='show-modal']").click()
@@ -501,6 +503,17 @@ def test_the_content_delete_dialog_has_no_a11y_violations(
     assert_no_violations(page, "the delete-content dialog", include=["dialog[open]"])
 
 
+def test_the_thumbnail_editor_has_no_a11y_violations(
+    logged_in_page: Page, live_server, awkward_data
+):
+    page = logged_in_page
+    page.goto(f"{live_server.url}/content/{awkward_data.birds.id}/display-settings/")
+
+    page.get_by_role("button", name="Edit thumbnail").click()
+    page.wait_for_selector("#thumbnail-editor-form", state="visible")
+    assert_no_violations(page, "the thumbnail editor", include=["dialog[open]"])
+
+
 def test_the_clips_only_info_popover_has_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
@@ -523,33 +536,13 @@ def test_the_resource_request_form_has_no_a11y_violations_when_it_rejects_a_subm
     and a field marked invalid only by colour is exactly the kind of thing axe catches.
     """
     page = logged_in_page
-    page.goto(f"{live_server.url}/resource-intake-request/")
+    page.goto(f"{live_server.url}/resource-intake-request/?q=Grid")
 
+    page.locator("#resource-intake-details > summary").click()
     page.locator("#resource-intake-form button[type=submit]").click()
     page.wait_for_selector("#resource-intake-form .resource-intake-field-error")
 
     assert_no_violations(page, "the rejected resource request form")
-
-
-def test_the_legacy_migration_form_has_no_a11y_violations_when_it_rejects_a_submission(
-    logged_in_page: Page, live_server, awkward_data
-):
-    """Same reason as the resource request above: the error state is its own rendering."""
-    page = logged_in_page
-    page.goto(f"{live_server.url}/legacy-migrations/")
-
-    page.locator("#id_acknowledged_compliance").check()
-    page.locator("#id_acknowledged_fair_use_limitation").check()
-    # The browser's own required-field check would refuse to send this, and what is being
-    # audited is the server's rejection - the same response a request that never ran the
-    # client-side check gets back.
-    page.evaluate(
-        "() => { document.querySelector('.legacy-migrations-form').noValidate = true; }"
-    )
-    page.get_by_role("button", name="Submit request").click()
-    page.wait_for_selector(".errorlist")
-
-    assert_no_violations(page, "the rejected legacy migration form")
 
 
 # ---------------------------------------------------------------------- player states
@@ -641,6 +634,15 @@ def test_the_unplayable_video_notices_have_no_a11y_violations(
     assert_no_violations(page, "the editor's unplayable video banner")
 
 
+def _spoof_as_ada(page):
+    page.locator("#spoof-user-input").fill("Ada")
+    page.wait_for_selector("#spoof-user-select option")
+    value = page.locator("#spoof-user-select option").first.get_attribute("value")
+    page.select_option("#spoof-user-select", value)
+    page.locator("#spoof-user-submit").click()
+    page.wait_for_selector("#spoof-warning")
+
+
 def test_a_read_only_annotation_set_has_no_a11y_violations(
     logged_in_page: Page, live_server, read_only_annotation_set_content
 ):
@@ -655,12 +657,7 @@ def test_a_read_only_annotation_set_has_no_a11y_violations(
 
     # Spoofing is the only way to be a non-superuser here: an admin can edit any set, so
     # the read-only branch never renders for the account the other tests use.
-    page.locator("#spoof-user-input").fill("Ada")
-    page.wait_for_selector("#spoof-user-select option")
-    value = page.locator("#spoof-user-select option").first.get_attribute("value")
-    page.select_option("#spoof-user-select", value)
-    page.locator("#spoof-user-submit").click()
-    page.wait_for_selector("#spoof-warning")
+    _spoof_as_ada(page)
 
     page.goto(f"{live_server.url}/video-editor/{read_only_annotation_set_content.pk}/")
     page.wait_for_function(EDITOR_READY, timeout=READY_TIMEOUT_MS)
@@ -995,6 +992,35 @@ def test_find_replace_interface_has_no_a11y_violations(
     )
 
 
+def test_the_request_access_checkboxes_have_no_a11y_violations(
+    logged_in_page: Page, live_server
+):
+    """Admins can already access every resource, so the "Request access" checkboxes only
+    show for an instructor without access - here, Ada searching for Ben's resource."""
+    page = logged_in_page
+    page.goto(f"{live_server.url}/playlists/")
+    _spoof_as_ada(page)
+
+    page.goto(f"{live_server.url}/resource-intake-request/?q=Grid")
+    request_button = page.get_by_role("button", name="Request access").first
+
+    expect(request_button).to_be_disabled()
+    assert_no_violations(
+        page,
+        "search results greyed out until terms are agreed",
+        include=["#resource-access-form"],
+    )
+
+    for checkbox in page.locator("#resource-access-form input[type=checkbox]").all():
+        checkbox.check()
+    expect(request_button).to_be_enabled()
+    assert_no_violations(
+        page,
+        "search results after agreeing to terms",
+        include=["#resource-access-form"],
+    )
+
+
 # -------------------------------------------------------------------------- spoofing
 
 
@@ -1039,9 +1065,6 @@ ADMIN_PAGES = {
     "admin_add_user": lambda d: "/admin/core/user/add/",
     "admin_resource_intake_request": lambda d: (
         f"/admin/core/resourceintakerequest/{d.resource_intake_request.pk}/change/"
-    ),
-    "admin_legacy_migration_request": lambda d: (
-        f"/admin/core/legacymigrationrequest/{d.migration_request.pk}/change/"
     ),
 }
 
@@ -1130,8 +1153,6 @@ AUDITED_TEMPLATES = {
     "core/about.html",
     "core/content_info.html",
     "core/invalid_login.html",
-    "core/legacy_migration_request_detail.html",
-    "core/legacy_migration_requests.html",
     "core/player.html",
     "core/playlist_info.html",
     "core/playlists.html",
@@ -1140,8 +1161,12 @@ AUDITED_TEMPLATES = {
     "core/partials/content_settings_form.html",
     "core/partials/landing_page_playlist.html",
     "core/partials/player-wrapper.html",
+    "core/partials/editable_thumbnail.html",
+    "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
     "core/partials/resource_intake_request.html",
+    "core/partials/legal_compliance_checkboxes.html",
+    "core/resource_access_requests.html",
     "core/partials/whats_new_banner.html",
     # message-level color-contrast sweep
     "core/partials/user_message.html",
@@ -1152,6 +1177,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/add_video.html",
     "core/partials/modals/content_delete.html",
     "core/partials/modals/create_from_resource.html",
+    "core/partials/modals/help_and_feedback.html",
     "core/partials/modals/playlist_course_assignments.html",
     "core/partials/modals/playlist_delete.html",
     "core/partials/modals/playlist_member_remove.html",
@@ -1165,6 +1191,7 @@ AUDITED_TEMPLATES = {
     "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
     "core/partials/modals/tools_info.html",
+    "core/partials/modals/thumbnail_editor.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
     "core/partials/modals/user_view_modal.html",
@@ -1179,7 +1206,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/annotation_set_options/import_from_file.html",
     "core/partials/modals/annotation_set_options/use_existing_set.html",
     "core/partials/annotation_set_selector.html",
-    "core/partials/annotation_set_retirement_modal.html",
+    "core/partials/annotation_set_deletion_or_ownership_change_modal.html",
     "core/partials/blur_anchor_points.html",
     "core/partials/modals/save_failed_help.html",
     "core/partials/save_status.html",
@@ -1193,7 +1220,29 @@ AUDITED_TEMPLATES = {
     "core/partials/timeline_base.html",
     # django admin
     "admin/base_site.html",
-    "admin/core/legacymigrationrequest/change_form.html",
     "admin/core/resourceintakerequest/change_form.html",
     "admin/core/user/add_form.html",
 }
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/ic/",
+        "/ic/program/{program}/",
+        "/ic/manage/",
+        "/ic/manage/programs/new/",
+        "/ic/manage/programs/{program}/",
+        "/ic/manage/resources/",
+        "/ic/manage/resources/{resource}/projection-upload/",
+    ],
+)
+@pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="needs ffmpeg to make playable videos")
+def test_ic_pages_are_accessible(logged_in_page, live_server, ic_program, path):
+    """International Cinema's templates live in ic/templates, outside TEMPLATE_ROOTS."""
+    url = path.format(
+        program=ic_program["program"].pk, resource=ic_program["feature"].resource_id
+    )
+    logged_in_page.goto(f"{live_server.url}{url}")
+    violations = _run_axe(logged_in_page)["violations"]
+    assert not violations, _format_violations(violations, url)

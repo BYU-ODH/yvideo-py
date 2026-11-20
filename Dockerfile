@@ -6,12 +6,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
-# LEGACY MIGRATION ONLY — delete this block when legacy_migration is
-# removed. See core/legacy_migration/REMOVAL.md for the full checklist.
-# openssh-client is required for legacy_migration's ssh/scp subprocess calls
-# to the legacy media host.
+# International Cinema: ffprobe/ffmpeg check and transcode projection masters.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssh-client \
+    && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies (cached unless pyproject.toml or uv.lock change)

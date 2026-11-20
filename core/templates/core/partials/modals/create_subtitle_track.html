@@ -5,11 +5,12 @@
     <div class="row-flex">
         <form id="subtitle-track-create-form"
               action="{% url 'create_subtitle_track' content_id %}"
-              method="post">
+              method="post"
+              enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="create_mode" value="empty">
             <div class="column-flex">
-                <h4>Create an empty track</h4>
+                <h4>Create a new track</h4>
                 {{ create_form.non_field_errors }}
                 <div class="column-flex-no-gap">
                     {{ create_form.name.label_tag }}
@@ -20,6 +21,14 @@
                     {{ create_form.language.label_tag }}
                     {{ create_form.language }}
                     {{ create_form.language.errors }}
+                </div>
+                <div class="column-flex-no-gap">
+                    {{ create_form.subtitles_file.label_tag }}
+                    {{ create_form.subtitles_file }}
+                    {{ create_form.subtitles_file.errors }}
+                    <div id="{{ create_form.subtitles_file.auto_id }}_helptext">
+                        <p>{{ create_form.subtitles_file.help_text }}</p>
+                    </div>
                 </div>
             </div>
             <button id="subtitle-track-create-button"

@@ -1,0 +1,14 @@
+{% if problems %}
+    <ul class="ic-problems">
+        {% for problem in problems %}
+            <li class="ic-problem-{{ problem.severity }}">
+                {% if problem.severity == "error" %}
+                    ❌
+                {% else %}
+                    ⚠️
+                {% endif %}
+                {{ problem.message }}
+            </li>
+        {% endfor %}
+    </ul>
+{% endif %}

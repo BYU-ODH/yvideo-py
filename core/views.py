@@ -5,6 +5,7 @@ import logging
 import mimetypes
 import os
 import re
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
@@ -14,6 +15,8 @@ from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
 from django.db.models import Count
+from django.db.models import Prefetch
+from django.db.models import ProtectedError
 from django.db.models import Q
 from django.http import Http404
 from django.http import HttpResponse
@@ -27,11 +30,15 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
+import requests
+import reversion
 
 from .forms import AddUserLookupForm
+from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
 from .models import Content
@@ -40,9 +47,13 @@ from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
 from .models import Resource
+from .models import ResourceAccess
+from .models import ResourceAccessRequest
 from .models import ResourceFile
 from .models import ResourceFileKey
+from .models import ResourceIntakeRequest
 from .models import Subtitle
+from .models import Thumbnail
 from .models import User
 from .models import UserCourses
 from .models import active_yearterms
@@ -50,6 +61,7 @@ from .permissions import content_read_required
 from .permissions import content_write_required
 from .permissions import forbidden
 from .permissions import instructor_required
+from .permissions import lab_assistant_required
 from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
@@ -58,6 +70,13 @@ from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
 
 logger = logging.getLogger(__name__)
+
+THUMBNAIL_HEX_COLOR_RE = re.compile(r"#[0-9a-fA-F]{6}")
+THUMBNAIL_MAX_IMAGE_BYTES = 2 * 1024 * 1024
+THUMBNAIL_MAX_TEXT_LENGTH = 100
+# Every JPEG file starts with these bytes. The editor always uploads JPEGs, so
+# anything else is not from our client.
+JPEG_FILE_SIGNATURE = b"\xff\xd8\xff"
 
 
 def spoof_permission_required(view_func):
@@ -90,8 +109,14 @@ def prepare_playlist_for_display(playlist):
         if contents_count > 1 or contents_count == 0
         else f"{contents_count} published item",
         "published_contents": published_contents,
+        "thumbnail": Thumbnail.for_item(playlist),
     }
     return parsed_playlist
+
+
+def thumbnail_editor_response(url_name, item):
+    """Tells the client which thumbnail editor to open for a newly created item."""
+    return JsonResponse({"thumbnail_editor_url": reverse(url_name, args=[item.pk])})
 
 
 def display_yearterm(yearterm):
@@ -118,9 +143,6 @@ def breadcrumb_trail(*crumbs):
 
 
 def content_parent_crumbs(content):
-    """Content.playlist is nullable, so the parent crumb is not always available."""
-    if content.playlist_id is None:
-        return ()
     return (
         (content.playlist.name, reverse("playlist_info", args=[content.playlist_id])),
     )
@@ -471,9 +493,9 @@ def create_playlist(request):
     data = json.loads(request.body)
     if data and "name" in data:
         try:
-            Playlist.objects.create(name=data["name"], owner=request.user)
+            playlist = Playlist.objects.create(name=data["name"], owner=request.user)
             messages.success(request, "Playlist created.")
-            return HttpResponse()
+            return thumbnail_editor_response("playlist_thumbnail_editor", playlist)
         except Exception as e:
             logger.error(
                 f"An error occured when the user: {request.user} attempted to create a playlist. Exception: {e}"
@@ -556,15 +578,17 @@ def playlist_info(request, playlist):
 def render_playlist_info(request, playlist):
     try:
         can_edit = playlist.can_be_edited_by(request.user)
-        contents = Content.objects.filter(playlist=playlist)
+        contents = Content.objects.filter(playlist=playlist).select_related("resource")
         if not can_edit:
             contents = contents.filter(published=True)
+        contents = [(content, Thumbnail.for_item(content)) for content in contents]
         year_and_semester = get_semester_and_year_options()
         assigned_courses = get_assigned_courses(playlist, year_and_semester["yearterm"])
 
         context = {
             "playlist": playlist,
             "contents": contents,
+            "thumbnail": Thumbnail.for_item(playlist) if can_edit else None,
             "can_edit": can_edit,
             "can_administer": playlist.can_be_administered_by(request.user),
             "form": PlaylistSettingsForm(instance=playlist),
@@ -589,6 +613,7 @@ def display_playlist_settings(request, playlist):
         context = {
             "playlist": playlist,
             "form": form,
+            "thumbnail": Thumbnail.for_item(playlist),
             "semester": year_and_semester["semester"],
             "year_options": year_and_semester["year_options"],
         }
@@ -778,6 +803,9 @@ def update_playlist_settings(request, playlist):
                 playlist.published = False
             else:
                 playlist.published = form.cleaned_data["published"]
+            # Only IC editors see (and so submit) the field.
+            if request.user.is_ic_editor:
+                playlist.is_ic = form.cleaned_data["is_ic"]
             playlist.save()
             messages.success(request, "Playlist settings saved.")
             return render_playlist_info(request, playlist)
@@ -788,6 +816,17 @@ def update_playlist_settings(request, playlist):
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
+
+
+def scheduled_in_ic_programs(subject):
+    """409 explaining why: ICProgramItem protects its Content, so deleting one that an
+    International Cinema program shows would otherwise surface as a generic failure."""
+    return HttpResponse(
+        f"{subject} is scheduled in an International Cinema program. "
+        "Remove it from the program first.",
+        status=409,
+        content_type="text/plain",
+    )
 
 
 GRANTABLE_PLAYLIST_ROLES = (
@@ -1115,25 +1154,6 @@ def remove_playlist_member(request, playlist, user_id):
     return render_playlist_members_roster(request, playlist)
 
 
-def accessible_resources(user):
-    """The resource library as `user` may see it, matching User.can_access_resource."""
-    if user.is_superuser or user.is_lab_assistant:
-        return Resource.objects.all()
-    granted = Q(resourceaccess__user=user)
-    # A collaborator inherits every grant held by the owner of a playlist
-    # they can write to.
-    inherited = Q(
-        resourceaccess__user__playlists_owned__playlistuseraccess__user=user,
-        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
-    )
-    visible = granted | inherited
-    if user.is_instructor:
-        visible |= Q(checked_out_from_hbll=True) | Q(
-            checked_out_from_other_byu_library=True
-        )
-    return Resource.objects.filter(visible).distinct()
-
-
 def get_playlist_contents(playlist):
     contents = Content.objects.filter(playlist=playlist)
     published = contents.filter(published=True)
@@ -1148,6 +1168,8 @@ def delete_playlist(request, playlist):
         playlist.delete()
         messages.success(request, "Playlist deleted.")
         return HttpResponse()
+    except ProtectedError:
+        return scheduled_in_ic_programs("This playlist")
     except Exception as e:
         logger.error(
             f"An error occured while deleting the playlist with id: {playlist.pk}. Exception: {e}"
@@ -1169,13 +1191,17 @@ def create_content(request, playlist):
         resource_file = ResourceFile.objects.get(pk=parsed_data["resource_file_id"])
         if not request.user.can_access_resource(resource_file.resource):
             return forbidden("You do not have access to that resource.")
-        Content.objects.create(
+        if resource_file.is_projection_file:
+            return forbidden(
+                "Projection masters are for the International Cinema booth only."
+            )
+        content = Content.objects.create(
             playlist=playlist,
             title=parsed_data["title"],
             resource_file=resource_file,
         )
         messages.success(request, "Video added to playlist.")
-        return HttpResponse()
+        return thumbnail_editor_response("content_thumbnail_editor", content)
     except ResourceFile.DoesNotExist:
         logger.error("Failed to create new content due to missing ResourceFile")
         return HttpResponseBadRequest()
@@ -1209,14 +1235,14 @@ def create_content_from_youtube_url(request, playlist):
             )
 
         resource = get_or_create_youtube_resource(video_id, request.user.username)
-        Content.objects.create(
+        content = Content.objects.create(
             playlist=playlist,
             title=parsed_data["title"],
             url=parsed_data["url"],
             resource=resource,
         )
         messages.success(request, "YouTube video added to playlist.")
-        return HttpResponse()
+        return thumbnail_editor_response("content_thumbnail_editor", content)
     except json.JSONDecodeError:
         logger.error(
             "Failed to create new content from URL because of a malformed body"
@@ -1251,7 +1277,7 @@ def render_create_from_resource_resources(request, playlist):
     return render(
         request,
         "core/partials/resource_list.html",
-        {"resources": accessible_resources(request.user)},
+        {"resources": request.user.accessible_resources()},
     )
 
 
@@ -1265,7 +1291,7 @@ def render_create_from_resource_form(request, playlist, resource_id):
 
         context = {
             "playlist_id": playlist.pk,
-            "options": resource.resource_files.all(),
+            "options": resource.resource_files.filter(is_projection_file=False),
         }
         return render(request, "core/partials/create_from_resource_form.html", context)
     except Exception as e:
@@ -1286,6 +1312,8 @@ def delete_content(request, content):
             )
         else:
             return HttpResponse("", status=200)
+    except ProtectedError:
+        return scheduled_in_ic_programs("This video")
     except Exception as e:
         logger.error(
             f"An error occured while deleting content with id: {content.pk}. Exception: {e}"
@@ -1302,6 +1330,7 @@ def display_content_info(request, content):
         context = {
             "content": content,
             "content_id": content.pk,
+            "thumbnail": Thumbnail.for_item(content),
             "can_edit": content.can_be_edited_by(request.user),
             "resource_file_key_id": resource_file_key.pk if resource_file_key else None,
             "content_source_url": content_source_url,
@@ -1427,9 +1456,121 @@ def spoof_user_search(request):
     return HttpResponse(html)
 
 
+SEARCH_RESULT_LIMIT = 25
+
+
+def _barcoded_files(lookup):
+    return Prefetch(
+        lookup,
+        queryset=ResourceFile.objects.filter(is_projection_file=False, barcode__gt=""),
+        to_attr="barcoded_files",
+    )
+
+
+def _search_resources(user, query):
+    """Library resources matching a title or barcode, flagged with the user's status."""
+    resources = list(
+        Resource.objects.exclude(media_type=Resource.MediaType.WEB)
+        .filter(
+            Q(name__icontains=query)
+            | Q(name_disambiguator__icontains=query)
+            | Q(resource_files__barcode=query)
+        )
+        .distinct()
+        .order_by("name", "name_disambiguator")
+        .prefetch_related(_barcoded_files("resource_files"))[:SEARCH_RESULT_LIMIT]
+    )
+    accessible_ids = set(
+        user.accessible_resources()
+        .filter(pk__in=[r.pk for r in resources])
+        .values_list("pk", flat=True)
+    )
+    pending_ids = set(
+        ResourceAccessRequest.objects.filter(
+            user=user, resource__in=resources
+        ).values_list("resource_id", flat=True)
+    )
+    for resource in resources:
+        resource.user_has_access = resource.pk in accessible_ids
+        resource.access_requested = resource.pk in pending_ids
+    return resources
+
+
+@require_POST
+@instructor_required
+def request_resource_access(request, resource_id):
+    resource = get_object_or_404(
+        Resource.objects.exclude(media_type=Resource.MediaType.WEB), pk=resource_id
+    )
+    compliance = LegalComplianceForm(request.POST)
+    if not compliance.is_valid():
+        messages.error(
+            request,
+            "Please agree to the legal compliance terms before requesting access.",
+        )
+    elif not request.user.can_access_resource(resource):
+        # The revision keeps a record of who agreed to the terms after approval
+        # deletes the request.
+        with reversion.create_revision():
+            ResourceAccessRequest.objects.get_or_create(
+                user=request.user, resource=resource, defaults=compliance.cleaned_data
+            )
+            reversion.set_user(_spoof_actor(request))
+        messages.success(
+            request,
+            f"Your request for access to {resource} has been submitted. Please bring "
+            "your physical copy of this resource to the Humanities Learning Commons "
+            "(HLC) as proof of ownership.",
+        )
+    query = request.POST.get("q") or resource.name
+    return redirect(f"{reverse('request_resource')}?{urlencode({'q': query})}")
+
+
+@require_GET
+@lab_assistant_required
+def resource_access_requests(request):
+    pending = (
+        ResourceAccessRequest.objects.select_related("user", "resource")
+        .prefetch_related(_barcoded_files("resource__resource_files"))
+        .order_by("created_at")
+    )
+    intake_requests = (
+        ResourceIntakeRequest.objects.filter(generated_resource__isnull=True)
+        .select_related("owner")
+        .order_by("date_needed", "created_at")
+    )
+    return render(
+        request,
+        "core/resource_access_requests.html",
+        {"access_requests": pending, "intake_requests": intake_requests},
+    )
+
+
+@require_POST
+@lab_assistant_required
+def approve_resource_access_request(request, access_request_id):
+    access_request = get_object_or_404(ResourceAccessRequest, pk=access_request_id)
+    with reversion.create_revision():
+        ResourceAccess.objects.update_or_create(
+            user_id=access_request.user_id,
+            resource_id=access_request.resource_id,
+            defaults={"last_verified": timezone.now()},
+        )
+        access_request.delete()
+        reversion.set_user(_spoof_actor(request))
+        reversion.set_comment("Approved resource access request")
+    messages.success(
+        request,
+        f"Granted {access_request.user.get_full_name()} access to "
+        f"{access_request.resource}.",
+    )
+    return redirect("resource_access_requests")
+
+
 @require_http_methods(["GET", "POST"])
 @instructor_required
 def request_resource(request):
+    query = request.GET.get("q", "").strip()
     title_collision_error = False
     if request.method == "POST":
         form = ResourceIntakeRequestForm(request.POST)
@@ -1456,10 +1597,160 @@ def request_resource(request):
                     f"{widget.attrs.get('class', '')} invalid-input".strip()
                 )
     else:
-        form = ResourceIntakeRequestForm()
+        form = ResourceIntakeRequestForm(initial={"resource_title": query})
 
+    results = _search_resources(request.user, query) if query else []
     return render(
         request,
         "core/partials/resource_intake_request.html",
-        {"form": form, "title_collision_error": title_collision_error},
+        {
+            "form": form,
+            "title_collision_error": title_collision_error,
+            "query": query,
+            "results": results,
+            "any_requestable": any(
+                not r.user_has_access and not r.access_requested for r in results
+            ),
+            # Its ids must differ from the intake form's copy of the same checkboxes.
+            "access_form": LegalComplianceForm(auto_id="access-%s"),
+        },
     )
+
+
+def _thumbnail_youtube_video_id(request, item):
+    if not isinstance(item, Content):
+        return None
+    return youtube_video_id_for_content(item, request.user.get_content_source_url(item))
+
+
+def _youtube_thumbnail_url(video_id):
+    return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+
+
+def _render_thumbnail_editor(request, item, save_url):
+    stream_url = None
+    if isinstance(item, Content) and item.resource_file_id:
+        key = request.user.get_resource_filekey(item)
+        stream_url = reverse("stream_file", args=[key.pk]) if key else None
+    video_id = _thumbnail_youtube_video_id(request, item)
+    context = {
+        "dialog_id": "thumbnail-editor-dialog",
+        "thumbnail": Thumbnail.for_item(item),
+        "save_url": save_url,
+        "stream_url": stream_url,
+        "youtube_image_url": _youtube_thumbnail_url(video_id) if video_id else None,
+    }
+    return render(request, "core/partials/modals/thumbnail_editor.html", context)
+
+
+def _save_thumbnail(request, item):
+    field = Thumbnail.field_for(item)
+    thumbnail = getattr(item, "thumbnail", None) or Thumbnail(**{field: item})
+
+    background_color = request.POST.get("background_color", "")
+    text_color = request.POST.get("text_color", "")
+    text = request.POST.get("text", "").strip()
+    try:
+        text_size = float(request.POST.get("text_size", ""))
+    except ValueError:
+        text_size = -1
+    if not 0.75 <= text_size <= 4:
+        return HttpResponseBadRequest("Invalid text size.")
+    if not (
+        THUMBNAIL_HEX_COLOR_RE.fullmatch(background_color)
+        and THUMBNAIL_HEX_COLOR_RE.fullmatch(text_color)
+    ):
+        return HttpResponseBadRequest("Invalid color.")
+    if len(text) > THUMBNAIL_MAX_TEXT_LENGTH:
+        return HttpResponseBadRequest(
+            f"Text must be {THUMBNAIL_MAX_TEXT_LENGTH} characters or fewer."
+        )
+
+    image_source = request.POST.get("image_source", "keep")
+    if image_source == "upload":
+        upload = request.FILES.get("image")
+        if upload is None or upload.size > THUMBNAIL_MAX_IMAGE_BYTES:
+            return HttpResponseBadRequest("Image is missing or too large.")
+        image = upload.read()
+        if not image.startswith(JPEG_FILE_SIGNATURE):
+            return HttpResponseBadRequest("Image must be a JPEG.")
+        thumbnail.image = image
+    elif image_source == "youtube":
+        video_id = _thumbnail_youtube_video_id(request, item)
+        if not video_id:
+            return HttpResponseBadRequest("This content has no YouTube video.")
+        try:
+            response = requests.get(_youtube_thumbnail_url(video_id), timeout=10)
+            response.raise_for_status()
+            thumbnail.image = response.content
+        except requests.RequestException as e:
+            logger.warning(f"Could not fetch YouTube thumbnail for {video_id}: {e}")
+            return HttpResponse(
+                "Could not get the YouTube thumbnail. Try again later.", status=502
+            )
+    elif image_source == "none":
+        thumbnail.image = None
+    elif image_source != "keep":
+        logger.warning(f"Invalid thumbnail image source: {image_source!r}")
+        return HttpResponseBadRequest()
+
+    thumbnail.background_color = background_color
+    thumbnail.text = {
+        "color": text_color,
+        "size": text_size,
+    }
+    # Unchanged default text is left unsaved so the tile keeps following renames.
+    if text != thumbnail.default_text():
+        thumbnail.text["text"] = text
+    thumbnail.save()
+    return HttpResponse(status=204)
+
+
+def _thumbnail_image(item):
+    thumbnail = getattr(item, "thumbnail", None)
+    if thumbnail is None or thumbnail.image is None:
+        return HttpResponse(status=404)
+    response = HttpResponse(bytes(thumbnail.image), content_type="image/jpeg")
+    # Image URLs carry a version, so a stored copy never goes stale.
+    response["Cache-Control"] = "private, max-age=31536000, immutable"
+    return response
+
+
+@require_GET
+@playlist_write_required
+def playlist_thumbnail_editor(request, playlist):
+    return _render_thumbnail_editor(
+        request, playlist, reverse("save_playlist_thumbnail", args=[playlist.pk])
+    )
+
+
+@require_POST
+@playlist_write_required
+def save_playlist_thumbnail(request, playlist):
+    return _save_thumbnail(request, playlist)
+
+
+@require_GET
+@content_write_required
+def content_thumbnail_editor(request, content):
+    return _render_thumbnail_editor(
+        request, content, reverse("save_content_thumbnail", args=[content.pk])
+    )
+
+
+@require_POST
+@content_write_required
+def save_content_thumbnail(request, content):
+    return _save_thumbnail(request, content)
+
+
+@require_GET
+@playlist_read_required
+def playlist_thumbnail_image(request, playlist):
+    return _thumbnail_image(playlist)
+
+
+@require_GET
+@content_read_required
+def content_thumbnail_image(request, content):
+    return _thumbnail_image(content)
