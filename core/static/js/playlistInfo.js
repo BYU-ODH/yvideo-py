@@ -54,45 +54,44 @@ function setupPlaylistSettings() {
   });
 
   playlistContent.addEventListener("click", async (e) => {
-    e.preventDefault();
     const checkboxButton = e.target.closest(".playlist-setting-checkbox-button");
-    if (!checkboxButton) return;
+    if (checkboxButton) {
+      const settingCheckbox = checkboxButton.querySelector("input[type='checkbox']");
+      if (!settingCheckbox) return;
+      settingCheckbox.checked = !settingCheckbox.checked;
 
-    const settingCheckbox = checkboxButton.querySelector("input[type='checkbox']");
-    if (!settingCheckbox) return;
-    settingCheckbox.checked = !settingCheckbox.checked;
+      const playlistSettings = document.getElementById("playlist-settings");
+      if (!playlistSettings) return;
 
-    const playlistSettings = document.getElementById("playlist-settings");
-    if (!playlistSettings) return;
+      const settingsData = new FormData(playlistSettings);
 
-    const settingsData = new FormData(playlistSettings);
-
-    // We don't want the user to make another change while request is in flight
-    const inputs = playlistSettings.querySelectorAll(".playlist-setting-input");
-    for (let input of inputs) {
-      input.disabled = true;
-    }
-
-    const result = await fetch(playlistSettings.action, {
-      method: playlistSettings.method,
-      body: settingsData
-    });
-    if (!result.ok) {
-      displayUserMessage("error", "The playlist settings could not be updated. Please refresh the page.");
-      return;
-    }
-
-    try {
-      const updatedForm = await result.text();
-      playlistSettings.outerHTML = updatedForm;
-      displayUserMessage("success", "The playlist settings were updated successfully");
-    }
-    catch {
-      displayUserMessage("warning", "The playlist settings were updated successfully, but the change could not be displayed. Please refresh the page.");
-    }
-    for (let input of inputs) {
-      if (input.isConnected) {
+      // We don't want the user to make another change while request is in flight
+      const inputs = playlistSettings.querySelectorAll(".playlist-setting-input");
+      for (let input of inputs) {
         input.disabled = true;
+      }
+
+      const result = await fetch(playlistSettings.action, {
+        method: playlistSettings.method,
+        body: settingsData
+      });
+      if (!result.ok) {
+        displayUserMessage("error", "The playlist settings could not be updated. Please refresh the page.");
+        return;
+      }
+
+      try {
+        const updatedForm = await result.text();
+        playlistSettings.outerHTML = updatedForm;
+        displayUserMessage("success", "The playlist settings were updated successfully");
+      }
+      catch {
+        displayUserMessage("warning", "The playlist settings were updated successfully, but the change could not be displayed. Please refresh the page.");
+      }
+      for (let input of inputs) {
+        if (input.isConnected) {
+          input.disabled = true;
+        }
       }
     }
   });
