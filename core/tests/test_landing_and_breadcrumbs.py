@@ -162,10 +162,6 @@ class WhatsNewBannerTests(TestCase):
     MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
 )
 @override_settings(DEBUG=True)
-@modify_settings(
-    MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
-)
-@override_settings(DEBUG=True)
 class BreadcrumbTests(TestCase):
     def setUp(self):
         self.instructor = UserFactory(instructor=True, netid="instr3")

@@ -18,4 +18,6 @@ these hooks into the rest of the app. Delete them together:
 8. `LEGACY_DATA_LANGUAGES` in `core/language_data.py` and
    `test_covers_languages_in_legacy_dump` in `core/tests/test_language_seed.py`,
    if no imported subtitles still use those languages.
-9. The `scripts/dump_legacy_to_sqlite_settings.py` entry in `.gitignore`.
+9. The `scripts/dump_legacy_to_sqlite_settings.py` entries in `.gitignore`
+   and `scripts/new_worktree.sh`.
+10. Section 6 of `MANUAL_TESTING.md` and its row in the table at the top.
