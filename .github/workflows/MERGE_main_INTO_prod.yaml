@@ -1,8 +1,10 @@
-# The push trigger is temporary until the Dec 18 prod release; after that, run this manually.
+# The workflow_run trigger is temporary until the Dec 18 prod release; after that, run this manually.
 name: Merge main into prod
 
 on:
-  push:
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -15,6 +17,10 @@ concurrency:
 
 jobs:
   merge:
+    # A fork PR from a branch named main also reports its head branch as main, so require a push.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
     # The prod ruleset only lets this app push, so the default token can't be used.
@@ -31,9 +37,12 @@ jobs:
         fetch-depth: 0
         token: ${{ steps.app-token.outputs.token }}
 
+    # Merge the commit that passed tests, not whatever main has moved on to since.
     - name: Merge main into prod
+      env:
+        MERGE_REF: ${{ github.event.workflow_run.head_sha || 'origin/main' }}
       run: |
         git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
         git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
-        git merge --no-edit origin/main
+        git merge --no-edit "$MERGE_REF"
         git push origin prod
