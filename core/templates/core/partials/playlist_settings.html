@@ -33,7 +33,7 @@
         <div class="playlist-form-group">
             <div class="label-with-info">
                 <label for="{{ form.is_ic.id_for_label }}" class="playlist-setting-checkbox-button {% if form.is_ic.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
-                    {% if form.is_ic.value == True %}Unclassify as an IC playlist{% else %}Classify as an IC playlist{% endif %}
+                    {% if form.is_ic.value == True %}Unmark as IC playlist{% else %}Mark as IC playlist{% endif %}
                     <input type="checkbox"
                            id="{{ form.is_ic.id_for_label }}"
                            class="playlist-setting-input"
