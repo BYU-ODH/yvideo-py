@@ -171,6 +171,35 @@ class ImportLegacyMediaTests(TestCase):
         self.assertFalse((self.media_root / second.resource.name).exists())
         self.assertEqual(self.pending(), 1)
 
+    def test_media_owned_by_another_file_is_not_overwritten(self, _priority):
+        resource_file, _ = self.placeholder_file("f1", "a.mp4", b"video-a")
+        taken_name = f"{resource_file.resource.pk}/english.mp4"
+        taken_path = self.media_root / taken_name
+        taken_path.parent.mkdir()
+        taken_path.write_bytes(b"existing")
+        owner = ResourceFileFactory(resource=resource_file.resource)
+        ResourceFile.objects.filter(pk=owner.pk).update(file=taken_name)
+
+        self.run_command("--commit")
+
+        resource_file.refresh_from_db()
+        self.assertNotEqual(resource_file.file.name, taken_name)
+        self.assertEqual(taken_path.read_bytes(), b"existing")
+        self.assertEqual(Path(resource_file.file.path).read_bytes(), b"video-a")
+
+    def test_leftover_from_failed_run_is_replaced(self, _priority):
+        resource_file, _ = self.placeholder_file("f1", "a.mp4", b"video-a")
+        leftover_name = f"{resource_file.resource.pk}/english.mp4"
+        leftover = self.media_root / leftover_name
+        leftover.parent.mkdir()
+        leftover.write_bytes(b"partial")
+
+        self.run_command("--commit")
+
+        resource_file.refresh_from_db()
+        self.assertEqual(resource_file.file.name, leftover_name)
+        self.assertEqual(leftover.read_bytes(), b"video-a")
+
     def test_existing_subtitle_file_is_not_overwritten(self, _priority):
         subtitle = SubtitleFactory()
         original = subtitle.subtitles_file.read()
@@ -202,8 +231,8 @@ class ImportLegacyMediaTests(TestCase):
         self.assertEqual(list(self.media_root.rglob("*.mp4")), [])
         self.assertEqual(self.pending(), 1)
 
-    @override_settings(LEGACY_MIGRATION_MEDIA_ROOT="yvideo:/opt/y-video")
-    def test_remote_legacy_root_is_refused(self, _priority):
+    def test_missing_legacy_root_is_refused(self, _priority):
+        self.legacy_root.rmdir()
         with self.assertRaisesMessage(CommandError, "must be a local path"):
             self.run_command()
 

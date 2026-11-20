@@ -31,11 +31,12 @@ from ..models import ResourceAccess
 from ..models import ResourceFile
 from ..models import Subtitle
 from ..models import User
+from .annotations import annotation_model_for_type
+from .annotations import import_annotations
 from .legacy_roles import map_legacy_collection_role
 from .models import LegacySourceMap
 from .parsers import LEGACY_URL_ONLY_RESOURCE_ID
 from .parsers import map_legacy_media_type
-from .service import LegacyMigrationService
 from .sql_dump import iter_postgres_copy_rows
 
 # Keep the source scope explicit: do not import Django's old auth_user table.
@@ -154,42 +155,6 @@ _LEGACY_ZONE_MINUTES = {
 
 class BulkImportError(ValueError):
     pass
-
-
-class _AnnotationImporter(LegacyMigrationService):
-    """Reuse the existing annotation conversion without creating jobs or requests."""
-
-    def __init__(self, importer, owner):
-        super().__init__(require_catalog=False)
-        self.importer = importer
-        self.owner = owner
-
-    def _get_target_owner(self, request_obj):
-        return self.owner
-
-    def _upsert_source_map(
-        self, request_obj, source_type, source_id, target_obj, metadata=None
-    ):
-        self.importer.record(source_type, source_id, target_obj, metadata or {})
-
-    def import_events(self, content, identifier, annotations, clips):
-        # Annotation names are unique per resource/owner, not per playlist.
-        name = self.importer._name(
-            AnnotationSet.objects.filter(
-                resource=content.get_resource(), owner=self.owner
-            ),
-            "name",
-            f"Imported {content.title} Annotations",
-            identifier,
-            255,
-        )
-        annotation_set = self.importer._create_annotation_set(
-            name=name,
-            resource=content.get_resource(),
-            owner=self.owner,
-        )
-        self.importer.record("annotation_set", str(content.pk), annotation_set, {})
-        self._import_annotations(None, content, annotations, clips)
 
 
 class LegacyBulkImporter:
@@ -1018,9 +983,8 @@ class LegacyBulkImporter:
         annotations = self._events(row["annotations"], annotations=True)
         clips = self._events(row["clips"])
         if annotations or clips:
-            service = _AnnotationImporter(self, playlist.owner)
             for event in annotations:
-                if service._annotation_model_for_type(event.get("type")) is None:
+                if annotation_model_for_type(event.get("type")) is None:
                     raise BulkImportError(
                         f"Unsupported annotation type: {event.get('type')!r}"
                     )
@@ -1036,7 +1000,22 @@ class LegacyBulkImporter:
                     or f"{target.title} Clip {index + 1}"
                 )
                 clip["title"] = str(label)[:255]
-            service.import_events(target, row["id"], annotations, clips)
+            # Annotation names are unique per resource/owner, not per playlist.
+            annotation_set = self._create_annotation_set(
+                name=self._name(
+                    AnnotationSet.objects.filter(
+                        resource=target.get_resource(), owner=playlist.owner
+                    ),
+                    "name",
+                    f"Imported {target.title} Annotations",
+                    row["id"],
+                    255,
+                ),
+                resource=target.get_resource(),
+                owner=playlist.owner,
+            )
+            self.record("annotation_set", str(target.pk), annotation_set, {})
+            import_annotations(annotation_set, target, annotations, clips)
         return target, True
 
     @staticmethod
