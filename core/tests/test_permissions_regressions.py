@@ -96,13 +96,6 @@ class StrangerIsRefusedTests(TestCase):
             self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
         )
 
-    def test_display_playlist_settings_refuses_a_stranger(self):
-        self.assert_refused(
-            self.client.get(
-                reverse("display_playlist_settings", args=[self.playlist.pk])
-            )
-        )
-
     def test_render_course_assignment_refuses_a_stranger(self):
         self.assert_refused(
             self.post_json(

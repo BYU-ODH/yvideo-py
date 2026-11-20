@@ -62,11 +62,6 @@ urlpatterns = [
         name="unassign_playlist_from_course",
     ),
     path(
-        "playlists/<int:playlist_id>/settings/",
-        views.display_playlist_settings,
-        name="display_playlist_settings",
-    ),
-    path(
         "playlists/<int:playlist_id>/settings/update/",
         views.update_playlist_settings,
         name="update_playlist_settings",

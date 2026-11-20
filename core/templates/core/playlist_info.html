@@ -22,23 +22,26 @@
                     {% endif %}
                 </div>
             </header>
-            {% if can_edit %}
+            {# some settings features should only be visible by editors or ic_player_editor. A user may meet one or both of those conditions #}
+            {% if can_edit or user.is_ic_editor %}
                 <div class="row-flex flex-apart-aligned">
                     {% include 'core/partials/playlist_settings.html' %}
 
-                    <div class="row-flex">
-                        <button id="playlist-settings-thumbnail"
-                            class="white-button-with-border"
-                            data-thumbnail-editor-url="/playlists/{{ playlist.id }}/thumbnail/">
-                            Change Thumbnail
-                        </button>
-                        <button id="playlist-settings-delete"
-                                class="red-button"
-                                command="show-modal"
-                                commandfor="playlist-delete-modal"
-                                type="button">Delete Playlist</button>
-                    </div>
-                    {% include "core/partials/modals/playlist_delete.html" with dialog_id="playlist-delete-modal" %}
+                    {% if can_edit %}
+                        <div class="row-flex">
+                            <button id="playlist-settings-thumbnail"
+                                class="white-button-with-border"
+                                data-thumbnail-editor-url="/playlists/{{ playlist.id }}/thumbnail/">
+                                Change Thumbnail
+                            </button>
+                            <button id="playlist-settings-delete"
+                                    class="red-button"
+                                    command="show-modal"
+                                    commandfor="playlist-delete-modal"
+                                    type="button">Delete Playlist</button>
+                        </div>
+                        {% include "core/partials/modals/playlist_delete.html" with dialog_id="playlist-delete-modal" %}
+                    {% endif %}
                 </div>
             {% endif %}
             <div id="playlist-videos-content">

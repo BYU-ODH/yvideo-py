@@ -174,7 +174,6 @@ def test_object_ids_are_not_taken_from_the_request_body():
         "assign_playlist_to_course": "playlist_id",
         "update_playlist_course_sections": "playlist_id",
         "unassign_playlist_from_course": "playlist_id",
-        "display_playlist_settings": "playlist_id",
         "update_playlist_settings": "playlist_id",
         "render_playlist_members": "playlist_id",
         "playlist_member_search": "playlist_id",

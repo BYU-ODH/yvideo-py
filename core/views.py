@@ -606,26 +606,6 @@ def render_playlist_info(request, playlist):
         return HttpResponseServerError()
 
 
-@require_GET
-@playlist_write_required
-def display_playlist_settings(request, playlist):
-    try:
-        form = PlaylistSettingsForm(instance=playlist)
-        year_and_semester = get_semester_and_year_options()
-
-        context = {
-            "playlist": playlist,
-            "form": form,
-            "thumbnail": Thumbnail.for_item(playlist),
-            "semester": year_and_semester["semester"],
-            "year_options": year_and_semester["year_options"],
-        }
-        return render(request, "core/partials/playlist_settings.html", context)
-    except Exception as e:
-        logger.error(f"Failed to render playlist settings. Exception: {e}")
-        return HttpResponseServerError()
-
-
 @require_POST
 @playlist_write_required
 def render_course_assignment(request, playlist):
@@ -813,7 +793,7 @@ def update_playlist_settings(request, playlist):
             return render(
                 request,
                 "core/partials/playlist_settings.html",
-                {"playlist": playlist, "form": PlaylistSettingsForm(instance=playlist)},
+                {"playlist": playlist, "form": PlaylistSettingsForm(instance=playlist), "can_edit": playlist.can_be_edited_by(request.user)},
             )
         except Exception as e:
             logger.error(
