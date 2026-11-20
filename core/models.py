@@ -18,11 +18,13 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.functional import cached_property
 import xxhash
 
 from .subtitle_uploads import cleanup_subtitle_files
 from .subtitle_uploads import subtitle_file_references
 from .subtitle_uploads import validate_subtitle_file
+from .utils import display_yearterm
 from .utils import estimate_current_yearterm
 from .utils import seconds2hms
 
@@ -266,9 +268,9 @@ class User(AbstractUser):
         """Q object equivalent of the ``is_admin`` property, for filtering querysets."""
         return models.Q(is_superuser=True)
 
-    @property
+    @cached_property
     def is_lab_assistant(self):
-        return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).count() >= 1
+        return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).exists()
 
     @property
     def is_ic_editor(self):
@@ -433,7 +435,9 @@ class ResourceAccessRequest(models.Model):
 class Playlist(models.Model):
     name = models.CharField(max_length=255)
     owner = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="playlists_owned"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="playlists_owned",
     )
     published = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
@@ -706,6 +710,7 @@ class ResourceFile(models.Model):
         self.barcode = "BYU" + str(self.pk).zfill(10)
         self.save(update_fields=["barcode"])
 
+    @transaction.atomic
     def save(self, *args, **kwargs):
         # An uncommitted file is a new upload, possibly replacing an earlier one.
         new_upload = bool(self.file) and not self.file._committed
@@ -757,7 +762,7 @@ class AnnotationSet(models.Model):
         "Resource", on_delete=models.CASCADE, related_name="annotation_sets"
     )
     owner = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         related_name="owned_annotation_sets",
         null=True,
@@ -942,16 +947,6 @@ class AnnotationSet(models.Model):
                 if annotation_set_json is not None and isinstance(
                     annotation_set_json, str
                 ):
-                    annotation_types = {
-                        "SkipAnnotation": SkipAnnotation,
-                        "MuteAnnotation": MuteAnnotation,
-                        "BlankAnnotation": BlankAnnotation,
-                        "PauseAnnotation": PauseAnnotation,
-                        "BlurAnnotation": BlurAnnotation,
-                        "CommentAnnotation": CommentAnnotation,
-                        "Clip": Clip,
-                    }
-
                     annotation_set_data = json.loads(annotation_set_json)
                     # imported tracks may be renamed (blank or repeated names get a
                     # default), so annotations find their track by its exported name
@@ -970,7 +965,7 @@ class AnnotationSet(models.Model):
                                     raise ValueError(
                                         f"No track named {annotation.get('track_name')!r}"
                                     )
-                                annotation_types[class_type].from_import(
+                                ANNOTATION_CLASSES[class_type].from_import(
                                     annotation, track
                                 )
                         except Exception as e:
@@ -1068,19 +1063,14 @@ class Track(models.Model):
         Active annotations are the current state (tip of linked list).
         """
         annotations = []
-        for model_class in [
-            SkipAnnotation,
-            MuteAnnotation,
-            BlankAnnotation,
-            PauseAnnotation,
-            BlurAnnotation,
-            CommentAnnotation,
-            Clip,
-        ]:
+        for model_class in ANNOTATION_CLASSES.values():
             annotations.extend(
                 model_class.objects.filter(track=self, active=True).order_by("pk")
             )
         return sorted(annotations, key=lambda a: a.start_time)
+
+    def __str__(self):
+        return f"{self.name} | {self.annotation_set.name}"
 
     def is_final_stack_position(self):
         return self.annotation_set.get_highest_stack_position() == self.stack_position
@@ -1501,15 +1491,6 @@ class BaseAnnotation(models.Model):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
         return self.__class__.__name__.replace("Annotation", "").lower()
 
-    def calculate_position(self):
-        """Calculate visual position on timeline."""
-        return {
-            "left": "0%",
-            "width": "0%",
-            "start": self.start_time,
-            "end": self.end_time,
-        }
-
     def to_player_json(self):
         """Convert annotation to JSON format for video player."""
         start = float(self.start_time)
@@ -1529,26 +1510,19 @@ class BaseAnnotation(models.Model):
             "active": self.active,
         }
 
-    def copy_to_new_annotation_set(self, annotation_set):
-        new_track = self.track.copy_to_new_annotation_set(annotation_set)
-        annotation_types = {
-            "SkipAnnotation": SkipAnnotation,
-            "MuteAnnotation": MuteAnnotation,
-            "BlankAnnotation": BlankAnnotation,
-            "PauseAnnotation": PauseAnnotation,
-            "BlurAnnotation": BlurAnnotation,
-            "CommentAnnotation": CommentAnnotation,
-            "Clip": Clip,
+    def _content_fields(self):
+        """This annotation's own values, without identity, timestamps or history links."""
+        return {
+            field.name: getattr(self, field.name)
+            for field in self._meta.fields
+            if field.name
+            not in ["id", "created_at", "updated_at", "prev", "next", "active"]
         }
-        new_annotation = annotation_types[self.__class__.__name__].objects.create(
-            name=self.name,
-            track=new_track,
-            start_time=self.start_time,
-            end_time=self.end_time,
-            description=self.description,
-            active=self.active,
-        )
-        return new_annotation
+
+    def copy_to_new_annotation_set(self, annotation_set):
+        fields = self._content_fields()
+        fields["track"] = self.track.copy_to_new_annotation_set(annotation_set)
+        return self.__class__.objects.create(**fields, active=self.active)
 
     @classmethod
     def from_import(cls, imported_data, track):
@@ -1574,12 +1548,7 @@ class BaseAnnotation(models.Model):
         self._delete_next_chain()
 
         # Step 3: Create new version with updated fields
-        new_data = {
-            field.name: getattr(self, field.name)
-            for field in self._meta.fields
-            if field.name
-            not in ["id", "created_at", "updated_at", "prev", "next", "active"]
-        }
+        new_data = self._content_fields()
 
         # Apply updates
         new_data.update(update_fields)
@@ -1663,14 +1632,6 @@ class BaseAnnotation(models.Model):
 class SkipAnnotation(BaseAnnotation):
     """Skip annotation - standard time range."""
 
-    def calculate_position(self):
-        return {
-            "left": "0%",
-            "width": "2px",
-            "start": self.start_time,
-            "end": self.end_time,
-        }
-
     def to_player_json(self):
         data = super().to_player_json()  # includes start/end + display strings
         data["type"] = "skip"  # keep/ensure type
@@ -1679,10 +1640,6 @@ class SkipAnnotation(BaseAnnotation):
 
 class MuteAnnotation(BaseAnnotation):
     """Mute annotation - standard time range."""
-
-    @classmethod
-    def from_import(cls, imported_data, track):
-        return super().from_import(imported_data, track)
 
 
 class BlankAnnotation(BaseAnnotation):
@@ -1697,12 +1654,6 @@ class BlankAnnotation(BaseAnnotation):
         ],
         default="k",
     )
-
-    def copy_to_new_annotation_set(self, annotation_set):
-        new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        new_annotation.type = self.type
-        new_annotation.save()
-        return new_annotation
 
     @classmethod
     def from_import(cls, imported_data, track):
@@ -1721,27 +1672,12 @@ class PauseAnnotation(BaseAnnotation):
         self.end_time = self.start_time
         super().save(*args, **kwargs)
 
-    def calculate_position(self):
-        """Override: pause is a point marker, not a range."""
-        return {
-            "left": "0%",
-            "width": "2px",
-            "start": self.start_time,
-            "end": self.start_time,
-        }
-
     def to_player_json(self):
         """pause needs a start time even though it doesnt have an end time. This is because
         of how the AnnotationPlayer parses annotations for Y-video"""
         data = super().to_player_json()
         data["message"] = self.message
         return data
-
-    def copy_to_new_annotation_set(self, annotation_set):
-        new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        new_annotation.message = self.message
-        new_annotation.save()
-        return new_annotation
 
     @classmethod
     def from_import(cls, imported_data, track):
@@ -1836,17 +1772,6 @@ class CommentAnnotation(BaseAnnotation):
         )
         return data
 
-    def copy_to_new_annotation_set(self, annotation_set):
-        new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        new_annotation.text = self.text
-        new_annotation.x = self.x
-        new_annotation.y = self.y
-        new_annotation.width = self.width
-        new_annotation.font_size_in_rem = self.font_size_in_rem
-        new_annotation.font_color = self.font_color
-        new_annotation.save()
-        return new_annotation
-
     @classmethod
     def from_import(cls, imported_data, track):
         # Missing values keep the model defaults the new annotation was created with.
@@ -1906,19 +1831,12 @@ class BlurAnnotation(BaseAnnotation):
         # editor has on screen stay valid across every point write.
         blur_anchor_points = list(self.blur_anchor_points.all())
         self.blur_anchor_points.update(blur_annotation=new_annotation)
-        BlurAnchorPoint.objects.bulk_create(
-            [
-                BlurAnchorPoint(
-                    blur_annotation=self,
-                    time=blur_anchor_point.time,
-                    x=blur_anchor_point.x,
-                    y=blur_anchor_point.y,
-                    width=blur_anchor_point.width,
-                    height=blur_anchor_point.height,
-                )
-                for blur_anchor_point in blur_anchor_points
-            ]
-        )
+        _copy_blur_anchor_points(blur_anchor_points, self)
+
+    def copy_to_new_annotation_set(self, annotation_set):
+        new_annotation = super().copy_to_new_annotation_set(annotation_set)
+        _copy_blur_anchor_points(self.blur_anchor_points.all(), new_annotation)
+        return new_annotation
 
     def to_player_json(self):
         """Override: include anchor points data."""
@@ -2076,21 +1994,6 @@ class BlurAnnotation(BaseAnnotation):
 
         self.ensure_first_blur_anchor_point()
 
-    def copy_to_new_annotation_set(self, annotation_set):
-        new_annotation = super().copy_to_new_annotation_set(annotation_set)
-        blur_anchor_points = self.blur_anchor_points.all()
-        for blur_anchor_point in blur_anchor_points:
-            BlurAnchorPoint.objects.create(
-                blur_annotation=new_annotation,
-                time=blur_anchor_point.time,
-                x=blur_anchor_point.x,
-                y=blur_anchor_point.y,
-                width=blur_anchor_point.width,
-                height=blur_anchor_point.height,
-            )
-        new_annotation.save()
-        return new_annotation
-
     @classmethod
     def from_import(cls, imported_data, track):
         obj = super().from_import(imported_data, track)
@@ -2141,7 +2044,8 @@ class BlurAnchorPoint(models.Model):
         """Quantize and clamp on the way in - the single choke point for valid geometry.
 
         Doing this in save() rather than in a view means every writer is covered: the editor's
-        endpoints, annotation-set copies, imports, and reconcile_blur_anchor_points alike.
+        endpoints, imports, and reconcile_blur_anchor_points alike. Copies skip it because they
+        only duplicate rows that already passed through it.
 
         Values are clamped rather than rejected. A drag that ends past the edge of the frame is
         a perfectly clear instruction ("put it against the edge"), and refusing it would lose
@@ -2184,6 +2088,34 @@ class Clip(BaseAnnotation):
 
     def __str__(self):
         return f"Clip {self.name} | {self.start_time}-{self.end_time} | {self.id}"
+
+
+def _copy_blur_anchor_points(blur_anchor_points, blur_annotation):
+    BlurAnchorPoint.objects.bulk_create(
+        BlurAnchorPoint(
+            blur_annotation=blur_annotation,
+            time=blur_anchor_point.time,
+            x=blur_anchor_point.x,
+            y=blur_anchor_point.y,
+            width=blur_anchor_point.width,
+            height=blur_anchor_point.height,
+        )
+        for blur_anchor_point in blur_anchor_points
+    )
+
+
+ANNOTATION_CLASSES = {
+    model_class.__name__: model_class
+    for model_class in [
+        SkipAnnotation,
+        MuteAnnotation,
+        BlankAnnotation,
+        PauseAnnotation,
+        BlurAnnotation,
+        CommentAnnotation,
+        Clip,
+    ]
+}
 
 
 # Course-derived playlist access extends this far past a term's official start and
@@ -2308,19 +2240,7 @@ class Course(models.Model):
         ordering = ["dept", "catalog_number", "section_number", "yearterm"]
 
     def display_yearterm(self):
-        if not self.yearterm:
-            return ""
-        year_str = self.yearterm[:4]
-        term_str = self.yearterm[4:]
-        term_map = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
-        try:
-            term_name = term_map[term_str]
-        except KeyError:
-            logger.error(
-                f"Course has a missing or invalid yearterm. Course id: {self.pk}, yearterm: {self.yearterm}"
-            )
-            return self.yearterm
-        return f"{term_name} {year_str}"
+        return display_yearterm(self.yearterm)
 
     def __str__(self):
         return f"{self.dept} {self.catalog_number}-{self.section_number} ({self.display_yearterm()})"
@@ -2342,19 +2262,7 @@ class UserCourses(models.Model):
         ]
 
     def display_yearterm(self):
-        if not self.yearterm:
-            return ""
-        year_str = self.yearterm[:4]
-        term_str = self.yearterm[4:]
-        term_map = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
-        try:
-            term_name = term_map[term_str]
-        except KeyError:
-            logger.error(
-                f"UserCourses has a missing or invalid yearterm. UserCourses id: {self.pk}, yearterm: {self.yearterm}"
-            )
-            return self.yearterm
-        return f"{term_name} {year_str}"
+        return display_yearterm(self.yearterm)
 
     def __str__(self):
         return f"{self.course.dept} {self.course.catalog_number} Section {self.course.section_number} {self.display_yearterm()}"
@@ -2493,16 +2401,21 @@ class Email(models.Model):
     subject = models.CharField(max_length=255)
     body = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)
-    created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ["-sent_at"]
+
     def __str__(self):
-        return f"{self.sender.netid} | {self.subject} | {self.pk}"
+        return f"{self.sender_email} | {self.subject} | {self.pk}"
 
 
 class AuthToken(models.Model):
-    token = models.CharField(max_length=150, null=True)
+    token = models.CharField(max_length=150)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Token ending {self.token[-4:]}"
 
 
 def get_date_5_days_from_now():

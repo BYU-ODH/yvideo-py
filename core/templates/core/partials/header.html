@@ -32,17 +32,15 @@
             <h2>International Cinema</h2>
             <a href="{% url 'ic_manage_dashboard' %}">International Cinema</a>
         {% endif %}
-        {% with is_lab_assistant=user.is_lab_assistant %}
-            {% if user.is_instructor or is_lab_assistant %}
-                <h2>Resources</h2>
-                {% if user.is_instructor %}
-                    <a href="{% url 'request_resource' %}">Request New Resource</a>
-                {% endif %}
-                {% if user.is_admin or is_lab_assistant %}
-                    <a href="{% url 'resource_access_requests' %}">Resource Requests</a>
-                {% endif %}
+        {% if user.is_instructor or user.is_lab_assistant %}
+            <h2>Resources</h2>
+            {% if user.is_instructor %}
+                <a href="{% url 'request_resource' %}">Request New Resource</a>
             {% endif %}
-        {% endwith %}
+            {% if user.is_admin or user.is_lab_assistant %}
+                <a href="{% url 'resource_access_requests' %}">Resource Requests</a>
+            {% endif %}
+        {% endif %}
         <h2>Help</h2>
         <a href="{% url 'whats_new' %}">What's new?</a>
         <button class="link-button"

@@ -888,6 +888,7 @@ class ResourceFileAdmin(VersionAdmin):
 
 @admin.register(Content)
 class ContentAdmin(VersionAdmin):
+    list_select_related = ("playlist__owner", "resource")
     list_display = (
         "title",
         "extended_display_name",
@@ -945,6 +946,16 @@ class LanguageAdmin(VersionAdmin):
 
 
 class AnnotationAdmin(VersionAdmin):
+    list_select_related = (
+        "track__annotation_set__owner",
+        "track__annotation_set__resource",
+    )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "track":
+            kwargs["queryset"] = Track.objects.select_related("annotation_set")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     list_display = ("name", "track__annotation_set", "track", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "resource__name")
@@ -1019,7 +1030,7 @@ class SubtitleAdmin(VersionAdmin):
 @admin.register(Email)
 class EmailAdmin(VersionAdmin):
     list_display = ("subject", "sender", "sender_email", "sent_at")
-    list_filter = ("sent_at", "created_at")
+    list_filter = ("sent_at",)
     search_fields = ("subject", "sender__name", "sender_email", "body")
 
 
@@ -1059,6 +1070,7 @@ class ResourceFileKeyAdmin(VersionAdmin):
 
 @admin.register(AnnotationSet)
 class AnnotationSetAdmin(VersionAdmin):
+    list_select_related = ("owner", "resource")
     list_display = ("name", "owner_label", "resource", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__netid", "owner__username", "resource__name")
@@ -1066,6 +1078,7 @@ class AnnotationSetAdmin(VersionAdmin):
 
 @admin.register(Track)
 class TrackAdmin(VersionAdmin):
+    list_select_related = ("annotation_set__resource", "annotation_set__owner")
     list_display = (
         "annotation_set__resource__name",
         "annotation_set__name",

@@ -65,6 +65,7 @@ from .permissions import lab_assistant_required
 from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
+from .utils import display_yearterm
 from .youtube_utils import get_or_create_youtube_resource
 from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
@@ -117,18 +118,6 @@ def prepare_playlist_for_display(playlist):
 def thumbnail_editor_response(url_name, item):
     """Tells the client which thumbnail editor to open for a newly created item."""
     return JsonResponse({"thumbnail_editor_url": reverse(url_name, args=[item.pk])})
-
-
-def display_yearterm(yearterm):
-    term_decoder = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
-    year_string = yearterm[0:4]
-    term_string = yearterm[4:]
-    try:
-        term_name = term_decoder[term_string]
-    except KeyError:
-        logger.error(f"Invalid yearterm: {yearterm}")
-        return yearterm
-    return f"{term_name} {year_string}"
 
 
 def breadcrumb_trail(*crumbs):
