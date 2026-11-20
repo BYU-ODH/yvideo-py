@@ -1,0 +1,29 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        The Pause tool stops the video on the frame indicated by the Start Time. Pressing play resumes the video
+        from that frame.
+    </p>
+    <h2>Add a Pause item</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Move the Scrub Head to where the edit should start</h3>
+            <p>The new tool item’s Start Time defaults to the timecode where the Scrub Head is located.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Scrub Head on the timeline" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Click (+) next to Pause</h3>
+            <p>
+                The (+) button is to the right of the tool in the Overlay Tool Selection Panel.
+                A colored block appears on the timeline.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Pause row in the Tool Selection Panel" %}
+        </li>
+        <li class="guide-step">
+            <h3>Set the Start and End Times</h3>
+            <p>Drag the handles on either end of the timeline block, or type the timecodes in the Properties Panel.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Pause item Start and End fields" %}
+        </li>
+    </ol>
+{% endblock %}

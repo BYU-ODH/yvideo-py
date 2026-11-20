@@ -1,0 +1,54 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        View how your edits will affect the video by using the Overlay Preview. This control window contains all
+        the normal functions found in other common media players, as well as two additional tools.
+    </p>
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#playback-controls">Playback controls</a>
+        <a href="#play-a-single-clip">Play a single clip</a>
+        <a href="#read-the-subtitle-transcript">Read the subtitle transcript</a>
+    </nav>
+    <h2 id="playback-controls">Playback controls</h2>
+    <div class="guide-panel">
+        <h3>The control bar</h3>
+        <ol>
+            <li>Play/Pause</li>
+            <li>Volume Control</li>
+            <li>Timecode</li>
+            <li>Scrub Head</li>
+            <li>Scrub Bar</li>
+            <li>Playback Speed Control</li>
+            <li>Clip Select</li>
+            <li>Subtitles</li>
+            <li>Subtitle Transcript</li>
+            <li>Full Screen / Exit Full Screen</li>
+        </ol>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Preview control bar with numbered callouts" wide=True %}
+    </div>
+    <h2 id="play-a-single-clip">Play a single clip</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Click the scissors icon</h3>
+            <p>A menu opens with all the sections of the media you have selected using the Clip tool.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Clip Select menu" %}
+        </li>
+        <li class="guide-step">
+            <h3>Select a clip</h3>
+            <p>
+                That portion of the timeline is highlighted in yellow and the Scrub Head moves to its Start Time.
+                The Overlay Preview plays the section and stops at the End Time set in that clip’s properties.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Timeline with clip highlighted in yellow" wide=True %}
+        </li>
+    </ol>
+    <h2 id="read-the-subtitle-transcript">Read the subtitle transcript</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Click the Subtitle Transcript button</h3>
+            <p>A panel opens to the right of the Overlay Preview window listing the transcript of all the subtitles.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Subtitle Transcript panel" wide=True %}
+        </li>
+    </ol>
+{% endblock %}

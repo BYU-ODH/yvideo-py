@@ -37,6 +37,7 @@ from django.views.decorators.http import require_POST
 import requests
 import reversion
 
+from . import user_guide as guide
 from .forms import AddUserLookupForm
 from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
@@ -213,6 +214,31 @@ def whats_new(request):
         request,
         "core/whats_new.html",
         {"breadcrumbs": breadcrumb_trail(("What's new?", None))},
+    )
+
+
+@require_GET
+def user_guide(request, slug=""):
+    page = guide.PAGES_BY_SLUG.get(slug)
+    if page is None:
+        raise Http404
+    previous_page, next_page = guide.neighbors(page)
+    if page.slug:
+        crumbs = (("User Guide", reverse("user_guide")), (page.title, None))
+    else:
+        crumbs = (("User Guide", None),)
+    return render(
+        request,
+        page.template,
+        {
+            "breadcrumbs": breadcrumb_trail(*crumbs),
+            "guide_page": page,
+            "guide_ancestors": guide.ancestors_of(page),
+            "guide_nav": guide.nav_tree(page),
+            "guide_children": guide.children_of(page.slug),
+            "previous_page": previous_page,
+            "next_page": next_page,
+        },
     )
 
 

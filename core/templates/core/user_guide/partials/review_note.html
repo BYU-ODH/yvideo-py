@@ -1,0 +1,12 @@
+{% load static %}
+
+<aside class="guide-review-note guide-placeholder">
+    <img src="{% static 'img/user_guide/flag.svg' %}"
+         alt=""
+         width="16"
+         height="16">
+    <div>
+        <p class="guide-review-note-label">Needs review</p>
+        <p>{{ note }}</p>
+    </div>
+</aside>

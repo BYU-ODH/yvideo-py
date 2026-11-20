@@ -1,0 +1,54 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#playlist-details">Playlist details</a>
+        <a href="#video-details">Video details</a>
+    </nav>
+    <h2 id="playlist-details">Playlist details</h2>
+    <div class="guide-panel">
+        <h3>Title and description</h3>
+        <p>Click the pen icon next to the playlist title to rename it. Edit the description below the title.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Playlist title and description" wide=True %}
+    </div>
+    <div class="guide-panel">
+        <h3>Change Thumbnail</h3>
+        <p>Select “Change Thumbnail” to choose the image shown on the playlist card.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Change Thumbnail” button" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Duplicate</h3>
+        <p>Select “Duplicate” to make a copy of the playlist, for example to reuse it in a new semester.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Duplicate” button" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Video descriptions in a playlist</h3>
+        <p>
+            Each video in the playlist has a description. It defaults to the overlay’s description but can be edited
+            here without changing the overlay.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Video row with editable description" wide=True %}
+    </div>
+    <h2 id="video-details">Video details</h2>
+    <p>These settings are on the Original Resource Video page.</p>
+    <div class="guide-panel">
+        <h3>Make Available To Faculty</h3>
+        <p>Turn this toggle on to let other faculty find and use the video.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Make Available To Faculty” toggle" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Available Languages</h3>
+        <p>Choose the languages available for the video from the dropdown.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Available Languages dropdown" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Renew Permission</h3>
+        <p>
+            Each video has an Approve Date and an Expire Date. Select “Renew Permission” to request an extension
+            before the video expires.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Renew Permission button with Approve and Expire dates" wide=True %}
+    </div>
+{% endblock %}

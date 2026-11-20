@@ -1,0 +1,18 @@
+{% load static %}
+
+{% comment %}
+    A placeholder until the real screenshot is captured. Pass caption, and wide=True for
+    shots that span the step's full width.
+{% endcomment %}
+<figure class="guide-shot guide-placeholder{% if wide %} guide-shot-wide{% endif %}">
+    <div class="guide-shot-image">
+        <img src="{% static 'img/user_guide/image.svg' %}"
+             alt=""
+             width="60"
+             height="48">
+    </div>
+    <figcaption>
+        <span class="guide-shot-label">Screenshot</span>
+        {{ caption }}
+    </figcaption>
+</figure>

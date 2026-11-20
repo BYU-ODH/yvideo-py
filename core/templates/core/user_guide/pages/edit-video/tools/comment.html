@@ -1,0 +1,100 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        The Comment tool adds custom text over the original video. How the text looks can also be adjusted to
+        better fit the needs of the video.
+    </p>
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#add-a-comment-item">Add a Comment item</a>
+        <a href="#adjust-the-text-box">Adjust the Text Box</a>
+        <a href="#comment-properties">Comment properties</a>
+    </nav>
+    <h2 id="add-a-comment-item">Add a Comment item</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Move the Scrub Head to where the edit should start</h3>
+            <p>The new tool item’s Start Time defaults to the timecode where the Scrub Head is located.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Scrub Head on the timeline" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Click (+) next to Comment</h3>
+            <p>
+                The (+) button is to the right of the tool in the Overlay Tool Selection Panel.
+                A colored block appears on the timeline.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Comment row in the Tool Selection Panel" %}
+        </li>
+        <li class="guide-step">
+            <h3>Set the Start and End Times</h3>
+            <p>Drag the handles on either end of the timeline block, or type the timecodes in the Properties Panel.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Comment item Start and End fields" %}
+        </li>
+    </ol>
+    <h2 id="adjust-the-text-box">Adjust the Text Box</h2>
+    <p>
+        The Text Box appears in the Overlay Preview, directly on the video. You can see exactly how the text will
+        appear, with its size, color, and position.
+    </p>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Resize the Text Box</h3>
+            <p>
+                Click and drag the handles (the large white dots on the left and right sides of the text box). The
+                height adjusts automatically to fit the text. For more precision, use the W field in the Properties
+                Panel.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Text Box with side handles" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Move the Text Box</h3>
+            <p>
+                Click inside the boundary (indicated by the dotted line) and drag it to the desired position. For
+                more precision, use the X and Y fields in the Properties Panel.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Text Box being dragged" wide=True %}
+        </li>
+    </ol>
+    <h2 id="comment-properties">Comment properties</h2>
+    <div class="guide-panel">
+        <h3>Comment Text</h3>
+        <p>Any text that appears in the Comment Text section will appear in the Text Box on the Overlay Preview.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Comment Text field" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Text Size</h3>
+        <p>
+            Type a number in the Text Size field, or click the up or down arrows that appear on the right side of
+            the field when you hover over it.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Text Size field" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Text Color (hex code)</h3>
+        <p>
+            Type any hex code into the Text Color field, or select one of the eight preset colors from the dropdown
+            menu:
+        </p>
+        <ul>
+            <li>Black – #000000</li>
+            <li>White – #FFFFFF</li>
+            <li>Dark Gray – #333333</li>
+            <li>Blue</li>
+            <li>Red</li>
+            <li>Green</li>
+            <li>Orange</li>
+            <li>Yellow</li>
+        </ul>
+        {% include "core/user_guide/partials/review_note.html" with note="The hex codes for Blue, Red, Green, Orange, and Yellow could not be read in the source frame. Add them here." %}
+        {% include "core/user_guide/partials/screenshot.html" with caption="Text Color field and preset dropdown" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Position &amp; Size</h3>
+        <p>
+            X and Y indicate the Text Box’s relative position. W indicates its relative width. These properties use
+            percentages compared to the size of the original video. The height of the text box is adjusted
+            automatically to fit the text.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Position &amp; Size fields: X, Y, W" %}
+    </div>
+{% endblock %}

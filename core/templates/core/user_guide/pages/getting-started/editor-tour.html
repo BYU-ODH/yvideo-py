@@ -1,0 +1,46 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <h2>The editor panels</h2>
+    <p>The Overlay Editor is made up of five areas. Each is covered in detail elsewhere in this guide.</p>
+    <div class="guide-panel">
+        <h3>Overlay Tool Selection Panel</h3>
+        <p>
+            This panel gives you access to all the tools and tool items you have available to modify the media you
+            have selected.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Tool Selection Panel" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Subtitle Editor Panel</h3>
+        <p>
+            Replaces the tool panel when you switch to editing subtitles. See
+            <a href="{% url 'user_guide' 'subtitles' %}">Add subtitles</a>.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Subtitle Editor Panel" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Overlay Preview window</h3>
+        <p>
+            Shows how your edits will affect the video. See
+            <a href="{% url 'user_guide' 'preview' %}">Preview your edits</a>.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Preview window" wide=True %}
+    </div>
+    <div class="guide-panel">
+        <h3>Properties Panel</h3>
+        <p>
+            Shows the adjustable properties of the selected tool item. See
+            <a href="{% url 'user_guide' 'edit-video/adjust' %}">Adjust a tool item</a>.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Properties Panel" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Timeline</h3>
+        <p>
+            A visual summary of every tool item, used to select and move them. See
+            <a href="{% url 'user_guide' 'timeline' %}">Work with the timeline</a>.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Timeline" wide=True %}
+    </div>
+{% endblock %}
