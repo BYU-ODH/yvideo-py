@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [main, prod]
+    branches: [main]
   pull_request:
-    branches: [main, prod]
+    branches: [main]
 
 jobs:
   # Temporary until the Dec 18 prod release, when the merge workflow's workflow_run trigger is removed.
