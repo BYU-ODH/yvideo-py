@@ -7,6 +7,20 @@ on:
     branches: [main, prod]
 
 jobs:
+  # Temporary until the Dec 18 prod release, when the merge workflow's push trigger is removed.
+  merge-into-prod-flag:
+    name: "THIS WILL ALSO MERGE INTO `prod`!!!"
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    # Fails once the push trigger is gone, as a reminder to delete this job.
+    - name: Check that main still auto-merges into prod
+      run: |
+        grep -q '^  push:' .github/workflows/MERGE_main_INTO_prod.yaml
+        echo "::warning::Merging this PR into main will also merge main into prod."
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
