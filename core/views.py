@@ -798,7 +798,6 @@ def unassign_playlist_from_course(request, playlist):
 @playlist_write_required
 def update_playlist_settings(request, playlist):
     form = PlaylistSettingsForm(request.POST)
-    print(form)
     if form.is_valid():
         try:
             playlist.archived = form.cleaned_data["archived"]
