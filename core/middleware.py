@@ -32,7 +32,7 @@ class SpoofUserMiddleware:
                     request.user = spoofed_user
                     request.is_spoofing = True
                     request.original_user = original_user
-                    role = "Admin" if original_user.is_admin else "Lab Assistant"
+                    role = "Admin" if original_user.is_superuser else "Lab Assistant"
                     logger.info(
                         f"SPOOF ACTIVE: {role} {original_user.first_name} {original_user.last_name} "
                         f"({original_user.netid} {original_user.username}) is spoofing as "

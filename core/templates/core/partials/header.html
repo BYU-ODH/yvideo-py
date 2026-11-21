@@ -23,7 +23,7 @@
     <aside class="sidebar">
         <button id="sidebar-close">X</button>
         <h2>{{ user.netid }}</h2>
-        {% if user.is_admin %}
+        {% if user.is_superuser %}
             <a href="{% url 'admin:index' %}">Admin Dashboard</a>
         {% endif %}
         <h2>Playlists</h2>
@@ -37,7 +37,7 @@
             {% if user.is_instructor %}
                 <a href="{% url 'request_resource' %}">Request New Resource</a>
             {% endif %}
-            {% if user.is_admin or user.is_lab_assistant %}
+            {% if user.is_superuser or user.is_lab_assistant %}
                 <a href="{% url 'resource_access_requests' %}">Resource Requests</a>
             {% endif %}
         {% endif %}

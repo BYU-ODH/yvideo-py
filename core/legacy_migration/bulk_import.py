@@ -972,7 +972,7 @@ class LegacyBulkImporter:
                     row["id"],
                     255,
                 ),
-                url=url or None,
+                url=url,
                 description=row["description"] or "",
                 allow_definitions=self._boolean(row["allow_definitions"], default=True),
                 allow_captions=self._boolean(row["allow_captions"], default=True),
@@ -1004,14 +1004,14 @@ class LegacyBulkImporter:
             annotation_set = self._create_annotation_set(
                 name=self._name(
                     AnnotationSet.objects.filter(
-                        resource=target.get_resource(), owner=playlist.owner
+                        resource=target.resource, owner=playlist.owner
                     ),
                     "name",
                     f"Imported {target.title} Annotations",
                     row["id"],
                     255,
                 ),
-                resource=target.get_resource(),
+                resource=target.resource,
                 owner=playlist.owner,
             )
             self.record("annotation_set", str(target.pk), annotation_set, {})
@@ -1083,12 +1083,12 @@ class LegacyBulkImporter:
         owner = content.playlist.owner
 
         target = Subtitle(
-            resource=content.get_resource(),
+            resource=content.resource,
             owner=owner,
             language=language,
             name=self._name(
                 Subtitle.objects.filter(
-                    resource=content.get_resource(), owner=owner, language=language
+                    resource=content.resource, owner=owner, language=language
                 ),
                 "name",
                 row["title"] or language.language,

@@ -19,6 +19,7 @@ from django.dispatch import receiver
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.functional import cached_property
+from django.utils.functional import classproperty
 import xxhash
 
 from .subtitle_uploads import cleanup_subtitle_files
@@ -27,12 +28,6 @@ from .subtitle_uploads import validate_subtitle_file
 from .utils import display_yearterm
 from .utils import estimate_current_yearterm
 from .utils import seconds2hms
-
-HMS_VALIDATOR = RegexValidator(
-    regex=r"^\d{1,2}:[0-5]\d:[0-5]\d(?:\.\d{1,4})?$",
-    message="Time must be in H:MM:SS format (e.g., 1:23:45.67 or 12:34:56.78)",
-    code="invalid_time_format",
-)
 
 YEARTERM_VALIDATOR = RegexValidator(
     regex=r"^\d{4}[1345]$",
@@ -67,7 +62,7 @@ IC_EDITOR_GROUP_NAME = "IC Editors"
 YOUTUBE_VIDEO_ID_PATTERN = r"[A-Za-z0-9_-]{11}"
 
 
-def validate_imdb_id(id):
+def validate_imdb_id(value):
     """
     Accept an IMDb title ID or a generated internal Resource ID.
 
@@ -77,7 +72,7 @@ def validate_imdb_id(id):
     YouTube video ID.
     """
     if re.fullmatch(
-        rf"(?:tt\d{{7,}}|BYU\d{{10}}|YT{YOUTUBE_VIDEO_ID_PATTERN})", id or ""
+        rf"(?:tt\d{{7,}}|BYU\d{{10}}|YT{YOUTUBE_VIDEO_ID_PATTERN})", value or ""
     ):
         return
     raise ValidationError(
@@ -201,21 +196,8 @@ class Resource(models.Model):
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(
-        self,
-        username,
-        netid=None,
-        privilege_level=PrivilegeLevel.STUDENT,
-        password=None,
-        privilege_level_override=None,
-        **extra_fields,
-    ):
-        user = self.model(
-            username=username,
-            privilege_level=privilege_level,
-            privilege_level_override=privilege_level_override,
-            **extra_fields,
-        )
+    def create_user(self, username, password=None, **extra_fields):
+        user = self.model(username=username, **extra_fields)
         user.set_password(password)
         user.save()
         return user
@@ -259,26 +241,19 @@ class User(AbstractUser):
             "last_name": self.last_name,
         }
 
-    @property
-    def is_admin(self):
-        return self.is_superuser
-
-    @classmethod
-    def is_admin_q(cls):
-        """Q object equivalent of the ``is_admin`` property, for filtering querysets."""
-        return models.Q(is_superuser=True)
-
     @cached_property
     def is_lab_assistant(self):
         return self.groups.filter(name=LAB_ASSISTANT_GROUP_NAME).exists()
 
-    @property
+    @cached_property
     def is_ic_editor(self):
         """International Cinema staff, who manage programs and projection masters.
 
         Superusers count, so every IC capability check is a single predicate.
         """
-        return self.is_admin or self.groups.filter(name=IC_EDITOR_GROUP_NAME).exists()
+        return (
+            self.is_superuser or self.groups.filter(name=IC_EDITOR_GROUP_NAME).exists()
+        )
 
     @property
     def is_instructor(self):
@@ -290,12 +265,12 @@ class User(AbstractUser):
         return (
             self.privilege_level == PrivilegeLevel.INSTRUCTOR
             or self.privilege_level_override == PrivilegeLevel.INSTRUCTOR
-            or self.is_admin
+            or self.is_superuser
         )
 
     @property
     def can_spoof(self):
-        return self.is_admin or self.is_lab_assistant
+        return self.is_superuser or self.is_lab_assistant
 
     def can_spoof_as(self, target_user):
         """Whether this user may act as target_user via the spoofing feature.
@@ -304,9 +279,9 @@ class User(AbstractUser):
         """
         if not self.can_spoof:
             return False
-        if self.is_admin:
+        if self.is_superuser:
             return True
-        return not target_user.is_admin
+        return not target_user.is_superuser
 
     def get_collaborator_playlists(self):
         """Returns playlists that this user is a collaborator on."""
@@ -483,7 +458,7 @@ class Playlist(models.Model):
                 PlaylistUserAccess.objects.filter(user=user, playlist=self).exists()
                 or self.courses.filter(
                     usercourses__user=user,
-                    usercourses__yearterm__in=active_yearterms(),
+                    yearterm__in=active_yearterms(),
                 ).exists()
             )
         )
@@ -846,20 +821,11 @@ class AnnotationSet(models.Model):
 
         with transaction.atomic():
             # allows for admin user to become the owner, but only if there is not a non-admin user.
-            users_using_this_set_other_than_owner = self.ownership_candidates(
-                current_owner
-            )
-
-            # determine who should be the new owner
-            new_owner_candidate = (
-                new_owner
-                if new_owner in users_using_this_set_other_than_owner
-                else (
-                    users_using_this_set_other_than_owner[0]
-                    if users_using_this_set_other_than_owner
-                    else None
-                )
-            )
+            candidates = list(self.ownership_candidates(current_owner))
+            if new_owner in candidates:
+                new_owner_candidate = new_owner
+            else:
+                new_owner_candidate = candidates[0] if candidates else None
 
             # handle deletion/reassignment
             if new_owner_candidate is None:
@@ -902,7 +868,7 @@ class AnnotationSet(models.Model):
 
         try:
             with transaction.atomic():
-                resource = content.get_resource()
+                resource = content.resource
 
                 if not resource:
                     raise ValueError(
@@ -944,9 +910,7 @@ class AnnotationSet(models.Model):
                 )
 
                 # create new annotations if provided (if importing from json, for example)
-                if annotation_set_json is not None and isinstance(
-                    annotation_set_json, str
-                ):
+                if isinstance(annotation_set_json, str):
                     annotation_set_data = json.loads(annotation_set_json)
                     # imported tracks may be renamed (blank or repeated names get a
                     # default), so annotations find their track by its exported name
@@ -996,12 +960,7 @@ class AnnotationSet(models.Model):
             return None
 
     def get_tracks(self):
-        """
-        Get all tracks as they are
-        """
-        return sorted(
-            self.tracks.order_by("pk"), key=lambda track: track.stack_position
-        )
+        return list(self.tracks.order_by("stack_position", "pk"))
 
     def next_default_track_name(self):
         """Return "Track <n>", numbered one past the highest "Track <n>" in this set."""
@@ -1018,13 +977,16 @@ class AnnotationSet(models.Model):
         return -1 if highest is None else highest
 
     def get_active_annotations_from_tracks(self):
-        """
-        Get all currently active annotations across all tracks.
-        """
+        """Every active annotation in the set (the current version of each), by start time."""
         annotations = []
-        for track in self.tracks.order_by("pk"):
-            annotations.extend(track.get_active_annotations())
-        return sorted(annotations, key=lambda a: a.start_time)
+        for model_class in ANNOTATION_CLASSES.values():
+            queryset = model_class.objects.filter(
+                track__annotation_set=self, active=True
+            ).select_related("track")
+            if model_class is BlurAnnotation:
+                queryset = queryset.prefetch_related("blur_anchor_points")
+            annotations.extend(queryset.order_by("pk"))
+        return sorted(annotations, key=lambda a: (a.start_time, a.track_id))
 
     def to_player_json(self):
         """Export all active annotations in this set for the AnnotationPlayer."""
@@ -1039,13 +1001,9 @@ class AnnotationSet(models.Model):
 
 class Track(models.Model):
     annotation_set = models.ForeignKey(
-        AnnotationSet,
-        on_delete=models.CASCADE,
-        related_name="tracks",
-        null=False,
-        blank=False,
+        AnnotationSet, on_delete=models.CASCADE, related_name="tracks"
     )
-    name = models.CharField(max_length=50, default="Track 1")
+    name = models.CharField(max_length=50)
     stack_position = models.IntegerField(default=0)
 
     class Meta:
@@ -1058,10 +1016,7 @@ class Track(models.Model):
         ]
 
     def get_active_annotations(self):
-        """
-        Get all currently active annotations across all types.
-        Active annotations are the current state (tip of linked list).
-        """
+        """Every active annotation on the track (the current version of each), by start time."""
         annotations = []
         for model_class in ANNOTATION_CLASSES.values():
             annotations.extend(
@@ -1079,7 +1034,6 @@ class Track(models.Model):
         return not self.annotation_set.tracks.exclude(pk=self.pk).exists()
 
     def to_player_json(self):
-        """Export all active annotations in this set for the AnnotationPlayer."""
         return {"id": self.pk, "name": self.name, "stack_position": self.stack_position}
 
     def copy_to_new_annotation_set(self, annotation_set):
@@ -1138,7 +1092,7 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
-    url = models.URLField(max_length=500, blank=True, null=True)
+    url = models.URLField(max_length=500, blank=True)
     description = models.TextField(blank=True)
     allow_definitions = models.BooleanField(default=True)
     allow_captions = models.BooleanField(default=True)
@@ -1155,8 +1109,7 @@ class Content(models.Model):
                 fields=["playlist", "title"], name="unique_content_title_per_playlist"
             ),
             models.CheckConstraint(
-                condition=models.Q(resource_file__isnull=False)
-                | (models.Q(url__isnull=False) & ~models.Q(url="")),
+                condition=models.Q(resource_file__isnull=False) | ~models.Q(url=""),
                 name="content_has_resource_file_or_url",
                 violation_error_message="Content needs a resource file or a URL.",
             ),
@@ -1167,7 +1120,7 @@ class Content(models.Model):
 
     @property
     def display_name(self):
-        return f"{self.title}: {self.resource.__str__() if self.resource else 'unknown resource'}"
+        return f"{self.title}: {self.resource or 'unknown resource'}"
 
     @property
     def extended_display_name(self):
@@ -1227,13 +1180,6 @@ class Content(models.Model):
             return True
         return self.published and self.playlist.can_be_viewed_by(user)
 
-    def get_resource(self):
-        if self.resource_id:
-            return self.resource
-        if self.resource_file_id:
-            return self.resource_file.resource
-        return None
-
     def is_url_only(self):
         return self.resource_file_id is None and bool(self.url)
 
@@ -1243,7 +1189,7 @@ class Content(models.Model):
         Includes sets the user cannot edit -- sharing is the point -- so callers
         rendering a chooser must mark those rather than assume they are editable.
         """
-        resource = self.get_resource()
+        resource = self.resource
         if not resource:
             return AnnotationSet.objects.none()
         sets = AnnotationSet.objects.filter(resource=resource)
@@ -1264,7 +1210,7 @@ class Content(models.Model):
             - 'name'
             - 'default' (True only for the instructor-chosen default track)
         """
-        resource = self.get_resource()
+        resource = self.resource
         if not resource:
             return []
         sub_objs = Subtitle.objects.filter(resource=resource).order_by("pk")
@@ -1298,9 +1244,8 @@ class Content(models.Model):
         Whether this content's annotation set has any active Clip annotations.
         Cheap existence check for template rendering; contrast with
         get_player_json()['clips'], which returns the clips themselves for playback.
-        Queries Clip directly (rather than reusing Track.get_active_annotations())
-        so this stays a plain .exists() check - keep the "active" condition here
-        in sync with Track.get_active_annotations() if that definition changes.
+        Keep the "active" condition here in sync with Track.get_active_annotations()
+        and AnnotationSet.get_active_annotations_from_tracks().
         """
         if not self.annotation_set_id:
             return False
@@ -1418,17 +1363,17 @@ class Thumbnail(models.Model):
         if self.playlist_id:
             return self.playlist.name
         # YouTube resources have generated names, so the content's title reads better.
-        resource = self.content.get_resource()
+        resource = self.content.resource
         if resource is None or self.content.is_url_only():
             return self.content.title
         return resource.name
 
     @property
     def text_settings(self):
-        settings = {**THUMBNAIL_TEXT_DEFAULTS, **self.text}
-        if "text" not in settings:
-            settings["text"] = self.default_text()
-        return settings
+        text_settings = {**THUMBNAIL_TEXT_DEFAULTS, **self.text}
+        if "text" not in text_settings:
+            text_settings["text"] = self.default_text()
+        return text_settings
 
 
 class BaseAnnotation(models.Model):
@@ -1486,10 +1431,10 @@ class BaseAnnotation(models.Model):
             )
         ]
 
-    @property
-    def annotation_type(self):
+    @classproperty
+    def annotation_type(cls):
         """Return the annotation type string (e.g., 'skip', 'pause')."""
-        return self.__class__.__name__.replace("Annotation", "").lower()
+        return cls.__name__.replace("Annotation", "").lower()
 
     def to_player_json(self):
         """Convert annotation to JSON format for video player."""
@@ -1525,7 +1470,8 @@ class BaseAnnotation(models.Model):
         return self.__class__.objects.create(**fields, active=self.active)
 
     @classmethod
-    def from_import(cls, imported_data, track):
+    def from_import(cls, imported_data, track, **fields):
+        """Create an annotation from exported data; subclasses pass their own fields."""
         return cls.objects.create(
             name=imported_data.get("name", ""),
             track=track,
@@ -1533,6 +1479,7 @@ class BaseAnnotation(models.Model):
             end_time=imported_data.get("end", 0.0),
             description=imported_data.get("description", ""),
             active=True,
+            **fields,
         )
 
     @transaction.atomic
@@ -1632,11 +1579,6 @@ class BaseAnnotation(models.Model):
 class SkipAnnotation(BaseAnnotation):
     """Skip annotation - standard time range."""
 
-    def to_player_json(self):
-        data = super().to_player_json()  # includes start/end + display strings
-        data["type"] = "skip"  # keep/ensure type
-        return data
-
 
 class MuteAnnotation(BaseAnnotation):
     """Mute annotation - standard time range."""
@@ -1657,10 +1599,9 @@ class BlankAnnotation(BaseAnnotation):
 
     @classmethod
     def from_import(cls, imported_data, track):
-        obj = super().from_import(imported_data, track)
-        obj.type = imported_data.get("type", "k")
-        obj.save()
-        return obj
+        return super().from_import(
+            imported_data, track, type=imported_data.get("type", "k")
+        )
 
 
 class PauseAnnotation(BaseAnnotation):
@@ -1673,18 +1614,15 @@ class PauseAnnotation(BaseAnnotation):
         super().save(*args, **kwargs)
 
     def to_player_json(self):
-        """pause needs a start time even though it doesnt have an end time. This is because
-        of how the AnnotationPlayer parses annotations for Y-video"""
         data = super().to_player_json()
         data["message"] = self.message
         return data
 
     @classmethod
     def from_import(cls, imported_data, track):
-        obj = super().from_import(imported_data, track)
-        obj.message = imported_data.get("message", "")
-        obj.save()
-        return obj
+        return super().from_import(
+            imported_data, track, message=imported_data.get("message", "")
+        )
 
 
 FONT_COLOR_PRESETS = [
@@ -1774,29 +1712,24 @@ class CommentAnnotation(BaseAnnotation):
 
     @classmethod
     def from_import(cls, imported_data, track):
-        # Missing values keep the model defaults the new annotation was created with.
-        new_annotation = super().from_import(imported_data, track)
-        new_annotation.text = imported_data.get("text", new_annotation.text)
+        # Missing values are left out, so the model defaults apply.
+        fields = {
+            name: imported_data[name]
+            for name in ("text", "font_size_in_rem", "font_color")
+            if name in imported_data
+        }
         # Files exported before x/y/width replaced the two corners still carry the corners.
-        x = imported_data.get("x", imported_data.get("top_left_x", new_annotation.x))
-        new_annotation.x = x
-        new_annotation.y = imported_data.get(
-            "y", imported_data.get("top_left_y", new_annotation.y)
-        )
+        for name, legacy_name in (("x", "top_left_x"), ("y", "top_left_y")):
+            if name in imported_data or legacy_name in imported_data:
+                fields[name] = imported_data.get(name, imported_data.get(legacy_name))
         if "width" in imported_data:
-            new_annotation.width = imported_data["width"]
+            fields["width"] = imported_data["width"]
         elif "bottom_right_x" in imported_data:
+            x = fields.get("x", cls._meta.get_field("x").default)
             right = imported_data["bottom_right_x"]
             # Inverted corners rendered with the text running to the frame's right edge.
-            new_annotation.width = right - x if right > x else 100.0 - x
-        new_annotation.font_size_in_rem = imported_data.get(
-            "font_size_in_rem", new_annotation.font_size_in_rem
-        )
-        new_annotation.font_color = imported_data.get(
-            "font_color", new_annotation.font_color
-        )
-        new_annotation.save()
-        return new_annotation
+            fields["width"] = right - x if right > x else 100.0 - x
+        return super().from_import(imported_data, track, **fields)
 
 
 # Matches the rounding BaseAnnotation.save() applies to start_time/end_time, so an anchor point's time
@@ -1845,7 +1778,7 @@ class BlurAnnotation(BaseAnnotation):
             blur_anchor_point.to_json()
             for blur_anchor_point in self.blur_anchor_points.all()
         ]
-        data.update({"positions": blur_anchor_points, "type": "blur"})
+        data["positions"] = blur_anchor_points
         return data
 
     def get_blur_anchor_point_dots(self):
@@ -2017,17 +1950,13 @@ class BlurAnchorPoint(models.Model):
     """
 
     blur_annotation = models.ForeignKey(
-        BlurAnnotation,
-        on_delete=models.CASCADE,
-        null=False,
-        blank=False,
-        related_name="blur_anchor_points",
+        BlurAnnotation, on_delete=models.CASCADE, related_name="blur_anchor_points"
     )
-    time = models.FloatField(null=False, blank=False)
-    x = models.FloatField(null=False, blank=False)
-    y = models.FloatField(null=False, blank=False)
-    width = models.FloatField(null=False, blank=False)
-    height = models.FloatField(null=False, blank=False)
+    time = models.FloatField()
+    x = models.FloatField()
+    y = models.FloatField()
+    width = models.FloatField()
+    height = models.FloatField()
 
     class Meta:
         # Interpolating between anchor points is only correct on a sorted sequence, so no caller should
@@ -2249,32 +2178,25 @@ class Course(models.Model):
 class UserCourses(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
-    yearterm = models.CharField(max_length=5, validators=[YEARTERM_VALIDATOR])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "course", "yearterm"],
-                name="unique_user_course_yearterm",
+                fields=["user", "course"], name="unique_user_course"
             )
         ]
 
-    def display_yearterm(self):
-        return display_yearterm(self.yearterm)
-
     def __str__(self):
-        return f"{self.course.dept} {self.course.catalog_number} Section {self.course.section_number} {self.display_yearterm()}"
+        return str(self.course)
 
 
 class Language(models.Model):
-    language = models.CharField(max_length=60, unique=True, blank=False, null=False)
+    language = models.CharField(max_length=60, unique=True)
     bcp47 = models.CharField(
         max_length=3,
         unique=True,
-        blank=False,
-        null=False,
         validators=[BCP47_VALIDATOR],
         help_text="BCP 47 primary language subtag: the 2-letter ISO 639-1 "
         "code where one exists (e.g. en, es), otherwise the 3-letter "
@@ -2359,7 +2281,7 @@ def delete_subtitle_file(sender, instance, using, **kwargs):
     )
 
 
-class ResourceFileKey(models.Model):  # "through" model
+class ResourceFileKey(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -2390,24 +2312,6 @@ class ResourceFileKey(models.Model):  # "through" model
 
     def can_be_used_by(self, user):
         return self.user_id == user.pk and not self.is_expired()
-
-
-class Email(models.Model):
-    sender = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="emails"
-    )
-    sender_email = models.EmailField(max_length=255)
-    recipients = models.JSONField()
-    subject = models.CharField(max_length=255)
-    body = models.TextField()
-    sent_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-sent_at"]
-
-    def __str__(self):
-        return f"{self.sender_email} | {self.subject} | {self.pk}"
 
 
 class AuthToken(models.Model):

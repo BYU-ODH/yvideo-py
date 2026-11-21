@@ -489,17 +489,14 @@ class CourseAccessSummaryTests(PlaylistMemberTestCase):
         course = CourseFactory()
         self.playlist.courses.add(course)
         for _ in range(3):
-            UserCourseFactory(course=course, yearterm=course.yearterm)
+            UserCourseFactory(course=course)
 
         summary = self.summary()
         self.assertEqual(len(summary), 1)
         self.assertEqual(summary[0]["name"], f"{course.dept} {course.catalog_number}")
         self.assertEqual(summary[0]["student_count"], 3)
 
-    def test_an_enrollment_from_an_inactive_term_is_not_counted(self):
-        course = CourseFactory()
-        self.playlist.courses.add(course)
-        UserCourseFactory(course=course, yearterm="19951")
+    def test_a_course_from_an_inactive_term_is_not_listed(self):
+        self.playlist.courses.add(CourseFactory(yearterm="19951"))
 
-        summary = self.summary()
-        self.assertEqual(summary[0]["student_count"], 0)
+        self.assertEqual(self.summary(), [])
