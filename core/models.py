@@ -1019,9 +1019,10 @@ class Track(models.Model):
         """Every active annotation on the track (the current version of each), by start time."""
         annotations = []
         for model_class in ANNOTATION_CLASSES.values():
-            annotations.extend(
-                model_class.objects.filter(track=self, active=True).order_by("pk")
-            )
+            queryset = model_class.objects.filter(track=self, active=True)
+            if model_class is BlurAnnotation:
+                queryset = queryset.prefetch_related("blur_anchor_points")
+            annotations.extend(queryset.order_by("pk"))
         return sorted(annotations, key=lambda a: a.start_time)
 
     def __str__(self):

@@ -587,8 +587,25 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
                 self.add_error(None, field_error)
 
 
+class AutocompleteTargetAdmin(VersionAdmin):
+    """Admin for a model that other admins pick through autocomplete.
+
+    Autocomplete pages through get_queryset() and labels each result with __str__, so
+    the rows need a stable order and the relations __str__ reads. Changelists add this
+    ordering to their own, so newest first keeps their default sort.
+    """
+
+    label_related = ()
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        if self.label_related:
+            queryset = queryset.select_related(*self.label_related)
+        return queryset if queryset.ordered else queryset.order_by("-pk")
+
+
 @admin.register(User)
-class UserAdmin(VersionAdmin):
+class UserAdmin(AutocompleteTargetAdmin):
     list_display = (
         "username",
         "netid",
@@ -668,7 +685,7 @@ class UserAdmin(VersionAdmin):
 
 
 @admin.register(Resource)
-class ResourceAdmin(VersionAdmin):
+class ResourceAdmin(AutocompleteTargetAdmin):
     list_display = (
         "name",
         "name_disambiguator",
@@ -863,7 +880,8 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
 
 
 @admin.register(Playlist)
-class PlaylistAdmin(VersionAdmin):
+class PlaylistAdmin(AutocompleteTargetAdmin):
+    label_related = ("owner",)
     list_display = ("name", "owner", "published", "archived", "is_ic", "created_at")
     list_filter = ("published", "archived", "is_ic", "created_at")
     search_fields = ("name", "owner__netid", "owner__username", "owner__last_name")
@@ -871,7 +889,8 @@ class PlaylistAdmin(VersionAdmin):
 
 
 @admin.register(ResourceFile)
-class ResourceFileAdmin(VersionAdmin):
+class ResourceFileAdmin(AutocompleteTargetAdmin):
+    label_related = ("resource",)
     list_display = (
         "file",
         "resource",
@@ -897,7 +916,8 @@ class ResourceFileAdmin(VersionAdmin):
 
 
 @admin.register(Content)
-class ContentAdmin(VersionAdmin):
+class ContentAdmin(AutocompleteTargetAdmin):
+    label_related = ("playlist",)
     list_select_related = ("playlist__owner", "resource")
     list_display = (
         "title",
@@ -952,7 +972,7 @@ class ContentAdmin(VersionAdmin):
 
 
 @admin.register(Course)
-class CourseAdmin(VersionAdmin):
+class CourseAdmin(AutocompleteTargetAdmin):
     list_display = ("dept", "catalog_number", "section_number", "created_at")
     list_filter = ("dept", "created_at")
     search_fields = ("dept", "catalog_number", "section_number")
@@ -964,7 +984,7 @@ class LanguageAdmin(VersionAdmin):
     search_fields = ("language",)
 
 
-class AnnotationAdmin(VersionAdmin):
+class AnnotationAdmin(AutocompleteTargetAdmin):
     list_select_related = (
         "track__annotation_set__owner",
         "track__annotation_set__resource",
@@ -1029,7 +1049,8 @@ class ClipAdmin(AnnotationAdmin):
 
 
 @admin.register(Subtitle)
-class SubtitleAdmin(VersionAdmin):
+class SubtitleAdmin(AutocompleteTargetAdmin):
+    label_related = ("language", "resource", "owner")
     form = SubtitleAdminForm
 
     list_display = ("name", "language", "owner", "resource", "created_at")
@@ -1083,7 +1104,8 @@ class ResourceFileKeyAdmin(VersionAdmin):
 
 
 @admin.register(AnnotationSet)
-class AnnotationSetAdmin(VersionAdmin):
+class AnnotationSetAdmin(AutocompleteTargetAdmin):
+    label_related = ("owner", "resource")
     list_select_related = ("owner", "resource")
     list_display = ("name", "owner_label", "resource", "created_at")
     list_filter = ("created_at",)
@@ -1092,7 +1114,8 @@ class AnnotationSetAdmin(VersionAdmin):
 
 
 @admin.register(Track)
-class TrackAdmin(VersionAdmin):
+class TrackAdmin(AutocompleteTargetAdmin):
+    label_related = ("annotation_set",)
     list_select_related = ("annotation_set__resource", "annotation_set__owner")
     list_display = (
         "annotation_set__resource__name",
