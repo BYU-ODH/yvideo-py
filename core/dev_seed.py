@@ -233,7 +233,7 @@ def create_demo_data():
         (student_bob, film_course),
         (student_ivy, film_course),
     ]:
-        UserCourseFactory(user=user, course=course, yearterm=demo_yearterm)
+        UserCourseFactory(user=user, course=course)
 
     birds_resource = ResourceFactory(
         name="Birds", requester_username=professor_ada.username

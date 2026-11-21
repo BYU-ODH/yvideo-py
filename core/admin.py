@@ -27,7 +27,6 @@ from .models import Clip
 from .models import CommentAnnotation
 from .models import Content
 from .models import Course
-from .models import Email
 from .models import Language
 from .models import MuteAnnotation
 from .models import PauseAnnotation
@@ -588,8 +587,25 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
                 self.add_error(None, field_error)
 
 
+class AutocompleteTargetAdmin(VersionAdmin):
+    """Admin for a model that other admins pick through autocomplete.
+
+    Autocomplete pages through get_queryset() and labels each result with __str__, so
+    the rows need a stable order and the relations __str__ reads. Changelists add this
+    ordering to their own, so newest first keeps their default sort.
+    """
+
+    label_related = ()
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        if self.label_related:
+            queryset = queryset.select_related(*self.label_related)
+        return queryset if queryset.ordered else queryset.order_by("-pk")
+
+
 @admin.register(User)
-class UserAdmin(VersionAdmin):
+class UserAdmin(AutocompleteTargetAdmin):
     list_display = (
         "username",
         "netid",
@@ -610,6 +626,14 @@ class UserAdmin(VersionAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related("groups")
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        # Each permission's label names its content type.
+        if db_field.name == "user_permissions":
+            kwargs["queryset"] = db_field.remote_field.model.objects.select_related(
+                "content_type"
+            )
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     @admin.display(description="Groups")
     def group_names(self, user):
@@ -661,7 +685,7 @@ class UserAdmin(VersionAdmin):
 
 
 @admin.register(Resource)
-class ResourceAdmin(VersionAdmin):
+class ResourceAdmin(AutocompleteTargetAdmin):
     list_display = (
         "name",
         "name_disambiguator",
@@ -707,6 +731,7 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
     )
     list_filter = ("checked_out_from_hbll", "checked_out_from_other_byu_library")
     search_fields = ("resource_title", "owner__username", "owner__netid")
+    autocomplete_fields = ("owner",)
 
     class Media:
         js = ("js/admin_call_number.js",)
@@ -855,14 +880,17 @@ class ResourceIntakeRequestAdmin(VersionAdmin):
 
 
 @admin.register(Playlist)
-class PlaylistAdmin(VersionAdmin):
+class PlaylistAdmin(AutocompleteTargetAdmin):
+    label_related = ("owner",)
     list_display = ("name", "owner", "published", "archived", "is_ic", "created_at")
     list_filter = ("published", "archived", "is_ic", "created_at")
-    search_fields = ("name", "owner__name", "owner__netid", "owner__username")
+    search_fields = ("name", "owner__netid", "owner__username", "owner__last_name")
+    autocomplete_fields = ("owner", "courses")
 
 
 @admin.register(ResourceFile)
-class ResourceFileAdmin(VersionAdmin):
+class ResourceFileAdmin(AutocompleteTargetAdmin):
+    label_related = ("resource",)
     list_display = (
         "file",
         "resource",
@@ -873,6 +901,7 @@ class ResourceFileAdmin(VersionAdmin):
     )
     list_filter = ("full_video", "is_projection_file", "created_at")
     search_fields = ("file", "version", "resource__name")
+    autocomplete_fields = ("resource",)
     readonly_fields = (
         # Masters and their SD files come only from the IC media pipeline
         # (/ic/manage/), which probes and transcodes them.
@@ -887,7 +916,9 @@ class ResourceFileAdmin(VersionAdmin):
 
 
 @admin.register(Content)
-class ContentAdmin(VersionAdmin):
+class ContentAdmin(AutocompleteTargetAdmin):
+    label_related = ("playlist",)
+    list_select_related = ("playlist__owner", "resource")
     list_display = (
         "title",
         "extended_display_name",
@@ -913,6 +944,13 @@ class ContentAdmin(VersionAdmin):
         "resource__name_disambiguator",
         "resource__imdb_id",
     )
+    # resource_file stays a dropdown because get_form narrows its choices.
+    autocomplete_fields = (
+        "playlist",
+        "resource",
+        "annotation_set",
+        "default_subtitle_track",
+    )
 
     def get_form(self, request, obj=None, **kwargs):
         """Dynamically filters the 'resource_file' field's queryset.
@@ -923,7 +961,9 @@ class ContentAdmin(VersionAdmin):
         shows every file except projection masters.
         """
         form = super().get_form(request, obj, **kwargs)
-        files = ResourceFile.objects.filter(is_projection_file=False)
+        files = ResourceFile.objects.filter(is_projection_file=False).select_related(
+            "resource"
+        )
         if obj:
             files = files.filter(resource__in=obj.playlist.owner.accessible_resources())
         form.base_fields["resource_file"].queryset = files
@@ -932,7 +972,7 @@ class ContentAdmin(VersionAdmin):
 
 
 @admin.register(Course)
-class CourseAdmin(VersionAdmin):
+class CourseAdmin(AutocompleteTargetAdmin):
     list_display = ("dept", "catalog_number", "section_number", "created_at")
     list_filter = ("dept", "created_at")
     search_fields = ("dept", "catalog_number", "section_number")
@@ -944,10 +984,15 @@ class LanguageAdmin(VersionAdmin):
     search_fields = ("language",)
 
 
-class AnnotationAdmin(VersionAdmin):
+class AnnotationAdmin(AutocompleteTargetAdmin):
+    list_select_related = (
+        "track__annotation_set__owner",
+        "track__annotation_set__resource",
+    )
     list_display = ("name", "track__annotation_set", "track", "created_at")
     list_filter = ("created_at",)
-    search_fields = ("name", "resource__name")
+    search_fields = ("name", "track__annotation_set__resource__name")
+    autocomplete_fields = ("track", "prev", "next")
 
 
 @admin.register(CommentAnnotation)
@@ -995,32 +1040,29 @@ class BlurAnchorPointAdmin(VersionAdmin):
         "blur_annotation__track__annotation_set__name",
         "blur_annotation__track__annotation_set__resource__name",
     )
+    autocomplete_fields = ("blur_annotation",)
 
 
 @admin.register(Clip)
-class ClipAdmin(VersionAdmin):
+class ClipAdmin(AnnotationAdmin):
     pass
 
 
 @admin.register(Subtitle)
-class SubtitleAdmin(VersionAdmin):
+class SubtitleAdmin(AutocompleteTargetAdmin):
+    label_related = ("language", "resource", "owner")
     form = SubtitleAdminForm
 
     list_display = ("name", "language", "owner", "resource", "created_at")
     list_filter = ("language", "created_at")
     search_fields = (
         "name",
-        "owner__name",
+        "owner__netid",
+        "owner__last_name",
         "resource__name",
         "language__language",
     )
-
-
-@admin.register(Email)
-class EmailAdmin(VersionAdmin):
-    list_display = ("subject", "sender", "sender_email", "sent_at")
-    list_filter = ("sent_at", "created_at")
-    search_fields = ("subject", "sender__name", "sender_email", "body")
+    autocomplete_fields = ("resource", "owner")
 
 
 @admin.register(ResourceAccess)
@@ -1028,6 +1070,7 @@ class ResourceAccessAdmin(VersionAdmin):
     list_display = ("user", "resource", "last_verified", "created_at")
     list_filter = ("last_verified", "created_at")
     search_fields = ("user__netid", "user__username", "resource__name")
+    autocomplete_fields = ("user", "resource")
 
 
 @admin.register(ResourceAccessRequest)
@@ -1041,6 +1084,7 @@ class ResourceAccessRequestAdmin(VersionAdmin):
     )
     list_filter = ("created_at",)
     search_fields = ("user__netid", "user__username", "resource__name")
+    autocomplete_fields = ("user", "resource")
 
 
 @admin.register(PlaylistUserAccess)
@@ -1048,6 +1092,7 @@ class PlaylistUserAccessAdmin(VersionAdmin):
     list_display = ("user", "playlist", "playlist_role", "created_at")
     list_filter = ("playlist_role", "created_at")
     search_fields = ("user__netid", "user__username", "playlist__name")
+    autocomplete_fields = ("user", "playlist")
 
 
 @admin.register(ResourceFileKey)
@@ -1055,17 +1100,23 @@ class ResourceFileKeyAdmin(VersionAdmin):
     list_display = ("user", "resource_file", "created_at")
     list_filter = ("created_at",)
     search_fields = ("user__netid", "user__username", "resource_file__resource__name")
+    autocomplete_fields = ("user", "resource_file")
 
 
 @admin.register(AnnotationSet)
-class AnnotationSetAdmin(VersionAdmin):
+class AnnotationSetAdmin(AutocompleteTargetAdmin):
+    label_related = ("owner", "resource")
+    list_select_related = ("owner", "resource")
     list_display = ("name", "owner_label", "resource", "created_at")
     list_filter = ("created_at",)
     search_fields = ("name", "owner__netid", "owner__username", "resource__name")
+    autocomplete_fields = ("resource", "owner")
 
 
 @admin.register(Track)
-class TrackAdmin(VersionAdmin):
+class TrackAdmin(AutocompleteTargetAdmin):
+    label_related = ("annotation_set",)
+    list_select_related = ("annotation_set__resource", "annotation_set__owner")
     list_display = (
         "annotation_set__resource__name",
         "annotation_set__name",
@@ -1079,12 +1130,14 @@ class TrackAdmin(VersionAdmin):
         "annotation_set__owner__username",
         "annotation_set__resource__name",
     )
+    autocomplete_fields = ("annotation_set",)
 
 
 @admin.register(UserCourses)
 class UserCourses(VersionAdmin):
-    list_display = ("user", "course", "yearterm")
-    search_fields = ("user", "course", "yearterm")
+    list_display = ("user", "course", "course__yearterm")
+    search_fields = ("user__netid", "course__dept", "course__yearterm")
+    autocomplete_fields = ("user", "course")
 
 
 @admin.register(YearTerm)

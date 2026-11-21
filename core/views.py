@@ -65,6 +65,7 @@ from .permissions import lab_assistant_required
 from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
+from .utils import display_yearterm
 from .youtube_utils import get_or_create_youtube_resource
 from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
@@ -117,18 +118,6 @@ def prepare_playlist_for_display(playlist):
 def thumbnail_editor_response(url_name, item):
     """Tells the client which thumbnail editor to open for a newly created item."""
     return JsonResponse({"thumbnail_editor_url": reverse(url_name, args=[item.pk])})
-
-
-def display_yearterm(yearterm):
-    term_decoder = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
-    year_string = yearterm[0:4]
-    term_string = yearterm[4:]
-    try:
-        term_name = term_decoder[term_string]
-    except KeyError:
-        logger.error(f"Invalid yearterm: {yearterm}")
-        return yearterm
-    return f"{term_name} {year_string}"
 
 
 def breadcrumb_trail(*crumbs):
@@ -425,11 +414,13 @@ def playlists(request):
     # organize assigned playlists by yearterm and then by course.
     playlists_by_course_by_yearterm = []
     for yearterm in sorted(
-        UserCourses.objects.filter(user=request.user, yearterm__in=active)
-        .values_list("yearterm", flat=True)
+        UserCourses.objects.filter(user=request.user, course__yearterm__in=active)
+        .values_list("course__yearterm", flat=True)
         .distinct()
     ):
-        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
+        user_courses = UserCourses.objects.filter(
+            user=request.user, course__yearterm=yearterm
+        )
         playlists_by_course = []
         for user_course in user_courses:
             course_playlists = Playlist.objects.filter(
@@ -860,7 +851,7 @@ def get_course_access_summary(playlist):
     """Courses that reach this playlist, and how many students that is.
 
     The count mirrors Playlist.can_be_viewed_by exactly -- distinct users holding a
-    UserCourses row whose own yearterm is active, on a course assigned here. Counting
+    UserCourses row on a course assigned here whose yearterm is active. Counting
     any other way would advertise access the app does not actually grant.
     """
     yearterms = active_yearterms()
@@ -871,13 +862,7 @@ def get_course_access_summary(playlist):
     counts = (
         playlist.courses.filter(yearterm__in=yearterms)
         .values("dept", "catalog_number")
-        .annotate(
-            student_count=Count(
-                "usercourses__user",
-                filter=Q(usercourses__yearterm__in=yearterms),
-                distinct=True,
-            )
-        )
+        .annotate(student_count=Count("usercourses__user", distinct=True))
         .order_by("dept", "catalog_number")
     )
 
@@ -1377,7 +1362,7 @@ def update_content(request, content):
 
         default_subtitle_id = data.get("default_subtitle_track_id")
         if default_subtitle_id:
-            resource = content.get_resource()
+            resource = content.resource
             content.default_subtitle_track = Subtitle.objects.filter(
                 pk=default_subtitle_id, resource=resource
             ).first()
@@ -1446,9 +1431,9 @@ def spoof_user_search(request):
         )
         & ~Q(id=actor.id)
     )
-    if not actor.is_admin:
+    if not actor.is_superuser:
         # Lab assistants may spoof any non-admin user, but never an admin.
-        users = users.exclude(User.is_admin_q())
+        users = users.exclude(is_superuser=True)
     users = users.order_by("last_name")[:25]
     html = render_to_string(
         "core/partials/spoof_user_options_for_select.html", {"users": users}

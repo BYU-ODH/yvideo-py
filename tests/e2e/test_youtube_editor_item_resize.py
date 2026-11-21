@@ -48,7 +48,7 @@ def long_youtube_editor(fake_youtube, live_server, youtube_content, page):
 
     annotation_set = AnnotationSetFactory(
         name="Long Video Annotations",
-        resource=content.get_resource(),
+        resource=content.resource,
         owner=content.playlist.owner,
     )
     track = TrackFactory(annotation_set=annotation_set, name="Track 1")

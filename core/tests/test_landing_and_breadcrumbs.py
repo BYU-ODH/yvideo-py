@@ -276,9 +276,7 @@ class ContentBreadcrumbTests(TestCase):
 
     def test_student_player_trail_skips_details_they_cannot_open(self):
         student = UserFactory(student=True, netid="stud4")
-        UserCourseFactory(
-            user=student, course=self.course, yearterm=self.course.yearterm
-        )
+        UserCourseFactory(user=student, course=self.course)
         self.client.force_login(student)
 
         response = self.client.get(reverse("player", args=[self.content.pk]))
@@ -298,9 +296,7 @@ class ContentBreadcrumbTests(TestCase):
 
     def test_student_visit_counts_as_a_view(self):
         student = UserFactory(student=True, netid="stud5")
-        UserCourseFactory(
-            user=student, course=self.course, yearterm=self.course.yearterm
-        )
+        UserCourseFactory(user=student, course=self.course)
         self.client.force_login(student)
 
         self.client.get(reverse("player", args=[self.content.pk]))

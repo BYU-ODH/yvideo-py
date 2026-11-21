@@ -108,7 +108,7 @@ def lab_assistant_required(view_func):
 
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
-        if not (request.user.is_admin or request.user.is_lab_assistant):
+        if not (request.user.is_superuser or request.user.is_lab_assistant):
             return forbidden("Only lab assistants can do that.")
         return view_func(request, *args, **kwargs)
 

@@ -92,7 +92,6 @@ class UserCourseFactory(factory.django.DjangoModelFactory):
 
     user = factory.SubFactory(UserFactory)
     course = factory.SubFactory(CourseFactory)
-    yearterm = factory.LazyFunction(estimate_current_yearterm)
 
 
 class ResourceFactory(factory.django.DjangoModelFactory):
@@ -202,11 +201,11 @@ class ContentFactory(factory.django.DjangoModelFactory):
 
     @factory.post_generation
     def grant_owner_resource_access(self, create, extracted, **kwargs):
-        if not create or not self.playlist or not self.get_resource():
+        if not create or not self.playlist or not self.resource:
             return
         ResourceAccess.objects.get_or_create(
             user=self.playlist.owner,
-            resource=self.get_resource(),
+            resource=self.resource,
         )
 
 
