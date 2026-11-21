@@ -31,6 +31,7 @@ from ..models import ResourceAccess
 from ..models import ResourceFile
 from ..models import Subtitle
 from ..models import User
+from . import LEGACY_USERNAME_PREFIX
 from .annotations import annotation_model_for_type
 from .annotations import import_annotations
 from .legacy_roles import map_legacy_collection_role
@@ -340,8 +341,12 @@ class LegacyBulkImporter:
         excluded = {
             identifier
             for identifier, row in users.items()
-            if not self._valid_byu_id(row["byu_person_id"])
-            or str(row["account_type"]).strip() == "3"
+            if identifier not in self.user_map
+            and (
+                not self._valid_byu_id(row["byu_person_id"])
+                or not (row["username"] or "").strip()
+                or str(row["account_type"]).strip() == "3"
+            )
         }
         self.skipped_users = {
             identifier: {
@@ -565,7 +570,7 @@ class LegacyBulkImporter:
                 skipped_user = self.skipped_users[identifier]
                 raise BulkImportError(
                     f"Required owner with netid {skipped_user['netid']!r} "
-                    f"({identifier}) was excluded (BYU ID "
+                    f"({identifier}) was excluded (BYU Person ID "
                     f"{skipped_user['byu_person_id']!r}, "
                     f"account_type={skipped_user['account_type']!r}); "
                     "cannot import this collection without an owner."
@@ -701,33 +706,25 @@ class LegacyBulkImporter:
                 raise BulkImportError("--user-map must name an existing target user.")
             return target, False
         netid = (row["username"] or "").strip()
-        byu_id = (row["byu_person_id"] or "").strip()
-        if not self._valid_byu_id(byu_id):
-            raise BulkImportError(
-                f"A valid nine-digit byu_person_id is required for netid {netid!r}; "
-                "use --user-map for this user."
-            )
         if len(netid) > 8:
             raise BulkImportError(
                 "Legacy netid exceeds eight characters; map this user explicitly with --user-map."
             )
-        if netid:
-            candidates = list(User.objects.filter(netid=netid).order_by("pk"))
-            if len(candidates) > 1:
-                identifiers = ", ".join(str(user.pk) for user in candidates)
-                raise BulkImportError(
-                    f"Netid {netid!r} belongs to multiple target users ({identifiers}); "
-                    "supply --user-map to choose one."
-                )
-            if candidates:
-                return candidates[0], False
-        existing = User.objects.filter(username=byu_id).first()
-        if existing:
-            return existing, False
+        candidates = list(User.objects.filter(netid__iexact=netid).order_by("pk"))
+        if len(candidates) > 1:
+            identifiers = ", ".join(str(user.pk) for user in candidates)
+            raise BulkImportError(
+                f"Netid {netid!r} belongs to multiple target users ({identifiers}); "
+                "supply --user-map to choose one."
+            )
+        if candidates:
+            return candidates[0], False
         first, _, last = (row["account_name"] or "").strip().partition(" ")
+        # Legacy stores the BYU Person ID, not the BYU ID that login matches on,
+        # so login renames this account once the user first signs in.
         user = User(
-            username=byu_id,
-            netid=netid or None,
+            username=LEGACY_USERNAME_PREFIX + netid,
+            netid=netid,
             email=row["email"] or "",
             first_name=first,
             last_name=last,
@@ -891,6 +888,11 @@ class LegacyBulkImporter:
 
     def _collection(self, row):
         owner = self._require("users", row["owner"])
+        # Legacy let staff own collections, but only instructors can own
+        # playlists here.
+        if owner.privilege_level_override is None and not owner.is_instructor:
+            owner.privilege_level_override = PrivilegeLevel.INSTRUCTOR
+            owner.save(update_fields=["privilege_level_override"])
         return self._save(
             Playlist(
                 owner=owner,

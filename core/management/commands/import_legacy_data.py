@@ -62,7 +62,8 @@ class Command(BaseCommand):
             )
         self.stdout.write(
             "New source mappings retain legacy-only fields in metadata, not as app behavior. "
-            "Users with account_type=3 (students) or invalid BYU IDs and their access rows are filtered out. "
+            "Users with account_type=3 (students), an invalid BYU Person ID, or no netid are filtered out, "
+            "along with their access rows, unless --user-map names them. "
             "Their owned collections and collection-specific data are also filtered out. "
             "Legacy global privileges are NOT imported. "
             "New resource IMDb IDs, resource-file barcodes, and checksums are left NULL. "
