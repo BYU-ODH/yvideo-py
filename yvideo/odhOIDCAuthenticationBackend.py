@@ -106,13 +106,13 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         byu_id = claims.get("byu_id")
         if not byu_id:
             return User.objects.none()
-        user = User.objects.filter(
-            username=byu_id
-        ).first() or self._adopt_imported_user(byu_id)
+        user = User.objects.filter(username=byu_id).first() or self.adopt_imported_user(
+            byu_id
+        )
         return [user] if user else User.objects.none()
 
     @staticmethod
-    def _adopt_imported_user(byu_id):
+    def adopt_imported_user(byu_id):
         """Give this person the legacy-imported account that matches their netid.
 
         Imported accounts carry a placeholder username, so they can only be found

@@ -871,7 +871,12 @@ class LegacyBulkImporter:
             usernames = {user.username for user in matches}
             if len(usernames) == 1:
                 candidate = next(iter(usernames))
-                requester = candidate if len(candidate) <= 9 else ""
+                # An imported user's placeholder username changes at first login,
+                # so it can't identify the requester later.
+                if len(candidate) <= 9 and not candidate.startswith(
+                    LEGACY_USERNAME_PREFIX
+                ):
+                    requester = candidate
         resource = Resource(
             name=name,
             name_disambiguator=disambiguator,

@@ -1,7 +1,8 @@
 # Removing legacy_migration
 
 Everything for the one-time legacy import lives in this package, except for
-these hooks into the rest of the app. Delete them together:
+these hooks into the rest of the app. Delete them together, except item 11,
+which has to wait:
 
 1. `core/legacy_migration/` (this package).
 2. `core/management/commands/import_legacy_data.py` and
@@ -22,6 +23,9 @@ these hooks into the rest of the app. Delete them together:
 9. The `scripts/dump_legacy_to_sqlite_settings.py` entries in `.gitignore`
    and `scripts/new_worktree.sh`.
 10. Section 6 of `MANUAL_TESTING.md` and its row in the table at the top.
-11. `_adopt_imported_user` in `yvideo/odhOIDCAuthenticationBackend.py`. Only
-    remove it once no usernames start with `legacy:`, or those users will get a
-    new, empty account when they log in.
+11. `adopt_imported_user` in `yvideo/odhOIDCAuthenticationBackend.py` and its
+    call in `AddUserLookupForm` in `core/forms.py`. Only remove them once no
+    usernames start with `legacy-`, or those users will get a new, empty
+    account when they log in or are added by BYU ID. If you delete this
+    package first, move `LEGACY_USERNAME_PREFIX` into the backend so it still
+    imports.
