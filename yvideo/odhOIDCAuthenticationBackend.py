@@ -3,6 +3,8 @@ import logging
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 
 from core.api import Api
+from core.api import ApiUnavailable
+from core.legacy_migration import LEGACY_USERNAME_PREFIX
 from core.model_utils import update_user_details
 from core.model_utils import update_user_enrollment
 from core.models import PrivilegeLevel
@@ -104,8 +106,39 @@ class OIDCUserAuth(OIDCAuthenticationBackend):
         byu_id = claims.get("byu_id")
         if not byu_id:
             return User.objects.none()
-        try:
-            user = User.objects.get(username=byu_id)
-            return [user]
-        except User.DoesNotExist:
-            return User.objects.none()
+        user = User.objects.filter(username=byu_id).first() or self.adopt_imported_user(
+            byu_id
+        )
+        return [user] if user else User.objects.none()
+
+    @staticmethod
+    def adopt_imported_user(byu_id):
+        """Give this person the legacy-imported account that matches their netid.
+
+        Imported accounts carry a placeholder username, so they can only be found
+        by netid. Accounts with a real username are never matched this way.
+        """
+        imported = User.objects.filter(username__startswith=LEGACY_USERNAME_PREFIX)
+        if not imported.exists():
+            return None
+        api = Api()
+        # If BYU's API fails here, stop rather than let the caller create a new
+        # account, because that account would hide the imported one for good.
+        worker_id = api.get_worker_id_from_byu_id(byu_id)
+        if worker_id is None:
+            raise ApiUnavailable("Could not look up this user's worker ID.")
+        if worker_id:
+            netid = api.get_net_id_from_worker_id(worker_id)
+            if not netid:
+                raise ApiUnavailable("Could not look up this worker's netid.")
+        else:
+            netid = (api.get_student_summary(byu_id) or {}).get("net_id")
+            if not netid:
+                return None
+        matches = list(imported.filter(netid__iexact=netid)[:2])
+        if len(matches) != 1:
+            return None
+        user = matches[0]
+        user.username = byu_id
+        user.save(update_fields=["username"])
+        return user

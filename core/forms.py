@@ -332,6 +332,9 @@ class AddUserLookupForm(forms.Form):
         from yvideo.odhOIDCAuthenticationBackend import OIDCUserAuth
 
         try:
+            adopted_user = OIDCUserAuth.adopt_imported_user(byu_id)
+            if adopted_user is not None:
+                return adopted_user, False
             created_user = OIDCUserAuth().create_user({"byu_id": byu_id})
             if created_user is not None:
                 enrollment_result = update_user_enrollment(created_user)
