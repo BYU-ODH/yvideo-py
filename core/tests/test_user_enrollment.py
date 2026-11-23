@@ -93,7 +93,6 @@ class UpdateUserEnrollmentTests(EnrollmentSyncTestCase):
 
         self.assertTrue(result["is_current_sem_updated"])
         association = UserCourses.objects.get(user=self.user)
-        self.assertEqual(association.yearterm, "20265")
         self.assertEqual(association.course.yearterm, "20265")
 
     def test_next_term_enrollments_are_saved_with_the_next_yearterm(self):
@@ -104,19 +103,9 @@ class UpdateUserEnrollmentTests(EnrollmentSyncTestCase):
         )
 
         self.assertTrue(result["is_next_sem_updated"])
-        next_term = UserCourses.objects.get(yearterm="20271")
+        next_term = UserCourses.objects.get(course__yearterm="20271")
         self.assertEqual(next_term.course.section_number, "002")
         self.assertEqual(next_term.course.yearterm, "20271")
-
-    def test_enrollment_and_course_yearterms_always_agree(self):
-        self.run_update(
-            True,
-            [enrollment_record(section_number="001")],
-            [enrollment_record(section_number="002")],
-        )
-
-        for association in UserCourses.objects.all():
-            self.assertEqual(association.yearterm, association.course.yearterm)
 
     def test_repeated_logins_do_not_duplicate_associations(self):
         self.run_update(False, [enrollment_record()])
@@ -182,16 +171,18 @@ class EnrollmentRevocationTests(EnrollmentSyncTestCase):
 
         self.run_update(False, [])
 
-        self.assertEqual(UserCourses.objects.filter(yearterm="20265").count(), 0)
-        self.assertEqual(UserCourses.objects.filter(yearterm="20271").count(), 1)
+        self.assertEqual(
+            UserCourses.objects.filter(course__yearterm="20265").count(), 0
+        )
+        self.assertEqual(
+            UserCourses.objects.filter(course__yearterm="20271").count(), 1
+        )
 
     def test_another_users_associations_are_untouched(self):
         classmate = UserFactory(username="987654321", netid="cstudent")
         self.run_update(False, [enrollment_record()])
         course = Course.objects.get()
-        UserCourses.objects.create(
-            user=classmate, course=course, yearterm=course.yearterm
-        )
+        UserCourses.objects.create(user=classmate, course=course)
 
         self.run_update(False, [])
 

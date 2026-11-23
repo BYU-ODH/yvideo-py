@@ -79,9 +79,9 @@ def youtube_video_id_for_content(content, source_url):
     """
     if not source_url:
         return None
-    return youtube_video_id_for_resource(
-        content.get_resource()
-    ) or parse_youtube_video_id(source_url)
+    return youtube_video_id_for_resource(content.resource) or parse_youtube_video_id(
+        source_url
+    )
 
 
 def get_or_create_youtube_resource(video_id, requester_username):

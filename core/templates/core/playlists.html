@@ -7,7 +7,7 @@
         {% if show_whats_new %}
             {% include "core/partials/whats_new_banner.html" %}
         {% endif %}
-        {% if is_instructor or user.is_admin %}
+        {% if is_instructor %}
             <div id="my-playlists-wrapper"
                  class="landing-page-playlist-list column-flex">
                 <header class="playlists-header row-flex flex-apart-aligned">

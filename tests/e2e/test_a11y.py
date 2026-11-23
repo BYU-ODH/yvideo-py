@@ -967,7 +967,7 @@ def test_find_replace_interface_has_no_a11y_violations(
     from core.factories import SubtitleFactory
 
     subtitle_track = SubtitleFactory(
-        resource=demo_content.get_resource(),
+        resource=demo_content.resource,
         owner=demo_content.playlist.owner,
     )
     open_editor()

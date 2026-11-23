@@ -58,8 +58,7 @@ class DemoSeedDataTests(TestCase):
 
         self.assertTrue(admin_user.is_superuser)
         self.assertTrue(admin_user.is_staff)
-        self.assertTrue(admin_user.is_admin)
-        self.assertFalse(alice.is_admin)
+        self.assertFalse(alice.is_superuser)
         self.assertTrue(lab_assistant_user.is_lab_assistant)
         self.assertFalse(alice.is_lab_assistant)
         self.assertEqual(admin_owned_playlists.count(), 2)

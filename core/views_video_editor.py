@@ -30,20 +30,15 @@ from django.views.decorators.http import require_POST
 from .forms import SubtitleCopyForm
 from .forms import SubtitleCreateForm
 from .forms import SubtitleUpdateForm
+from .models import ANNOTATION_CLASSES
 from .models import BLUR_SNAP_SECONDS
 from .models import BLUR_TIME_PRECISION
 from .models import FONT_COLOR_PRESETS
 from .models import AnnotationSet
-from .models import BlankAnnotation
 from .models import BlurAnchorPoint
 from .models import BlurAnnotation
-from .models import Clip
-from .models import CommentAnnotation
 from .models import Content
 from .models import Language
-from .models import MuteAnnotation
-from .models import PauseAnnotation
-from .models import SkipAnnotation
 from .models import Subtitle
 from .models import Track
 from .models import User
@@ -75,13 +70,8 @@ logger = logging.getLogger(__name__)
 
 # Map annotation type strings to model classes
 ANNOTATION_MODELS = {
-    "skip": SkipAnnotation,
-    "mute": MuteAnnotation,
-    "blank": BlankAnnotation,
-    "pause": PauseAnnotation,
-    "blur": BlurAnnotation,
-    "comment": CommentAnnotation,
-    "clip": Clip,
+    model_class.annotation_type: model_class
+    for model_class in ANNOTATION_CLASSES.values()
 }
 
 
@@ -193,7 +183,7 @@ def video_editor(request, content):
         # Get file key for video streaming
         file_key = request.user.get_resource_filekey(content)
 
-        resource = content.get_resource()
+        resource = content.resource
         subtitle_options = content.get_subtitles()
         editable_subtitle_options = []
         for sub in subtitle_options:
@@ -1409,7 +1399,7 @@ def delete_track(request, track):
 def _render_subtitle_track_creation_modal(
     request, content, *, create_form=None, copy_form=None
 ):
-    resource = content.get_resource()
+    resource = content.resource
     if create_form is None:
         create_form = SubtitleCreateForm(resource=resource, owner=request.user)
     if copy_form is None:
@@ -1453,7 +1443,7 @@ def create_subtitle_track(request, content):
     else:
         data = request.POST
 
-    resource = content.get_resource()
+    resource = content.resource
     if resource is None:
         return JsonResponse(
             {"error": "This content has no subtitle resource."}, status=400
@@ -1547,7 +1537,7 @@ def _render_subtitle_track_edit_modal(request, subtitle, *, form=None, status=20
         except (TypeError, ValueError, OverflowError):
             content = None
         if content is not None and content.can_be_edited_by(request.user):
-            resource = content.get_resource()
+            resource = content.resource
             if resource is not None and resource.pk == subtitle.resource_id:
                 context["content_id"] = content.pk
     return render(
@@ -1625,7 +1615,7 @@ def copy_subtitle_track(request, content, subtitle_id):
 
 
 def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
-    resource = content.get_resource()
+    resource = content.resource
     if resource is None or source.resource_id != resource.pk:
         return forbidden("The subtitle track must belong to this content's resource.")
     if not source.can_be_read_by(request.user):

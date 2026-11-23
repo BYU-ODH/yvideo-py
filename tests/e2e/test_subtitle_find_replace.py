@@ -28,7 +28,7 @@ def subtitle_track(demo_content):
         for index, text in enumerate(CUE_TEXTS)
     ]
     return SubtitleFactory(
-        resource=demo_content.get_resource(),
+        resource=demo_content.resource,
         owner=demo_content.playlist.owner,
         subtitles_file=SimpleUploadedFile(
             "find-replace.vtt",
@@ -344,7 +344,7 @@ def test_composed_search_matches_decomposed_cue_text(page, open_editor, demo_con
     decomposed = "café au lait"
     untouched = "Unchanged cafés."
     track = SubtitleFactory(
-        resource=demo_content.get_resource(),
+        resource=demo_content.resource,
         owner=demo_content.playlist.owner,
         subtitles_file=SimpleUploadedFile(
             "nfd.vtt",
