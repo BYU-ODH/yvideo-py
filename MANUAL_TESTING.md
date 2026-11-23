@@ -26,6 +26,7 @@ presence, not behaviour, so nobody mistakes one for the other.
 | 8 | [Adding a person who has never signed in](#8-adding-a-person-who-has-never-signed-in) | Medium | Never |
 | 9 | [International Cinema: a showing in the real booth](#9-international-cinema-a-showing-in-the-real-booth) | **Critical** | Never |
 | 10 | [International Cinema: sync and its indicators against real machines](#10-international-cinema-sync-and-its-indicators-against-real-machines) | **Critical** | Never |
+| 11 | [Fullscreen on Android](#11-fullscreen-on-android) | Medium | Never |
 
 Severity reflects what a silent failure would expose. Blurs exist to cover copyrighted,
 violent, and explicit content, so a blur that does not render — or renders but does not
@@ -80,13 +81,13 @@ proves nothing about iOS.
       fixed spots — this is the interpolation from `rectAtTime`, and it is what makes three
       points enough to keep a moving subject covered.
 - [ ] Scrub the timeline. The blur keeps up while scrubbing, including while paused.
-- [ ] Tap the fullscreen button. The blur is **still composited and still aligned** with the
-      video. Check this specifically: `AnnotationPlayer.onFullscreenChange()`
-      ([AnnotationPlayer.js:1327](core/static/js/AnnotationPlayer.js#L1327)) re-syncs the
-      overlay there precisely because `ResizeObserver` timing across iOS native fullscreen is
-      unreliable. If the overlay is ever offset, this transition is where it will show.
+- [ ] Tap the fullscreen button. iPhone Safari has no element Fullscreen API, so the player
+      instead **fills the browser viewport** (Safari's address bar may stay visible). The
+      blur is **still composited and still aligned** with the video. If the overlay is ever
+      offset, this transition is where it will show. (iPad uses the real Fullscreen API.)
 - [ ] Leave fullscreen. Still aligned.
-- [ ] Rotate the device in both orientations, in and out of fullscreen. The blur tracks the
+- [ ] Out of fullscreen, turn the phone sideways: the player enters fullscreen on its own.
+      Turn it upright: it leaves. The blur stays aligned throughout and tracks the
       letterbox/pillarbox padding rather than the element box.
 
 ---
@@ -405,6 +406,51 @@ failures, damaged and lost files, a player data format mismatch, the bundle appl
 before later programs' masters, when a run is due, and pruning. `ic/tests/test_booth.py`
 covers the kiosk and file-addressed media; `ic/tests/test_media_pipeline.py` runs real
 ffmpeg for ingest, replacement and the SD transcode.
+
+## 11. Fullscreen on Android
+
+Tapping fullscreen on a phone held upright should turn the picture sideways for a widescreen
+video, as phone video apps do. The player asks the browser to lock the screen orientation to
+match the video, but only when the phone is held the other way. While the screen is locked
+sideways it no longer follows the phone, so the player watches the motion sensor and leaves
+fullscreen once the phone has been held upright for half a second.
+
+**Why it cannot be automated:** orientation locking and the motion sensor only work on a real
+phone. In a desktop browser the lock is refused and the sensor is silent, so the tests replace
+both with stand-ins.
+
+**Guarded automatically:** the `test_android_*` tests in
+[tests/e2e/test_blur_annotation_positioning.py](tests/e2e/test_blur_annotation_positioning.py)
+check that the right lock is *asked for*, that the rotation our own lock causes is not
+mistaken for the user leaving, and that steady upright readings leave fullscreen. They prove
+nothing about whether Chrome honours the lock or whether the upright angles feel right in hand.
+
+**On a physical Android phone in Chrome**, at `/player/<content_id>/` for *Birds Overview*:
+
+- [ ] Holding the phone upright, tap fullscreen. The screen turns sideways and the video fills
+      it. The blur is aligned.
+- [ ] Tap fullscreen and keep the phone upright for a few seconds, tipping it back and forth
+      as you would while seated. Fullscreen stays (the screen is sideways, waiting for you to
+      turn the phone).
+- [ ] Turn the phone sideways to watch, then turn it back upright. Fullscreen ends after about
+      half a second and the screen returns upright.
+- [ ] Enter fullscreen the same way, then tap the button again (or press Back). The screen
+      returns upright.
+- [ ] While watching sideways, tip the phone around naturally, lay it flat on a table, and
+      watch lying on your back. Fullscreen should **not** end. (Watching while lying on your
+      side holds the phone upright relative to gravity, so it may end, as in the YouTube
+      app with auto-rotate on.)
+- [ ] Out of fullscreen, turn the phone sideways: the player enters fullscreen (Chrome may
+      show its address bar). Turn it upright: it leaves.
+- [ ] With a **vertical** video (taller than wide), hold the phone sideways and tap
+      fullscreen. The screen turns upright and stays in fullscreen.
+- [ ] Still with the vertical video, tap the button to leave while holding the phone sideways:
+      fullscreen does not come straight back. Enter again, turn the phone upright to watch, leave,
+      then turn the phone sideways: it enters fullscreen.
+- [ ] In the video editor, turning the phone sideways does **not** enter fullscreen.
+- [ ] In split-screen, resizing the browser's half does **not** enter fullscreen.
+
+---
 
 ## Adding to this file
 
