@@ -69,6 +69,20 @@
   background-color: black;
 }
 
+/* Set by AnnotationPlayer where the Fullscreen API is unavailable (iPhone) or refuses. */
+.annotation-player-container.viewport-fullscreen {
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  max-width: none;
+  height: 100%;
+
+  background-color: black;
+}
+
 .video-wrapper {
   position: relative;
 

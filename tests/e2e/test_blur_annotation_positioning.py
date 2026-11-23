@@ -455,3 +455,225 @@ def test_blur_stays_aligned_with_the_subtitle_sidebar_open(page, open_player):
 
     _assert_annotation_box_covers_the_picture(page)
     _assert_relative_positions_match(before, _blur_position_relative_to_video(page))
+
+
+def _simulate_iphone_safari(page):
+    # iPhone Safari exposes no element Fullscreen API. The test browser does, so its absence is
+    # simulated, along with a touchscreen so the page sees a phone rather than a mouse.
+    page.add_init_script(
+        """for (const name of ['fullscreenEnabled', 'webkitFullscreenEnabled']) {
+            Object.defineProperty(Document.prototype, name, {get: () => false});
+        }
+        delete Element.prototype.requestFullscreen;
+        delete Element.prototype.webkitRequestFullscreen;"""
+    )
+    cdp = page.context.new_cdp_session(page)
+    cdp.send(
+        "Emulation.setTouchEmulationEnabled", {"enabled": True, "maxTouchPoints": 5}
+    )
+    return cdp
+
+
+def _hold_phone(cdp, sideways):
+    width, height = (844, 390) if sideways else (390, 844)
+    cdp.send(
+        "Emulation.setDeviceMetricsOverride",
+        {
+            "width": width,
+            "height": height,
+            "screenWidth": width,
+            "screenHeight": height,
+            "deviceScaleFactor": 3,
+            "mobile": True,
+            "screenOrientation": {
+                "type": "landscapePrimary" if sideways else "portraitPrimary",
+                "angle": 90 if sideways else 0,
+            },
+        },
+    )
+
+
+def test_player_fills_the_viewport_when_the_fullscreen_api_is_unavailable(
+    page, open_player
+):
+    _simulate_iphone_safari(page)
+    open_player(viewport={"width": 390, "height": 844})
+    _inject_blur_annotation(page)
+
+    before = _blur_position_relative_to_video(page)
+    container_box = "() => document.querySelector('.annotation-player-container').getBoundingClientRect()"
+    windowed = page.evaluate(container_box)
+
+    page.locator(".fullscreen-btn").click()
+
+    filled = page.evaluate(container_box)
+    assert filled["x"] == pytest.approx(0, abs=1)
+    assert filled["y"] == pytest.approx(0, abs=1)
+    assert filled["width"] == pytest.approx(390, abs=1)
+    assert filled["height"] == pytest.approx(844, abs=1)
+    _assert_annotation_box_covers_the_picture(page)
+    _assert_relative_positions_match(before, _blur_position_relative_to_video(page))
+
+    page.locator(".fullscreen-btn").click()
+
+    restored = page.evaluate(container_box)
+    assert restored["y"] == pytest.approx(windowed["y"], abs=2)
+    assert restored["height"] == pytest.approx(windowed["height"], abs=2)
+    _assert_relative_positions_match(before, _blur_position_relative_to_video(page))
+
+
+def test_turning_the_phone_sideways_enters_fullscreen_and_upright_leaves(
+    page, open_player
+):
+    cdp = _simulate_iphone_safari(page)
+    _hold_phone(cdp, sideways=False)
+    open_player()
+    _inject_blur_annotation(page)
+    before = _blur_position_relative_to_video(page)
+    in_fullscreen = (
+        "document.querySelector('.annotation-player-container')"
+        ".classList.contains('viewport-fullscreen')"
+    )
+
+    _hold_phone(cdp, sideways=True)
+    page.wait_for_function(f"() => {in_fullscreen}", timeout=2000)
+    # Compared with the page's own viewport rather than the emulated screen: if anything on the
+    # page is wider than the screen, mobile Chrome widens the page to fit it.
+    filled = page.evaluate(
+        """() => {
+            const box = document.querySelector('.annotation-player-container')
+                .getBoundingClientRect();
+            return {width: box.width, height: box.height,
+                    viewportWidth: innerWidth, viewportHeight: innerHeight};
+        }"""
+    )
+    assert filled["viewportWidth"] > filled["viewportHeight"], "the screen did not turn"
+    assert filled["width"] == pytest.approx(filled["viewportWidth"], abs=1)
+    assert filled["height"] == pytest.approx(filled["viewportHeight"], abs=1)
+    _assert_relative_positions_match(before, _blur_position_relative_to_video(page))
+
+    _hold_phone(cdp, sideways=False)
+    page.wait_for_function(f"() => !{in_fullscreen}", timeout=2000)
+
+
+def _simulate_android_chrome(page):
+    # Orientation locking needs a real phone, so the lock is recorded rather than performed, and
+    # tests emulate the rotation it would cause.
+    page.add_init_script(
+        """Object.defineProperty(screen.orientation, 'lock', {
+            value: (target) => { window.lockedTo = target; return Promise.resolve(); },
+        });"""
+    )
+    cdp = page.context.new_cdp_session(page)
+    cdp.send(
+        "Emulation.setTouchEmulationEnabled", {"enabled": True, "maxTouchPoints": 5}
+    )
+    return cdp
+
+
+_STREAM_SENSOR_JS = """([readings, ms]) => new Promise((resolve) => {
+    // A phone's motion sensor reports continuously, so readings are streamed in order, each for
+    // `ms`, stopping early if fullscreen ends.
+    let i = 0;
+    const started = performance.now();
+    const sensor = setInterval(() => {
+        const step = Math.min(Math.floor((performance.now() - started) / ms), readings.length - 1);
+        window.dispatchEvent(new DeviceOrientationEvent('deviceorientation', readings[step]));
+        if (!document.fullscreenElement || performance.now() - started > ms * readings.length) {
+            clearInterval(sensor);
+            resolve();
+        }
+    }, 50);
+})"""
+UPRIGHT = {"beta": 90, "gamma": 0}
+SIDEWAYS = {"beta": 0, "gamma": 90}
+TIPPED_BACK = {"beta": 50, "gamma": 3}
+
+
+def _is_fullscreen(page):
+    return page.evaluate("() => !!document.fullscreenElement")
+
+
+def _enter_android_fullscreen_holding_the_phone_upright(page, open_player):
+    cdp = _simulate_android_chrome(page)
+    _hold_phone(cdp, sideways=False)
+    open_player()
+    page.locator(".fullscreen-btn").click()
+    page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
+    assert page.evaluate("() => window.lockedTo") == "landscape"
+    _hold_phone(cdp, sideways=True)
+
+
+def test_android_fullscreen_turns_the_screen_sideways_until_the_phone_is_held_upright(
+    page, open_player
+):
+    _enter_android_fullscreen_holding_the_phone_upright(page, open_player)
+
+    page.evaluate(_STREAM_SENSOR_JS, [[SIDEWAYS, UPRIGHT], 1000])
+
+    assert not _is_fullscreen(page), (
+        "holding the phone upright did not leave fullscreen"
+    )
+
+
+def test_android_fullscreen_waits_for_the_phone_to_be_turned(page, open_player):
+    # Right after the tap the phone is still upright, before the user has turned it, and people
+    # often hold it tipped back while seated.
+    _enter_android_fullscreen_holding_the_phone_upright(page, open_player)
+
+    page.evaluate(_STREAM_SENSOR_JS, [[TIPPED_BACK, UPRIGHT], 1000])
+
+    assert _is_fullscreen(page), "fullscreen ended before the user turned the phone"
+
+
+def _enter_vertical_video_fullscreen_holding_the_phone_sideways(page, open_player):
+    cdp = _simulate_android_chrome(page)
+    page.add_init_script(
+        """Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth', {get: () => 720});
+        Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', {get: () => 1280});"""
+    )
+    _hold_phone(cdp, sideways=True)
+    open_player()
+    page.locator(".fullscreen-btn").click()
+    page.wait_for_function("() => !!document.fullscreenElement", timeout=2000)
+    assert page.evaluate("() => window.lockedTo") == "portrait"
+    _hold_phone(cdp, sideways=False)
+    return cdp
+
+
+_IN_ANY_FULLSCREEN_JS = """() => !!document.fullscreenElement || document
+    .querySelector('.annotation-player-container').classList.contains('viewport-fullscreen')"""
+
+
+def _in_any_fullscreen(page):
+    return page.evaluate(_IN_ANY_FULLSCREEN_JS)
+
+
+def test_android_fullscreen_keeps_a_vertical_video_upright(page, open_player):
+    cdp = _enter_vertical_video_fullscreen_holding_the_phone_sideways(page, open_player)
+    page.wait_for_timeout(300)
+    assert _is_fullscreen(page), (
+        "the screen turning because of our own lock was mistaken for the user leaving"
+    )
+
+    # Leaving while still holding the phone sideways: the released lock turns the screen back.
+    page.locator(".fullscreen-btn").click()
+    page.wait_for_function("() => !document.fullscreenElement", timeout=2000)
+    _hold_phone(cdp, sideways=True)
+    page.wait_for_timeout(300)
+    assert not _in_any_fullscreen(page), (
+        "the screen turning back as the lock was released was mistaken for the user turning it"
+    )
+
+
+def test_turning_sideways_after_leaving_a_vertical_video_enters_fullscreen(
+    page, open_player
+):
+    # Watched upright, so releasing the lock turns nothing and the user's next turn is real.
+    cdp = _enter_vertical_video_fullscreen_holding_the_phone_sideways(page, open_player)
+    page.locator(".fullscreen-btn").click()
+    page.wait_for_function("() => !document.fullscreenElement", timeout=2000)
+
+    page.wait_for_timeout(1200)
+    _hold_phone(cdp, sideways=True)
+    page.wait_for_function(_IN_ANY_FULLSCREEN_JS, timeout=2000)
