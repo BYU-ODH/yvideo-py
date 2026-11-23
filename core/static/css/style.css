@@ -22,7 +22,7 @@
     --dark-primary-blue: #2e677c;
     --side-bar-width: 15rem;
     --box-shadow-color: #00000075;
-    --basic-border-radius: 8px;
+    --basic-border-radius: 12px;
 }
 
 * {
@@ -1475,6 +1475,20 @@ button:hover {
     padding: 0 2rem;
 }
 
+#playlist-lower-content h2 {
+    margin: 0;
+}
+
+#playlist-videos-content {
+    flex: 1;
+}
+
+#add-new-video-button {
+    align-self: flex-start;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
 #no-playlists-body {
     overflow-y: auto;
     display: flex;
@@ -1490,6 +1504,27 @@ button:hover {
     color: rgb(204 204 204);
 
     background-color: white;
+}
+
+#playlist-publishing-and-collaborators-content {
+    align-self: flex-start;
+}
+
+.playlist-settings-card {
+    width: 25rem;
+    box-shadow: 0px 0px 5px 0px var(--box-shadow-color);
+    padding: 1rem;
+    border-radius: var(--basic-border-radius);
+}
+
+.playlist-settings-card-header {
+    display: flex;
+    flex-direction: row;
+    column-gap: 1rem;
+}
+
+.playlist-settings-card-header h4, .playlist-settings-card-header p {
+    margin: 0;
 }
 
 /* Create New Playlist Modal */
@@ -1817,10 +1852,6 @@ button:hover {
 
 
 /* Video Page */
-#playlist-videos-header {
-    align-items: flex-end;
-}
-
 #playlist-video-list, #modal-resource-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
@@ -1840,7 +1871,7 @@ button:hover {
 }
 
 .playlist-item-tile, .resource-details {
-    border-radius: 12px;
+    border-radius: var(--basic-border-radius);
     box-shadow:  2px 2px 5px var(--box-shadow-color);
 }
 
