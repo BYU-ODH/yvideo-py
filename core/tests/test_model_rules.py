@@ -35,7 +35,7 @@ class EditorRuleTests(TestCase):
     def setUp(self):
         self.owner = UserFactory(instructor=True)
         self.content = ContentFactory(playlist=PlaylistFactory(owner=self.owner))
-        self.resource = self.content.get_resource()
+        self.resource = self.content.resource
         self.annotation_set = AnnotationSetFactory(
             owner=self.owner, resource=self.resource
         )
