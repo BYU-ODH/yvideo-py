@@ -588,11 +588,15 @@ class ResourceIntakeRequestAdminForm(forms.ModelForm):
 
 
 class AutocompleteTargetAdmin(VersionAdmin):
-    """Admin for a model that other admins pick through autocomplete.
+    """Admin for a model that other admin pages pick through an autocomplete box.
 
-    Autocomplete pages through get_queryset() and labels each result with __str__, so
-    the rows need a stable order and the relations __str__ reads. Changelists add this
-    ordering to their own, so newest first keeps their default sort.
+    Each autocomplete result is labeled with __str__, and many __str__ methods read a
+    related row (a playlist's owner, a track's annotation set). Without a JOIN, every
+    result costs an extra query for each of those rows. List the relations __str__
+    reads in label_related, and they load in the same query as the results.
+
+    Autocomplete also pages through results, which needs a fixed order, so rows with no
+    order of their own are sorted newest first.
     """
 
     label_related = ()
@@ -628,7 +632,9 @@ class UserAdmin(AutocompleteTargetAdmin):
         return super().get_queryset(request).prefetch_related("groups")
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        # Each permission's label names its content type.
+        # Each permission's label shows its content type ("Core | playlist | Can add
+        # playlist"). Loading the content types in the same query avoids one extra
+        # query per permission.
         if db_field.name == "user_permissions":
             kwargs["queryset"] = db_field.remote_field.model.objects.select_related(
                 "content_type"
