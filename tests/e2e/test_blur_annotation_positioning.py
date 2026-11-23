@@ -537,11 +537,19 @@ def test_turning_the_phone_sideways_enters_fullscreen_and_upright_leaves(
 
     _hold_phone(cdp, sideways=True)
     page.wait_for_function(f"() => {in_fullscreen}", timeout=2000)
+    # Compared with the page's own viewport rather than the emulated screen: if anything on the
+    # page is wider than the screen, mobile Chrome widens the page to fit it.
     filled = page.evaluate(
-        "() => document.querySelector('.annotation-player-container').getBoundingClientRect()"
+        """() => {
+            const box = document.querySelector('.annotation-player-container')
+                .getBoundingClientRect();
+            return {width: box.width, height: box.height,
+                    viewportWidth: innerWidth, viewportHeight: innerHeight};
+        }"""
     )
-    assert filled["width"] == pytest.approx(844, abs=1)
-    assert filled["height"] == pytest.approx(390, abs=1)
+    assert filled["viewportWidth"] > filled["viewportHeight"], "the screen did not turn"
+    assert filled["width"] == pytest.approx(filled["viewportWidth"], abs=1)
+    assert filled["height"] == pytest.approx(filled["viewportHeight"], abs=1)
     _assert_relative_positions_match(before, _blur_position_relative_to_video(page))
 
     _hold_phone(cdp, sideways=False)
