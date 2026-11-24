@@ -2111,10 +2111,18 @@ button.disabled:hover {
 }
 
 .thumbnail-text {
+    --shadow-color: #000;
+
     font-weight: bold;
     text-align: center;
-    text-shadow: 0 0 4px #000, 1px 1px 2px #000;
+    text-shadow: 0 0 4px var(--shadow-color), 1px 1px 2px var(--shadow-color);
     overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+/* Black text needs a light outline to stand out against dark backgrounds and images. */
+.thumbnail-text-black {
+    --shadow-color: #fff;
 }
 
 /* Room for the edit button, which sticks out past the thumbnail's corner. */
@@ -2242,31 +2250,63 @@ button.disabled:hover {
     max-width: 100%;
 }
 
-/* The padding every dialog input gets otherwise squeezes the swatch to a thin line. */
-.thumbnail-editor-controls input[type="color"] {
+/* The border and padding every dialog input gets keep the slider's marker from reaching either end. */
+.thumbnail-editor-controls input[type="range"] {
+    padding: 0;
+    border: none;
+}
+
+.thumbnail-palette {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+/* High-contrast modes would otherwise paint every swatch the same color. */
+.thumbnail-swatch {
     cursor: pointer;
-    width: 3rem;
+
+    width: 2rem;
     height: 2rem;
-    padding: 2px;
+    border: 2px solid var(--box-shadow-color);
+    border-radius: 50%;
+}
+
+/* Users see only the colored circle. The radio button sits invisibly on top to take clicks and keyboard focus. */
+.thumbnail-swatch input {
+    cursor: pointer;
+
+    width: 100%;
+    height: 100%;
+    margin: 0;
+
+    opacity: 0;
+}
+
+.thumbnail-swatch:has(:checked) {
+    outline: 3px solid var(--primary-blue);
+    outline-offset: 2px;
+}
+
+.thumbnail-swatch:has(:focus-visible) {
+    outline: 3px dashed var(--primary-blue);
+    outline-offset: 2px;
 }
 
 .thumbnail-field {
     align-items: center;
 }
 
-.thumbnail-field input[type="text"] {
+#thumbnail-text {
     flex: 1;
+
+    /* Every major browser supports field-sizing, but the linter doesn't know that yet. */
+
+    /* eslint-disable-next-line */
+    field-sizing: content;
     min-width: 0;
-}
 
-.thumbnail-frame-heading {
-    margin-block: 0.25rem;
-    text-align: center;
-}
-
-/* The browser's auto side margins on <hr> collapse it to zero width inside a flex column. */
-#thumbnail-panel-frame hr {
-    width: 100%;
+    /* Two lines of text plus the padding and border every dialog input gets. */
+    min-height: calc(2lh + 20px);
 }
 
 #thumbnail-video {
@@ -2276,24 +2316,53 @@ button.disabled:hover {
     max-width: 240px;
 }
 
-.thumbnail-frame {
-    cursor: pointer;
+.thumbnail-scrubber-row {
+    gap: 0.25rem;
+    align-items: center;
+}
 
+.thumbnail-scrubber-row input {
     flex: 1;
-
     min-width: 0;
+}
+
+/* Long-pressing on touch screens would otherwise select text or open a menu instead of scrubbing. */
+.thumbnail-step {
+    touch-action: none;
+    cursor: pointer;
+    user-select: none; /* eslint-disable-line css/use-baseline */
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 2rem;
+    height: 2rem;
     padding: 0;
-    border: 2px solid transparent;
+    border: 1px solid var(--box-shadow-color);
+    border-radius: var(--basic-border-radius);
 
     background: none;
+
+    -webkit-touch-callout: none;
 }
 
-.thumbnail-frame:hover,
-.thumbnail-frame:focus-visible {
-    border-color: var(--box-shadow-color);
+/* Otherwise a slight mouse movement while holding starts dragging the image, which ends the hold. */
+.thumbnail-step img {
+    pointer-events: none;
+    width: 0.8rem;
 }
 
-.thumbnail-frame img {
-    display: block;
-    width: 100%;
+/* The arrow icon points down, so turn it to point left or right. */
+#thumbnail-step-back img {
+    transform: rotate(90deg);
+}
+
+#thumbnail-step-forward img {
+    transform: rotate(-90deg);
+}
+
+.thumbnail-step:hover,
+.thumbnail-step:focus-visible {
+    background: var(--box-shadow-color);
 }

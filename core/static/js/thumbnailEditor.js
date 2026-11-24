@@ -2,7 +2,8 @@ import { createElementFromHTMLString, displayUserMessage, getCSRFToken } from ".
 
 const WIDTH = 640;
 const HEIGHT = 360;
-const AUTO_FRAME_POSITIONS = [0.3, 0.5, 0.8];
+const HOLD_DELAY_MS = 400;
+const HOLD_REPEAT_MS = 50;
 
 // Crops `source` to fill a 16:9 canvas so every stored thumbnail has the same shape.
 function toJpeg(source, sourceWidth, sourceHeight) {
@@ -14,13 +15,6 @@ function toJpeg(source, sourceWidth, sourceHeight) {
   const height = sourceHeight * scale;
   canvas.getContext("2d").drawImage(source, (WIDTH - width) / 2, (HEIGHT - height) / 2, width, height);
   return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
-}
-
-function seek(video, time) {
-  return new Promise((resolve) => {
-    video.addEventListener("seeked", resolve, { once: true });
-    video.currentTime = time;
-  });
 }
 
 // Follows the ARIA tabs pattern: one tab stop, and arrow keys move between tabs.
@@ -56,6 +50,42 @@ function setupTabs(tablist, onChoose) {
   return select;
 }
 
+// Runs `action` once per press, then keeps repeating it while a pointer holds the button down.
+function repeatWhileHeld(button, action) {
+  let timer;
+  const stop = () => clearTimeout(timer);
+  const repeat = (delay) => {
+    timer = setTimeout(() => {
+      // Closing the dialog mid-hold removes the button before any pointerup can reach it.
+      if (!button.isConnected) {
+        return;
+      }
+      action();
+      repeat(HOLD_REPEAT_MS);
+    }, delay);
+  };
+  button.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    // A second finger on the button would otherwise start a repeat that never stops.
+    stop();
+    action();
+    repeat(HOLD_DELAY_MS);
+  });
+  for (const type of ["pointerup", "pointerleave", "pointercancel"]) {
+    button.addEventListener(type, stop);
+  }
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+  // Enter and Space send only a click. Mouse and touch clicks are skipped here
+  // because pointerdown already moved the video.
+  button.addEventListener("click", (event) => {
+    if (event.detail === 0) {
+      action();
+    }
+  });
+}
+
 function setupEditor(dialog) {
   const form = dialog.querySelector("#thumbnail-editor-form");
   const preview = form.querySelector(".thumbnail");
@@ -77,6 +107,7 @@ function setupEditor(dialog) {
     preview.style.backgroundColor = form.background_color.value;
     previewText.textContent = form.text.value;
     previewText.style.color = form.text_color.value;
+    previewText.classList.toggle("thumbnail-text-black", form.text_color.value === "#000000");
     previewText.style.fontSize = `${form.text_size.value}rem`;
   }
   form.addEventListener("input", updateStyles);
@@ -111,31 +142,16 @@ function setupEditor(dialog) {
   const video = form.querySelector("#thumbnail-video");
   if (video) {
     const scrubber = form.querySelector("#thumbnail-scrubber");
-    const frames = form.querySelector("#thumbnail-frames");
     const captureFrame = () => toJpeg(video, video.videoWidth, video.videoHeight);
     const scrubTo = () => {
       video.currentTime = scrubber.value;
     };
-    video.addEventListener("loadedmetadata", async () => {
+    video.addEventListener("loadedmetadata", () => {
       // Audio-only files have no picture and live streams no fixed length to pick from.
       if (!video.videoWidth || !Number.isFinite(video.duration)) {
         // Otherwise the unused panel still reserves its height in the dialog.
         form.querySelector("#thumbnail-panel-frame").remove();
         return;
-      }
-      for (const position of AUTO_FRAME_POSITIONS) {
-        await seek(video, video.duration * position);
-        const blob = await captureFrame();
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "thumbnail-frame";
-        button.setAttribute("aria-label", `Use frame at ${Math.round(position * 100)}%`);
-        const image = document.createElement("img");
-        image.src = URL.createObjectURL(blob);
-        image.alt = "";
-        button.append(image);
-        button.addEventListener("click", () => useBlob(blob));
-        frames.append(button);
       }
       // Measured in seconds so each arrow-key step moves a fixed tenth of a second.
       scrubber.max = video.duration;
@@ -144,6 +160,14 @@ function setupEditor(dialog) {
       form.querySelector("#thumbnail-tab-frame").hidden = false;
     }, { once: true });
     scrubber.addEventListener("input", scrubTo);
+    repeatWhileHeld(form.querySelector("#thumbnail-step-back"), () => {
+      scrubber.stepDown();
+      scrubTo();
+    });
+    repeatWhileHeld(form.querySelector("#thumbnail-step-forward"), () => {
+      scrubber.stepUp();
+      scrubTo();
+    });
     const useCurrentFrame = async () => {
       if (video.seeking) {
         await new Promise((resolve) => video.addEventListener("seeked", resolve, { once: true }));
