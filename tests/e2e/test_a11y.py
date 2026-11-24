@@ -1192,6 +1192,7 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/select_resource.html",
     "core/partials/modals/tools_info.html",
     "core/partials/modals/thumbnail_editor.html",
+    "core/partials/thumbnail_palette.html",
     "core/partials/resource_details.html",
     "core/partials/resource_list.html",
     "core/partials/modals/user_view_modal.html",
