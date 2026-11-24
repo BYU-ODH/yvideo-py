@@ -48,7 +48,6 @@ body {
 }
 
 dialog {
-    position: relative;
     border-radius: 20px;
 }
 
@@ -1227,6 +1226,19 @@ button:hover {
 
 #content-settings form {
     align-items: flex-start;
+}
+
+/* playlist course assignment and collaborator panels */
+.playlist-editing-modal {
+    max-width: 40rem;
+}
+
+.playlist-field-wrapper ul {
+    margin: 0;
+}
+
+#assign-courses-fields-list {
+    margin-bottom: 1rem;
 }
 
 /* playlist course assignment form */

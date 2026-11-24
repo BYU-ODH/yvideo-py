@@ -81,8 +81,20 @@ class PlaylistSettingsForm(forms.ModelForm):
         fields = ["published", "archived", "is_ic"]
 
 
+class _UppercaseCharField(forms.CharField):
+    def to_python(self, value):
+        return super().to_python(value).upper()
+
+
 class AssignCoursesForm(forms.Form):
+    yearterm = forms.RegexField(
+        regex=r"^[0-9]{4}[1345]$",
+        widget=forms.HiddenInput,
+        error_messages={"invalid": "Select a valid semester."},
+    )
     dept = Course._meta.get_field("dept").formfield(
+        form_class=_UppercaseCharField,
+        label="Department",
         validators=Course._meta.get_field("dept").validators,
     )
     catalog_number = Course._meta.get_field("catalog_number").formfield(

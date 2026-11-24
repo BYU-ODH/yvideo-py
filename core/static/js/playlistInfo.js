@@ -97,10 +97,73 @@ function setupPlaylistSettings() {
   });
 }
 
+function setupAssignCourses() {
+  const dialog = document.getElementById("add-assigned-course-modal");
+  const semesterSelector = document.getElementById("playlist-semester-selector");
+  if (!dialog || !semesterSelector) return;
+
+  semesterSelector.addEventListener("change", () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("yearterm", semesterSelector.value);
+    window.location.assign(url.href);
+  });
+
+  const failureMessage = "Could not assign courses. Please try again.";
+
+  function markInvalid(field) {
+    field?.classList.add("invalid-input");
+    field?.setAttribute("aria-invalid", "true");
+  }
+
+  function clearInvalid(event) {
+    event.target.classList.remove("invalid-input");
+    event.target.removeAttribute("aria-invalid");
+  }
+
+  dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
+  dialog.addEventListener("input", clearInvalid);
+  dialog.addEventListener("change", clearInvalid);
+
+  dialog.addEventListener("submit", async (event) => {
+    const form = event.target;
+    if (!form.matches("#assign-courses-form")) return;
+    event.preventDefault();
+    const submitButton = form.querySelector("button[type='submit']");
+    const errors = form.querySelector("#assign-courses-errors");
+    if (submitButton.disabled) return;
+
+    form.elements.namedItem("yearterm").value = semesterSelector.value;
+    errors.hidden = true;
+    submitButton.disabled = true;
+    try {
+      const response = await fetch(form.action, {
+        method: form.method,
+        body: new FormData(form)
+      });
+      if (response.status === 400) {
+        form.outerHTML = await response.text();
+        const updatedForm = dialog.querySelector("#assign-courses-form");
+        const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
+        invalidFields.forEach(markInvalid);
+        return;
+      }
+      if (!response.ok || response.redirected) displayUserMessage("error", failureMessage);
+      window.location.reload();
+    } catch {
+      errors.textContent = failureMessage;
+      errors.hidden = false;
+      errors.focus();
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+}
+
 function initialize() {
   setupVideoSearch();
   setupDeletePlaylist();
   setupPlaylistSettings();
+  setupAssignCourses();
   const playlistNameWrapper = document.getElementById("playlist-name-wrapper");
   const playlistId = getPlaylistIdValue();
   if (playlistNameWrapper && playlistId !== undefined) {

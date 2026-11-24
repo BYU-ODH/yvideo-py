@@ -1,4 +1,4 @@
-from datetime import datetime
+
 from functools import wraps
 import json
 import logging
@@ -38,6 +38,7 @@ import requests
 import reversion
 
 from .forms import AddUserLookupForm
+from .forms import AssignCoursesForm
 from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
@@ -56,6 +57,7 @@ from .models import Subtitle
 from .models import Thumbnail
 from .models import User
 from .models import UserCourses
+from .models import YearTerm
 from .models import active_yearterms
 from .permissions import content_read_required
 from .permissions import content_write_required
@@ -65,6 +67,7 @@ from .permissions import lab_assistant_required
 from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
+from .utils import estimate_current_yearterm
 from .youtube_utils import get_or_create_youtube_resource
 from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
@@ -510,33 +513,6 @@ def create_playlist(request):
         return HttpResponseBadRequest()
 
 
-def get_semester_and_year_options():
-    # we need a list of years for the year selector when assigning playlist to course
-    today = datetime.now()
-    start_year = today.year - 5
-    year_options = [
-        {"value": x, "current": x == today.year}
-        for x in range(start_year, (start_year + 10))
-    ]
-
-    # we need to make a guess about what semester it is to help the user
-    month = today.month
-    semester = None
-    if month < 5:
-        semester = 1  # winter
-    elif month == 5:
-        semester = 3  # spring
-    elif month == 6 or month == 7:
-        semester = 4  # summer
-    else:
-        semester = 5  # fall
-
-    return {
-        "year_options": year_options,
-        "semester": semester,
-        "yearterm": f"{today.year}{semester}",
-    }
-
 
 def get_assigned_courses(playlist, yearterm):
     courses = playlist.courses.filter(yearterm=yearterm)
@@ -575,18 +551,35 @@ def get_assigned_courses(playlist, yearterm):
 @require_GET
 @playlist_read_required
 def playlist_info(request, playlist):
-    return render_playlist_info(request, playlist)
-
-
-def render_playlist_info(request, playlist):
     try:
         can_edit = playlist.can_be_edited_by(request.user)
         contents = Content.objects.filter(playlist=playlist).select_related("resource")
         if not can_edit:
             contents = contents.filter(published=True)
         contents = [(content, Thumbnail.for_item(content)) for content in contents]
-        year_and_semester = get_semester_and_year_options()
-        assigned_courses = get_assigned_courses(playlist, year_and_semester["yearterm"])
+        now = timezone.now()
+
+        # If the user refreshes the page after selecting yearterm, we want to preserve that selection
+        yearterm = request.GET.get("yearterm")
+
+        yearterms = list(YearTerm.objects.all())
+        if yearterm is None:
+            for term in yearterms:
+                if term.start_date_time <= now < term.end_date_time:
+                    yearterm = term.yearterm
+                    break
+            if yearterm is None:
+                yearterm = estimate_current_yearterm(timezone.localdate(now))
+
+        if not re.fullmatch(r"[0-9]{4}[1345]", yearterm):
+            return HttpResponseBadRequest("Select a valid semester.")
+        assigned_courses = get_assigned_courses(playlist, yearterm)
+        available_yearterms = [
+            {"value": value, "label": display_yearterm(value)}
+            for value in sorted(
+                {term.yearterm for term in yearterms} | {yearterm}
+            )
+        ]
 
         context = {
             "playlist": playlist,
@@ -595,9 +588,12 @@ def render_playlist_info(request, playlist):
             "can_edit": can_edit,
             "can_administer": playlist.can_be_administered_by(request.user),
             "form": PlaylistSettingsForm(instance=playlist),
-            "year_options": year_and_semester["year_options"],
-            "semester": year_and_semester["semester"],
             "assigned_courses": assigned_courses,
+            "available_yearterms": available_yearterms,
+            "selected_yearterm": yearterm,
+            "assign_courses_form": AssignCoursesForm(auto_id="assign-courses-%s")
+            if can_edit
+            else None,
             "breadcrumbs": breadcrumb_trail((playlist.name, None)),
         }
         return render(request, "core/playlist_info.html", context)
@@ -636,54 +632,25 @@ def render_course_assignment_partial(request, playlist, yearterm):
 @require_POST
 @playlist_write_required
 def assign_playlist_to_course(request, playlist):
-    # first check if the course already exists. if so, add the playlist to that course.
-    # otherwise, create the course and then add the playlist
+    form = AssignCoursesForm(request.POST, auto_id="assign-courses-%s")
+    if not form.is_valid():
+        return render(
+            request,
+            "core/partials/assign_courses_to_playlist_form.html",
+            {
+                "playlist": playlist,
+                "assign_courses_form": form,
+                "dialog_id": "add-assigned-course-modal",
+            },
+            status=400,
+        )
+
     try:
-        parsed_data = json.loads(request.body)
-        if (
-            "dept" not in parsed_data
-            or "catalog_number" not in parsed_data
-            or "sections" not in parsed_data
-            or "year" not in parsed_data
-            or "semester" not in parsed_data
-        ):
-            logger.error(
-                "Failed to assign course to playlist because of insufficient data provided"
-            )
-            return HttpResponseBadRequest()
-
-        dept = parsed_data["dept"]
-        catalog_number = parsed_data["catalog_number"]
-        section_numbers = parsed_data["sections"]
-        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
-        with transaction.atomic():
-            for section_number in section_numbers:
-                existing_course_filter = Course.objects.filter(
-                    dept=dept,
-                    catalog_number=catalog_number,
-                    section_number=section_number,
-                    yearterm=yearterm,
-                )
-                if existing_course_filter.count() < 1:
-                    existing_course = Course.objects.create(
-                        dept=dept,
-                        catalog_number=catalog_number,
-                        section_number=section_number,
-                        yearterm=yearterm,
-                    )
-                else:
-                    if existing_course_filter.count() > 1:
-                        logger.error(
-                            f"More than one course was returned when assigning a playlist ({playlist}) to a course. Assigning to the first result"
-                        )
-                    existing_course = existing_course_filter.first()
-                playlist.courses.add(existing_course)
-                playlist.save()
-        return render_course_assignment_partial(request, playlist, yearterm)
-
-    except Exception as e:
-        logger.error(f"Failed to assign course to playlist. Exception: {e}")
+        form.save(playlist=playlist, yearterm=form.cleaned_data["yearterm"])
+    except Exception:
+        logger.exception("Failed to assign courses to playlist %s", playlist.pk)
         return HttpResponseServerError()
+    return JsonResponse({"success": True})
 
 
 @require_POST

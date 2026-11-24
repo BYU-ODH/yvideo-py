@@ -96,7 +96,42 @@
                                 <h4>Publishing Details</h4>
                                 <p>These people can view</p>
                             </div>
-                            {% include 'core/partials/course_assignment_list.html' %}
+                            <div id="playlist-semseter-selector-wrapper" class="row-flex">
+                                <label for="playlist-semester-selector">Semester</label>
+                                <select id="playlist-semester-selector">
+                                    {% for option in available_yearterms %}
+                                        <option value="{{ option.value }}"{% if option.value == selected_yearterm %} selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="column-flex">
+                                <div id="assigned-courses">
+                                    <h5>Courses</h5>
+                                    <div class="playlist-category-header">
+                                        <p>Course</p>
+                                        <p>Sections</p>
+                                    </div>
+                                    {% include "core/partials/course_assignment_list.html" %}
+                                    <button type="button"
+                                            command="show-modal"
+                                            commandfor="add-assigned-course-modal">+ Assign Courses</button>
+                                    {% include "core/partials/modals/edit_assigned_course.html" with dialog_id="edit-assigned-course" %}
+                                    {% include "core/partials/modals/delete_assigned_course.html" with dialog_id="delete-assigned-course-modal" %}
+                                    {% include "core/partials/modals/add_assigned_courses.html" with dialog_id="add-assigned-course-modal" %}
+                                </div>
+                                <div id="assigned-individuals">
+                                    <h5>Individuals</h5>
+                                    <div class="playlist-category-header">
+                                        <p>Name</p>
+                                        <p>Username</p>
+                                    </div>
+                                    {% include "core/partials/individual_assignment_list.html" %}
+                                    <button>+ Assign Individuals</button>
+                                    {% include "core/partials/modals/delete_assigned_individual.html" with dialog_id="delete-assigned-individual-modal" %}
+                                    {% include "core/partials/modals/add_assigned_individuals.html" with dialog_id="add-assigned-individual-modal" %}
+                                </div>
+                            </div>
+
                         </div>
                         <div class="playlist-settings-card">
                             <div class="playlist-settings-card-header">
