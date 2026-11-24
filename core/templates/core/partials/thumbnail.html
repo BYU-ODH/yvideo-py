@@ -3,7 +3,7 @@
          style="background-color: {{ thumbnail.background_color }};
                 {% if thumbnail.has_image %}background-image: url('{{ thumbnail.image_url }}');
                 {% endif %}">
-        <span class="thumbnail-text{% if settings.color|lower == "#000000" %} thumbnail-text-black{% endif %}"
+        <span class="thumbnail-text{% if settings.color == "#000000" %} thumbnail-text-black{% endif %}"
               style="color: {{ settings.color }};
                      font-size: {{ settings.size }}rem">{{ settings.text }}</span>
     </div>

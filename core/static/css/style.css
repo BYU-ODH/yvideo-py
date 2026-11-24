@@ -2272,7 +2272,7 @@ button.disabled:hover {
     forced-color-adjust: none; /* eslint-disable-line css/use-baseline */
 }
 
-/* The swatch's color is the choice, so the radio button itself only takes clicks and focus. */
+/* Users see only the colored circle. The radio button sits invisibly on top to take clicks and keyboard focus. */
 .thumbnail-swatch input {
     cursor: pointer;
 
@@ -2346,7 +2346,7 @@ button.disabled:hover {
     width: 0.8rem;
 }
 
-/* The icon is a downward chevron. */
+/* The arrow icon points down, so turn it to point left or right. */
 #thumbnail-step-back img {
     transform: rotate(90deg);
 }

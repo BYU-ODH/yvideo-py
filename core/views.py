@@ -1614,8 +1614,8 @@ def _youtube_thumbnail_url(video_id):
     return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
 
 
-# Keeps a color saved before the palette existed selectable, so saving other changes
-# doesn't silently replace it.
+# Thumbnails saved before these palettes existed may use some other color. Offering it
+# as an extra choice keeps it from being replaced when the user saves other changes.
 def _thumbnail_palette(colors, current):
     if current.lower() in (hexcode for _, hexcode in colors):
         return colors

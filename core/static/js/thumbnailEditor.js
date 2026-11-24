@@ -68,6 +68,8 @@ function repeatWhileHeld(button, action) {
     if (event.button !== 0) {
       return;
     }
+    // A second finger on the button would otherwise start a repeat that never stops.
+    stop();
     action();
     repeat(HOLD_DELAY_MS);
   });
@@ -75,7 +77,8 @@ function repeatWhileHeld(button, action) {
     button.addEventListener(type, stop);
   }
   button.addEventListener("contextmenu", (event) => event.preventDefault());
-  // Keyboard presses have no pointer, so they arrive only as clicks.
+  // Enter and Space send only a click. Mouse and touch clicks are skipped here
+  // because pointerdown already moved the video.
   button.addEventListener("click", (event) => {
     if (event.detail === 0) {
       action();
