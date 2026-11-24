@@ -1280,14 +1280,15 @@ class Content(models.Model):
 
 
 THUMBNAIL_COLORS = [
-    "#4e5760",
-    "#1f4e79",
-    "#266457",
-    "#2d7a35",
-    "#993175",
-    "#ac4f4f",
-    "#54206a",
+    ("Slate", "#4e5760"),
+    ("Navy", "#1f4e79"),
+    ("Teal", "#266457"),
+    ("Green", "#2d7a35"),
+    ("Magenta", "#993175"),
+    ("Red", "#ac4f4f"),
+    ("Purple", "#54206a"),
 ]
+THUMBNAIL_TEXT_COLORS = [("White", "#ffffff"), ("Black", "#000000")]
 THUMBNAIL_TEXT_DEFAULTS = {"color": "#ffffff", "size": 1.5}
 
 
@@ -1345,7 +1346,7 @@ class Thumbnail(models.Model):
         )
         if thumbnail is None:
             thumbnail = cls(
-                background_color=THUMBNAIL_COLORS[item.pk % len(THUMBNAIL_COLORS)]
+                background_color=THUMBNAIL_COLORS[item.pk % len(THUMBNAIL_COLORS)][1]
             )
             thumbnail.has_image = False
         setattr(thumbnail, field, item)

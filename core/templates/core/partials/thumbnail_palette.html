@@ -1,0 +1,18 @@
+<div class="row-flex thumbnail-field">
+    <span id="{{ label_id }}">Color</span>
+    <div class="row-flex thumbnail-palette"
+         role="radiogroup"
+         aria-labelledby="{{ label_id }}">
+        {% for color_name, hexcode in colors %}
+            <label class="thumbnail-swatch"
+                   style="background-color: {{ hexcode }}"
+                   title="{{ color_name }}">
+                <input type="radio"
+                       name="{{ name }}"
+                       value="{{ hexcode }}"
+                       aria-label="{{ color_name }}"
+                       {% if hexcode|lower == current|lower %}checked{% endif %}>
+            </label>
+        {% endfor %}
+    </div>
+</div>
