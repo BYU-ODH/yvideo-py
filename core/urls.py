@@ -52,6 +52,11 @@ urlpatterns = [
         name="assign_playlist_to_course",
     ),
     path(
+        "playlists/<int:playlist_id>/course/edit-form/",
+        views.prepare_playlist_course_edit_form,
+        name="edit_playlist_courses_form",
+    ),
+    path(
         "playlists/<int:playlist_id>/course/update-sections/",
         views.update_playlist_course_sections,
         name="update_playlist_course_sections",

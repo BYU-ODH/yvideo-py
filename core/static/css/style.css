@@ -1237,7 +1237,8 @@ button:hover {
     margin: 0;
 }
 
-#assign-courses-fields-list {
+#assign-courses-fields-list,
+#edit-courses-fields-list {
     margin-bottom: 1rem;
 }
 

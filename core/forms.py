@@ -138,6 +138,11 @@ class AssignCoursesForm(forms.Form):
         return courses
 
 
+class EditAssignedCoursesForm(AssignCoursesForm):
+    original_dept = forms.CharField(max_length=5, widget=forms.HiddenInput)
+    original_catalog_number = forms.CharField(max_length=4, widget=forms.HiddenInput)
+
+
 class UpdateContentForm(forms.ModelForm):
     confirm_guidelines = forms.BooleanField(label="guidelines", required=True)
 

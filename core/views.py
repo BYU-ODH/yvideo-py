@@ -39,6 +39,7 @@ import reversion
 
 from .forms import AddUserLookupForm
 from .forms import AssignCoursesForm
+from .forms import EditAssignedCoursesForm
 from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
@@ -653,63 +654,98 @@ def assign_playlist_to_course(request, playlist):
     return JsonResponse({"success": True})
 
 
+@require_GET
+@playlist_write_required
+def prepare_playlist_course_edit_form(request, playlist):
+    courses = list(
+        playlist.courses.filter(
+            dept=request.GET.get("dept"),
+            catalog_number=request.GET.get("catalog_number"),
+            yearterm=request.GET.get("yearterm"),
+        )
+    )
+    if not courses:
+        logger.error(f"There are no courses with dept {request.GET.get('dept')}, catalog number {request.GET.get('catalog_number')}, and yearterm {request.GET.get('yearterm')} associated with this playlist ({playlist.id})")
+        messages.error(request, "The course you are trying to edit could not be found.")
+        return HttpResponse(status=404)
+    course = courses[0]
+    form = EditAssignedCoursesForm(
+        initial={
+            "dept": course.dept,
+            "catalog_number": course.catalog_number,
+            "sections": ", ".join(course.section_number for course in courses),
+            "yearterm": course.yearterm,
+            "original_dept": course.dept,
+            "original_catalog_number": course.catalog_number,
+        },
+        auto_id="edit-courses-%s",
+    )
+    return render_edit_playlist_courses_form(request, playlist, form)
+
+
 @require_POST
 @playlist_write_required
 def update_playlist_course_sections(request, playlist):
-    try:
-        parsed_data = json.loads(request.body)
-        if (
-            "sections" not in parsed_data
-            or "dept" not in parsed_data
-            or "catalog_number" not in parsed_data
-            or "semester" not in parsed_data
-            or "year" not in parsed_data
-        ):
-            logger.error(
-                "Failed to update course sections because of insufficient data provided"
-            )
-            return HttpResponseBadRequest()
-        new_sections_list = parsed_data["sections"]
-        dept = parsed_data["dept"]
-        catalog_number = parsed_data["catalog_number"]
-        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
-        courses = Course.objects.filter(
-            dept=dept, catalog_number=catalog_number, yearterm=yearterm
+    form = EditAssignedCoursesForm(request.POST, auto_id="edit-courses-%s")
+    if not form.is_valid():
+        return render_edit_playlist_courses_form(request, playlist, form, status=400)
+
+    original_course_ids = set(
+        playlist.courses.filter(
+            dept=form.cleaned_data["original_dept"],
+            catalog_number=form.cleaned_data["original_catalog_number"],
+            yearterm=form.cleaned_data["yearterm"],
+        ).values_list("pk", flat=True)
+    )
+    if not original_course_ids:
+        form.add_error(
+            None,
+            "This course is not assigned to this playlist. If you believe this is an error, please refresh the page and try again or re-assign the course.",
         )
+        return render_edit_playlist_courses_form(request, playlist, form, status=400)
 
+    # save new additions and then remove any missing sections
+    try:
         with transaction.atomic():
-            # it is possible a course with a provided section_number doesn't exist yet. if that is true,
-            # create it
-            existing_section_numbers = []
-            for course in courses:
-                existing_section_numbers.append(course.section_number)
-            for new_section_number in new_sections_list:
-                if new_section_number not in existing_section_numbers:
-                    Course.objects.create(
-                        dept=dept,
-                        catalog_number=catalog_number,
-                        yearterm=yearterm,
-                        section_number=new_section_number,
-                    )
-
-            # Associate the provided sections with the playlist.
-            # We could go through and figure out exactly which should be removed and which should be added,
-            # but it is probably more robust to simply remove all associations for this dept, catalog_number, and yearterm
-            # and then add all the sections provided by the user.
-            playlist.courses.remove(*courses)
-            new_courses = Course.objects.filter(
-                dept=dept,
-                catalog_number=catalog_number,
-                yearterm=yearterm,
-                section_number__in=new_sections_list,
+            courses = form.save(playlist=playlist, yearterm=form.cleaned_data["yearterm"])
+            playlist.courses.remove(
+                *(original_course_ids - {course.pk for course in courses})
             )
-            playlist.courses.add(*new_courses)
-
-        return HttpResponse()
-
-    except Exception as e:
-        logger.error(f"Failed to update course sections. Exception: {e}")
+    except Exception:
+        logger.exception("Failed to update assigned courses for playlist %s", playlist.pk)
         return HttpResponseServerError()
+
+    # rebuild form to refresh UI
+    sections = playlist.courses.filter(
+        dept=form.cleaned_data["dept"],
+        catalog_number=form.cleaned_data["catalog_number"],
+        yearterm=form.cleaned_data["yearterm"],
+    ).values_list("section_number", flat=True)
+    form = EditAssignedCoursesForm(
+        initial={
+            **form.cleaned_data,
+            "sections": ", ".join(sections),
+            "original_dept": form.cleaned_data["dept"],
+            "original_catalog_number": form.cleaned_data["catalog_number"],
+        },
+        auto_id="edit-courses-%s",
+    )
+    return render_edit_playlist_courses_form(request, playlist, form)
+
+
+def render_edit_playlist_courses_form(request, playlist, form, *, status=200):
+    return render(
+        request,
+        "core/partials/assign_courses_to_playlist_form.html",
+        {
+            "playlist": playlist,
+            "assign_courses_form": form,
+            "editing_courses": True,
+            "course_form_prefix": "edit-courses",
+            "dialog_id": "edit-assigned-course",
+        },
+        status=status,
+    )
 
 
 @require_POST

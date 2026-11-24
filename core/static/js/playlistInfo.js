@@ -98,9 +98,10 @@ function setupPlaylistSettings() {
 }
 
 function setupAssignCourses() {
-  const dialog = document.getElementById("add-assigned-course-modal");
+  const addDialog = document.getElementById("add-assigned-course-modal");
+  const editDialog = document.getElementById("edit-assigned-course");
   const semesterSelector = document.getElementById("playlist-semester-selector");
-  if (!dialog || !semesterSelector) return;
+  if (!addDialog || !editDialog || !semesterSelector) return;
 
   semesterSelector.addEventListener("change", () => {
     const url = new URL(window.location.href);
@@ -108,7 +109,35 @@ function setupAssignCourses() {
     window.location.assign(url.href);
   });
 
-  const failureMessage = "Could not assign courses. Please try again.";
+  let editRequestId = 0;
+  document.getElementById("assigned-courses").addEventListener("click", async (event) => {
+    const button = event.target.closest(".edit-course-button");
+    if (!button) return;
+    const requestId = ++editRequestId;
+    const courseLine = button.closest(".semester-course");
+    const container = editDialog.querySelector("#edit-courses-form-container");
+    container.textContent = "Loading course assignment…";
+
+    const url = new URL(button.dataset.editUrl, window.location.origin);
+    url.searchParams.set("dept", courseLine.dataset.dept);
+    url.searchParams.set("catalog_number", courseLine.dataset.catalogNumber);
+    url.searchParams.set("yearterm", semesterSelector.value);
+    try {
+      const response = await fetch(url);
+      if (!response.ok || response.redirected) {
+        throw new Error("Could not load course assignment.");
+      }
+      const html = await response.text();
+      if (requestId !== editRequestId || !editDialog.open) return;
+      container.innerHTML = html;
+    } catch {
+      if (requestId === editRequestId && editDialog.open) {
+        container.textContent = "Could not load course assignment. Close this dialog and try again.";
+      }
+    }
+  });
+
+  const failureMessage = "Could not save course assignments. Please try again.";
 
   function markInvalid(field) {
     field?.classList.add("invalid-input");
@@ -120,43 +149,50 @@ function setupAssignCourses() {
     event.target.removeAttribute("aria-invalid");
   }
 
-  dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
-  dialog.addEventListener("input", clearInvalid);
-  dialog.addEventListener("change", clearInvalid);
+  for (const dialog of [addDialog, editDialog]) {
+    dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
+    dialog.addEventListener("input", clearInvalid);
+    dialog.addEventListener("change", clearInvalid);
 
-  dialog.addEventListener("submit", async (event) => {
-    const form = event.target;
-    if (!form.matches("#assign-courses-form")) return;
-    event.preventDefault();
-    const submitButton = form.querySelector("button[type='submit']");
-    const errors = form.querySelector("#assign-courses-errors");
-    if (submitButton.disabled) return;
+    dialog.addEventListener("submit", async (event) => {
+      const form = event.target;
+      if (!form.matches("[data-course-assignment-form]")) return;
+      event.preventDefault();
+      const submitButton = form.querySelector("button[type='submit']");
+      const errors = form.querySelector("[data-course-form-errors]");
+      if (submitButton.disabled) return;
 
-    form.elements.namedItem("yearterm").value = semesterSelector.value;
-    errors.hidden = true;
-    submitButton.disabled = true;
-    try {
-      const response = await fetch(form.action, {
-        method: form.method,
-        body: new FormData(form)
-      });
-      if (response.status === 400) {
-        form.outerHTML = await response.text();
-        const updatedForm = dialog.querySelector("#assign-courses-form");
-        const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
-        invalidFields.forEach(markInvalid);
-        return;
+      if (form.id === "assign-courses-form") {
+        form.elements.namedItem("yearterm").value = semesterSelector.value;
       }
-      if (!response.ok || response.redirected) displayUserMessage("error", failureMessage);
-      window.location.reload();
-    } catch {
-      errors.textContent = failureMessage;
-      errors.hidden = false;
-      errors.focus();
-    } finally {
-      submitButton.disabled = false;
-    }
-  });
+      errors.hidden = true;
+      submitButton.disabled = true;
+      try {
+        const response = await fetch(form.action, {
+          method: form.method,
+          body: new FormData(form)
+        });
+        if (response.status === 400) {
+          form.outerHTML = await response.text();
+          const updatedForm = dialog.querySelector("[data-course-assignment-form]");
+          const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
+          invalidFields.forEach(markInvalid);
+          return;
+        }
+        if (!response.ok || response.redirected) {
+          displayUserMessage("error", failureMessage);
+          return;
+        }
+        window.location.reload();
+      } catch {
+        errors.textContent = failureMessage;
+        errors.hidden = false;
+        errors.focus();
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+  }
 }
 
 function initialize() {
