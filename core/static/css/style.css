@@ -2117,6 +2117,7 @@ button.disabled:hover {
     text-align: center;
     text-shadow: 0 0 4px var(--shadow-color), 1px 1px 2px var(--shadow-color);
     overflow-wrap: anywhere;
+    white-space: pre-line;
 }
 
 /* Black text needs a light outline to stand out against dark backgrounds and images. */
@@ -2297,9 +2298,17 @@ button.disabled:hover {
     align-items: center;
 }
 
-.thumbnail-field input[type="text"] {
+#thumbnail-text {
     flex: 1;
+
+    /* Every major browser supports field-sizing, but the linter doesn't know that yet. */
+
+    /* eslint-disable-next-line */
+    field-sizing: content;
     min-width: 0;
+
+    /* Two lines of text plus the padding and border every dialog input gets. */
+    min-height: calc(2lh + 20px);
 }
 
 #thumbnail-video {

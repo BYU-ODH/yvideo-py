@@ -51,7 +51,7 @@ class ThumbnailTests(TestCase):
 
         editor_url = response.json()["thumbnail_editor_url"]
         editor = self.client.get(editor_url)
-        self.assertContains(editor, 'value="New playlist"')
+        self.assertContains(editor, ">New playlist</textarea>")
 
     def test_items_without_a_saved_thumbnail_show_defaults(self):
         content = ContentFactory(playlist=self.playlist)
@@ -106,6 +106,15 @@ class ThumbnailTests(TestCase):
         self.assertEqual(saved.status_code, 204)
         self.assertContains(response, self.playlist.name)
         self.assertNotContains(response, f"{self.playlist.name}</span>")
+
+    def test_line_breaks_count_as_one_character(self):
+        text = "\r\n".join(["Line"] * 20)
+
+        response = self.save_playlist_thumbnail(text=text)
+
+        self.assertEqual(response.status_code, 204)
+        self.playlist.thumbnail.refresh_from_db()
+        self.assertEqual(self.playlist.thumbnail.text["text"], "\n".join(["Line"] * 20))
 
     def test_invalid_color_is_rejected(self):
         response = self.save_playlist_thumbnail(background_color="red;}")

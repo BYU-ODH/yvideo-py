@@ -1651,7 +1651,9 @@ def _save_thumbnail(request, item):
 
     background_color = request.POST.get("background_color", "")
     text_color = request.POST.get("text_color", "")
-    text = request.POST.get("text", "").strip()
+    # Browsers send each line break as two characters, which would count double
+    # against the length limit.
+    text = request.POST.get("text", "").replace("\r\n", "\n").strip()
     try:
         text_size = float(request.POST.get("text_size", ""))
     except ValueError:

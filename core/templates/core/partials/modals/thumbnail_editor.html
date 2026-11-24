@@ -116,11 +116,7 @@
                     <legend>Text</legend>
                     <div class="row-flex thumbnail-field">
                         <label for="thumbnail-text">Text</label>
-                        <input type="text"
-                               id="thumbnail-text"
-                               name="text"
-                               maxlength="100"
-                               value="{{ settings.text }}">
+                        <textarea id="thumbnail-text" name="text" maxlength="100">{{ settings.text }}</textarea>
                     </div>
                     {% include "core/partials/thumbnail_palette.html" with label_id="thumbnail-text-color-label" name="text_color" colors=text_palette current=settings.color %}
 
