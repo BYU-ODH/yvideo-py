@@ -751,30 +751,41 @@ def render_edit_playlist_courses_form(request, playlist, form, *, status=200):
 @require_POST
 @playlist_write_required
 def unassign_playlist_from_course(request, playlist):
+    # do not provide information about why the request failed in the error responses
+    # because a typical yvideo user will never see them.
     try:
-        parsed_data = json.loads(request.body)
-        if (
-            "dept" not in parsed_data
-            or "catalog_number" not in parsed_data
-            or "semester" not in parsed_data
-            or "year" not in parsed_data
-        ):
-            logger.error(
-                "Failed to remove playlist from course because of insufficient data"
-            )
-            return HttpResponseBadRequest()
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.error("Failed to unassign course from playlist because of invalid JSON in request body")
+        messages.error(request, "A problem occurred while attempting to unassign the course from the playlist. No changes were made.")
+        return HttpResponseBadRequest()
+    if not isinstance(data, dict) or not all(
+        isinstance(data.get(field), str) and data[field]
+        for field in ("dept", "catalog_number", "yearterm")
+    ):
+        missing_data_msg = "Failed to unassign course from playlist because of a missing dept, catalog_number and/or yearterm value"
+        logger.error(missing_data_msg)
+        messages.error(request, missing)
+        return HttpResponseBadRequest()
+    if not re.fullmatch(r"[0-9]{4}[1345]", data["yearterm"]):
+        bad_yearterm_msg = "Failed to unassign course from playlist because of an invalid yearterm value"
+        logger.error(bad_yearterm_msg)
+        messages.error(request, bad_yearterm_msg)
+        return HttpResponseBadRequest()
 
-        courses = playlist.courses.all().filter(
-            dept=parsed_data["dept"],
-            catalog_number=parsed_data["catalog_number"],
-            yearterm=f"{parsed_data['year']}{parsed_data['semester']}",
+    try:
+        courses = playlist.courses.filter(
+            dept=data["dept"],
+            catalog_number=data["catalog_number"],
+            yearterm=data["yearterm"],
         )
         playlist.courses.remove(*courses)
-        return HttpResponse()
-
-    except Exception as e:
-        logger.error(f"Failed to remove playlist assigned to course. Exception: {e}")
+    except Exception:
+        logger.exception("Failed to unassign courses from playlist %s", playlist.pk)
+        messages.error(request, "Failed to unassign the course from the playlist. Please try again.")
         return HttpResponseServerError()
+    messages.success(request, f"{data['dept']} {data['catalog_number']} and its sections were removed from the playlist.")
+    return HttpResponse(status=204)
 
 
 @require_POST

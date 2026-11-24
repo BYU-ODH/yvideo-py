@@ -195,11 +195,65 @@ function setupAssignCourses() {
   }
 }
 
+function setupUnassignCourses() {
+  const dialog = document.getElementById("delete-assigned-course-modal");
+  const courseList = document.getElementById("assigned-courses");
+  const semesterSelector = document.getElementById("playlist-semester-selector");
+  if (!dialog || !courseList || !semesterSelector) return;
+
+  const confirmButton = dialog.querySelector("#unassign-course-confirm");
+  const description = dialog.querySelector("#unassign-course-description");
+  const errors = dialog.querySelector("#unassign-course-error");
+  let courseToUnassign;
+  let requestPending = false;
+
+  courseList.addEventListener("click", (event) => {
+    const button = event.target.closest(".assigned-course-delete");
+    if (!button) return;
+    const courseLine = button.closest(".semester-course");
+    courseToUnassign = {
+      dept: courseLine.dataset.dept,
+      catalog_number: courseLine.dataset.catalogNumber,
+      yearterm: semesterSelector.value
+    };
+    const sections = courseLine.querySelector(".course-sections").textContent.trim();
+    const semester = semesterSelector.selectedOptions[0].textContent.trim();
+    description.textContent = `Remove ${courseToUnassign.dept} ${courseToUnassign.catalog_number}, and its sections from this playlist for ${semester}?`;
+    errors.hidden = true;
+    confirmButton.disabled = requestPending;
+  });
+
+  dialog.addEventListener("close", () => {
+    courseToUnassign = undefined;
+    confirmButton.disabled = true;
+    errors.hidden = true;
+  });
+
+  confirmButton.addEventListener("click", async () => {
+    if (!courseToUnassign || requestPending) return;
+    const target = courseToUnassign;
+    requestPending = true;
+    confirmButton.disabled = true;
+    errors.hidden = true;
+
+    const response = await fetch(confirmButton.dataset.unassignUrl, {
+      method: "POST",
+      headers: {
+        "X-CSRFToken": getCSRFToken(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(target)
+    });
+    window.location.reload();
+  });
+}
+
 function initialize() {
   setupVideoSearch();
   setupDeletePlaylist();
   setupPlaylistSettings();
   setupAssignCourses();
+  setupUnassignCourses();
   const playlistNameWrapper = document.getElementById("playlist-name-wrapper");
   const playlistId = getPlaylistIdValue();
   if (playlistNameWrapper && playlistId !== undefined) {
