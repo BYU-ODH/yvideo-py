@@ -2258,7 +2258,7 @@ button.disabled:hover {
 
 .thumbnail-palette {
     flex-wrap: wrap;
-    gap: 0.25rem;
+    gap: 0.4rem;
 }
 
 /* High-contrast modes would otherwise paint every swatch the same color. */
@@ -2269,8 +2269,6 @@ button.disabled:hover {
     height: 2rem;
     border: 2px solid var(--box-shadow-color);
     border-radius: 50%;
-
-    forced-color-adjust: none; /* eslint-disable-line css/use-baseline */
 }
 
 /* Users see only the colored circle. The radio button sits invisibly on top to take clicks and keyboard focus. */
