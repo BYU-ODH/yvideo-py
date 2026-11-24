@@ -3,12 +3,14 @@ import re
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db import transaction
 import requests
 
 from .api import Api
 from .model_utils import update_user_enrollment
 from .models import Clip
 from .models import Content
+from .models import Course
 from .models import Language
 from .models import Playlist
 from .models import ResourceIntakeRequest
@@ -77,6 +79,51 @@ class PlaylistSettingsForm(forms.ModelForm):
         model = Playlist
         # is_ic is shown to, and applied for, IC editors only.
         fields = ["published", "archived", "is_ic"]
+
+
+class AssignCoursesForm(forms.Form):
+    dept = Course._meta.get_field("dept").formfield(
+        validators=Course._meta.get_field("dept").validators,
+    )
+    catalog_number = Course._meta.get_field("catalog_number").formfield(
+        validators=Course._meta.get_field("catalog_number").validators,
+    )
+    sections = forms.CharField(
+        label="Sections",
+        help_text="Enter section numbers separated by commas, e.g. 001, 002, 003.",
+    )
+
+    def clean_sections(self):
+        section_field = Course._meta.get_field("section_number")
+        sections = []
+        for value in self.cleaned_data["sections"].split(","):
+            section = value.strip()
+            if not re.fullmatch(r"[0-9]{1,3}", section):
+                raise ValidationError(
+                    "Enter section numbers of 1 to 3 digits, separated by commas."
+                )
+            section = section_field.clean(section.zfill(3), None)
+            if section not in sections:
+                sections.append(section)
+        return sections
+
+    @transaction.atomic
+    def save(self, *, playlist, yearterm):
+        """Add one course per section without removing existing assignments."""
+        if not self.is_valid():
+            raise ValueError("Cannot save an invalid course assignment form.")
+        yearterm = Course._meta.get_field("yearterm").clean(yearterm, None)
+        courses = []
+        for section in self.cleaned_data["sections"]:
+            course, _ = Course.objects.get_or_create(
+                dept=self.cleaned_data["dept"],
+                catalog_number=self.cleaned_data["catalog_number"],
+                section_number=section,
+                yearterm=yearterm,
+            )
+            courses.append(course)
+        playlist.courses.add(*courses)
+        return courses
 
 
 class UpdateContentForm(forms.ModelForm):
