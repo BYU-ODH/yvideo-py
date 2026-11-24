@@ -112,6 +112,20 @@ class ThumbnailTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_a_color_saved_outside_the_palette_stays_selected(self):
+        self.save_playlist_thumbnail(background_color="#123456")
+
+        editor = self.client.get(
+            reverse("playlist_thumbnail_editor", args=[self.playlist.pk])
+        )
+
+        self.assertContains(
+            editor,
+            '<input type="radio" name="background_color" value="#123456"'
+            ' aria-label="Current color" checked>',
+            html=True,
+        )
+
     def test_switching_to_color_only_removes_the_image(self):
         self.save_playlist_thumbnail(
             image_source="upload",

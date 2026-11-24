@@ -41,6 +41,8 @@ from .forms import AddUserLookupForm
 from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
+from .models import THUMBNAIL_COLORS
+from .models import THUMBNAIL_TEXT_COLORS
 from .models import Content
 from .models import Course
 from .models import Playlist
@@ -1612,15 +1614,30 @@ def _youtube_thumbnail_url(video_id):
     return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
 
 
+# Keeps a color saved before the palette existed selectable, so saving other changes
+# doesn't silently replace it.
+def _thumbnail_palette(colors, current):
+    if current.lower() in (hexcode for _, hexcode in colors):
+        return colors
+    return [*colors, ("Current color", current)]
+
+
 def _render_thumbnail_editor(request, item, save_url):
     stream_url = None
     if isinstance(item, Content) and item.resource_file_id:
         key = request.user.get_resource_filekey(item)
         stream_url = reverse("stream_file", args=[key.pk]) if key else None
     video_id = _thumbnail_youtube_video_id(request, item)
+    thumbnail = Thumbnail.for_item(item)
     context = {
         "dialog_id": "thumbnail-editor-dialog",
-        "thumbnail": Thumbnail.for_item(item),
+        "thumbnail": thumbnail,
+        "background_palette": _thumbnail_palette(
+            THUMBNAIL_COLORS, thumbnail.background_color
+        ),
+        "text_palette": _thumbnail_palette(
+            THUMBNAIL_TEXT_COLORS, thumbnail.text_settings["color"]
+        ),
         "save_url": save_url,
         "stream_url": stream_url,
         "youtube_image_url": _youtube_thumbnail_url(video_id) if video_id else None,
