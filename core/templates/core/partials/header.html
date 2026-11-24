@@ -35,7 +35,7 @@
         {% if user.is_instructor or user.is_lab_assistant %}
             <h2>Resources</h2>
             {% if user.is_instructor %}
-                <a href="{% url 'request_resource' %}">Request New Resource</a>
+                <a href="{% url 'request_resource' %}">Request a resource</a>
             {% endif %}
             {% if user.is_superuser or user.is_lab_assistant %}
                 <a href="{% url 'resource_access_requests' %}">Resource Requests</a>

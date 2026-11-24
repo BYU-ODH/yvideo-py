@@ -195,6 +195,27 @@ class BreadcrumbTests(TestCase):
         self.assertContains(response, 'aria-label="Breadcrumb"')
         self.assertContains(response, f'href="{reverse("playlists")}"')
 
+    def assertTrailEndsAt(self, response, label):
+        self.assertContains(response, 'aria-label="Breadcrumb"')
+        self.assertEqual(
+            [(c["label"], c["url"]) for c in response.context["breadcrumbs"]],
+            [("Playlists", reverse("playlists")), (label, None)],
+        )
+
+    def test_intake_form_has_breadcrumbs(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(reverse("request_resource"))
+
+        self.assertTrailEndsAt(response, "Request a resource")
+
+    def test_resource_requests_page_has_breadcrumbs(self):
+        self.client.force_login(UserFactory(lab_assistant=True, netid="labasst5"))
+
+        response = self.client.get(reverse("resource_access_requests"))
+
+        self.assertTrailEndsAt(response, "Resource Requests")
+
 
 @modify_settings(
     MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
