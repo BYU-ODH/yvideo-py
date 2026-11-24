@@ -1527,7 +1527,11 @@ def resource_access_requests(request):
     return render(
         request,
         "core/resource_access_requests.html",
-        {"access_requests": pending, "intake_requests": intake_requests},
+        {
+            "access_requests": pending,
+            "intake_requests": intake_requests,
+            "breadcrumbs": breadcrumb_trail(("Resource Requests", None)),
+        },
     )
 
 
@@ -1598,6 +1602,7 @@ def request_resource(request):
             ),
             # Its ids must differ from the intake form's copy of the same checkboxes.
             "access_form": LegalComplianceForm(auto_id="access-%s"),
+            "breadcrumbs": breadcrumb_trail(("Request a resource", None)),
         },
     )
 
