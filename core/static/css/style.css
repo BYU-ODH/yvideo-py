@@ -1350,13 +1350,13 @@ button:hover {
     background-color: var(--pale-red);
 }
 
-.playlist-member-rows, .playlist-member-course-rows, .playlist-member-role-legend {
+.playlist-member-rows, .playlist-member-course-rows {
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
-.playlist-member-course-rows, .playlist-member-role-legend {
+.playlist-member-course-rows {
     display: flex;
     flex-direction: column;
     row-gap: 0.25rem;
@@ -1398,13 +1398,14 @@ button:hover {
     box-shadow: 2px 3px 6px var(--box-shadow-color);
 }
 
-.playlist-member-search, .playlist-member-results {
-    width: 100%;
+[data-individual-search-results] {
+    overflow-y: auto;
+    max-height: 12rem;
 }
 
-.playlist-member-add-controls {
-    column-gap: 0.5rem;
-    align-items: flex-end;
+[data-individual-user-id][aria-pressed='true'] {
+    border-color: var(--deep-blue);
+    background-color: var(--selectable-grey);
 }
 
 .assigned-course input[type='text'] {

@@ -1,0 +1,8 @@
+{% for user in users %}
+    <button type="button"
+            class="white-button-with-border"
+            data-individual-user-id="{{ user.id }}"
+            aria-pressed="false">{{ user.get_full_name|default:user.username }} ({{ user.netid }})</button>
+{% empty %}
+    <p class="muted-text">{% if query_too_short %}Keep typing{% elif query %}No matches{% else %}Type to search{% endif %}</p>
+{% endfor %}

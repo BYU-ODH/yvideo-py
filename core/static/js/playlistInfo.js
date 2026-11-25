@@ -97,6 +97,16 @@ function setupPlaylistSettings() {
   });
 }
 
+function markInvalid(field) {
+  field?.classList.add("invalid-input");
+  field?.setAttribute("aria-invalid", "true");
+}
+
+function clearInvalid(event) {
+  event.target.classList.remove("invalid-input");
+  event.target.removeAttribute("aria-invalid");
+}
+
 function setupAssignCourses() {
   const addDialog = document.getElementById("add-assigned-course-modal");
   const editDialog = document.getElementById("edit-assigned-course");
@@ -137,18 +147,6 @@ function setupAssignCourses() {
     }
   });
 
-  const failureMessage = "Could not save course assignments. Please try again.";
-
-  function markInvalid(field) {
-    field?.classList.add("invalid-input");
-    field?.setAttribute("aria-invalid", "true");
-  }
-
-  function clearInvalid(event) {
-    event.target.classList.remove("invalid-input");
-    event.target.removeAttribute("aria-invalid");
-  }
-
   for (const dialog of [addDialog, editDialog]) {
     dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
     dialog.addEventListener("input", clearInvalid);
@@ -159,37 +157,36 @@ function setupAssignCourses() {
       if (!form.matches("[data-course-assignment-form]")) return;
       event.preventDefault();
       const submitButton = form.querySelector("button[type='submit']");
-      const errors = form.querySelector("[data-course-form-errors]");
       if (submitButton.disabled) return;
 
       if (form.id === "assign-courses-form") {
         form.elements.namedItem("yearterm").value = semesterSelector.value;
       }
-      errors.hidden = true;
+
       submitButton.disabled = true;
+
       try {
         const response = await fetch(form.action, {
           method: form.method,
           body: new FormData(form)
         });
+
         if (response.status === 400) {
-          form.outerHTML = await response.text();
-          const updatedForm = dialog.querySelector("[data-course-assignment-form]");
+          const template = document.createElement("template");
+          template.innerHTML = await response.text();
+          const updatedForm = template.content.querySelector("form[data-course-assignment-form]");
+          if (!updatedForm) throw new Error("No assignment form returned");
+          form.replaceWith(updatedForm);
           const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
           invalidFields.forEach(markInvalid);
           return;
         }
-        if (!response.ok || response.redirected) {
-          displayUserMessage("error", failureMessage);
-          return;
-        }
+        if (!response.ok) throw new Error("Assignment failed");
         window.location.reload();
       } catch {
-        errors.textContent = failureMessage;
-        errors.hidden = false;
-        errors.focus();
-      } finally {
+        dialog.close();
         submitButton.disabled = false;
+        displayUserMessage("error", "An error occurred while attempting to assign courses to the playlist. Please refresh the page to continue.");
       }
     });
   }
@@ -248,11 +245,221 @@ function setupUnassignCourses() {
   });
 }
 
+function setupAssignIndividual() {
+  const dialog = document.getElementById("add-assigned-individual-modal");
+  if (!dialog) return;
+
+  dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
+  dialog.addEventListener("input", clearInvalid);
+  dialog.addEventListener("change", clearInvalid);
+
+  dialog.addEventListener("submit", async (event) => {
+    const form = event.target;
+    if (!form.matches("[data-individual-assignment-form]")) return;
+    event.preventDefault();
+
+    const submitButton = form.querySelector("button[type='submit']");
+    if (submitButton.disabled) return;
+    if (!form.elements.namedItem("user_id").value) {
+      markInvalid(form.elements.namedItem("search"));
+      return;
+    }
+
+    submitButton.disabled = true;
+
+    try {
+      const response = await fetch(form.action, {
+        method: form.method,
+        body: new FormData(form)
+      });
+
+      if (response.status === 400) {
+        const template = document.createElement("template");
+        template.innerHTML = await response.text();
+        const updatedForm = template.content.querySelector("form[data-individual-assignment-form]");
+        if (!updatedForm) throw new Error("No assignment form returned");
+        form.replaceWith(updatedForm);
+        const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
+        invalidFields.forEach(markInvalid);
+        return;
+      }
+      if (!response.ok) throw new Error("Assignment failed");
+      window.location.reload();
+    } catch {
+      dialog.close();
+      submitButton.disabled = false;
+      displayUserMessage("error", "An error occurred while atempting to assign the user to the playlist. Please refresh the page to continue.");
+    }
+  });
+
+  let searchTimeout;
+  let requestId = 0;
+
+  dialog.addEventListener("input", (event) => {
+    if (event.target.name !== "search") return;
+    const form = event.target.form;
+    const results = form.querySelector("[data-individual-search-results]");
+    const errors = form.querySelector("[data-assignment-form-errors]");
+    const query = event.target.value.trim();
+    const currentRequest = ++requestId;
+    clearTimeout(searchTimeout);
+    form.elements.namedItem("user_id").value = "";
+    form.querySelector("[data-selected-person]").textContent = "No person selected.";
+    results.replaceChildren();
+    errors.hidden = true;
+    searchTimeout = setTimeout(async () => {
+      const body = new FormData();
+      body.append("search", query);
+      try {
+        const response = await fetch(form.dataset.searchUrl, {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken() },
+          body
+        });
+        if (!response.ok || response.redirected) throw new Error("Search failed");
+        const html = await response.text();
+        if (currentRequest !== requestId || !results.isConnected) return;
+        results.innerHTML = html;
+      } catch {
+        if (currentRequest !== requestId || !results.isConnected) return;
+        errors.textContent = "Could not search for people. Please try again.";
+        errors.hidden = false;
+      }
+    }, 300);
+  });
+
+  dialog.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-individual-user-id]");
+    if (!button) return;
+    const form = button.form;
+    form.elements.namedItem("user_id").value = button.dataset.individualUserId;
+    form.querySelector("[data-selected-person]").textContent = `Selected: ${button.textContent.trim()}`;
+    form.querySelectorAll("[data-individual-user-id]").forEach((result) => {
+      result.setAttribute("aria-pressed", String(result === button));
+    });
+    const search = form.elements.namedItem("search");
+    search.classList.remove("invalid-input");
+    search.removeAttribute("aria-invalid");
+    form.querySelector("[data-assignment-form-errors]").hidden = true;
+  });
+}
+
+function setupEditIndividual() {
+  const dialog = document.getElementById("edit-assigned-individual-modal");
+  const individualList = document.getElementById("assigned-individuals-list");
+  if (!dialog || !individualList) return;
+  let requestId = 0;
+
+  dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
+  dialog.addEventListener("input", clearInvalid);
+  dialog.addEventListener("change", clearInvalid);
+
+  individualList.addEventListener("click", async (event) => {
+    const button = event.target.closest(".assigned-individual-edit");
+    if (!button) return;
+    const currentRequest = ++requestId;
+    const container = dialog.querySelector("#edit-individual-form-container");
+    container.textContent = "Loading individual assignment…";
+    try {
+      const response = await fetch(button.dataset.editUrl);
+      if (!response.ok || response.redirected) throw new Error("Could not load assignment");
+      const html = await response.text();
+      if (currentRequest !== requestId || !dialog.open) return;
+      container.innerHTML = html;
+      if (!container.querySelector("form[data-edit-individual-form]")) {
+        throw new Error("No assignment form returned");
+      }
+    } catch {
+      if (currentRequest !== requestId || !dialog.open) return;
+      dialog.close();
+      displayUserMessage("error", "An error occurred while loading the individual's role. Please refresh the page to continue.");
+    }
+  });
+
+  dialog.addEventListener("submit", async (event) => {
+    const form = event.target;
+    if (!form.matches("[data-edit-individual-form]")) return;
+    event.preventDefault();
+    const submitButton = form.querySelector("button[type='submit']");
+    if (submitButton.disabled) return;
+    submitButton.disabled = true;
+    try {
+      const response = await fetch(form.action, {
+        method: form.method,
+        body: new FormData(form)
+      });
+      if (response.redirected) throw new Error("Unexpected redirect");
+      if (response.status === 400) {
+        const template = document.createElement("template");
+        template.innerHTML = await response.text();
+        const updatedForm = template.content.querySelector("form[data-edit-individual-form]");
+        if (!updatedForm) throw new Error("No assignment form returned");
+        form.replaceWith(updatedForm);
+        updatedForm.querySelectorAll("[aria-invalid='true']").forEach(markInvalid);
+        return;
+      }
+      if (!response.ok) throw new Error("Could not update role");
+      window.location.reload();
+    } catch {
+      dialog.close();
+      displayUserMessage("error", "An error occurred while updating the individual's role. Please refresh the page to continue.");
+    }
+  });
+}
+
+function setupUnassignIndividual() {
+  const dialog = document.getElementById("delete-assigned-individual-modal");
+  const individualList = document.getElementById("assigned-individuals-list");
+  if (!dialog || !individualList) return;
+  const confirmButton = dialog.querySelector("#unassign-individual-confirm");
+  const description = dialog.querySelector("#unassign-individual-description");
+  let removeUrl;
+  let requestPending = false;
+
+  individualList.addEventListener("click", (event) => {
+    const button = event.target.closest(".assigned-individual-delete");
+    if (!button) return;
+    removeUrl = button.dataset.removeUrl;
+    const yearterm = document.getElementById("playlist-semester-selector").selectedOptions[0].textContent.trim();
+    description.textContent = `Remove ${button.dataset.individualName}'s access to this playlist from ${yearterm}?`;
+    confirmButton.disabled = requestPending;
+  });
+
+  dialog.addEventListener("close", () => {
+    removeUrl = undefined;
+    confirmButton.disabled = true;
+  });
+
+  confirmButton.addEventListener("click", async () => {
+    if (!removeUrl || requestPending) return;
+    const target = removeUrl;
+    requestPending = true;
+    confirmButton.disabled = true;
+    try {
+      const response = await fetch(target, {
+        method: "POST",
+        headers: { "X-CSRFToken": getCSRFToken() }
+      });
+      if (!response.ok || response.redirected) throw new Error("Could not remove individual");
+      window.location.reload();
+    } catch {
+      requestPending = false;
+      dialog.close();
+      displayUserMessage("error", "An error occurred while removing the individual from the playlist. Please refresh the page to continue.");
+    }
+  });
+}
+
+
 function initialize() {
   setupVideoSearch();
   setupDeletePlaylist();
   setupPlaylistSettings();
   setupAssignCourses();
+  setupAssignIndividual();
+  setupEditIndividual();
+  setupUnassignIndividual();
+
   setupUnassignCourses();
   const playlistNameWrapper = document.getElementById("playlist-name-wrapper");
   const playlistId = getPlaylistIdValue();

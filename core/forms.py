@@ -13,6 +13,8 @@ from .models import Content
 from .models import Course
 from .models import Language
 from .models import Playlist
+from .models import PlaylistRole
+from .models import PlaylistUserAccess
 from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
@@ -136,6 +138,54 @@ class AssignCoursesForm(forms.Form):
             courses.append(course)
         playlist.courses.add(*courses)
         return courses
+
+
+class AssignIndividualForm(forms.Form):
+    search = forms.CharField(
+        label="Name or netid",
+        required=False,
+        widget=forms.TextInput(attrs={"type": "search", "autocomplete": "off"}),
+    )
+    user_id = forms.ModelChoiceField(
+        label="Person",
+        queryset=User.objects.all(),
+        widget=forms.HiddenInput,
+        error_messages={
+            "required": "Select a person from the search results.",
+            "invalid_choice": "Select a valid person from the search results.",
+        },
+    )
+    role = forms.TypedChoiceField(coerce=int, initial=PlaylistRole.STUDENT)
+
+    def __init__(self, *args, playlist, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.playlist = playlist
+        self.fields["role"].choices = [
+            (role.value, role.label)
+            for role in PlaylistRole
+            if playlist.can_grant_role(user, role)
+        ]
+
+    def clean_user_id(self):
+        user = self.cleaned_data["user_id"]
+        self.selected_user = user
+        if user.pk == self.playlist.owner_id:
+            raise ValidationError("This person already owns the playlist.")
+        if PlaylistUserAccess.objects.filter(user=user, playlist=self.playlist).exists():
+            raise ValidationError("This person already has a role on this playlist.")
+        return user
+
+
+class EditAssignedIndividualForm(forms.Form):
+    role = forms.TypedChoiceField(coerce=int)
+
+    def __init__(self, *args, playlist, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"].choices = [
+            (role.value, role.label)
+            for role in PlaylistRole
+            if playlist.can_grant_role(user, role)
+        ]
 
 
 class EditAssignedCoursesForm(AssignCoursesForm):

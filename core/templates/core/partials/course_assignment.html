@@ -1,28 +1,25 @@
-<div class="semester-course" id="assigned-course-{{ course.id }}">
-    <div class="">
-        <p class="read-only-course-header">{{ course.dept }} {{ course.catalog_number }}</p>
-        <div class="editable-course-header hidden">
-            <div>
-                <div class="editable-dept">
-                    <label for="course-dept-{{ course.id }}-input">Dept:</label>
-                    <input id="course-dept-{{ course.id }}-input" type="text" maxlength="5" value="{{ course.dept }}">
-                </div>
-                <div class="editable-catalog-number">
-                    <label for="course-catalog-number-{{ course.id }}-input">Cat. Num.:</label>
-                    <input id="course-catalog-number-{{ course.id }}-input" type="text" maxlength="4" value="{{ course.catalog_number }}">
-                </div>
-            </div>
-            <div class="editable-sections">
-                <label for="course-sections-{{ course.id }}-input">Sections:</label>
-                <input id="course-sections-{{ course.id }}-input" type="text" value="{{ course.sections }}">
-            </div>
-        </div>
-        <button aria-label="Change assigned course {{ course.dept }} {{ course.catalog_number }}">
+{% load static %}
+
+<div class="semester-course"
+     data-assigned-course-id="{{ course.id }}"
+     data-dept="{{ course.dept }}"
+     data-catalog-number="{{ course.catalog_number }}">
+    <div>
+        <p>{{ course.dept }}</p>
+        <p>{{ course.catalog_number }}</p>
+    </div>
+    <div>
+        <p class="course-sections">{{ course.section_list }}</p>
+        <button type="button"
+                class="edit-course-button"
+                aria-label="Edit {{ course.dept }} {{ course.catalog_number }} and sections"
+                data-edit-url="{% url 'edit_playlist_courses_form' playlist.id %}"
+                command="show-modal"
+                commandfor="edit-assigned-course">
             <img src="{% static 'img/edit.svg' %}" alt="E">
         </button>
     </div>
-    <p>{{ course.sections }}</p>
-    <button>
-        <img src="{% static 'img/trash.svg %}">
+    <button class="assigned-course-delete" command="show-modal" commandfor="delete-assigned-course-modal">
+        <img src="{% static 'img/trash.svg' %}">
     </button>
 </div>
