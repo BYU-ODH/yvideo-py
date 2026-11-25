@@ -319,6 +319,24 @@ class SubtitleSharingTests(TestCase):
         [choice] = context["unattached_subtitle_tracks"]
         self.assertEqual(choice["subtitle"], self.track)
 
+    def test_choosing_a_default_track_in_admin_adds_it_to_the_video(self):
+        login(self.client, UserFactory(is_superuser=True, is_staff=True))
+
+        response = self.client.post(
+            reverse("admin:core_content_change", args=[self.borrower_content.pk]),
+            {
+                "title": self.borrower_content.title,
+                "playlist": self.borrower_content.playlist.pk,
+                "resource_file": self.borrower_content.resource_file.pk,
+                "default_subtitle_track": self.track.pk,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            list(self.borrower_content.subtitle_tracks.all()), [self.track]
+        )
+
     def test_an_ownerless_track_can_still_be_opened_in_the_editor(self):
         Subtitle.objects.filter(pk=self.track.pk).update(owner=None)
         login(self.client, self.owner)

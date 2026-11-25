@@ -47,7 +47,7 @@
                 {% if can_administer_annotation_set %}
                     <button class="multi-option-menu-button"
                             command="show-modal"
-                            commandfor="annotation-set-deletion-modal">Delete this Annotation Set</button>
+                            commandfor="delete-annotation-set">Delete this Annotation Set</button>
                 {% endif %}
             </div>
         </div>
@@ -55,7 +55,7 @@
         {% include 'core/partials/modals/annotation_set_options/base_modal.html' %}
 
         {% if can_administer_annotation_set %}
-            {% include 'core/partials/annotation_set_deletion_or_ownership_change_modal.html' %}
+            {% include 'core/partials/modals/delete_or_transfer.html' with dialog_id="delete-annotation-set" noun="annotation set" object=annotation_set candidates=annotation_set_owner_candidates %}
         {% endif %}
     </div>
     <div id="tools-header" class="row-flex flex-apart-aligned">

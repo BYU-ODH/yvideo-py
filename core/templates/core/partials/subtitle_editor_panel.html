@@ -48,7 +48,7 @@
                                 type="button"
                                 class="multi-option-menu-button"
                                 command="show-modal"
-                                commandfor="delete-subtitle-track-modal"
+                                commandfor="delete-subtitle-track"
                                 disabled>Delete subtitle track</button>
                         <button id="export-subtitle-track-button"
                                 type="button"
@@ -59,7 +59,7 @@
                 {% include 'core/partials/modals/create_subtitle_track.html' with dialog_id="subtitle-track-creation-modal" %}
                 {% include 'core/partials/modals/add_subtitle_track.html' with dialog_id="add-subtitle-track-modal" %}
                 {% include 'core/partials/modals/edit_subtitle_track.html' with dialog_id="edit-subtitle-track-modal" %}
-                {% include 'core/partials/modals/delete_subtitle_track.html' with dialog_id="delete-subtitle-track-modal" %}
+                {% include 'core/partials/modals/delete_or_transfer.html' with dialog_id="delete-subtitle-track" noun="subtitle track" %}
             </div>
             {% if attached_subtitle_tracks %}
                 <select id="subtitles-track-selector">

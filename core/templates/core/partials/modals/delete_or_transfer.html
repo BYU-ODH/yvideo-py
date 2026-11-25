@@ -1,45 +1,45 @@
 {% extends "core/partials/modals/user_view_modal.html" %}
 
-{% block modal_title %}Delete subtitle track{% endblock %}
+{% block modal_title %}Delete {{ noun }}{% endblock %}
 {% block modal_body %}
-    {# Filled in for the selected track by the delete_subtitle_track_dialog view. #}
-    <div id="delete-subtitle-track-content" class="column-flex">
-        {% if subtitle_track %}
-            {% if owner_candidates|length > 1 %}
+    {# Subtitle tracks fill this in for the selected track from the delete-dialog view. #}
+    <div id="{{ dialog_id }}-content" class="column-flex">
+        {% if object %}
+            {% if candidates|length > 1 %}
                 <p>
-                    Other users have added "{{ subtitle_track.name }}" to their videos. You may choose
+                    Other users have added "{{ object.name }}" to their videos. You may choose
                     who becomes its new owner.
                 </p>
-                <label for="subtitle-track-new-owner">Transfer ownership to (optional):</label>
-                <select id="subtitle-track-new-owner">
+                <label for="{{ dialog_id }}-new-owner">Transfer ownership to (optional):</label>
+                <select id="{{ dialog_id }}-new-owner">
                     <option value="">Choose automatically</option>
-                    {% for candidate in owner_candidates %}
+                    {% for candidate in candidates %}
                         <option value="{{ candidate.pk }}">
                             {{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})
                         </option>
                     {% endfor %}
                 </select>
-            {% elif owner_candidates %}
-                {% with candidate=owner_candidates|first %}
+            {% elif candidates %}
+                {% with candidate=candidates|first %}
                     <p>
-                        Another user has added "{{ subtitle_track.name }}" to their videos, so
+                        Another user has added "{{ object.name }}" to their videos, so
                         {{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})
                         will become its new owner.
                     </p>
                 {% endwith %}
             {% else %}
                 <p>
-                    "{{ subtitle_track.name }}" will be deleted and can't be recovered. This won't
+                    "{{ object.name }}" will be deleted and can't be recovered. This won't
                     affect anyone else because only your videos use it.
                 </p>
             {% endif %}
-            <p>Afterwards, none of the owner's videos will use this track.</p>
+            <p>Afterwards, none of the owner's videos will use this {{ noun }}.</p>
             <div class="row-flex flex-apart-aligned">
-                <button id="delete-subtitle-track-confirm" type="button" class="red-button">
-                    {% if owner_candidates %}
+                <button id="{{ dialog_id }}-confirm" type="button" class="red-button">
+                    {% if candidates %}
                         Transfer and remove from my videos
                     {% else %}
-                        Delete subtitle track
+                        Delete {{ noun }}
                     {% endif %}
                 </button>
                 <button type="button"

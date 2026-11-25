@@ -75,6 +75,9 @@ content_write_required = _object_permission_required(
 content_read_required = _object_permission_required(
     Content, "content_id", "can_be_viewed_by", "content_read"
 )
+annotation_set_admin_required = _object_permission_required(
+    AnnotationSet, "annotation_set_id", "can_be_administered_by", "annotation_set_admin"
+)
 annotation_set_write_required = _object_permission_required(
     AnnotationSet, "annotation_set_id", "can_be_edited_by", "annotation_set_write"
 )

@@ -160,7 +160,10 @@ export class Editor {
         this.watchForTimelineScrollChangeAndHandleIt();
         this.keepTimelineRowsScrolledTogether();
         this.watchAndHandleAnnotationSetMenuOpen();
-        this.watchAndHandleAnnotationSetDelete();
+        this.watchForDeleteOrTransfer(
+          "delete-annotation-set",
+          () => `/annotation-set/${this.timelineWrapper.dataset.annotationSetId}/delete/`
+        );
         this.setupAnnotationSetOptionsModal();
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
@@ -2824,36 +2827,36 @@ export class Editor {
 
 
 
-  watchAndHandleAnnotationSetDelete() {
+    // Listens on the dialog rather than the button because the subtitle track
+    // dialog's contents are replaced each time it opens.
+    watchForDeleteOrTransfer(dialogId, getUrl) {
+      const dialog = document.getElementById(dialogId);
+      if (!dialog) return;
 
-      if (this.timelineWrapper.dataset["annotationSetId"] == '' || !this.canEditAnnotationSet) return;
-
-    const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
-      if (!deleteAnnotationSetButton) {
-        displayUserMessage("warning", "The annotation set delete button cannot be setup; you will not be able to delete the annotation set during this session.");
-        return;
-      }
-
-      deleteAnnotationSetButton.addEventListener("click", async () => {
-        const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
-        if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
-          return;
+      dialog.addEventListener("click", async (event) => {
+        const confirmButton = event.target.closest(`#${dialogId}-confirm`);
+        if (!confirmButton || confirmButton.disabled) return;
+        confirmButton.disabled = true;
+        const newOwnerId = document.getElementById(`${dialogId}-new-owner`)?.value;
+        try {
+          await Promise.allSettled(this.subtitleCueSaves);
+          const response = await fetch(getUrl(), {
+            method: "DELETE",
+            headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
+            body: JSON.stringify(newOwnerId ? { new_owner_id: Number(newOwnerId) } : {})
+          });
+          if (!response.ok) {
+            displayUserMessage("error", "Failed to delete. Please try again or refresh the page.");
+            return;
+          }
+          const reloadUrl = new URL(window.location.href);
+          reloadUrl.searchParams.delete("subtitle_track");
+          window.location.assign(reloadUrl.href);
+        } catch {
+          displayUserMessage("error", "Failed to delete. Please try again or refresh the page.");
+        } finally {
+          confirmButton.disabled = false;
         }
-        const newOwner = document.getElementById("annotation-set-new-owner");
-        const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/delete/`, {
-          method: "DELETE",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({new_owner_id: newOwner?.value || null})
-        });
-        if (!deleteResponse.ok) {
-          displayUserMessage("error", "Failed to delete annotation set");
-          return;
-        }
-
-        window.location.reload();
       });
     }
 
@@ -3525,9 +3528,8 @@ export class Editor {
 
     watchForSubtitleTrackDeletion() {
       const openButton = document.getElementById("open-delete-subtitle-track-modal");
-      const dialog = document.getElementById("delete-subtitle-track-modal");
-      if (!openButton || !dialog) return;
       const content = document.getElementById("delete-subtitle-track-content");
+      if (!openButton || !content) return;
 
       openButton.addEventListener("click", async () => {
         const trackId = this.selectedSubtitleTrackId;
@@ -3549,34 +3551,7 @@ export class Editor {
         }
       });
 
-      dialog.addEventListener("click", async (event) => {
-        const confirmButton = event.target.closest("#delete-subtitle-track-confirm");
-        const trackId = this.selectedSubtitleTrackId;
-        if (!confirmButton || !trackId || confirmButton.disabled) return;
-        confirmButton.disabled = true;
-        const newOwnerId = document.getElementById("subtitle-track-new-owner")?.value;
-        try {
-          await Promise.allSettled(this.subtitleCueSaves);
-          const response = await fetch(`/subtitles/${trackId}/delete/`, {
-            method: "DELETE",
-            headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
-            body: JSON.stringify(newOwnerId ? { new_owner_id: Number(newOwnerId) } : {})
-          });
-          if (!response.ok) {
-            response.status === 403
-              ? displayUserMessage("info", "Only the owner of a subtitle track can delete it.")
-              : displayUserMessage("error", "Failed to delete the subtitle track.");
-            return;
-          }
-          const reloadUrl = new URL(window.location.href);
-          reloadUrl.searchParams.delete("subtitle_track");
-          window.location.assign(reloadUrl.href);
-        } catch {
-          displayUserMessage("error", "Failed to delete the subtitle track.");
-        } finally {
-          confirmButton.disabled = false;
-        }
-      });
+      this.watchForDeleteOrTransfer("delete-subtitle-track", () => `/subtitles/${this.selectedSubtitleTrackId}/delete/`);
     }
 
     collectCues() {

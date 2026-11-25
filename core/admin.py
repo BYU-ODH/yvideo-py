@@ -977,6 +977,14 @@ class ContentAdmin(AutocompleteTargetAdmin):
 
         return form
 
+    def save_related(self, request, form, formsets, change):
+        # The player only shows attached tracks, so a default that isn't also
+        # attached would never play.
+        super().save_related(request, form, formsets, change)
+        content = form.instance
+        if content.default_subtitle_track_id:
+            content.subtitle_tracks.add(content.default_subtitle_track_id)
+
 
 @admin.register(Course)
 class CourseAdmin(AutocompleteTargetAdmin):

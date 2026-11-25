@@ -324,10 +324,6 @@
     filter: invert(1);
 }
 
-#annotation-set-delete {
-    align-self: flex-start;
-}
-
 .form-group {
     display: flex;
     flex-direction: column;
@@ -450,18 +446,6 @@
 
 .time-input-group input {
     flex: 1;
-}
-
-#annotation-set-settings-compact label {
-    font-weight: 400;
-}
-
-#annotation-set-settings-compact h2 {
-    margin-bottom: 0;
-}
-
-#annotation-set-settings-compact h3 {
-    margin: 0;
 }
 
 #annotation-set-heading, #subtitle-panel-heading {
