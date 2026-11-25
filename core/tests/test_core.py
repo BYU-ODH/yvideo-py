@@ -1124,6 +1124,27 @@ class GetSubtitlesSrclangTests(TestCase):
         self.assertEqual(subtitles[0]["srclang"], "ase")
 
 
+class UpdateContentPublishedTests(TestCase):
+    def test_patch_updates_published_status(self):
+        owner = UserFactory(instructor=True)
+        playlist = PlaylistFactory(owner=owner)
+        content = ContentFactory(playlist=playlist, published=False)
+        self.client.force_login(owner)
+
+        for published in (True, False):
+            with self.subTest(published=published):
+                response = self.client.patch(
+                    reverse("update_content", args=[content.pk]),
+                    data=json.dumps({"published": published}),
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 204)
+                self.assertEqual(response.content, b"")
+                content.refresh_from_db()
+                self.assertEqual(content.published, published)
+
+
 class UpdateContentDefaultSubtitleTrackTests(TestCase):
     """Tests for setting the default subtitle track through the update_content view."""
 
