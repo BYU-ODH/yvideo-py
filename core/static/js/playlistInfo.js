@@ -26,7 +26,7 @@ function setupVideoEntryControls() {
         await navigator.clipboard.writeText(videoUrl);
         displayUserMessage("success", "Video link copied to clipboard.");
       } catch {
-        fail_msg = "Could not copy the video link to your clipboard.";
+        let fail_msg = "Could not copy the video link to your clipboard.";
         if (videoUrl) {
           fail_msg += ` You can copy the link here: ${videoUrl}`;
         }

@@ -27,7 +27,6 @@ class PlaylistCourseEndpointTests(TestCase):
         session["oidc_id_token_expiration"] = time.time() + 3600
         session.save()
 
-
     def test_assign_course(self):
         response = self.client.post(
             reverse("assign_playlist_to_course", args=[self.playlist.pk]),
@@ -38,7 +37,12 @@ class PlaylistCourseEndpointTests(TestCase):
         self.assertEqual(response.json(), {"success": True})
         course = self.playlist.courses.get()
         self.assertEqual(
-            (course.dept, course.catalog_number, course.section_number, course.yearterm),
+            (
+                course.dept,
+                course.catalog_number,
+                course.section_number,
+                course.yearterm,
+            ),
             ("SPAN", "101", "001", "20265"),
         )
 
@@ -55,7 +59,6 @@ class PlaylistCourseEndpointTests(TestCase):
             ["001", "002", "003"],
         )
 
-
     def test_read_assigned_course(self):
         course = CourseFactory(**self.course_data, section_number="001")
         self.playlist.courses.add(course)
@@ -67,7 +70,6 @@ class PlaylistCourseEndpointTests(TestCase):
 
         self.assertContains(response, 'value="001"')
         self.assertEqual(self.playlist.courses.get(), course)
-
 
     def test_edit_assigned_course_sections(self):
         course = CourseFactory(**self.course_data, section_number="001")
@@ -146,7 +148,6 @@ class PlaylistCourseEndpointTests(TestCase):
             ],
         )
 
-
     def test_remove_course_assignment(self):
         course = CourseFactory(**self.course_data, section_number="001")
         self.playlist.courses.add(course)
@@ -161,10 +162,6 @@ class PlaylistCourseEndpointTests(TestCase):
         self.assertEqual(response.content, b"")
         self.assertFalse(self.playlist.courses.exists())
         self.assertTrue(Course.objects.filter(pk=course.pk).exists())
-
-
-
-
 
     def test_collaborator_can_edit_and_unassign_courses(self):
         collaborator = UserFactory()

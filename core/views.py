@@ -1,4 +1,3 @@
-
 from functools import wraps
 import json
 import logging
@@ -46,7 +45,6 @@ from .forms import ResourceIntakeRequestForm
 from .models import THUMBNAIL_COLORS
 from .models import THUMBNAIL_TEXT_COLORS
 from .models import Content
-from .models import Course
 from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
@@ -70,8 +68,8 @@ from .permissions import lab_assistant_required
 from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
-from .utils import estimate_current_yearterm
 from .utils import display_yearterm
+from .utils import estimate_current_yearterm
 from .youtube_utils import get_or_create_youtube_resource
 from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
@@ -504,7 +502,6 @@ def create_playlist(request):
         return HttpResponseBadRequest()
 
 
-
 def get_assigned_courses(playlist, yearterm):
     courses = playlist.courses.filter(yearterm=yearterm)
     # aggregate the section numbers under the course title (course.dept course.catalog_number)
@@ -567,9 +564,7 @@ def playlist_info(request, playlist):
         assigned_courses = get_assigned_courses(playlist, yearterm)
         available_yearterms = [
             {"value": value, "label": display_yearterm(value)}
-            for value in sorted(
-                {term.yearterm for term in yearterms} | {yearterm}
-            )
+            for value in sorted({term.yearterm for term in yearterms} | {yearterm})
         ]
 
         accesses = (
@@ -637,8 +632,8 @@ def render_course_assignment(request, playlist):
 
         return render_course_assignment_partial(request, playlist, f"{year}{semester}")
 
-    except Exception as e:
-        logger.exception(f"Failed to render course assignment information.")
+    except Exception:
+        logger.exception("Failed to render course assignment information.")
         return HttpResponseServerError()
 
 
@@ -685,7 +680,9 @@ def prepare_playlist_course_edit_form(request, playlist):
         )
     )
     if not courses:
-        logger.error(f"There are no courses with dept {request.GET.get('dept')}, catalog number {request.GET.get('catalog_number')}, and yearterm {request.GET.get('yearterm')} associated with this playlist ({playlist.id})")
+        logger.error(
+            f"There are no courses with dept {request.GET.get('dept')}, catalog number {request.GET.get('catalog_number')}, and yearterm {request.GET.get('yearterm')} associated with this playlist ({playlist.id})"
+        )
         messages.error(request, "The course you are trying to edit could not be found.")
         return HttpResponse(status=404)
     course = courses[0]
@@ -727,12 +724,16 @@ def update_playlist_course_sections(request, playlist):
     # save new additions and then remove any missing sections
     try:
         with transaction.atomic():
-            courses = form.save(playlist=playlist, yearterm=form.cleaned_data["yearterm"])
+            courses = form.save(
+                playlist=playlist, yearterm=form.cleaned_data["yearterm"]
+            )
             playlist.courses.remove(
                 *(original_course_ids - {course.pk for course in courses})
             )
     except Exception:
-        logger.exception("Failed to update assigned courses for playlist %s", playlist.pk)
+        logger.exception(
+            "Failed to update assigned courses for playlist %s", playlist.pk
+        )
         return HttpResponseServerError()
 
     # rebuild form to refresh UI
@@ -771,11 +772,15 @@ def render_edit_playlist_courses_form(request, playlist, form, *, status=200):
 @require_POST
 @playlist_write_required
 def unassign_playlist_from_course(request, playlist):
-    error_message = "The course could not be removed from the playlist. Please try again."
+    error_message = (
+        "The course could not be removed from the playlist. Please try again."
+    )
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, UnicodeDecodeError):
-        logger.error("Failed to unassign course from playlist because of invalid JSON in request body")
+        logger.error(
+            "Failed to unassign course from playlist because of invalid JSON in request body"
+        )
         messages.error(request, error_message)
         return HttpResponseBadRequest()
     if not isinstance(data, dict) or not all(
@@ -803,7 +808,10 @@ def unassign_playlist_from_course(request, playlist):
         logger.exception("Failed to unassign courses from playlist %s", playlist.pk)
         messages.error(request, error_message)
         return HttpResponseServerError()
-    messages.success(request, f"{data['dept']} {data['catalog_number']} and its sections were removed from the playlist.")
+    messages.success(
+        request,
+        f"{data['dept']} {data['catalog_number']} and its sections were removed from the playlist.",
+    )
     return HttpResponse(status=204)
 
 
@@ -826,7 +834,11 @@ def update_playlist_settings(request, playlist):
             return render(
                 request,
                 "core/partials/playlist_settings.html",
-                {"playlist": playlist, "form": PlaylistSettingsForm(instance=playlist), "can_edit": playlist.can_be_edited_by(request.user)},
+                {
+                    "playlist": playlist,
+                    "form": PlaylistSettingsForm(instance=playlist),
+                    "can_edit": playlist.can_be_edited_by(request.user),
+                },
             )
         except Exception as e:
             logger.error(
@@ -877,7 +889,6 @@ def scheduled_in_ic_programs(subject):
         status=409,
         content_type="text/plain",
     )
-
 
 
 def get_course_access_summary(playlist):
@@ -963,7 +974,6 @@ def render_playlist_members(request, playlist):
     return render_playlist_members_roster(request, playlist)
 
 
-
 def _playlist_member_search(request, playlist, *, collaborators=False):
     query = request.POST.get("search", "").strip()
     users = User.objects.none()
@@ -988,7 +998,6 @@ def _playlist_member_search(request, playlist, *, collaborators=False):
         {
             "users": users,
             "query": query,
-
         },
     )
 
@@ -1008,7 +1017,6 @@ def playlist_collaborator_search(request, playlist):
 
 
 MEMBER_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
-
 
 
 def _member_forbidden(message):
@@ -1035,7 +1043,6 @@ def _member_access_or_404(playlist, user_id):
     )
 
 
-
 def _assign_playlist_member(request, playlist, *, collaborator=False):
     assignment_kind = "collaborator" if collaborator else "individual"
     form = AssignIndividualForm(
@@ -1045,7 +1052,9 @@ def _assign_playlist_member(request, playlist, *, collaborator=False):
         auto_id=f"assign-{assignment_kind}-%s",
     )
     if form.is_valid():
-        playlist_role = PlaylistRole.COLLABORATOR if collaborator else PlaylistRole.STUDENT
+        playlist_role = (
+            PlaylistRole.COLLABORATOR if collaborator else PlaylistRole.STUDENT
+        )
         PlaylistUserAccess.objects.update_or_create(
             playlist=playlist,
             user=form.cleaned_data["user_id"],

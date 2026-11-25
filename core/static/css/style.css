@@ -1339,15 +1339,15 @@ button:hover {
     align-self: center;
 }
 
-.assignment-search-input:focus {
-    outline: none !important;
+dialog .assignment-search-input:focus {
+    outline: none;
 }
 
-.assignment-search-input {
+dialog .assignment-search-input {
     width: 100%;
-    border: none !important;
-    border-bottom: 2px solid var(--medium-blue) !important;
-    border-radius: 0rem;
+    border: none;
+    border-bottom: 2px solid var(--medium-blue);
+    border-radius: 0;
 }
 
 .assignment-search-results {
@@ -1994,10 +1994,6 @@ button:hover {
     max-width: min(90vw, 40rem);
 }
 
-.resource-details {
-    border-radius: var(--basic-border-radius);
-    box-shadow:  2px 2px 5px var(--box-shadow-color);
-}
 
 .playlist-item-tile {
     padding: 1rem;
@@ -2126,12 +2122,14 @@ button:hover {
     width: 100%;
     padding: 1rem;
     border: 0;
+    border-radius: var(--basic-border-radius);
 
     font: inherit;
     color: inherit;
     text-align: left;
 
     background: white;
+    box-shadow: 2px 2px 5px var(--box-shadow-color);
 
     transition: 0.15s linear box-shadow;
 }

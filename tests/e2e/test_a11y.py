@@ -439,7 +439,6 @@ def test_the_playlist_page_dialogs_have_no_a11y_violations(
         page.keyboard.press("Escape")
 
 
-
 def test_the_add_video_modal_chain_has_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
@@ -1150,7 +1149,6 @@ AUDITED_TEMPLATES = {
     "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
     "core/partials/individual_assignment_list.html",
-
     "core/partials/resource_intake_request.html",
     "core/partials/legal_compliance_checkboxes.html",
     "core/resource_access_requests.html",
@@ -1175,7 +1173,6 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/delete_subtitle_track.html",
     "core/partials/modals/edit_subtitle_track.html",
     "core/partials/modals/select_subtitle_track.html",
-
     "core/partials/modals/select_resource.html",
     "core/partials/modals/tools_info.html",
     "core/partials/modals/thumbnail_editor.html",

@@ -165,9 +165,12 @@ class AssignIndividualForm(forms.Form):
         self.selected_user = user
         if user.pk == self.playlist.owner_id:
             raise ValidationError("This person already owns the playlist.")
-        if not self.allow_reassignment and PlaylistUserAccess.objects.filter(
-            user=user, playlist=self.playlist
-        ).exists():
+        if (
+            not self.allow_reassignment
+            and PlaylistUserAccess.objects.filter(
+                user=user, playlist=self.playlist
+            ).exists()
+        ):
             raise ValidationError("This person already has a role on this playlist.")
         return user
 

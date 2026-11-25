@@ -73,7 +73,6 @@ class PlaylistAssignmentListTests(PlaylistMemberTestCase):
         self.assertEqual(response.status_code, 200)
         return response
 
-
     def test_empty_collaborators_do_not_show_students(self):
         PlaylistUserAccess.objects.filter(
             playlist=self.playlist, playlist_role=PlaylistRole.COLLABORATOR
@@ -83,7 +82,9 @@ class PlaylistAssignmentListTests(PlaylistMemberTestCase):
 
         self.assertContains(response, "No collaborators assigned.")
         self.assertNotContains(response, "No individuals assigned.")
-        self.assertContains(response, f'data-remove-url="{self.remove_url(self.student)}"', count=1)
+        self.assertContains(
+            response, f'data-remove-url="{self.remove_url(self.student)}"', count=1
+        )
 
     def test_removal_buttons_preserve_membership_permissions(self):
         for viewer in (self.owner, self.collaborator):
@@ -92,7 +93,8 @@ class PlaylistAssignmentListTests(PlaylistMemberTestCase):
             for member in (self.student, self.collaborator):
                 with self.subTest(viewer=viewer, member=member):
                     button = next(
-                        button for button in buttons
+                        button
+                        for button in buttons
                         if f'data-remove-url="{self.remove_url(member)}"' in button
                     )
                     self.assertEqual(
@@ -242,7 +244,6 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             ).exists()
         )
 
-
     def test_a_collaborator_may_not_grant_the_collaborator_role(self):
         response = self.client.post(
             self.add_url(),
@@ -389,7 +390,6 @@ class MemberSearchTests(PlaylistMemberTestCase):
 
 
 class AddingSelectedPersonTests(PlaylistMemberTestCase):
-
     def setUp(self):
         super().setUp()
         login(self.client, self.owner)
@@ -398,7 +398,6 @@ class AddingSelectedPersonTests(PlaylistMemberTestCase):
         return self.client.post(
             self.add_url(), {"role": PlaylistRole.STUDENT.value, **payload}
         )
-
 
     def test_a_missing_selection_asks_for_a_person(self):
         initial_count = self.playlist.playlistuseraccess_set.count()
@@ -413,7 +412,6 @@ class AddingSelectedPersonTests(PlaylistMemberTestCase):
         )
         self.assertEqual(self.playlist.playlistuseraccess_set.count(), initial_count)
         api.assert_not_called()
-
 
     def test_a_user_id_naming_a_deleted_account_is_refused(self):
         doomed = UserFactory(student=True)
@@ -430,7 +428,6 @@ class AddingSelectedPersonTests(PlaylistMemberTestCase):
             "Select a valid person from the search results.",
         )
         self.assertEqual(self.playlist.playlistuseraccess_set.count(), initial_count)
-
 
 
 class CourseAccessSummaryTests(PlaylistMemberTestCase):
