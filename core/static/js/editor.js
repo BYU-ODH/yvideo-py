@@ -2838,25 +2838,11 @@ export class Editor {
         if (!confirmButton || confirmButton.disabled) return;
         confirmButton.disabled = true;
         const newOwnerId = document.getElementById(`${dialogId}-new-owner`)?.value;
-        try {
-          await Promise.allSettled(this.subtitleCueSaves);
-          const response = await fetch(getUrl(), {
-            method: "DELETE",
-            headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
-            body: JSON.stringify(newOwnerId ? { new_owner_id: Number(newOwnerId) } : {})
-          });
-          if (!response.ok) {
-            displayUserMessage("error", "Failed to delete. Please try again or refresh the page.");
-            return;
-          }
-          const reloadUrl = new URL(window.location.href);
-          reloadUrl.searchParams.delete("subtitle_track");
-          window.location.assign(reloadUrl.href);
-        } catch {
-          displayUserMessage("error", "Failed to delete. Please try again or refresh the page.");
-        } finally {
-          confirmButton.disabled = false;
-        }
+        await this.requestAndReload(getUrl(), "Failed to delete. Please try again or refresh the page.", {
+          method: "DELETE",
+          body: JSON.stringify(newOwnerId ? { new_owner_id: Number(newOwnerId) } : {})
+        });
+        confirmButton.disabled = false;
       });
     }
 
@@ -3467,24 +3453,27 @@ export class Editor {
       }
     }
 
-    async postAndReloadWithSubtitleTrack(url, trackId, failureMessage) {
+    // Reopens `trackId` in the subtitle editor after the reload, if given.
+    async requestAndReload(url, failureMessage, { method = "POST", body, trackId } = {}) {
       try {
+        // Reloading mid-save would lose the user's latest cue edits.
         await Promise.allSettled(this.subtitleCueSaves);
         const response = await fetch(url, {
-          method: "POST",
-          headers: { "X-CSRFToken": getCSRFToken() }
+          method,
+          headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
+          body
         });
         if (!response.ok) {
           displayUserMessage("error", failureMessage);
           return;
         }
-        const reloadUrl = new URL(window.location.href);
         if (trackId) {
+          const reloadUrl = new URL(window.location.href);
           reloadUrl.searchParams.set("subtitle_track", trackId);
+          window.location.assign(reloadUrl.href);
         } else {
-          reloadUrl.searchParams.delete("subtitle_track");
+          window.location.reload();
         }
-        window.location.assign(reloadUrl.href);
       } catch {
         displayUserMessage("error", failureMessage);
       }
@@ -3500,10 +3489,10 @@ export class Editor {
         const option = document.getElementById("add-subtitle-track-selector").selectedOptions[0];
         if (!option?.value || button.disabled) return;
         button.disabled = true;
-        await this.postAndReloadWithSubtitleTrack(
+        await this.requestAndReload(
           `/content/${this.contentId}/subtitles/${option.value}/attach/`,
-          option.value,
-          "Failed to add the subtitle track."
+          "Failed to add the subtitle track.",
+          { trackId: option.value }
         );
         button.disabled = false;
       });
@@ -3517,9 +3506,8 @@ export class Editor {
         const trackId = this.selectedSubtitleTrackId;
         if (!trackId || button.disabled) return;
         button.disabled = true;
-        await this.postAndReloadWithSubtitleTrack(
+        await this.requestAndReload(
           `/content/${this.contentId}/subtitles/${trackId}/detach/`,
-          null,
           "Failed to remove the subtitle track from this video."
         );
         button.disabled = false;
