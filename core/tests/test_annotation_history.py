@@ -31,9 +31,7 @@ class AnnotationHistoryModelTests(TestCase):
         annotations = [
             SkipAnnotation.objects.create(track=self.track, description="skip"),
             MuteAnnotation.objects.create(track=self.track, description="mute"),
-            BlankAnnotation.objects.create(
-                track=self.track, description="blank", type="w"
-            ),
+            BlankAnnotation.objects.create(track=self.track, description="blank"),
             PauseAnnotation.objects.create(
                 track=self.track, description="pause", message="Consider this"
             ),

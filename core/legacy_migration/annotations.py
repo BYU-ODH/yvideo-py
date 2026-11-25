@@ -149,8 +149,6 @@ def import_annotations(annotation_set, content, legacy_annotations, legacy_clips
                 width=100.0 - x,
                 **common_kwargs,
             )
-        elif model_class is BlankAnnotation:
-            annotation = model_class.objects.create(type="k", **common_kwargs)
         elif model_class is BlurAnnotation:
             annotation = model_class.objects.create(**common_kwargs)
             for blur_anchor_point_kwargs in blur_anchor_points_from_legacy(
