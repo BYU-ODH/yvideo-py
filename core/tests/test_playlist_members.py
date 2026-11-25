@@ -10,6 +10,7 @@ them.
 test_permissions_regressions.py.
 """
 
+import re
 import time
 from unittest.mock import patch
 
@@ -63,6 +64,41 @@ class PlaylistMemberTestCase(TestCase):
         return PlaylistUserAccess.objects.get(
             user=user, playlist=self.playlist
         ).playlist_role
+
+
+class PlaylistAssignmentListTests(PlaylistMemberTestCase):
+    def playlist_page(self, user):
+        login(self.client, user)
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
+        self.assertEqual(response.status_code, 200)
+        return response
+
+
+    def test_empty_collaborators_do_not_show_students(self):
+        PlaylistUserAccess.objects.filter(
+            playlist=self.playlist, playlist_role=PlaylistRole.COLLABORATOR
+        ).delete()
+
+        response = self.playlist_page(self.owner)
+
+        self.assertContains(response, "No collaborators assigned.")
+        self.assertNotContains(response, "No individuals assigned.")
+        self.assertContains(response, f'data-remove-url="{self.remove_url(self.student)}"', count=1)
+
+    def test_removal_buttons_preserve_membership_permissions(self):
+        for viewer in (self.owner, self.collaborator):
+            response = self.playlist_page(viewer)
+            buttons = re.findall(r"<button\b[^>]*>", response.content.decode())
+            for member in (self.student, self.collaborator):
+                with self.subTest(viewer=viewer, member=member):
+                    button = next(
+                        button for button in buttons
+                        if f'data-remove-url="{self.remove_url(member)}"' in button
+                    )
+                    self.assertEqual(
+                        "disabled" in button,
+                        viewer == self.collaborator and member == self.collaborator,
+                    )
 
 
 class OwnerManagesEveryoneTests(PlaylistMemberTestCase):

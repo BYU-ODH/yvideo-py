@@ -106,13 +106,14 @@
                             </div>
                             <div class="column-flex">
                                 <div id="assigned-courses">
-                                    <h5>Courses</h5>
-                                    <div class="playlist-category-header">
-                                        <p>Course</p>
-                                        <p>Sections</p>
+                                    <p class="pnc-section-header">Courses</p>
+                                    <div id="pnc-courses-header">
+                                        <p class="course-title playlist-assignment-item-lead-p">Course</p>
+                                        <p class="course-sections">Sections</p>
                                     </div>
                                     {% include "core/partials/course_assignment_list.html" %}
-                                    <button type="button"
+                                    <button class="blue-button playlist-assignment-button"
+                                            type="button"
                                             command="show-modal"
                                             commandfor="add-assigned-course-modal">+ Assign Course</button>
                                     {% include "core/partials/modals/edit_assigned_course.html" with dialog_id="edit-assigned-course" %}
@@ -120,9 +121,10 @@
                                     {% include "core/partials/modals/add_assigned_courses.html" with dialog_id="add-assigned-course-modal" %}
                                 </div>
                                 <div id="assigned-individuals">
-                                    <h5>Individuals</h5>
-                                    {% include "core/partials/individual_assignment_list.html" %}
-                                    <button type="button"
+                                    <p class="pnc-section-header">Individuals</p>
+                                    {% include "core/partials/individual_assignment_list.html" with can_remove=True %}
+                                    <button class="blue-button playlist-assignment-button"
+                                            type="button"
                                             command="show-modal"
                                             commandfor="add-assigned-individual-modal">+ Assign Individual</button>
 
@@ -138,9 +140,10 @@
                                 <p>These people can edit</p>
                             </div>
                             <div id="assigned-collaborators">
-                                {% include "core/partials/collaborator_assignment_list.html" %}
+                                {% include "core/partials/individual_assignment_list.html" with individual_accesses=collaborator_accesses membership_list_id="assigned-collaborators-list" empty_message="No collaborators assigned." can_remove=can_administer %}
                                 {% if can_administer %}
-                                    <button type="button"
+                                    <button class="blue-button playlist-assignment-button"
+                                            type="button"
                                             command="show-modal"
                                             commandfor="add-assigned-collaborator-modal">+ Assign Collaborator</button>
                                     {% include "core/partials/modals/add_assigned_collaborators.html" with dialog_id="add-assigned-collaborator-modal" %}

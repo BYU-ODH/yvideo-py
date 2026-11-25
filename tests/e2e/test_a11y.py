@@ -1185,7 +1185,7 @@ AUDITED_TEMPLATES = {
     "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
     "core/partials/individual_assignment_list.html",
-    "core/partials/collaborator_assignment_list.html",
+
     "core/partials/resource_intake_request.html",
     "core/partials/legal_compliance_checkboxes.html",
     "core/resource_access_requests.html",

@@ -4,22 +4,19 @@
      data-assigned-course-id="{{ course.id }}"
      data-dept="{{ course.dept }}"
      data-catalog-number="{{ course.catalog_number }}">
-    <div>
-        <p>{{ course.dept }}</p>
-        <p>{{ course.catalog_number }}</p>
-    </div>
-    <div>
-        <p class="course-sections">{{ course.section_list }}</p>
+    <p class="course-title playlist-assignment-category-header">{{ course.dept }} {{ course.catalog_number }}</p>
+    <p class="course-sections">{{ course.section_list }}</p>
+    <div class="assigned-course-buttons">
         <button type="button"
-                class="edit-course-button"
+                class="edit-course-button assigned-playlist-button"
                 aria-label="Edit {{ course.dept }} {{ course.catalog_number }} and sections"
                 data-edit-url="{% url 'edit_playlist_courses_form' playlist.id %}"
                 command="show-modal"
                 commandfor="edit-assigned-course">
             <img src="{% static 'img/edit.svg' %}" alt="E">
         </button>
+        <button class="assigned-course-delete assigned-playlist-button" command="show-modal" commandfor="delete-assigned-course-modal">
+            <img src="{% static 'img/trash-red.svg' %}" alt="T">
+        </button>
     </div>
-    <button class="assigned-course-delete" command="show-modal" commandfor="delete-assigned-course-modal">
-        <img src="{% static 'img/trash.svg' %}">
-    </button>
 </div>
