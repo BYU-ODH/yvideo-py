@@ -19,16 +19,19 @@
     <p>{% if assignment_kind == "collaborator" %}Assigning a collaborator gives them editing access, including people currently assigned as students.{% else %}Individuals are assigned as students and can view this playlist.{% endif %}</p>
     <div class="column-flex">
         <div class="playlist-field-wrapper">
-            <label for="assign-{{ assignment_kind }}-search">{{ assign_individual_form.search.label }}</label>
-            <div>
+            <div class="assignment-search-wrapper">
+                <label for="assign-{{ assignment_kind }}-search">{{ assign_individual_form.search.label }}</label>
                 <input type="search"
                        id="assign-{{ assignment_kind }}-search"
+                       class="assignment-search-input"
+                       placeholder="Type to search"
+                       title="Type to search"
                        name="{{ assign_individual_form.search.html_name }}"
                        value="{{ assign_individual_form.search.value|default_if_none:'' }}"
                        autocomplete="off"
                        {% if assign_individual_form.search.errors or assign_individual_form.user_id.errors %}aria-invalid="true"{% endif %}
                        aria-describedby="assign-{{ assignment_kind }}-search-errors assign-{{ assignment_kind }}-user-errors">
-                <div data-individual-search-results class="column-flex" aria-live="polite"></div>
+                <div data-individual-search-results class="column-flex assignment-search-results" aria-live="polite"></div>
             </div>
             <div id="assign-{{ assignment_kind }}-search-errors">{{ assign_individual_form.search.errors }}</div>
         </div>

@@ -1338,6 +1338,40 @@ button:hover {
 .playlist-assignment-button {
     align-self: center;
 }
+
+.assignment-search-input:focus {
+    outline: none !important;
+}
+
+.assignment-search-input {
+    width: 100%;
+    border: none !important;
+    border-bottom: 2px solid var(--medium-blue) !important;
+    border-radius: 0rem;
+}
+
+.assignment-search-wrapper {
+}
+
+.assignment-search-results {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.5rem;
+    max-height: 8rem;
+    overflow-y: auto;
+    border: 2px solid var(--medium-blue);
+    border-top: none;
+}
+
+.assignment-search-result {
+    background-color: white;
+    border: none;
+}
+
+.assignment-search-result:hover {
+    cursor: pointer;
+    background-color: var(--selectable-grey);
+}
 /* playlist course assignment form */
 #assign-course-wrapper h4 {
     margin: 0;
@@ -1492,11 +1526,6 @@ button:hover {
 .playlist-member-remove-button:hover {
     background-color: var(--selectable-grey);
     box-shadow: 2px 3px 6px var(--box-shadow-color);
-}
-
-[data-individual-search-results] {
-    overflow-y: auto;
-    max-height: 12rem;
 }
 
 [data-individual-user-id][aria-pressed='true'] {

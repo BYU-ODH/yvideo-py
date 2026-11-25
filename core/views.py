@@ -979,16 +979,11 @@ def render_playlist_members(request, playlist):
     return render_playlist_members_roster(request, playlist)
 
 
-# Substring matching over every user means one character returns a page of real names and
-# NetIDs, which is a directory to scrape rather than a search. Two is still short enough
-# for anyone who knows who they are looking for.
-MEMBER_SEARCH_MINIMUM_LENGTH = 2
-
 
 def _playlist_member_search(request, playlist, *, collaborators=False):
     query = request.POST.get("search", "").strip()
     users = User.objects.none()
-    if len(query) >= MEMBER_SEARCH_MINIMUM_LENGTH:
+    if query:
         assigned = PlaylistUserAccess.objects.filter(playlist=playlist)
         if collaborators:
             assigned = assigned.filter(playlist_role=PlaylistRole.COLLABORATOR)
@@ -1009,7 +1004,7 @@ def _playlist_member_search(request, playlist, *, collaborators=False):
         {
             "users": users,
             "query": query,
-            "query_too_short": 0 < len(query) < MEMBER_SEARCH_MINIMUM_LENGTH,
+
         },
     )
 

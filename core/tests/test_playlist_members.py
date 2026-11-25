@@ -370,24 +370,22 @@ class MemberSearchTests(PlaylistMemberTestCase):
     def test_an_empty_query_matches_no_one(self):
         self.assertEqual(len(self.search("")), 0)
 
-    def test_a_single_character_matches_no_one(self):
-        """Substring matching over every user makes one character a directory to scrape."""
-        UserFactory(student=True, last_name="Winterbourne")
-        self.assertEqual(len(self.search("w")), 0)
+    def test_a_single_character_finds_matches_for_both_assignment_searches(self):
+        target = UserFactory(student=True, last_name="Winterbourne")
+        for url_name in ("playlist_member_search", "playlist_collaborator_search"):
+            with self.subTest(url_name=url_name):
+                response = self.client.post(
+                    reverse(url_name, args=[self.playlist.pk]), {"search": "w"}
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(target, response.context["users"])
 
     def test_two_characters_is_enough_to_search(self):
         target = UserFactory(student=True, last_name="Winterbourne")
         self.assertIn(target, self.search("wi"))
 
-    def test_a_too_short_query_says_so_rather_than_reporting_no_matches(self):
-        """ "No matches" would read as "this person has no account" and send the person
-        to the directory lookup for someone who is already here."""
-        response = self.client.post(
-            reverse("playlist_member_search", args=[self.playlist.pk]),
-            {"search": "w"},
-        )
-        self.assertTrue(response.context["query_too_short"])
-        self.assertIn(b"Keep typing", response.content)
+    def test_a_whitespace_only_query_matches_no_one(self):
+        self.assertEqual(len(self.search("   ")), 0)
 
 
 class AddingSelectedPersonTests(PlaylistMemberTestCase):
