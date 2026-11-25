@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   # Temporary until the Dec 18 prod release, when the merge workflow's workflow_run trigger is removed.
   merge-into-prod-flag:
@@ -21,29 +25,57 @@ jobs:
         grep -q '^  workflow_run:' .github/workflows/MERGE_main_INTO_prod.yaml
         echo "::warning::Once tests pass on main, merging this PR will also merge main into prod."
 
-  pre-commit:
+  # Tagged by a hash of its inputs, so each commit tests against an image matching its own dependencies.
+  ci-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Compute image tag
+      id: tag
+      run: echo "image=ghcr.io/byu-odh/yvideo-py-ci:${{ hashFiles('.github/ci.Dockerfile', 'pyproject.toml', 'uv.lock', '.python-version') }}" >> "$GITHUB_OUTPUT"
+
+    - name: Log in to ghcr.io
+      run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Without provenance, each tag is a single package version, so the cleanup workflow can't delete part of an image.
+    - name: Build and push the image if it doesn't exist yet
+      run: |
+        if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+          docker build --provenance=false -f .github/ci.Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+        fi
+      env:
+        IMAGE: ${{ steps.tag.outputs.image }}
+
+  pre-commit:
+    needs: ci-image
+    runs-on: ubuntu-latest
+    container: &ci-container
+      image: ${{ needs.ci-image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@v6  # python version taken from `.python-version` file in project root
-
-    - name: Install Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '24'
-
     - name: Install npm dependencies
       run: npm ci
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
-
-    - name: Install python dependencies
-      run: uv sync
+    - uses: actions/cache@v6
+      with:
+        path: ~/.cache/pre-commit
+        # Hook environments are built with the image's Python, so a new image needs fresh ones.
+        key: pre-commit-${{ needs.ci-image.outputs.image }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
     - name: Run pre-commit
       run: uv run pre-commit run --all-files --show-diff-on-failure
@@ -51,21 +83,11 @@ jobs:
         SKIP: no-commit-to-branch
 
   django-tests:
+    needs: ci-image
     runs-on: ubuntu-latest
+    container: *ci-container
     steps:
     - uses: actions/checkout@v6
-
-    - name: Set up Python
-      uses: actions/setup-python@v6  # python version taken from `.python-version` file in project root
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
-
-    - name: Install python dependencies
-      run: uv sync
-
-    - name: Install ffmpeg
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
     - name: Run Django tests
       run: uv run python manage.py test core ic
@@ -88,57 +110,26 @@ jobs:
       run: node --test tests/js/*.test.js
 
   e2e:
+    needs: ci-image
     runs-on: ubuntu-latest
+    container: *ci-container
     env:
       SKIP_LIVE_YOUTUBE_TESTS: "1"
     steps:
     - uses: actions/checkout@v6
 
-    - name: Set up Python
-      uses: actions/setup-python@v6  # python version taken from `.python-version` file in project root
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
-
-    - name: Install python dependencies
-      run: uv sync --dev
-
-    - name: Install Playwright browser
-      run: uv run python -m playwright install --with-deps chromium
-
-    - name: Install ffmpeg
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-
     - name: Run e2e tests
       run: uv run pytest tests/e2e --ignore=tests/e2e/test_a11y.py --browser chromium  # a11y tests run in their own job
 
   a11y:
+    needs: ci-image
     runs-on: ubuntu-latest
+    container: *ci-container
     steps:
     - uses: actions/checkout@v6
 
-    - name: Set up Python
-      uses: actions/setup-python@v6  # python version taken from `.python-version` file in project root
-
-    - name: Install Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '24'
-
     - name: Install npm dependencies
       run: npm ci  # provides axe-core for the accessibility tests
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
-
-    - name: Install python dependencies
-      run: uv sync --dev
-
-    - name: Install Playwright browser
-      run: uv run python -m playwright install --with-deps chromium
-
-    - name: Install ffmpeg
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
     - name: Run accessibility tests
       run: uv run pytest tests/e2e/test_a11y.py --browser chromium
