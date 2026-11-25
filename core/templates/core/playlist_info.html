@@ -96,17 +96,17 @@
                                 <h4>Publishing Details</h4>
                                 <p>These people can view</p>
                             </div>
-                            <div id="playlist-semseter-selector-wrapper" class="row-flex">
-                                <label for="playlist-semester-selector">Semester</label>
-                                <select id="playlist-semester-selector">
-                                    {% for option in available_yearterms %}
-                                        <option value="{{ option.value }}"{% if option.value == selected_yearterm %} selected{% endif %}>{{ option.label }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
                             <div class="column-flex">
                                 <div id="assigned-courses">
                                     <p class="pnc-section-header">Courses</p>
+                                    <div id="playlist-semseter-selector-wrapper" class="row-flex">
+                                        <label for="playlist-semester-selector">Semester</label>
+                                        <select id="playlist-semester-selector">
+                                            {% for option in available_yearterms %}
+                                                <option value="{{ option.value }}"{% if option.value == selected_yearterm %} selected{% endif %}>{{ option.label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
                                     <div id="pnc-courses-header">
                                         <p class="course-title playlist-assignment-item-lead-p">Course</p>
                                         <p class="course-sections">Sections</p>

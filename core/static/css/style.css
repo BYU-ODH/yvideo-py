@@ -1242,6 +1242,10 @@ button:hover {
     margin-bottom: 1rem;
 }
 
+#assigned-courses {
+    margin-top: 1rem;
+}
+
 #assigned-courses, #assigned-courses-list, #assigned-individuals, #assigned-individuals-list, #assigned-collaborators, #assigned-collaborators-list {
     display: flex;
     flex-direction: column;
