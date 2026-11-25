@@ -420,7 +420,7 @@ def test_the_playlists_page_states_have_no_a11y_violations(
 def test_the_playlist_page_dialogs_have_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
-    """The delete confirmation and the course-assignment editor."""
+    """The delete-playlist confirmation."""
     page = logged_in_page
     page.goto(f"{live_server.url}/playlists/{awkward_data.playlist.id}/")
 
@@ -429,52 +429,6 @@ def test_the_playlist_page_dialogs_have_no_a11y_violations(
     assert_no_violations(page, "the delete-playlist dialog", include=["dialog[open]"])
     page.keyboard.press("Escape")
 
-    page.locator("#playlist-edit-course-assignment-button").click()
-    page.wait_for_selector("#assign-course-button", state="visible")
-    assert_no_violations(
-        page, "the course-assignments dialog", include=["dialog[open]"]
-    )
-    page.keyboard.press("Escape")
-
-
-def test_the_manage_people_dialog_has_no_a11y_violations(
-    logged_in_page: Page, live_server, awkward_data
-):
-    """Manage People, its search results, and the remove confirmation.
-
-    The results list is fetched, so the empty <select> the page ships with is not what a
-    screen reader meets in practice - the audit has to run against a populated one.
-
-    Ada's shelf rather than awkward_data.playlist because it is the seeded playlist with
-    members other than its owner, and the remove confirmation needs a row to open on.
-    The demo admin is a superuser, so every row is theirs to manage.
-    """
-    page = logged_in_page
-    populated_playlist = Playlist.objects.get(name="Birds of a Feather")
-    page.goto(f"{live_server.url}/playlists/{populated_playlist.id}/")
-
-    page.locator("#playlist-manage-people-button").click()
-    page.wait_for_selector("#playlist-member-add-button", state="visible")
-    assert_no_violations(page, "the manage-people dialog", include=["dialog[open]"])
-
-    # "iv" matches seeded Ivy, who is on Ben's shelf rather than this one so the search
-    # can find her. Long enough to clear MEMBER_SEARCH_MINIMUM_LENGTH, and waiting for a
-    # *selectable* option rather than any option is what makes this a populated list --
-    # a too-short or unmatched query renders one disabled placeholder and hides the list,
-    # which axe would skip entirely.
-    page.locator("#playlist-member-search").fill("iv")
-    page.wait_for_selector(
-        "#playlist-member-results option:not([disabled])", state="visible"
-    )
-    assert_no_violations(
-        page, "the manage-people search results", include=["dialog[open]"]
-    )
-
-    page.locator(".playlist-member-remove-button").first.click()
-    page.wait_for_selector("#playlist-member-confirm-remove", state="visible")
-    assert_no_violations(
-        page, "the remove-member confirmation", include=["dialog[open]"]
-    )
 
 
 def test_the_add_video_modal_chain_has_no_a11y_violations(

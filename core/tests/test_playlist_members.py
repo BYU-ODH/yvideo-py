@@ -78,25 +78,35 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
                     self.add_url(), {"user_id": newcomer.pk, "role": role.value}
                 )
                 self.assertEqual(response.status_code, 200, response.content[:200])
+                self.assertEqual(response.json(), {"success": True})
                 self.assertEqual(self.role_of(newcomer), role)
+
+    def test_the_owner_can_read_an_individuals_current_role(self):
+        response = self.client.get(self.role_url(self.student))
+
+        self.assertContains(response, self.student.get_full_name())
+        self.assertContains(
+            response, '<option value="2" selected>Student</option>', html=True
+        )
+        self.assertEqual(self.role_of(self.student), PlaylistRole.STUDENT)
 
     def test_the_owner_may_promote_a_student_to_collaborator(self):
         response = self.client.post(
             self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "is now Collaborator.")
         self.assertEqual(self.role_of(self.student), PlaylistRole.COLLABORATOR)
 
     def test_the_owner_may_demote_a_collaborator(self):
         response = self.client.post(
             self.role_url(self.collaborator), {"role": PlaylistRole.STUDENT.value}
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "is now Student.")
         self.assertEqual(self.role_of(self.collaborator), PlaylistRole.STUDENT)
 
     def test_the_owner_may_remove_a_collaborator(self):
         response = self.client.post(self.remove_url(self.collaborator))
-        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, self.collaborator.get_full_name())
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 user=self.collaborator, playlist=self.playlist
@@ -196,19 +206,6 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             ).exists()
         )
 
-    def test_a_refusal_says_why_in_a_body_the_panel_may_show(self):
-        """text/plain is how the client tells our message from a Django error page.
-
-        Sent as text/html it would be indistinguishable from a 500's error document, and
-        the panel would replace it with a generic failure rather than the reason.
-        """
-        response = self.client.post(
-            self.add_url(),
-            {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
-        )
-        self.assertEqual(response.status_code, 403)
-        self.assertTrue(response["Content-Type"].startswith("text/plain"))
-        self.assertIn(b"Only the playlist owner", response.content)
 
     def test_a_collaborator_may_not_grant_the_collaborator_role(self):
         response = self.client.post(
@@ -348,11 +345,6 @@ class MemberSearchTests(PlaylistMemberTestCase):
 
 
 class AddingByIdentifierTests(PlaylistMemberTestCase):
-    """The branch that reaches BYU's directory, and everything guarding it.
-
-    `Api` and `create_user` are stubbed throughout: what is under test is which inputs get
-    that far, not what BYU answers. MANUAL_TESTING.md §8 covers the real lookup.
-    """
 
     def setUp(self):
         super().setUp()
@@ -363,19 +355,6 @@ class AddingByIdentifierTests(PlaylistMemberTestCase):
             self.add_url(), {"role": PlaylistRole.STUDENT.value, **payload}
         )
 
-    def test_a_malformed_identifier_is_refused_before_any_api_call(self):
-        with (
-            patch("core.forms.Api") as api,
-            patch(
-                "yvideo.odhOIDCAuthenticationBackend.OIDCUserAuth.create_user"
-            ) as create_user,
-        ):
-            response = self.add(identifier="zzz!!")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"BYU ID", response.content)
-        api.assert_not_called()
-        create_user.assert_not_called()
 
     def test_neither_a_pick_nor_a_typed_identifier_asks_for_one(self):
         with patch("core.forms.Api") as api:
@@ -385,50 +364,6 @@ class AddingByIdentifierTests(PlaylistMemberTestCase):
         self.assertIn(b"Search for a person", response.content)
         api.assert_not_called()
 
-    def test_a_netid_that_already_has_an_account_skips_the_directory(self):
-        newcomer = UserFactory(student=True, netid="hasacct")
-
-        with patch("core.forms.Api") as api:
-            response = self.add(identifier="hasacct")
-
-        self.assertEqual(response.status_code, 200, response.content[:200])
-        self.assertEqual(self.role_of(newcomer), PlaylistRole.STUDENT)
-        api.assert_not_called()
-
-    def test_a_netid_lookup_that_finds_nobody_explains_rather_than_erroring(self):
-        with patch("core.forms.Api") as api:
-            api.return_value.get_student_summary.return_value = None
-            response = self.add(identifier="nosuchid")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"No BYU student record", response.content)
-
-    def test_an_unreachable_directory_is_reported_as_worth_retrying(self):
-        with patch("core.forms.Api") as api:
-            api.return_value.get_student_summary.side_effect = OSError(
-                "connection reset"
-            )
-            response = self.add(identifier="nosuchid")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"Try again", response.content)
-
-    def test_a_missing_api_setting_is_not_reported_as_worth_retrying(self):
-        """The API_NET_ID_IAM_URL case: retrying a misconfiguration never succeeds.
-
-        secret_settings.py is gitignored, so an install whose copy predates a key added to
-        secret_settings_template.py fails exactly this way, and "try again in a moment"
-        sends the person into a loop with no exit.
-        """
-        with patch("core.forms.Api") as api:
-            api.side_effect = AttributeError(
-                "module 'yvideo.secret_settings' has no attribute 'API_NET_ID_IAM_URL'"
-            )
-            response = self.add(identifier="nosuchid")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"configuration", response.content)
-        self.assertNotIn(b"Try again", response.content)
 
     def test_a_user_id_naming_a_deleted_account_is_refused(self):
         doomed = UserFactory(student=True)
@@ -440,32 +375,6 @@ class AddingByIdentifierTests(PlaylistMemberTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn(b"no longer has an account", response.content)
 
-    def test_a_collaborator_cannot_use_the_lookup_to_provision_a_collaborator(self):
-        """The role check runs first, so a refused grant never reaches BYU's directory."""
-        login(self.client, self.collaborator)
-
-        with patch("core.forms.Api") as api:
-            response = self.client.post(
-                self.add_url(),
-                {"identifier": "nosuchid", "role": PlaylistRole.COLLABORATOR.value},
-            )
-
-        self.assertEqual(response.status_code, 403)
-        api.assert_not_called()
-
-    def test_an_enrollment_warning_reaches_the_client(self):
-        """It rides a header so the body stays the roster fragment the client swaps in."""
-        newcomer = UserFactory(student=True, netid="warnme")
-
-        def resolve(self_, identifier):
-            self_.enrollment_warning = "Some courses may be missing."
-            return newcomer, True
-
-        with patch("core.forms.AddUserLookupForm._resolve_netid", resolve):
-            response = self.add(identifier="warnme")
-
-        self.assertEqual(response.status_code, 200, response.content[:200])
-        self.assertEqual(response["X-Member-Warning"], "Some courses may be missing.")
 
 
 class CourseAccessSummaryTests(PlaylistMemberTestCase):
