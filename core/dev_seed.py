@@ -583,6 +583,10 @@ def create_demo_data():
         ),
     )
 
+    for content in Content.objects.filter(
+        resource__in=[birds_resource, grid_resource, overlay_resource]
+    ):
+        content.subtitle_tracks.set(content.resource.subtitles.all())
     birds_content.default_subtitle_track = birds_en_subtitle
     birds_content.save()
 
@@ -680,7 +684,7 @@ def create_demo_films(*, owner, collaborators, students, course, language):
                 name=film.subtitle_name,
                 subtitles_file=subtitles_file,
             )
-        ContentFactory(
+        content = ContentFactory(
             playlist=playlist,
             resource_file=resource_file,
             title=film.title,
@@ -688,6 +692,8 @@ def create_demo_films(*, owner, collaborators, students, course, language):
             published=True,
             default_subtitle_track=subtitle,
         )
+        if subtitle:
+            content.subtitle_tracks.add(subtitle)
     return len(films)
 
 

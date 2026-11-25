@@ -186,7 +186,7 @@ def content_with_every_annotation_type(seeded_demo_data):
             blur_annotation=blur, time=time, x=x, y=y, width=width, height=height
         )
 
-    return ContentFactory(
+    content = ContentFactory(
         playlist=playlist,
         resource_file=birds.resource_file,
         annotation_set=annotation_set,
@@ -194,6 +194,8 @@ def content_with_every_annotation_type(seeded_demo_data):
         description="Carries one of every annotation type.",
         published=True,
     )
+    content.subtitle_tracks.set(birds.subtitle_tracks.all())
+    return content
 
 
 @pytest.fixture
@@ -970,6 +972,7 @@ def test_find_replace_interface_has_no_a11y_violations(
         resource=demo_content.resource,
         owner=demo_content.playlist.owner,
     )
+    demo_content.subtitle_tracks.add(subtitle_track)
     open_editor()
     page.locator("#annotation-panel-switch").click()
     page.select_option("#subtitles-track-selector", str(subtitle_track.pk))
@@ -1183,9 +1186,9 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/playlist_member_remove.html",
     "core/partials/modals/playlist_members.html",
     "core/partials/modals/create_subtitle_track.html",
-    "core/partials/modals/delete_subtitle_track.html",
+    "core/partials/modals/add_subtitle_track.html",
     "core/partials/modals/edit_subtitle_track.html",
-    "core/partials/modals/select_subtitle_track.html",
+    "core/partials/modals/delete_or_transfer.html",
     "core/partials/playlist_member_options_for_select.html",
     "core/partials/playlist_members_list.html",
     "core/partials/playlist_members_roster.html",
@@ -1207,7 +1210,6 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/annotation_set_options/import_from_file.html",
     "core/partials/modals/annotation_set_options/use_existing_set.html",
     "core/partials/annotation_set_selector.html",
-    "core/partials/annotation_set_deletion_or_ownership_change_modal.html",
     "core/partials/blur_anchor_points.html",
     "core/partials/modals/save_failed_help.html",
     "core/partials/save_status.html",
@@ -1217,6 +1219,7 @@ AUDITED_TEMPLATES = {
     "core/partials/subtitle_cues.html",
     "core/partials/subtitle_editor_panel.html",
     "core/partials/subtitle_panel_content.html",
+    "core/partials/subtitle_track_option_label.html",
     "core/partials/timeline-track-row.html",
     "core/partials/timeline_base.html",
     # django admin

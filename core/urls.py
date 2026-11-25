@@ -198,6 +198,16 @@ urlpatterns = [
         name="copy_subtitle_track",
     ),
     path(
+        "content/<int:content_id>/subtitles/<int:subtitle_id>/attach/",
+        views_video_editor.attach_subtitle_track,
+        name="attach_subtitle_track",
+    ),
+    path(
+        "content/<int:content_id>/subtitles/<int:subtitle_id>/detach/",
+        views_video_editor.detach_subtitle_track,
+        name="detach_subtitle_track",
+    ),
+    path(
         "subtitles/<int:subtitle_id>/update-title",
         views_video_editor.update_subtitle_name,
         name="update_subtitle_name",
@@ -216,6 +226,11 @@ urlpatterns = [
         "subtitles/<int:subtitle_id>/update-cues/",
         views_video_editor.update_subtitle_content,
         name="update_subtitle_content",
+    ),
+    path(
+        "subtitles/<int:subtitle_id>/delete-dialog/",
+        views_video_editor.delete_subtitle_track_dialog,
+        name="delete_subtitle_track_dialog",
     ),
     path(
         "subtitles/<int:subtitle_id>/delete/",

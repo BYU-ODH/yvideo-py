@@ -1105,7 +1105,9 @@ class LegacyBulkImporter:
         )
         # Inline legacy cues remain in the source mapping until media is migrated.
         target.subtitles_file.name = ""
-        return self._save(target), True
+        subtitle = self._save(target)
+        content.subtitle_tracks.add(subtitle)
+        return subtitle, True
 
     def _collection_access(self, row):
         user = self._user_by_netid(row["username"])

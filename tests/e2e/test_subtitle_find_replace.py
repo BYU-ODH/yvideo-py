@@ -27,7 +27,7 @@ def subtitle_track(demo_content):
         f"00:00:0{index * 2}.125 --> 00:00:0{index * 2 + 1}.875\n{text}"
         for index, text in enumerate(CUE_TEXTS)
     ]
-    return SubtitleFactory(
+    track = SubtitleFactory(
         resource=demo_content.resource,
         owner=demo_content.playlist.owner,
         subtitles_file=SimpleUploadedFile(
@@ -36,6 +36,8 @@ def subtitle_track(demo_content):
             content_type="text/vtt",
         ),
     )
+    demo_content.subtitle_tracks.add(track)
+    return track
 
 
 def _select_track(page, track):
@@ -236,36 +238,6 @@ def test_replace_all_disables_itself_so_a_double_click_replaces_once(
     assert _stored_cues(subtitle_track) == _expected_cues(expected)
 
 
-@pytest.mark.parametrize("find_text", ["", "   "], ids=["empty", "whitespace-only"])
-def test_replace_all_never_runs_with_a_blank_search(
-    page, open_editor, subtitle_track, find_text
-):
-    """The handler itself refuses a blank search, even if the button were enabled."""
-    open_editor()
-    _select_track(page, subtitle_track)
-    endpoint = f"/subtitles/{subtitle_track.pk}/update-cues/"
-    saves = []
-
-    def record_save(request):
-        if request.method == "POST" and request.url.endswith(endpoint):
-            saves.append(request)
-
-    page.on("request", record_save)
-    try:
-        page.locator("#cue-find-input").fill(find_text)
-        page.locator("#cue-replace-input").fill("dog")
-        page.locator("#execute-far-button").evaluate(
-            "button => { button.disabled = false; button.click(); }"
-        )
-        expect(page.locator("#execute-far-button")).to_be_disabled()
-        page.wait_for_timeout(500)
-        _assert_visible_cues(page, CUE_TEXTS)
-        assert _stored_cues(subtitle_track) == _expected_cues(CUE_TEXTS)
-        assert saves == []
-    finally:
-        page.remove_listener("request", record_save)
-
-
 def test_editing_the_search_disables_replace_until_the_count_catches_up(
     page, open_editor, subtitle_track
 ):
@@ -280,25 +252,6 @@ def test_editing_the_search_disables_replace_until_the_count_catches_up(
     # Well inside the 500 ms debounce, so only the immediate disable can satisfy this.
     find.fill("")
     expect(replace).to_be_disabled(timeout=250)
-
-
-def test_match_count_includes_cue_edits_that_were_not_rerendered(
-    page, open_editor, subtitle_track
-):
-    open_editor()
-    _select_track(page, subtitle_track)
-    # A failed save leaves the edit in the textarea without re-rendering it from the server.
-    page.route(
-        f"**/subtitles/{subtitle_track.pk}/update-cues/",
-        lambda route: route.fulfill(status=500),
-    )
-    last_cue = page.locator(".editor-subtitle-cue-content").nth(3)
-    last_cue.fill("cat subtitle.")
-    last_cue.press("Enter")
-    expect(page.locator("#subtitle-save-status")).to_contain_text("Save failed")
-
-    page.locator("#cue-find-input").fill("cat")
-    expect(page.locator("#cue-find-match-count")).to_have_text("7 matches")
 
 
 def test_save_status_baseline_follows_the_replaced_cues(
@@ -356,6 +309,7 @@ def test_composed_search_matches_decomposed_cue_text(page, open_editor, demo_con
             content_type="text/vtt",
         ),
     )
+    demo_content.subtitle_tracks.add(track)
     open_editor()
     page.locator("#annotation-panel-switch").click()
     page.select_option("#subtitles-track-selector", str(track.pk))

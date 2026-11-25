@@ -84,7 +84,6 @@ export class Editor {
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
-        this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
         // The cues as last sent to (or rendered by) the server; see setupSubtitleEditor input watcher
@@ -161,7 +160,10 @@ export class Editor {
         this.watchForTimelineScrollChangeAndHandleIt();
         this.keepTimelineRowsScrolledTogether();
         this.watchAndHandleAnnotationSetMenuOpen();
-        this.watchAndHandleAnnotationSetDelete();
+        this.watchForDeleteOrTransfer(
+          "delete-annotation-set",
+          () => `/annotation-set/${this.timelineWrapper.dataset.annotationSetId}/delete/`
+        );
         this.setupAnnotationSetOptionsModal();
         this.listenForHistoryControls();
         this.watchAndHandleAnnotationSetExport();
@@ -171,6 +173,8 @@ export class Editor {
         this.watchForSubtitleTrackCreation();
 
         this.watchForSubtitleTrackEditing();
+        this.watchForSubtitleTrackAdding();
+        this.watchForSubtitleTrackRemoval();
         this.watchForSubtitleTrackDeletion();
         this.checkForAndLoadSubtitleTrack();
         this.handleNoAnnotationSet();
@@ -2823,36 +2827,22 @@ export class Editor {
 
 
 
-  watchAndHandleAnnotationSetDelete() {
+    // Listens on the dialog rather than the button because the subtitle track
+    // dialog's contents are replaced each time it opens.
+    watchForDeleteOrTransfer(dialogId, getUrl) {
+      const dialog = document.getElementById(dialogId);
+      if (!dialog) return;
 
-      if (this.timelineWrapper.dataset["annotationSetId"] == '' || !this.canEditAnnotationSet) return;
-
-    const deleteAnnotationSetButton = document.getElementById("annotation-set-delete");
-      if (!deleteAnnotationSetButton) {
-        displayUserMessage("warning", "The annotation set delete button cannot be setup; you will not be able to delete the annotation set during this session.");
-        return;
-      }
-
-      deleteAnnotationSetButton.addEventListener("click", async () => {
-        const annotationSetId = this.timelineWrapper.dataset["annotationSetId"];
-        if (isNaN(annotationSetId) || annotationSetId === undefined || annotationSetId == "") {
-          return;
-        }
-        const newOwner = document.getElementById("annotation-set-new-owner");
-        const deleteResponse = await fetch(`/annotation-set/${annotationSetId}/delete/`, {
+      dialog.addEventListener("click", async (event) => {
+        const confirmButton = event.target.closest(`#${dialogId}-confirm`);
+        if (!confirmButton || confirmButton.disabled) return;
+        confirmButton.disabled = true;
+        const newOwnerId = document.getElementById(`${dialogId}-new-owner`)?.value;
+        await this.requestAndReload(getUrl(), "Failed to delete. Please try again or refresh the page.", {
           method: "DELETE",
-          headers: {
-            "X-CSRFToken": getCSRFToken(),
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({new_owner_id: newOwner?.value || null})
+          body: JSON.stringify(newOwnerId ? { new_owner_id: Number(newOwnerId) } : {})
         });
-        if (!deleteResponse.ok) {
-          displayUserMessage("error", "Failed to delete annotation set");
-          return;
-        }
-
-        window.location.reload();
+        confirmButton.disabled = false;
       });
     }
 
@@ -3272,17 +3262,16 @@ export class Editor {
         }
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
         document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
+        const option = document.querySelector(`.subtitles-track-option[value="${trackId}"]`);
         this.selectedSubtitleTrackId = trackId;
         this.sentCueState = JSON.stringify(this.collectCues());
         saveStatus.settle("subtitle-cues");
-        this.selectedSubtitleTrackText = document.querySelector(
-          `.subtitles-track-option[value="${trackId}"]`
-        )?.textContent.trim() || "";
         document.getElementById(`cap-track-${trackId}-button`)?.click();
         document.getElementById("open-subtitle-track-edit-modal").disabled = false;
         document.getElementById("export-subtitle-track-button").disabled = false;
+        document.getElementById("remove-subtitle-track-button").disabled = false;
         document.getElementById("open-delete-subtitle-track-modal").disabled =
-          document.getElementById("subtitle-panel-content").dataset.canEdit !== "true";
+          option?.dataset.canDelete !== "true";
         return true;
       } catch {
         displayUserMessage("error", "Failed to load subtitle track");
@@ -3464,41 +3453,93 @@ export class Editor {
       }
     }
 
+    // Reopens `trackId` in the subtitle editor after the reload, if given.
+    async requestAndReload(url, failureMessage, { method = "POST", body, trackId } = {}) {
+      try {
+        // Reloading mid-save would lose the user's latest cue edits.
+        await Promise.allSettled(this.subtitleCueSaves);
+        const response = await fetch(url, {
+          method,
+          headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
+          body
+        });
+        if (!response.ok) {
+          displayUserMessage("error", failureMessage);
+          return;
+        }
+        if (trackId) {
+          const reloadUrl = new URL(window.location.href);
+          reloadUrl.searchParams.set("subtitle_track", trackId);
+          window.location.assign(reloadUrl.href);
+        } else {
+          window.location.reload();
+        }
+      } catch {
+        displayUserMessage("error", failureMessage);
+      }
+    }
+
+    watchForSubtitleTrackAdding() {
+      const form = document.getElementById("add-subtitle-track-form");
+      if (!form) return;
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = document.getElementById("add-subtitle-track-button");
+        const option = document.getElementById("add-subtitle-track-selector").selectedOptions[0];
+        if (!option?.value || button.disabled) return;
+        button.disabled = true;
+        await this.requestAndReload(
+          `/content/${this.contentId}/subtitles/${option.value}/attach/`,
+          "Failed to add the subtitle track.",
+          { trackId: option.value }
+        );
+        button.disabled = false;
+      });
+    }
+
+    watchForSubtitleTrackRemoval() {
+      const button = document.getElementById("remove-subtitle-track-button");
+      if (!button) return;
+
+      button.addEventListener("click", async () => {
+        const trackId = this.selectedSubtitleTrackId;
+        if (!trackId || button.disabled) return;
+        button.disabled = true;
+        await this.requestAndReload(
+          `/content/${this.contentId}/subtitles/${trackId}/detach/`,
+          "Failed to remove the subtitle track from this video."
+        );
+        button.disabled = false;
+      });
+    }
+
     watchForSubtitleTrackDeletion() {
       const openButton = document.getElementById("open-delete-subtitle-track-modal");
-      const deleteButton = document.getElementById("delete-subtitle-track-confirm");
-      if (!openButton || !deleteButton) {
-        displayUserMessage("warning", "Unable to setup subtitle track deletion modal. You will not be able to delete subtitle tracks until this is resolved.");
-        return;
-      }
+      const content = document.getElementById("delete-subtitle-track-content");
+      if (!openButton || !content) return;
 
-      openButton.addEventListener("click", () => {
-        if (!this.selectedSubtitleTrackId) return;
-        document.getElementById("delete-subtitle-track-text").textContent = this.selectedSubtitleTrackText;
-      });
-
-      deleteButton.addEventListener("click", async () => {
+      openButton.addEventListener("click", async () => {
         const trackId = this.selectedSubtitleTrackId;
-        if (!trackId || deleteButton.disabled) return;
-        deleteButton.disabled = true;
+        if (!trackId) return;
+        content.replaceChildren();
+        content.setAttribute("aria-busy", "true");
         try {
-          const response = await fetch(`/subtitles/${trackId}/delete/`, {
-            method: "DELETE",
-            headers: { "X-CSRFToken": getCSRFToken() }
-          });
+          const response = await fetch(`/subtitles/${trackId}/delete-dialog/`);
           if (!response.ok) {
-            response.status === 403
-              ? displayUserMessage("info", "You do not have permission to delete this subtitle track.")
-              : displayUserMessage("error", "Failed to delete the subtitle track.");
+            displayUserMessage("error", "Failed to load the delete options for this subtitle track.");
             return;
           }
-          window.location.reload();
+          const html = new DOMParser().parseFromString(await response.text(), "text/html");
+          content.innerHTML = html.getElementById("delete-subtitle-track-content").innerHTML;
         } catch {
-          displayUserMessage("error", "Failed to delete subtitle track.");
+          displayUserMessage("error", "Failed to load the delete options for this subtitle track.");
         } finally {
-          deleteButton.disabled = false;
+          content.removeAttribute("aria-busy");
         }
       });
+
+      this.watchForDeleteOrTransfer("delete-subtitle-track", () => `/subtitles/${this.selectedSubtitleTrackId}/delete/`);
     }
 
     collectCues() {

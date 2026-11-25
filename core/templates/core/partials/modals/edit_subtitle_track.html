@@ -7,7 +7,7 @@
         {% if subtitle_track %}
             <div id="subtitle-track-edit-details"
                  data-track-id="{{ subtitle_track.pk }}">
-                <p class="subtitle-track-owner">Owner: {{ owner_display_name }}</p>
+                <p class="subtitle-track-owner">Owner: {{ subtitle_track.owner_label }}</p>
                 {% if can_edit %}
                     <p>Any changes made to this subtitle track will appear in other videos where this track is used.</p>
                     <form id="subtitle-track-edit-form"
@@ -59,7 +59,7 @@
                         <button id="subtitle-track-copy"
                                 type="button"
                                 class="white-button-with-border"
-                                data-copy-url="{% url 'core:copy_subtitle_track' content_id subtitle_track.pk %}">
+                                data-copy-url="{% url 'copy_subtitle_track' content_id subtitle_track.pk %}">
                             Copy this track
                         </button>
                     </div>

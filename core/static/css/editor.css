@@ -324,10 +324,6 @@
     filter: invert(1);
 }
 
-#annotation-set-delete {
-    align-self: flex-start;
-}
-
 .form-group {
     display: flex;
     flex-direction: column;
@@ -452,21 +448,14 @@
     flex: 1;
 }
 
-#annotation-set-settings-compact label {
-    font-weight: 400;
-}
-
-#annotation-set-settings-compact h2 {
-    margin-bottom: 0;
-}
-
-#annotation-set-settings-compact h3 {
-    margin: 0;
-}
-
 #annotation-set-heading, #subtitle-panel-heading {
     flex: 1;
     min-width: 0;
+}
+
+#annotation-set-owner {
+    font-size: 0.8rem;
+    color: var(--dark-mode-text-color-dimmed);
 }
 
 .save-status {
@@ -918,11 +907,6 @@ here in this comment for search purposes */
     border-color: #4a90e2;
     outline: none;
     box-shadow: 0 0 0 3px rgb(74 144 226 / 10%);
-}
-
-#delete-subtitles-track-button {
-    align-self: flex-end;
-    margin-top: 5rem;
 }
 
 #editor-annotation-panel, #subtitle-editor-panel, #video-section, .detail-form-section, #timeline-wrapper {

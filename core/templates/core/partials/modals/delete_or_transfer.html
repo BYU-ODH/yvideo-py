@@ -1,0 +1,52 @@
+{% extends "core/partials/modals/user_view_modal.html" %}
+
+{% block modal_title %}Delete {{ noun }}{% endblock %}
+{% block modal_body %}
+    {# Subtitle tracks fill this in for the selected track from the delete-dialog view. #}
+    <div id="{{ dialog_id }}-content" class="column-flex">
+        {% if object %}
+            {% if candidates|length > 1 %}
+                <p>
+                    Other users have added "{{ object.name }}" to their videos. You may choose
+                    who becomes its new owner.
+                </p>
+                <label for="{{ dialog_id }}-new-owner">Transfer ownership to (optional):</label>
+                <select id="{{ dialog_id }}-new-owner">
+                    <option value="">Choose automatically</option>
+                    {% for candidate in candidates %}
+                        <option value="{{ candidate.pk }}">
+                            {{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})
+                        </option>
+                    {% endfor %}
+                </select>
+            {% elif candidates %}
+                {% with candidate=candidates|first %}
+                    <p>
+                        Another user has added "{{ object.name }}" to their videos, so
+                        {{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})
+                        will become its new owner.
+                    </p>
+                {% endwith %}
+            {% else %}
+                <p>
+                    "{{ object.name }}" will be deleted and can't be recovered. This won't
+                    affect anyone else because only your videos use it.
+                </p>
+            {% endif %}
+            <p>Afterwards, none of the owner's videos will use this {{ noun }}.</p>
+            <div class="row-flex flex-apart-aligned">
+                <button id="{{ dialog_id }}-confirm" type="button" class="red-button">
+                    {% if candidates %}
+                        Transfer and remove from my videos
+                    {% else %}
+                        Delete {{ noun }}
+                    {% endif %}
+                </button>
+                <button type="button"
+                        class="cancel-button"
+                        command="close"
+                        commandfor="{{ dialog_id }}">Cancel</button>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

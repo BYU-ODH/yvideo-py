@@ -726,7 +726,102 @@ class ResourceFile(models.Model):
         ]
 
 
-class AnnotationSet(models.Model):
+class SharedOwnedObject:
+    """Ownership rules shared by AnnotationSet and Subtitle.
+
+    One instructor owns each, but any content on the same resource may use it.
+    Subclasses need `owner`, `resource`, `name`, a `contents` relation, and
+    remove_from_videos_of().
+    """
+
+    def owner_label(self):
+        """Chooser and admin label for the owner, which may be NULL."""
+        if self.owner_id:
+            return self.owner.get_full_name() or self.owner.username
+        return "no owner"
+
+    owner_label.short_description = "owner"
+
+    def can_be_edited_by(self, user):
+        if user.is_superuser:
+            return True
+        # An unowned object is readable and copyable by anyone with resource access,
+        # but only superusers may edit it, so it won't change for anyone borrowing it.
+        if self.owner_id is None:
+            return False
+        return (
+            self.owner_id == user.pk
+            or PlaylistUserAccess.objects.filter(
+                user=user,
+                playlist__owner_id=self.owner_id,
+                playlist_role=PlaylistRole.COLLABORATOR,
+            ).exists()
+        )
+
+    def can_be_read_by(self, user):
+        return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
+
+    def can_be_administered_by(self, user):
+        """Admin and owner are the only users that have full control."""
+        return user.is_superuser or self.owner_id == user.pk
+
+    def ownership_candidates(self, exclude_user=None):
+        """Users whose videos use this, non-admins first. Pass exclude_user to leave
+        out the current owner (or someone else)."""
+        users = (
+            User.objects.filter(playlists_owned__contents__in=self.contents.all())
+            .order_by("is_superuser", "pk")
+            .distinct()
+        )
+        if exclude_user is not None:
+            users = users.exclude(pk=exclude_user.pk)
+        return users
+
+    def delete_or_reassign_ownership(self, user, new_owner=None):
+        """If nobody else uses this, delete it. Otherwise transfer ownership to
+        new_owner if they are a candidate, or else to the first candidate, and stop
+        using it in the previous owner's videos. Returns a dict with boolean
+        "deleted" and "reassigned" keys. Raises PermissionDenied if `user` may not
+        administer it.
+        """
+        result = {"deleted": False, "reassigned": False}
+        if not self.can_be_administered_by(user):
+            raise PermissionDenied
+
+        current_owner = self.owner
+
+        with transaction.atomic():
+            candidates = list(self.ownership_candidates(current_owner))
+            if new_owner in candidates:
+                new_owner_candidate = new_owner
+            else:
+                new_owner_candidate = candidates[0] if candidates else None
+
+            if new_owner_candidate is None:
+                self.delete()
+                result["deleted"] = True
+            else:
+                try:
+                    self.owner = new_owner_candidate
+                    with transaction.atomic():
+                        self.save(update_fields=["owner", "updated_at"])
+                except IntegrityError:
+                    # The new owner already has one by this name.
+                    name_label = "no previous owner"
+                    if current_owner is not None:
+                        name_label = (
+                            current_owner.get_full_name() or current_owner.username
+                        )
+                    self.name = f"{self.name} (transferred by {name_label} on {timezone.localdate():%Y-%m-%d})"
+                    self.save(update_fields=["name", "owner", "updated_at"])
+                if current_owner is not None:
+                    self.remove_from_videos_of(current_owner)
+                result["reassigned"] = True
+
+        return result
+
+
+class AnnotationSet(SharedOwnedObject, models.Model):
     """
     A set of annotations for a Resource.
     Multiple contents can use the same AnnotationSet.
@@ -758,102 +853,8 @@ class AnnotationSet(models.Model):
     def __str__(self):
         return f"{self.name} ({self.owner_label()}) | {self.resource.name}"
 
-    def owner_label(self):
-        """Chooser and admin label for the owner, which may be NULL."""
-        if self.owner_id:
-            return self.owner.get_full_name()
-        return "no owner"
-
-    def can_be_edited_by(self, user):
-        if user.is_superuser:
-            return True
-        # An orphaned (unowned) set is readable and copyable by anyone with resource
-        # access, but is only editable by superusers. This is so the set wont change
-        # for anyone that is borrowing it.
-        if self.owner_id is None:
-            return False
-        return (
-            self.owner_id == user.pk
-            or PlaylistUserAccess.objects.filter(
-                user=user,
-                playlist__owner_id=self.owner_id,
-                playlist_role=PlaylistRole.COLLABORATOR,
-            ).exists()
-        )
-
-    def can_be_read_by(self, user):
-        return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
-
-    def can_be_administered_by(self, user):
-        """Admin and owner are the only users that have full control over an annotation set"""
-        return user.is_superuser or self.owner_id == user.pk
-
-    def ownership_candidates(self, exclude_user=None):
-        """Returns all users using this annotation set. Populate exclude_user to
-        remove the current annotation set owner (or some other user) from the list
-        of results."""
-        users = (
-            User.objects.filter(
-                playlists_owned__contents__annotation_set=self,
-            )
-            .order_by("is_superuser", "pk")
-            .distinct()
-        )
-
-        if exclude_user is not None:
-            users = users.exclude(pk=exclude_user.id)
-
-        return users
-
-    def delete_or_reassign_ownership(self, user, new_owner=None):
-        """If the set has no other users, delete it immediately. If there is a named new_owner,
-        transfer ownership to that user. Otherwise, choose the first user that is also using
-        this set sorted by whether they are an admin (non-admins appear sooner) and then by
-        primary key. Returns a result dictionary with keys "deleted" and "reassigned", each pointing
-        to boolean values that describe the outcome. Errors including unauthorized request are
-        handled by exceptions (PermissionDenied, and the generic Exception)
-        """
-        result = {"deleted": False, "reassigned": False}
-        if not self.can_be_administered_by(user):
-            raise PermissionDenied
-
-        current_owner = self.owner
-
-        with transaction.atomic():
-            # allows for admin user to become the owner, but only if there is not a non-admin user.
-            candidates = list(self.ownership_candidates(current_owner))
-            if new_owner in candidates:
-                new_owner_candidate = new_owner
-            else:
-                new_owner_candidate = candidates[0] if candidates else None
-
-            # handle deletion/reassignment
-            if new_owner_candidate is None:
-                self.delete()
-                result["deleted"] = True
-            else:
-                try:
-                    self.owner = new_owner_candidate
-                    with transaction.atomic():
-                        self.save(update_fields=["owner", "updated_at"])
-                except IntegrityError:
-                    # if there is somehow another integrity error at this point, we will let
-                    # the outer try except block raise the exception higher.
-                    # the transferred by user.username remains "user" instead of "current_owner" so if an admin transfers the set, the admin's name appears here
-                    name_label = "no previous owner"
-                    if current_owner is not None:
-                        name_label = (
-                            current_owner.get_full_name() or current_owner.username
-                        )
-                    self.name = f"{self.name} (transferred by {name_label} on {timezone.localdate():%Y-%m-%d})"
-                    self.save(update_fields=["name", "owner", "updated_at"])
-                if current_owner is not None:
-                    self.contents.filter(playlist__owner_id=current_owner.id).update(
-                        annotation_set=None
-                    )
-                result["reassigned"] = True
-
-        return result
+    def remove_from_videos_of(self, owner):
+        self.contents.filter(playlist__owner=owner).update(annotation_set=None)
 
     @classmethod
     def create_for_content(
@@ -1086,6 +1087,9 @@ class Content(models.Model):
         null=True,
         blank=True,
     )
+    subtitle_tracks = models.ManyToManyField(
+        "Subtitle", related_name="contents", blank=True
+    )
     default_subtitle_track = models.ForeignKey(
         "Subtitle",
         on_delete=models.SET_NULL,
@@ -1202,19 +1206,29 @@ class Content(models.Model):
             if annotation_set.can_be_read_by(user)
         ]
 
+    def remove_subtitle_track(self, subtitle, replacement=None):
+        """Stop using `subtitle`, and use `replacement` (if any) in its place, as default too."""
+        self.subtitle_tracks.remove(subtitle)
+        if replacement is not None:
+            self.subtitle_tracks.add(replacement)
+        if self.default_subtitle_track_id == subtitle.pk:
+            self.default_subtitle_track = replacement
+            self.save(update_fields=["default_subtitle_track", "updated_at"])
+
     def get_subtitles(self):
         """
-        Get all subtitles as list of dicts for the AnnotationPlayer.
+        Get this content's subtitle tracks as list of dicts for the AnnotationPlayer.
         Each dict has the following keys:
             - 'srclang'
             - 'vtt' or 'url'
             - 'name'
             - 'default' (True only for the instructor-chosen default track)
         """
-        resource = self.resource
-        if not resource:
-            return []
-        sub_objs = Subtitle.objects.filter(resource=resource).order_by("pk")
+        sub_objs = (
+            self.subtitle_tracks.filter(resource=self.resource)
+            .select_related("language")
+            .order_by("pk")
+        )
         default_id = self.default_subtitle_track_id
         subtitles = []
         for sub in sub_objs:
@@ -2220,12 +2234,16 @@ def subtitle_file_upload_path(instance, filename):
     return f"{instance.resource_id}/subtitles/{filename}"
 
 
-class Subtitle(models.Model):
+class Subtitle(SharedOwnedObject, models.Model):
     resource = models.ForeignKey(
         Resource, on_delete=models.CASCADE, related_name="subtitles"
     )
     owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subtitles"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="owned_subtitles",
+        null=True,
+        blank=True,
     )
     language = models.ForeignKey(
         Language, on_delete=models.CASCADE, related_name="subtitles"
@@ -2239,7 +2257,11 @@ class Subtitle(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} | {self.language.language} | {self.resource.name} | {self.owner.first_name} {self.owner.last_name} | {self.id}"
+        return f"{self.name} | {self.language.language} | {self.resource.name} | {self.owner_label()} | {self.id}"
+
+    def remove_from_videos_of(self, owner):
+        for content in self.contents.filter(playlist__owner=owner):
+            content.remove_subtitle_track(self)
 
     class Meta:
         constraints = [
@@ -2248,20 +2270,6 @@ class Subtitle(models.Model):
                 name="unique_subtitle_name_per_resource_owner_language",
             )
         ]
-
-    def can_be_edited_by(self, user):
-        return (
-            user.is_superuser
-            or self.owner_id == user.pk
-            or PlaylistUserAccess.objects.filter(
-                user=user,
-                playlist__owner_id=self.owner_id,
-                playlist_role=PlaylistRole.COLLABORATOR,
-            ).exists()
-        )
-
-    def can_be_read_by(self, user):
-        return self.can_be_edited_by(user) or user.can_access_resource(self.resource)
 
 
 @receiver(post_delete, sender=ResourceFile)

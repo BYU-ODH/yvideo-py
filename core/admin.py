@@ -17,6 +17,7 @@ from django.utils.html import format_html
 from reversion.admin import VersionAdmin
 
 from .forms import AddUserLookupForm
+from .forms import ContentAdminForm
 from .forms import SubtitleAdminForm
 from .models import AnnotationSet
 from .models import AuthToken
@@ -924,6 +925,7 @@ class ResourceFileAdmin(AutocompleteTargetAdmin):
 @admin.register(Content)
 class ContentAdmin(AutocompleteTargetAdmin):
     label_related = ("playlist",)
+    form = ContentAdminForm
     list_select_related = ("playlist__owner", "resource")
     list_display = (
         "title",
@@ -956,6 +958,7 @@ class ContentAdmin(AutocompleteTargetAdmin):
         "resource",
         "annotation_set",
         "default_subtitle_track",
+        "subtitle_tracks",
     )
 
     def get_form(self, request, obj=None, **kwargs):
@@ -975,6 +978,14 @@ class ContentAdmin(AutocompleteTargetAdmin):
         form.base_fields["resource_file"].queryset = files
 
         return form
+
+    def save_related(self, request, form, formsets, change):
+        # The player only shows attached tracks, so a default that isn't also
+        # attached would never play.
+        super().save_related(request, form, formsets, change)
+        content = form.instance
+        if content.default_subtitle_track_id:
+            content.subtitle_tracks.add(content.default_subtitle_track_id)
 
 
 @admin.register(Course)
@@ -1059,7 +1070,7 @@ class SubtitleAdmin(AutocompleteTargetAdmin):
     label_related = ("language", "resource", "owner")
     form = SubtitleAdminForm
 
-    list_display = ("name", "language", "owner", "resource", "created_at")
+    list_display = ("name", "language", "owner_label", "resource", "created_at")
     list_filter = ("language", "created_at")
     search_fields = (
         "name",

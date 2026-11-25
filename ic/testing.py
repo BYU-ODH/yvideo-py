@@ -185,6 +185,7 @@ def make_film(editor, playlist, title, *, with_annotations=True, with_subtitles=
         subtitle = SubtitleFactory(
             resource=resource, owner=playlist.owner, name=f"{title} English"
         )
+        content.subtitle_tracks.add(subtitle)
         content.default_subtitle_track = subtitle
         content.save()
     return content
