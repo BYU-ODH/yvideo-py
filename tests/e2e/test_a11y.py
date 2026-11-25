@@ -420,7 +420,7 @@ def test_the_playlists_page_states_have_no_a11y_violations(
 def test_the_playlist_page_dialogs_have_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
-    """The delete-playlist confirmation."""
+    """The delete confirmation and the separate student/collaborator assignments."""
     page = logged_in_page
     page.goto(f"{live_server.url}/playlists/{awkward_data.playlist.id}/")
 
@@ -428,6 +428,24 @@ def test_the_playlist_page_dialogs_have_no_a11y_violations(
     page.wait_for_selector("#playlist-confirm-delete", state="visible")
     assert_no_violations(page, "the delete-playlist dialog", include=["dialog[open]"])
     page.keyboard.press("Escape")
+
+    for assignment_kind in ("individual", "collaborator"):
+        dialog_id = f"add-assigned-{assignment_kind}-modal"
+        page.locator(f"[commandfor='{dialog_id}'][command='show-modal']").click()
+        dialog = page.locator(f"#{dialog_id}")
+        expect(dialog).to_be_visible()
+        assert_no_violations(
+            page, f"the assign-{assignment_kind} dialog", include=["dialog[open]"]
+        )
+
+        dialog.locator("input[name='search']").fill("prof")
+        expect(dialog.locator("[data-individual-user-id]").first).to_be_visible()
+        assert_no_violations(
+            page,
+            f"the assign-{assignment_kind} search results",
+            include=["dialog[open]"],
+        )
+        page.keyboard.press("Escape")
 
 
 
@@ -1086,6 +1104,19 @@ def test_admin_page_has_no_a11y_violations(
 # list should be provided in the following format: "template path": "reason for exclusion"
 # e.g. "core/partials/unaudited.html": "Never seen in UI"
 UNAUDITED_TEMPLATES = {
+    "core/partials/modals/playlist_members.html": (
+        "unreferenced: playlist_info uses separate individual and collaborator dialogs"
+    ),
+    "core/partials/modals/playlist_member_remove.html": (
+        "unreferenced: playlist_info uses modals/delete_assigned_individual.html instead"
+    ),
+    "core/partials/playlist_members_roster.html": (
+        "legacy roster endpoint response; the assignment UI reloads the playlist page "
+        "rather than displaying this fragment"
+    ),
+    "core/partials/modals/delete_assigned_individual.html": (
+        "the audited Demo Review Shelf has no direct assignments to open this dialog"
+    ),
     "core/partials/add_playlist_modal.html": (
         "unreferenced: playlists.html uses partials/modals/add_new_playlist.html instead"
     ),
@@ -1153,6 +1184,8 @@ AUDITED_TEMPLATES = {
     "core/partials/editable_thumbnail.html",
     "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
+    "core/partials/individual_assignment_list.html",
+    "core/partials/collaborator_assignment_list.html",
     "core/partials/resource_intake_request.html",
     "core/partials/legal_compliance_checkboxes.html",
     "core/resource_access_requests.html",
@@ -1169,15 +1202,15 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/help_and_feedback.html",
     "core/partials/modals/playlist_course_assignments.html",
     "core/partials/modals/playlist_delete.html",
-    "core/partials/modals/playlist_member_remove.html",
-    "core/partials/modals/playlist_members.html",
+    "core/partials/modals/add_assigned_individuals.html",
+    "core/partials/modals/add_assigned_collaborators.html",
+    "core/partials/assign_individual_to_playlist_form.html",
+    "core/partials/playlist_member_search_results.html",
     "core/partials/modals/create_subtitle_track.html",
     "core/partials/modals/delete_subtitle_track.html",
     "core/partials/modals/edit_subtitle_track.html",
     "core/partials/modals/select_subtitle_track.html",
-    "core/partials/playlist_member_options_for_select.html",
-    "core/partials/playlist_members_list.html",
-    "core/partials/playlist_members_roster.html",
+
     "core/partials/modals/select_resource.html",
     "core/partials/modals/tools_info.html",
     "core/partials/modals/thumbnail_editor.html",
