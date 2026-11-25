@@ -121,15 +121,11 @@
                                 </div>
                                 <div id="assigned-individuals">
                                     <h5>Individuals</h5>
-                                    <div class="playlist-category-header">
-                                        <p>Netid - Name</p>
-                                        <p>Role</p>
-                                    </div>
                                     {% include "core/partials/individual_assignment_list.html" %}
                                     <button type="button"
                                             command="show-modal"
                                             commandfor="add-assigned-individual-modal">+ Assign Individual</button>
-                                    {% include "core/partials/modals/edit_assigned_individual.html" with dialog_id="edit-assigned-individual-modal" %}
+
                                     {% include "core/partials/modals/delete_assigned_individual.html" with dialog_id="delete-assigned-individual-modal" %}
                                     {% include "core/partials/modals/add_assigned_individuals.html" with dialog_id="add-assigned-individual-modal" %}
                                 </div>
@@ -141,7 +137,15 @@
                                 <h4>Collaborators</h4>
                                 <p>These people can edit</p>
                             </div>
-                            {% include 'core/partials/playlist_members_list.html' %}
+                            <div id="assigned-collaborators">
+                                {% include "core/partials/collaborator_assignment_list.html" %}
+                                {% if can_administer %}
+                                    <button type="button"
+                                            command="show-modal"
+                                            commandfor="add-assigned-collaborator-modal">+ Assign Collaborator</button>
+                                    {% include "core/partials/modals/add_assigned_collaborators.html" with dialog_id="add-assigned-collaborator-modal" %}
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 {% endif %}

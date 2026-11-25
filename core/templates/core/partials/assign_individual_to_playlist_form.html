@@ -1,20 +1,40 @@
-<form id="assign-individual-form"
+{% with assignment_kind=assignment_kind|default:"individual" %}
+<form id="assign-{{ assignment_kind }}-form"
       method="post"
       data-individual-assignment-form
-      data-search-url="{% url 'playlist_member_search' playlist.id %}"
-      action="{% url 'add_playlist_member' playlist.id %}">
+      {% if assignment_kind == "collaborator" %}
+          data-search-url="{% url 'playlist_collaborator_search' playlist.id %}"
+          action="{% url 'add_playlist_collaborator' playlist.id %}"
+      {% else %}
+          data-search-url="{% url 'playlist_member_search' playlist.id %}"
+          action="{% url 'add_playlist_member' playlist.id %}"
+      {% endif %}>
     {% csrf_token %}
-    <div data-assignment-form-errors role="alert" tabindex="-1" hidden></div>
-    {{ assign_individual_form.non_field_errors }}
+    <div data-assignment-form-errors role="alert" tabindex="-1"{% if not assign_individual_form.errors %} hidden{% endif %}>
+        {% if assign_individual_form.errors %}
+            Please correct the errors below.
+            {{ assign_individual_form.non_field_errors }}
+        {% endif %}
+    </div>
+    <p>{% if assignment_kind == "collaborator" %}Assigning a collaborator gives them editing access, including people currently assigned as students.{% else %}Individuals are assigned as students and can view this playlist.{% endif %}</p>
     <div class="column-flex">
         <div class="playlist-field-wrapper">
-            {{ assign_individual_form.search.label_tag }}
-            {{ assign_individual_form.search }}
-            {{ assign_individual_form.search.errors }}
+            <label for="assign-{{ assignment_kind }}-search">{{ assign_individual_form.search.label }}</label>
+            <input type="search"
+                   id="assign-{{ assignment_kind }}-search"
+                   name="{{ assign_individual_form.search.html_name }}"
+                   value="{{ assign_individual_form.search.value|default_if_none:'' }}"
+                   autocomplete="off"
+                   {% if assign_individual_form.search.errors or assign_individual_form.user_id.errors %}aria-invalid="true"{% endif %}
+                   aria-describedby="assign-{{ assignment_kind }}-search-errors assign-{{ assignment_kind }}-user-errors">
+            <div id="assign-{{ assignment_kind }}-search-errors">{{ assign_individual_form.search.errors }}</div>
         </div>
         <div data-individual-search-results class="column-flex" aria-live="polite"></div>
-        {{ assign_individual_form.user_id }}
-        {{ assign_individual_form.user_id.errors }}
+        <input type="hidden"
+               id="assign-{{ assignment_kind }}-user_id"
+               name="{{ assign_individual_form.user_id.html_name }}"
+               value="{{ assign_individual_form.user_id.value|default_if_none:'' }}">
+        <div id="assign-{{ assignment_kind }}-user-errors">{{ assign_individual_form.user_id.errors }}</div>
         <p data-selected-person role="status">
             {% if assign_individual_form.selected_user %}
                 Selected: {{ assign_individual_form.selected_user.get_full_name|default:assign_individual_form.selected_user.username }} ({{ assign_individual_form.selected_user.netid }})
@@ -22,11 +42,6 @@
                 No person selected.
             {% endif %}
         </p>
-        <div class="playlist-field-wrapper">
-            {{ assign_individual_form.role.label_tag }}
-            {{ assign_individual_form.role }}
-            {{ assign_individual_form.role.errors }}
-        </div>
     </div>
     <div class="row-flex flex-apart-aligned">
         <button type="submit" class="white-button-with-border">Assign</button>
@@ -36,3 +51,4 @@
                 commandfor="{{ dialog_id }}">Cancel</button>
     </div>
 </form>
+{% endwith %}

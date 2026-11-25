@@ -1,10 +1,3 @@
-{% load static %}
-
-{% comment %}
-The only part of the panel that changes when someone is added or removed, so it is
-swapped on its own -- that keeps the status live region below it from being replaced,
-which would stop it announcing.
-{% endcomment %}
 <ul class="playlist-member-rows">
     <li class="playlist-member-row">
         <span class="playlist-member-name">{{ playlist.owner.get_full_name|default:playlist.owner.username }}</span>
@@ -15,23 +8,7 @@ which would stop it announcing.
         <li class="playlist-member-row" data-user-id="{{ member.user.pk }}">
             <span class="playlist-member-name">{{ member.user.get_full_name|default:member.user.username }}</span>
             <span class="playlist-member-netid muted-text">{{ member.user.netid }}</span>
-            {% if member.may_manage %}
-                <select class="playlist-member-role-select"
-                        aria-label="Role for {{ member.user.get_full_name|default:member.user.username }}">
-                    {% for role in grantable_roles %}
-                        <option value="{{ role.value }}"
-                                {% if role.value == member.role %}selected{% endif %}>{{ role.label }}</option>
-                    {% endfor %}
-                </select>
-                <button type="button"
-                        class="playlist-member-remove-button"
-                        aria-label="Remove {{ member.user.get_full_name|default:member.user.username }}"
-                        title="Remove">
-                    <img src="{% static 'img/trash.svg' %}" alt="">
-                </button>
-            {% else %}
-                <span class="playlist-member-fixed-role">{{ member.role_label }}</span>
-            {% endif %}
+            <span class="playlist-member-fixed-role">{{ member.role_label }}</span>
         </li>
     {% endfor %}
 </ul>

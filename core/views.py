@@ -37,11 +37,9 @@ from django.views.decorators.http import require_POST
 import requests
 import reversion
 
-
 from .forms import AssignCoursesForm
 from .forms import AssignIndividualForm
 from .forms import EditAssignedCoursesForm
-from .forms import EditAssignedIndividualForm
 from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
@@ -584,7 +582,7 @@ def playlist_info(request, playlist):
             )
         ]
 
-        individual_accesses = (
+        accesses = (
             PlaylistUserAccess.objects.filter(playlist=playlist)
             .exclude(user_id=playlist.owner_id)
             .select_related("user")
@@ -592,8 +590,13 @@ def playlist_info(request, playlist):
             if can_edit
             else []
         )
-        for access in individual_accesses:
-            access.may_manage = playlist.can_grant_role(request.user, access.playlist_role)
+        individual_accesses = []
+        collaborator_accesses = []
+        for access in accesses:
+            if access.playlist_role == PlaylistRole.STUDENT:
+                individual_accesses.append(access)
+            elif access.playlist_role == PlaylistRole.COLLABORATOR:
+                collaborator_accesses.append(access)
 
         context = {
             "playlist": playlist,
@@ -604,10 +607,18 @@ def playlist_info(request, playlist):
             "form": PlaylistSettingsForm(instance=playlist),
             "assigned_courses": assigned_courses,
             "individual_accesses": individual_accesses,
+            "collaborator_accesses": collaborator_accesses,
             "assign_individual_form": AssignIndividualForm(
-                playlist=playlist, user=request.user, auto_id="assign-individual-%s"
+                playlist=playlist, auto_id="assign-individual-%s"
             )
             if can_edit
+            else None,
+            "assign_collaborator_form": AssignIndividualForm(
+                playlist=playlist,
+                allow_reassignment=True,
+                auto_id="assign-collaborator-%s",
+            )
+            if playlist.can_be_administered_by(request.user)
             else None,
             "available_yearterms": available_yearterms,
             "selected_yearterm": yearterm,
@@ -770,13 +781,12 @@ def render_edit_playlist_courses_form(request, playlist, form, *, status=200):
 @require_POST
 @playlist_write_required
 def unassign_playlist_from_course(request, playlist):
-    # do not provide information about why the request failed in the error responses
-    # because a typical yvideo user will never see them.
+    error_message = "The course could not be removed from the playlist. Please try again."
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, UnicodeDecodeError):
         logger.error("Failed to unassign course from playlist because of invalid JSON in request body")
-        messages.error(request, "A problem occurred while attempting to unassign the course from the playlist. No changes were made.")
+        messages.error(request, error_message)
         return HttpResponseBadRequest()
     if not isinstance(data, dict) or not all(
         isinstance(data.get(field), str) and data[field]
@@ -784,12 +794,12 @@ def unassign_playlist_from_course(request, playlist):
     ):
         missing_data_msg = "Failed to unassign course from playlist because of a missing dept, catalog_number and/or yearterm value"
         logger.error(missing_data_msg)
-        messages.error(request, missing_data_msg)
+        messages.error(request, error_message)
         return HttpResponseBadRequest()
     if not re.fullmatch(r"[0-9]{4}[1345]", data["yearterm"]):
         bad_yearterm_msg = "Failed to unassign course from playlist because of an invalid yearterm value"
         logger.error(bad_yearterm_msg)
-        messages.error(request, bad_yearterm_msg)
+        messages.error(request, error_message)
         return HttpResponseBadRequest()
 
     try:
@@ -801,7 +811,7 @@ def unassign_playlist_from_course(request, playlist):
         playlist.courses.remove(*courses)
     except Exception:
         logger.exception("Failed to unassign courses from playlist %s", playlist.pk)
-        messages.error(request, "Failed to unassign the course from the playlist. Please try again.")
+        messages.error(request, error_message)
         return HttpResponseServerError()
     messages.success(request, f"{data['dept']} {data['catalog_number']} and its sections were removed from the playlist.")
     return HttpResponse(status=204)
@@ -879,23 +889,6 @@ def scheduled_in_ic_programs(subject):
     )
 
 
-GRANTABLE_PLAYLIST_ROLES = (
-    PlaylistRole.COLLABORATOR,
-    PlaylistRole.STUDENT,
-)
-
-
-def grantable_roles_for(playlist, user):
-    """The roles `user` may hand out on `playlist`, in the order the picker shows them."""
-    return [
-        {
-            "value": role.value,
-            "label": role.label,
-        }
-        for role in GRANTABLE_PLAYLIST_ROLES
-        if playlist.can_grant_role(user, role)
-    ]
-
 
 def get_course_access_summary(playlist):
     """Courses that reach this playlist, and how many students that is.
@@ -966,7 +959,6 @@ def playlist_members_context(request, playlist):
     return {
         "playlist": playlist,
         "members": members,
-        "grantable_roles": grantable_roles_for(playlist, request.user),
         "course_access": get_course_access_summary(playlist),
     }
 
@@ -983,12 +975,8 @@ def render_playlist_members_roster(request, playlist):
 @require_GET
 @playlist_write_required
 def render_playlist_members(request, playlist):
-    """Render the individuals assigned to the playlist"""
-    return render(
-        request,
-        "core/partials/playlist_members_list.html",
-        playlist_members_context(request, playlist),
-    )
+    """Render the playlist's membership roster."""
+    return render_playlist_members_roster(request, playlist)
 
 
 # Substring matching over every user means one character returns a page of real names and
@@ -997,13 +985,13 @@ def render_playlist_members(request, playlist):
 MEMBER_SEARCH_MINIMUM_LENGTH = 2
 
 
-@require_POST
-@playlist_write_required
-def playlist_member_search(request, playlist):
-    """Existing users matching the typed text, minus everyone already on the playlist."""
+def _playlist_member_search(request, playlist, *, collaborators=False):
     query = request.POST.get("search", "").strip()
     users = User.objects.none()
     if len(query) >= MEMBER_SEARCH_MINIMUM_LENGTH:
+        assigned = PlaylistUserAccess.objects.filter(playlist=playlist)
+        if collaborators:
+            assigned = assigned.filter(playlist_role=PlaylistRole.COLLABORATOR)
         users = (
             User.objects.filter(
                 Q(first_name__icontains=query)
@@ -1012,7 +1000,7 @@ def playlist_member_search(request, playlist):
                 | Q(netid__icontains=query)
             )
             .exclude(pk=playlist.owner_id)
-            .exclude(playlistuseraccess__playlist=playlist)
+            .exclude(pk__in=assigned.values("user_id"))
             .order_by("last_name", "username")[:25]
         )
     return render(
@@ -1024,6 +1012,20 @@ def playlist_member_search(request, playlist):
             "query_too_short": 0 < len(query) < MEMBER_SEARCH_MINIMUM_LENGTH,
         },
     )
+
+
+@require_POST
+@playlist_write_required
+def playlist_member_search(request, playlist):
+    """Find people who do not already have a direct assignment."""
+    return _playlist_member_search(request, playlist)
+
+
+@require_POST
+@playlist_admin_required
+def playlist_collaborator_search(request, playlist):
+    """Include existing students so owners can promote them to collaborators."""
+    return _playlist_member_search(request, playlist, collaborators=True)
 
 
 MEMBER_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
@@ -1055,70 +1057,47 @@ def _member_access_or_404(playlist, user_id):
 
 
 
-@require_POST
-@playlist_write_required
-def add_playlist_member(request, playlist):
+def _assign_playlist_member(request, playlist, *, collaborator=False):
+    assignment_kind = "collaborator" if collaborator else "individual"
     form = AssignIndividualForm(
         request.POST,
         playlist=playlist,
-        user=request.user,
-        auto_id="assign-individual-%s",
+        allow_reassignment=collaborator,
+        auto_id=f"assign-{assignment_kind}-%s",
     )
     if form.is_valid():
-        _, created = PlaylistUserAccess.objects.get_or_create(
+        playlist_role = PlaylistRole.COLLABORATOR if collaborator else PlaylistRole.STUDENT
+        PlaylistUserAccess.objects.update_or_create(
             playlist=playlist,
             user=form.cleaned_data["user_id"],
-            defaults={"playlist_role": form.cleaned_data["role"]},
+            defaults={"playlist_role": playlist_role},
         )
-        if created:
-            return JsonResponse({"success": True})
-        form.add_error("user_id", "This person already has a role on this playlist.")
+        return HttpResponse(status=200)
     return render(
         request,
         "core/partials/assign_individual_to_playlist_form.html",
         {
             "playlist": playlist,
             "assign_individual_form": form,
-            "dialog_id": "add-assigned-individual-modal",
+            "assignment_kind": assignment_kind,
+            "dialog_id": f"add-assigned-{assignment_kind}-modal",
         },
         status=400,
     )
 
 
-@require_http_methods(["GET", "POST"])
+@require_POST
 @playlist_write_required
-def update_playlist_member_role(request, playlist, user_id):
-    access = _member_access_or_404(playlist, user_id)
-    if not playlist.can_grant_role(request.user, access.playlist_role):
-        return _member_forbidden("Only the playlist owner can change that role.")
+def add_playlist_member(request, playlist):
+    """Assign a student without changing any existing direct membership."""
+    return _assign_playlist_member(request, playlist)
 
-    form = EditAssignedIndividualForm(
-        request.POST if request.method == "POST" else None,
-        playlist=playlist,
-        user=request.user,
-        initial={"role": access.playlist_role},
-        auto_id="edit-individual-%s",
-    )
-    if request.method == "POST" and form.is_valid():
-        new_role = PlaylistRole(form.cleaned_data["role"])
-        access.playlist_role = new_role
-        access.save(update_fields=["playlist_role", "updated_at"])
-        return HttpResponse(
-            f"{access.user.get_full_name() or access.user.username} is now "
-            f"{new_role.label}.",
-            content_type="text/plain; charset=utf-8",
-        )
-    return render(
-        request,
-        "core/partials/edit_assigned_individual_form.html",
-        {
-            "playlist": playlist,
-            "individual_access": access,
-            "edit_individual_form": form,
-            "dialog_id": "edit-assigned-individual-modal",
-        },
-        status=400 if form.is_bound else 200,
-    )
+
+@require_POST
+@playlist_admin_required
+def add_playlist_collaborator(request, playlist):
+    """Assign editing access, promoting an existing student if necessary."""
+    return _assign_playlist_member(request, playlist, collaborator=True)
 
 
 @require_POST

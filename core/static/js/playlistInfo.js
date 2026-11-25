@@ -87,10 +87,10 @@ function setupPlaylistSettings() {
       }
       catch {
         displayUserMessage("warning", "The playlist settings were updated successfully, but the change could not be displayed. Please refresh the page.");
-      }
-      for (let input of inputs) {
-        if (input.isConnected) {
-          input.disabled = true;
+        for (let input of inputs) {
+          if (input.isConnected) {
+            input.disabled = false;
+          }
         }
       }
     }
@@ -200,7 +200,6 @@ function setupUnassignCourses() {
 
   const confirmButton = dialog.querySelector("#unassign-course-confirm");
   const description = dialog.querySelector("#unassign-course-description");
-  const errors = dialog.querySelector("#unassign-course-error");
   let courseToUnassign;
   let requestPending = false;
 
@@ -213,17 +212,14 @@ function setupUnassignCourses() {
       catalog_number: courseLine.dataset.catalogNumber,
       yearterm: semesterSelector.value
     };
-    const sections = courseLine.querySelector(".course-sections").textContent.trim();
     const semester = semesterSelector.selectedOptions[0].textContent.trim();
     description.textContent = `Remove ${courseToUnassign.dept} ${courseToUnassign.catalog_number}, and its sections from this playlist for ${semester}?`;
-    errors.hidden = true;
     confirmButton.disabled = requestPending;
   });
 
   dialog.addEventListener("close", () => {
     courseToUnassign = undefined;
     confirmButton.disabled = true;
-    errors.hidden = true;
   });
 
   confirmButton.addEventListener("click", async () => {
@@ -231,9 +227,8 @@ function setupUnassignCourses() {
     const target = courseToUnassign;
     requestPending = true;
     confirmButton.disabled = true;
-    errors.hidden = true;
 
-    const response = await fetch(confirmButton.dataset.unassignUrl, {
+    await fetch(confirmButton.dataset.unassignUrl, {
       method: "POST",
       headers: {
         "X-CSRFToken": getCSRFToken(),
@@ -245,8 +240,8 @@ function setupUnassignCourses() {
   });
 }
 
-function setupAssignIndividual() {
-  const dialog = document.getElementById("add-assigned-individual-modal");
+function setupAssignMember(dialogId) {
+  const dialog = document.getElementById(dialogId);
   if (!dialog) return;
 
   dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
@@ -260,40 +255,50 @@ function setupAssignIndividual() {
 
     const submitButton = form.querySelector("button[type='submit']");
     if (submitButton.disabled) return;
+    const errors = form.querySelector("[data-assignment-form-errors]");
     if (!form.elements.namedItem("user_id").value) {
       markInvalid(form.elements.namedItem("search"));
       return;
     }
 
     submitButton.disabled = true;
+    errors.hidden = true;
+    clearTimeout(searchTimeout);
+    ++requestId;
 
     try {
       const response = await fetch(form.action, {
         method: form.method,
-        body: new FormData(form)
+        body: new FormData(form),
       });
 
       if (response.status === 400) {
         const template = document.createElement("template");
         template.innerHTML = await response.text();
+
         const updatedForm = template.content.querySelector("form[data-individual-assignment-form]");
-        if (!updatedForm) throw new Error("No assignment form returned");
+        if (!updatedForm || updatedForm.id !== form.id) throw new Error("No matching assignment form returned");
+
         form.replaceWith(updatedForm);
         const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
         invalidFields.forEach(markInvalid);
         return;
       }
-      if (!response.ok) throw new Error("Assignment failed");
+      if (response.status !== 200) throw new Error("Assignment failed");
       window.location.reload();
     } catch {
-      dialog.close();
+      displayUserMessage("error", "Could not assign this person to the playlist. Please try again.")
       submitButton.disabled = false;
-      displayUserMessage("error", "An error occurred while atempting to assign the user to the playlist. Please refresh the page to continue.");
     }
   });
 
   let searchTimeout;
   let requestId = 0;
+
+  dialog.addEventListener("close", () => {
+    clearTimeout(searchTimeout);
+    ++requestId;
+  });
 
   dialog.addEventListener("input", (event) => {
     if (event.target.name !== "search") return;
@@ -314,7 +319,7 @@ function setupAssignIndividual() {
         const response = await fetch(form.dataset.searchUrl, {
           method: "POST",
           headers: { "X-CSRFToken": getCSRFToken() },
-          body
+          body,
         });
         if (!response.ok || response.redirected) throw new Error("Search failed");
         const html = await response.text();
@@ -322,8 +327,7 @@ function setupAssignIndividual() {
         results.innerHTML = html;
       } catch {
         if (currentRequest !== requestId || !results.isConnected) return;
-        errors.textContent = "Could not search for people. Please try again.";
-        errors.hidden = false;
+        displayUserMessage("error", "An error occurred while searching for a matching user. Please clear the search text and try again")
       }
     }, 300);
   });
@@ -344,85 +348,22 @@ function setupAssignIndividual() {
   });
 }
 
-function setupEditIndividual() {
-  const dialog = document.getElementById("edit-assigned-individual-modal");
-  const individualList = document.getElementById("assigned-individuals-list");
-  if (!dialog || !individualList) return;
-  let requestId = 0;
 
-  dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
-  dialog.addEventListener("input", clearInvalid);
-  dialog.addEventListener("change", clearInvalid);
-
-  individualList.addEventListener("click", async (event) => {
-    const button = event.target.closest(".assigned-individual-edit");
-    if (!button) return;
-    const currentRequest = ++requestId;
-    const container = dialog.querySelector("#edit-individual-form-container");
-    container.textContent = "Loading individual assignment…";
-    try {
-      const response = await fetch(button.dataset.editUrl);
-      if (!response.ok || response.redirected) throw new Error("Could not load assignment");
-      const html = await response.text();
-      if (currentRequest !== requestId || !dialog.open) return;
-      container.innerHTML = html;
-      if (!container.querySelector("form[data-edit-individual-form]")) {
-        throw new Error("No assignment form returned");
-      }
-    } catch {
-      if (currentRequest !== requestId || !dialog.open) return;
-      dialog.close();
-      displayUserMessage("error", "An error occurred while loading the individual's role. Please refresh the page to continue.");
-    }
-  });
-
-  dialog.addEventListener("submit", async (event) => {
-    const form = event.target;
-    if (!form.matches("[data-edit-individual-form]")) return;
-    event.preventDefault();
-    const submitButton = form.querySelector("button[type='submit']");
-    if (submitButton.disabled) return;
-    submitButton.disabled = true;
-    try {
-      const response = await fetch(form.action, {
-        method: form.method,
-        body: new FormData(form)
-      });
-      if (response.redirected) throw new Error("Unexpected redirect");
-      if (response.status === 400) {
-        const template = document.createElement("template");
-        template.innerHTML = await response.text();
-        const updatedForm = template.content.querySelector("form[data-edit-individual-form]");
-        if (!updatedForm) throw new Error("No assignment form returned");
-        form.replaceWith(updatedForm);
-        updatedForm.querySelectorAll("[aria-invalid='true']").forEach(markInvalid);
-        return;
-      }
-      if (!response.ok) throw new Error("Could not update role");
-      window.location.reload();
-    } catch {
-      dialog.close();
-      displayUserMessage("error", "An error occurred while updating the individual's role. Please refresh the page to continue.");
-    }
-  });
-}
-
-function setupUnassignIndividual() {
+function setupRemoveMember() {
   const dialog = document.getElementById("delete-assigned-individual-modal");
-  const individualList = document.getElementById("assigned-individuals-list");
-  if (!dialog || !individualList) return;
+  const pncContent = document.getElementById("playlist-publishing-and-collaborators-content");
+  if (!dialog || !pncContent) return;
   const confirmButton = dialog.querySelector("#unassign-individual-confirm");
   const description = dialog.querySelector("#unassign-individual-description");
   let removeUrl;
   let requestPending = false;
 
-  individualList.addEventListener("click", (event) => {
+  pncContent.addEventListener("click", (event) => {
     const button = event.target.closest(".assigned-individual-delete");
-    if (!button) return;
+    if (!button || button.disabled || requestPending) return;
     removeUrl = button.dataset.removeUrl;
-    const yearterm = document.getElementById("playlist-semester-selector").selectedOptions[0].textContent.trim();
-    description.textContent = `Remove ${button.dataset.individualName}'s access to this playlist from ${yearterm}?`;
-    confirmButton.disabled = requestPending;
+    description.textContent = `Remove ${button.dataset.individualName}'s direct access to this playlist?`;
+    confirmButton.disabled = false;
   });
 
   dialog.addEventListener("close", () => {
@@ -438,14 +379,14 @@ function setupUnassignIndividual() {
     try {
       const response = await fetch(target, {
         method: "POST",
-        headers: { "X-CSRFToken": getCSRFToken() }
+        headers: { "X-CSRFToken": getCSRFToken() },
       });
-      if (!response.ok || response.redirected) throw new Error("Could not remove individual");
+      if (!response.ok || response.redirected) throw new Error("Could not remove membership");
       window.location.reload();
     } catch {
+      displayUserMessage("error", "The user's access could not be removed. Please try again.");
       requestPending = false;
-      dialog.close();
-      displayUserMessage("error", "An error occurred while removing the individual from the playlist. Please refresh the page to continue.");
+      confirmButton.disabled = !removeUrl;
     }
   });
 }
@@ -456,9 +397,9 @@ function initialize() {
   setupDeletePlaylist();
   setupPlaylistSettings();
   setupAssignCourses();
-  setupAssignIndividual();
-  setupEditIndividual();
-  setupUnassignIndividual();
+  setupAssignMember("add-assigned-individual-modal");
+  setupAssignMember("add-assigned-collaborator-modal");
+  setupRemoveMember();
 
   setupUnassignCourses();
   const playlistNameWrapper = document.getElementById("playlist-name-wrapper");

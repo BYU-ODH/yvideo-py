@@ -92,9 +92,14 @@ urlpatterns = [
         name="add_playlist_member",
     ),
     path(
-        "playlists/<int:playlist_id>/members/<int:user_id>/role/",
-        views.update_playlist_member_role,
-        name="update_playlist_member_role",
+        "playlists/<int:playlist_id>/collaborators/search/",
+        views.playlist_collaborator_search,
+        name="playlist_collaborator_search",
+    ),
+    path(
+        "playlists/<int:playlist_id>/collaborators/add/",
+        views.add_playlist_collaborator,
+        name="add_playlist_collaborator",
     ),
     path(
         "playlists/<int:playlist_id>/members/<int:user_id>/remove/",
