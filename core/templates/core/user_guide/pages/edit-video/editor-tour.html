@@ -4,6 +4,17 @@
     <h2>The editor panels</h2>
     <p>The Overlay Editor is made up of five areas. Each is covered in detail elsewhere in this guide.</p>
     <div class="guide-panel">
+        {% include "core/user_guide/partials/screenshot.html" with caption="Schematic. Replace with the annotated editor screenshot." wide=True %}
+
+        <ol>
+            <li>Subtitle Editor Panel</li>
+            <li>Overlay Tool Selection Panel</li>
+            <li>Overlay Preview Window</li>
+            <li>Properties Panel</li>
+            <li>Timeline</li>
+        </ol>
+    </div>
+    <div class="guide-panel">
         <h3>Overlay Tool Selection Panel</h3>
         <p>
             This panel gives you access to all the tools and tool items you have available to modify the media you
@@ -15,7 +26,7 @@
         <h3>Subtitle Editor Panel</h3>
         <p>
             Replaces the tool panel when you switch to editing subtitles. See
-            <a href="{% url 'user_guide' 'subtitles' %}">Add subtitles</a>.
+            <a href="{% url 'user_guide' 'edit-video/subtitles' %}">Add subtitles</a>.
         </p>
         {% include "core/user_guide/partials/screenshot.html" with caption="Subtitle Editor Panel" %}
     </div>
@@ -23,7 +34,7 @@
         <h3>Overlay Preview window</h3>
         <p>
             Shows how your edits will affect the video. See
-            <a href="{% url 'user_guide' 'preview' %}">Preview your edits</a>.
+            <a href="{% url 'user_guide' 'edit-video/preview' %}">Preview your edits</a>.
         </p>
         {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Preview window" wide=True %}
     </div>
@@ -39,7 +50,7 @@
         <h3>Timeline</h3>
         <p>
             A visual summary of every tool item, used to select and move them. See
-            <a href="{% url 'user_guide' 'timeline' %}">Work with the timeline</a>.
+            <a href="{% url 'user_guide' 'edit-video/timeline' %}">Work with the timeline</a>.
         </p>
         {% include "core/user_guide/partials/screenshot.html" with caption="Timeline" wide=True %}
     </div>

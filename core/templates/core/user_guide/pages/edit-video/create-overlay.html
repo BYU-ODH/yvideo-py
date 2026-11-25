@@ -1,0 +1,51 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        An overlay is a set of edits applied on top of an original resource video. You can create several
+        overlays for the same video, for example one per course, and name each one so you can tell them apart.
+    </p>
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#create-a-new-overlay">Create a new overlay</a>
+        <a href="#rename-an-overlay">Rename an overlay</a>
+    </nav>
+    <h2 id="create-a-new-overlay">Create a new overlay</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Select a video</h3>
+            <p>In the desired playlist, select the video you want to edit.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Video in a playlist" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Select Edit Video</h3>
+            <p>
+                Near the top of the page, select <strong>Edit Video</strong>. When you want to return to the Overlay
+                Editor to continue work on this edit, follow the same steps.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“Edit Video” button" %}
+        </li>
+        <li class="guide-step">
+            <h3>Name the overlay</h3>
+            <p>
+                You will be asked to name that specific overlay. This will help differentiate it from other edits
+                that use the same original resource.
+            </p>
+            {% include "core/user_guide/partials/review_note.html" with note="Step 3 is blank in the latest edits. This is the previous step 3, kept until the new text is written." %}
+            {% include "core/user_guide/partials/screenshot.html" with caption="Overlay name prompt" %}
+        </li>
+    </ol>
+    <h2 id="rename-an-overlay">Rename an overlay</h2>
+    <p>The name you assign appears at the top left of the editor and can be changed at any time.</p>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Click the pen icon next to the name</h3>
+            <p>The pen icon is to the right of the overlay name, at the top of the Overlay Tool Selection Panel.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Name with pen and three-dot icons" %}
+        </li>
+        <li class="guide-step">
+            <h3>Type the new name and press Enter</h3>
+            <p>Once you have typed in a new name, use the <kbd>Enter</kbd> key to confirm it.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Name field in edit mode" %}
+        </li>
+    </ol>
+{% endblock %}

@@ -3,42 +3,73 @@
 {% block guide_content %}
     {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
 
-    <nav class="guide-toc" aria-label="On this page">
-        <a href="#add-to-library">Add a new video to your library</a>
-        <a href="#add-or-remove-in-playlist">Add or remove videos in a playlist</a>
-    </nav>
-    <h2 id="add-to-library">Add a new video to your library</h2>
+    <h2>Add a video to a playlist</h2>
     <ol class="guide-steps">
         <li class="guide-step">
-            <h3>Go to Your Videos</h3>
-            <p>Your Videos is a collection of all the videos you have ever added or edited.</p>
-            {% include "core/user_guide/partials/screenshot.html" with caption="Your Videos page" wide=True %}
+            <h3>Select a playlist</h3>
+            <p>Open the playlist page where you want the new video to be shared.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Playlist page" wide=True %}
         </li>
         <li class="guide-step">
-            <h3>Select “+ Add New Video”</h3>
-            <p>Follow the prompts to choose the original resource.</p>
-            {% include "core/user_guide/partials/screenshot.html" with caption="“+ Add New Video” button" %}
-        </li>
-    </ol>
-    <h2 id="add-or-remove-in-playlist">Add or remove videos in a playlist</h2>
-    <ol class="guide-steps">
-        <li class="guide-step">
-            <h3>Open the playlist and select “Add/Remove Videos”</h3>
-            <p>The button is in the row of actions below the playlist description.</p>
-            {% include "core/user_guide/partials/screenshot.html" with caption="Playlist action buttons" wide=True %}
+            <h3>Select Add New Video</h3>
+            <p>Click the <strong>Add New Video</strong> button.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“Add New Video” button" %}
         </li>
         <li class="guide-step">
-            <h3>Choose the videos to include</h3>
-            <p>
-                Select videos to add them, or deselect them to remove them from the playlist. Removing a video from a
-                playlist does not delete it from Your Videos.
-            </p>
-            {% include "core/user_guide/partials/screenshot.html" with caption="Add/Remove Videos selector" wide=True %}
+            <h3>Choose a source for the video</h3>
+            <p>After you select <strong>Add New Video</strong>, choose where the video comes from.</p>
+            <h4>A video already in Y Video</h4>
+            <ol>
+                <li>Select <strong>Create from existing resource</strong>.</li>
+                <li>Search for the video, then select it from the list.</li>
+                <li>Enter a title and select the version you want to use.</li>
+                <li>Select <strong>Create</strong>.</li>
+            </ol>
+            <h4>A YouTube video</h4>
+            <ol>
+                <li>Enter a name for the video in the <strong>Title</strong> field.</li>
+                <li>Paste the video’s link into the <strong>YouTube URL</strong> field.</li>
+                <li>Select <strong>Add YouTube Video</strong>.</li>
+            </ol>
+            <h4>A video that isn’t in Y Video yet</h4>
+            <ol>
+                <li>Select <strong>Request a new resource</strong>.</li>
+                <li>
+                    Search for the video by title or BYU barcode, then select <strong>Search</strong> to make sure it
+                    isn’t already in Y Video.
+                </li>
+                <li>If no results appear, complete the request form and follow the instructions.</li>
+                <li>
+                    You will be notified when the video is ready. You can then add it using
+                    <strong>Create from existing resource</strong>.
+                </li>
+            </ol>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Add New Video dialog" wide=True %}
         </li>
         <li class="guide-step">
-            <h3>Select “Save Changes”</h3>
-            <p>Each video now appears in the Videos list with its own Published toggle.</p>
-            {% include "core/user_guide/partials/screenshot.html" with caption="Videos list on the playlist page" wide=True %}
+            <h3>Customize the thumbnail</h3>
+            <h4>Background</h4>
+            <ul>
+                <li><strong>Solid color:</strong> Choose one of seven colors.</li>
+                <li>
+                    <strong>Video frame</strong> (Y Video resources only): Drag the slider below the preview to choose a
+                    frame. Use the arrows on either side of the slider for finer control.
+                </li>
+                <li><strong>YouTube</strong> (YouTube videos only): Use the video’s thumbnail from YouTube.</li>
+                <li>
+                    <strong>Upload:</strong> Upload your own image
+                    (<mark class="guide-placeholder">[ACCEPTED FILE TYPES AND SIZE LIMIT]</mark>).
+                </li>
+            </ul>
+            <h4>Text</h4>
+            <ul>
+                <li><strong>Text:</strong> Enter the text to show on the thumbnail. Leave it blank for no text.</li>
+                <li>
+                    <strong>Color:</strong> Choose white text with a black shadow or black text with a white shadow.
+                </li>
+                <li><strong>Size:</strong> Drag the slider to change the text size.</li>
+            </ul>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Thumbnail editor" wide=True %}
         </li>
     </ol>
 {% endblock %}

@@ -1,40 +1,21 @@
 {% extends "core/user_guide/base.html" %}
 
 {% block guide_content %}
-    <nav class="guide-toc" aria-label="On this page">
-        <a href="#whats-this-for">What’s this for?</a>
-        <a href="#project-window">Y Video Overlay Editor project window</a>
-        <a href="#what-do-you-want-to-do">What do you want to do?</a>
-    </nav>
-    <h2 id="whats-this-for">What’s this for?</h2>
-    {% include "core/user_guide/partials/review_note.html" with note="CHANGE THIS +++ (placeholder note from the original guide)" %}
-
     <p>
-        The Overlay Editor is where you can edit video content to suit the needs of your
-        students. The editor provides seven simple tools for you to modify your media: Skip,
-        Mute, Blank, Pause, Blur, Comment, and Clip.
+        Y Video lets BYU faculty and their teaching assistants customize videos for their courses. You can skip,
+        mute, or blur scenes, add comments, and edit subtitles to cater videos to your students. And you don’t
+        need any video editing experience to get started.
     </p>
     <p>
-        These tools are nondestructive, meaning they will not directly modify the video itself.
-        Copyright laws prohibit users from actually editing the original video file. Instead,
-        the editor creates an overlay that modifies how the media player shows the video. For
-        example, the “Skip” tool does not remove the selected section of the video, it instead
-        instructs the media player to automatically jump over that section. So, while the
-        original video is left unedited, the overlay you publish will show whatever you have
-        modified.
+        If you’re new to this version of Y Video, start with
+        <a href="{% url 'user_guide' 'getting-started' %}"><strong>Getting started</strong></a> for a quick
+        walkthrough of the basics.
     </p>
-    <h2 id="project-window">Y Video Overlay Editor project window</h2>
-    <div class="guide-panel">
-        {% include "core/user_guide/partials/screenshot.html" with caption="Schematic. Replace with the annotated editor screenshot." wide=True %}
-
-        <ol>
-            <li>Subtitle Editor Panel</li>
-            <li>Overlay Tool Selection Panel</li>
-            <li>Overlay Preview Window</li>
-            <li>Properties Panel</li>
-            <li>Timeline</li>
-        </ol>
-    </div>
-    <h2 id="what-do-you-want-to-do">What do you want to do?</h2>
+    <p>
+        If you run into a technical issue or find a bug, please contact the development team at
+        <mark class="guide-placeholder">[CONTACT EMAIL/FORM]</mark>. Include a brief description of what you were
+        doing, which page you were on, and a screenshot if possible.
+    </p>
+    <h2>What do you want to do?</h2>
     {% include "core/user_guide/partials/cards.html" %}
 {% endblock %}
