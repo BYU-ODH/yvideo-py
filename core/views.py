@@ -637,7 +637,7 @@ def render_course_assignment(request, playlist):
         return render_course_assignment_partial(request, playlist, f"{year}{semester}")
 
     except Exception as e:
-        logger.error(f"Failed to render course assignment information. Exception: {e}")
+        logger.exception(f"Failed to render course assignment information.")
         return HttpResponseServerError()
 
 
