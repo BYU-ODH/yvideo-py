@@ -453,7 +453,7 @@
     min-width: 0;
 }
 
-#annotation-set-owner, #subtitle-panel-content .subtitle-track-owner {
+#annotation-set-owner {
     font-size: 0.8rem;
     color: var(--dark-mode-text-color-dimmed);
 }

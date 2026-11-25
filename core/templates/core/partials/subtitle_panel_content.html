@@ -4,7 +4,6 @@
      data-can-edit="{{ can_edit|yesno:'true,false' }}"
      data-language="{{ subtitle_track.language.bcp47 }}">
     {% if subtitle_track %}
-        <p class="subtitle-track-owner">Owner: {{ subtitle_track.owner_label }}</p>
         {% if can_edit %}
             <div id="cue-far-wrapper" class="cue-far-hidden">
                 <div id="cue-far-header" class="row-flex flex-apart-aligned">

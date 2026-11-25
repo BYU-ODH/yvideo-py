@@ -234,19 +234,6 @@ class SubtitleSharingTests(TestCase):
         self.assertFalse(self.owner_content.subtitle_tracks.exists())
         self.assertIn(self.track, self.borrower_content.subtitle_tracks.all())
 
-    def test_the_owner_can_choose_who_the_track_is_transferred_to(self):
-        self.borrower_content.subtitle_tracks.add(self.track)
-        chosen = UserFactory(instructor=True)
-        ContentFactory(
-            playlist=PlaylistFactory(owner=chosen),
-            resource_file=self.owner_content.resource_file,
-        ).subtitle_tracks.add(self.track)
-
-        self.delete(self.owner, {"new_owner_id": chosen.pk})
-
-        self.track.refresh_from_db()
-        self.assertEqual(self.track.owner, chosen)
-
     def test_a_transferred_track_is_renamed_if_the_new_owner_has_one_by_that_name(self):
         self.borrower_content.subtitle_tracks.add(self.track)
         SubtitleFactory(

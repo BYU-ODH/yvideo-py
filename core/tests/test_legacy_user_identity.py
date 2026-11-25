@@ -1,7 +1,4 @@
 from io import StringIO
-from pathlib import Path
-import sqlite3
-import tempfile
 from unittest.mock import patch
 
 from django.core.management import call_command
@@ -11,37 +8,21 @@ from django.urls import reverse
 from core.api import ApiUnavailable
 from core.forms import AddUserLookupForm
 from core.legacy_migration import LegacySourceMap
-from core.legacy_migration.bulk_import import REQUIRED_COLUMNS
 from core.legacy_migration.bulk_import import LegacyBulkImporter
 from core.models import Playlist
 from core.models import PrivilegeLevel
 from core.models import User
+from core.testing import make_legacy_source
 from yvideo.odhOIDCAuthenticationBackend import OIDCUserAuth
 
 BYU_ID = "111222333"
-PERSON_ID = "999888777"
 
 
 class LegacyUserIdentityTests(TransactionTestCase):
     """Imported legacy users must end up as the account they log in to."""
 
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.source = Path(tmp.name) / "legacy.sqlite"
-        with sqlite3.connect(self.source) as db:
-            for table, columns in REQUIRED_COLUMNS.items():
-                names = ["id", "deleted", "created", "updated", *sorted(columns)]
-                db.execute(f'CREATE TABLE "{table}" ({", ".join(names)})')
-            db.execute(
-                "INSERT INTO users (id, username, byu_person_id, email, account_name, account_type)"
-                " VALUES ('u1', 'jdoe', ?, '', 'Jane Doe', 1)",
-                [PERSON_ID],
-            )
-            db.execute(
-                "INSERT INTO collections (id, collection_name, owner, published, archived)"
-                " VALUES ('c1', 'Spanish 101', 'u1', 'true', 'false')"
-            )
+        self.source = make_legacy_source(self)
 
     def _import(self):
         LegacyBulkImporter(source=self.source, yearterm="20265", commit=True).run()
