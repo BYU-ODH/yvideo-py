@@ -17,6 +17,7 @@ from django.utils.html import format_html
 from reversion.admin import VersionAdmin
 
 from .forms import AddUserLookupForm
+from .forms import ContentAdminForm
 from .forms import SubtitleAdminForm
 from .models import AnnotationSet
 from .models import AuthToken
@@ -924,6 +925,7 @@ class ResourceFileAdmin(AutocompleteTargetAdmin):
 @admin.register(Content)
 class ContentAdmin(AutocompleteTargetAdmin):
     label_related = ("playlist",)
+    form = ContentAdminForm
     list_select_related = ("playlist__owner", "resource")
     list_display = (
         "title",

@@ -287,19 +287,26 @@ def subtitle_track_choices(content, user):
     if not resource:
         return []
     attached_ids = set(content.subtitle_tracks.values_list("pk", flat=True))
-    return [
-        {
-            "subtitle": subtitle,
-            "attached": subtitle.pk in attached_ids,
-            "can_edit": subtitle.can_be_edited_by(user),
-            "can_delete": subtitle.can_be_administered_by(user),
-            "owner_label": subtitle.owner_label(),
-        }
-        for subtitle in Subtitle.objects.filter(resource=resource)
+    # Every track here shares one resource, so check resource access once rather
+    # than per track through can_be_read_by().
+    can_access_resource = user.can_access_resource(resource)
+    choices = []
+    for subtitle in (
+        Subtitle.objects.filter(resource=resource)
         .select_related("language", "owner")
         .order_by("name")
-        if subtitle.can_be_read_by(user)
-    ]
+    ):
+        can_edit = subtitle.can_be_edited_by(user)
+        if can_edit or can_access_resource:
+            choices.append(
+                {
+                    "subtitle": subtitle,
+                    "attached": subtitle.pk in attached_ids,
+                    "can_edit": can_edit,
+                    "can_delete": subtitle.can_be_administered_by(user),
+                }
+            )
+    return choices
 
 
 @require_POST

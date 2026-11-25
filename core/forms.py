@@ -118,6 +118,30 @@ class ClipForm(forms.ModelForm):
         return cleaned_data
 
 
+class ContentAdminForm(forms.ModelForm):
+    class Meta:
+        model = Content
+        fields = "__all__"
+
+    def clean(self):
+        # Content.clean() checks the other resource-bound fields, but it runs before
+        # many-to-many fields are saved, so it can't see the chosen subtitle tracks.
+        cleaned_data = super().clean()
+        resource_file = cleaned_data.get("resource_file")
+        resource = (
+            resource_file.resource if resource_file else cleaned_data.get("resource")
+        )
+        tracks = cleaned_data.get("subtitle_tracks") or []
+        if any(
+            resource is None or track.resource_id != resource.pk for track in tracks
+        ):
+            self.add_error(
+                "subtitle_tracks",
+                "Subtitle tracks must belong to this content's resource.",
+            )
+        return cleaned_data
+
+
 class SubtitleAdminForm(forms.ModelForm):
     subtitles_file = forms.FileField(allow_empty_file=True)
     subtitles_temp_file = forms.FileField(required=False, allow_empty_file=True)

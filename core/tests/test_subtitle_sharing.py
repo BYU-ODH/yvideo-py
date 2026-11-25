@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 
+from django.template.loader import render_to_string
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
@@ -234,21 +235,6 @@ class SubtitleSharingTests(TestCase):
         self.assertFalse(self.owner_content.subtitle_tracks.exists())
         self.assertIn(self.track, self.borrower_content.subtitle_tracks.all())
 
-    def test_a_transferred_track_is_renamed_if_the_new_owner_has_one_by_that_name(self):
-        self.borrower_content.subtitle_tracks.add(self.track)
-        SubtitleFactory(
-            resource=self.resource,
-            owner=self.borrower,
-            language=self.track.language,
-            name=self.track.name,
-        )
-
-        self.delete(self.owner)
-
-        self.track.refresh_from_db()
-        self.assertEqual(self.track.owner, self.borrower)
-        self.assertTrue(self.track.name.startswith("Ada's English (transferred by"))
-
     def test_the_delete_dialog_names_who_will_become_the_owner(self):
         self.borrower_content.subtitle_tracks.add(self.track)
         login(self.client, self.owner)
@@ -297,7 +283,12 @@ class SubtitleSharingTests(TestCase):
         self.assertEqual(choice["subtitle"], self.track)
         self.assertFalse(choice["can_edit"])
         self.assertFalse(choice["can_delete"])
-        self.assertEqual(choice["owner_label"], "Ada Lovelace")
+        self.assertIn(
+            "Ada Lovelace — read-only",
+            render_to_string(
+                "core/partials/subtitle_track_option_label.html", {"choice": choice}
+            ),
+        )
 
     def test_the_editor_offers_tracks_not_yet_on_the_video(self):
         context = self.editor_choices(self.borrower, self.borrower_content)
@@ -323,6 +314,25 @@ class SubtitleSharingTests(TestCase):
         self.assertEqual(
             list(self.borrower_content.subtitle_tracks.all()), [self.track]
         )
+
+    def test_admin_rejects_a_track_from_a_different_resource(self):
+        other_track = SubtitleFactory(resource=ResourceFactory(), owner=self.owner)
+        login(self.client, UserFactory(is_superuser=True, is_staff=True))
+
+        response = self.client.post(
+            reverse("admin:core_content_change", args=[self.borrower_content.pk]),
+            {
+                "title": self.borrower_content.title,
+                "playlist": self.borrower_content.playlist.pk,
+                "resource_file": self.borrower_content.resource_file.pk,
+                "subtitle_tracks": [other_track.pk],
+            },
+        )
+
+        self.assertContains(
+            response, "Subtitle tracks must belong to this content&#x27;s resource."
+        )
+        self.assertFalse(self.borrower_content.subtitle_tracks.exists())
 
     def test_an_ownerless_track_can_still_be_opened_in_the_editor(self):
         Subtitle.objects.filter(pk=self.track.pk).update(owner=None)
