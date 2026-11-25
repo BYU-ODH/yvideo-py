@@ -148,7 +148,7 @@ def content_with_every_annotation_type(seeded_demo_data):
         end_time=10.0,
     )
     BlankAnnotationFactory(
-        track=second, name="A11y Blank", start_time=1.0, end_time=2.0
+        track=second, name="A11y Blank", start_time=3.0, end_time=4.0
     )
     PauseAnnotation.objects.create(
         track=second,

@@ -625,8 +625,6 @@ class AnnotationSetCreateForContentTests(TestCase):
             # check for annotation type specific attributes
             if orig_type == "pause":
                 self.assertTrue(orig_annotation["message"] == new_annotation["message"])
-            elif orig_type == "blank":
-                self.assertTrue(orig_annotation["type"] == new_annotation["type"])
             elif orig_type == "comment":
                 self.assertTrue(orig_annotation["text"] == new_annotation["text"])
                 for field in ("x", "y", "width"):
