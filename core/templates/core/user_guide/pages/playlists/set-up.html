@@ -1,0 +1,40 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <h2>Create a playlist</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Go to Your Playlists</h3>
+            <p>
+                Select Playlists in the top navigation bar. Your Playlists lists every playlist you own, with its
+                visibility and number of videos.
+            </p>
+            {% include "core/user_guide/partials/review_note.html" with note="Will there be a separate home page, or is My Playlists the home page?" %}
+            {% include "core/user_guide/partials/screenshot.html" with caption="Your Playlists page" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Select “+ Create New Playlist”</h3>
+            <p>A new, empty playlist opens.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="“+ Create New Playlist” button" %}
+        </li>
+        <li class="guide-step">
+            <h3>Name the playlist</h3>
+            <p>
+                When you create a new playlist, you must assign it a name. This name is what it will appear as to your
+                students.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Playlist name field" %}
+        </li>
+        <li class="guide-step">
+            <h3>Assign the playlist’s thumbnail</h3>
+            <p>
+                By default, the thumbnail will be assigned a solid color background with white text. You can customize
+                the background color or upload your own image. You can also adjust the text that appears, as well as
+                its color and size.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Thumbnail editor" wide=True %}
+        </li>
+    </ol>
+{% endblock %}

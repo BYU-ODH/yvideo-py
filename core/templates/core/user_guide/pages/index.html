@@ -1,0 +1,21 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        Y Video lets BYU faculty and their teaching assistants customize videos for their courses. You can skip,
+        mute, or blur scenes, add comments, and edit subtitles to cater videos to your students. And you don’t
+        need any video editing experience to get started.
+    </p>
+    <p>
+        If you’re new to this version of Y Video, start with
+        <a href="{% url 'user_guide' 'getting-started' %}"><strong>Getting started</strong></a> for a quick
+        walkthrough of the basics.
+    </p>
+    <p>
+        If you run into a technical issue or find a bug, please contact the development team at
+        <mark class="guide-placeholder">[CONTACT EMAIL/FORM]</mark>. Include a brief description of what you were
+        doing, which page you were on, and a screenshot if possible.
+    </p>
+    <h2>What do you want to do?</h2>
+    {% include "core/user_guide/partials/cards.html" %}
+{% endblock %}

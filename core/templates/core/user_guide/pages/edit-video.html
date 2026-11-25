@@ -1,0 +1,18 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        Use the <strong>Overlay Editor</strong> to edit the original video to suit the needs of your students. The
+        editor provides seven tools you can use to modify the video.
+    </p>
+    <p>
+        <strong>Note:</strong> These tools are nondestructive, meaning they do not change the video itself. Copyright
+        laws prohibit users from actually editing the original resource. Instead, the editor creates an overlay that
+        modifies how the media player shows the video. For example, the <strong>Skip</strong> tool does not remove the
+        selected section of the video, it instead instructs the media player to automatically jump over that section.
+        The original video is left unedited, but the overlays you publish in your playlists will show whatever you have
+        modified.
+    </p>
+    <h2>In this section</h2>
+    {% include "core/user_guide/partials/cards.html" %}
+{% endblock %}

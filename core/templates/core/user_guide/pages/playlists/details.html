@@ -1,0 +1,22 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <h2>Playlist details</h2>
+    <div class="guide-panel">
+        <h3>Title and description</h3>
+        <p>Click the pen icon next to the playlist title to rename it and edit the description.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Playlist title and description" wide=True %}
+    </div>
+    <div class="guide-panel">
+        <h3>Change thumbnail</h3>
+        <p>Select <strong>Change Thumbnail</strong> to choose the image shown on the playlist card.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Change Thumbnail” button" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Duplicate</h3>
+        <p>Select <strong>Duplicate</strong> to make a copy of the playlist, for example to reuse it in a new semester.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Duplicate” button" %}
+    </div>
+{% endblock %}

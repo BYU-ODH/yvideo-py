@@ -1,0 +1,70 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        If you used Y Video before, you can see a summary of what’s changed on this
+        <a href="https://odh.byu.edu/blog/meet-the-new-y-video/">ODH blog post</a>.
+    </p>
+    <p>
+        Follow these steps to set up your first playlist and share edited videos with your students. For details
+        on any step, see the rest of this guide.
+    </p>
+    <h2>Publish your first playlist</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Create a playlist</h3>
+            <p>
+                Everything in Y Video starts with a playlist, which is a collection of one or more videos. You need a
+                playlist before you can add or edit videos, and your playlist settings also control who can see your
+                videos and who can collaborate with you.
+            </p>
+        </li>
+        <li class="guide-step">
+            <h3>Add videos</h3>
+            <p>
+                Click <strong>Add New Video</strong>, then select <strong>Create from existing resource</strong>. If
+                the video isn’t in Y Video yet, select <strong>Request a new resource</strong> and fill out the form.
+                An administrator will ask you to verify that you or the Library owns the video. You will then be
+                notified when it’s ready for use. You can also add a video from YouTube by pasting the YouTube URL into
+                the <strong>YouTube URL</strong> text field.
+            </p>
+        </li>
+        <li class="guide-step">
+            <h3>Edit your video</h3>
+            <p>
+                From your playlist, open the video’s details page and click <strong>Edit your video</strong> to open
+                the Overlay Editor. Your edits are overlays: they change how a student sees the video, but the
+                original file is never altered.
+            </p>
+            <ul>
+                <li>
+                    <strong>Overlay tools:</strong> Add any of the seven tools (Skip, Mute, Blank, Pause, Blur, Comment,
+                    and Clip) to the timeline, then adjust each one using its properties.
+                </li>
+                <li>
+                    <strong>Subtitles:</strong> Edit the video’s original subtitle track or create a new one from scratch.
+                </li>
+            </ul>
+        </li>
+        <li class="guide-step">
+            <h3>Publish your playlist</h3>
+            <p>
+                When your videos are ready, go to the <strong>Playlist Details</strong> page and assign the playlist to
+                specific courses or individuals, such as students auditing the class.
+            </p>
+        </li>
+        <li class="guide-step">
+            <h3>Collaborate (optional)</h3>
+            <p>
+                To work with TAs or other faculty, you can assign individuals to be collaborators on a playlist, or
+                export and import specific overlays.
+            </p>
+        </li>
+    </ol>
+    <p>
+        The rest of this guide covers each step in detail, starting with
+        <a href="{% url 'user_guide' 'playlists/set-up' %}"><strong>Set up a playlist</strong></a>. If you get
+        stuck or find a bug, contact the development team at
+        <mark class="guide-placeholder">[CONTACT EMAIL/FORM]</mark>.
+    </p>
+{% endblock %}

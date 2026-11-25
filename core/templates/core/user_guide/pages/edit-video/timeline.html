@@ -1,0 +1,70 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    <p>
+        The timeline is a visual summary of all the tool items you have used to change the media. It shows the
+        location and duration of every tool item and can be used to easily select and move each of them.
+    </p>
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#timeline-tracks">Timeline tracks</a>
+        <a href="#edit-tool-items">Edit tool items on the timeline</a>
+        <a href="#scrub-head">Timeline Scrub Head</a>
+        <a href="#zoom-and-scroll">Zoom and scroll</a>
+    </nav>
+    <h2 id="timeline-tracks">Timeline tracks</h2>
+    <div class="guide-panel">
+        <h3>Organize tool items on tracks</h3>
+        <p>
+            Timeline tracks act as separate layers that can help organize your tool items. When you create a new
+            overlay, it has one track by default. Use “+ New Track” to add another.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Track 1, Track 2, and “+ New Track”" wide=True %}
+    </div>
+    <h2 id="edit-tool-items">Edit tool items on the timeline</h2>
+    <p>Each tool item is represented in the timeline by a colored block labeled with the item’s name.</p>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Select an item</h3>
+            <p>Click its block. Its settings appear in the Properties Panel under the matching name.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Selected timeline block" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Change its Start and End Times</h3>
+            <p>Click and drag the handles on either end of the colored block.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Dragging a block handle" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Move it</h3>
+            <p>
+                Click anywhere between the handles and drag it to another location on the timeline, or onto
+                another track.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Dragging a block to another track" wide=True %}
+        </li>
+    </ol>
+    <h2 id="scrub-head">Timeline Scrub Head</h2>
+    <div class="guide-panel">
+        <h3>Find your place in the video</h3>
+        <p>
+            The Scrub Head on the timeline is synced with the Scrub Head on the Overlay Preview controls. Both
+            indicate the current location of the video. For the exact location, refer to the Timecode.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Timeline Scrub Head" wide=True %}
+    </div>
+    <h2 id="zoom-and-scroll">Zoom and scroll</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Zoom in for precise adjustments</h3>
+            <p>Timeline Zoom increases the length of the timeline so tool items appear longer.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Timeline Zoom control" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Scroll to see the rest of the timeline</h3>
+            <p>
+                When zoomed in, click and drag the Timeline Scroll Bar to reach parts of the timeline beyond the
+                visible area.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Timeline Scroll Bar" wide=True %}
+        </li>
+    </ol>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <h2>Video details</h2>
+    <p>These settings are on the Original Resource Video page.</p>
+    <div class="guide-panel">
+        <h3>Make Available To Faculty</h3>
+        <p>Turn this toggle on to let other faculty find and use the video.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Make Available To Faculty” toggle" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Available Languages</h3>
+        <p>Choose the languages available for the video from the dropdown.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Available Languages dropdown" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Renew Permission</h3>
+        <p>
+            Each video has an Approve Date and an Expire Date. Select “Renew Permission” to request an extension
+            before the video expires.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Renew Permission button with Approve and Expire dates" wide=True %}
+    </div>
+{% endblock %}

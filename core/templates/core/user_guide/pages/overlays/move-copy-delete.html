@@ -1,0 +1,49 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#overlays">Overlays</a>
+        <a href="#playlists-and-videos">Playlists and videos</a>
+    </nav>
+    <h2 id="overlays">Overlays</h2>
+    <p>On Your Videos, select an overlay to see its Publishing Details and actions.</p>
+    <div class="guide-panel">
+        <h3>Edit, Move, or Copy</h3>
+        <p>Edit opens the overlay in the editor. Move and Copy place the overlay in a different playlist.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Overlay card with Edit, Move, Copy, Delete" wide=True %}
+    </div>
+    <div class="guide-panel">
+        <h3>Delete an overlay</h3>
+        <p>Select Delete. Students in any playlist that uses this overlay will lose access to it.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Overlay Delete button" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Unpublish All</h3>
+        <p>
+            On the Original Resource Video page, “Unpublish All” hides every overlay of that video from students
+            without deleting them.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="“Unpublish All” button" %}
+    </div>
+    <h2 id="playlists-and-videos">Playlists and videos</h2>
+    <div class="guide-panel">
+        <h3>Archive a playlist</h3>
+        <p>
+            Select “Archive” on the playlist page. Archived playlists move to the Archive section on Home, where
+            you can restore them later.
+        </p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Playlist “Archive” button and Home Archive card" wide=True %}
+    </div>
+    <div class="guide-panel">
+        <h3>Delete a playlist</h3>
+        <p>Select “Delete” on the playlist page.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Playlist “Delete” button" %}
+    </div>
+    <div class="guide-panel">
+        <h3>Delete a video</h3>
+        <p>Select “Delete” on the Original Resource Video page.</p>
+        {% include "core/user_guide/partials/screenshot.html" with caption="Video “Delete” button" %}
+    </div>
+{% endblock %}

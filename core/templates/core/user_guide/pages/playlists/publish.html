@@ -1,0 +1,48 @@
+{% extends "core/user_guide/base.html" %}
+
+{% block guide_content %}
+    {% include "core/user_guide/partials/review_note.html" with note="Placeholder content drafted from the current app designs. Confirm each step against the live app and replace the placeholder screenshots." %}
+
+    <nav class="guide-toc" aria-label="On this page">
+        <a href="#add-courses-and-individuals">Add courses and individuals</a>
+        <a href="#remove-courses-or-individuals">Remove courses or individuals</a>
+    </nav>
+    <h2 id="add-courses-and-individuals">Add courses and individuals</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Select Playlist</h3>
+            <p>Select the playlist you want to publish to your students.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Playlist page" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Find Publishing Details</h3>
+            <p>
+                Find the <strong>Publishing Details</strong> to the right of the list of videos. This lists everyone who
+                can view the playlist.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Publishing Details panel" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Add a course and its sections</h3>
+            <p>
+                Select <strong>Add Course</strong>. A modal will appear where you can select the semester from a
+                dropdown. Once a semester is selected, you can search for the course. Enter the sections that should see
+                the playlist. If no sections are entered, it will default to all of them.
+            </p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Add Course modal" wide=True %}
+        </li>
+        <li class="guide-step">
+            <h3>Confirm courses</h3>
+            {% include "core/user_guide/partials/review_note.html" with note="Text for this step has not been written yet." %}
+            {% include "core/user_guide/partials/screenshot.html" with caption="Confirmed course in Publishing Details" %}
+        </li>
+    </ol>
+    <h2 id="remove-courses-or-individuals">Remove courses or individuals</h2>
+    <ol class="guide-steps">
+        <li class="guide-step">
+            <h3>Select the trash icon on the course row</h3>
+            <p>Students in that course will no longer see the playlist after you save.</p>
+            {% include "core/user_guide/partials/screenshot.html" with caption="Course row trash icon" %}
+        </li>
+    </ol>
+{% endblock %}

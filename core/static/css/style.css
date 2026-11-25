@@ -23,6 +23,32 @@
     --side-bar-width: 15rem;
     --box-shadow-color: #00000075;
     --basic-border-radius: 8px;
+
+    /* Annotation type colors, shared by the editor and the user guide. */
+    --skip-type-color: #DC643B;
+    --skip-type-color-transparent: #DC643B75;
+    --skip-type-color-very-transparent: #DC643B50;
+    --blank-type-color: #988656;
+    --blank-type-color-transparent: #98865675;
+    --blank-type-color-very-transparent: #98865650;
+    --pause-type-color: #6E83DB;
+    --pause-type-color-transparent: #6E83DB75;
+    --pause-type-color-very-transparent: #6E83DB50;
+    --clip-type-color: #778A99;
+    --clip-type-color-transparent: #778A9975;
+    --clip-type-color-very-transparent: #778A9950;
+    --mute-type-color: #EBBF81;
+    --mute-type-color-transparent: #EBBF8175;
+    --mute-type-color-very-transparent: #EBBF8150;
+    --blur-type-color: #9479CD;
+    --blur-type-color-transparent: #9479CD80;
+    --blur-type-color-very-transparent: #9479CD50;
+    --comment-type-color: #449964;
+    --comment-type-color-transparent: #44996475;
+    --comment-type-color-very-transparent: #44996450;
+    --subtitle-type-color: #E2529C;
+    --subtitle-type-color-transparent: #E2529C75;
+    --subtitle-type-color-very-transparent: #E2529C50;
 }
 
 * {
