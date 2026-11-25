@@ -1,34 +1,37 @@
 {% with form_prefix=course_form_prefix|default:"assign-courses" %}
-<form id="{{ form_prefix }}-form"
-      method="post"
-      data-course-assignment-form
-      action="{% if editing_courses %}{% url 'update_playlist_course_sections' playlist.id %}{% else %}{% url 'assign_playlist_to_course' playlist.id %}{% endif %}">
-    {% csrf_token %}
-
-    <div id="{{ form_prefix }}-errors" data-course-form-errors role="alert" tabindex="-1" hidden></div>
-    {{ assign_courses_form.non_field_errors }}
-    {% for field in assign_courses_form.hidden_fields %}
-        {{ field.errors }}
-        {{ field }}
-    {% endfor %}
-    <div id="{{ form_prefix }}-fields-list" class="column-flex">
-        {% for field in assign_courses_form.visible_fields %}
-            <div class="playlist-field-wrapper">
-                {{ field.label_tag }}
-                {{ field }}
-                {{ field.errors }}
-                {% if field.help_text %}
-                    <p id="{{ field.auto_id }}_helptext" class="playlist-field-helptext">{{ field.help_text }}</p>
-                {% endif %}
-            </div>
+    <form id="{{ form_prefix }}-form"
+          method="post"
+          data-course-assignment-form
+          action="{% if editing_courses %}{% url 'update_playlist_course_sections' playlist.id %}{% else %}{% url 'assign_playlist_to_course' playlist.id %}{% endif %}">
+        {% csrf_token %}
+        <div id="{{ form_prefix }}-errors"
+             data-course-form-errors
+             role="alert"
+             tabindex="-1"
+             hidden></div>
+        {{ assign_courses_form.non_field_errors }}
+        {% for field in assign_courses_form.hidden_fields %}
+            {{ field.errors }}
+            {{ field }}
         {% endfor %}
-    </div>
-    <div class="row-flex flex-apart-aligned">
-        <button type="submit" class="white-button-with-border">{% if editing_courses %}Save{% else %}Assign{% endif %}</button>
-        <button type="button"
-                class="cancel-button"
-                command="close"
-                commandfor="{{ dialog_id }}">Cancel</button>
-    </div>
-</form>
+        <div id="{{ form_prefix }}-fields-list" class="column-flex">
+            {% for field in assign_courses_form.visible_fields %}
+                <div class="playlist-field-wrapper">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {{ field.errors }}
+                    {% if field.help_text %}
+                        <p id="{{ field.auto_id }}_helptext" class="playlist-field-helptext">{{ field.help_text }}</p>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        <div class="row-flex flex-apart-aligned">
+            <button type="submit" class="white-button-with-border">{% if editing_courses %}Save{% else %}Assign{% endif %}</button>
+            <button type="button"
+                    class="cancel-button"
+                    command="close"
+                    commandfor="{{ dialog_id }}">Cancel</button>
+        </div>
+    </form>
 {% endwith %}

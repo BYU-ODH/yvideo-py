@@ -1,6 +1,7 @@
 {% load static %}
 
-<div id="{{ membership_list_id|default:'assigned-individuals-list' }}" data-playlist-membership-list>
+<div id="{{ membership_list_id|default:'assigned-individuals-list' }}"
+     data-playlist-membership-list>
     {% if individual_accesses %}
         <div class="playlist-assignment-category-header">
             <p>Name</p>
@@ -18,8 +19,8 @@
                         command="show-modal"
                         commandfor="delete-assigned-individual-modal"
                         {% if not can_remove %}disabled{% endif %}>
-                            <img src="{% static 'img/trash-red.svg' %}" alt="T">
-                        </button>
+                    <img src="{% static 'img/trash-red.svg' %}" alt="T">
+                </button>
             </div>
         </div>
     {% empty %}

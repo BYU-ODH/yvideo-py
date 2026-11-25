@@ -7,7 +7,9 @@
     {{ form.non_field_errors }}
     {% if can_edit %}
         <div class="playlist-form-group">
-            <label aria-disabled="{% if form.archived.value == True %}True{% else %}False{% endif %}" for="{{ form.published.id_for_label }}" class="playlist-setting-checkbox-button {% if form.published.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
+            <label aria-disabled="{% if form.archived.value == True %}True{% else %}False{% endif %}"
+                   for="{{ form.published.id_for_label }}"
+                   class="playlist-setting-checkbox-button {% if form.published.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
                 {% if form.published.value == True %}Unpublish{% else %}Publish{% endif %}
                 <input type="checkbox"
                        id="{{ form.published.id_for_label }}"
@@ -18,7 +20,8 @@
             </label>
         </div>
         <div class="playlist-form-group">
-            <label for="{{ form.archived.id_for_label }}" class="playlist-setting-checkbox-button {% if form.archived.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
+            <label for="{{ form.archived.id_for_label }}"
+                   class="playlist-setting-checkbox-button {% if form.archived.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
                 {% if form.archived.value == True %}Unarchive{% else %}Archive{% endif %}
                 <input type="checkbox"
                        id="{{ form.archived.id_for_label }}"
@@ -26,13 +29,13 @@
                        name="{{ form.archived.name }}"
                        {% if form.archived.value == True %} checked {% endif %}>
             </label>
-
         </div>
     {% endif %}
     {% if user.is_ic_editor %}
         <div class="playlist-form-group">
             <div class="label-with-info">
-                <label for="{{ form.is_ic.id_for_label }}" class="playlist-setting-checkbox-button {% if form.is_ic.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
+                <label for="{{ form.is_ic.id_for_label }}"
+                       class="playlist-setting-checkbox-button {% if form.is_ic.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
                     {% if form.is_ic.value == True %}Unmark as IC playlist{% else %}Mark as IC playlist{% endif %}
                     <input type="checkbox"
                            id="{{ form.is_ic.id_for_label }}"
