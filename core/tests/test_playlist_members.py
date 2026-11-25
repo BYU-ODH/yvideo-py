@@ -212,7 +212,12 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             self.add_url(),
             {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 400)
+        self.assertFormError(
+            response.context["assign_individual_form"],
+            "role",
+            "Select a valid choice. 0 is not one of the available choices.",
+        )
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 user=self.outsider, playlist=self.playlist
@@ -223,7 +228,12 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
         response = self.client.post(
             self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 400)
+        self.assertFormError(
+            response.context["edit_individual_form"],
+            "role",
+            "Select a valid choice. 0 is not one of the available choices.",
+        )
         self.assertEqual(self.role_of(self.student), PlaylistRole.STUDENT)
 
     def test_a_collaborator_may_not_demote_another_collaborator(self):
@@ -344,7 +354,7 @@ class MemberSearchTests(PlaylistMemberTestCase):
         self.assertIn(b"Keep typing", response.content)
 
 
-class AddingByIdentifierTests(PlaylistMemberTestCase):
+class AddingSelectedPersonTests(PlaylistMemberTestCase):
 
     def setUp(self):
         super().setUp()
@@ -356,12 +366,18 @@ class AddingByIdentifierTests(PlaylistMemberTestCase):
         )
 
 
-    def test_neither_a_pick_nor_a_typed_identifier_asks_for_one(self):
+    def test_a_missing_selection_asks_for_a_person(self):
+        initial_count = self.playlist.playlistuseraccess_set.count()
         with patch("core.forms.Api") as api:
             response = self.add()
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b"Search for a person", response.content)
+        self.assertFormError(
+            response.context["assign_individual_form"],
+            "user_id",
+            "Select a person from the search results.",
+        )
+        self.assertEqual(self.playlist.playlistuseraccess_set.count(), initial_count)
         api.assert_not_called()
 
 
@@ -370,10 +386,16 @@ class AddingByIdentifierTests(PlaylistMemberTestCase):
         doomed_pk = doomed.pk
         doomed.delete()
 
+        initial_count = self.playlist.playlistuseraccess_set.count()
         response = self.add(user_id=doomed_pk)
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b"no longer has an account", response.content)
+        self.assertFormError(
+            response.context["assign_individual_form"],
+            "user_id",
+            "Select a valid person from the search results.",
+        )
+        self.assertEqual(self.playlist.playlistuseraccess_set.count(), initial_count)
 
 
 

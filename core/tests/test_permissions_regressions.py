@@ -105,14 +105,13 @@ class StrangerIsRefusedTests(TestCase):
         )
 
     def test_assign_playlist_to_course_refuses_a_stranger(self):
-        response = self.post_json(
+        response = self.client.post(
             reverse("assign_playlist_to_course", args=[self.playlist.pk]),
             {
                 "dept": "SPAN",
                 "catalog_number": "101",
-                "sections": ["001"],
-                "year": "2026",
-                "semester": "5",
+                "sections": "001",
+                "yearterm": "20265",
             },
         )
 
@@ -123,14 +122,15 @@ class StrangerIsRefusedTests(TestCase):
         course = CourseFactory(dept="SPAN", catalog_number="101", section_number="001")
         self.playlist.courses.add(course)
 
-        response = self.post_json(
+        response = self.client.post(
             reverse("update_playlist_course_sections", args=[self.playlist.pk]),
             {
                 "dept": "SPAN",
                 "catalog_number": "101",
-                "sections": ["002"],
-                "year": course.yearterm[:4],
-                "semester": course.yearterm[4:],
+                "sections": "002",
+                "yearterm": course.yearterm,
+                "original_dept": course.dept,
+                "original_catalog_number": course.catalog_number,
             },
         )
 
@@ -146,8 +146,7 @@ class StrangerIsRefusedTests(TestCase):
             {
                 "dept": "SPAN",
                 "catalog_number": "101",
-                "year": course.yearterm[:4],
-                "semester": course.yearterm[4:],
+                "yearterm": course.yearterm,
             },
         )
 
@@ -615,8 +614,9 @@ class CollaboratorTests(TestCase):
 
     def test_a_collaborator_may_rename_the_playlist(self):
         response = self.client.post(
-            reverse("update_playlist_settings", args=[self.playlist.pk]),
-            data={"name": "Renamed by collaborator", "published": "on", "archived": ""},
+            reverse("update_playlist_name", args=[self.playlist.pk]),
+            data=json.dumps({"new_value": "Renamed by collaborator"}),
+            content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 200)
@@ -626,20 +626,24 @@ class CollaboratorTests(TestCase):
     def test_a_collaborator_may_assign_a_course(self):
         response = self.client.post(
             reverse("assign_playlist_to_course", args=[self.playlist.pk]),
-            data=json.dumps(
-                {
-                    "dept": "SPAN",
-                    "catalog_number": "101",
-                    "sections": ["001"],
-                    "year": "2026",
-                    "semester": "5",
-                }
-            ),
-            content_type="application/json",
+            data={
+                "dept": "SPAN",
+                "catalog_number": "101",
+                "sections": "001",
+                "yearterm": "20265",
+            },
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(self.playlist.courses.exists())
+        self.assertEqual(response.json(), {"success": True})
+        self.assertEqual(
+            list(
+                self.playlist.courses.values_list(
+                    "dept", "catalog_number", "section_number", "yearterm"
+                )
+            ),
+            [("SPAN", "101", "001", "20265")],
+        )
 
     def test_a_collaborator_may_open_the_editor(self):
         response = self.client.get(reverse("video_editor", args=[self.content.pk]))
