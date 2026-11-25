@@ -1,0 +1,21 @@
+# Each dependency change pushes a new CI image tag (see the ci-image job in tests.yaml).
+# Deleting an image a branch still needs is harmless: its next run rebuilds it.
+name: Clean up old CI images
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/delete-package-versions@v5
+      with:
+        package-name: yvideo-py-ci
+        package-type: container
+        min-versions-to-keep: 10
